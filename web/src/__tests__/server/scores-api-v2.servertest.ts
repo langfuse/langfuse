@@ -268,7 +268,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
       let newProjectId: string;
       let executionTraceId: string;
 
-      beforeEach(async () => {
+      beforeAll(async () => {
         const { projectId, auth } = await createOrgProjectAndApiKey();
         authentication = auth;
         newProjectId = projectId;
@@ -296,24 +296,24 @@ describe("/api/public/v2/scores API Endpoint", () => {
           environment: "production",
         });
 
-        await createTracesCh([trace, trace_2, trace_3]);
-
         const generation = createObservation({
           id: generationId,
           project_id: newProjectId,
           type: "GENERATION",
         });
 
-        await createObservationsCh([generation]);
-
-        const config = await prisma.scoreConfig.create({
-          data: {
-            name: scoreName,
-            dataType: "NUMERIC",
-            maxValue: 100,
-            projectId: newProjectId,
-          },
-        });
+        const [config] = await Promise.all([
+          prisma.scoreConfig.create({
+            data: {
+              name: scoreName,
+              dataType: "NUMERIC",
+              maxValue: 100,
+              projectId: newProjectId,
+            },
+          }),
+          createTracesCh([trace, trace_2, trace_3]),
+          createObservationsCh([generation]),
+        ]);
 
         configId = config.id;
 
@@ -667,8 +667,13 @@ describe("/api/public/v2/scores API Endpoint", () => {
         let sessionScoreWithEnvId: string;
         let sessionScoreDefaultEnvId: string;
         let traceScoreWithEnvId: string;
+        let environmentProjectId: string;
+        let environmentAuth: string;
 
         beforeEach(async () => {
+          const { projectId, auth } = await createOrgProjectAndApiKey();
+          environmentProjectId = projectId;
+          environmentAuth = auth;
           sessionScoreWithEnvId = v4();
           sessionScoreDefaultEnvId = v4();
           traceScoreWithEnvId = v4();
@@ -676,7 +681,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
           // Session score with 'staging' environment
           const sessionScoreWithEnv = createSessionScore({
             id: sessionScoreWithEnvId,
-            project_id: newProjectId,
+            project_id: environmentProjectId,
             session_id: v4(),
             name: "session-score-with-env",
             value: 80,
@@ -687,7 +692,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
           // Session score with default environment
           const sessionScoreDefaultEnv = createSessionScore({
             id: sessionScoreDefaultEnvId,
-            project_id: newProjectId,
+            project_id: environmentProjectId,
             session_id: v4(),
             name: "session-score-default-env",
             value: 90,
@@ -698,7 +703,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
           // Trace score with 'staging' environment on a trace with 'development' environment
           const traceWithDifferentEnv = createTrace({
             id: v4(),
-            project_id: newProjectId,
+            project_id: environmentProjectId,
             user_id: "env-test-user",
             environment: "development",
           });
@@ -707,7 +712,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
 
           const traceScoreWithEnv = createTraceScore({
             id: traceScoreWithEnvId,
-            project_id: newProjectId,
+            project_id: environmentProjectId,
             trace_id: traceWithDifferentEnv.id,
             name: "trace-score-with-env",
             value: 70,
@@ -728,7 +733,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
             "GET",
             `/api/public/v2/scores?environment=staging`,
             undefined,
-            authentication,
+            environmentAuth,
           );
 
           expect(getAllScore.status).toBe(200);
@@ -746,7 +751,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
             "GET",
             `/api/public/v2/scores?environment=default`,
             undefined,
-            authentication,
+            environmentAuth,
           );
 
           expect(getAllScore.status).toBe(200);
@@ -764,7 +769,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
             "GET",
             `/api/public/v2/scores?environment=staging&userId=env-test-user`,
             undefined,
-            authentication,
+            environmentAuth,
           );
 
           expect(getAllScore.status).toBe(200);
@@ -784,7 +789,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
 
           const matchingTrace = createTrace({
             id: matchingTraceId,
-            project_id: newProjectId,
+            project_id: environmentProjectId,
             user_id: "matching-env-user",
             environment: "staging",
           });
@@ -793,7 +798,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
 
           const matchingScore = createTraceScore({
             id: matchingScoreId,
-            project_id: newProjectId,
+            project_id: environmentProjectId,
             trace_id: matchingTraceId,
             name: "matching-score",
             value: 100,
@@ -808,7 +813,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
             "GET",
             `/api/public/v2/scores?environment=staging&userId=matching-env-user`,
             undefined,
-            authentication,
+            environmentAuth,
           );
 
           expect(getAllScore.status).toBe(200);
@@ -848,29 +853,50 @@ describe("/api/public/v2/scores API Endpoint", () => {
       describe("should Filter scores by queueId", () => {
         describe("queueId filtering", () => {
           let queueId: string;
+          let queueTraceId: string;
+          let queueGenerationId: string;
+          let queueAuth: string;
 
           beforeEach(async () => {
+            const { projectId, auth } = await createOrgProjectAndApiKey();
+            queueAuth = auth;
             queueId = v4();
+            queueTraceId = v4();
+            queueGenerationId = v4();
+
+            await Promise.all([
+              createTracesCh([
+                createTrace({ id: queueTraceId, project_id: projectId }),
+              ]),
+              createObservationsCh([
+                createObservation({
+                  id: queueGenerationId,
+                  project_id: projectId,
+                  type: "GENERATION",
+                }),
+              ]),
+            ]);
+
             const score = createTraceScore({
               id: v4(),
-              project_id: newProjectId,
-              trace_id: traceId,
+              project_id: projectId,
+              trace_id: queueTraceId,
               name: "score-name",
               value: 100.5,
               source: "ANNOTATION",
               comment: "comment",
-              observation_id: generationId,
+              observation_id: queueGenerationId,
               queue_id: queueId,
             });
             const score2 = createTraceScore({
               id: v4(),
-              project_id: newProjectId,
-              trace_id: traceId,
+              project_id: projectId,
+              trace_id: queueTraceId,
               name: "score-name",
               value: 75.0,
               source: "ANNOTATION",
               comment: "comment",
-              observation_id: generationId,
+              observation_id: queueGenerationId,
               queue_id: queueId,
             });
 
@@ -883,7 +909,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
               "GET",
               `/api/public/v2/scores?queueId=${queueId}`,
               undefined,
-              authentication,
+              queueAuth,
             );
             expect(getAllScore.status).toBe(200);
             expect(getAllScore.body.meta).toMatchObject({
@@ -894,8 +920,8 @@ describe("/api/public/v2/scores API Endpoint", () => {
             });
             for (const val of getAllScore.body.data) {
               expect(val).toMatchObject({
-                traceId: traceId,
-                observationId: generationId,
+                traceId: queueTraceId,
+                observationId: queueGenerationId,
                 queueId: queueId,
                 source: "ANNOTATION",
               });

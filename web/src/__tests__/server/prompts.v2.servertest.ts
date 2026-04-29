@@ -1207,7 +1207,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     let projectId: string;
     let auth: string;
 
-    beforeEach(async () => {
+    beforeAll(async () => {
       // Create a prompt in a different project
       ({ projectId: projectId, auth: auth } =
         await createOrgProjectAndApiKey());
