@@ -32,6 +32,13 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
   you first confirm the query builder cannot express the query.
 - Never use `FINAL` on the `events` table; it is designed so `FINAL` is not
   required and the keyword hurts performance.
+- Any migration in `packages/shared/clickhouse/migrations/clustered/**` with
+  more than one `ALTER` on the same table must end every metadata `ALTER`
+  (`ADD/DROP/MODIFY COLUMN`, `ADD/DROP INDEX`) with `SETTINGS alter_sync = 2`,
+  and every mutation-creating `ALTER` (`MATERIALIZE …`, `UPDATE`, `DELETE`)
+  with `SETTINGS mutations_sync = 2`. The matching `unclustered/` file runs
+  against plain `MergeTree` and does not need (and should not duplicate)
+  these settings.
 
 ---
 
@@ -57,6 +64,7 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
 - [ ] LowCardinality applied to appropriate string columns
 - [ ] Partition key cardinality bounded (100-1,000 values)
 - [ ] ReplacingMergeTree has version column if used
+- [ ] Clustered migration files with multiple ALTERs on the same table use `SETTINGS alter_sync = 2` (metadata) and `SETTINGS mutations_sync = 2` (`MATERIALIZE …`, `UPDATE`, `DELETE`); unclustered mirror has none
 
 ### For Query Reviews (SELECT, JOIN, aggregations)
 

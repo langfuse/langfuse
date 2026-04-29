@@ -15,6 +15,13 @@ responses.
   you first confirm the query builder cannot express the query.
 - Never use `FINAL` on the `events` table; it is designed so `FINAL` is not
   required and the keyword hurts performance.
+- Any migration in `packages/shared/clickhouse/migrations/clustered/**` with
+  more than one `ALTER` on the same table must end every metadata `ALTER`
+  (`ADD/DROP/MODIFY COLUMN`, `ADD/DROP INDEX`) with `SETTINGS alter_sync = 2`,
+  and every mutation-creating `ALTER` (`MATERIALIZE …`, `UPDATE`, `DELETE`)
+  with `SETTINGS mutations_sync = 2`. The `unclustered/` mirror runs against
+  plain `MergeTree` and does not need (and should not duplicate) these
+  settings.
 
 ## Rule Index
 

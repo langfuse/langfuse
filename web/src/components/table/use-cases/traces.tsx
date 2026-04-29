@@ -85,9 +85,8 @@ import {
   type TraceOmittableFilterColumn,
 } from "@/src/features/filters/config/traces-config";
 import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
-import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekView } from "@/src/components/table/peek";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
@@ -1299,10 +1298,9 @@ export default function TracesTable({
       peekEventOptions: {
         ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
       },
-      children: <PeekViewTraceDetail projectId={projectId} />,
       ...peekNavigationProps,
     };
-  }, [projectId, hideControls, peekNavigationProps]);
+  }, [hideControls, peekNavigationProps]);
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
@@ -1514,7 +1512,9 @@ export default function TracesTable({
             />
           </div>
         </ResizableFilterLayout>
-        {peekConfig && <TablePeekView peekView={peekConfig} />}
+        {peekConfig && (
+          <TablePeekViewTraceDetail {...peekConfig} projectId={projectId} />
+        )}
       </div>
     </DataTableControlsProvider>
   );
