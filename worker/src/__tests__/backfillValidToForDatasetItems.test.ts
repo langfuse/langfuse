@@ -204,7 +204,7 @@ describe("BackfillValidToForDatasetItems", () => {
     let iterations = 0;
     const maxIterations = 10;
 
-    while (iterations < maxIterations) {
+    while (iterations < maxIterations && lastProjectId !== projectIdB) {
       const result = await backfillValidToForDatasetItems(
         lastProjectId,
         lastId,
@@ -219,7 +219,8 @@ describe("BackfillValidToForDatasetItems", () => {
       iterations++;
     }
 
-    // Should have completed all items without getting stuck
+    // Should have advanced from project A to project B without getting stuck.
+    expect(lastProjectId).toBe(projectIdB);
     expect(iterations).toBeLessThan(maxIterations);
 
     // Verify all items in project A were processed
@@ -277,7 +278,7 @@ describe("BackfillValidToForDatasetItems", () => {
     let lastId = "";
     let iterations = 0;
 
-    while (iterations < 20) {
+    while (iterations < 20 && lastProjectId <= projectIdB) {
       const result = await backfillValidToForDatasetItems(
         lastProjectId,
         lastId,
@@ -294,11 +295,12 @@ describe("BackfillValidToForDatasetItems", () => {
     // Count unique (projectId, id) pairs
     const uniqueItems = await prisma.datasetItem.groupBy({
       by: ["projectId", "id"],
+      where: { projectId: { in: [projectIdA, projectIdB] } },
     });
 
     // Count rows with valid_to = null (current versions)
     const currentVersions = await prisma.datasetItem.count({
-      where: { validTo: null },
+      where: { projectId: { in: [projectIdA, projectIdB] }, validTo: null },
     });
 
     // Should have exactly one current version per unique item
