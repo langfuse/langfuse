@@ -11,7 +11,10 @@ import {
   JobConfigState,
   JobExecutionStatus,
 } from "@langfuse/shared";
-import { createW3CTraceId } from "../../../utils";
+import {
+  createEvalJobExecutionId,
+  createEventEvalJobExecutionIdentity,
+} from "@langfuse/shared/src/server";
 
 describe("scheduleObservationEvals", () => {
   const createMockObservation = (
@@ -87,13 +90,18 @@ describe("scheduleObservationEvals", () => {
     targetObject: EvalTargetObject.EVENT,
     status: JobConfigState.ACTIVE,
     blockedAt: null,
+    jobConfigurationRevision: 1,
     ...overrides,
   });
 
   const createMockSchedulerDeps = (): ObservationEvalSchedulerDeps => ({
     upsertJobExecution: vi
       .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
-      .mockResolvedValue({ id: "job-exec-1" }),
+      .mockResolvedValue({
+        id: "job-exec-1",
+        created: true,
+        scheduledAt: new Date(),
+      }),
     uploadObservationToS3: vi
       .fn<ObservationEvalSchedulerDeps["uploadObservationToS3"]>()
       .mockResolvedValue("observations/project-789/obs-123.json"),
@@ -304,8 +312,14 @@ describe("scheduleObservationEvals", () => {
         schedulerDeps,
       });
 
-      const expectedJobExecutionId = createW3CTraceId(
-        `${config.id}:${observation.span_id}`,
+      const expectedJobExecutionId = createEvalJobExecutionId(
+        createEventEvalJobExecutionIdentity({
+          projectId: observation.project_id,
+          jobConfigurationId: config.id,
+          jobConfigurationRevision: config.jobConfigurationRevision,
+          targetTraceId: observation.trace_id,
+          targetObservationId: observation.span_id,
+        }),
       );
       expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith({
         id: expectedJobExecutionId,
@@ -332,15 +346,42 @@ describe("scheduleObservationEvals", () => {
         schedulerDeps,
       });
 
-      const expectedJobExecutionId = createW3CTraceId(
-        `${config.id}:${observation.span_id}`,
+      const expectedJobExecutionId = createEvalJobExecutionId(
+        createEventEvalJobExecutionIdentity({
+          projectId: observation.project_id,
+          jobConfigurationId: config.id,
+          jobConfigurationRevision: config.jobConfigurationRevision,
+          targetTraceId: observation.trace_id,
+          targetObservationId: observation.span_id,
+        }),
       );
-      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledWith({
-        jobExecutionId: expectedJobExecutionId,
-        projectId: "project-789",
-        observationS3Path: "observations/project-789/obs-123.json",
-        delay: 0,
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobExecutionId: expectedJobExecutionId,
+          projectId: "project-789",
+          observationS3Path: "observations/project-789/obs-123.json",
+          delay: 0,
+        }),
+      );
+    });
+
+    it("should not enqueue when job execution already exists", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      schedulerDeps.upsertJobExecution = vi
+        .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
+        .mockResolvedValue({
+          id: "job-exec-1",
+          created: false,
+          scheduledAt: new Date(),
+        });
+
+      await scheduleObservationEvals({
+        observation: createMockObservation(),
+        configs: [createMockConfig()],
+        schedulerDeps,
       });
+
+      expect(schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
     });
   });
 
@@ -349,9 +390,21 @@ describe("scheduleObservationEvals", () => {
       const schedulerDeps = createMockSchedulerDeps();
       schedulerDeps.upsertJobExecution = vi
         .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
-        .mockResolvedValueOnce({ id: "job-exec-1" })
-        .mockResolvedValueOnce({ id: "job-exec-2" })
-        .mockResolvedValueOnce({ id: "job-exec-3" });
+        .mockResolvedValueOnce({
+          id: "job-exec-1",
+          created: true,
+          scheduledAt: new Date(),
+        })
+        .mockResolvedValueOnce({
+          id: "job-exec-2",
+          created: true,
+          scheduledAt: new Date(),
+        })
+        .mockResolvedValueOnce({
+          id: "job-exec-3",
+          created: true,
+          scheduledAt: new Date(),
+        });
       const observation = createMockObservation();
 
       await scheduleObservationEvals({

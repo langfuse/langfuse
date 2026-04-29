@@ -111,6 +111,7 @@ export function createTestEvalConfig(
     scoreName: "test-score",
     status: "ACTIVE",
     blockedAt: null,
+    jobConfigurationRevision: 1,
     targetObject: EvalTargetObject.EVENT,
     variableMapping: [
       { templateVariable: "output", selectedColumnId: "output" },
@@ -139,7 +140,11 @@ export function createMockSchedulerDeps(
       overrides.upsertJobExecution ??
       vi
         .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
-        .mockResolvedValue({ id: `job-exec-${randomUUID()}` }),
+        .mockResolvedValue({
+          id: `job-exec-${randomUUID()}`,
+          created: true,
+          scheduledAt: new Date(),
+        }),
     uploadObservationToS3:
       overrides.uploadObservationToS3 ??
       vi
@@ -329,7 +334,11 @@ export function createFullyMockedEvalPipeline(
   const schedulerDeps: MockSchedulerDeps = {
     upsertJobExecution: vi
       .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
-      .mockResolvedValue({ id: `job-exec-${randomUUID()}` }),
+      .mockResolvedValue({
+        id: `job-exec-${randomUUID()}`,
+        created: true,
+        scheduledAt: new Date(),
+      }),
     uploadObservationToS3: vi
       .fn<ObservationEvalSchedulerDeps["uploadObservationToS3"]>()
       .mockImplementation(async (params) => {

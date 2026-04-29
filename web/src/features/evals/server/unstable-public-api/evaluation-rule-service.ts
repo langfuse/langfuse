@@ -24,6 +24,23 @@ import { createUnstablePublicApiError } from "@/src/features/public-api/server/u
 
 const MAX_ACTIVE_EVALUATION_RULES = 50;
 
+const hasSemanticEvaluationRuleChange = ({
+  current,
+  next,
+  nextEvalTemplateId,
+}: {
+  current: Awaited<ReturnType<typeof findPublicEvaluationRuleOrThrow>>;
+  next: ReturnType<typeof toJobConfigurationInput>;
+  nextEvalTemplateId: string;
+}) =>
+  nextEvalTemplateId !== current.evalTemplateId ||
+  next.scoreName !== current.scoreName ||
+  next.targetObject !== current.targetObject ||
+  JSON.stringify(next.filter) !== JSON.stringify(current.filter) ||
+  JSON.stringify(next.variableMapping) !==
+    JSON.stringify(current.variableMapping) ||
+  next.sampling !== Number(current.sampling);
+
 async function assertActivePublicApiEvaluationRuleLimitNotExceeded(
   projectId: string,
 ) {
@@ -256,6 +273,13 @@ export async function updatePublicEvaluationRule(params: {
       variableMapping: data.variableMapping,
       sampling: data.sampling,
       status: data.status,
+      ...(hasSemanticEvaluationRuleChange({
+        current: existing,
+        next: data,
+        nextEvalTemplateId: template.id,
+      })
+        ? { jobConfigurationRevision: { increment: 1 } }
+        : {}),
       ...(shouldResetBlockState
         ? {
             blockedAt: null,

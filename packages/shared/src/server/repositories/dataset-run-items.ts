@@ -994,7 +994,12 @@ export const getDatasetRunItemsWithoutIOByItemIds = async (
 export const getDatasetItemIdsByTraceIdCh = async (
   opts: DatasetItemIdsByTraceIdQuery,
 ): Promise<
-  { id: string; datasetId: string; observationId: string | null }[]
+  {
+    id: string;
+    datasetId: string;
+    observationId: string | null;
+    validFrom: Date | null;
+  }[]
 > => {
   const { projectId, traceId, filter } = opts;
 
@@ -1026,7 +1031,8 @@ export const getDatasetItemIdsByTraceIdCh = async (
   SELECT
     dri.dataset_item_id as dataset_item_id,
     dri.observation_id as observation_id,
-    dri.dataset_id as dataset_id
+    dri.dataset_id as dataset_id,
+    dri.dataset_item_version as dataset_item_version
   FROM dataset_run_items_rmt dri 
   WHERE ${appliedFilter.query}
   LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id;`;
@@ -1035,6 +1041,7 @@ export const getDatasetItemIdsByTraceIdCh = async (
     dataset_item_id: string;
     observation_id: string | null;
     dataset_id: string;
+    dataset_item_version: string | null;
   }>({
     query,
     params: {
@@ -1053,6 +1060,9 @@ export const getDatasetItemIdsByTraceIdCh = async (
       id: runItem.dataset_item_id,
       observationId: runItem.observation_id,
       datasetId: runItem.dataset_id,
+      validFrom: runItem.dataset_item_version
+        ? new Date(runItem.dataset_item_version.replace(" ", "T") + "Z")
+        : null,
     };
   });
 };

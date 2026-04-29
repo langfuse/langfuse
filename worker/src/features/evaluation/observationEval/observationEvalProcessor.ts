@@ -16,6 +16,12 @@ import { extractObservationVariables } from "./extractObservationVariables";
 import { executeLLMAsJudgeEvaluation } from "../evalService";
 import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationForEval } from "./types";
+import {
+  buildEvalJobExecutionQueueMetadata,
+  metadataFromQueueFields,
+  writeEvalJobExecutionEvent,
+} from "../jobExecutionEventWriter";
+import { EvalJobExecutionEventStatus } from "@langfuse/shared/src/server";
 
 /**
  * Dependencies for processing observation evals.
@@ -107,6 +113,7 @@ export async function processObservationEval({
       `Job execution ${event.jobExecutionId} is not executable because the evaluator is blocked or inactive.`,
     );
 
+    const cancelledAt = new Date();
     await prisma.jobExecution.update({
       where: {
         id: job.id,
@@ -114,8 +121,23 @@ export async function processObservationEval({
       },
       data: {
         status: JobExecutionStatus.CANCELLED,
-        endTime: new Date(),
+        endTime: cancelledAt,
       },
+    });
+
+    writeEvalJobExecutionEvent({
+      projectId: event.projectId,
+      jobExecutionId: event.jobExecutionId,
+      metadata:
+        metadataFromQueueFields(event) ??
+        buildEvalJobExecutionQueueMetadata({
+          config: evalJobConfig,
+          job,
+        }),
+      statusAfter: EvalJobExecutionEventStatus.CANCELLED,
+      transitionKey: "config-not-executable",
+      eventTs: cancelledAt,
+      cancellationReason: "CONFIG_NOT_EXECUTABLE",
     });
 
     return;
@@ -174,5 +196,17 @@ export async function processObservationEval({
     template: evalJobConfig.evalTemplate,
     extractedVariables,
     environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
+    jobExecutionEventMetadata:
+      metadataFromQueueFields(event) ??
+      buildEvalJobExecutionQueueMetadata({
+        config: evalJobConfig,
+        job,
+        experimentTargetFields: {
+          targetExperimentId: observationData.experiment_id,
+          targetExperimentItemId: observationData.experiment_item_id,
+          targetExperimentItemRootSpanId:
+            observationData.experiment_item_root_span_id,
+        },
+      }),
   });
 }

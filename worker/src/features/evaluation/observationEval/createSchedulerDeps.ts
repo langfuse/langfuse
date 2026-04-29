@@ -1,4 +1,4 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   LLMAsJudgeExecutionQueue,
   QueueJobs,
@@ -25,27 +25,55 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
         status,
       } = params;
 
-      const jobExecution = await prisma.jobExecution.upsert({
-        where: {
-          id,
-          projectId,
-        },
-        create: {
-          id,
-          projectId,
-          jobConfigurationId,
-          jobInputTraceId,
-          jobInputObservationId,
-          jobTemplateId,
-          status,
-          startTime: new Date(),
-        },
-        update: {
-          status,
-        },
-      });
+      const scheduledAt = new Date();
 
-      return { id: jobExecution.id };
+      try {
+        const jobExecution = await prisma.jobExecution.create({
+          data: {
+            id,
+            projectId,
+            jobConfigurationId,
+            jobInputTraceId,
+            jobInputObservationId,
+            jobTemplateId,
+            status,
+            startTime: scheduledAt,
+          },
+        });
+
+        return {
+          id: jobExecution.id,
+          created: true,
+          scheduledAt,
+        };
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          const existingJobExecution =
+            await prisma.jobExecution.findFirstOrThrow({
+              select: {
+                id: true,
+                startTime: true,
+                createdAt: true,
+              },
+              where: {
+                id,
+                projectId,
+              },
+            });
+
+          return {
+            id: existingJobExecution.id,
+            created: false,
+            scheduledAt:
+              existingJobExecution.startTime ?? existingJobExecution.createdAt,
+          };
+        }
+
+        throw error;
+      }
     },
 
     uploadObservationToS3: async (params) => {
@@ -74,10 +102,12 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
             projectId: params.projectId,
             jobExecutionId: params.jobExecutionId,
             observationS3Path: params.observationS3Path,
+            ...params.metadata,
           },
         },
         {
           delay: params.delay,
+          jobId: params.jobExecutionId,
         },
       );
     },

@@ -1,4 +1,5 @@
 import { JobConfiguration, JobExecutionStatus } from "@langfuse/shared/src/db";
+import type { EvalJobExecutionQueueMetadata } from "@langfuse/shared/src/server";
 
 /**
  * Re-export ObservationForEval as the canonical observation type for eval operations.
@@ -30,6 +31,7 @@ export type ObservationEvalConfig = Pick<
   | "variableMapping"
   | "status"
   | "blockedAt"
+  | "jobConfigurationRevision"
 >;
 
 /**
@@ -46,7 +48,7 @@ export interface ObservationEvalSchedulerDeps {
     jobInputObservationId: string;
     jobTemplateId: string | null;
     status: JobExecutionStatus;
-  }) => Promise<{ id: string }>;
+  }) => Promise<{ id: string; created: boolean; scheduledAt: Date }>;
 
   /** Upload observation data to S3 for later retrieval */
   uploadObservationToS3: (params: {
@@ -61,5 +63,6 @@ export interface ObservationEvalSchedulerDeps {
     projectId: string;
     observationS3Path: string;
     delay: number;
+    metadata: EvalJobExecutionQueueMetadata;
   }) => Promise<void>;
 }

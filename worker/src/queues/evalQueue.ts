@@ -12,6 +12,7 @@ import {
   QueueJobs,
   getCurrentSpan,
   isLLMCompletionError,
+  EvalJobExecutionEventStatus,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { processObservationEval } from "../features/evaluation/observationEval";
@@ -21,6 +22,20 @@ import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
 import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";
 import { env } from "../env";
+import {
+  resolveEvalJobExecutionQueueMetadata,
+  writeEvalJobExecutionEvent,
+} from "../features/evaluation/jobExecutionEventWriter";
+
+const getEvalExecutionErrorKind = (error: unknown) => {
+  if (isLLMCompletionError(error)) {
+    return error.responseStatusCode === 429
+      ? "LLM_RATE_LIMIT"
+      : "LLM_COMPLETION";
+  }
+
+  return isUnrecoverableError(error) ? "UNRECOVERABLE" : "INTERNAL";
+};
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
@@ -151,6 +166,9 @@ export const evalJobExecutorQueueProcessorBuilder = (
           await secondaryQueue.add(
             QueueName.EvaluationExecutionSecondaryQueue,
             job.data,
+            {
+              jobId: job.data.payload.jobExecutionId,
+            },
           );
           return;
         }
@@ -221,6 +239,13 @@ export const evalJobExecutorQueueProcessorBuilder = (
         });
 
         if (retryResult.outcome === "scheduled") {
+          const retryEventTs = new Date(job.data.timestamp);
+          const metadata = await resolveEvalJobExecutionQueueMetadata({
+            projectId: job.data.payload.projectId,
+            jobExecutionId: job.data.payload.jobExecutionId,
+            queueFields: job.data.payload,
+          });
+
           // Use the deterministic execution trace ID to update the job execution
           await prisma.jobExecution.update({
             where: {
@@ -233,12 +258,35 @@ export const evalJobExecutorQueueProcessorBuilder = (
             },
           });
 
+          writeEvalJobExecutionEvent({
+            projectId: job.data.payload.projectId,
+            jobExecutionId: job.data.payload.jobExecutionId,
+            metadata,
+            statusAfter: EvalJobExecutionEventStatus.RETRYING,
+            transitionKey: `attempt-${retryResult.retryBaggage.attempt}`,
+            eventTs: retryEventTs,
+            nextRetryAt: new Date(retryEventTs.getTime() + retryResult.delay),
+            retryAttempt: retryResult.retryBaggage.attempt,
+            retryDelayMs: retryResult.delay,
+            responseStatusCode: e.responseStatusCode,
+            errorKind: getEvalExecutionErrorKind(e),
+            errorMessage: e.message,
+            executionTraceId,
+          });
+
           // Return early as we have already scheduled a delayed retry
           return;
         }
       }
 
       // At this point there will be only 4xx LLMCompletionErrors that are not retryable and application errors
+      const failedAt = new Date(job.data.timestamp);
+      const metadata = await resolveEvalJobExecutionQueueMetadata({
+        projectId: job.data.payload.projectId,
+        jobExecutionId: job.data.payload.jobExecutionId,
+        queueFields: job.data.payload,
+      });
+
       await prisma.jobExecution.update({
         where: {
           id: job.data.payload.jobExecutionId,
@@ -254,6 +302,25 @@ export const evalJobExecutorQueueProcessorBuilder = (
               : "An internal error occurred",
           executionTraceId,
         },
+      });
+
+      writeEvalJobExecutionEvent({
+        projectId: job.data.payload.projectId,
+        jobExecutionId: job.data.payload.jobExecutionId,
+        metadata,
+        statusAfter: EvalJobExecutionEventStatus.ERROR,
+        transitionKey: "final",
+        eventTs: failedAt,
+        failedAt,
+        responseStatusCode: isLLMCompletionError(e)
+          ? e.responseStatusCode
+          : undefined,
+        errorKind: getEvalExecutionErrorKind(e),
+        errorMessage:
+          isLLMCompletionError(e) || isUnrecoverableError(e)
+            ? e.message
+            : "An internal error occurred",
+        executionTraceId,
       });
 
       if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
@@ -317,6 +384,13 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         });
 
         if (retryResult.outcome === "scheduled") {
+          const retryEventTs = new Date(job.data.timestamp);
+          const metadata = await resolveEvalJobExecutionQueueMetadata({
+            projectId: job.data.payload.projectId,
+            jobExecutionId: job.data.payload.jobExecutionId,
+            queueFields: job.data.payload,
+          });
+
           await prisma.jobExecution.update({
             where: {
               id: job.data.payload.jobExecutionId,
@@ -328,9 +402,32 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
             },
           });
 
+          writeEvalJobExecutionEvent({
+            projectId: job.data.payload.projectId,
+            jobExecutionId: job.data.payload.jobExecutionId,
+            metadata,
+            statusAfter: EvalJobExecutionEventStatus.RETRYING,
+            transitionKey: `attempt-${retryResult.retryBaggage.attempt}`,
+            eventTs: retryEventTs,
+            nextRetryAt: new Date(retryEventTs.getTime() + retryResult.delay),
+            retryAttempt: retryResult.retryBaggage.attempt,
+            retryDelayMs: retryResult.delay,
+            responseStatusCode: e.responseStatusCode,
+            errorKind: getEvalExecutionErrorKind(e),
+            errorMessage: e.message,
+            executionTraceId,
+          });
+
           return;
         }
       }
+
+      const failedAt = new Date(job.data.timestamp);
+      const metadata = await resolveEvalJobExecutionQueueMetadata({
+        projectId: job.data.payload.projectId,
+        jobExecutionId: job.data.payload.jobExecutionId,
+        queueFields: job.data.payload,
+      });
 
       await prisma.jobExecution.update({
         where: {
@@ -346,6 +443,25 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
               : "An internal error occurred",
           executionTraceId,
         },
+      });
+
+      writeEvalJobExecutionEvent({
+        projectId: job.data.payload.projectId,
+        jobExecutionId: job.data.payload.jobExecutionId,
+        metadata,
+        statusAfter: EvalJobExecutionEventStatus.ERROR,
+        transitionKey: "final",
+        eventTs: failedAt,
+        failedAt,
+        responseStatusCode: isLLMCompletionError(e)
+          ? e.responseStatusCode
+          : undefined,
+        errorKind: getEvalExecutionErrorKind(e),
+        errorMessage:
+          isLLMCompletionError(e) || isUnrecoverableError(e)
+            ? e.message
+            : "An internal error occurred",
+        executionTraceId,
       });
 
       if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;

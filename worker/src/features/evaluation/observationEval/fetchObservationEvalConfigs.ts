@@ -51,6 +51,7 @@ export async function fetchObservationEvalConfigs(
       blockedAt: true,
       targetObject: true,
       variableMapping: true,
+      jobConfigurationRevision: true,
     },
   });
 

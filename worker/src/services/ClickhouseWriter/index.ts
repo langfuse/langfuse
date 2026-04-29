@@ -13,6 +13,7 @@ import {
   TraceNullRecordInsertType,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
+  JobExecutionEventRecordInsertType,
 } from "@langfuse/shared/src/server";
 
 import { Decimal } from "decimal.js";
@@ -56,6 +57,7 @@ export class ClickhouseWriter {
       [TableName.BlobStorageFileLog]: [],
       [TableName.DatasetRunItems]: [],
       [TableName.EventsFull]: [],
+      [TableName.JobExecutionEvents]: [],
     };
 
     this.start();
@@ -124,6 +126,7 @@ export class ClickhouseWriter {
           this.flush(TableName.BlobStorageFileLog, fullQueue),
           this.flush(TableName.DatasetRunItems, fullQueue),
           this.flush(TableName.EventsFull, fullQueue),
+          this.flush(TableName.JobExecutionEvents, fullQueue),
         ]).catch((err) => {
           logger.error("ClickhouseWriter.flushAll", err);
         });
@@ -185,7 +188,9 @@ export class ClickhouseWriter {
       logger.warn(
         `String length error with single record for ${tableName}, falling back to truncation`,
         {
-          recordId: queueItems[0].data.id,
+          recordId:
+            (queueItems[0].data as { id?: string; event_id?: string }).id ??
+            (queueItems[0].data as { id?: string; event_id?: string }).event_id,
         },
       );
       return {
@@ -526,8 +531,8 @@ export class ClickhouseWriter {
             const r = item.data as Record<string, unknown>;
             return {
               project_id: r.project_id,
-              trace_id: r.trace_id ?? r.id,
-              id: r.id,
+              trace_id: r.trace_id ?? r.target_trace_id ?? r.id ?? r.event_id,
+              id: r.id ?? r.event_id,
             };
           });
 
@@ -605,6 +610,7 @@ export enum TableName {
   BlobStorageFileLog = "blob_storage_file_log",
   DatasetRunItems = "dataset_run_items_rmt",
   EventsFull = "events_full", // Primary write target - MV auto-populates events_core
+  JobExecutionEvents = "job_execution_events",
 }
 
 type RecordInsertType<T extends TableName> = T extends TableName.Scores
@@ -623,7 +629,9 @@ type RecordInsertType<T extends TableName> = T extends TableName.Scores
               ? DatasetRunItemRecordInsertType
               : T extends TableName.EventsFull
                 ? EventRecordInsertType
-                : never;
+                : T extends TableName.JobExecutionEvents
+                  ? JobExecutionEventRecordInsertType
+                  : never;
 
 type ClickhouseQueue = {
   [T in TableName]: ClickhouseWriterQueueItem<T>[];

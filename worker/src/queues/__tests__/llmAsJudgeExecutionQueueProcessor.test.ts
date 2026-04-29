@@ -62,6 +62,10 @@ vi.mock("@langfuse/shared/src/server", () => {
       LLMAsJudgeExecution: "llm-as-a-judge-execution-job",
       EvaluationExecution: "evaluation-execution-job",
     },
+    EvalJobExecutionEventStatus: {
+      RETRYING: "RETRYING",
+      ERROR: "ERROR",
+    },
     logger: {
       debug: vi.fn(),
       info: vi.fn(),
@@ -89,6 +93,12 @@ vi.mock("@langfuse/shared/src/server", () => {
 vi.mock("../../features/utils", () => ({
   createW3CTraceId: vi.fn().mockReturnValue("test-trace-id"),
   retryLLMRateLimitError: vi.fn(),
+}));
+
+// Mock best-effort ClickHouse job execution event writes.
+vi.mock("../../features/evaluation/jobExecutionEventWriter", () => ({
+  resolveEvalJobExecutionQueueMetadata: vi.fn().mockResolvedValue(null),
+  writeEvalJobExecutionEvent: vi.fn(),
 }));
 
 // Mock isUnrecoverableError
@@ -203,6 +213,8 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         true;
       (retryLLMRateLimitError as Mock).mockResolvedValue({
         outcome: "scheduled",
+        retryBaggage: { attempt: 1 },
+        delay: 1_000,
       });
 
       const job = createMockJob();
@@ -240,6 +252,8 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       (isLLMCompletionError as Mock).mockReturnValue(true);
       (retryLLMRateLimitError as Mock).mockResolvedValue({
         outcome: "scheduled",
+        retryBaggage: { attempt: 1 },
+        delay: 1_000,
       });
 
       const job = createMockJob();

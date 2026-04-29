@@ -198,6 +198,7 @@ export async function createPublicEvaluator(params: {
                 data: {
                   evalTemplateId: template.id,
                   variableMapping: config.variableMapping,
+                  jobConfigurationRevision: { increment: 1 },
                 },
               }),
             ),

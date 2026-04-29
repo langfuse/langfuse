@@ -402,6 +402,7 @@ export const handleBatchActionJob = async (
           variableMapping: true,
           status: true,
           blockedAt: true,
+          jobConfigurationRevision: true,
         },
       });
 

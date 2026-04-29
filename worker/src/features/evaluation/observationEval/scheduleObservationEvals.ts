@@ -3,7 +3,6 @@ import {
   type ObservationEvalConfig,
   type ObservationEvalSchedulerDeps,
 } from "./types";
-import { shouldSampleObservation } from "./shouldSampleObservation";
 import { InMemoryFilterService, logger } from "@langfuse/shared/src/server";
 import {
   EvalTargetObject,
@@ -12,7 +11,17 @@ import {
   isJobConfigExecutable,
   mapEventEvalFilterColumnIdToField,
 } from "@langfuse/shared";
-import { createW3CTraceId } from "../../utils";
+import {
+  createEventEvalJobExecutionIdentity,
+  createEvalJobExecutionId,
+  createExperimentEvalJobExecutionIdentity,
+  shouldSampleEvalJob,
+  type EvalJobExecutionQueueMetadata,
+} from "@langfuse/shared/src/server";
+import {
+  getJobConfigurationRevision,
+  writeScheduledEvalJobExecutionEvent,
+} from "../jobExecutionEventWriter";
 
 interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
@@ -65,9 +74,14 @@ export async function scheduleObservationEvals(
       return false;
     }
 
-    // Check sampling
+    const jobExecutionId = createEvalJobExecutionId(
+      buildObservationEvalJobExecutionIdentity({
+        observation,
+        matchingConfig: config,
+      }),
+    );
     const samplingRate = config.sampling.toNumber();
-    if (!shouldSampleObservation({ samplingRate })) {
+    if (!shouldSampleEvalJob({ jobExecutionId, samplingRate })) {
       logger.debug("Observation sampled out for eval config", {
         configId: config.id,
         observationId: observation.span_id,
@@ -123,12 +137,16 @@ async function processMatchingConfig(
   const { observation, matchingConfig, observationS3Path, schedulerDeps } =
     params;
 
-  const jobExecutionId = createW3CTraceId(
-    `${matchingConfig.id}:${observation.span_id}`,
+  const jobExecutionId = createEvalJobExecutionId(
+    buildObservationEvalJobExecutionIdentity({
+      observation,
+      matchingConfig,
+    }),
   );
+  const jobConfigurationRevision = getJobConfigurationRevision(matchingConfig);
 
   // Create job execution
-  await schedulerDeps.upsertJobExecution({
+  const upsertResult = await schedulerDeps.upsertJobExecution({
     id: jobExecutionId,
     projectId: observation.project_id,
     jobConfigurationId: matchingConfig.id,
@@ -138,12 +156,56 @@ async function processMatchingConfig(
     status: JobExecutionStatus.PENDING,
   });
 
+  const metadata: EvalJobExecutionQueueMetadata = {
+    jobConfigurationId: matchingConfig.id,
+    jobConfigurationRevision,
+    evalTemplateId: matchingConfig.evalTemplateId,
+    scoreName: matchingConfig.scoreName,
+    targetObject:
+      matchingConfig.targetObject as EvalJobExecutionQueueMetadata["targetObject"],
+    targetTraceId: observation.trace_id,
+    targetObservationId: observation.span_id,
+    targetDatasetItemId: null,
+    targetDatasetItemValidFrom: null,
+    targetExperimentId:
+      matchingConfig.targetObject === EvalTargetObject.EXPERIMENT
+        ? observation.experiment_id
+        : null,
+    targetExperimentItemId:
+      matchingConfig.targetObject === EvalTargetObject.EXPERIMENT
+        ? observation.experiment_item_id
+        : null,
+    targetExperimentItemRootSpanId:
+      matchingConfig.targetObject === EvalTargetObject.EXPERIMENT
+        ? observation.experiment_item_root_span_id
+        : null,
+    scheduledAt: upsertResult.scheduledAt,
+    scheduleDelayMs: 0,
+  };
+
+  if (!upsertResult.created) {
+    logger.debug("Observation eval job execution already exists", {
+      configId: matchingConfig.id,
+      observationId: observation.span_id,
+      jobExecutionId,
+    });
+
+    return;
+  }
+
+  writeScheduledEvalJobExecutionEvent({
+    projectId: observation.project_id,
+    jobExecutionId,
+    metadata,
+  });
+
   // Enqueue eval job
   await schedulerDeps.enqueueEvalJob({
     jobExecutionId,
     projectId: observation.project_id,
     observationS3Path,
     delay: 0,
+    metadata,
   });
 
   logger.debug("Scheduled observation eval job", {
@@ -188,4 +250,32 @@ function evaluateFilter(
 
   // For experiment configs, must also match experiment root span
   return isExperimentConfig ? isFilterMatch && isExperimentRoot : isFilterMatch;
+}
+
+function buildObservationEvalJobExecutionIdentity(params: {
+  observation: ObservationForEval;
+  matchingConfig: ObservationEvalConfig;
+}) {
+  const { observation, matchingConfig } = params;
+  const jobConfigurationRevision = getJobConfigurationRevision(matchingConfig);
+
+  return matchingConfig.targetObject === EvalTargetObject.EXPERIMENT
+    ? createExperimentEvalJobExecutionIdentity({
+        projectId: observation.project_id,
+        jobConfigurationId: matchingConfig.id,
+        jobConfigurationRevision,
+        targetTraceId: observation.trace_id,
+        targetObservationId: observation.span_id,
+        targetExperimentId: observation.experiment_id,
+        targetExperimentItemId: observation.experiment_item_id,
+        targetExperimentItemRootSpanId:
+          observation.experiment_item_root_span_id,
+      })
+    : createEventEvalJobExecutionIdentity({
+        projectId: observation.project_id,
+        jobConfigurationId: matchingConfig.id,
+        jobConfigurationRevision,
+        targetTraceId: observation.trace_id,
+        targetObservationId: observation.span_id,
+      });
 }
