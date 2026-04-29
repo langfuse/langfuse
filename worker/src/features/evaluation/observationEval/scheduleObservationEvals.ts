@@ -12,13 +12,13 @@ import {
   mapEventEvalFilterColumnIdToField,
 } from "@langfuse/shared";
 import {
-  createEventEvalJobExecutionIdentity,
-  createEvalJobExecutionId,
-  createExperimentEvalJobExecutionIdentity,
-  shouldSampleEvalJob,
-  type EvalJobExecutionQueueMetadata,
+  createEventEvaluatorExecutionIdentity,
+  createEvaluatorExecutionId,
+  createExperimentEvaluatorExecutionIdentity,
+  shouldSampleEvaluatorExecution,
+  type EvaluatorExecutionQueueMetadata,
 } from "@langfuse/shared/src/server";
-import { writeScheduledEvalJobExecutionEvent } from "../jobExecutionEventWriter";
+import { writeScheduledEvaluatorExecutionEvent } from "../evaluatorExecutionEventWriter";
 
 interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
@@ -71,14 +71,19 @@ export async function scheduleObservationEvals(
       return false;
     }
 
-    const jobExecutionId = createEvalJobExecutionId(
+    const jobExecutionId = createEvaluatorExecutionId(
       buildObservationEvalJobExecutionIdentity({
         observation,
         matchingConfig: config,
       }),
     );
     const samplingRate = config.sampling.toNumber();
-    if (!shouldSampleEvalJob({ jobExecutionId, samplingRate })) {
+    if (
+      !shouldSampleEvaluatorExecution({
+        evaluatorExecutionId: jobExecutionId,
+        samplingRate,
+      })
+    ) {
       logger.debug("Observation sampled out for eval config", {
         configId: config.id,
         observationId: observation.span_id,
@@ -134,7 +139,7 @@ async function processMatchingConfig(
   const { observation, matchingConfig, observationS3Path, schedulerDeps } =
     params;
 
-  const jobExecutionId = createEvalJobExecutionId(
+  const jobExecutionId = createEvaluatorExecutionId(
     buildObservationEvalJobExecutionIdentity({
       observation,
       matchingConfig,
@@ -142,7 +147,8 @@ async function processMatchingConfig(
   );
 
   // Create job execution
-  const upsertResult = await schedulerDeps.upsertJobExecution({
+  const scheduledAt = new Date();
+  await schedulerDeps.upsertJobExecution({
     id: jobExecutionId,
     projectId: observation.project_id,
     jobConfigurationId: matchingConfig.id,
@@ -150,33 +156,24 @@ async function processMatchingConfig(
     jobInputObservationId: observation.span_id,
     jobTemplateId: matchingConfig.evalTemplateId,
     status: JobExecutionStatus.PENDING,
+    scheduledAt,
   });
 
-  const metadata: EvalJobExecutionQueueMetadata = {
-    jobConfigurationId: matchingConfig.id,
-    evalTemplateId: matchingConfig.evalTemplateId,
+  const metadata: EvaluatorExecutionQueueMetadata = {
+    evaluationRuleId: matchingConfig.id,
+    evaluatorId: matchingConfig.evalTemplateId,
     scoreName: matchingConfig.scoreName,
     targetObject:
-      matchingConfig.targetObject as EvalJobExecutionQueueMetadata["targetObject"],
+      matchingConfig.targetObject as EvaluatorExecutionQueueMetadata["targetObject"],
     targetTraceId: observation.trace_id,
     targetObservationId: observation.span_id,
-    scheduledAt: upsertResult.scheduledAt,
+    scheduledAt,
     scheduleDelayMs: 0,
   };
 
-  if (!upsertResult.created) {
-    logger.debug("Observation eval job execution already exists", {
-      configId: matchingConfig.id,
-      observationId: observation.span_id,
-      jobExecutionId,
-    });
-
-    return;
-  }
-
-  writeScheduledEvalJobExecutionEvent({
+  writeScheduledEvaluatorExecutionEvent({
     projectId: observation.project_id,
-    jobExecutionId,
+    evaluatorExecutionId: jobExecutionId,
     metadata,
   });
 
@@ -240,15 +237,15 @@ function buildObservationEvalJobExecutionIdentity(params: {
   const { observation, matchingConfig } = params;
 
   return matchingConfig.targetObject === EvalTargetObject.EXPERIMENT
-    ? createExperimentEvalJobExecutionIdentity({
+    ? createExperimentEvaluatorExecutionIdentity({
         projectId: observation.project_id,
-        jobConfigurationId: matchingConfig.id,
+        evaluationRuleId: matchingConfig.id,
         targetTraceId: observation.trace_id,
         targetObservationId: observation.span_id,
       })
-    : createEventEvalJobExecutionIdentity({
+    : createEventEvaluatorExecutionIdentity({
         projectId: observation.project_id,
-        jobConfigurationId: matchingConfig.id,
+        evaluationRuleId: matchingConfig.id,
         targetTraceId: observation.trace_id,
         targetObservationId: observation.span_id,
       });

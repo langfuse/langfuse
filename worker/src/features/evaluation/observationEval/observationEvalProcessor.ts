@@ -16,12 +16,8 @@ import { extractObservationVariables } from "./extractObservationVariables";
 import { executeLLMAsJudgeEvaluation } from "../evalService";
 import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationForEval } from "./types";
-import {
-  buildEvalJobExecutionQueueMetadata,
-  metadataFromQueueFields,
-  writeEvalJobExecutionEvent,
-} from "../jobExecutionEventWriter";
-import { EvalJobExecutionEventStatus } from "@langfuse/shared/src/server";
+import { writeEvaluatorExecutionEvent } from "../evaluatorExecutionEventWriter";
+import { EvaluatorExecutionEventStatus } from "@langfuse/shared/src/server";
 
 /**
  * Dependencies for processing observation evals.
@@ -125,16 +121,11 @@ export async function processObservationEval({
       },
     });
 
-    writeEvalJobExecutionEvent({
+    writeEvaluatorExecutionEvent({
       projectId: event.projectId,
-      jobExecutionId: event.jobExecutionId,
-      metadata:
-        metadataFromQueueFields(event) ??
-        buildEvalJobExecutionQueueMetadata({
-          config: evalJobConfig,
-          job,
-        }),
-      statusAfter: EvalJobExecutionEventStatus.CANCELLED,
+      evaluatorExecutionId: event.jobExecutionId,
+      metadata: event,
+      statusAfter: EvaluatorExecutionEventStatus.CANCELLED,
       transitionKey: "config-not-executable",
       eventTs: cancelledAt,
       cancellationReason: "CONFIG_NOT_EXECUTABLE",
@@ -196,11 +187,6 @@ export async function processObservationEval({
     template: evalJobConfig.evalTemplate,
     extractedVariables,
     environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
-    jobExecutionEventMetadata:
-      metadataFromQueueFields(event) ??
-      buildEvalJobExecutionQueueMetadata({
-        config: evalJobConfig,
-        job,
-      }),
+    evaluatorExecutionEventMetadata: event,
   });
 }

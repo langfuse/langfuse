@@ -460,15 +460,15 @@ FROM events_full;
 
 -- Development-only shadow table for evaluator job execution lifecycle events.
 -- Keep this out of prod migrations while the data model is still being iterated.
-CREATE TABLE IF NOT EXISTS job_execution_events
+CREATE TABLE IF NOT EXISTS evaluator_execution_events
 (
     event_id String,
     event_ts DateTime64(3),
 
     project_id String,
-    job_execution_id String,
-    job_configuration_id String,
-    eval_template_id String,
+    evaluator_execution_id String,
+    evaluation_rule_id String,
+    evaluator_id String,
 
     target_object LowCardinality(String),
     target_trace_id String,
@@ -482,9 +482,9 @@ CREATE TABLE IF NOT EXISTS job_execution_events
     failed_at Nullable(DateTime64(3)),
     next_retry_at Nullable(DateTime64(3)),
     retry_attempt UInt16 DEFAULT 0,
-    max_attempts UInt16 DEFAULT 0,
+    max_attempts Nullable(UInt16),
     retry_delay_ms UInt32 DEFAULT 0,
-    response_status_code UInt16 DEFAULT 0,
+    http_response_status_code Nullable(UInt16),
 
     error_kind LowCardinality(String) DEFAULT '',
     error_message String DEFAULT '',
@@ -505,13 +505,13 @@ CREATE TABLE IF NOT EXISTS job_execution_events
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(scheduled_at)
-PRIMARY KEY (project_id, job_configuration_id, toDate(scheduled_at))
+PRIMARY KEY (project_id, evaluation_rule_id, toDate(scheduled_at))
 ORDER BY (
     project_id,
-    job_configuration_id,
+    evaluation_rule_id,
     toDate(scheduled_at),
     scheduled_at,
-    job_execution_id,
+    evaluator_execution_id,
     state_transition_order,
     event_id
 );
@@ -613,7 +613,7 @@ clickhouse client \
   SET type_json_skip_duplicated_paths = 1;
   TRUNCATE events_core;
   TRUNCATE events_full;
-  TRUNCATE job_execution_events;
+  TRUNCATE evaluator_execution_events;
 
   -- Insert observations into events_full (experiment metadata included when dataset_run_items match)
   INSERT INTO events_full (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,

@@ -9,13 +9,13 @@ import {
   LLMAdapter,
   QueueJobs,
   ScoreEventType,
-  type BuildEvalJobExecutionEventRecordParams,
+  type BuildEvaluatorExecutionEventRecordParams,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { buildEvalMessages } from "./evalRuntime";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
-import { writeEvalJobExecutionEvent } from "./jobExecutionEventWriter";
+import { writeEvaluatorExecutionEvent } from "./evaluatorExecutionEventWriter";
 
 type StructuredOutputSchema = NonNullable<
   Parameters<typeof fetchLLMCompletion>[0]["structuredOutputSchema"]
@@ -125,8 +125,8 @@ export interface EvalExecutionDeps {
 
   // Queue operations
   enqueueScoreIngestion: (params: EnqueueScoreIngestionParams) => Promise<void>;
-  writeJobExecutionEvent: (
-    params: BuildEvalJobExecutionEventRecordParams,
+  writeEvaluatorExecutionEvent: (
+    params: BuildEvaluatorExecutionEventRecordParams,
   ) => void;
   blockEvaluatorConfigs: (
     params: Parameters<typeof blockEvaluatorConfigsService>[0],
@@ -186,7 +186,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         },
       });
     },
-    writeJobExecutionEvent: writeEvalJobExecutionEvent,
+    writeEvaluatorExecutionEvent,
     blockEvaluatorConfigs: blockEvaluatorConfigsService,
 
     callLLM: async (params) => {
@@ -250,7 +250,7 @@ export function createMockEvalExecutionDeps(
     updateJobExecution: async () => {},
     uploadScore: async () => {},
     enqueueScoreIngestion: async () => {},
-    writeJobExecutionEvent: () => {},
+    writeEvaluatorExecutionEvent: () => {},
     blockEvaluatorConfigs: async () => ({ blockedJobConfigIds: [] }),
     callLLM: async () => ({ score: 0.5, reasoning: "Mock response" }),
     fetchModelConfig: async () => ({

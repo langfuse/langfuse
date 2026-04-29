@@ -328,13 +328,13 @@ export type BlobStorageFileLogInsertType = z.infer<
   typeof blobStorageFileLogRecordInsertSchema
 >;
 
-export const jobExecutionEventRecordInsertSchema = z.object({
+export const evaluatorExecutionEventRecordInsertSchema = z.object({
   event_id: z.string(),
   event_ts: z.number(),
   project_id: z.string(),
-  job_execution_id: z.string(),
-  job_configuration_id: z.string(),
-  eval_template_id: z.string(),
+  evaluator_execution_id: z.string(),
+  evaluation_rule_id: z.string(),
+  evaluator_id: z.string(),
   target_object: z.string(),
   target_trace_id: z.string(),
   target_observation_id: z.string(),
@@ -346,9 +346,9 @@ export const jobExecutionEventRecordInsertSchema = z.object({
   failed_at: z.number().nullish(),
   next_retry_at: z.number().nullish(),
   retry_attempt: z.number(),
-  max_attempts: z.number(),
+  max_attempts: z.number().nullish(),
   retry_delay_ms: z.number(),
-  response_status_code: z.number(),
+  http_response_status_code: z.number().nullish(),
   error_kind: z.string(),
   error_message: z.string(),
   cancellation_reason: z.string(),
@@ -364,8 +364,8 @@ export const jobExecutionEventRecordInsertSchema = z.object({
   score_comment: z.string(),
   created_at: z.number(),
 });
-export type JobExecutionEventRecordInsertType = z.infer<
-  typeof jobExecutionEventRecordInsertSchema
+export type EvaluatorExecutionEventRecordInsertType = z.infer<
+  typeof evaluatorExecutionEventRecordInsertSchema
 >;
 
 export const convertTraceReadToInsert = (

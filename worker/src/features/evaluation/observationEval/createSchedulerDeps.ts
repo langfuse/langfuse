@@ -1,4 +1,4 @@
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   LLMAsJudgeExecutionQueue,
   QueueJobs,
@@ -23,57 +23,30 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
         jobInputObservationId,
         jobTemplateId,
         status,
+        scheduledAt,
       } = params;
 
-      const scheduledAt = new Date();
+      const jobExecution = await prisma.jobExecution.upsert({
+        where: {
+          id,
+          projectId,
+        },
+        create: {
+          id,
+          projectId,
+          jobConfigurationId,
+          jobInputTraceId,
+          jobInputObservationId,
+          jobTemplateId,
+          status,
+          startTime: scheduledAt,
+        },
+        update: {
+          status,
+        },
+      });
 
-      try {
-        const jobExecution = await prisma.jobExecution.create({
-          data: {
-            id,
-            projectId,
-            jobConfigurationId,
-            jobInputTraceId,
-            jobInputObservationId,
-            jobTemplateId,
-            status,
-            startTime: scheduledAt,
-          },
-        });
-
-        return {
-          id: jobExecution.id,
-          created: true,
-          scheduledAt,
-        };
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2002"
-        ) {
-          const existingJobExecution =
-            await prisma.jobExecution.findFirstOrThrow({
-              select: {
-                id: true,
-                startTime: true,
-                createdAt: true,
-              },
-              where: {
-                id,
-                projectId,
-              },
-            });
-
-          return {
-            id: existingJobExecution.id,
-            created: false,
-            scheduledAt:
-              existingJobExecution.startTime ?? existingJobExecution.createdAt,
-          };
-        }
-
-        throw error;
-      }
+      return { id: jobExecution.id };
     },
 
     uploadObservationToS3: async (params) => {

@@ -141,8 +141,6 @@ export function createMockSchedulerDeps(
         .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
         .mockResolvedValue({
           id: `job-exec-${randomUUID()}`,
-          created: true,
-          scheduledAt: new Date(),
         }),
     uploadObservationToS3:
       overrides.uploadObservationToS3 ??
@@ -335,8 +333,6 @@ export function createFullyMockedEvalPipeline(
       .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
       .mockResolvedValue({
         id: `job-exec-${randomUUID()}`,
-        created: true,
-        scheduledAt: new Date(),
       }),
     uploadObservationToS3: vi
       .fn<ObservationEvalSchedulerDeps["uploadObservationToS3"]>()

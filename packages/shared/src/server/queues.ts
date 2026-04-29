@@ -10,7 +10,7 @@ import { EventActionSchema } from "../domain";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
 import { EvalTargetObjectSchema } from "../features/evals/types";
-import { EvalJobExecutionQueueFieldsSchema } from "./evals/jobExecutionEvents";
+import { EvaluatorExecutionQueueMetadataSchema } from "./evals/evaluatorExecutionEvents";
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -100,7 +100,7 @@ export const EvalExecutionEvent = z
     jobExecutionId: z.string(),
     delay: z.number().nullish(),
   })
-  .merge(EvalJobExecutionQueueFieldsSchema);
+  .merge(EvaluatorExecutionQueueMetadataSchema);
 
 // LLM-as-a-Judge execution for observation-based evals
 export const LLMAsJudgeExecutionEventSchema = z
@@ -109,7 +109,7 @@ export const LLMAsJudgeExecutionEventSchema = z
     jobExecutionId: z.string(),
     observationS3Path: z.string(),
   })
-  .merge(EvalJobExecutionQueueFieldsSchema);
+  .merge(EvaluatorExecutionQueueMetadataSchema);
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });

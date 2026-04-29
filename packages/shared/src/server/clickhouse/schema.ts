@@ -3,7 +3,7 @@ export const ClickhouseTableNames = {
   observations: "observations",
   scores: "scores",
   dataset_run_items_rmt: "dataset_run_items_rmt",
-  job_execution_events: "job_execution_events",
+  evaluator_execution_events: "evaluator_execution_events",
 
   // Virtual table for UI column mappings validation (eventsTableUiColumnDefinitions).
   events_proto: "events_proto",

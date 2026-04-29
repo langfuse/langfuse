@@ -5,8 +5,7 @@ import {
   ScoreSourceEnum,
 } from "@langfuse/shared";
 import {
-  createEvalScoreEventId,
-  createEvalScoreId,
+  createEvaluatorScoreId,
   eventTypes,
   ScoreEventType,
 } from "@langfuse/shared/src/server";
@@ -40,27 +39,27 @@ export type BuildScoreEventParams = BuildScoreEventBase &
   );
 
 type BuildScoreWritePayloadParams =
-  | (Omit<
+  | Omit<
       Extract<
         BuildScoreEventParams,
         { dataType: typeof ScoreDataTypeEnum.NUMERIC }
       >,
       "eventId"
-    > & { eventId?: string })
-  | (Omit<
+    >
+  | Omit<
       Extract<
         BuildScoreEventParams,
         { dataType: typeof ScoreDataTypeEnum.BOOLEAN }
       >,
       "eventId"
-    > & { eventId?: string })
-  | (Omit<
+    >
+  | Omit<
       Extract<
         BuildScoreEventParams,
         { dataType: typeof ScoreDataTypeEnum.CATEGORICAL }
       >,
       "eventId"
-    > & { eventId?: string });
+    >;
 
 function createScoreEventEnvelope(params: {
   eventId: string;
@@ -128,7 +127,7 @@ export function buildScoreEvent(params: BuildScoreEventParams): ScoreEventType {
 function buildScoreWritePayload(
   params: BuildScoreWritePayloadParams,
 ): EvalScoreWritePayload {
-  const eventId = params.eventId ?? randomUUID();
+  const eventId = randomUUID();
 
   if (params.dataType === ScoreDataTypeEnum.CATEGORICAL) {
     return {
@@ -170,7 +169,7 @@ function buildScoreWritePayload(
 
 export function buildEvalScoreWritePayloads(params: {
   outputResult: EvalOutputResult;
-  jobExecutionId?: string;
+  evaluatorExecutionId: string;
   primaryScoreId: string;
   traceId: string | null;
   observationId: string | null;
@@ -193,12 +192,6 @@ export function buildEvalScoreWritePayloads(params: {
     return [
       buildScoreWritePayload({
         ...commonParams,
-        eventId: params.jobExecutionId
-          ? createEvalScoreEventId({
-              jobExecutionId: params.jobExecutionId,
-              scoreIndex: 0,
-            })
-          : undefined,
         scoreId: params.primaryScoreId,
         scoreValue: params.outputResult.score,
         dataType: ScoreDataTypeEnum.NUMERIC,
@@ -210,12 +203,6 @@ export function buildEvalScoreWritePayloads(params: {
     return [
       buildScoreWritePayload({
         ...commonParams,
-        eventId: params.jobExecutionId
-          ? createEvalScoreEventId({
-              jobExecutionId: params.jobExecutionId,
-              scoreIndex: 0,
-            })
-          : undefined,
         scoreId: params.primaryScoreId,
         scoreValue: params.outputResult.score ? 1 : 0,
         dataType: ScoreDataTypeEnum.BOOLEAN,
@@ -226,21 +213,13 @@ export function buildEvalScoreWritePayloads(params: {
   return params.outputResult.matches.map((scoreValue, index) =>
     buildScoreWritePayload({
       ...commonParams,
-      eventId: params.jobExecutionId
-        ? createEvalScoreEventId({
-            jobExecutionId: params.jobExecutionId,
-            scoreIndex: index,
-          })
-        : undefined,
       scoreId:
         index === 0
           ? params.primaryScoreId
-          : params.jobExecutionId
-            ? createEvalScoreId({
-                jobExecutionId: params.jobExecutionId,
-                scoreIndex: index,
-              })
-            : randomUUID(),
+          : createEvaluatorScoreId({
+              evaluatorExecutionId: params.evaluatorExecutionId,
+              scoreIndex: index,
+            }),
       scoreValue,
       dataType: ScoreDataTypeEnum.CATEGORICAL,
     }),

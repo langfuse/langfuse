@@ -62,7 +62,7 @@ vi.mock("@langfuse/shared/src/server", () => {
       LLMAsJudgeExecution: "llm-as-a-judge-execution-job",
       EvaluationExecution: "evaluation-execution-job",
     },
-    EvalJobExecutionEventStatus: {
+    EvaluatorExecutionEventStatus: {
       RETRYING: "RETRYING",
       ERROR: "ERROR",
     },
@@ -95,10 +95,9 @@ vi.mock("../../features/utils", () => ({
   retryLLMRateLimitError: vi.fn(),
 }));
 
-// Mock best-effort ClickHouse job execution event writes.
-vi.mock("../../features/evaluation/jobExecutionEventWriter", () => ({
-  resolveEvalJobExecutionQueueMetadata: vi.fn().mockResolvedValue(null),
-  writeEvalJobExecutionEvent: vi.fn(),
+// Mock best-effort ClickHouse evaluator execution event writes.
+vi.mock("../../features/evaluation/evaluatorExecutionEventWriter", () => ({
+  writeEvaluatorExecutionEvent: vi.fn(),
 }));
 
 // Mock isUnrecoverableError
@@ -131,6 +130,14 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         projectId: string;
         jobExecutionId: string;
         observationS3Path: string;
+        evaluationRuleId: string;
+        evaluatorId: string | null;
+        scoreName: string;
+        targetObject: string;
+        targetTraceId: string;
+        targetObservationId: string;
+        scheduledAt: Date;
+        scheduleDelayMs: number;
       };
       retryBaggage?: { attempt: number };
     }>,
@@ -146,6 +153,14 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           projectId,
           jobExecutionId,
           observationS3Path,
+          evaluationRuleId: "eval-rule-123",
+          evaluatorId: "evaluator-123",
+          scoreName: "quality",
+          targetObject: "event",
+          targetTraceId: "trace-123",
+          targetObservationId: "observation-123",
+          scheduledAt: new Date("2024-01-01T00:00:00.000Z"),
+          scheduleDelayMs: 0,
         },
         retryBaggage: { attempt: 0 },
         ...overrides,
@@ -175,11 +190,14 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
       expect(result).toBe(true);
       expect(processObservationEval).toHaveBeenCalledWith({
-        event: {
+        event: expect.objectContaining({
           projectId,
           jobExecutionId,
           observationS3Path,
-        },
+          evaluationRuleId: "eval-rule-123",
+          targetTraceId: "trace-123",
+          targetObservationId: "observation-123",
+        }),
       });
     });
 

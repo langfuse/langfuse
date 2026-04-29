@@ -13,7 +13,7 @@ import {
   TraceNullRecordInsertType,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
-  JobExecutionEventRecordInsertType,
+  EvaluatorExecutionEventRecordInsertType,
 } from "@langfuse/shared/src/server";
 
 import { Decimal } from "decimal.js";
@@ -57,7 +57,7 @@ export class ClickhouseWriter {
       [TableName.BlobStorageFileLog]: [],
       [TableName.DatasetRunItems]: [],
       [TableName.EventsFull]: [],
-      [TableName.JobExecutionEvents]: [],
+      [TableName.EvaluatorExecutionEvents]: [],
     };
 
     this.start();
@@ -126,7 +126,7 @@ export class ClickhouseWriter {
           this.flush(TableName.BlobStorageFileLog, fullQueue),
           this.flush(TableName.DatasetRunItems, fullQueue),
           this.flush(TableName.EventsFull, fullQueue),
-          this.flush(TableName.JobExecutionEvents, fullQueue),
+          this.flush(TableName.EvaluatorExecutionEvents, fullQueue),
         ]).catch((err) => {
           logger.error("ClickhouseWriter.flushAll", err);
         });
@@ -610,7 +610,7 @@ export enum TableName {
   BlobStorageFileLog = "blob_storage_file_log",
   DatasetRunItems = "dataset_run_items_rmt",
   EventsFull = "events_full", // Primary write target - MV auto-populates events_core
-  JobExecutionEvents = "job_execution_events",
+  EvaluatorExecutionEvents = "evaluator_execution_events",
 }
 
 type RecordInsertType<T extends TableName> = T extends TableName.Scores
@@ -629,8 +629,8 @@ type RecordInsertType<T extends TableName> = T extends TableName.Scores
               ? DatasetRunItemRecordInsertType
               : T extends TableName.EventsFull
                 ? EventRecordInsertType
-                : T extends TableName.JobExecutionEvents
-                  ? JobExecutionEventRecordInsertType
+                : T extends TableName.EvaluatorExecutionEvents
+                  ? EvaluatorExecutionEventRecordInsertType
                   : never;
 
 type ClickhouseQueue = {

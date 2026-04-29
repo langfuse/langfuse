@@ -12,8 +12,8 @@ import {
   JobExecutionStatus,
 } from "@langfuse/shared";
 import {
-  createEvalJobExecutionId,
-  createEventEvalJobExecutionIdentity,
+  createEvaluatorExecutionId,
+  createEventEvaluatorExecutionIdentity,
 } from "@langfuse/shared/src/server";
 
 describe("scheduleObservationEvals", () => {
@@ -98,8 +98,6 @@ describe("scheduleObservationEvals", () => {
       .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
       .mockResolvedValue({
         id: "job-exec-1",
-        created: true,
-        scheduledAt: new Date(),
       }),
     uploadObservationToS3: vi
       .fn<ObservationEvalSchedulerDeps["uploadObservationToS3"]>()
@@ -311,10 +309,10 @@ describe("scheduleObservationEvals", () => {
         schedulerDeps,
       });
 
-      const expectedJobExecutionId = createEvalJobExecutionId(
-        createEventEvalJobExecutionIdentity({
+      const expectedJobExecutionId = createEvaluatorExecutionId(
+        createEventEvaluatorExecutionIdentity({
           projectId: observation.project_id,
-          jobConfigurationId: config.id,
+          evaluationRuleId: config.id,
           targetTraceId: observation.trace_id,
           targetObservationId: observation.span_id,
         }),
@@ -327,6 +325,7 @@ describe("scheduleObservationEvals", () => {
         jobInputObservationId: "obs-123",
         jobTemplateId: config.evalTemplateId,
         status: JobExecutionStatus.PENDING,
+        scheduledAt: expect.any(Date),
       });
     });
 
@@ -344,10 +343,10 @@ describe("scheduleObservationEvals", () => {
         schedulerDeps,
       });
 
-      const expectedJobExecutionId = createEvalJobExecutionId(
-        createEventEvalJobExecutionIdentity({
+      const expectedJobExecutionId = createEvaluatorExecutionId(
+        createEventEvaluatorExecutionIdentity({
           projectId: observation.project_id,
-          jobConfigurationId: config.id,
+          evaluationRuleId: config.id,
           targetTraceId: observation.trace_id,
           targetObservationId: observation.span_id,
         }),
@@ -362,14 +361,12 @@ describe("scheduleObservationEvals", () => {
       );
     });
 
-    it("should not enqueue when job execution already exists", async () => {
+    it("should still enqueue when upsert returns an existing execution id", async () => {
       const schedulerDeps = createMockSchedulerDeps();
       schedulerDeps.upsertJobExecution = vi
         .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
         .mockResolvedValue({
           id: "job-exec-1",
-          created: false,
-          scheduledAt: new Date(),
         });
 
       await scheduleObservationEvals({
@@ -378,7 +375,7 @@ describe("scheduleObservationEvals", () => {
         schedulerDeps,
       });
 
-      expect(schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -389,18 +386,12 @@ describe("scheduleObservationEvals", () => {
         .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
         .mockResolvedValueOnce({
           id: "job-exec-1",
-          created: true,
-          scheduledAt: new Date(),
         })
         .mockResolvedValueOnce({
           id: "job-exec-2",
-          created: true,
-          scheduledAt: new Date(),
         })
         .mockResolvedValueOnce({
           id: "job-exec-3",
-          created: true,
-          scheduledAt: new Date(),
         });
       const observation = createMockObservation();
 

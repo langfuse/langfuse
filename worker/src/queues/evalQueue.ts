@@ -12,7 +12,7 @@ import {
   QueueJobs,
   getCurrentSpan,
   isLLMCompletionError,
-  EvalJobExecutionEventStatus,
+  EvaluatorExecutionEventStatus,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { processObservationEval } from "../features/evaluation/observationEval";
@@ -22,10 +22,7 @@ import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
 import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";
 import { env } from "../env";
-import {
-  resolveEvalJobExecutionQueueMetadata,
-  writeEvalJobExecutionEvent,
-} from "../features/evaluation/jobExecutionEventWriter";
+import { writeEvaluatorExecutionEvent } from "../features/evaluation/evaluatorExecutionEventWriter";
 
 const getEvalExecutionErrorKind = (error: unknown) => {
   if (isLLMCompletionError(error)) {
@@ -239,12 +236,7 @@ export const evalJobExecutorQueueProcessorBuilder = (
         });
 
         if (retryResult.outcome === "scheduled") {
-          const retryEventTs = new Date(job.data.timestamp);
-          const metadata = await resolveEvalJobExecutionQueueMetadata({
-            projectId: job.data.payload.projectId,
-            jobExecutionId: job.data.payload.jobExecutionId,
-            queueFields: job.data.payload,
-          });
+          const retryEventTs = new Date();
 
           // Use the deterministic execution trace ID to update the job execution
           await prisma.jobExecution.update({
@@ -258,17 +250,17 @@ export const evalJobExecutorQueueProcessorBuilder = (
             },
           });
 
-          writeEvalJobExecutionEvent({
+          writeEvaluatorExecutionEvent({
             projectId: job.data.payload.projectId,
-            jobExecutionId: job.data.payload.jobExecutionId,
-            metadata,
-            statusAfter: EvalJobExecutionEventStatus.RETRYING,
+            evaluatorExecutionId: job.data.payload.jobExecutionId,
+            metadata: job.data.payload,
+            statusAfter: EvaluatorExecutionEventStatus.RETRYING,
             transitionKey: `attempt-${retryResult.retryBaggage.attempt}`,
             eventTs: retryEventTs,
             nextRetryAt: new Date(retryEventTs.getTime() + retryResult.delay),
             retryAttempt: retryResult.retryBaggage.attempt,
             retryDelayMs: retryResult.delay,
-            responseStatusCode: e.responseStatusCode,
+            httpResponseStatusCode: e.responseStatusCode,
             errorKind: getEvalExecutionErrorKind(e),
             errorMessage: e.message,
             executionTraceId,
@@ -280,12 +272,7 @@ export const evalJobExecutorQueueProcessorBuilder = (
       }
 
       // At this point there will be only 4xx LLMCompletionErrors that are not retryable and application errors
-      const failedAt = new Date(job.data.timestamp);
-      const metadata = await resolveEvalJobExecutionQueueMetadata({
-        projectId: job.data.payload.projectId,
-        jobExecutionId: job.data.payload.jobExecutionId,
-        queueFields: job.data.payload,
-      });
+      const failedAt = new Date();
 
       await prisma.jobExecution.update({
         where: {
@@ -294,7 +281,7 @@ export const evalJobExecutorQueueProcessorBuilder = (
         },
         data: {
           status: JobExecutionStatus.ERROR,
-          endTime: new Date(),
+          endTime: failedAt,
           // Show user-facing error messages (LLM and config errors)
           error:
             isLLMCompletionError(e) || isUnrecoverableError(e)
@@ -304,15 +291,15 @@ export const evalJobExecutorQueueProcessorBuilder = (
         },
       });
 
-      writeEvalJobExecutionEvent({
+      writeEvaluatorExecutionEvent({
         projectId: job.data.payload.projectId,
-        jobExecutionId: job.data.payload.jobExecutionId,
-        metadata,
-        statusAfter: EvalJobExecutionEventStatus.ERROR,
+        evaluatorExecutionId: job.data.payload.jobExecutionId,
+        metadata: job.data.payload,
+        statusAfter: EvaluatorExecutionEventStatus.ERROR,
         transitionKey: "final",
         eventTs: failedAt,
         failedAt,
-        responseStatusCode: isLLMCompletionError(e)
+        httpResponseStatusCode: isLLMCompletionError(e)
           ? e.responseStatusCode
           : undefined,
         errorKind: getEvalExecutionErrorKind(e),
@@ -384,12 +371,7 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         });
 
         if (retryResult.outcome === "scheduled") {
-          const retryEventTs = new Date(job.data.timestamp);
-          const metadata = await resolveEvalJobExecutionQueueMetadata({
-            projectId: job.data.payload.projectId,
-            jobExecutionId: job.data.payload.jobExecutionId,
-            queueFields: job.data.payload,
-          });
+          const retryEventTs = new Date();
 
           await prisma.jobExecution.update({
             where: {
@@ -402,17 +384,17 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
             },
           });
 
-          writeEvalJobExecutionEvent({
+          writeEvaluatorExecutionEvent({
             projectId: job.data.payload.projectId,
-            jobExecutionId: job.data.payload.jobExecutionId,
-            metadata,
-            statusAfter: EvalJobExecutionEventStatus.RETRYING,
+            evaluatorExecutionId: job.data.payload.jobExecutionId,
+            metadata: job.data.payload,
+            statusAfter: EvaluatorExecutionEventStatus.RETRYING,
             transitionKey: `attempt-${retryResult.retryBaggage.attempt}`,
             eventTs: retryEventTs,
             nextRetryAt: new Date(retryEventTs.getTime() + retryResult.delay),
             retryAttempt: retryResult.retryBaggage.attempt,
             retryDelayMs: retryResult.delay,
-            responseStatusCode: e.responseStatusCode,
+            httpResponseStatusCode: e.responseStatusCode,
             errorKind: getEvalExecutionErrorKind(e),
             errorMessage: e.message,
             executionTraceId,
@@ -422,12 +404,7 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         }
       }
 
-      const failedAt = new Date(job.data.timestamp);
-      const metadata = await resolveEvalJobExecutionQueueMetadata({
-        projectId: job.data.payload.projectId,
-        jobExecutionId: job.data.payload.jobExecutionId,
-        queueFields: job.data.payload,
-      });
+      const failedAt = new Date();
 
       await prisma.jobExecution.update({
         where: {
@@ -436,7 +413,7 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         },
         data: {
           status: JobExecutionStatus.ERROR,
-          endTime: new Date(),
+          endTime: failedAt,
           error:
             isLLMCompletionError(e) || isUnrecoverableError(e)
               ? e.message
@@ -445,15 +422,15 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         },
       });
 
-      writeEvalJobExecutionEvent({
+      writeEvaluatorExecutionEvent({
         projectId: job.data.payload.projectId,
-        jobExecutionId: job.data.payload.jobExecutionId,
-        metadata,
-        statusAfter: EvalJobExecutionEventStatus.ERROR,
+        evaluatorExecutionId: job.data.payload.jobExecutionId,
+        metadata: job.data.payload,
+        statusAfter: EvaluatorExecutionEventStatus.ERROR,
         transitionKey: "final",
         eventTs: failedAt,
         failedAt,
-        responseStatusCode: isLLMCompletionError(e)
+        httpResponseStatusCode: isLLMCompletionError(e)
           ? e.responseStatusCode
           : undefined,
         errorKind: getEvalExecutionErrorKind(e),
