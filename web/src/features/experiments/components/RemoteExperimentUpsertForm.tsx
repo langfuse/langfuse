@@ -20,6 +20,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { Switch } from "@/src/components/ui/switch";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -33,6 +34,7 @@ import { getFormattedPayload } from "@/src/features/experiments/utils/format";
 const RemoteExperimentSetupSchema = z.object({
   url: z.url(),
   defaultPayload: z.string(),
+  enabled: z.boolean(),
 });
 
 type RemoteExperimentSetupForm = z.infer<typeof RemoteExperimentSetupSchema>;
@@ -48,6 +50,7 @@ export const RemoteExperimentUpsertForm = ({
   existingRemoteExperiment?: {
     url: string;
     payload: Prisma.JsonValue;
+    enabled?: boolean;
   } | null;
   setShowRemoteExperimentUpsertForm: (show: boolean) => void;
 }) => {
@@ -67,6 +70,7 @@ export const RemoteExperimentUpsertForm = ({
     defaultValues: {
       url: existingRemoteExperiment?.url || "",
       defaultPayload: getFormattedPayload(existingRemoteExperiment?.payload),
+      enabled: existingRemoteExperiment?.enabled ?? true,
     },
   });
 
@@ -100,6 +104,10 @@ export const RemoteExperimentUpsertForm = ({
             "The remote dataset run trigger has been removed from this dataset.",
         });
         setShowRemoteExperimentUpsertForm(false);
+        utils.datasets.getRemoteExperiment.invalidate({
+          projectId,
+          datasetId,
+        });
       },
       onError: (error) => {
         showErrorToast(
@@ -126,6 +134,7 @@ export const RemoteExperimentUpsertForm = ({
       datasetId,
       url: data.url,
       defaultPayload: data.defaultPayload,
+      enabled: data.enabled,
     });
   };
 
@@ -224,6 +233,29 @@ export const RemoteExperimentUpsertForm = ({
                     minHeight={200}
                   />
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="enabled"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel>Enabled</FormLabel>
+                    <FormDescription>
+                      {field.value
+                        ? "Trigger is active. You can disable anytime to pause without losing your configuration."
+                        : "Trigger is paused. Enable to allow running remote experiments."}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />

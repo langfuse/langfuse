@@ -32,10 +32,7 @@ export const TraceAnnotationProcessor: React.FC<
 > = ({ item, data, view, configs, projectId }) => {
   const traceId = item.parentTraceId ?? item.objectId;
 
-  const [currentObservationId, setCurrentObservationId] = useQueryParam(
-    "observation",
-    StringParam,
-  );
+  const [, setCurrentObservationId] = useQueryParam("observation", StringParam);
 
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
@@ -91,17 +88,6 @@ export const TraceAnnotationProcessor: React.FC<
 
   if (!data) return <div className="p-3">Loading...</div>;
 
-  let isValidObservationId = false;
-
-  if (
-    currentObservationId &&
-    data.observations.some(
-      ({ id }: { id: string }) => id === currentObservationId,
-    )
-  ) {
-    isValidObservationId = true;
-  }
-
   const leftPanel =
     view === "hideTree" ? (
       <JsonExpansionProvider>
@@ -143,8 +129,6 @@ export const TraceAnnotationProcessor: React.FC<
           corrections={data.corrections}
           projectId={data.projectId}
           observations={data.observations}
-          viewType="focused"
-          isValidObservationId={isValidObservationId}
         />
       </div>
     );

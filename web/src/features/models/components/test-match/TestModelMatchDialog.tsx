@@ -47,7 +47,7 @@ export function TestModelMatchDialog({
   );
 
   // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (modelName.trim()) {
       setHasSubmitted(true);
@@ -153,11 +153,7 @@ export function TestModelMatchDialog({
                                 Match Found
                               </span>
                             </div>
-                            <MatchedModelCard
-                              projectId={projectId}
-                              model={data.model}
-                              pricingTierId={data.matchedTier.id}
-                            />
+                            <MatchedModelCard model={data.model} />
                             <MatchedTierCard tier={data.matchedTier} />
                           </>
                         ) : (

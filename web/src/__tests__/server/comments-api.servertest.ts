@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import {
   GetCommentsV1Response,

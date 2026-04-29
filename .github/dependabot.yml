@@ -12,7 +12,7 @@ updates:
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 5
+      default-days: 7
     versioning-strategy: "increase"
     commit-message:
       prefix: chore
@@ -54,6 +54,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 8
     commit-message:
       prefix: ci
       include: scope

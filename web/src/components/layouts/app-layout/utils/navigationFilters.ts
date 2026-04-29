@@ -68,7 +68,6 @@ export const filters = {
    * - Experimental features enabled
    * - User is cloud admin
    * - User has specific feature flag
-   * - For v4Beta: show to all cloud users and keep it visible for opted-in users outside cloud
    */
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
@@ -80,14 +79,9 @@ export const filters = {
     }
 
     if (route.featureFlag === "v4BetaToggleVisible") {
-      const hasOptedIn = ctx.session?.user?.v4BetaEnabled === true;
-
-      return ctx.isLangfuseCloud ||
-        ctx.enableExperimentalFeatures ||
-        ctx.cloudAdmin ||
-        hasOptedIn
-        ? route
-        : null;
+      const isDev = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV";
+      const canToggleV4 = isDev || ctx.session?.user?.canToggleV4 === true;
+      return canToggleV4 && ctx.isLangfuseCloud ? route : null;
     }
 
     const hasFlag =

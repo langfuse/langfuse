@@ -1,4 +1,4 @@
-import { type ZodSchema, z } from "zod";
+import { type ZodType, z } from "zod";
 
 import { ChatAnthropic, ChatAnthropicInput } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
@@ -156,7 +156,7 @@ type LLMCompletionParams = {
     baseURL?: string | null;
     config?: Record<string, string> | null;
   };
-  structuredOutputSchema?: ZodSchema | LLMJSONSchema;
+  structuredOutputSchema?: ZodType | LLMJSONSchema;
   callbacks?: BaseCallbackHandler[];
   maxRetries?: number;
   traceSinkParams?: TraceSinkParams;
@@ -183,7 +183,7 @@ export async function fetchLLMCompletion(
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
-    structuredOutputSchema: ZodSchema;
+    structuredOutputSchema: ZodType;
   },
 ): Promise<Record<string, unknown>>;
 

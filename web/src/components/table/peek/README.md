@@ -26,10 +26,12 @@ The peek state architecture separates the persisting context provider from the r
         │ Table Components (e.g., ScoresTable)  │
         │                                       │
         │  Hooks automatically detect peek:     │
-        │  • useSidebarFilterState()            │
         │  • useOrderByState()                  │
         │  • usePaginationState()               │
         │  • useFullTextSearch()                │
+        │                                       │
+        │  Hooks requiring explicit wiring:     │
+        │  • useSidebarFilterState()            │
         └───────────────────────────────────────┘
                             │
                             ▼
@@ -38,6 +40,10 @@ The peek state architecture separates the persisting context provider from the r
         │                                        │
         │ const peekContext = usePeekTableState()│
         │ if (peekContext) {                     │
+        │   useSidebarFilterState({             │
+        │     stateLocation: "peekContext",     │
+        │     context: peekContext,             │
+        │   })                                  │
         │   return peekContext.tableState.X      │
         │ }                                      │
         │ return urlState                        │
@@ -53,15 +59,21 @@ The peek state architecture separates the persisting context provider from the r
 - Provides persistent state storage across peek item navigation
 - Stores filters, sorting, pagination, and search state
 - Does NOT remount when `itemId` changes during K/J navigation
-- Tables inside the peek view automatically use this context when available
+- Tables inside the peek view can read from this context when the relevant hook
+  supports it or the caller explicitly wires it
 
 #### Peek-Aware Hooks
 
-All state management hooks automatically detect when they're running inside a peek view and read/write state accordingly:
+Most state management hooks automatically detect when they're running inside a
+peek view and read/write state accordingly. `useSidebarFilterState` is the
+exception and must be wired explicitly by the caller.
 
 1. **`useSidebarFilterState`** - Manages filter state
    - Location: `web/src/features/filters/hooks/useSidebarFilterState.tsx`
-   - Checks for `usePeekTableState()` and reads from `peekContext.tableState.filters`
+   - Requires explicit `hookOptions` wiring:
+     `stateLocation: "peekContext"` with `context: usePeekTableState()`
+   - Without that wiring, it uses URL or session storage state instead of the
+     peek context
 
 2. **`useOrderByState`** - Manages sorting state
    - Location: `web/src/features/orderBy/hooks/useOrderByState.ts`
@@ -151,9 +163,37 @@ To make a table work with peek state persistence:
 3. **For filters, use useSidebarFilterState:**
 
    ```typescript
-   // Already peek-aware, no changes needed if already using this hook
-   const queryFilter = useSidebarFilterState(filterConfig, options, projectId);
+   const peekContext = usePeekTableState();
+
+   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
+     if (peekContext) {
+       return {
+         loading: isSidebarFilterLoading,
+         implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+         stateLocation: "peekContext",
+         context: peekContext,
+       };
+     }
+
+     return {
+       loading: isSidebarFilterLoading,
+       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+       stateLocation: "urlAndSessionStorage",
+       sessionFilterContextId: projectId,
+     };
+   }, [isSidebarFilterLoading, peekContext, projectId]);
+
+   const queryFilter = useSidebarFilterState(
+     filterConfig,
+     filterOptions,
+     queryFilterOptions,
+   );
    ```
+
+   `useSidebarFilterState` no longer detects peek context internally. If the
+   table can render inside `PeekTableStateProvider`, the caller must pass
+   `stateLocation: "peekContext"` explicitly or filters will persist in URL or
+   session state instead of the in-memory peek state.
 
 4. **For sorting, use useOrderByState:**
 
@@ -167,7 +207,7 @@ To make a table work with peek state persistence:
 
 ### How It Works Internally
 
-Each peek-aware hook follows the same pattern:
+Most peek-aware hooks follow this pattern internally:
 
 ```typescript
 export const useSomeState = () => {
@@ -241,12 +281,23 @@ Hypothetical: Trace peek with both Scores table AND Events table
 - Tables use `disableUrlPersistence` and scope data via props (`traceId`, `observationId`)
 
 **Future Solution (if multiple independent table types are needed):**
-Namespace state by table identifier:
+Any follow-up design for namespaced peek state still needs to keep the explicit
+`useSidebarFilterState` wiring pattern:
 
 ```typescript
-const filters = useSidebarFilterState(config, options, projectId, loading, {
-  tableId: "scores", // Unique identifier per table
-});
+const queryFilterOptions: UseSidebarFilterStateOptions = peekContext
+  ? {
+      loading,
+      stateLocation: "peekContext",
+      context: peekContext,
+    }
+  : {
+      loading,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId,
+    };
+
+const filters = useSidebarFilterState(config, options, queryFilterOptions);
 ```
 
 ## Related Files

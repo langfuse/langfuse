@@ -19,7 +19,7 @@ export function isEmailVerifiedWithinCutoff(
   if (!emailVerifiedDateTime)
     return { verified: false, reason: "not_verified" };
 
-  const typed = z.string().datetime().safeParse(emailVerifiedDateTime);
+  const typed = z.iso.datetime().safeParse(emailVerifiedDateTime);
   if (!typed.success) {
     throw new Error("Invalid date string provided for emailVerifiedDateTime");
   }

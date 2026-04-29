@@ -52,13 +52,13 @@ const ScorePropsAgainstConfigNumeric = z
   .superRefine((data, ctx) => {
     if (isPresent(data.maxValue) && data.value > data.maxValue) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: `Value exceeds maximum value of ${data.maxValue} defined in config`,
       });
     }
     if (isPresent(data.minValue) && data.value < data.minValue) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: `Value is below minimum value of ${data.minValue} defined in config`,
       });
     }
@@ -73,7 +73,7 @@ const ScorePropsAgainstConfigCategorical = z
   .superRefine((data, ctx) => {
     if (!data.categories.some(({ label }) => label === data.value)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: `Value ${data.value} does not map to a valid category. Pass a valid category value.`,
       });
     }

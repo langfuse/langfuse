@@ -5,18 +5,18 @@ describe("useCopyToClipboard", () => {
   const originalClipboard = navigator.clipboard;
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {
-        writeText: jest.fn().mockResolvedValue(undefined),
+        writeText: vi.fn().mockResolvedValue(undefined),
       },
     });
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: originalClipboard,
@@ -37,13 +37,13 @@ describe("useCopyToClipboard", () => {
     expect(result.current.isCopied).toBe(true);
 
     act(() => {
-      jest.advanceTimersByTime(499);
+      vi.advanceTimersByTime(499);
     });
 
     expect(result.current.isCopied).toBe(true);
 
     act(() => {
-      jest.advanceTimersByTime(1);
+      vi.advanceTimersByTime(1);
     });
 
     expect(result.current.isCopied).toBe(false);
@@ -74,13 +74,13 @@ describe("useCopyToClipboard", () => {
     expect(result.current.isCopied).toBe(true);
 
     act(() => {
-      jest.advanceTimersByTime(499);
+      vi.advanceTimersByTime(499);
     });
 
     expect(result.current.isCopied).toBe(true);
 
     act(() => {
-      jest.advanceTimersByTime(1);
+      vi.advanceTimersByTime(1);
     });
 
     expect(result.current.isCopied).toBe(false);

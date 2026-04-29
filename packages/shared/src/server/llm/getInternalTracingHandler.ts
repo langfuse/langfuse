@@ -17,12 +17,7 @@ export function prepareInternalTraceEvents(params: {
   const { events, environment, prompt } = params;
 
   const blockedSpanIds = new Set();
-  const blockedSpanNames = [
-    "RunnableLambda",
-    "StructuredOutputParser",
-    "StrOutputParser",
-    "JsonOutputParser",
-  ];
+  const blockedSpanNameSubstrings = ["RunnableLambda", "OutputParser"];
 
   for (const event of events) {
     const eventName = "name" in event.body ? event.body.name : "";
@@ -31,7 +26,13 @@ export function prepareInternalTraceEvents(params: {
       continue;
     }
 
-    if (blockedSpanNames.includes(eventName as string) && "id" in event.body) {
+    if (
+      blockedSpanNameSubstrings.some((blockedSubstring) =>
+        eventName.includes(blockedSubstring),
+      ) &&
+      "id" in event.body &&
+      event.type !== "trace-create"
+    ) {
       blockedSpanIds.add(event.body.id);
     }
   }

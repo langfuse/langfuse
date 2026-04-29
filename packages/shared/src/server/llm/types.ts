@@ -23,7 +23,7 @@ export const JSONSchemaFormSchema = z
       return parsed;
     } catch {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "Parameters must be valid JSON",
       });
       return z.NEVER;
@@ -37,7 +37,7 @@ export const JSONSchemaFormSchema = z
         required: z.array(z.string()).optional(),
         additionalProperties: z.boolean().optional(),
       })
-      .passthrough()
+      .loose()
       .transform((data) => JSON.stringify(data, null, 2)),
   );
 
@@ -433,6 +433,7 @@ export type OpenAIModel = (typeof openAIModels)[number];
 export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
   "claude-haiku-4-5-20251001",
+  "claude-opus-4-7",
   "claude-sonnet-4-6",
   "claude-opus-4-6",
   "claude-opus-4-5-20251101",
@@ -503,7 +504,7 @@ export const supportedModels = {
 export type LLMFunctionCall = {
   name: string;
   description: string;
-  parameters: z.ZodTypeAny; // this has to be a json schema for OpenAI
+  parameters: z.ZodType; // this has to be a json schema for OpenAI
 };
 
 export const LLMApiKeySchema = z

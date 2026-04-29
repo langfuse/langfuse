@@ -84,7 +84,7 @@ export default function SignIn({
     form.clearErrors();
 
     // Ensure email is valid before hitting the API
-    // We use z.string().email() manually because we don't use the full schema resolver in the first step
+    // We use z.email() manually because we don't use the full schema resolver in the first step
     // or we could just trigger validation for the email field only
     const emailValue = form.getValues("email");
     // Basic check using zod directly or trigger
@@ -95,7 +95,7 @@ export default function SignIn({
 
     // Manual email validation to match sign-in behavior
     // Although signupSchema.shape.email is ZodString, let's just use a new Zod check for simplicity and robustness
-    const emailSchema = z.string().email();
+    const emailSchema = z.email();
     const emailResult = emailSchema.safeParse(emailValue);
 
     if (!emailResult.success) {

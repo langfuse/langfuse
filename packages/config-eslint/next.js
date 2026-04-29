@@ -62,6 +62,9 @@ export default [
     name: "langfuse/next/typescript",
     files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
+      parserOptions: {
+        projectService: true,
+      },
       globals: {
         React: "readonly",
         JSX: "readonly",
@@ -94,7 +97,9 @@ export default [
           ignoreRestSiblings: true,
         },
       ],
+      "@typescript-eslint/no-deprecated": "warn",
       "react/jsx-key": ["error", { warnOnDuplicates: true }],
+      "react/no-unused-prop-types": "warn",
     },
   },
 ];

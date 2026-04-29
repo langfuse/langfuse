@@ -113,7 +113,7 @@ describe.sequential("handle redis events", () => {
 
     // Job should still be waiting as there is no listener
     const jobState = await traceUpsertQueue?.getJobState(job!.id!);
-    expect(jobState).toEqual("delayed");
+    expect(jobState).toEqual("waiting");
   }, 5000);
 
   // test("handle redis job failing", async () => {

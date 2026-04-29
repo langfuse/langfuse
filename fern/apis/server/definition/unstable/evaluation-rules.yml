@@ -1,0 +1,494 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+  errors: ./errors.yml
+  pagination: ../utils/pagination.yml
+
+service:
+  auth: true
+  base-path: /api/public/unstable
+  endpoints:
+    create:
+      docs: |
+        Create an evaluation rule.
+
+        An evaluation rule defines **what** incoming data should be evaluated and **how prompt variables should be populated** from that data.
+
+        Use this resource after choosing an evaluator from the evaluator endpoints.
+
+        Key rules:
+        - `name` must be unique within the project for public evaluation rules
+        - `target` must be `observation` or `experiment`
+        - `evaluator.name` + `evaluator.scope` must identify an existing evaluator family returned by the evaluator endpoints
+        - Langfuse resolves that family to its latest version before saving the evaluation rule
+        - for `target=experiment`, use dataset `id` values from `GET /api/public/v2/datasets` when filtering by `datasetId`
+        - every evaluator prompt variable must be mapped exactly once
+        - `expected_output` mappings are only valid for `target=experiment`
+        - if `enabled=true`, Langfuse validates that the referenced evaluator can currently run
+        - at most 50 evaluation rules can be effectively active in one project at the same time
+
+        If an evaluation rule with the same `name` already exists in the project, the API returns `409`.
+        In that case, update the existing resource with `PATCH /api/public/unstable/evaluation-rules/{evaluationRuleId}` instead of creating a second one.
+
+        If enabling this resource would exceed the 50-active limit, the API also returns `409`.
+        In that case, disable or pause another active evaluation rule before enabling a new one.
+
+        Current scope:
+        - evaluation rules are live-ingestion rules only
+        - they do not trigger historical backfills
+
+        Recovery guidance:
+        - `400 invalid_filter_value`: fix the filter `column` or `value` using `details.column`, `details.invalidValues`, and `details.allowedValues`
+        - `400 invalid_filter_value` with `details.column=datasetId`: call `GET /api/public/v2/datasets`, then retry with dataset `id` values from that response
+        - `400 missing_variable_mapping`: fetch the evaluator again and make sure every variable in `variables` appears exactly once in `mapping`
+        - `400 duplicate_variable_mapping`: remove repeated mappings for the same variable
+        - `400 invalid_variable_mapping`: switch to a valid `source` for the selected `target`, or fix the variable name
+        - `400 invalid_json_path`: remove or correct the `jsonPath`
+        - `422 evaluator_preflight_failed`: the selected evaluator cannot run with the resolved model configuration. Fix the evaluator/default model setup, then retry the create request.
+      method: POST
+      path: /evaluation-rules
+      request: CreateEvaluationRuleRequest
+      response: EvaluationRule
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.ConflictError
+        - errors.MethodNotAllowedError
+        - errors.UnprocessableContentError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+      examples:
+        - name: CreateObservationEvaluationRule
+          docs: Deploy an evaluator to score live generations only.
+          request:
+            name: answer-correctness-live
+            evaluator:
+              name: answer-correctness
+              scope: project
+            target: observation
+            enabled: true
+            sampling: 1
+            filter:
+              - type: stringOptions
+                column: type
+                operator: any of
+                value:
+                  - GENERATION
+            mapping:
+              - variable: input
+                source: input
+              - variable: output
+                source: output
+          response:
+            body:
+              id: erule_123
+              name: answer-correctness-live
+              evaluator:
+                id: evaltmpl_123
+                name: answer-correctness
+                scope: project
+              target: observation
+              enabled: true
+              status: active
+              pausedReason: null
+              pausedMessage: null
+              sampling: 1
+              filter:
+                - type: stringOptions
+                  column: type
+                  operator: any of
+                  value:
+                    - GENERATION
+              mapping:
+                - variable: input
+                  source: input
+                - variable: output
+                  source: output
+              createdAt: "2026-03-30T09:20:00.000Z"
+              updatedAt: "2026-03-30T09:20:00.000Z"
+        - name: CreateExperimentEvaluationRule
+          docs: Deploy an evaluator to compare experiment outputs against expected outputs. Discover valid dataset IDs with `GET /api/public/v2/datasets` first.
+          request:
+            name: experiment-expected-output-match
+            evaluator:
+              name: expected-output-match
+              scope: project
+            target: experiment
+            enabled: true
+            sampling: 0.5
+            filter:
+              - type: stringOptions
+                column: datasetId
+                operator: any of
+                value:
+                  - "550e8400-e29b-41d4-a716-446655440000"
+            mapping:
+              - variable: output
+                source: output
+              - variable: expected_output
+                source: expected_output
+          response:
+            body:
+              id: erule_456
+              name: experiment-expected-output-match
+              evaluator:
+                id: evaltmpl_456
+                name: expected-output-match
+                scope: project
+              target: experiment
+              enabled: true
+              status: active
+              pausedReason: null
+              pausedMessage: null
+              sampling: 0.5
+              filter:
+                - type: stringOptions
+                  column: datasetId
+                  operator: any of
+                  value:
+                    - "550e8400-e29b-41d4-a716-446655440000"
+              mapping:
+                - variable: output
+                  source: output
+                - variable: expected_output
+                  source: expected_output
+              createdAt: "2026-03-30T09:30:00.000Z"
+              updatedAt: "2026-03-30T09:30:00.000Z"
+
+    list:
+      docs: |
+        List evaluation rules in the authenticated project.
+
+        Each item describes one live evaluation rule and its effective runtime status.
+      method: GET
+      path: /evaluation-rules
+      request:
+        name: ListEvaluationRulesRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: 1-based page number. Defaults to `1`.
+          limit:
+            type: optional<integer>
+            docs: Maximum number of items per page. Defaults to `50`.
+      response: EvaluationRules
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    get:
+      docs: |
+        Get one evaluation rule by its identifier.
+
+        Use this endpoint to inspect the current evaluator, target, mapping, filters, and effective runtime status.
+      method: GET
+      path: /evaluation-rules/{evaluationRuleId}
+      path-parameters:
+        evaluationRuleId:
+          type: string
+          docs: Evaluation rule identifier returned by the evaluation rule endpoints.
+      response: EvaluationRule
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    update:
+      docs: |
+        Update an evaluation rule.
+
+        Typical uses:
+        - enable or disable live execution
+        - switch to another evaluator
+        - adjust sampling
+        - change filters
+        - update variable mappings
+
+        Important behavior:
+        - provide only the fields you want to change
+        - if you provide `evaluator`, Langfuse resolves that evaluator family to its latest version before saving
+        - changing `target`, `filter`, or `mapping` must still produce a valid target-specific configuration
+        - if you change `target`, also send a compatible `filter` and `mapping` in the same request unless the existing ones are still valid for the new target
+        - if the resulting config is enabled, Langfuse re-validates that the selected evaluator can run
+        - if the update would move a non-active evaluation rule into the active state and the project already has 50 active evaluation rules, the API returns `409`
+
+        Recovery guidance:
+        - if the update fails with `missing_variable_mapping` or `invalid_variable_mapping` after changing `evaluator` or `target`, resend the request with a complete new `mapping`
+        - if the update fails with `invalid_filter_value` after changing `target`, resend the request with a target-compatible `filter`
+      method: PATCH
+      path: /evaluation-rules/{evaluationRuleId}
+      path-parameters:
+        evaluationRuleId:
+          type: string
+          docs: Evaluation rule identifier.
+      request: UpdateEvaluationRuleRequest
+      response: EvaluationRule
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.UnprocessableContentError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    delete:
+      docs: |
+        Delete an evaluation rule.
+
+        This removes the live-ingestion rule only. It does not delete the referenced evaluator.
+      method: DELETE
+      path: /evaluation-rules/{evaluationRuleId}
+      path-parameters:
+        evaluationRuleId:
+          type: string
+          docs: Evaluation rule identifier.
+      response: DeleteEvaluationRuleResponse
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+types:
+  EvaluationRule:
+    docs: |
+      Live evaluation rule for incoming data.
+
+      An evaluation rule answers:
+      - which evaluator should be used
+      - which target objects should trigger scoring
+      - how often scoring should run
+      - which target fields should populate each evaluator variable
+      - whether the deployment is active, inactive, or paused
+
+      Important status semantics:
+      - `enabled` is the desired on/off setting from the client
+      - `status` is the effective runtime state after Langfuse applies validation and blocking rules
+      - `enabled=true` with `status=paused` means the rule should run, but Langfuse has paused it until the underlying problem is fixed
+    properties:
+      id:
+        type: string
+        docs: Stable evaluation rule identifier.
+      name:
+        type: string
+        docs: Human-readable deployment name. This is independent from the evaluator name.
+      evaluator:
+        type: EvaluationRuleEvaluator
+        docs: |
+          Evaluator currently used by this rule.
+
+          `name` and `scope` identify the evaluator family conceptually.
+          `id` is the currently active evaluator version in that family.
+          If you create a newer project version with the same evaluator name later, existing evaluation rules are moved to it automatically.
+      target:
+        type: commons.EvaluationRuleTarget
+        docs: Target object type that should trigger scoring.
+      enabled:
+        type: boolean
+        docs: Desired enabled state configured by the client.
+      status:
+        type: commons.EvaluationRuleStatus
+        docs: Effective runtime status after Langfuse applies validation and blocking rules.
+      pausedReason:
+        type: nullable<string>
+        docs: Machine-readable reason when `status=paused`, otherwise `null`.
+      pausedMessage:
+        type: nullable<string>
+        docs: Human-readable explanation when `status=paused`, otherwise `null`.
+      sampling:
+        type: double
+        docs: |
+          Fraction of matching target objects that should be evaluated.
+
+          Must be greater than `0` and less than or equal to `1`.
+          - `1` means evaluate every matching target.
+          - `0.25` means evaluate approximately 25% of matching targets.
+      filter:
+        type: list<commons.EvaluationRuleFilter>
+        docs: List of filter conditions used to decide whether a target should be evaluated.
+      mapping:
+        type: list<commons.EvaluationRuleMapping>
+        docs: Variable mappings used to populate the evaluator prompt from the live target object.
+      createdAt:
+        type: datetime
+        docs: Timestamp when the evaluation rule was created.
+      updatedAt:
+        type: datetime
+        docs: Timestamp when the evaluation rule was last updated.
+    examples:
+      - value:
+          id: erule_123
+          name: answer-correctness-live
+          evaluator:
+            id: evaltmpl_123
+            name: answer-correctness
+            scope: project
+          target: observation
+          enabled: true
+          status: active
+          pausedReason: null
+          pausedMessage: null
+          sampling: 1
+          filter:
+            - type: stringOptions
+              column: type
+              operator: any of
+              value:
+                - GENERATION
+          mapping:
+            - variable: input
+              source: input
+            - variable: output
+              source: output
+          createdAt: "2026-03-30T09:20:00.000Z"
+          updatedAt: "2026-03-30T09:20:00.000Z"
+
+  EvaluationRules:
+    docs: Paginated list of evaluation rules.
+    properties:
+      data:
+        type: list<EvaluationRule>
+        docs: Evaluation rules in the current page.
+      meta:
+        type: pagination.MetaResponse
+        docs: Standard pagination metadata.
+
+  CreateEvaluationRuleRequest:
+    docs: |
+      Request body for creating an evaluation rule.
+
+      Checklist for agents and SDK clients:
+      - reference an existing evaluator family by `evaluator.name` and `evaluator.scope`
+      - choose `target=observation` or `target=experiment`
+      - if `target=experiment` and you want a dataset filter, call `GET /api/public/v2/datasets` first and use dataset `id` values in `filter[].value`
+      - fetch or inspect the evaluator first, then provide a complete variable mapping for every evaluator variable listed in `variables`
+      - optionally narrow execution with `filter`
+      - set `enabled=true` only when you want live execution immediately
+    properties:
+      name:
+        type: string
+        docs: Human-readable deployment name.
+      evaluator:
+        type: EvaluationRuleEvaluatorReference
+        docs: |
+          Evaluator family to use.
+
+          Use `name` and `scope` from the evaluator endpoints.
+          Langfuse resolves that family to its latest version before saving the rule.
+      target:
+        type: commons.EvaluationRuleTarget
+        docs: Target object type to evaluate.
+      enabled:
+        type: boolean
+        docs: Whether the deployment should be active immediately after creation.
+      sampling:
+        type: optional<double>
+        docs: Optional sampling fraction. Defaults to `1`.
+      filter:
+        type: optional<list<commons.EvaluationRuleFilter>>
+        docs: |
+          Optional filter list.
+
+          Omit or pass an empty list to evaluate all matching targets for the selected `target`.
+          Each filter object must use a column that is valid for that `target`.
+          For `target=experiment`, `column=datasetId` expects dataset `id` values from `GET /api/public/v2/datasets`, not dataset names.
+      mapping:
+        type: list<commons.EvaluationRuleMapping>
+        docs: |
+          Required variable mappings.
+
+          Every evaluator variable must appear exactly once.
+          Build this list from the evaluator `variables` array returned by the evaluator endpoints.
+
+  UpdateEvaluationRuleRequest:
+    docs: |
+      Partial update body for an evaluation rule.
+
+      Provide only the fields you want to change.
+      An empty body is rejected.
+
+      Practical guidance:
+      - If you only want to rename the rule or change sampling, send just those fields.
+      - If you change `evaluator`, send a fresh `mapping` unless you are certain the existing mapping still matches the evaluator variables.
+      - If you change `target`, usually send both `filter` and `mapping` in the same request.
+      - If you change an experiment `datasetId` filter, call `GET /api/public/v2/datasets` and use dataset `id` values from that response.
+    properties:
+      name:
+        type: optional<string>
+        docs: Updated deployment name.
+      evaluator:
+        type: optional<EvaluationRuleEvaluatorReference>
+        docs: |
+          Updated evaluator family.
+
+          Langfuse resolves the provided evaluator family to its latest version before saving the rule.
+      target:
+        type: optional<commons.EvaluationRuleTarget>
+        docs: Updated target object type.
+      enabled:
+        type: optional<boolean>
+        docs: Updated desired enabled state.
+      sampling:
+        type: optional<double>
+        docs: Updated sampling fraction.
+      filter:
+        type: optional<list<commons.EvaluationRuleFilter>>
+        docs: |
+          Updated filter list.
+
+          For `target=experiment`, `column=datasetId` expects dataset `id` values from `GET /api/public/v2/datasets`, not dataset names.
+      mapping:
+        type: optional<list<commons.EvaluationRuleMapping>>
+        docs: Updated variable mappings.
+
+  DeleteEvaluationRuleResponse:
+    docs: Confirmation response returned after successful deletion.
+    properties:
+      message:
+        type: string
+        docs: Always `Evaluation rule successfully deleted`.
+
+  EvaluationRuleEvaluatorReference:
+    docs: |
+      Evaluator family reference used when creating or updating an evaluation rule.
+
+      `name` and `scope` are enough to identify the evaluator family in the authenticated project context.
+    properties:
+      name:
+        type: string
+        docs: Evaluator family name.
+      scope:
+        type: commons.EvaluatorScope
+        docs: Whether the evaluator family is project-owned or Langfuse-managed.
+
+  EvaluationRuleEvaluator:
+    docs: |
+      Resolved evaluator currently used by the evaluation rule.
+
+      `id` is the exact active evaluator version.
+      `name` and `scope` identify the evaluator family conceptually.
+    properties:
+      id:
+        type: string
+        docs: Identifier of the exact evaluator version currently used by the rule.
+      name:
+        type: string
+        docs: Evaluator family name.
+      scope:
+        type: commons.EvaluatorScope
+        docs: Whether the evaluator family is project-owned or Langfuse-managed.

@@ -7,6 +7,7 @@ import {
   paginationMetaResponseZod,
   publicApiPaginationZod,
   ScoreConfigCategory,
+  ScoreConfigNameSchema,
   validateCategories,
   validateNumericRangeFields,
 } from "@langfuse/shared";
@@ -70,7 +71,7 @@ export const GetScoreConfigResponse = APIScoreConfig;
 
 // POST /score-configs
 const PostScoreConfigBase = z.object({
-  name: z.string(),
+  name: ScoreConfigNameSchema,
   description: z.string().nullish(),
 });
 
@@ -119,7 +120,7 @@ export const PutScoreConfigQuery = z.object({
 export const PutScoreConfigBody = z
   .object({
     isArchived: z.boolean().optional(),
-    name: z.string().min(1).max(35).optional(),
+    name: ScoreConfigNameSchema.optional(),
     minValue: z.number().optional(),
     maxValue: z.number().optional(),
     categories: CategoriesWithCustomError.optional(),

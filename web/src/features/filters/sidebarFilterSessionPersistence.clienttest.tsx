@@ -7,9 +7,9 @@ import { buildSidebarFilterQueryStorageKey } from "./lib/persistedSidebarFilterQ
 
 const queryParamStore = new Map<string, unknown>();
 
-jest.mock("use-query-params", () => {
+vi.mock("use-query-params", async () => {
   const React = require("react");
-  const actual = jest.requireActual("use-query-params");
+  const actual = await vi.importActual("use-query-params");
 
   return {
     ...actual,
@@ -100,6 +100,7 @@ const FILTER_B: FilterState = [
 
 function SessionPersistenceHarness(props: { contextId?: string | null }) {
   const queryFilter = useSidebarFilterState(TEST_FILTER_CONFIG, TEST_OPTIONS, {
+    stateLocation: "urlAndSessionStorage",
     sessionFilterContextId: props.contextId ?? null,
   });
 

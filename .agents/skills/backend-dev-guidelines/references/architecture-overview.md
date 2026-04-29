@@ -1,6 +1,6 @@
 # Architecture Overview - Langfuse Backend
 
-Complete guide to the layered architecture pattern used in Langfuse's Next.js 14/tRPC/Express monorepo.
+Complete guide to the layered architecture pattern used in Langfuse's Next.js/tRPC/Express monorepo. Check package manifests such as `web/package.json` for current framework versions before version-sensitive work.
 
 ## Table of Contents
 
@@ -20,7 +20,7 @@ Langfuse uses a **three-layer architecture** with two primary entry points (tRPC
 ### The Three Layers
 
 ```
-# Web Package (Next.js 14)
+# Web Package (Next.js)
 
 ┌─ tRPC API ──────────────────┐   ┌── Public REST API ──────────┐
 │                             │   │                             │

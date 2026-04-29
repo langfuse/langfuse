@@ -17,7 +17,7 @@ describe("shouldUseWidgetSSE", () => {
   it("should enable SSE on the v4 beta v2 path", () => {
     expect(
       shouldUseWidgetSSE({
-        isV4BetaEnabled: true,
+        isV4Enabled: true,
         version: "v2",
       }),
     ).toBe(true);
@@ -26,7 +26,7 @@ describe("shouldUseWidgetSSE", () => {
   it("should disable SSE when v4 beta is off", () => {
     expect(
       shouldUseWidgetSSE({
-        isV4BetaEnabled: false,
+        isV4Enabled: false,
         version: "v2",
       }),
     ).toBe(false);
@@ -35,7 +35,7 @@ describe("shouldUseWidgetSSE", () => {
   it("should disable SSE for non-v4 query versions", () => {
     expect(
       shouldUseWidgetSSE({
-        isV4BetaEnabled: true,
+        isV4Enabled: true,
         version: "v1",
       }),
     ).toBe(false);

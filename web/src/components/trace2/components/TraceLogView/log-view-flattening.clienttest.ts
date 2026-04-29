@@ -1,8 +1,5 @@
-/**
- * Tests for log-view-flattening.ts
- *
- * @jest-environment jsdom
- */
+// @vitest-environment jsdom
+// Tests for log-view-flattening.ts
 
 import {
   flattenChronological,
