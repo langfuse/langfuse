@@ -100,6 +100,8 @@ jobs:
           cp .env.dev.example .env
       - name: lint web
         run: pnpm run lint
+      - name: typecheck
+        run: pnpm run typecheck
 
   prettier-check:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -310,6 +312,9 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -567,6 +572,9 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Install playwright
         run: pnpm --filter=web exec playwright install --with-deps chromium
       - name: Run e2e tests
@@ -630,6 +638,9 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Run server
         run: (pnpm run start&)
       - name: Check worker health
