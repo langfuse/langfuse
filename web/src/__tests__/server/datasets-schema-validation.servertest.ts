@@ -555,7 +555,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
       const res = await makeAPICall(
         "GET",
-        "/api/public/v2/datasets?page=1&limit=1000",
+        "/api/public/v2/datasets?page=1&limit=100",
         undefined,
         auth,
       );
@@ -578,7 +578,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
       const res = await makeAPICall(
         "GET",
-        "/api/public/v2/datasets?page=1&limit=1000",
+        "/api/public/v2/datasets?page=1&limit=100",
         undefined,
         auth,
       );
