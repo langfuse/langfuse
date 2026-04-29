@@ -31,7 +31,6 @@ export type ObservationEvalConfig = Pick<
   | "variableMapping"
   | "status"
   | "blockedAt"
-  | "jobConfigurationRevision"
 >;
 
 /**

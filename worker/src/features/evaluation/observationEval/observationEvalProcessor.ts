@@ -201,12 +201,6 @@ export async function processObservationEval({
       buildEvalJobExecutionQueueMetadata({
         config: evalJobConfig,
         job,
-        experimentTargetFields: {
-          targetExperimentId: observationData.experiment_id,
-          targetExperimentItemId: observationData.experiment_item_id,
-          targetExperimentItemRootSpanId:
-            observationData.experiment_item_root_span_id,
-        },
       }),
   });
 }

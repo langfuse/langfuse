@@ -90,7 +90,6 @@ describe("scheduleObservationEvals", () => {
     targetObject: EvalTargetObject.EVENT,
     status: JobConfigState.ACTIVE,
     blockedAt: null,
-    jobConfigurationRevision: 1,
     ...overrides,
   });
 
@@ -316,7 +315,6 @@ describe("scheduleObservationEvals", () => {
         createEventEvalJobExecutionIdentity({
           projectId: observation.project_id,
           jobConfigurationId: config.id,
-          jobConfigurationRevision: config.jobConfigurationRevision,
           targetTraceId: observation.trace_id,
           targetObservationId: observation.span_id,
         }),
@@ -350,7 +348,6 @@ describe("scheduleObservationEvals", () => {
         createEventEvalJobExecutionIdentity({
           projectId: observation.project_id,
           jobConfigurationId: config.id,
-          jobConfigurationRevision: config.jobConfigurationRevision,
           targetTraceId: observation.trace_id,
           targetObservationId: observation.span_id,
         }),

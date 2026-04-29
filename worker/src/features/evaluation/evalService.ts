@@ -84,7 +84,6 @@ import {
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
 import {
   buildEvalJobExecutionQueueMetadata,
-  getJobConfigurationRevision,
   metadataFromQueueFields,
   writeEvalJobExecutionEvent,
   writeScheduledEvalJobExecutionEvent,
@@ -357,9 +356,6 @@ export const createEvalJobs = async ({
             createdAt: true,
             startTime: true,
             jobConfigurationId: true,
-            jobInputDatasetItemId: true,
-            jobInputDatasetItemValidFrom: true,
-            jobInputObservationId: true,
           },
           where: {
             projectId: event.projectId,
@@ -374,20 +370,8 @@ export const createEvalJobs = async ({
   );
 
   // Helper function to find matching job for a config
-  const findMatchingJob = (
-    configId: string,
-    datasetItemId: string | null,
-    datasetItemValidFrom: Date | null,
-    observationId: string | null,
-  ) => {
-    return allExistingJobs.find(
-      (job) =>
-        job.jobConfigurationId === configId &&
-        job.jobInputDatasetItemId === datasetItemId &&
-        (job.jobInputDatasetItemValidFrom?.getTime() ?? null) ===
-          (datasetItemValidFrom?.getTime() ?? null) &&
-        job.jobInputObservationId === observationId,
-    );
+  const findMatchingJob = (configId: string) => {
+    return allExistingJobs.find((job) => job.jobConfigurationId === configId);
   };
 
   for (const config of configs) {
@@ -611,31 +595,21 @@ export const createEvalJobs = async ({
 
     // Find the existing job for the given configuration from the batched results.
     // We either use it for deduplication or we cancel it in case it became "deselected".
-    const matchingJob = findMatchingJob(
-      config.id,
-      datasetItem?.id ?? null,
-      datasetItem?.validFrom ?? null,
-      observationId ?? null,
-    );
+    const matchingJob = findMatchingJob(config.id);
     const existingJob = matchingJob ? [matchingJob] : [];
 
     // If we matched a trace for a trace event, we create a job or
     // if we have both trace and datasetItem.
     if (traceExists && (!isDatasetConfig || Boolean(datasetItem))) {
-      const jobConfigurationRevision = getJobConfigurationRevision(config);
       const identity = isDatasetConfig
         ? createDatasetEvalJobExecutionIdentity({
             projectId: event.projectId,
             jobConfigurationId: config.id,
-            jobConfigurationRevision,
             targetTraceId: event.traceId,
-            targetDatasetItemId: datasetItem?.id ?? "",
-            targetDatasetItemValidFrom: datasetItem?.validFrom ?? null,
           })
         : createTraceEvalJobExecutionIdentity({
             projectId: event.projectId,
             jobConfigurationId: config.id,
-            jobConfigurationRevision,
             targetTraceId: event.traceId,
           });
       const jobExecutionId = createEvalJobExecutionId(identity);
@@ -669,20 +643,12 @@ export const createEvalJobs = async ({
       const scheduledAt = new Date();
       const queueMetadata: EvalJobExecutionQueueMetadata = {
         jobConfigurationId: config.id,
-        jobConfigurationRevision,
         evalTemplateId: config.evalTemplateId,
         scoreName: config.scoreName,
         targetObject:
           config.targetObject as EvalJobExecutionQueueMetadata["targetObject"],
         targetTraceId: event.traceId,
         targetObservationId: null,
-        targetDatasetItemId: isDatasetConfig ? datasetItem?.id : null,
-        targetDatasetItemValidFrom: isDatasetConfig
-          ? datasetItem?.validFrom
-          : null,
-        targetExperimentId: null,
-        targetExperimentItemId: null,
-        targetExperimentItemRootSpanId: null,
         scheduledAt,
         scheduleDelayMs: config.delay,
       };
@@ -783,18 +749,12 @@ export const createEvalJobs = async ({
             jobExecutionId: existingJob[0].id,
             metadata: {
               jobConfigurationId: config.id,
-              jobConfigurationRevision: getJobConfigurationRevision(config),
               evalTemplateId: config.evalTemplateId,
               scoreName: config.scoreName,
               targetObject:
                 config.targetObject as EvalJobExecutionQueueMetadata["targetObject"],
               targetTraceId: event.traceId,
               targetObservationId: observationId ?? null,
-              targetDatasetItemId: datasetItem?.id ?? null,
-              targetDatasetItemValidFrom: datasetItem?.validFrom ?? null,
-              targetExperimentId: null,
-              targetExperimentItemId: null,
-              targetExperimentItemRootSpanId: null,
               scheduledAt: existingJob[0].startTime ?? existingJob[0].createdAt,
               scheduleDelayMs: config.delay,
             },

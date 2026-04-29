@@ -111,7 +111,6 @@ export function createTestEvalConfig(
     scoreName: "test-score",
     status: "ACTIVE",
     blockedAt: null,
-    jobConfigurationRevision: 1,
     targetObject: EvalTargetObject.EVENT,
     variableMapping: [
       { templateVariable: "output", selectedColumnId: "output" },

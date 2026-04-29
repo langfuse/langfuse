@@ -7,8 +7,6 @@ import {
 } from "../../features/evals/types";
 import type { JobExecutionEventRecordInsertType } from "../repositories/definitions";
 
-export const EVAL_JOB_CONFIGURATION_REVISION_DEFAULT = 1;
-
 export const EvalJobExecutionEventStatus = {
   SCHEDULED: "SCHEDULED",
   RETRYING: "RETRYING",
@@ -30,17 +28,11 @@ export const EvalJobExecutionStateTransitionOrder = {
 
 export const EvalJobExecutionQueueMetadataSchema = z.object({
   jobConfigurationId: z.string(),
-  jobConfigurationRevision: z.number().int().positive(),
   evalTemplateId: z.string().nullish(),
   scoreName: z.string().nullish(),
   targetObject: EvalTargetObjectSchema,
   targetTraceId: z.string().nullish(),
   targetObservationId: z.string().nullish(),
-  targetDatasetItemId: z.string().nullish(),
-  targetDatasetItemValidFrom: z.coerce.date().nullish(),
-  targetExperimentId: z.string().nullish(),
-  targetExperimentItemId: z.string().nullish(),
-  targetExperimentItemRootSpanId: z.string().nullish(),
   scheduledAt: z.coerce.date(),
   scheduleDelayMs: z.number().int().nonnegative(),
 });
@@ -59,15 +51,9 @@ export type EvalJobExecutionQueueFields = z.infer<
 export type EvalJobExecutionIdentityParams = {
   projectId: string;
   jobConfigurationId: string;
-  jobConfigurationRevision?: number | null;
   targetObject: string;
   targetTraceId?: string | null;
   targetObservationId?: string | null;
-  targetDatasetItemId?: string | null;
-  targetDatasetItemValidFrom?: Date | string | null;
-  targetExperimentId?: string | null;
-  targetExperimentItemId?: string | null;
-  targetExperimentItemRootSpanId?: string | null;
 };
 
 export type BuildEvalJobExecutionEventRecordParams = {
@@ -100,41 +86,16 @@ export type BuildEvalJobExecutionEventRecordParams = {
 const hashToHexId = (parts: unknown[]): string =>
   createHash("sha256").update(JSON.stringify(parts)).digest("hex").slice(0, 32);
 
-const normalizeRevision = (revision?: number | null): number =>
-  revision && revision > 0
-    ? Math.floor(revision)
-    : EVAL_JOB_CONFIGURATION_REVISION_DEFAULT;
-
 const normalizeString = (value?: string | null): string => value ?? "";
-
-const normalizeDateString = (value?: Date | string | null): string => {
-  if (!value) return "";
-  return new Date(value).toISOString();
-};
-
-const normalizeDateMs = (value?: Date | string | null): number | undefined => {
-  if (!value) return undefined;
-  return new Date(value).getTime();
-};
 
 const normalizeTargetIdentity = (
   params: EvalJobExecutionIdentityParams,
 ): Required<EvalJobExecutionIdentityParams> => ({
   projectId: params.projectId,
   jobConfigurationId: params.jobConfigurationId,
-  jobConfigurationRevision: normalizeRevision(params.jobConfigurationRevision),
   targetObject: params.targetObject,
   targetTraceId: normalizeString(params.targetTraceId),
   targetObservationId: normalizeString(params.targetObservationId),
-  targetDatasetItemId: normalizeString(params.targetDatasetItemId),
-  targetDatasetItemValidFrom: normalizeDateString(
-    params.targetDatasetItemValidFrom,
-  ),
-  targetExperimentId: normalizeString(params.targetExperimentId),
-  targetExperimentItemId: normalizeString(params.targetExperimentItemId),
-  targetExperimentItemRootSpanId: normalizeString(
-    params.targetExperimentItemRootSpanId,
-  ),
 });
 
 const identityParts = (identity: EvalJobExecutionIdentityParams) => {
@@ -144,15 +105,9 @@ const identityParts = (identity: EvalJobExecutionIdentityParams) => {
     "eval-job-execution",
     normalized.projectId,
     normalized.jobConfigurationId,
-    normalized.jobConfigurationRevision,
     normalized.targetObject,
     normalized.targetTraceId,
     normalized.targetObservationId,
-    normalized.targetDatasetItemId,
-    normalized.targetDatasetItemValidFrom,
-    normalized.targetExperimentId,
-    normalized.targetExperimentItemId,
-    normalized.targetExperimentItemRootSpanId,
   ];
 };
 
@@ -209,20 +164,11 @@ export const buildEvalJobExecutionEventRecord = ({
 }: BuildEvalJobExecutionEventRecordParams): JobExecutionEventRecordInsertType => {
   const normalizedMetadata = {
     jobConfigurationId: metadata?.jobConfigurationId ?? "",
-    jobConfigurationRevision: normalizeRevision(
-      metadata?.jobConfigurationRevision,
-    ),
     evalTemplateId: metadata?.evalTemplateId ?? "",
     scoreName: metadata?.scoreName ?? "",
     targetObject: metadata?.targetObject ?? "",
     targetTraceId: metadata?.targetTraceId ?? "",
     targetObservationId: metadata?.targetObservationId ?? "",
-    targetDatasetItemId: metadata?.targetDatasetItemId ?? "",
-    targetDatasetItemValidFrom: metadata?.targetDatasetItemValidFrom ?? null,
-    targetExperimentId: metadata?.targetExperimentId ?? "",
-    targetExperimentItemId: metadata?.targetExperimentItemId ?? "",
-    targetExperimentItemRootSpanId:
-      metadata?.targetExperimentItemRootSpanId ?? "",
     scheduledAt: metadata?.scheduledAt ?? params.eventTs,
     scheduleDelayMs: metadata?.scheduleDelayMs ?? 0,
   };
@@ -237,19 +183,10 @@ export const buildEvalJobExecutionEventRecord = ({
     project_id: params.projectId,
     job_execution_id: params.jobExecutionId,
     job_configuration_id: normalizedMetadata.jobConfigurationId,
-    job_configuration_revision: normalizedMetadata.jobConfigurationRevision,
     eval_template_id: normalizedMetadata.evalTemplateId,
     target_object: normalizedMetadata.targetObject,
     target_trace_id: normalizedMetadata.targetTraceId,
     target_observation_id: normalizedMetadata.targetObservationId,
-    target_dataset_item_id: normalizedMetadata.targetDatasetItemId,
-    target_dataset_item_valid_from: normalizeDateMs(
-      normalizedMetadata.targetDatasetItemValidFrom,
-    ),
-    target_experiment_id: normalizedMetadata.targetExperimentId,
-    target_experiment_item_id: normalizedMetadata.targetExperimentItemId,
-    target_experiment_item_root_span_id:
-      normalizedMetadata.targetExperimentItemRootSpanId,
     status_after: params.statusAfter,
     state_transition_order:
       EvalJobExecutionStateTransitionOrder[params.statusAfter],
@@ -282,12 +219,10 @@ export const buildEvalJobExecutionEventRecord = ({
 export const createTraceEvalJobExecutionIdentity = (params: {
   projectId: string;
   jobConfigurationId: string;
-  jobConfigurationRevision?: number | null;
   targetTraceId: string;
 }): EvalJobExecutionIdentityParams => ({
   projectId: params.projectId,
   jobConfigurationId: params.jobConfigurationId,
-  jobConfigurationRevision: params.jobConfigurationRevision,
   targetObject: EvalTargetObject.TRACE,
   targetTraceId: params.targetTraceId,
 });
@@ -295,30 +230,22 @@ export const createTraceEvalJobExecutionIdentity = (params: {
 export const createDatasetEvalJobExecutionIdentity = (params: {
   projectId: string;
   jobConfigurationId: string;
-  jobConfigurationRevision?: number | null;
   targetTraceId: string;
-  targetDatasetItemId: string;
-  targetDatasetItemValidFrom?: Date | string | null;
 }): EvalJobExecutionIdentityParams => ({
   projectId: params.projectId,
   jobConfigurationId: params.jobConfigurationId,
-  jobConfigurationRevision: params.jobConfigurationRevision,
   targetObject: EvalTargetObject.DATASET,
   targetTraceId: params.targetTraceId,
-  targetDatasetItemId: params.targetDatasetItemId,
-  targetDatasetItemValidFrom: params.targetDatasetItemValidFrom,
 });
 
 export const createEventEvalJobExecutionIdentity = (params: {
   projectId: string;
   jobConfigurationId: string;
-  jobConfigurationRevision?: number | null;
   targetTraceId: string;
   targetObservationId: string;
 }): EvalJobExecutionIdentityParams => ({
   projectId: params.projectId,
   jobConfigurationId: params.jobConfigurationId,
-  jobConfigurationRevision: params.jobConfigurationRevision,
   targetObject: EvalTargetObject.EVENT,
   targetTraceId: params.targetTraceId,
   targetObservationId: params.targetObservationId,
@@ -327,20 +254,12 @@ export const createEventEvalJobExecutionIdentity = (params: {
 export const createExperimentEvalJobExecutionIdentity = (params: {
   projectId: string;
   jobConfigurationId: string;
-  jobConfigurationRevision?: number | null;
   targetTraceId: string;
   targetObservationId: string;
-  targetExperimentId?: string | null;
-  targetExperimentItemId?: string | null;
-  targetExperimentItemRootSpanId?: string | null;
 }): EvalJobExecutionIdentityParams => ({
   projectId: params.projectId,
   jobConfigurationId: params.jobConfigurationId,
-  jobConfigurationRevision: params.jobConfigurationRevision,
   targetObject: EvalTargetObject.EXPERIMENT,
   targetTraceId: params.targetTraceId,
   targetObservationId: params.targetObservationId,
-  targetExperimentId: params.targetExperimentId,
-  targetExperimentItemId: params.targetExperimentItemId,
-  targetExperimentItemRootSpanId: params.targetExperimentItemRootSpanId,
 });

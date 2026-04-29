@@ -468,17 +468,11 @@ CREATE TABLE IF NOT EXISTS job_execution_events
     project_id String,
     job_execution_id String,
     job_configuration_id String,
-    job_configuration_revision UInt32,
     eval_template_id String,
 
     target_object LowCardinality(String),
     target_trace_id String,
     target_observation_id String,
-    target_dataset_item_id String,
-    target_dataset_item_valid_from Nullable(DateTime64(3)),
-    target_experiment_id String,
-    target_experiment_item_id String,
-    target_experiment_item_root_span_id String,
 
     status_after LowCardinality(String),
     state_transition_order UInt8,

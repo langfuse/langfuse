@@ -43,7 +43,6 @@ describe("processBatchedObservationEval", () => {
         variableMapping: [],
         status: JobConfigState.ACTIVE,
         blockedAt: null,
-        jobConfigurationRevision: 1,
       },
     ];
 
@@ -102,7 +101,6 @@ describe("processBatchedObservationEval", () => {
         variableMapping: [],
         status: JobConfigState.ACTIVE,
         blockedAt: null,
-        jobConfigurationRevision: 1,
       },
     ];
 

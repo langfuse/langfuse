@@ -1,7 +1,6 @@
 import type { JobConfiguration, JobExecution } from "@prisma/client";
 import {
   buildEvalJobExecutionEventRecord,
-  EVAL_JOB_CONFIGURATION_REVISION_DEFAULT,
   EvalJobExecutionEventStatus,
   type BuildEvalJobExecutionEventRecordParams,
   type EvalJobExecutionQueueFields,
@@ -13,12 +12,10 @@ import { prisma } from "@langfuse/shared/src/db";
 
 import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
 
-type ConfigWithRevision = Pick<
+type ConfigForMetadata = Pick<
   JobConfiguration,
   "id" | "evalTemplateId" | "scoreName" | "targetObject" | "delay"
-> & {
-  jobConfigurationRevision?: number | null;
-};
+>;
 
 type JobExecutionForMetadata = Pick<
   JobExecution,
@@ -27,30 +24,15 @@ type JobExecutionForMetadata = Pick<
   | "jobConfigurationId"
   | "jobInputTraceId"
   | "jobInputObservationId"
-  | "jobInputDatasetItemId"
-  | "jobInputDatasetItemValidFrom"
 >;
 
-type ExperimentTargetFields = {
-  targetExperimentId?: string | null;
-  targetExperimentItemId?: string | null;
-  targetExperimentItemRootSpanId?: string | null;
-};
-
-export const getJobConfigurationRevision = (config: {
-  jobConfigurationRevision?: number | null;
-}) =>
-  config.jobConfigurationRevision ?? EVAL_JOB_CONFIGURATION_REVISION_DEFAULT;
-
 export const buildEvalJobExecutionQueueMetadata = (params: {
-  config: ConfigWithRevision;
+  config: ConfigForMetadata;
   job: JobExecutionForMetadata;
   scheduledAt?: Date | null;
   scheduleDelayMs?: number | null;
-  experimentTargetFields?: ExperimentTargetFields;
 }): EvalJobExecutionQueueMetadata => ({
   jobConfigurationId: params.config.id,
-  jobConfigurationRevision: getJobConfigurationRevision(params.config),
   evalTemplateId: params.config.evalTemplateId,
   scoreName: params.config.scoreName,
   targetObject: params.config
@@ -60,26 +42,6 @@ export const buildEvalJobExecutionQueueMetadata = (params: {
     params.config.targetObject === EvalTargetObject.EVENT ||
     params.config.targetObject === EvalTargetObject.EXPERIMENT
       ? params.job.jobInputObservationId
-      : null,
-  targetDatasetItemId:
-    params.config.targetObject === EvalTargetObject.DATASET
-      ? params.job.jobInputDatasetItemId
-      : null,
-  targetDatasetItemValidFrom:
-    params.config.targetObject === EvalTargetObject.DATASET
-      ? params.job.jobInputDatasetItemValidFrom
-      : null,
-  targetExperimentId:
-    params.config.targetObject === EvalTargetObject.EXPERIMENT
-      ? params.experimentTargetFields?.targetExperimentId
-      : null,
-  targetExperimentItemId:
-    params.config.targetObject === EvalTargetObject.EXPERIMENT
-      ? params.experimentTargetFields?.targetExperimentItemId
-      : null,
-  targetExperimentItemRootSpanId:
-    params.config.targetObject === EvalTargetObject.EXPERIMENT
-      ? params.experimentTargetFields?.targetExperimentItemRootSpanId
       : null,
   scheduledAt:
     params.scheduledAt ?? params.job.startTime ?? params.job.createdAt,
@@ -123,7 +85,6 @@ export const metadataFromQueueFields = (
 ): EvalJobExecutionQueueMetadata | null => {
   if (
     !fields.jobConfigurationId ||
-    !fields.jobConfigurationRevision ||
     !fields.targetObject ||
     !fields.scheduledAt
   ) {
@@ -132,17 +93,11 @@ export const metadataFromQueueFields = (
 
   return {
     jobConfigurationId: fields.jobConfigurationId,
-    jobConfigurationRevision: fields.jobConfigurationRevision,
     evalTemplateId: fields.evalTemplateId,
     scoreName: fields.scoreName,
     targetObject: fields.targetObject,
     targetTraceId: fields.targetTraceId,
     targetObservationId: fields.targetObservationId,
-    targetDatasetItemId: fields.targetDatasetItemId,
-    targetDatasetItemValidFrom: fields.targetDatasetItemValidFrom,
-    targetExperimentId: fields.targetExperimentId,
-    targetExperimentItemId: fields.targetExperimentItemId,
-    targetExperimentItemRootSpanId: fields.targetExperimentItemRootSpanId,
     scheduledAt: new Date(fields.scheduledAt),
     scheduleDelayMs: fields.scheduleDelayMs ?? 0,
   };

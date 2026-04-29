@@ -182,23 +182,6 @@ const UpdateEvalJobSchema = z.object({
   timeScope: z.array(JobTimeScopeZod).optional(),
 });
 
-const hasSemanticEvalConfigChange = ({
-  current,
-  next,
-}: {
-  current: JobConfiguration;
-  next: z.infer<typeof UpdateEvalJobSchema>;
-}) =>
-  ("scoreName" in next && next.scoreName !== current.scoreName) ||
-  ("filter" in next &&
-    JSON.stringify(next.filter) !== JSON.stringify(current.filter)) ||
-  ("variableMapping" in next &&
-    JSON.stringify(next.variableMapping) !==
-      JSON.stringify(current.variableMapping)) ||
-  ("sampling" in next && next.sampling !== Number(current.sampling)) ||
-  ("timeScope" in next &&
-    JSON.stringify(next.timeScope) !== JSON.stringify(current.timeScope));
-
 const validateEvalTemplateCanRun = async ({
   prisma,
   projectId,
@@ -1190,9 +1173,6 @@ export const evalRouter = createTRPCRouter({
       const updatedConfig = {
         ...config,
         ...(config.status !== undefined ? resetEvalConfigBlockFields : {}),
-        ...(hasSemanticEvalConfigChange({ current: existingJob, next: config })
-          ? { jobConfigurationRevision: { increment: 1 } }
-          : {}),
       };
 
       const updatedJob = await ctx.prisma.jobConfiguration.update({

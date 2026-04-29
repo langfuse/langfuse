@@ -18,10 +18,7 @@ import {
   shouldSampleEvalJob,
   type EvalJobExecutionQueueMetadata,
 } from "@langfuse/shared/src/server";
-import {
-  getJobConfigurationRevision,
-  writeScheduledEvalJobExecutionEvent,
-} from "../jobExecutionEventWriter";
+import { writeScheduledEvalJobExecutionEvent } from "../jobExecutionEventWriter";
 
 interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
@@ -143,7 +140,6 @@ async function processMatchingConfig(
       matchingConfig,
     }),
   );
-  const jobConfigurationRevision = getJobConfigurationRevision(matchingConfig);
 
   // Create job execution
   const upsertResult = await schedulerDeps.upsertJobExecution({
@@ -158,27 +154,12 @@ async function processMatchingConfig(
 
   const metadata: EvalJobExecutionQueueMetadata = {
     jobConfigurationId: matchingConfig.id,
-    jobConfigurationRevision,
     evalTemplateId: matchingConfig.evalTemplateId,
     scoreName: matchingConfig.scoreName,
     targetObject:
       matchingConfig.targetObject as EvalJobExecutionQueueMetadata["targetObject"],
     targetTraceId: observation.trace_id,
     targetObservationId: observation.span_id,
-    targetDatasetItemId: null,
-    targetDatasetItemValidFrom: null,
-    targetExperimentId:
-      matchingConfig.targetObject === EvalTargetObject.EXPERIMENT
-        ? observation.experiment_id
-        : null,
-    targetExperimentItemId:
-      matchingConfig.targetObject === EvalTargetObject.EXPERIMENT
-        ? observation.experiment_item_id
-        : null,
-    targetExperimentItemRootSpanId:
-      matchingConfig.targetObject === EvalTargetObject.EXPERIMENT
-        ? observation.experiment_item_root_span_id
-        : null,
     scheduledAt: upsertResult.scheduledAt,
     scheduleDelayMs: 0,
   };
@@ -257,24 +238,17 @@ function buildObservationEvalJobExecutionIdentity(params: {
   matchingConfig: ObservationEvalConfig;
 }) {
   const { observation, matchingConfig } = params;
-  const jobConfigurationRevision = getJobConfigurationRevision(matchingConfig);
 
   return matchingConfig.targetObject === EvalTargetObject.EXPERIMENT
     ? createExperimentEvalJobExecutionIdentity({
         projectId: observation.project_id,
         jobConfigurationId: matchingConfig.id,
-        jobConfigurationRevision,
         targetTraceId: observation.trace_id,
         targetObservationId: observation.span_id,
-        targetExperimentId: observation.experiment_id,
-        targetExperimentItemId: observation.experiment_item_id,
-        targetExperimentItemRootSpanId:
-          observation.experiment_item_root_span_id,
       })
     : createEventEvalJobExecutionIdentity({
         projectId: observation.project_id,
         jobConfigurationId: matchingConfig.id,
-        jobConfigurationRevision,
         targetTraceId: observation.trace_id,
         targetObservationId: observation.span_id,
       });
