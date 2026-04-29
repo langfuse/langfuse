@@ -173,10 +173,6 @@ Structure your response as follows:
 
 - `schema-json-when-to-use` - JSON for dynamic schemas; typed columns for known
 
-### Schema Design - Migrations (HIGH)
-
-- `schema-alter-multi-statement-sync` - `SETTINGS alter_sync = 2` on every metadata ALTER and `SETTINGS mutations_sync = 2` on every mutation-creating ALTER when a clustered migration has more than one ALTER on the same table
-
 ### Query Optimization - JOINs (CRITICAL)
 
 - `query-join-choose-algorithm` - Select algorithm based on table sizes

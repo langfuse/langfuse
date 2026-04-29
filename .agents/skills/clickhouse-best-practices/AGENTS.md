@@ -41,7 +41,6 @@ responses.
 - `rules/schema-partition-query-tradeoffs.md`
 - `rules/schema-partition-lifecycle.md`
 - `rules/schema-json-when-to-use.md`
-- `rules/schema-alter-multi-statement-sync.md`
 
 ### Query Optimization
 
