@@ -19,9 +19,16 @@ import { z } from "zod";
 
 describe("/api/public/v2/scores API Endpoint", () => {
   describe("GET /api/public/v2/scores/:scoreId", () => {
-    it("should GET a trace score", async () => {
-      const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
+    let auth: string;
+    let projectId: string;
 
+    beforeAll(async () => {
+      const project = await createOrgProjectAndApiKey();
+      auth = project.auth;
+      projectId = project.projectId;
+    });
+
+    it("should GET a trace score", async () => {
       const scoreId = v4();
       const traceId = v4();
       const score = createTraceScore({
@@ -65,16 +72,12 @@ describe("/api/public/v2/scores API Endpoint", () => {
     });
 
     it("should GET score with minimal score data and minimal trace data", async () => {
-      const { projectId, auth } = await createOrgProjectAndApiKey();
-
       const minimalTraceId = v4();
 
       const trace = createTrace({
         id: minimalTraceId,
         project_id: projectId,
       });
-      await createTracesCh([trace]);
-
       const minimalScoreId = v4();
 
       const score = createTraceScore({
@@ -87,7 +90,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
         comment: null,
         observation_id: null,
       });
-      await createScoresCh([score]);
+      await Promise.all([createTracesCh([trace]), createScoresCh([score])]);
 
       const fetchedScore = await makeZodVerifiedAPICall(
         GetScoreResponseV2,
@@ -101,8 +104,6 @@ describe("/api/public/v2/scores API Endpoint", () => {
     });
 
     it("should GET a session score", async () => {
-      const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
-
       const scoreId = v4();
       const sessionId = v4();
       const score = createSessionScore({
@@ -147,8 +148,6 @@ describe("/api/public/v2/scores API Endpoint", () => {
     });
 
     it("should GET a run score", async () => {
-      const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
-
       const scoreId = v4();
       const runId = v4();
       const score = createDatasetRunScore({
@@ -192,8 +191,6 @@ describe("/api/public/v2/scores API Endpoint", () => {
     });
 
     it("should GET a text score", async () => {
-      const { projectId, auth } = await createOrgProjectAndApiKey();
-
       const scoreId = v4();
       const traceId = v4();
       const score = createTraceScore({
@@ -1688,26 +1685,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
       });
 
       it("should return 400 when requesting trace field without score field", async () => {
-        const { projectId, auth } = await createOrgProjectAndApiKey();
-        const traceId = v4();
-        const scoreId = v4();
-
-        const trace = createTrace({
-          id: traceId,
-          project_id: projectId,
-          user_id: "test-user",
-        });
-        await createTracesCh([trace]);
-
-        const score = createTraceScore({
-          id: scoreId,
-          project_id: projectId,
-          trace_id: traceId,
-          name: "test-score",
-          value: 100,
-          data_type: "NUMERIC",
-        });
-        await createScoresCh([score]);
+        const { auth } = await createOrgProjectAndApiKey();
 
         const response = await makeZodVerifiedAPICall(
           z.object({
@@ -1785,28 +1763,14 @@ describe("/api/public/v2/scores API Endpoint", () => {
     });
 
     describe("GET /api/public/v2/scores - fields validation", () => {
+      let validationAuth: string;
+
+      beforeAll(async () => {
+        const { auth } = await createOrgProjectAndApiKey();
+        validationAuth = auth;
+      });
+
       it("should return 400 when filtering by userId without trace field", async () => {
-        const { projectId, auth } = await createOrgProjectAndApiKey();
-        const traceId = v4();
-        const scoreId = v4();
-
-        const trace = createTrace({
-          id: traceId,
-          project_id: projectId,
-          user_id: "test-user",
-        });
-        await createTracesCh([trace]);
-
-        const score = createTraceScore({
-          id: scoreId,
-          project_id: projectId,
-          trace_id: traceId,
-          name: "test-score",
-          value: 100,
-          data_type: "NUMERIC",
-        });
-        await createScoresCh([score]);
-
         const response = await makeZodVerifiedAPICall(
           z.object({
             message: z.string(),
@@ -1814,7 +1778,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
           "GET",
           `/api/public/v2/scores?fields=score&userId=test-user`,
           undefined,
-          auth,
+          validationAuth,
           400,
         );
 
@@ -1825,27 +1789,6 @@ describe("/api/public/v2/scores API Endpoint", () => {
       });
 
       it("should return 400 when filtering by traceTags without trace field", async () => {
-        const { projectId, auth } = await createOrgProjectAndApiKey();
-        const traceId = v4();
-        const scoreId = v4();
-
-        const trace = createTrace({
-          id: traceId,
-          project_id: projectId,
-          tags: ["tag1"],
-        });
-        await createTracesCh([trace]);
-
-        const score = createTraceScore({
-          id: scoreId,
-          project_id: projectId,
-          trace_id: traceId,
-          name: "test-score",
-          value: 100,
-          data_type: "NUMERIC",
-        });
-        await createScoresCh([score]);
-
         const response = await makeZodVerifiedAPICall(
           z.object({
             message: z.string(),
@@ -1853,7 +1796,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
           "GET",
           `/api/public/v2/scores?fields=score&traceTags=tag1`,
           undefined,
-          auth,
+          validationAuth,
           400,
         );
 

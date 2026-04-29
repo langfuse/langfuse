@@ -454,10 +454,6 @@ describe("Score Comparison Analytics tRPC", () => {
       const scoreName2 = `test-large-score2-${v4()}`;
       const totalRows = 120_000;
 
-      console.log(
-        `Creating ${totalRows} matched score pairs for adaptive FINAL + sampling test...`,
-      );
-
       await insertLargeTraceLevelScorePairs({
         totalRows,
         scoreName1,
@@ -523,10 +519,6 @@ describe("Score Comparison Analytics tRPC", () => {
       const scoreName = `test-identical-${v4()}`;
       const totalRows = 20_000;
       const forcedEstimateResults = buildEstimateResults(120_000);
-
-      console.log(
-        `Creating ${totalRows} identical scores for forced-sampling identity test...`,
-      );
 
       await insertLargeIdenticalTraceLevelScores({
         totalRows,
@@ -1354,9 +1346,8 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      // Test 7-day interval (week equivalent)
-      const weekResult =
-        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+      const [weekResult, monthResult] = await Promise.all([
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
           projectId,
           score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
           score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1364,13 +1355,8 @@ describe("Score Comparison Analytics tRPC", () => {
           toTimestamp,
           interval: { count: 7, unit: "day" },
           nBins: 10,
-        });
-
-      expect(weekResult.timeSeries.length).toBeGreaterThan(0);
-
-      // Test month interval
-      const monthResult =
-        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+        }),
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
           projectId,
           score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
           score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1378,8 +1364,10 @@ describe("Score Comparison Analytics tRPC", () => {
           toTimestamp,
           interval: { count: 1, unit: "month" },
           nBins: 10,
-        });
+        }),
+      ]);
 
+      expect(weekResult.timeSeries.length).toBeGreaterThan(0);
       expect(monthResult.timeSeries.length).toBeGreaterThan(0);
     });
 
@@ -3638,53 +3626,51 @@ describe("Score Comparison Analytics tRPC", () => {
         interval: { count: 1, unit: "hour" as const },
       };
 
-      // Test 1: objectType = "all" should return all 4 matched pairs
-      const resultAll = await caller.scoreAnalytics.getScoreComparisonAnalytics(
-        {
+      const [
+        resultAll,
+        resultTrace,
+        resultObservation,
+        resultSession,
+        resultDatasetRun,
+      ] = await Promise.all([
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
           ...baseParams,
           objectType: "all",
-        },
-      );
+        }),
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "trace",
+        }),
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "observation",
+        }),
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "session",
+        }),
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "dataset_run",
+        }),
+      ]);
+
       expect(resultAll.counts.matchedCount).toBe(4);
       expect(resultAll.counts.score1Total).toBe(4);
       expect(resultAll.counts.score2Total).toBe(4);
 
-      // Test 2: objectType = "trace" should return only trace-level scores (1 pair)
-      const resultTrace =
-        await caller.scoreAnalytics.getScoreComparisonAnalytics({
-          ...baseParams,
-          objectType: "trace",
-        });
       expect(resultTrace.counts.matchedCount).toBe(1);
       expect(resultTrace.counts.score1Total).toBe(1);
       expect(resultTrace.counts.score2Total).toBe(1);
 
-      // Test 3: objectType = "observation" should return only observation-level scores (1 pair)
-      const resultObservation =
-        await caller.scoreAnalytics.getScoreComparisonAnalytics({
-          ...baseParams,
-          objectType: "observation",
-        });
       expect(resultObservation.counts.matchedCount).toBe(1);
       expect(resultObservation.counts.score1Total).toBe(1);
       expect(resultObservation.counts.score2Total).toBe(1);
 
-      // Test 4: objectType = "session" should return only session-level scores (1 pair)
-      const resultSession =
-        await caller.scoreAnalytics.getScoreComparisonAnalytics({
-          ...baseParams,
-          objectType: "session",
-        });
       expect(resultSession.counts.matchedCount).toBe(1);
       expect(resultSession.counts.score1Total).toBe(1);
       expect(resultSession.counts.score2Total).toBe(1);
 
-      // Test 5: objectType = "dataset_run" should return only dataset_run-level scores (1 pair)
-      const resultDatasetRun =
-        await caller.scoreAnalytics.getScoreComparisonAnalytics({
-          ...baseParams,
-          objectType: "dataset_run",
-        });
       expect(resultDatasetRun.counts.matchedCount).toBe(1);
       expect(resultDatasetRun.counts.score1Total).toBe(1);
       expect(resultDatasetRun.counts.score2Total).toBe(1);

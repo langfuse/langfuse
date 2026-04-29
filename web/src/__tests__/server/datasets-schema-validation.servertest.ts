@@ -347,14 +347,48 @@ describe("Unit Tests - DatasetItemValidator", () => {
 // ============================================================================
 
 describe("Public API - Dataset Schema Enforcement", () => {
+  const invalidInputDatasetName = "invalid-input-schema-fixture";
+  const invalidOutputDatasetName = "invalid-output-schema-fixture";
+  const allowsNullDatasetName = "allows-null-schema-fixture";
+
   let auth: string;
   let projectId: string;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const { auth: newAuth, projectId: newProjectId } =
       await createOrgProjectAndApiKey();
     auth = newAuth;
     projectId = newProjectId;
+
+    await Promise.all([
+      makeAPICall(
+        "POST",
+        "/api/public/v2/datasets",
+        {
+          name: invalidInputDatasetName,
+          inputSchema: TEST_SCHEMAS.simpleText,
+        },
+        auth,
+      ),
+      makeAPICall(
+        "POST",
+        "/api/public/v2/datasets",
+        {
+          name: invalidOutputDatasetName,
+          expectedOutputSchema: TEST_SCHEMAS.requiresObject,
+        },
+        auth,
+      ),
+      makeAPICall(
+        "POST",
+        "/api/public/v2/datasets",
+        {
+          name: allowsNullDatasetName,
+          inputSchema: TEST_SCHEMAS.allowsNull,
+        },
+        auth,
+      ),
+    ]);
   });
 
   describe("POST /api/public/v2/datasets - Schema Creation", () => {
@@ -448,8 +482,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
   describe("POST /api/public/v2/datasets - UPSERT with Validation", () => {
     it("should add schema to existing dataset via UPSERT", async () => {
       // Create dataset without schema
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
+      await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         { name: "upsert-dataset" },
@@ -474,8 +507,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
     it("should block UPSERT if existing items fail validation", async () => {
       // Create dataset without schema
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
+      await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         { name: "upsert-fail" },
@@ -505,14 +537,13 @@ describe("Public API - Dataset Schema Enforcement", () => {
       );
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toContain("validation failed");
+      expect((res.body as any).message).toContain("validation failed");
     });
   });
 
   describe("GET /api/public/v2/datasets - Schema Fields", () => {
     it("should return schemas in dataset list", async () => {
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
+      await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         {
@@ -524,18 +555,21 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
       const res = await makeAPICall(
         "GET",
-        "/api/public/v2/datasets?page=1&limit=10",
+        "/api/public/v2/datasets?page=1&limit=1000",
         undefined,
         auth,
       );
 
       expect(res.status).toBe(200);
-      expect(res.body.data[0].inputSchema).toEqual(TEST_SCHEMAS.simpleText);
+      const dataset = (res.body as any).data.find(
+        (d: any) => d.name === "get-test",
+      );
+      expect(dataset).toBeDefined();
+      expect(dataset.inputSchema).toEqual(TEST_SCHEMAS.simpleText);
     });
 
     it("should return null schemas when not set", async () => {
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
+      await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         { name: "no-schema-test" },
@@ -544,15 +578,16 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
       const res = await makeAPICall(
         "GET",
-        "/api/public/v2/datasets?page=1&limit=10",
+        "/api/public/v2/datasets?page=1&limit=1000",
         undefined,
         auth,
       );
 
       expect(res.status).toBe(200);
-      const dataset = res.body.data.find(
+      const dataset = (res.body as any).data.find(
         (d: any) => d.name === "no-schema-test",
       );
+      expect(dataset).toBeDefined();
       expect(dataset.inputSchema).toBeNull();
       expect(dataset.expectedOutputSchema).toBeNull();
     });
@@ -560,8 +595,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
   describe("POST /api/public/dataset-items - Schema Validation", () => {
     it("should create item with valid input (schema enforced)", async () => {
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
+      await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         {
@@ -587,8 +621,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should create item with valid expectedOutput (schema enforced)", async () => {
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
+      await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         {
@@ -615,8 +648,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should create item without schemas set", async () => {
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
+      await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         { name: "no-validation" },
@@ -639,22 +671,11 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should not create item with null even when schema allows null", async () => {
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
-        "POST",
-        "/api/public/v2/datasets",
-        {
-          name: "allows-null",
-          inputSchema: TEST_SCHEMAS.allowsNull,
-        },
-        auth,
-      );
-
       const res = await makeAPICall(
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "allows-null",
+          datasetName: allowsNullDatasetName,
           input: null,
         },
         auth,
@@ -664,48 +685,26 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should reject item with invalid input", async () => {
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
-        "POST",
-        "/api/public/v2/datasets",
-        {
-          name: "reject-invalid",
-          inputSchema: TEST_SCHEMAS.simpleText,
-        },
-        auth,
-      );
-
       const res = await makeAPICall(
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "reject-invalid",
+          datasetName: invalidInputDatasetName,
           input: { text: 123 }, // Invalid type
         },
         auth,
       );
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toContain("validation failed");
+      expect((res.body as any).message).toContain("validation failed");
     });
 
     it("should reject item with invalid expectedOutput", async () => {
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
-        "POST",
-        "/api/public/v2/datasets",
-        {
-          name: "reject-output",
-          expectedOutputSchema: TEST_SCHEMAS.requiresObject,
-        },
-        auth,
-      );
-
       const res = await makeAPICall(
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "reject-output",
+          datasetName: invalidOutputDatasetName,
           expectedOutput: "not an object",
         },
         auth,
@@ -715,48 +714,26 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should reject item with null when schema doesn't allow null", async () => {
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
-        "POST",
-        "/api/public/v2/datasets",
-        {
-          name: "no-null",
-          inputSchema: TEST_SCHEMAS.simpleText, // Requires object
-        },
-        auth,
-      );
-
       const res = await makeAPICall(
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "no-null",
+          datasetName: invalidInputDatasetName,
           input: null,
         },
         auth,
       );
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toContain("validation failed");
+      expect((res.body as any).message).toContain("validation failed");
     });
 
     it("should reject item with missing required fields", async () => {
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
-        "POST",
-        "/api/public/v2/datasets",
-        {
-          name: "missing-fields",
-          inputSchema: TEST_SCHEMAS.simpleText,
-        },
-        auth,
-      );
-
       const res = await makeAPICall(
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "missing-fields",
+          datasetName: invalidInputDatasetName,
           input: {}, // Missing required 'text' field
         },
         auth,
@@ -766,8 +743,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should validate complex nested structures", async () => {
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
+      await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         {
@@ -814,22 +790,11 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
   describe("POST /api/public/dataset-items - UPSERT Validation", () => {
     it("should validate on UPSERT create", async () => {
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
-        "POST",
-        "/api/public/v2/datasets",
-        {
-          name: "upsert-create",
-          inputSchema: TEST_SCHEMAS.simpleText,
-        },
-        auth,
-      );
-
       const res = await makeAPICall(
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "upsert-create",
+          datasetName: invalidInputDatasetName,
           id: "custom-id-1",
           input: { text: 123 }, // Invalid
         },
@@ -840,8 +805,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should validate on UPSERT update", async () => {
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
+      await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         {
@@ -852,8 +816,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
       );
 
       // Create valid item
-      await makeZodVerifiedAPICall(
-        PostDatasetItemsV1Response,
+      await makeAPICall(
         "POST",
         "/api/public/dataset-items",
         {
@@ -883,8 +846,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
   describe("Dataset Schema Addition - Existing Items Validation", () => {
     it("should block schema addition if existing items are invalid", async () => {
       // Create dataset without schema
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
+      await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         { name: "existing-invalid" },
@@ -892,25 +854,26 @@ describe("Public API - Dataset Schema Enforcement", () => {
       );
 
       // Create items with data that won't match future schema
-      await makeAPICall(
-        "POST",
-        "/api/public/dataset-items",
-        {
-          datasetName: "existing-invalid",
-          input: { text: 123 }, // Will be invalid for simpleText schema
-        },
-        auth,
-      );
-
-      await makeAPICall(
-        "POST",
-        "/api/public/dataset-items",
-        {
-          datasetName: "existing-invalid",
-          input: { text: 456 },
-        },
-        auth,
-      );
+      await Promise.all([
+        makeAPICall(
+          "POST",
+          "/api/public/dataset-items",
+          {
+            datasetName: "existing-invalid",
+            input: { text: 123 }, // Will be invalid for simpleText schema
+          },
+          auth,
+        ),
+        makeAPICall(
+          "POST",
+          "/api/public/dataset-items",
+          {
+            datasetName: "existing-invalid",
+            input: { text: 456 },
+          },
+          auth,
+        ),
+      ]);
 
       // Try to add schema - should fail because items are invalid
       const res = await makeAPICall(
@@ -924,14 +887,13 @@ describe("Public API - Dataset Schema Enforcement", () => {
       );
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toContain("validation failed");
-      expect(res.body.message).toContain("2 item(s)"); // Both items failed
+      expect((res.body as any).message).toContain("validation failed");
+      expect((res.body as any).message).toContain("2 item(s)"); // Both items failed
     });
 
     it("should allow schema addition if all existing items are valid", async () => {
       // Create dataset
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
+      await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         { name: "existing-valid" },
@@ -939,25 +901,26 @@ describe("Public API - Dataset Schema Enforcement", () => {
       );
 
       // Create valid items
-      await makeAPICall(
-        "POST",
-        "/api/public/dataset-items",
-        {
-          datasetName: "existing-valid",
-          input: { text: "hello" },
-        },
-        auth,
-      );
-
-      await makeAPICall(
-        "POST",
-        "/api/public/dataset-items",
-        {
-          datasetName: "existing-valid",
-          input: { text: "world" },
-        },
-        auth,
-      );
+      await Promise.all([
+        makeAPICall(
+          "POST",
+          "/api/public/dataset-items",
+          {
+            datasetName: "existing-valid",
+            input: { text: "hello" },
+          },
+          auth,
+        ),
+        makeAPICall(
+          "POST",
+          "/api/public/dataset-items",
+          {
+            datasetName: "existing-valid",
+            input: { text: "world" },
+          },
+          auth,
+        ),
+      ]);
 
       // Add schema - should succeed
       const res = await makeZodVerifiedAPICall(
@@ -977,8 +940,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
     it("should fail when existing items have null and schema doesn't allow null", async () => {
       // Create dataset
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
+      await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         { name: "null-items" },
@@ -1101,8 +1063,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
   describe("Error Response Format", () => {
     it("should return detailed validation errors", async () => {
-      await makeZodVerifiedAPICall(
-        PostDatasetsV2Response,
+      await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         {
@@ -1125,9 +1086,9 @@ describe("Public API - Dataset Schema Enforcement", () => {
       );
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toBeDefined();
+      expect((res.body as any).message).toBeDefined();
       // Check that error details are included
-      const errorMessage = res.body.message;
+      const errorMessage = (res.body as any).message;
       expect(typeof errorMessage).toBe("string");
     });
   });
