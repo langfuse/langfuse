@@ -7,7 +7,9 @@ type TestCaseLike = {
     moduleId: string;
     relativeModuleId?: string;
   };
-  diagnostic(): { duration: number } | undefined;
+  diagnostic():
+    | { duration: number; flaky?: boolean; retryCount?: number }
+    | undefined;
   result(): { state: string };
 };
 
@@ -17,11 +19,13 @@ type TestModuleLike = {
   };
 };
 
-type SlowTest = {
+type TestResult = {
   duration: number;
   file: string;
   name: string;
   state: string;
+  retryCount: number;
+  flaky: boolean;
 };
 
 type SlowFile = {
@@ -35,7 +39,7 @@ const formatDuration = (duration: number) =>
     ? `${(duration / 1000).toFixed(2)}s`
     : `${Math.round(duration)}ms`;
 
-export class SlowestTestsReporter {
+export class VitestCiReporter {
   onTestRunEnd(testModules: ReadonlyArray<TestModuleLike>) {
     const completedTests = testModules
       .flatMap((testModule) => [...testModule.children.allTests()])
@@ -43,7 +47,11 @@ export class SlowestTestsReporter {
         const diagnostic = testCase.diagnostic();
         const duration = diagnostic?.duration;
 
-        if (duration === undefined || !Number.isFinite(duration)) {
+        if (
+          diagnostic === undefined ||
+          duration === undefined ||
+          !Number.isFinite(duration)
+        ) {
           return undefined;
         }
 
@@ -58,9 +66,11 @@ export class SlowestTestsReporter {
           file: testCase.module.relativeModuleId ?? testCase.module.moduleId,
           name: testCase.fullName,
           state: result.state,
+          retryCount: diagnostic.retryCount ?? 0,
+          flaky: diagnostic.flaky ?? false,
         };
       })
-      .filter((test): test is SlowTest => test !== undefined);
+      .filter((test): test is TestResult => test !== undefined);
 
     const slowestTests = [...completedTests]
       .sort((left, right) => right.duration - left.duration)
@@ -84,8 +94,12 @@ export class SlowestTestsReporter {
         " ",
       );
       const state = test.state === "passed" ? "" : ` [${test.state}]`;
+      const retry = test.retryCount > 0 ? ` [retries=${test.retryCount}]` : "";
+      const flaky = test.flaky ? " [flaky]" : "";
 
-      console.log(`${rank}. ${duration} ${test.file} > ${test.name}${state}`);
+      console.log(
+        `${rank}. ${duration} ${test.file} > ${test.name}${state}${retry}${flaky}`,
+      );
     });
 
     const slowestFiles = Array.from(
@@ -133,5 +147,24 @@ export class SlowestTestsReporter {
         `${rank}. ${duration} ${file.file} (${testCount} ${pluralizedTests})`,
       );
     });
+
+    const retriedTests = completedTests.filter((test) => test.retryCount > 0);
+
+    if (retriedTests.length > 0) {
+      const retryRankWidth = String(retriedTests.length).length;
+
+      console.log(`\nRetried tests (${retriedTests.length}):`);
+      retriedTests
+        .sort((left, right) => right.retryCount - left.retryCount)
+        .forEach((test, index) => {
+          const rank = String(index + 1).padStart(retryRankWidth, " ");
+          const flaky = test.flaky ? " [flaky]" : "";
+          const state = test.state === "passed" ? "" : ` [${test.state}]`;
+
+          console.log(
+            `${rank}. retries=${test.retryCount} ${test.file} > ${test.name}${state}${flaky}`,
+          );
+        });
+    }
   }
 }
