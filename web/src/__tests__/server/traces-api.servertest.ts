@@ -99,6 +99,12 @@ const createObservationOrEvent = (
   }
 };
 
+const waitForEventsTable = async (useEventsTable: boolean) => {
+  if (useEventsTable) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+};
+
 // Helper to create trace with observations/events
 const createTraceWithObservations = async (
   useEventsTable: boolean,
@@ -1269,10 +1275,16 @@ describe("/api/public/traces API Endpoint", () => {
       };
 
       describe(`${suiteName}`, () => {
+        let projectId: string;
+        let auth: string;
         const testTraceId = randomUUID();
         const testTraceId2 = randomUUID();
 
-        beforeEach(async () => {
+        beforeAll(async () => {
+          const fixture = await createOrgProjectAndApiKey();
+          projectId = fixture.projectId;
+          auth = fixture.auth;
+
           // Create test traces with different metadata for filtering
           const trace1 = createTrace({
             id: testTraceId,
@@ -1308,11 +1320,12 @@ describe("/api/public/traces API Endpoint", () => {
             timestamp: new Date("2024-01-02T00:00:00Z").getTime(),
           });
 
-          await createTraceWithObservations(useEventsTable, trace1, []);
-          await createTraceWithObservations(useEventsTable, trace2, []);
+          await Promise.all([
+            createTraceWithObservations(useEventsTable, trace1, []),
+            createTraceWithObservations(useEventsTable, trace2, []),
+          ]);
 
-          // Simple wait to ensure data is available
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          await waitForEventsTable(useEventsTable);
         }, 10000);
 
         it("should support basic metadata filtering", async () => {
@@ -1713,9 +1726,7 @@ describe("/api/public/traces API Endpoint", () => {
           ];
 
           await createTraceWithObservations(useEventsTable, trace, events);
-
-          // Simple wait to ensure data is available
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          await waitForEventsTable(useEventsTable);
 
           // The trace should NOT be returned because after aggregation,
           // it has version=2.0 (from the latest event)
@@ -1848,24 +1859,13 @@ describe("/api/public/traces API Endpoint", () => {
             },
           ];
 
-          await createTraceWithObservations(
-            useEventsTable,
-            trace1,
-            observations1,
-          );
-          await createTraceWithObservations(
-            useEventsTable,
-            trace2,
-            observations2,
-          );
-          await createTraceWithObservations(
-            useEventsTable,
-            trace3,
-            observations3,
-          );
+          await Promise.all([
+            createTraceWithObservations(useEventsTable, trace1, observations1),
+            createTraceWithObservations(useEventsTable, trace2, observations2),
+            createTraceWithObservations(useEventsTable, trace3, observations3),
+          ]);
 
-          // Simple wait to ensure data is available
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          await waitForEventsTable(useEventsTable);
 
           // Test filtering by latency range (>= 0 and <= 1.9 seconds)
           // This should return trace1 and trace2, but not trace3
@@ -1962,9 +1962,11 @@ describe("/api/public/traces API Endpoint", () => {
             observation_id: null, // Must be null for trace-level scores
           });
 
-          await createTraceWithObservations(useEventsTable, trace1, []);
-          await createTraceWithObservations(useEventsTable, trace2, []);
-          await createScoresCh([score1, score2]);
+          await Promise.all([
+            createTraceWithObservations(useEventsTable, trace1, []),
+            createTraceWithObservations(useEventsTable, trace2, []),
+            createScoresCh([score1, score2]),
+          ]);
 
           // Test filtering by score_categories (check for "good" score)
           // This should return trace1 only
@@ -2118,8 +2120,10 @@ describe("/api/public/traces API Endpoint", () => {
             project_id: projectId,
           });
 
-          await createTraceWithObservations(useEventsTable, createdTrace, []);
-          await createTraceWithObservations(useEventsTable, dummyTrace, []);
+          await Promise.all([
+            createTraceWithObservations(useEventsTable, createdTrace, []),
+            createTraceWithObservations(useEventsTable, dummyTrace, []),
+          ]);
 
           const traces = await makeZodVerifiedAPICall(
             GetTracesV1Response,
@@ -2200,27 +2204,28 @@ describe("/api/public/traces API Endpoint", () => {
             }),
           );
 
-          for (const trace of traces) {
-            await createTraceWithObservations(useEventsTable, trace, []);
-          }
-
-          // Get page 1
-          const page1 = await makeZodVerifiedAPICall(
-            GetTracesV1Response,
-            "GET",
-            buildUrl(`page=1&limit=2`),
-            undefined,
-            auth,
+          await Promise.all(
+            traces.map((trace) =>
+              createTraceWithObservations(useEventsTable, trace, []),
+            ),
           );
 
-          // Get page 2
-          const page2 = await makeZodVerifiedAPICall(
-            GetTracesV1Response,
-            "GET",
-            buildUrl(`page=2&limit=2`),
-            undefined,
-            auth,
-          );
+          const [page1, page2] = await Promise.all([
+            makeZodVerifiedAPICall(
+              GetTracesV1Response,
+              "GET",
+              buildUrl(`page=1&limit=2`),
+              undefined,
+              auth,
+            ),
+            makeZodVerifiedAPICall(
+              GetTracesV1Response,
+              "GET",
+              buildUrl(`page=2&limit=2`),
+              undefined,
+              auth,
+            ),
+          ]);
 
           expect(page1.body.data.length).toBeLessThanOrEqual(2);
           expect(page2.body.data.length).toBeLessThanOrEqual(2);
@@ -2251,12 +2256,10 @@ describe("/api/public/traces API Endpoint", () => {
             timestamp: yesterday.getTime() - 24 * 60 * 60 * 1000,
           });
 
-          await createTraceWithObservations(useEventsTable, traceInRange, []);
-          await createTraceWithObservations(
-            useEventsTable,
-            traceOutOfRange,
-            [],
-          );
+          await Promise.all([
+            createTraceWithObservations(useEventsTable, traceInRange, []),
+            createTraceWithObservations(useEventsTable, traceOutOfRange, []),
+          ]);
 
           const traces = await makeZodVerifiedAPICall(
             GetTracesV1Response,
@@ -2323,9 +2326,11 @@ describe("/api/public/traces API Endpoint", () => {
             }),
           );
 
-          for (const trace of traces) {
-            await createTraceWithObservations(useEventsTable, trace, []);
-          }
+          await Promise.all(
+            traces.map((trace) =>
+              createTraceWithObservations(useEventsTable, trace, []),
+            ),
+          );
 
           const result = await makeZodVerifiedAPICall(
             GetTracesV1Response,
@@ -2498,100 +2503,61 @@ describe("/api/public/traces API Endpoint", () => {
 
   // Comprehensive filter column tests - verify all documented filter columns don't crash
   describe("Filter Columns - Doesn't Fail Tests", () => {
+    const filters = [
+      // Aggregated Metrics (from observations)
+      { column: "latency", type: "number", operator: ">=", value: 0 },
+      { column: "inputTokens", type: "number", operator: ">=", value: 0 },
+      { column: "outputTokens", type: "number", operator: ">=", value: 0 },
+      { column: "totalTokens", type: "number", operator: ">=", value: 0 },
+      { column: "inputCost", type: "number", operator: ">=", value: 0 },
+      { column: "outputCost", type: "number", operator: ">=", value: 0 },
+      { column: "totalCost", type: "number", operator: ">=", value: 0 },
+      // Observation Level Aggregations
+      { column: "level", type: "string", operator: "=", value: "ERROR" },
+      { column: "warningCount", type: "number", operator: ">=", value: 0 },
+      { column: "errorCount", type: "number", operator: ">=", value: 0 },
+      { column: "defaultCount", type: "number", operator: ">=", value: 0 },
+      { column: "debugCount", type: "number", operator: ">=", value: 0 },
+      // Scores (should not crash, filters are ignored per our fix)
+      {
+        column: "scores_avg",
+        type: "numberObject",
+        key: "quality",
+        operator: ">=",
+        value: 0.5,
+      },
+      {
+        column: "score_categories",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["good", "bad"],
+      },
+    ];
+
     const runFilterTests = (useEventsTable: boolean) => {
       const suiteName = useEventsTable
         ? "with events table"
         : "with traces table";
       const queryParam = useEventsTable ? "?useEventsTable=true&" : "?";
 
-      describe(suiteName, () => {
-        // Aggregated Metrics (from observations)
-        const metricsFilters = [
-          { column: "latency", type: "number", operator: ">=", value: 0 },
-          { column: "inputTokens", type: "number", operator: ">=", value: 0 },
-          { column: "outputTokens", type: "number", operator: ">=", value: 0 },
-          { column: "totalTokens", type: "number", operator: ">=", value: 0 },
-          { column: "inputCost", type: "number", operator: ">=", value: 0 },
-          { column: "outputCost", type: "number", operator: ">=", value: 0 },
-          { column: "totalCost", type: "number", operator: ">=", value: 0 },
-        ];
-
-        metricsFilters.forEach(({ column, type, operator, value }) => {
-          it(`should not fail when filtering by ${column}`, async () => {
-            const filterParam = JSON.stringify([
-              { type, column, operator, value },
-            ]);
-            const response = await makeZodVerifiedAPICall(
-              GetTracesV1Response,
-              "GET",
-              `/api/public/traces${queryParam}filter=${encodeURIComponent(filterParam)}`,
-              undefined,
-              auth,
-            );
-            expect(response.status).toBe(200);
-            expect(response.body.data).toBeDefined();
-            expect(response.body.meta).toBeDefined();
-          });
-        });
-
-        // Observation Level Aggregations
-        const observationAggFilters = [
-          { column: "level", type: "string", operator: "=", value: "ERROR" },
-          { column: "warningCount", type: "number", operator: ">=", value: 0 },
-          { column: "errorCount", type: "number", operator: ">=", value: 0 },
-          { column: "defaultCount", type: "number", operator: ">=", value: 0 },
-          { column: "debugCount", type: "number", operator: ">=", value: 0 },
-        ];
-
-        observationAggFilters.forEach(({ column, type, operator, value }) => {
-          it(`should not fail when filtering by ${column}`, async () => {
-            const filterParam = JSON.stringify([
-              { type, column, operator, value },
-            ]);
-            const response = await makeZodVerifiedAPICall(
-              GetTracesV1Response,
-              "GET",
-              `/api/public/traces${queryParam}filter=${encodeURIComponent(filterParam)}`,
-              undefined,
-              auth,
-            );
-            expect(response.status).toBe(200);
-            expect(response.body.data).toBeDefined();
-            expect(response.body.meta).toBeDefined();
-          });
-        });
-
-        // Scores (should not crash, filters are ignored per our fix)
-        const scoreFilters = [
-          {
-            column: "scores_avg",
-            type: "numberObject",
-            key: "quality",
-            operator: ">=",
-            value: 0.5,
-          },
-          {
-            column: "score_categories",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["good", "bad"],
-          },
-        ];
-
-        scoreFilters.forEach((filterDef) => {
-          it(`should not fail when filtering by ${filterDef.column}`, async () => {
+      it(`${suiteName}: should not fail for documented filter columns`, async () => {
+        const responses = await Promise.all(
+          filters.map((filterDef) => {
             const filterParam = JSON.stringify([filterDef]);
-            const response = await makeZodVerifiedAPICall(
+            return makeZodVerifiedAPICall(
               GetTracesV1Response,
               "GET",
               `/api/public/traces${queryParam}filter=${encodeURIComponent(filterParam)}`,
               undefined,
               auth,
             );
-            expect(response.status).toBe(200);
-            expect(response.body.data).toBeDefined();
-            expect(response.body.meta).toBeDefined();
-          });
+          }),
+        );
+
+        responses.forEach((response) => {
+          expect(response.status).toBe(200);
+          expect(response.body.data).toBeDefined();
+          expect(response.body.meta).toBeDefined();
         });
       });
     };
