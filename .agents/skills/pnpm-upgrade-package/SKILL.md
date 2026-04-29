@@ -31,9 +31,9 @@ Use this skill for interactive dependency bumps in Langfuse.
 - Never manually edit `pnpm-lock.yaml`; regenerate lockfile changes with
   `pnpm` commands only. If a lockfile-only refresh causes unrelated churn,
   adjust the pnpm command and rerun instead of patching the lockfile by hand.
-- If a compatible transitive package still stays pinned after the normal
-  refresh path, you may suggest `pnpm dedupe` to the user as an optional manual
-  follow-up, but do not run it automatically and do not require it.
+- After fixing or upgrading a package, strongly suggest that the user run
+  `pnpm dedupe` as an optional cleanup step, but do not run it automatically
+  and do not require it.
 - Resolve the registry latest version, but do not silently upgrade to latest
   unless the user asked for latest.
 - Compare the target version with the latest version installable under the
