@@ -576,7 +576,7 @@ jobs:
           # Next.js type checks in test builds to reduce CI runtime.
           NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Install playwright
-        run: pnpm --filter=web exec playwright install --with-deps chromium
+        run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
 
