@@ -675,6 +675,9 @@ export async function fetchLLMCompletion(
       message,
       responseStatusCode,
       isRetryable,
+      modelProvider: modelParams.provider,
+      modelName: modelParams.model,
+      modelAdapter: modelParams.adapter,
     });
   } finally {
     await processTracedEvents();

@@ -95,6 +95,9 @@ export type BuildEvaluatorExecutionEventRecordParams = {
   httpResponseStatusCode?: number | null;
   errorKind?: string | null;
   errorMessage?: string | null;
+  modelProvider?: string | null;
+  modelName?: string | null;
+  modelAdapter?: string | null;
   cancellationReason?: string | null;
   executionTraceId?: string | null;
   scoreIds?: string[];
@@ -198,6 +201,9 @@ export const buildEvaluatorExecutionEventRecord = ({
     evaluator_id: metadata.evaluatorId ?? "",
     evaluator_type: metadata.evaluatorType,
     trigger_source: metadata.triggerSource,
+    model_provider: params.modelProvider ?? "",
+    model_name: params.modelName ?? "",
+    model_adapter: params.modelAdapter ?? "",
     target_object: metadata.targetObject,
     target_trace_id: metadata.targetTraceId,
     target_observation_id: metadata.targetObservationId ?? "",

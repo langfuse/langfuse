@@ -32,17 +32,26 @@ export class LLMCompletionError extends Error {
   responseStatusCode: number;
   isRetryable: boolean;
   blockReason: EvaluatorBlockReason | null;
+  modelProvider: string | null;
+  modelName: string | null;
+  modelAdapter: string | null;
 
   constructor(params: {
     message: string;
     responseStatusCode?: number;
     isRetryable?: boolean;
+    modelProvider?: string | null;
+    modelName?: string | null;
+    modelAdapter?: string | null;
   }) {
     super(params.message);
 
     this.name = LLMCompletionErrorName;
     this.responseStatusCode = params.responseStatusCode ?? 500;
     this.isRetryable = params.isRetryable ?? false; // Default to false - be explicit about retryability
+    this.modelProvider = params.modelProvider ?? null;
+    this.modelName = params.modelName ?? null;
+    this.modelAdapter = params.modelAdapter ?? null;
     this.blockReason = inferLLMCompletionBlockReason({
       responseStatusCode: this.responseStatusCode,
       message: this.message,

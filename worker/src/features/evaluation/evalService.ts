@@ -975,6 +975,10 @@ export async function executeLLMAsJudgeEvaluation({
             });
           } catch (e) {
             if (isLLMCompletionError(e)) {
+              e.modelProvider ??= modelConfig.config.provider;
+              e.modelName ??= modelConfig.config.model;
+              e.modelAdapter ??= modelConfig.config.adapter;
+
               llmSpan.setAttribute(
                 "http.response.status_code",
                 e.responseStatusCode,
@@ -1093,6 +1097,9 @@ export async function executeLLMAsJudgeEvaluation({
         eventTs: completedAt,
         completedAt,
         executionTraceId,
+        modelProvider: modelConfig.config.provider,
+        modelName: modelConfig.config.model,
+        modelAdapter: modelConfig.config.adapter,
         scoreIds: scoreWritePayloads.map((payload) => payload.scoreId),
         scoreCount: scoreWritePayloads.length,
         scoreDataType: parsedLLMOutput.data.dataType,

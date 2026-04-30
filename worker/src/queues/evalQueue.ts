@@ -34,6 +34,67 @@ const getEvalExecutionErrorKind = (error: unknown) => {
   return isUnrecoverableError(error) ? "UNRECOVERABLE" : "INTERNAL";
 };
 
+const getLLMCompletionModelMetadata = (error: unknown) => {
+  if (!isLLMCompletionError(error)) {
+    return {};
+  }
+
+  return {
+    modelProvider: error.modelProvider,
+    modelName: error.modelName,
+    modelAdapter: error.modelAdapter,
+  };
+};
+
+const getBullMQBackoffDelayMs = (
+  job: Pick<Job, "opts">,
+  retryAttempt: number,
+): number | null => {
+  const backoff = job.opts?.backoff;
+
+  if (typeof backoff === "number") {
+    return backoff;
+  }
+
+  if (
+    typeof backoff !== "object" ||
+    backoff === null ||
+    typeof backoff.delay !== "number"
+  ) {
+    return null;
+  }
+
+  if (typeof backoff.jitter === "number" && backoff.jitter > 0) {
+    return null;
+  }
+
+  if (backoff.type === "fixed") {
+    return backoff.delay;
+  }
+
+  if (backoff.type === "exponential") {
+    return Math.round(Math.pow(2, retryAttempt - 1) * backoff.delay);
+  }
+
+  return null;
+};
+
+const getBullMQNativeRetryMetadata = (
+  job: Pick<Job, "attemptsMade" | "opts">,
+) => {
+  const maxAttempts =
+    typeof job.opts?.attempts === "number" ? job.opts.attempts : null;
+  const retryAttempt = (job.attemptsMade ?? 0) + 1;
+  const retryDelayMs = getBullMQBackoffDelayMs(job, retryAttempt);
+
+  return {
+    retryAttempt,
+    maxAttempts,
+    retryDelayMs,
+    hasAttemptsRemaining: maxAttempts !== null && retryAttempt < maxAttempts,
+  };
+};
+
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
 ) => {
@@ -218,8 +279,10 @@ export const evalJobExecutorQueueProcessorBuilder = (
       const executionTraceId = createW3CTraceId(
         job.data.payload.jobExecutionId,
       );
+      const isLLMError = isLLMCompletionError(e);
+      const isUnrecoverable = isUnrecoverableError(e);
 
-      if (isLLMCompletionError(e) && e.isRetryable) {
+      if (isLLMError && e.isRetryable) {
         const queue = queueName.startsWith(
           QueueName.EvaluationExecutionSecondaryQueue,
         )
@@ -264,11 +327,62 @@ export const evalJobExecutorQueueProcessorBuilder = (
             errorKind: getEvalExecutionErrorKind(e),
             errorMessage: e.message,
             executionTraceId,
+            ...getLLMCompletionModelMetadata(e),
           });
 
           // Return early as we have already scheduled a delayed retry
           return;
         }
+      }
+
+      const nativeRetryMetadata = getBullMQNativeRetryMetadata(job);
+      const shouldUseNativeBullMQRetry = !isLLMError && !isUnrecoverable;
+
+      if (
+        shouldUseNativeBullMQRetry &&
+        nativeRetryMetadata.hasAttemptsRemaining
+      ) {
+        const retryEventTs = new Date();
+
+        await prisma.jobExecution.update({
+          where: {
+            id: job.data.payload.jobExecutionId,
+            projectId: job.data.payload.projectId,
+          },
+          data: {
+            status: JobExecutionStatus.DELAYED,
+            executionTraceId,
+          },
+        });
+
+        writeEvaluatorExecutionEvent({
+          projectId: job.data.payload.projectId,
+          evaluatorExecutionId: job.data.payload.jobExecutionId,
+          metadata: job.data.payload,
+          statusAfter: EvaluatorExecutionEventStatus.RETRYING,
+          transitionKey: `bullmq-attempt-${nativeRetryMetadata.retryAttempt}`,
+          eventTs: retryEventTs,
+          nextRetryAt:
+            nativeRetryMetadata.retryDelayMs !== null
+              ? new Date(
+                  retryEventTs.getTime() + nativeRetryMetadata.retryDelayMs,
+                )
+              : undefined,
+          retryAttempt: nativeRetryMetadata.retryAttempt,
+          maxAttempts: nativeRetryMetadata.maxAttempts,
+          retryDelayMs: nativeRetryMetadata.retryDelayMs,
+          errorKind: getEvalExecutionErrorKind(e),
+          errorMessage: "An internal error occurred",
+          executionTraceId,
+        });
+
+        traceException(e);
+        logger.error(
+          `Failed ${queueName} job for id ${job.data.payload.jobExecutionId}`,
+          e,
+        );
+
+        throw e;
       }
 
       // At this point there will be only 4xx LLMCompletionErrors that are not retryable and application errors
@@ -284,7 +398,7 @@ export const evalJobExecutorQueueProcessorBuilder = (
           endTime: failedAt,
           // Show user-facing error messages (LLM and config errors)
           error:
-            isLLMCompletionError(e) || isUnrecoverableError(e)
+            isLLMError || isUnrecoverable
               ? e.message
               : "An internal error occurred",
           executionTraceId,
@@ -299,18 +413,23 @@ export const evalJobExecutorQueueProcessorBuilder = (
         transitionKey: "final",
         eventTs: failedAt,
         failedAt,
-        httpResponseStatusCode: isLLMCompletionError(e)
-          ? e.responseStatusCode
-          : undefined,
+        httpResponseStatusCode: isLLMError ? e.responseStatusCode : undefined,
         errorKind: getEvalExecutionErrorKind(e),
         errorMessage:
-          isLLMCompletionError(e) || isUnrecoverableError(e)
+          isLLMError || isUnrecoverable
             ? e.message
             : "An internal error occurred",
+        retryAttempt: shouldUseNativeBullMQRetry
+          ? nativeRetryMetadata.retryAttempt
+          : (job.data.retryBaggage?.attempt ?? 0),
+        maxAttempts: shouldUseNativeBullMQRetry
+          ? nativeRetryMetadata.maxAttempts
+          : null,
         executionTraceId,
+        ...getLLMCompletionModelMetadata(e),
       });
 
-      if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
+      if (isLLMError || isUnrecoverable) return;
 
       traceException(e);
       logger.error(
@@ -356,8 +475,10 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
       const executionTraceId = createW3CTraceId(
         job.data.payload.jobExecutionId,
       );
+      const isLLMError = isLLMCompletionError(e);
+      const isUnrecoverable = isUnrecoverableError(e);
 
-      if (isLLMCompletionError(e) && e.isRetryable) {
+      if (isLLMError && e.isRetryable) {
         const queue = LLMAsJudgeExecutionQueue.getInstance({
           shardName: queueName,
         });
@@ -398,10 +519,61 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
             errorKind: getEvalExecutionErrorKind(e),
             errorMessage: e.message,
             executionTraceId,
+            ...getLLMCompletionModelMetadata(e),
           });
 
           return;
         }
+      }
+
+      const nativeRetryMetadata = getBullMQNativeRetryMetadata(job);
+      const shouldUseNativeBullMQRetry = !isLLMError && !isUnrecoverable;
+
+      if (
+        shouldUseNativeBullMQRetry &&
+        nativeRetryMetadata.hasAttemptsRemaining
+      ) {
+        const retryEventTs = new Date();
+
+        await prisma.jobExecution.update({
+          where: {
+            id: job.data.payload.jobExecutionId,
+            projectId: job.data.payload.projectId,
+          },
+          data: {
+            status: JobExecutionStatus.DELAYED,
+            executionTraceId,
+          },
+        });
+
+        writeEvaluatorExecutionEvent({
+          projectId: job.data.payload.projectId,
+          evaluatorExecutionId: job.data.payload.jobExecutionId,
+          metadata: job.data.payload,
+          statusAfter: EvaluatorExecutionEventStatus.RETRYING,
+          transitionKey: `bullmq-attempt-${nativeRetryMetadata.retryAttempt}`,
+          eventTs: retryEventTs,
+          nextRetryAt:
+            nativeRetryMetadata.retryDelayMs !== null
+              ? new Date(
+                  retryEventTs.getTime() + nativeRetryMetadata.retryDelayMs,
+                )
+              : undefined,
+          retryAttempt: nativeRetryMetadata.retryAttempt,
+          maxAttempts: nativeRetryMetadata.maxAttempts,
+          retryDelayMs: nativeRetryMetadata.retryDelayMs,
+          errorKind: getEvalExecutionErrorKind(e),
+          errorMessage: "An internal error occurred",
+          executionTraceId,
+        });
+
+        traceException(e);
+        logger.error(
+          `Failed LLM-as-Judge execution job for id ${job.data.payload.jobExecutionId}`,
+          e,
+        );
+
+        throw e;
       }
 
       const failedAt = new Date();
@@ -415,7 +587,7 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
           status: JobExecutionStatus.ERROR,
           endTime: failedAt,
           error:
-            isLLMCompletionError(e) || isUnrecoverableError(e)
+            isLLMError || isUnrecoverable
               ? e.message
               : "An internal error occurred",
           executionTraceId,
@@ -430,18 +602,23 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         transitionKey: "final",
         eventTs: failedAt,
         failedAt,
-        httpResponseStatusCode: isLLMCompletionError(e)
-          ? e.responseStatusCode
-          : undefined,
+        httpResponseStatusCode: isLLMError ? e.responseStatusCode : undefined,
         errorKind: getEvalExecutionErrorKind(e),
         errorMessage:
-          isLLMCompletionError(e) || isUnrecoverableError(e)
+          isLLMError || isUnrecoverable
             ? e.message
             : "An internal error occurred",
+        retryAttempt: shouldUseNativeBullMQRetry
+          ? nativeRetryMetadata.retryAttempt
+          : (job.data.retryBaggage?.attempt ?? 0),
+        maxAttempts: shouldUseNativeBullMQRetry
+          ? nativeRetryMetadata.maxAttempts
+          : null,
         executionTraceId,
+        ...getLLMCompletionModelMetadata(e),
       });
 
-      if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
+      if (isLLMError || isUnrecoverable) return;
 
       traceException(e);
       logger.error(

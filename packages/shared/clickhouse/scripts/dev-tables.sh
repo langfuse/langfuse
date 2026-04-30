@@ -471,6 +471,9 @@ CREATE TABLE IF NOT EXISTS evaluator_execution_events
     evaluator_id String,
     evaluator_type LowCardinality(String),
     trigger_source LowCardinality(String) DEFAULT '',
+    model_provider LowCardinality(String) DEFAULT '',
+    model_name LowCardinality(String) DEFAULT '',
+    model_adapter LowCardinality(String) DEFAULT '',
 
     target_object LowCardinality(String),
     target_trace_id String,

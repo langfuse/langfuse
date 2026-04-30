@@ -118,6 +118,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { retryLLMRateLimitError } from "../../features/utils";
 import { isUnrecoverableError } from "../../errors/UnrecoverableError";
+import { writeEvaluatorExecutionEvent } from "../../features/evaluation/evaluatorExecutionEventWriter";
 
 describe("llmAsJudgeExecutionQueueProcessor", () => {
   const projectId = "test-project-123";
@@ -230,6 +231,12 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
   describe("LLM rate limit errors (retryable)", () => {
     it("should schedule retry and set DELAYED status for retryable LLM errors", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
+      Object.assign(rateLimitError, {
+        responseStatusCode: 429,
+        modelProvider: "openai",
+        modelName: "gpt-4.1",
+        modelAdapter: "openai",
+      });
       (processObservationEval as Mock).mockRejectedValue(rateLimitError);
       (isLLMCompletionError as Mock).mockReturnValue(true);
       // Mark as retryable
@@ -266,6 +273,17 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           executionTraceId: "test-trace-id",
         }),
       });
+      expect(writeEvaluatorExecutionEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statusAfter: "RETRYING",
+          retryAttempt: 1,
+          retryDelayMs: 1_000,
+          httpResponseStatusCode: 429,
+          modelProvider: "openai",
+          modelName: "gpt-4.1",
+          modelAdapter: "openai",
+        }),
+      );
     });
 
     it("should not rethrow error after scheduling retry", async () => {
@@ -434,6 +452,47 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
   });
 
   describe("unexpected errors (retryable by BullMQ)", () => {
+    it("should set DELAYED and write RETRYING while BullMQ attempts remain", async () => {
+      const unexpectedError = new Error("Database connection failed");
+      (processObservationEval as Mock).mockRejectedValue(unexpectedError);
+
+      const job = createMockJob();
+      Object.assign(job, {
+        attemptsMade: 0,
+        opts: {
+          attempts: 10,
+          backoff: { type: "exponential", delay: 1_000 },
+        },
+      });
+
+      await expect(llmAsJudgeExecutionQueueProcessor(job)).rejects.toThrow(
+        "Database connection failed",
+      );
+
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: jobExecutionId,
+          projectId,
+        },
+        data: expect.objectContaining({
+          status: JobExecutionStatus.DELAYED,
+          executionTraceId: "test-trace-id",
+        }),
+      });
+      expect(writeEvaluatorExecutionEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statusAfter: "RETRYING",
+          transitionKey: "bullmq-attempt-1",
+          retryAttempt: 1,
+          maxAttempts: 10,
+          retryDelayMs: 1_000,
+          nextRetryAt: expect.any(Date),
+          errorKind: "INTERNAL",
+          errorMessage: "An internal error occurred",
+        }),
+      );
+    });
+
     it("should set ERROR status with generic message for unexpected errors", async () => {
       const unexpectedError = new Error("Database connection failed");
       (processObservationEval as Mock).mockRejectedValue(unexpectedError);
@@ -456,6 +515,45 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           executionTraceId: "test-trace-id",
         }),
       });
+    });
+
+    it("should set ERROR with native retry counters when BullMQ attempts are exhausted", async () => {
+      const unexpectedError = new Error("Database connection failed");
+      (processObservationEval as Mock).mockRejectedValue(unexpectedError);
+
+      const job = createMockJob();
+      Object.assign(job, {
+        attemptsMade: 9,
+        opts: {
+          attempts: 10,
+          backoff: { type: "exponential", delay: 1_000 },
+        },
+      });
+
+      await expect(llmAsJudgeExecutionQueueProcessor(job)).rejects.toThrow(
+        "Database connection failed",
+      );
+
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: jobExecutionId,
+          projectId,
+        },
+        data: expect.objectContaining({
+          status: JobExecutionStatus.ERROR,
+          error: "An internal error occurred",
+          executionTraceId: "test-trace-id",
+        }),
+      });
+      expect(writeEvaluatorExecutionEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statusAfter: "ERROR",
+          retryAttempt: 10,
+          maxAttempts: 10,
+          errorKind: "INTERNAL",
+          errorMessage: "An internal error occurred",
+        }),
+      );
     });
 
     it("should call traceException for unexpected errors", async () => {
