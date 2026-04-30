@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
@@ -347,6 +348,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
 // ============================================================================
 
 describe("Public API - Dataset Schema Enforcement", () => {
+  const uniqueDatasetName = (name: string) => `${name}-${randomUUID()}`;
   const invalidInputDatasetName = "invalid-input-schema-fixture";
   const invalidOutputDatasetName = "invalid-output-schema-fixture";
   const allowsNullDatasetName = "allows-null-schema-fixture";
@@ -393,12 +395,13 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
   describe("POST /api/public/v2/datasets - Schema Creation", () => {
     it("should create dataset with input schema", async () => {
+      const testDatasetName = uniqueDatasetName("test-dataset");
       const res = await makeZodVerifiedAPICall(
         PostDatasetsV2Response,
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "test-dataset",
+          name: testDatasetName,
           description: "Test dataset",
           inputSchema: TEST_SCHEMAS.simpleText,
         },
@@ -406,18 +409,19 @@ describe("Public API - Dataset Schema Enforcement", () => {
       );
 
       expect(res.status).toBe(200);
-      expect(res.body.name).toBe("test-dataset");
+      expect(res.body.name).toBe(testDatasetName);
       expect(res.body.inputSchema).toEqual(TEST_SCHEMAS.simpleText);
       expect(res.body.expectedOutputSchema).toBeNull();
     });
 
     it("should create dataset with expectedOutput schema", async () => {
+      const testDataset2DatasetName = uniqueDatasetName("test-dataset-2");
       const res = await makeZodVerifiedAPICall(
         PostDatasetsV2Response,
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "test-dataset-2",
+          name: testDataset2DatasetName,
           expectedOutputSchema: TEST_SCHEMAS.requiresObject,
         },
         auth,
@@ -431,12 +435,13 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should create dataset with both schemas", async () => {
+      const testDataset3DatasetName = uniqueDatasetName("test-dataset-3");
       const res = await makeZodVerifiedAPICall(
         PostDatasetsV2Response,
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "test-dataset-3",
+          name: testDataset3DatasetName,
           inputSchema: TEST_SCHEMAS.chatMessages,
           expectedOutputSchema: TEST_SCHEMAS.simpleText,
         },
@@ -449,12 +454,13 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should create dataset without schemas", async () => {
+      const testDataset4DatasetName = uniqueDatasetName("test-dataset-4");
       const res = await makeZodVerifiedAPICall(
         PostDatasetsV2Response,
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "test-dataset-4",
+          name: testDataset4DatasetName,
         },
         auth,
       );
@@ -465,11 +471,14 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should reject invalid JSON schema format", async () => {
+      const testDatasetInvalidDatasetName = uniqueDatasetName(
+        "test-dataset-invalid",
+      );
       const res = await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "test-dataset-invalid",
+          name: testDatasetInvalidDatasetName,
           inputSchema: { type: "invalid-type" },
         },
         auth,
@@ -481,11 +490,12 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
   describe("POST /api/public/v2/datasets - UPSERT with Validation", () => {
     it("should add schema to existing dataset via UPSERT", async () => {
+      const upsertDatasetName = uniqueDatasetName("upsert-dataset");
       // Create dataset without schema
       await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
-        { name: "upsert-dataset" },
+        { name: upsertDatasetName },
         auth,
       );
 
@@ -495,7 +505,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "upsert-dataset",
+          name: upsertDatasetName,
           inputSchema: TEST_SCHEMAS.simpleText,
         },
         auth,
@@ -506,11 +516,12 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should block UPSERT if existing items fail validation", async () => {
+      const upsertFailDatasetName = uniqueDatasetName("upsert-fail");
       // Create dataset without schema
       await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
-        { name: "upsert-fail" },
+        { name: upsertFailDatasetName },
         auth,
       );
 
@@ -519,7 +530,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "upsert-fail",
+          datasetName: upsertFailDatasetName,
           input: { text: 123 }, // Invalid for simpleText schema
         },
         auth,
@@ -530,7 +541,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "upsert-fail",
+          name: upsertFailDatasetName,
           inputSchema: TEST_SCHEMAS.simpleText,
         },
         auth,
@@ -543,11 +554,12 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
   describe("GET /api/public/v2/datasets - Schema Fields", () => {
     it("should return schemas in dataset list", async () => {
+      const getTestDatasetName = uniqueDatasetName("get-test");
       await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "get-test",
+          name: getTestDatasetName,
           inputSchema: TEST_SCHEMAS.simpleText,
         },
         auth,
@@ -562,17 +574,18 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
       expect(res.status).toBe(200);
       const dataset = (res.body as any).data.find(
-        (d: any) => d.name === "get-test",
+        (d: any) => d.name === getTestDatasetName,
       );
       expect(dataset).toBeDefined();
       expect(dataset.inputSchema).toEqual(TEST_SCHEMAS.simpleText);
     });
 
     it("should return null schemas when not set", async () => {
+      const noSchemaTestDatasetName = uniqueDatasetName("no-schema-test");
       await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
-        { name: "no-schema-test" },
+        { name: noSchemaTestDatasetName },
         auth,
       );
 
@@ -585,7 +598,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
       expect(res.status).toBe(200);
       const dataset = (res.body as any).data.find(
-        (d: any) => d.name === "no-schema-test",
+        (d: any) => d.name === noSchemaTestDatasetName,
       );
       expect(dataset).toBeDefined();
       expect(dataset.inputSchema).toBeNull();
@@ -595,11 +608,12 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
   describe("POST /api/public/dataset-items - Schema Validation", () => {
     it("should create item with valid input (schema enforced)", async () => {
+      const validInputTestDatasetName = uniqueDatasetName("valid-input-test");
       await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "valid-input-test",
+          name: validInputTestDatasetName,
           inputSchema: TEST_SCHEMAS.simpleText,
         },
         auth,
@@ -610,7 +624,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "valid-input-test",
+          datasetName: validInputTestDatasetName,
           input: { text: "hello" },
         },
         auth,
@@ -621,11 +635,12 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should create item with valid expectedOutput (schema enforced)", async () => {
+      const validOutputTestDatasetName = uniqueDatasetName("valid-output-test");
       await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "valid-output-test",
+          name: validOutputTestDatasetName,
           expectedOutputSchema: TEST_SCHEMAS.requiresObject,
         },
         auth,
@@ -636,7 +651,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "valid-output-test",
+          datasetName: validOutputTestDatasetName,
           input: "Hello",
           expectedOutput: { value: 42 },
         },
@@ -648,10 +663,11 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should create item without schemas set", async () => {
+      const noValidationDatasetName = uniqueDatasetName("no-validation");
       await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
-        { name: "no-validation" },
+        { name: noValidationDatasetName },
         auth,
       );
 
@@ -660,7 +676,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "no-validation",
+          datasetName: noValidationDatasetName,
           input: "anything goes",
           expectedOutput: 123,
         },
@@ -743,11 +759,12 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should validate complex nested structures", async () => {
+      const nestedTestDatasetName = uniqueDatasetName("nested-test");
       await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "nested-test",
+          name: nestedTestDatasetName,
           inputSchema: TEST_SCHEMAS.chatMessages,
         },
         auth,
@@ -758,7 +775,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "nested-test",
+          datasetName: nestedTestDatasetName,
           input: {
             messages: [
               { role: "user", content: "hello" },
@@ -776,7 +793,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "nested-test",
+          datasetName: nestedTestDatasetName,
           input: {
             messages: [{ role: "invalid-role", content: "test" }],
           },
@@ -805,11 +822,12 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should validate on UPSERT update", async () => {
+      const upsertUpdateDatasetName = uniqueDatasetName("upsert-update");
       await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "upsert-update",
+          name: upsertUpdateDatasetName,
           inputSchema: TEST_SCHEMAS.simpleText,
         },
         auth,
@@ -820,7 +838,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "upsert-update",
+          datasetName: upsertUpdateDatasetName,
           id: "update-id",
           input: { text: "valid" },
         },
@@ -832,7 +850,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "upsert-update",
+          datasetName: upsertUpdateDatasetName,
           id: "update-id",
           input: { text: 999 }, // Invalid
         },
@@ -845,11 +863,12 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
   describe("Dataset Schema Addition - Existing Items Validation", () => {
     it("should block schema addition if existing items are invalid", async () => {
+      const existingInvalidDatasetName = uniqueDatasetName("existing-invalid");
       // Create dataset without schema
       await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
-        { name: "existing-invalid" },
+        { name: existingInvalidDatasetName },
         auth,
       );
 
@@ -859,7 +878,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
           "POST",
           "/api/public/dataset-items",
           {
-            datasetName: "existing-invalid",
+            datasetName: existingInvalidDatasetName,
             input: { text: 123 }, // Will be invalid for simpleText schema
           },
           auth,
@@ -868,7 +887,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
           "POST",
           "/api/public/dataset-items",
           {
-            datasetName: "existing-invalid",
+            datasetName: existingInvalidDatasetName,
             input: { text: 456 },
           },
           auth,
@@ -880,7 +899,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "existing-invalid",
+          name: existingInvalidDatasetName,
           inputSchema: TEST_SCHEMAS.simpleText,
         },
         auth,
@@ -892,11 +911,12 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should allow schema addition if all existing items are valid", async () => {
+      const existingValidDatasetName = uniqueDatasetName("existing-valid");
       // Create dataset
       await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
-        { name: "existing-valid" },
+        { name: existingValidDatasetName },
         auth,
       );
 
@@ -906,7 +926,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
           "POST",
           "/api/public/dataset-items",
           {
-            datasetName: "existing-valid",
+            datasetName: existingValidDatasetName,
             input: { text: "hello" },
           },
           auth,
@@ -915,7 +935,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
           "POST",
           "/api/public/dataset-items",
           {
-            datasetName: "existing-valid",
+            datasetName: existingValidDatasetName,
             input: { text: "world" },
           },
           auth,
@@ -928,7 +948,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "existing-valid",
+          name: existingValidDatasetName,
           inputSchema: TEST_SCHEMAS.simpleText,
         },
         auth,
@@ -939,11 +959,12 @@ describe("Public API - Dataset Schema Enforcement", () => {
     });
 
     it("should fail when existing items have null and schema doesn't allow null", async () => {
+      const nullItemsDatasetName = uniqueDatasetName("null-items");
       // Create dataset
       await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
-        { name: "null-items" },
+        { name: nullItemsDatasetName },
         auth,
       );
 
@@ -952,7 +973,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "null-items",
+          datasetName: nullItemsDatasetName,
           input: "hello",
           expectedOutput: null,
         },
@@ -964,7 +985,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "null-items",
+          name: nullItemsDatasetName,
           expectedOutputSchema: TEST_SCHEMAS.simpleText, // Requires object
         },
         auth,
@@ -976,13 +997,14 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
   describe("End-to-End Workflow", () => {
     it("should enforce schema across full workflow", async () => {
+      const e2eWorkflowDatasetName = uniqueDatasetName("e2e-workflow");
       // 1. Create dataset with schema
       const datasetRes = await makeZodVerifiedAPICall(
         PostDatasetsV2Response,
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "e2e-workflow",
+          name: e2eWorkflowDatasetName,
           inputSchema: TEST_SCHEMAS.simpleText,
           expectedOutputSchema: TEST_SCHEMAS.requiresObject,
         },
@@ -996,7 +1018,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "e2e-workflow",
+          datasetName: e2eWorkflowDatasetName,
           input: { text: "valid input" },
           expectedOutput: { value: 100 },
         },
@@ -1009,7 +1031,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "e2e-workflow",
+          datasetName: e2eWorkflowDatasetName,
           input: { text: 123 }, // Invalid
           expectedOutput: { value: 50 },
         },
@@ -1019,7 +1041,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
       // 4. Verify only valid item was created
       const dataset = await prisma.dataset.findFirst({
-        where: { name: "e2e-workflow", projectId },
+        where: { name: e2eWorkflowDatasetName, projectId },
       });
       if (!dataset) {
         throw new Error("Dataset not found");
@@ -1036,7 +1058,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "e2e-workflow",
+          name: e2eWorkflowDatasetName,
           inputSchema: TEST_SCHEMAS.chatMessages, // Change schema
         },
         auth,
@@ -1050,7 +1072,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "e2e-workflow",
+          name: e2eWorkflowDatasetName,
           inputSchema: null,
           expectedOutputSchema: null,
         },
@@ -1063,11 +1085,12 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
   describe("Error Response Format", () => {
     it("should return detailed validation errors", async () => {
+      const errorFormatDatasetName = uniqueDatasetName("error-format");
       await makeAPICall(
         "POST",
         "/api/public/v2/datasets",
         {
-          name: "error-format",
+          name: errorFormatDatasetName,
           inputSchema: TEST_SCHEMAS.chatMessages,
         },
         auth,
@@ -1077,7 +1100,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "POST",
         "/api/public/dataset-items",
         {
-          datasetName: "error-format",
+          datasetName: errorFormatDatasetName,
           input: {
             messages: [{ role: "bad-role", content: "test" }],
           },
