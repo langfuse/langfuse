@@ -48,7 +48,7 @@ export interface ObservationEvalSchedulerDeps {
     jobTemplateId: string | null;
     status: JobExecutionStatus;
     scheduledAt: Date;
-  }) => Promise<{ id: string }>;
+  }) => Promise<{ id: string; scheduledAt: Date }>;
 
   /** Upload observation data to S3 for later retrieval */
   uploadObservationToS3: (params: {

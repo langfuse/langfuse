@@ -153,7 +153,7 @@ async function processMatchingConfig(
 
   // Create job execution
   const scheduledAt = new Date();
-  await schedulerDeps.upsertJobExecution({
+  const jobExecution = await schedulerDeps.upsertJobExecution({
     id: jobExecutionId,
     projectId: observation.project_id,
     jobConfigurationId: matchingConfig.id,
@@ -174,7 +174,7 @@ async function processMatchingConfig(
       matchingConfig.targetObject as EvaluatorExecutionQueueMetadata["targetObject"],
     targetTraceId: observation.trace_id,
     targetObservationId: observation.span_id,
-    scheduledAt,
+    scheduledAt: jobExecution.scheduledAt,
     scheduleDelayMs: 0,
   };
 

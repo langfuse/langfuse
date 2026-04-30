@@ -86,6 +86,7 @@ describe("Production Dependency Factories Integration Tests", () => {
         const jobExecutionId = randomUUID();
         const traceId = randomUUID();
         const observationId = randomUUID();
+        const scheduledAt = new Date();
 
         // Execute
         const result = await deps.upsertJobExecution({
@@ -96,11 +97,13 @@ describe("Production Dependency Factories Integration Tests", () => {
           jobInputObservationId: observationId,
           jobTemplateId: null,
           status: "PENDING",
+          scheduledAt,
         });
 
         // Verify
         expect(result).toHaveProperty("id");
         expect(result.id).toBe(jobExecutionId);
+        expect(result.scheduledAt).toEqual(scheduledAt);
 
         // Verify in database
         const dbRecord = await prisma.jobExecution.findUnique({
@@ -148,7 +151,7 @@ describe("Production Dependency Factories Integration Tests", () => {
           },
         });
 
-        await deps.upsertJobExecution({
+        const result = await deps.upsertJobExecution({
           id: jobExecutionId,
           projectId,
           jobConfigurationId: jobConfig.id,
@@ -156,6 +159,7 @@ describe("Production Dependency Factories Integration Tests", () => {
           jobInputObservationId: randomUUID(),
           jobTemplateId: null,
           status: "COMPLETED",
+          scheduledAt: new Date("2026-01-02T12:00:00.000Z"),
         });
 
         const updatedRecord = await prisma.jobExecution.findUnique({
@@ -164,6 +168,7 @@ describe("Production Dependency Factories Integration Tests", () => {
 
         expect(updatedRecord?.status).toBe("COMPLETED");
         expect(updatedRecord?.startTime).toEqual(originalStartTime);
+        expect(result.scheduledAt).toEqual(originalStartTime);
       }, 15_000);
     });
 
@@ -380,6 +385,7 @@ describe("Production Dependency Factories Integration Tests", () => {
         jobInputObservationId: observationId,
         jobTemplateId: null,
         status: "PENDING",
+        scheduledAt: new Date(),
       });
 
       // Step 2: Scheduler uploads observation to S3

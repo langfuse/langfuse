@@ -46,7 +46,10 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
         },
       });
 
-      return { id: jobExecution.id };
+      return {
+        id: jobExecution.id,
+        scheduledAt: jobExecution.startTime ?? jobExecution.createdAt,
+      };
     },
 
     uploadObservationToS3: async (params) => {

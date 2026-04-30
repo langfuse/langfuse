@@ -99,6 +99,7 @@ describe("scheduleObservationEvals", () => {
       .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
       .mockResolvedValue({
         id: "job-exec-1",
+        scheduledAt: new Date("2026-01-01T00:00:00.000Z"),
       }),
     uploadObservationToS3: vi
       .fn<ObservationEvalSchedulerDeps["uploadObservationToS3"]>()
@@ -333,6 +334,13 @@ describe("scheduleObservationEvals", () => {
 
     it("should enqueue job with correct parameters", async () => {
       const schedulerDeps = createMockSchedulerDeps();
+      const persistedScheduledAt = new Date("2026-02-03T04:05:06.789Z");
+      schedulerDeps.upsertJobExecution = vi
+        .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
+        .mockResolvedValue({
+          id: "job-exec-1",
+          scheduledAt: persistedScheduledAt,
+        });
       schedulerDeps.uploadObservationToS3 = vi
         .fn<ObservationEvalSchedulerDeps["uploadObservationToS3"]>()
         .mockResolvedValue("observations/project-789/obs-123.json");
@@ -362,6 +370,7 @@ describe("scheduleObservationEvals", () => {
           delay: 0,
           metadata: expect.objectContaining({
             triggerSource: EvaluatorExecutionTriggerSource.OBSERVATION_INGESTED,
+            scheduledAt: persistedScheduledAt,
           }),
         }),
       );
@@ -373,6 +382,7 @@ describe("scheduleObservationEvals", () => {
         .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
         .mockResolvedValue({
           id: "job-exec-1",
+          scheduledAt: new Date("2026-01-01T00:00:00.000Z"),
         });
 
       await scheduleObservationEvals({
@@ -392,12 +402,15 @@ describe("scheduleObservationEvals", () => {
         .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
         .mockResolvedValueOnce({
           id: "job-exec-1",
+          scheduledAt: new Date("2026-01-01T00:00:00.000Z"),
         })
         .mockResolvedValueOnce({
           id: "job-exec-2",
+          scheduledAt: new Date("2026-01-01T00:00:01.000Z"),
         })
         .mockResolvedValueOnce({
           id: "job-exec-3",
+          scheduledAt: new Date("2026-01-01T00:00:02.000Z"),
         });
       const observation = createMockObservation();
 

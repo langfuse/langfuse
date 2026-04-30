@@ -508,7 +508,7 @@ CREATE TABLE IF NOT EXISTS evaluator_execution_events
 
     created_at DateTime64(3) DEFAULT now()
 )
-ENGINE = MergeTree
+ENGINE = ReplacingMergeTree(event_ts)
 PARTITION BY toYYYYMM(scheduled_at)
 PRIMARY KEY (project_id, evaluation_rule_id, toDate(scheduled_at))
 ORDER BY (
