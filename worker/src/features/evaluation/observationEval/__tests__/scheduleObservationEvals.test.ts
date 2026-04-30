@@ -14,6 +14,7 @@ import {
 import {
   createEvaluatorExecutionId,
   createEventEvaluatorExecutionIdentity,
+  EvaluatorExecutionTriggerSource,
 } from "@langfuse/shared/src/server";
 
 describe("scheduleObservationEvals", () => {
@@ -307,6 +308,7 @@ describe("scheduleObservationEvals", () => {
         observation,
         configs: [config],
         schedulerDeps,
+        triggerSource: EvaluatorExecutionTriggerSource.OBSERVATION_INGESTED,
       });
 
       const expectedJobExecutionId = createEvaluatorExecutionId(
@@ -341,6 +343,7 @@ describe("scheduleObservationEvals", () => {
         observation,
         configs: [config],
         schedulerDeps,
+        triggerSource: EvaluatorExecutionTriggerSource.OBSERVATION_INGESTED,
       });
 
       const expectedJobExecutionId = createEvaluatorExecutionId(
@@ -357,6 +360,9 @@ describe("scheduleObservationEvals", () => {
           projectId: "project-789",
           observationS3Path: "observations/project-789/obs-123.json",
           delay: 0,
+          metadata: expect.objectContaining({
+            triggerSource: EvaluatorExecutionTriggerSource.OBSERVATION_INGESTED,
+          }),
         }),
       );
     });

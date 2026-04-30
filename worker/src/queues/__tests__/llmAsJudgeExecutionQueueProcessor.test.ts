@@ -133,6 +133,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         evaluationRuleId: string;
         evaluatorId: string | null;
         evaluatorType: string;
+        triggerSource: string;
         scoreName: string;
         targetObject: string;
         targetTraceId: string;
@@ -157,6 +158,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           evaluationRuleId: "eval-rule-123",
           evaluatorId: "evaluator-123",
           evaluatorType: "llm-as-judge",
+          triggerSource: "observation-ingested",
           scoreName: "quality",
           targetObject: "event",
           targetTraceId: "trace-123",
@@ -198,6 +200,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           observationS3Path,
           evaluationRuleId: "eval-rule-123",
           evaluatorType: "llm-as-judge",
+          triggerSource: "observation-ingested",
           targetTraceId: "trace-123",
           targetObservationId: "observation-123",
         }),

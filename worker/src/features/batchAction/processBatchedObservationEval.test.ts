@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { EvalTargetObject, JobConfigState } from "@langfuse/shared";
+import { EvaluatorExecutionTriggerSource } from "@langfuse/shared/src/server";
 import { type ObservationEvalConfig } from "../evaluation/observationEval";
 
 vi.mock("@langfuse/shared/src/db", () => ({
@@ -78,6 +79,8 @@ describe("processBatchedObservationEval", () => {
     expect(scheduleObservationEvals).toHaveBeenCalledWith(
       expect.objectContaining({
         configs: evaluators,
+        triggerSource:
+          EvaluatorExecutionTriggerSource.HISTORIC_OBSERVATION_EVALUATION_REQUESTED,
       }),
     );
     expect(
@@ -163,5 +166,58 @@ describe("processBatchedObservationEval", () => {
 
     const secondCall = (scheduleObservationEvals as Mock).mock.calls[1][0];
     expect(secondCall.observation.tool_call_count).toBe(0);
+  });
+
+  it("marks historical experiment batch evals with experiment trigger source", async () => {
+    const projectId = "project-1";
+    const batchActionId = "batch-action-3";
+    const evaluators: ObservationEvalConfig[] = [
+      {
+        id: "config-1",
+        projectId,
+        filter: [],
+        sampling: { toNumber: () => 1 } as ObservationEvalConfig["sampling"],
+        evalTemplateId: "template-1",
+        scoreName: "quality",
+        targetObject: EvalTargetObject.EXPERIMENT,
+        variableMapping: [],
+        status: JobConfigState.ACTIVE,
+        blockedAt: null,
+      },
+    ];
+
+    const observationStream = (async function* () {
+      yield {
+        span_id: "obs-4",
+        trace_id: "trace-4",
+        project_id: projectId,
+        parent_span_id: null,
+        type: "GENERATION",
+        name: "experiment-root",
+        usage_details: {},
+        cost_details: {},
+        provided_usage_details: {},
+        provided_cost_details: {},
+        tags: [],
+        input: "input",
+        output: "output",
+        metadata: {},
+        experiment_item_root_span_id: "obs-4",
+      };
+    })();
+
+    await processBatchedObservationEval({
+      projectId,
+      batchActionId,
+      evaluators,
+      observationStream,
+    });
+
+    expect(scheduleObservationEvals).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerSource:
+          EvaluatorExecutionTriggerSource.HISTORIC_EXPERIMENT_EVALUATION_REQUESTED,
+      }),
+    );
   });
 });

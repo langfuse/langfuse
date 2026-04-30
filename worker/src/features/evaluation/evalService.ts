@@ -37,6 +37,7 @@ import {
   createEvaluatorScoreId,
   createTraceEvaluatorExecutionIdentity,
   EvaluatorExecutionEventStatus,
+  EvaluatorExecutionTriggerSource,
   EvaluatorType,
   shouldSampleEvaluatorExecution,
   type EvaluatorExecutionQueueMetadata,
@@ -180,12 +181,26 @@ type CreateEvalJobsParams = {
     }
 );
 
+const getLegacyEvalTriggerSource = (
+  sourceEventType: CreateEvalJobsParams["sourceEventType"],
+) => {
+  switch (sourceEventType) {
+    case "trace-upsert":
+      return EvaluatorExecutionTriggerSource.TRACE_INGESTED;
+    case "dataset-run-item-upsert":
+      return EvaluatorExecutionTriggerSource.DATASET_RUN_ITEM_UPSERTED;
+    case "ui-create-eval":
+      return EvaluatorExecutionTriggerSource.HISTORIC_TRACE_DATASET_EVALUATION_REQUESTED;
+  }
+};
+
 export const createEvalJobs = async ({
   event,
   sourceEventType,
   jobTimestamp,
   enforcedJobTimeScope,
 }: CreateEvalJobsParams) => {
+  const triggerSource = getLegacyEvalTriggerSource(sourceEventType);
   const span = getCurrentSpan();
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.projectId", event.projectId);
@@ -633,6 +648,7 @@ export const createEvalJobs = async ({
         evaluationRuleId: config.id,
         evaluatorId: config.evalTemplateId,
         evaluatorType: EvaluatorType.LLM_AS_JUDGE,
+        triggerSource,
         scoreName: config.scoreName,
         targetObject:
           config.targetObject as EvaluatorExecutionQueueMetadata["targetObject"],
@@ -728,6 +744,7 @@ export const createEvalJobs = async ({
               evaluationRuleId: config.id,
               evaluatorId: config.evalTemplateId,
               evaluatorType: EvaluatorType.LLM_AS_JUDGE,
+              triggerSource,
               scoreName: config.scoreName,
               targetObject:
                 config.targetObject as EvaluatorExecutionQueueMetadata["targetObject"],

@@ -17,6 +17,7 @@ import {
   createExperimentEvaluatorExecutionIdentity,
   EvaluatorType,
   shouldSampleEvaluatorExecution,
+  type EvaluatorExecutionTriggerSource,
   type EvaluatorExecutionQueueMetadata,
 } from "@langfuse/shared/src/server";
 import { writeScheduledEvaluatorExecutionEvent } from "../evaluatorExecutionEventWriter";
@@ -25,6 +26,7 @@ interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
   configs: ObservationEvalConfig[];
   schedulerDeps: ObservationEvalSchedulerDeps;
+  triggerSource?: EvaluatorExecutionTriggerSource;
 }
 
 /**
@@ -115,6 +117,7 @@ export async function scheduleObservationEvals(
         matchingConfig,
         observationS3Path,
         schedulerDeps,
+        triggerSource: params.triggerSource,
       }).catch((error) => {
         logger.error("Failed to process observation eval config", {
           configId: matchingConfig.id,
@@ -132,6 +135,7 @@ interface ProcessConfigParams {
   matchingConfig: ObservationEvalConfig;
   observationS3Path: string;
   schedulerDeps: ObservationEvalSchedulerDeps;
+  triggerSource?: EvaluatorExecutionTriggerSource;
 }
 
 async function processMatchingConfig(
@@ -164,6 +168,7 @@ async function processMatchingConfig(
     evaluationRuleId: matchingConfig.id,
     evaluatorId: matchingConfig.evalTemplateId,
     evaluatorType: EvaluatorType.LLM_AS_JUDGE,
+    triggerSource: params.triggerSource ?? "",
     scoreName: matchingConfig.scoreName,
     targetObject:
       matchingConfig.targetObject as EvaluatorExecutionQueueMetadata["targetObject"],

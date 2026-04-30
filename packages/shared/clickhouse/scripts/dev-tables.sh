@@ -470,6 +470,7 @@ CREATE TABLE IF NOT EXISTS evaluator_execution_events
     evaluation_rule_id String,
     evaluator_id String,
     evaluator_type LowCardinality(String),
+    trigger_source LowCardinality(String) DEFAULT '',
 
     target_object LowCardinality(String),
     target_trace_id String,

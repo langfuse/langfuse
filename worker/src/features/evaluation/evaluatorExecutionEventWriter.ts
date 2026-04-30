@@ -3,6 +3,7 @@ import { EvalTargetObject } from "@langfuse/shared";
 import {
   buildEvaluatorExecutionEventRecord,
   EvaluatorExecutionEventStatus,
+  type EvaluatorExecutionTriggerSource as EvaluatorExecutionTriggerSourceType,
   EvaluatorType,
   type BuildEvaluatorExecutionEventRecordParams,
   type EvaluatorExecutionQueueMetadata,
@@ -41,10 +42,12 @@ export const buildEvaluatorExecutionQueueMetadata = (params: {
   job: JobExecutionForMetadata;
   scheduledAt?: Date | null;
   scheduleDelayMs?: number | null;
+  triggerSource?: EvaluatorExecutionTriggerSourceType;
 }): EvaluatorExecutionQueueMetadata => ({
   evaluationRuleId: params.config.id,
   evaluatorId: params.config.evalTemplateId,
   evaluatorType: EvaluatorType.LLM_AS_JUDGE,
+  triggerSource: params.triggerSource ?? "",
   scoreName: params.config.scoreName,
   targetObject: params.config
     .targetObject as EvaluatorExecutionQueueMetadata["targetObject"],

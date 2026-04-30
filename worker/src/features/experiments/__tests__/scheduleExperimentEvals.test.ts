@@ -5,6 +5,7 @@ import {
 } from "@langfuse/shared";
 import {
   buildInternalTraceEventInputs,
+  EvaluatorExecutionTriggerSource,
   materializeInternalTrace,
   prepareInternalTraceEvents,
 } from "@langfuse/shared/src/server";
@@ -561,6 +562,8 @@ describe("scheduleExperimentObservationEvals", () => {
       observation,
       configs: [{ id: "config-1" }],
       schedulerDeps: expect.any(Object),
+      triggerSource:
+        EvaluatorExecutionTriggerSource.PROMPT_EXPERIMENT_ITEM_CREATED,
     });
     expect(observation.span_id).toBe(traceId);
     expect(observation.experiment_item_root_span_id).toBe(traceId);

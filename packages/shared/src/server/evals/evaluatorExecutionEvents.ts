@@ -34,10 +34,31 @@ export type EvaluatorType = (typeof EvaluatorType)[keyof typeof EvaluatorType];
 
 export const EvaluatorTypeSchema = z.enum(Object.values(EvaluatorType));
 
+export const EvaluatorExecutionTriggerSource = {
+  TRACE_INGESTED: "trace-ingested",
+  DATASET_RUN_ITEM_UPSERTED: "dataset-run-item-upserted",
+  HISTORIC_TRACE_DATASET_EVALUATION_REQUESTED:
+    "historic-trace-dataset-evaluation-requested",
+  OBSERVATION_INGESTED: "observation-ingested",
+  PROMPT_EXPERIMENT_ITEM_CREATED: "prompt-experiment-item-created",
+  HISTORIC_OBSERVATION_EVALUATION_REQUESTED:
+    "historic-observation-evaluation-requested",
+  HISTORIC_EXPERIMENT_EVALUATION_REQUESTED:
+    "historic-experiment-evaluation-requested",
+} as const;
+
+export type EvaluatorExecutionTriggerSource =
+  (typeof EvaluatorExecutionTriggerSource)[keyof typeof EvaluatorExecutionTriggerSource];
+
+export const EvaluatorExecutionTriggerSourceSchema = z
+  .enum(Object.values(EvaluatorExecutionTriggerSource))
+  .or(z.literal(""));
+
 export const EvaluatorExecutionQueueMetadataSchema = z.object({
   evaluationRuleId: z.string(),
   evaluatorId: z.string().nullish(),
   evaluatorType: EvaluatorTypeSchema.default(EvaluatorType.LLM_AS_JUDGE),
+  triggerSource: EvaluatorExecutionTriggerSourceSchema.default(""),
   scoreName: z.string().nullish(),
   targetObject: EvalTargetObjectSchema,
   targetTraceId: z.string(),
@@ -176,6 +197,7 @@ export const buildEvaluatorExecutionEventRecord = ({
     evaluation_rule_id: metadata.evaluationRuleId,
     evaluator_id: metadata.evaluatorId ?? "",
     evaluator_type: metadata.evaluatorType,
+    trigger_source: metadata.triggerSource,
     target_object: metadata.targetObject,
     target_trace_id: metadata.targetTraceId,
     target_observation_id: metadata.targetObservationId ?? "",

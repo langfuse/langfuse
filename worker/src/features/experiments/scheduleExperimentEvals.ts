@@ -4,7 +4,11 @@ import {
   createObservationEvalSchedulerDeps,
   type ObservationForEval,
 } from "../evaluation/observationEval";
-import { logger, traceException } from "@langfuse/shared/src/server";
+import {
+  EvaluatorExecutionTriggerSource,
+  logger,
+  traceException,
+} from "@langfuse/shared/src/server";
 
 interface ScheduleExperimentEvalsParams {
   observation: ObservationForEval;
@@ -26,6 +30,8 @@ export async function scheduleExperimentObservationEvals(
       observation,
       configs,
       schedulerDeps,
+      triggerSource:
+        EvaluatorExecutionTriggerSource.PROMPT_EXPERIMENT_ITEM_CREATED,
     });
 
     logger.info("Scheduled experiment observation evals", {
