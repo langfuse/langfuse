@@ -138,7 +138,7 @@ export async function upsertClickhouse<
           // Only applicable to scores and traces.
           let eventType = `${opts.table.slice(0, -1)}-create`;
           if (opts.table === "observations") {
-            // @ts-ignore - If it's an observation we now that `type` is a string
+            // @ts-ignore - If it's an observation we know that `type` is a string
             eventType = `${record["type"].toLowerCase()}-create`;
           }
 
