@@ -81,7 +81,7 @@ describe("sendAdminAccessWebhook", () => {
     });
   });
 
-  it("should dedupe repeated sends within 5 minutes for same email/project/org", async () => {
+  it("should dedupe repeated sends within 24 hours for same email/project/org", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-02-19T19:39:37.000Z"));
     (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
@@ -119,7 +119,7 @@ describe("sendAdminAccessWebhook", () => {
       orgId: "org-1",
     });
 
-    vi.setSystemTime(new Date("2026-02-19T19:44:38.000Z"));
+    vi.setSystemTime(new Date("2026-02-20T19:39:38.000Z"));
 
     await sendAdminAccessWebhook({
       email: "admin@langfuse.com",
