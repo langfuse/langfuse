@@ -52,8 +52,14 @@ export const millisecondFormatter = (milliseconds?: number) => {
     unit: "second",
     unitDisplay: "narrow",
     notation: "compact",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    ...(Math.abs(milliseconds ?? 0) < 1000
+      ? {
+          maximumSignificantDigits: 3,
+        }
+      : {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
   }).format((milliseconds ?? 0) / 1000);
 };
 
