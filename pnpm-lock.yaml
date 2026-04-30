@@ -584,9 +584,6 @@ importers:
       fastest-levenshtein:
         specifier: ^1.0.16
         version: 1.0.16
-      graphql:
-        specifier: ^16.13.2
-        version: 16.13.2
       https-proxy-agent:
         specifier: ^7.0.6
         version: 7.0.6
