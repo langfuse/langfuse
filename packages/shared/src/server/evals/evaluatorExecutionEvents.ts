@@ -26,9 +26,18 @@ export const EvaluatorExecutionStateTransitionOrder = {
   [EvaluatorExecutionEventStatus.COMPLETED]: 50,
 } as const satisfies Record<EvaluatorExecutionEventStatus, number>;
 
+export const EvaluatorType = {
+  LLM_AS_JUDGE: "llm-as-judge",
+} as const;
+
+export type EvaluatorType = (typeof EvaluatorType)[keyof typeof EvaluatorType];
+
+export const EvaluatorTypeSchema = z.enum(Object.values(EvaluatorType));
+
 export const EvaluatorExecutionQueueMetadataSchema = z.object({
   evaluationRuleId: z.string(),
   evaluatorId: z.string().nullish(),
+  evaluatorType: EvaluatorTypeSchema.default(EvaluatorType.LLM_AS_JUDGE),
   scoreName: z.string().nullish(),
   targetObject: EvalTargetObjectSchema,
   targetTraceId: z.string(),
@@ -166,6 +175,7 @@ export const buildEvaluatorExecutionEventRecord = ({
     evaluator_execution_id: params.evaluatorExecutionId,
     evaluation_rule_id: metadata.evaluationRuleId,
     evaluator_id: metadata.evaluatorId ?? "",
+    evaluator_type: metadata.evaluatorType,
     target_object: metadata.targetObject,
     target_trace_id: metadata.targetTraceId,
     target_observation_id: metadata.targetObservationId ?? "",

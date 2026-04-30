@@ -15,6 +15,7 @@ import {
   createEventEvaluatorExecutionIdentity,
   createEvaluatorExecutionId,
   createExperimentEvaluatorExecutionIdentity,
+  EvaluatorType,
   shouldSampleEvaluatorExecution,
   type EvaluatorExecutionQueueMetadata,
 } from "@langfuse/shared/src/server";
@@ -162,6 +163,7 @@ async function processMatchingConfig(
   const metadata: EvaluatorExecutionQueueMetadata = {
     evaluationRuleId: matchingConfig.id,
     evaluatorId: matchingConfig.evalTemplateId,
+    evaluatorType: EvaluatorType.LLM_AS_JUDGE,
     scoreName: matchingConfig.scoreName,
     targetObject:
       matchingConfig.targetObject as EvaluatorExecutionQueueMetadata["targetObject"],

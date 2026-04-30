@@ -335,6 +335,7 @@ export const evaluatorExecutionEventRecordInsertSchema = z.object({
   evaluator_execution_id: z.string(),
   evaluation_rule_id: z.string(),
   evaluator_id: z.string(),
+  evaluator_type: z.string(),
   target_object: z.string(),
   target_trace_id: z.string(),
   target_observation_id: z.string(),

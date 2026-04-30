@@ -37,6 +37,7 @@ import {
   createEvaluatorScoreId,
   createTraceEvaluatorExecutionIdentity,
   EvaluatorExecutionEventStatus,
+  EvaluatorType,
   shouldSampleEvaluatorExecution,
   type EvaluatorExecutionQueueMetadata,
 } from "@langfuse/shared/src/server";
@@ -631,6 +632,7 @@ export const createEvalJobs = async ({
       const queueMetadata: EvaluatorExecutionQueueMetadata = {
         evaluationRuleId: config.id,
         evaluatorId: config.evalTemplateId,
+        evaluatorType: EvaluatorType.LLM_AS_JUDGE,
         scoreName: config.scoreName,
         targetObject:
           config.targetObject as EvaluatorExecutionQueueMetadata["targetObject"],
@@ -725,6 +727,7 @@ export const createEvalJobs = async ({
             metadata: {
               evaluationRuleId: config.id,
               evaluatorId: config.evalTemplateId,
+              evaluatorType: EvaluatorType.LLM_AS_JUDGE,
               scoreName: config.scoreName,
               targetObject:
                 config.targetObject as EvaluatorExecutionQueueMetadata["targetObject"],
