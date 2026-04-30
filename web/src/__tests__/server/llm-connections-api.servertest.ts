@@ -16,6 +16,14 @@ import { encrypt } from "@langfuse/shared/encryption";
 const generateUniqueProvider = (baseName: string) =>
   `${baseName}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
+// Use public IP literals for happy-path baseURL tests so these API tests do
+// not depend on external DNS. DNS/SSRF behavior is covered by focused
+// baseUrlValidation tests.
+const TEST_PUBLIC_LLM_BASE_URL = "https://1.1.1.1/v1";
+const TEST_UPDATED_PUBLIC_LLM_BASE_URL = "https://1.1.1.1/v2";
+const TEST_CUSTOM_PUBLIC_LLM_BASE_URL = "https://1.1.1.1/custom/v1";
+const TEST_SCHEMA_PUBLIC_LLM_BASE_URL = "https://1.1.1.1/schema/v1";
+
 const BEDROCK_AWS_CREDENTIALS = {
   accessKeyId: "AKIAIOSFODNN7EXAMPLE",
   secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
@@ -79,7 +87,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
           adapter: LLMAdapter.OpenAI,
           secretKey: encrypt("sk-test1"),
           displaySecretKey: "...est1",
-          baseURL: "https://api.openai.com/v1",
+          baseURL: TEST_PUBLIC_LLM_BASE_URL,
           customModels: ["gpt-4", "gpt-3.5-turbo"],
           withDefaultModels: true,
           extraHeaders: encrypt(JSON.stringify({ "X-Custom": "header1" })),
@@ -136,7 +144,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(secondConnection.provider).toBe(provider1);
       expect(secondConnection.adapter).toBe(LLMAdapter.OpenAI);
       expect(secondConnection.displaySecretKey).toBe("...est1");
-      expect(secondConnection.baseURL).toBe("https://api.openai.com/v1");
+      expect(secondConnection.baseURL).toBe(TEST_PUBLIC_LLM_BASE_URL);
       expect(secondConnection.customModels).toEqual(["gpt-4", "gpt-3.5-turbo"]);
       expect(secondConnection.withDefaultModels).toBe(true);
       expect(secondConnection.extraHeaderKeys).toEqual(["X-Custom"]);
@@ -302,7 +310,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
         provider: generateUniqueProvider("openai"),
         adapter: LLMAdapter.OpenAI,
         secretKey: "sk-test123",
-        baseURL: "https://api.openai.com/v1",
+        baseURL: TEST_PUBLIC_LLM_BASE_URL,
         customModels: ["gpt-4", "gpt-3.5-turbo"],
         withDefaultModels: true,
         extraHeaders: {
@@ -323,7 +331,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(response.body.provider).toBe(createData.provider);
       expect(response.body.adapter).toBe(LLMAdapter.OpenAI);
       expect(response.body.displaySecretKey).toBe("...t123");
-      expect(response.body.baseURL).toBe("https://api.openai.com/v1");
+      expect(response.body.baseURL).toBe(TEST_PUBLIC_LLM_BASE_URL);
       expect(response.body.customModels).toEqual(["gpt-4", "gpt-3.5-turbo"]);
       expect(response.body.withDefaultModels).toBe(true);
       expect(response.body.extraHeaderKeys).toEqual(["X-Custom"]);
@@ -403,7 +411,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
           adapter: LLMAdapter.OpenAI,
           secretKey: encrypt("sk-original"),
           displaySecretKey: "...nal",
-          baseURL: "https://original.com",
+          baseURL: TEST_PUBLIC_LLM_BASE_URL,
           customModels: ["gpt-3.5"],
           withDefaultModels: true,
         },
@@ -414,7 +422,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
         provider: existingProvider,
         adapter: LLMAdapter.Anthropic, // Changed adapter
         secretKey: "sk-updated",
-        baseURL: "https://updated.com",
+        baseURL: TEST_UPDATED_PUBLIC_LLM_BASE_URL,
         customModels: ["claude-3"],
         withDefaultModels: false,
       };
@@ -433,7 +441,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(response.body.provider).toBe(existingProvider);
       expect(response.body.adapter).toBe(LLMAdapter.Anthropic); // Updated
       expect(response.body.displaySecretKey).toBe("...ated"); // Updated
-      expect(response.body.baseURL).toBe("https://updated.com"); // Updated
+      expect(response.body.baseURL).toBe(TEST_UPDATED_PUBLIC_LLM_BASE_URL); // Updated
       expect(response.body.customModels).toEqual(["claude-3"]); // Updated
       expect(response.body.withDefaultModels).toBe(false); // Updated
     });
@@ -634,7 +642,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
           provider: generateUniqueProvider("full-test"),
           adapter: LLMAdapter.OpenAI,
           secretKey: "sk-full-test",
-          baseURL: "https://custom.api.com/v1",
+          baseURL: TEST_CUSTOM_PUBLIC_LLM_BASE_URL,
           customModels: ["custom-model-1", "custom-model-2"],
           withDefaultModels: false,
           extraHeaders: {
@@ -647,7 +655,9 @@ describe("/api/public/llm-connections API Endpoints", () => {
       );
 
       expect(fullDataResponse.status).toBe(201);
-      expect(fullDataResponse.body.baseURL).toBe("https://custom.api.com/v1");
+      expect(fullDataResponse.body.baseURL).toBe(
+        TEST_CUSTOM_PUBLIC_LLM_BASE_URL,
+      );
       expect(fullDataResponse.body.customModels).toEqual([
         "custom-model-1",
         "custom-model-2",
@@ -1539,7 +1549,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
           provider: generateUniqueProvider("schema-test"),
           adapter: LLMAdapter.OpenAI,
           secretKey: "sk-schema-test",
-          baseURL: "https://api.example.com/v1",
+          baseURL: TEST_SCHEMA_PUBLIC_LLM_BASE_URL,
           customModels: ["model-1", "model-2"],
           withDefaultModels: true,
           extraHeaders: { "X-Test": "value" },
