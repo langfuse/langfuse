@@ -1,31 +1,129 @@
-## General
+# Design System
 
-This component contains Langfuses reusable, primitive components. Components that are specific to a single use-case (e.g. TracePanel) should not live in this folder.
+This folder contains **reusable, primitive, presentational UI components**.
 
-All components within this folder should adhere to the rules below.
+Do **not** include:
+
+- Feature-specific components (e.g. `TracePanel`)
+- Logic-heavy components
+
+---
+
+## Principles
+
+- Presentational only (no business logic)
+- Explicit, strictly typed APIs
+- Consistent patterns over flexibility
+- Props over context (no React Context)
+
+---
 
 ## Rules
 
+### Structure
+
 - One component per file
-- Components should not expose `className` OR `style` props, variants should be explicit (e.g. `size` or `variant` prop)
-- Props that have the shape of hex codes or px values are forbidden, use enums like `"sm" | "md" | "lg"` instead
-- Components should not have ANY margin on the root elements, spacing is owned by layout components. Internal margins are allowed.
-- cva should be used for defining variants
-- If props or variants are mutually exclusive, it must be expressed on the type level
-- Design only components should be extracted from logic heavy components (e.g. a `PromiseButton` with an included callback loading state, should only control a `isLoading` prop of the `Button` component instead of defining a spinner with custom class names and styling in the same component)
-- Avoid React context, pass everything via props so that TypeScript can validate it
-- Always use positive prop naming (`suffix={null}` over `withoutSuffix` or `noSuffix`, `withDismiss={false}`)
-- Boolean props should have an "is" or "should" prefix (e.g. `isLoading` over `loading`)
+- Folder name = component name
 
-## File organization:
+```
+design-system/
+  Button/
+    Button.tsx
+    Button.stories.tsx
+```
 
-Rules:
+---
 
-- Folder name & filename should match component name
+### Styling & Variants
 
-Hirarchy:
+- No `className` or `style` props
+- No arbitrary values (e.g. `#fff`, `12px`)
+- Use explicit enums:
 
-- design-system (root)
-  - Button
-    - Button.tsx
-    - Button.stories.tsx
+  ```ts
+  size: "sm" | "md" | "lg";
+  variant: "primary" | "secondary";
+  ```
+
+- Use `cva` for all variants
+
+---
+
+### Layout
+
+- No margin on root element
+- Layout/spacing is handled externally
+- Internal spacing is allowed
+
+---
+
+### Props & Types
+
+- Use explicit enums (no free-form values)
+- Enforce mutually exclusive props at type level
+- Use **positive naming**:
+  - ✅ `suffix={null}`
+  - ❌ `noSuffix`
+
+- Boolean props must use `is` / `should`:
+  - `isLoading`, `shouldTruncate`
+
+---
+
+Replace that section with:
+
+---
+
+### Logic Separation
+
+Design-system components own **visual states**, not business logic.
+
+Logic-heavy components must reuse design-system components for visuals instead of recreating UI internally.
+
+```tsx
+// ✅ Button owns the loading visual state
+type ButtonProps = {
+  isLoading: boolean;
+};
+
+const PromiseButton = (props: PromiseButtonProps) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  return <Button isLoading={isLoading} />;
+};
+```
+
+```tsx
+// ❌ PromiseButton reimplements Button loading visuals
+const PromiseButton = (props: PromiseButtonProps) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  if (isLoading) {
+    return (
+      <div>
+        <Spinner />
+      </div>
+    );
+  }
+
+  return <Button isLoading={isLoading} />;
+};
+```
+
+---
+
+## Summary (strict)
+
+- 1 component per file
+- No `className` / `style`
+- No px / hex values as props
+- Use enums + `cva`
+- No root margin
+- No React Context
+- Props must be explicit, typed, and use a positive name
+- Boolean props → `is` / `should`
+- Design ≠ logic (separate them)
+
+---
+
+If unsure: **only include reusable, design-only primitives**.
