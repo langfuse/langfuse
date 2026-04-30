@@ -246,7 +246,7 @@
     "@aws-sdk/lib-storage": "catalog:",
     "@aws-sdk/s3-request-presigner": "catalog:",
     "@azure/storage-blob": "^12.26.0",
-    "@clickhouse/client": "1.23.1",
+    "@clickhouse/client": "head",
     "@google-cloud/storage": "^7.19.0",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
     "@opentelemetry/otlp-transformer": "^0.220.0",
