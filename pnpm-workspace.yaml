@@ -11,6 +11,8 @@ minimumReleaseAge: 7200
 minimumReleaseAgeExclude:
   - ai@5.0.195
   - "@ai-sdk/gateway@2.0.96"
+  - "@clickhouse/client"
+  - "@clickhouse/client-common"
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
