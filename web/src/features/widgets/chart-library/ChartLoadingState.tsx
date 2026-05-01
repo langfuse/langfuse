@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { SLOW_QUERY_HINT_TEXT } from "@langfuse/shared";
 import { type QueryProgress } from "@/src/hooks/useSSEDashboardQuery";
@@ -154,7 +153,7 @@ export function ChartLoadingState({
             <QueryProgressBar progress={progress} layout={layout} />
           ) : showSpinner ? (
             <div className="flex h-4 w-4 items-center justify-center self-center">
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Spinner size="sm" />
             </div>
           ) : null}
 
