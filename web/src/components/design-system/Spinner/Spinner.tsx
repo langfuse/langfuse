@@ -25,14 +25,20 @@ const classes = cva("animate-spin", {
   defaultVariants: { display: "block" },
 });
 
+type ClassProps = NonNullable<Parameters<typeof classes>["0"]>;
+
+type Variant = NonNullable<ClassProps["variant"]>;
+type Size = NonNullable<ClassProps["size"]>;
+type Display = NonNullable<ClassProps["display"]>;
+
 export default function Spinner({
   variant,
   size,
   display,
 }: {
-  variant?: "primary" | "muted";
-  size: "xxs" | "xs" | "sm" | "md" | "lg" | "xl" | "xxl" | "full";
-  display?: "block" | "inline";
+  variant?: Variant;
+  size: Size;
+  display?: Display;
 }) {
   return <Loader2 className={classes({ variant, size, display })} />;
 }
