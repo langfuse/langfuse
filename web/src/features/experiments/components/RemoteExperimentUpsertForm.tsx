@@ -180,7 +180,7 @@ export const RemoteExperimentUpsertForm = ({
             {dataset.isSuccess ? (
               <>&quot;{dataset.data?.name}&quot;</>
             ) : (
-              <Spinner size="sm" variant="inline" />
+              <Spinner size="sm" display="inline" />
             )}
           </strong>
           . Configure a webhook URL to trigger remote custom dataset runs from

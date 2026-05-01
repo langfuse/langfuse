@@ -5,7 +5,6 @@ const classes = cva("animate-spin", {
   variants: {
     variant: {
       "text-primary": "text-primary",
-      inline: "inline",
       "text-muted-foreground": "text-muted-foreground",
     },
     size: {
@@ -18,15 +17,22 @@ const classes = cva("animate-spin", {
       xxl: "h-12 w-12",
       full: "h-full w-full",
     },
+    display: {
+      block: "block",
+      inline: "inline",
+    },
   },
+  defaultVariants: { display: "block" },
 });
 
 export default function Spinner({
   variant,
   size,
+  display,
 }: {
-  variant?: "text-primary" | "inline" | "text-muted-foreground";
+  variant?: "text-primary" | "text-muted-foreground";
   size: "xxs" | "xs" | "sm" | "md" | "lg" | "xl" | "xxl" | "full";
+  display?: "block" | "inline";
 }) {
-  return <Loader2 className={classes({ variant, size })} />;
+  return <Loader2 className={classes({ variant, size, display })} />;
 }
