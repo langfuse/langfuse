@@ -14,6 +14,7 @@ import {
   MessageSearchToolbar,
 } from "@/src/components/ChatMessages/MessageSearch";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * PlaygroundPage Component
@@ -161,7 +162,7 @@ export default function PlaygroundPage() {
                   <>
                     <span className="hidden sm:inline">•</span>
                     <div className="flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <Spinner variant="h-3 w-3 animate-spin" />
                       <span className="hidden whitespace-nowrap sm:inline">
                         {executionStatus}
                       </span>
@@ -183,7 +184,7 @@ export default function PlaygroundPage() {
                 }
               >
                 {globalIsExecutingAll ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Spinner variant="h-3 w-3 animate-spin" />
                 ) : (
                   <Play className="h-3 w-3" />
                 )}

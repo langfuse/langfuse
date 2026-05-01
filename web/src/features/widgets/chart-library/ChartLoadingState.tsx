@@ -5,6 +5,7 @@ import { SLOW_QUERY_HINT_TEXT } from "@langfuse/shared";
 import { type QueryProgress } from "@/src/hooks/useSSEDashboardQuery";
 import { QueryProgressBar } from "@/src/features/widgets/chart-library/QueryProgressBar";
 import { Button } from "@/src/components/ui/button";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 const DEFAULT_HINT_DELAY_MS = 2000;
 const PROGRESS_REVEAL_DELAY_MS = 1000;
@@ -12,7 +13,6 @@ const PROGRESS_REVEAL_DELAY_MS = 1000;
 type ChartLoadingStateProps = {
   isLoading: boolean;
   className?: string;
-  spinnerClassName?: string;
   hintClassName?: string;
   spinnerLabel?: string;
   hintText?: string;
@@ -28,7 +28,6 @@ type ChartLoadingStateProps = {
 export function ChartLoadingState({
   isLoading,
   className,
-  spinnerClassName,
   hintClassName,
   spinnerLabel = "Loading chart data",
   hintText = SLOW_QUERY_HINT_TEXT,
@@ -103,7 +102,7 @@ export function ChartLoadingState({
         )}
       >
         <div className="flex h-4 w-4 items-center justify-center">
-          <Loader2 className={cn("h-4 w-4 animate-spin", spinnerClassName)} />
+          <Spinner variant="h-4 w-4 animate-spin" />
         </div>
       </div>
     );
@@ -155,9 +154,7 @@ export function ChartLoadingState({
             <QueryProgressBar progress={progress} layout={layout} />
           ) : showSpinner ? (
             <div className="flex h-4 w-4 items-center justify-center self-center">
-              <Loader2
-                className={cn("h-4 w-4 animate-spin", spinnerClassName)}
-              />
+              <Loader2 className="h-4 w-4 animate-spin" />
             </div>
           ) : null}
 
