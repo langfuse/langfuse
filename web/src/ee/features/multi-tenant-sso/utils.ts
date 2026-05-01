@@ -17,9 +17,12 @@ import {
   CustomSSOProvider,
   GitHubEnterpriseProvider,
   JumpCloudProvider,
+  SamlSSOProvider,
+  getSamlConnectionForDomain,
   logger,
   traceException,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 
 // Local cache for SSO configurations
 let cachedSsoConfigs: {
@@ -107,7 +110,7 @@ export async function loadSsoProviders(): Promise<Provider[]> {
   const providers: Provider[] = [];
 
   for (const dbSsoConfig of ssoConfigs) {
-    const provider = dbToNextAuthProvider(dbSsoConfig);
+    const provider = await dbToNextAuthProvider(dbSsoConfig);
     if (provider !== null) providers.push(provider);
   }
 
@@ -192,7 +195,9 @@ const getClientConfig = (authConfig: {
  * @param {SsoProviderSchema} provider - The SSO configuration from the database.
  * @returns {Provider | null} - A NextAuth Provider instance or null if parsing fails or no custom credentials are used for this SSO config.
  */
-const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
+const dbToNextAuthProvider = async (
+  provider: SsoProviderSchema,
+): Promise<Provider | null> => {
   // If the SsoConfig does not use custom credentials, return null as no additional provider needs to be added to NextAuth
   if (!provider.authConfig) return null;
 
@@ -299,7 +304,23 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       },
       ...getClientConfig(provider.authConfig),
     });
-  else {
+  else if (provider.authProvider === "saml") {
+    const jacksonConnection = await getSamlConnectionForDomain(provider.domain);
+    if (!jacksonConnection) {
+      logger.error(
+        `No SAML Jackson connection found for domain ${provider.domain}`,
+      );
+      return null;
+    }
+    return SamlSSOProvider({
+      id: getAuthProviderIdForSsoConfig(provider),
+      clientId: jacksonConnection.clientID,
+      clientSecret: jacksonConnection.clientSecret,
+      issuer: env.NEXTAUTH_URL ?? "",
+      allowDangerousEmailAccountLinking:
+        provider.authConfig?.allowDangerousEmailAccountLinking ?? false,
+    });
+  } else {
     // Type check to ensure we handle all providers
 
     const _: never = provider;

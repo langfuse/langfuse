@@ -3,7 +3,10 @@ import { encrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "@/src/env.mjs";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  logger,
+  createOrUpdateSamlConnection,
+} from "@langfuse/shared/src/server";
 import { multiTenantSsoAvailable } from "@/src/ee/features/multi-tenant-sso/multiTenantSsoAvailable";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 
@@ -60,20 +63,42 @@ export async function createNewSsoConfigHandler(
       return;
     }
 
-    const encryptedClientSecret = authConfig
-      ? {
-          ...authConfig,
-          clientSecret: encrypt(authConfig.clientSecret),
-        }
-      : undefined;
+    // For SAML, validate and create the Jackson connection BEFORE persisting
+    // the SsoConfig row. This avoids orphaned rows if IdP metadata is invalid.
+    if (authProvider === "saml" && authConfig) {
+      await createOrUpdateSamlConnection({
+        domain,
+        authConfig: authConfig as {
+          metadataUrl?: string;
+          metadataRaw?: string;
+          name?: string;
+          defaultRedirectUrl?: string;
+          redirectUrl?: string;
+          tenant?: string;
+          product?: string;
+        },
+      });
+    }
+
+    // SAML configs don't have clientSecret — secrets are managed by Jackson
+    const encryptedAuthConfig =
+      authConfig && "clientSecret" in authConfig
+        ? {
+            ...authConfig,
+            clientSecret: encrypt(
+              (authConfig as { clientSecret: string }).clientSecret,
+            ),
+          }
+        : (authConfig ?? undefined);
 
     await prisma.ssoConfig.create({
       data: {
         domain,
         authProvider,
-        authConfig: encryptedClientSecret,
+        authConfig: encryptedAuthConfig,
       },
     });
+
     res.status(201).json({
       message: "SSO configuration created successfully",
     });

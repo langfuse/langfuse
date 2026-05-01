@@ -225,6 +225,22 @@ export const JumpCloudProviderSchema = base.extend({
     .nullish(),
 });
 
+export const SamlProviderSchema = base.extend({
+  authProvider: z.literal("saml"),
+  authConfig: z
+    .object({
+      metadataUrl: z.url().optional(),
+      metadataRaw: z.string().optional(),
+      name: z.string().optional(),
+      defaultRedirectUrl: z.url().optional(),
+      redirectUrl: z.string().optional(),
+      tenant: z.string().optional(),
+      product: z.string().optional(),
+      allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+    })
+    .nullish(),
+});
+
 export type GoogleProviderSchema = z.infer<typeof GoogleProviderSchema>;
 export type GithubProviderSchema = z.infer<typeof GithubProviderSchema>;
 export type GithubEnterpriseProviderSchema = z.infer<
@@ -240,6 +256,7 @@ export type CognitoProviderSchema = z.infer<typeof CognitoProviderSchema>;
 export type KeycloakProviderSchema = z.infer<typeof KeycloakProviderSchema>;
 export type CustomProviderSchema = z.infer<typeof CustomProviderSchema>;
 export type JumpCloudProviderSchema = z.infer<typeof JumpCloudProviderSchema>;
+export type SamlProviderSchema = z.infer<typeof SamlProviderSchema>;
 
 export const SsoProviderSchema = z.discriminatedUnion("authProvider", [
   GoogleProviderSchema,
@@ -255,6 +272,7 @@ export const SsoProviderSchema = z.discriminatedUnion("authProvider", [
   KeycloakProviderSchema,
   JumpCloudProviderSchema,
   CustomProviderSchema,
+  SamlProviderSchema,
 ]);
 
 export type SsoProviderSchema = z.infer<typeof SsoProviderSchema>;
