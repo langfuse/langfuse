@@ -60,6 +60,9 @@ design-system/
 ### Props & Types
 
 - Use explicit enums (no free-form values)
+- Prop values must never match Tailwind class names:
+  - ✅ `size="md"`
+  - ❌ `size="w-5 h-5"`
 - Enforce mutually exclusive props at type level
 - Use **positive naming**:
   - ✅ `suffix={null}`
@@ -121,6 +124,7 @@ const PromiseButton = (props: PromiseButtonProps) => {
 - No root margin
 - No React Context
 - Props must be explicit, typed, and use a positive name
+- Prop values must not mirror Tailwind class names
 - Boolean props → `is` / `should`
 - Design ≠ logic (separate them)
 
