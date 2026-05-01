@@ -21,7 +21,7 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
         <select
           id="tabs"
           name="tabs"
-          className="block w-full rounded-md border-border bg-background py-2 pl-3 pr-10 text-base focus:border-primary-accent focus:outline-none focus:ring-primary-accent sm:text-sm"
+          className="border-border bg-background focus:border-primary-accent focus:ring-primary-accent block w-full rounded-md py-2 pr-10 pl-3 text-base focus:outline-hidden sm:text-sm"
           defaultValue={0}
           onChange={(e) => setSelectedIndex(Number(e.target.selectedIndex))}
         >
@@ -31,7 +31,7 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
         </select>
       </div>
       <div className="hidden sm:block">
-        <div className="border-b border-border">
+        <div className="border-border border-b">
           <nav
             className="-mb-px flex space-x-2 md:space-x-4 lg:space-x-6 xl:space-x-8"
             aria-label="Tabs"
@@ -42,8 +42,8 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
                 className={cn(
                   index === selectedIndex
                     ? "border-primary-accent text-primary-accent"
-                    : "border-transparent text-muted-foreground hover:border-border hover:text-primary",
-                  "cursor-pointer whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium",
+                    : "text-muted-foreground hover:border-border hover:text-primary border-transparent",
+                  "cursor-pointer border-b-2 px-1 py-2 text-sm font-medium whitespace-nowrap",
                 )}
                 aria-current={index === selectedIndex ? "page" : undefined}
                 onClick={() => {
@@ -59,9 +59,7 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
           </nav>
         </div>
       </div>
-      <div className="mt-4 flex h-3/4 flex-col">
-        {tabs[selectedIndex]?.content}
-      </div>
+      <div className="mt-4 flex flex-col">{tabs[selectedIndex]?.content}</div>
     </div>
   );
 };

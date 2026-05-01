@@ -1,10 +1,11 @@
+import { useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DatasetRunItemsByRunTable } from "@/src/features/datasets/components/DatasetRunItemsByRunTable";
 import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
-import { Columns3, MoreVertical } from "lucide-react";
+import { Columns3, MoreVertical, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
@@ -21,6 +22,10 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
+import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 
 export default function Dataset() {
   const router = useRouter();
@@ -37,6 +42,61 @@ export default function Dataset() {
     projectId,
     runId,
   });
+  const {
+    canUseExperimentsBetaToggle,
+    isExperimentsBetaEnabled,
+    setExperimentsBetaEnabled,
+    isExperimentsBetaActive,
+  } = useExperimentAccess();
+
+  const handleBetaSwitchChange = (enabled: boolean) => {
+    setExperimentsBetaEnabled(enabled);
+
+    if (enabled) {
+      void router.push(singleRunToExperimentsUrl(projectId, runId));
+    }
+  };
+
+  // Auto-redirect when beta is ON (via direct URL or back navigation)
+  useEffect(() => {
+    if (isExperimentsBetaActive && projectId && runId) {
+      void router.push(singleRunToExperimentsUrl(projectId, runId));
+    }
+  }, [isExperimentsBetaActive, projectId, runId, router]);
+
+  const betaSwitch = canUseExperimentsBetaToggle ? (
+    <ExperimentsBetaSwitch
+      enabled={isExperimentsBetaEnabled}
+      onEnabledChange={handleBetaSwitchChange}
+    />
+  ) : null;
+
+  if (isExperimentsBetaActive) {
+    return (
+      <Page
+        headerProps={{
+          title: run.data?.name ?? runId,
+          itemType: "DATASET_RUN",
+          breadcrumb: [
+            { name: "Datasets", href: `/project/${projectId}/datasets` },
+            {
+              name: dataset.data?.name ?? datasetId,
+              href: `/project/${projectId}/datasets/${datasetId}`,
+            },
+            {
+              name: "Experiments",
+              href: `/project/${projectId}/datasets/${datasetId}`,
+            },
+          ],
+          actionButtonsLeft: betaSwitch,
+        }}
+      >
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+        </div>
+      </Page>
+    );
+  }
 
   return (
     <Page
@@ -49,8 +109,12 @@ export default function Dataset() {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
-          { name: "Runs", href: `/project/${projectId}/datasets/${datasetId}` },
+          {
+            name: "Experiments",
+            href: `/project/${projectId}/datasets/${datasetId}`,
+          },
         ],
+        actionButtonsLeft: betaSwitch,
         actionButtonsRight: (
           <>
             <Link
@@ -92,12 +156,13 @@ export default function Dataset() {
         ),
       }}
     >
-      <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+      <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden">
         <div className="flex h-full flex-col overflow-hidden">
           <DatasetRunItemsByRunTable
             projectId={projectId}
             datasetId={datasetId}
             datasetRunId={runId}
+            datasetVersion={run.data?.datasetVersion}
           />
         </div>
         <SidePanel
@@ -112,6 +177,17 @@ export default function Dataset() {
               <Skeleton className="h-full w-full" />
             ) : (
               <>
+                {run.data?.datasetVersion && (
+                  <div className="flex flex-col gap-2 p-1">
+                    <span className="text-sm font-medium">Dataset Version</span>
+                    <Link
+                      href={`/project/${projectId}/datasets/${datasetId}/items?version=${run.data.datasetVersion.toISOString()}`}
+                      className="text-accent-dark-blue hover:text-primary-accent/60 text-sm"
+                    >
+                      <LocalIsoDate date={run.data.datasetVersion} />
+                    </Link>
+                  </div>
+                )}
                 {!!run.data?.description && (
                   <JSONView
                     json={run.data.description}
@@ -127,7 +203,7 @@ export default function Dataset() {
                   />
                 )}
                 {!run.data?.description && !run.data?.metadata && (
-                  <div className="mt-1 px-1 text-sm text-muted-foreground">
+                  <div className="text-muted-foreground mt-1 px-1 text-sm">
                     No description or metadata for this run
                   </div>
                 )}

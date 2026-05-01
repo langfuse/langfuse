@@ -8,12 +8,13 @@ import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
 import { AwsInstrumentation } from "@opentelemetry/instrumentation-aws-sdk";
 import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
+import { ioredisRequestHook } from "@langfuse/shared/src/server";
 import {
   envDetector,
   processDetector,
-  Resource,
+  resourceFromAttributes,
 } from "@opentelemetry/resources";
-import { awsEcsDetectorSync } from "@opentelemetry/resource-detector-aws";
+import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
 import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { env } from "@/src/env.mjs";
 
@@ -23,7 +24,7 @@ dd.init({
 });
 
 const sdk = new NodeSDK({
-  resource: new Resource({
+  resource: resourceFromAttributes({
     "service.name": env.OTEL_SERVICE_NAME,
     "service.version": env.BUILD_ID,
   }),
@@ -31,7 +32,7 @@ const sdk = new NodeSDK({
     url: `${env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces`,
   }),
   instrumentations: [
-    new IORedisInstrumentation(),
+    new IORedisInstrumentation({ requestHook: ioredisRequestHook }),
     new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
       ignoreIncomingRequestHook: (req) => {
@@ -49,11 +50,22 @@ const sdk = new NodeSDK({
         if (path.startsWith("/_next/static")) {
           path = "/_next/static/*";
         }
+        if (path.endsWith("/index")) {
+          path = path.slice(0, -6);
+        }
         span.updateName(`${req?.method} ${path}`);
         span.setAttribute("http.route", path);
       },
     }),
-    new PrismaInstrumentation(),
+    new PrismaInstrumentation({
+      ignoreSpanTypes: [
+        "prisma:client:serialize",
+        "prisma:engine:query",
+        "prisma:engine:connection",
+        "prisma:engine:serialize",
+        "prisma:engine:response_json_serialization",
+      ],
+    }),
     new AwsInstrumentation(),
     new WinstonInstrumentation({ disableLogSending: true }),
     new BullMQInstrumentation({ useProducerSpanAsConsumerParent: true }),
@@ -61,7 +73,7 @@ const sdk = new NodeSDK({
   resourceDetectors: [
     envDetector,
     processDetector,
-    awsEcsDetectorSync,
+    awsEcsDetector,
     containerDetector,
   ],
   sampler: new TraceIdRatioBasedSampler(env.OTEL_TRACE_SAMPLING_RATIO),

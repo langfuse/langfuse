@@ -4,6 +4,43 @@ import {
   type SingleValueOption,
 } from "@langfuse/shared";
 import { encodeDelimitedArray, decodeDelimitedArray } from "use-query-params";
+import { normalizeLegacySessionPositionInTraceKey } from "@/src/components/session/session-position-in-trace";
+
+// Escape pipe characters in values to avoid conflicts with the delimiter
+// Uses backslash escaping: | → \|, and \ → \\
+export function escapePipeInValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
+}
+
+export function unescapePipeInValue(value: string): string {
+  return value.replace(/\\\|/g, "|").replace(/\\\\/g, "\\");
+}
+
+// Split on unescaped pipe characters only (pipes not preceded by backslash)
+export function splitOnUnescapedPipe(str: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let i = 0;
+
+  while (i < str.length) {
+    if (str[i] === "\\" && i + 1 < str.length) {
+      // Escaped character - include both backslash and next char
+      current += str[i] + str[i + 1];
+      i += 2;
+    } else if (str[i] === "|") {
+      // Unescaped pipe - split here
+      result.push(current);
+      current = "";
+      i++;
+    } else {
+      current += str[i];
+      i++;
+    }
+  }
+  result.push(current);
+
+  return result;
+}
 
 // Generic helpers for reusable encoding/decoding across feature areas
 export type GenericFilterOptions = Record<
@@ -14,10 +51,15 @@ export type GenericFilterOptions = Record<
 // Pure helper: compute UI-selected values from a filter entry and available values
 export function computeSelectedValues(
   availableValues: string[],
-  filterEntry: { operator?: string; value?: unknown } | undefined,
+  filterEntry:
+    | { operator?: string; value?: unknown; type?: string }
+    | undefined,
 ): string[] {
   if (!filterEntry) return availableValues;
   const values = (filterEntry.value as string[]) ?? [];
+  if (filterEntry.type === "arrayOptions") {
+    return values;
+  }
   if (filterEntry.operator === "none of") {
     const excluded = new Set(values);
     return availableValues.filter((v) => !excluded.has(v));
@@ -40,7 +82,8 @@ export function encodeFiltersGeneric(filters: FilterState): string {
           const key =
             f.type === "numberObject" ||
             f.type === "stringObject" ||
-            f.type === "categoryOptions"
+            f.type === "categoryOptions" ||
+            f.type === "positionInTrace"
               ? (f as any).key || ""
               : "";
 
@@ -53,7 +96,14 @@ export function encodeFiltersGeneric(filters: FilterState): string {
             f.type === "arrayOptions" ||
             f.type === "categoryOptions"
           ) {
-            encodedValue = encodeURIComponent((f.value as string[]).join("|"));
+            // Escape pipe characters in individual values before joining with pipe delimiter
+            const escapedValues = (f.value as string[]).map(escapePipeInValue);
+            encodedValue = encodeURIComponent(escapedValues.join("|"));
+          } else if (f.type === "positionInTrace") {
+            encodedValue =
+              f.value === undefined || f.value === null
+                ? ""
+                : encodeURIComponent(String(f.value));
           } else {
             encodedValue = encodeURIComponent(String(f.value));
           }
@@ -89,6 +139,10 @@ export function decodeFiltersGeneric(query: string): FilterState {
 
     const decodedOperator = decodeURIComponent(operator);
     const decodedKey = key ? decodeURIComponent(key) : "";
+    const normalizedKey =
+      type === "positionInTrace"
+        ? normalizeLegacySessionPositionInTraceKey(decodedKey)
+        : decodedKey;
     const decodedValue = decodeURIComponent(encodedValue);
 
     // Parse value based on type
@@ -97,16 +151,21 @@ export function decodeFiltersGeneric(query: string): FilterState {
       parsedValue = new Date(decodedValue);
     } else if (type === "number" || type === "numberObject") {
       parsedValue = Number(decodedValue);
+    } else if (type === "positionInTrace") {
+      parsedValue = decodedValue === "" ? undefined : Number(decodedValue);
     } else if (
       type === "stringOptions" ||
       type === "arrayOptions" ||
       type === "categoryOptions"
     ) {
+      // Split on unescaped pipe characters only, then unescape each value
       parsedValue = decodedValue
-        ? decodedValue.split("|")
-        : decodedValue === ""
-          ? [""] // allow empty strings (i.e, filter for empty trace name)
-          : [decodedValue];
+        ? splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue)
+        : type === "arrayOptions"
+          ? [] // Empty array for arrayOptions — empty strings are not valid array values (e.g., tags)
+          : decodedValue === ""
+            ? [""] // allow empty strings for stringOptions (i.e, filter for empty trace name)
+            : [decodedValue];
     } else if (type === "boolean") {
       parsedValue = decodedValue === "true";
     } else {
@@ -122,13 +181,15 @@ export function decodeFiltersGeneric(query: string): FilterState {
     };
 
     // Add key field for types that need it
-    if (
-      decodedKey &&
-      (type === "categoryOptions" ||
+    if (normalizedKey) {
+      if (
+        type === "categoryOptions" ||
         type === "numberObject" ||
-        type === "stringObject")
-    ) {
-      filter.key = decodedKey;
+        type === "stringObject" ||
+        type === "positionInTrace"
+      ) {
+        filter.key = normalizedKey;
+      }
     }
 
     // Validate with zod

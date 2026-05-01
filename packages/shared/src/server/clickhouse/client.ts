@@ -1,5 +1,6 @@
 import { createClient } from "@clickhouse/client";
 import { env } from "../../env";
+import { VERSION } from "../../constants/VERSION";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { getCurrentSpan } from "../instrumentation";
 import { propagation, context } from "@opentelemetry/api";
@@ -7,7 +8,10 @@ import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
-export type PreferredClickhouseService = "ReadWrite" | "ReadOnly";
+export type PreferredClickhouseService =
+  | "ReadWrite"
+  | "ReadOnly"
+  | "EventsReadOnly";
 
 /**
  * ClickHouseClientManager provides a singleton pattern for managing ClickHouse clients.
@@ -67,9 +71,19 @@ export class ClickHouseClientManager {
   private getClickhouseUrl = (
     preferredClickhouseService: PreferredClickhouseService,
   ) => {
-    return preferredClickhouseService === "ReadWrite"
-      ? env.CLICKHOUSE_URL
-      : env.CLICKHOUSE_READ_ONLY_URL || env.CLICKHOUSE_URL;
+    switch (preferredClickhouseService) {
+      case "ReadWrite":
+        return env.CLICKHOUSE_URL;
+      case "EventsReadOnly":
+        return (
+          env.CLICKHOUSE_EVENTS_READ_ONLY_URL ||
+          env.CLICKHOUSE_READ_ONLY_URL ||
+          env.CLICKHOUSE_URL
+        );
+      case "ReadOnly":
+      default:
+        return env.CLICKHOUSE_READ_ONLY_URL || env.CLICKHOUSE_URL;
+    }
   };
 
   /**
@@ -94,7 +108,7 @@ export class ClickHouseClientManager {
 
       const cloudOptions: Record<string, unknown> = {};
       if (
-        ["STAGING", "EU", "US", "HIPAA"].includes(
+        ["STAGING", "EU", "US", "HIPAA", "JP"].includes(
           env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "",
         )
       ) {
@@ -104,6 +118,7 @@ export class ClickHouseClientManager {
       const client = createClient({
         ...opts,
         ...settings,
+        application: `langfuse/${VERSION.replace("v", "")}`,
         keep_alive: {
           idle_socket_ttl: env.CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL,
         },
@@ -145,7 +160,7 @@ export class ClickHouseClientManager {
           ...(opts.request_timeout && opts.request_timeout > 30000
             ? {
                 send_progress_in_http_headers: 1,
-                http_headers_progress_interval_ms: "25000", // UInt64, should be passed as a string
+                http_headers_progress_interval_ms: "10000", // UInt64, should be passed as a string
               }
             : {}),
         },

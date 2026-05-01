@@ -77,15 +77,27 @@ export const handleEventPropagationJob = async (
       `[DUAL WRITE] Last processed partition: ${lastProcessedPartition ?? "none"}`,
     );
 
+    // Track delay based on the Redis key so we have a reference even if no processing happens
+    if (lastProcessedPartition) {
+      const lastPartitionTime = new Date(lastProcessedPartition).getTime();
+      if (!isNaN(lastPartitionTime)) {
+        const delaySeconds = (Date.now() - lastPartitionTime) / 1000;
+        recordGauge(
+          "langfuse.event_propagation.last_processed_partition_delay_seconds",
+          delaySeconds,
+        );
+      }
+    }
+
     // Query for the next partition after the last processed one
-    // Filter for partitions older than 6 minutes and order by partition ASC to get the oldest first
+    // Filter for partitions older than LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES minutes and order by partition ASC to get the oldest first
     const partitions = await queryClickhouse<{ partition: string }>({
       query: `
         SELECT DISTINCT partition
         FROM system.parts
         WHERE table = 'observations_batch_staging'
           AND active = 1
-          AND toDateTime(partition) < now() - INTERVAL 10 MINUTE
+          AND toDateTime(partition) < now() - INTERVAL ${env.LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES} MINUTE
           ${lastProcessedPartition ? `AND partition > {lastProcessedPartition: String}` : ""}
         ORDER BY partition ASC
       `,
@@ -119,16 +131,23 @@ export const handleEventPropagationJob = async (
     // for the same span, this may create duplicates in the new events table. Deduplicating in this query
     // will significantly affect run-time. This may be an accepted degradation and we test the outcome
     // to check the likelihood of this happening in practice.
+    const excludeProjectIds =
+      env.LANGFUSE_EVENT_PROPAGATION_EXCLUDE_PROJECT_IDS;
+    const excludeProjectIdsInClause =
+      excludeProjectIds.length > 0
+        ? `NOT IN (${excludeProjectIds.map((id) => `'${id}'`).join(",")})`
+        : "";
     await commandClickhouse({
       query: `
         with batch_stats as (
           select
             groupUniqArray(project_id) as project_ids,
             groupUniqArray(trace_id) as trace_ids,
-            min(start_time) as min_start_time,
+            minIf(start_time, start_time > now() - interval 1 day) as min_start_time,
             max(start_time) as max_start_time
           from observations_batch_staging
           where _partition_value = tuple('${partitionToProcess}')
+          ${excludeProjectIdsInClause ? `AND project_id ${excludeProjectIdsInClause}` : ""}
         ), experiment_traces_to_exclude as (
           select distinct
             project_id,
@@ -152,13 +171,18 @@ export const handleEventPropagationJob = async (
           from traces t
           where t.project_id in (select arrayJoin(project_ids) from batch_stats)
             and t.id in (select arrayJoin(trace_ids) from batch_stats)
-            and t.timestamp >= (select min(min_start_time) - interval 1 day from batch_stats)
+            and (
+              -- For some reason clickhouse detects any "date >= '1969-12-31'" as false.
+              -- Therefore, we add a fallback condition that limits actively to last 7 days.
+              -- This means that 7 days becomes the maximum trace data propagation interval.
+              t.timestamp >= greatest((select min(min_start_time) - interval 1 day from batch_stats), now() - interval 7 day)
+            )
             and t.timestamp <= (select max(max_start_time) + interval 1 day from batch_stats)
-          order by t.event_ts desc
+          order by t.project_id, t.id, t.event_ts desc
           limit 1 by t.project_id, t.id
         )
 
-        INSERT INTO events (
+        INSERT INTO events_full (
           project_id,
           trace_id,
           span_id,
@@ -197,9 +221,8 @@ export const handleEventPropagationJob = async (
 
           input,
           output,
-          metadata,
           metadata_names,
-          metadata_raw_values,
+          metadata_values,
           source,
           blob_storage_file_path,
           event_bytes,
@@ -254,9 +277,8 @@ export const handleEventPropagationJob = async (
           coalesce(obs.input, '') AS input,
           coalesce(obs.output, '') AS output,
           -- Merge trace and observation metadata, with observation taking precedence (first map wins)
-          CAST(mapConcat(obs.metadata, coalesce(t.metadata, map())), 'JSON(max_dynamic_paths=0)') AS metadata,
           mapKeys(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_names,
-          mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_raw_values,
+          mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_values,
           multiIf(mapContains(obs.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
           '' AS blob_storage_file_path,
           byteSize(*) AS event_bytes,
@@ -276,6 +298,7 @@ export const handleEventPropagationJob = async (
           excl.trace_id = obs.trace_id
         )
         WHERE obs._partition_value = tuple('${partitionToProcess}')
+        ${excludeProjectIdsInClause ? `AND obs.project_id ${excludeProjectIdsInClause}` : ""}
       `,
       tags: {
         feature: "ingestion",
@@ -286,6 +309,8 @@ export const handleEventPropagationJob = async (
         request_timeout: 600000, // 10 minutes timeout
       },
       clickhouseSettings: {
+        parallel_view_processing: 1,
+        max_insert_threads: "8",
         type_json_skip_duplicated_paths: true,
       },
     });
@@ -293,6 +318,16 @@ export const handleEventPropagationJob = async (
     logger.info(
       `[DUAL WRITE] Successfully propagated observations from partition ${partitionToProcess} to events table`,
     );
+
+    // Track delay of the partition we just processed
+    const processedPartitionTime = new Date(partitionToProcess).getTime();
+    if (!isNaN(processedPartitionTime)) {
+      const delaySeconds = (Date.now() - processedPartitionTime) / 1000;
+      recordGauge(
+        "langfuse.event_propagation.processed_partition_delay_seconds",
+        delaySeconds,
+      );
+    }
 
     // Step 3: Update the last processed partition cursor in Redis
     // This allows the next job to continue from where we left off

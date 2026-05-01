@@ -1,7 +1,3 @@
-import { api } from "@/src/utils/api";
-
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
-import { Card } from "@/src/components/ui/card";
 import {
   type ScoreSourceType,
   type FilterState,
@@ -21,9 +17,13 @@ import React, { useMemo } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
@@ -34,6 +34,8 @@ export function NumericScoreTimeSeriesChart(props: {
   globalFilterState: FilterState;
   fromTimestamp: Date;
   toTimestamp: Date;
+  metricsVersion?: ViewVersion;
+  schedulerId?: string;
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -72,10 +74,11 @@ export function NumericScoreTimeSeriesChart(props: {
     orderBy: null,
   };
 
-  const scores = api.dashboard.executeQuery.useQuery(
+  const scores = useScheduledDashboardExecuteQuery(
     {
       projectId: props.projectId,
       query: scoresQuery,
+      version: props.metricsVersion,
     },
     {
       trpc: {
@@ -83,6 +86,7 @@ export function NumericScoreTimeSeriesChart(props: {
           skipBatch: true,
         },
       },
+      queryId: `${props.schedulerId ?? "home:score-analytics"}:numeric:${props.source}:${props.name}`,
     },
   );
 
@@ -107,14 +111,19 @@ export function NumericScoreTimeSeriesChart(props: {
     data: extractedScores,
     isNullValueAllowed: true,
   }) ? (
-    <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
-      <BaseTimeSeriesChart
-        className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-        agg={props.agg}
-        data={extractedScores}
-        connectNulls
+    <div className="h-80 w-full shrink-0">
+      <Chart
+        chartType="LINE_TIME_SERIES"
+        data={timeSeriesToDataPoints(extractedScores, props.agg)}
+        rowLimit={100}
+        chartConfig={{
+          type: "LINE_TIME_SERIES",
+          show_data_point_dots: false,
+          subtle_fill: true,
+        }}
+        legendPosition="above"
       />
-    </Card>
+    </div>
   ) : (
     <NoDataOrLoading isLoading={scores.isLoading} />
   );

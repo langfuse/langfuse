@@ -48,3 +48,16 @@ export function createW3CTraceId(seed?: string): string {
     return crypto.randomBytes(16).toString("hex"); // already 32 chars
   }
 }
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Calculate the retention cutoff date for a given number of retention days.
+ * Returns a Date representing the timestamp before which data should be deleted.
+ */
+export const getRetentionCutoffDate = (
+  retentionDays: number,
+  referenceDate: Date = new Date(),
+): Date => {
+  return new Date(referenceDate.getTime() - retentionDays * MS_PER_DAY);
+};

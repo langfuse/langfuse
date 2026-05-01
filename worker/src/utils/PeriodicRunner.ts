@@ -1,4 +1,5 @@
-import { logger, traceException } from "@langfuse/shared/src/server";
+import { logger, instrumentAsync } from "@langfuse/shared/src/server";
+import { SpanKind } from "@opentelemetry/api";
 
 /**
  * Abstract base class for periodic task execution.
@@ -34,13 +35,26 @@ export abstract class PeriodicRunner {
     let nextDelayMs = this.defaultIntervalMs;
 
     try {
-      const result = await this.execute();
-      if (typeof result === "number") {
-        nextDelayMs = result;
-      }
+      await instrumentAsync(
+        {
+          name: `periodic-runner.${this.name}`,
+          startNewTrace: true,
+          spanKind: SpanKind.INTERNAL,
+        },
+        async (span) => {
+          span.setAttribute("runner.name", this.name);
+          span.setAttribute("runner.interval_ms", this.defaultIntervalMs);
+
+          const result = await this.execute();
+          if (typeof result === "number") {
+            nextDelayMs = result;
+            span.setAttribute("runner.next_delay_ms", nextDelayMs);
+          }
+        },
+      );
     } catch (error) {
+      // instrumentAsync already calls traceException, just log here
       logger.error(`Unexpected error in ${this.name}`, error);
-      traceException(error);
     } finally {
       this.scheduleNext(nextDelayMs);
     }

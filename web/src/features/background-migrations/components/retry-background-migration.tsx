@@ -87,14 +87,14 @@ export function RetryBackgroundMigration({
             inputMode="text"
             name="admin-api-key"
           />
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="text-muted-foreground mt-1 text-xs">
             Required for security. This key must match your ADMIN_API_KEY
             environment variable{" ("}
             <a
               href="https://langfuse.com/self-hosting/administration/organization-management-api#authentication"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground underline hover:text-primary"
+              className="text-muted-foreground hover:text-primary underline"
             >
               Docs
             </a>

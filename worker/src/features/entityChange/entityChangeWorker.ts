@@ -12,10 +12,12 @@ export const entityChangeWorker = async (
   event: EntityChangeEventType,
 ): Promise<void> => {
   try {
-    logger.debug(
-      `Processing entity change event for entity ${event.entityType}`,
-      { event: JSON.stringify(event, null, 2) },
-    );
+    if (logger.isLevelEnabled("debug")) {
+      logger.debug(
+        `Processing entity change event for entity ${event.entityType}`,
+        { event: JSON.stringify(event, null, 2) },
+      );
+    }
 
     const span = getCurrentSpan();
 

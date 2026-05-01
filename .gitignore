@@ -9,6 +9,7 @@ migrate
 
 # testing
 /coverage
+**/coverage/
 /certs/
 
 # database
@@ -17,6 +18,7 @@ migrate
 
 # next.js
 /.next/
+/.next-check/
 /out/
 next-env.d.ts
 
@@ -35,6 +37,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+.eslintcache
 
 # local env files
 # do not commit any .env files to git, except for the .env.example file. https://create.t3.gg/en/usage/env-variables#using-environment-variables
@@ -44,6 +47,7 @@ yarn-error.log*
 !.env.dev-redis-cluster.example
 !.env.prod.example
 !.env.test.example
+!.env.dev-oci.example
 
 # vercel
 .vercel
@@ -64,11 +68,22 @@ node_modules
 **/node_modules
 **/dist
 **/.next/*
+**/.next-check/*
 **/.turbo/*
 .yarn
 .turbo
 
 web/test-results/*
+.playwright-mcp/*
+.codex-artifacts/
+.mcp.json
+.claude/settings.json
+.claude/skills/
+.cursor/mcp.json
+.cursor/environment.json
+.vscode/mcp.json
+.codex/config.toml
+.codex/environments/environment.toml
 
 # local config files
 *.local.*
@@ -78,3 +93,4 @@ web/test-results/*
 
 # Refactoring planning files (local only)
 **/.refactor/
+**/.pi-lens/

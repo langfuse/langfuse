@@ -43,7 +43,7 @@ export function TraceSearchListItem({
       onClick={onSelect}
       onMouseEnter={onHover}
       className={cn(
-        "flex cursor-pointer items-start gap-2 px-2 py-1.5 transition-colors hover:bg-muted/50",
+        "hover:bg-muted/50 flex cursor-pointer items-start gap-2 px-2 py-1.5 transition-colors",
         isSelected && "bg-muted",
       )}
     >
@@ -58,7 +58,7 @@ export function TraceSearchListItem({
         />
         {/* Temporal and depth context - only show for observations (not TRACE root) */}
         {node.type !== "TRACE" && (
-          <div className="text-xs text-muted-foreground/70">
+          <div className="text-muted-foreground/70 text-xs">
             depth {node.depth} • +{traceRelativeTime}
             {parentRelativeTime !== null &&
               ` • +${parentRelativeTime} from parent`}

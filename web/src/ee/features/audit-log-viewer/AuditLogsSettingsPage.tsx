@@ -12,7 +12,7 @@ export function AuditLogsSettingsPage(props: { projectId: string }) {
   const hasEntitlement = useHasEntitlement("audit-logs");
 
   const body = !hasEntitlement ? (
-    <p className="text-sm text-muted-foreground">
+    <p className="text-muted-foreground text-sm">
       Audit logs are an Enterprise feature. Upgrade your plan to track all
       changes made to your project.
     </p>
@@ -30,7 +30,7 @@ export function AuditLogsSettingsPage(props: { projectId: string }) {
   return (
     <>
       <Header title="Audit Logs" />
-      <p className="mb-2 text-sm text-muted-foreground">
+      <p className="text-muted-foreground mb-2 text-sm">
         Track who changed what in your project and when. Monitor settings,
         configurations, and data changes over time. Reach out to the Langfuse
         team if you require more detailed/filtered audit logs.

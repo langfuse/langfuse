@@ -1,11 +1,17 @@
 import React, { useMemo } from "react";
-import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
+import {
+  ChartActiveReferenceLine,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   getUniqueDimensions,
   groupDataByTimeDimension,
 } from "@/src/features/widgets/chart-library/utils";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 
 /**
  * VerticalBarChartTimeSeries component
@@ -24,12 +30,17 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
     },
   },
   accessibilityLayer = true,
+  valueFormatter = compactNumberFormatter,
+  subtleFill = false,
 }) => {
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
 
   return (
-    <ChartContainer config={config}>
+    <ChartContainer
+      config={config}
+      className="[&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
+    >
       <BarChart accessibilityLayer={accessibilityLayer} data={groupedData}>
         <XAxis
           dataKey="time_dimension"
@@ -37,6 +48,8 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          interval="preserveStartEnd"
+          minTickGap={24}
         />
         <YAxis
           type="number"
@@ -44,19 +57,31 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          niceTicks="auto"
         />
         {dimensions.map((dimension, index) => (
           <Bar
             key={dimension}
             dataKey={dimension}
-            stroke={`hsl(var(--chart-${(index % 4) + 1}))`}
-            fill={`hsl(var(--chart-${(index % 4) + 1}))`}
-            // Stack bars if there are multiple dimensions
+            stroke={`hsl(var(--chart-${(index % 8) + 1}))`}
+            fill={`hsl(var(--chart-${(index % 8) + 1}))`}
+            fillOpacity={subtleFill ? 0.3 : 1}
             stackId={dimensions.length > 1 ? "stack" : undefined}
           />
         ))}
+        <ChartActiveReferenceLine />
         <ChartTooltip
+          cursor={false}
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+          content={({ active, payload, label }) => (
+            <ChartTooltipContent
+              active={active}
+              payload={payload}
+              label={label}
+              valueFormatter={valueFormatter}
+              sortPayloadByValue="desc"
+            />
+          )}
         />
       </BarChart>
     </ChartContainer>

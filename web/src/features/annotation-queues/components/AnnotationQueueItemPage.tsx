@@ -16,6 +16,8 @@ import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData"
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
 import { ObjectNotFoundCard } from "@/src/components/ui/object-not-found-card";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useSession } from "next-auth/react";
 
 export const AnnotationQueueItemPage: React.FC<{
   annotationQueueId: string;
@@ -24,6 +26,9 @@ export const AnnotationQueueItemPage: React.FC<{
   queryItemId?: string;
 }> = ({ annotationQueueId, projectId, view, queryItemId }) => {
   const router = useRouter();
+  const { status: sessionStatus } = useSession();
+  const sessionLoaded = sessionStatus !== "loading";
+  const { isBetaEnabled } = useV4Beta();
   const isSingleItem = router.query.singleItem === "true";
   const [nextItemData, setNextItemData] = useState<
     RouterOutput["annotationQueues"]["fetchAndLockNext"] | null
@@ -39,8 +44,8 @@ export const AnnotationQueueItemPage: React.FC<{
   const itemId = isSingleItem ? queryItemId : seenItemIds[progressIndex];
 
   const seenItemData = api.annotationQueueItems.byId.useQuery(
-    { projectId, itemId: itemId as string },
-    { enabled: !!itemId, refetchOnMount: false },
+    { projectId, itemId: itemId as string, isBetaEnabled },
+    { enabled: !!itemId && sessionLoaded, refetchOnMount: false },
   );
 
   const fetchAndLockNextMutation =
@@ -49,18 +54,19 @@ export const AnnotationQueueItemPage: React.FC<{
   // Effects
   useEffect(() => {
     async function fetchNextItem() {
-      if (!itemId && !isSingleItem) {
+      if (!itemId && !isSingleItem && sessionLoaded) {
         const nextItem = await fetchAndLockNextMutation.mutateAsync({
           queueId: annotationQueueId,
           projectId,
           seenItemIds,
+          isBetaEnabled,
         });
         setNextItemData(nextItem);
       }
     }
     fetchNextItem();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sessionLoaded]);
   const { configs } = useAnnotationQueueData({ annotationQueueId, projectId });
 
   const unseenPendingItemCount =
@@ -86,6 +92,7 @@ export const AnnotationQueueItemPage: React.FC<{
           queueId: annotationQueueId,
           projectId,
           seenItemIds,
+          isBetaEnabled,
         });
         setNextItemData(nextItem);
       }
@@ -142,7 +149,8 @@ export const AnnotationQueueItemPage: React.FC<{
     (seenItemData.isPending && itemId) ||
     (fetchAndLockNextMutation.isPending && !itemId) ||
     unseenPendingItemCount.isPending ||
-    objectData.isLoading
+    objectData.isLoading ||
+    (!sessionLoaded && !isSingleItem)
   ) {
     return <Skeleton className="h-full w-full" />;
   }
@@ -163,6 +171,7 @@ export const AnnotationQueueItemPage: React.FC<{
         queueId: annotationQueueId,
         projectId,
         seenItemIds,
+        isBetaEnabled,
       });
       setNextItemData(nextItem);
     }
@@ -191,8 +200,8 @@ export const AnnotationQueueItemPage: React.FC<{
     if (!relevantItem) {
       return (
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden">
-          <SearchXIcon className="mb-2 h-8 w-8 text-muted-foreground" />
-          <span className="max-w-96 text-wrap text-sm text-muted-foreground">
+          <SearchXIcon className="text-muted-foreground mb-2 h-8 w-8" />
+          <span className="text-muted-foreground max-w-96 text-sm text-wrap">
             Item has been <strong>deleted from annotation queue</strong>.
             Previously added scores and underlying reference trace are
             unaffected by this action.
@@ -228,12 +237,12 @@ export const AnnotationQueueItemPage: React.FC<{
   };
 
   return (
-    <div className="grid h-full grid-rows-[1fr,auto] gap-4 overflow-hidden">
+    <div className="grid h-full grid-rows-[1fr_auto] gap-4 overflow-hidden">
       {renderContent()}
-      <div className="grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto,min-content]">
+      <div className="grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto_min-content]">
         {!isSingleItem && (
           <div className="flex max-h-10 flex-row gap-2">
-            <span className="grid h-9 min-w-16 items-center rounded-md bg-muted p-1 text-center text-sm">
+            <span className="bg-muted grid h-9 min-w-16 items-center rounded-md p-1 text-center text-sm">
               {progressIndex + 1} / {totalItems}
             </span>
             <Button
@@ -272,7 +281,7 @@ export const AnnotationQueueItemPage: React.FC<{
                 Mark Completed
               </Button>
             ) : (
-              <div className="text-dark-gree inline-flex h-9 w-full items-center justify-center rounded-md border border-dark-green bg-light-green px-8 text-sm font-medium">
+              <div className="text-dark-gree border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-medium">
                 Completed
               </div>
             ))}

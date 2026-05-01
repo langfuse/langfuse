@@ -9,7 +9,15 @@ import { getTokenCountWorkerManager } from "../features/tokenisation/async-usage
 import { WorkerManager } from "../queues/workerManager";
 import { prisma } from "@langfuse/shared/src/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
-import { MutationMonitor } from "../features/mutation-monitoring/mutationMonitor";
+import {
+  batchProjectCleaners,
+  batchDataRetentionCleaners,
+  mediaRetentionCleaner,
+  batchProjectMediaCleaner,
+  batchProjectBlobCleaner,
+  batchTraceDeletionCleaner,
+  queueMetricsRunner,
+} from "../app";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
@@ -19,8 +27,30 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   server.close();
   logger.info("Server has been closed.");
 
-  // Stop mutation monitor
-  MutationMonitor.stop();
+  // Stop batch project cleaners
+  for (const cleaner of batchProjectCleaners) {
+    cleaner.stop();
+  }
+
+  // Stop batch data retention cleaners
+  for (const cleaner of batchDataRetentionCleaners) {
+    cleaner.stop();
+  }
+
+  // Stop media retention cleaner
+  mediaRetentionCleaner?.stop();
+
+  // Stop batch project media cleaner
+  batchProjectMediaCleaner?.stop();
+
+  // Stop batch project blob cleaner
+  batchProjectBlobCleaner?.stop();
+
+  // Stop batch trace deletion cleaner
+  batchTraceDeletionCleaner?.stop();
+
+  // Stop queue metrics runner
+  queueMetricsRunner?.stop();
 
   // Shutdown workers (https://docs.bullmq.io/guide/going-to-production#gracefully-shut-down-workers)
   await WorkerManager.closeWorkers();

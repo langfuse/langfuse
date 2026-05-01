@@ -33,6 +33,8 @@ declare module "next-auth" {
     emailSupportHash?: string | null;
     image?: PrismaUser["image"];
     admin?: PrismaUser["admin"];
+    v4BetaEnabled?: boolean;
+    canToggleV4?: boolean;
     emailVerified?: string | null; // iso datetime string, need to stringify as JWT & useSession do not support Date objects
     canCreateOrganizations: boolean; // default true, allowlist can be set via LANGFUSE_ALLOWED_ORGANIZATION_CREATORS
     organizations: {
@@ -48,6 +50,7 @@ declare module "next-auth" {
         name: PrismaProject["name"];
         deletedAt: PrismaProject["deletedAt"];
         retentionDays: PrismaProject["retentionDays"];
+        hasTraces: PrismaProject["hasTraces"];
         metadata: Record<string, unknown>;
         role: Role; // include only projects where user has a role
       }[];

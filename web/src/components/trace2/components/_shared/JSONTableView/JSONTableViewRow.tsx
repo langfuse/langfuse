@@ -34,13 +34,13 @@ function JSONTableViewRowInner<T>({
   const expandedContentId = `expanded-content-${itemKey}`;
 
   return (
-    <div className="border-b border-border bg-background">
+    <div className="border-border bg-background border-b">
       {/* Preview row - always visible */}
       <div
         className={cn(
           "flex min-h-6 items-center gap-2 px-3 py-0.5",
-          expandable && "cursor-pointer hover:bg-muted/50",
-          isExpanded && "border-b border-border/50 bg-muted/30",
+          expandable && "hover:bg-muted/50 cursor-pointer",
+          isExpanded && "border-border/50 bg-muted/30 border-b",
         )}
         {...(expandable ? clickProps : {})}
         role={expandable ? "button" : undefined}
@@ -63,7 +63,7 @@ function JSONTableViewRowInner<T>({
 
         {/* Expand icon */}
         {expandable && (
-          <ChevronIcon className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+          <ChevronIcon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
         )}
 
         {/* Column cells */}
@@ -71,7 +71,7 @@ function JSONTableViewRowInner<T>({
           <div
             key={column.key}
             className={cn(
-              "flex-shrink-0 text-sm",
+              "shrink-0 text-sm",
               column.width ?? "min-w-0 flex-1",
               column.align === "right" && "text-right",
               // Truncate flex-1 columns

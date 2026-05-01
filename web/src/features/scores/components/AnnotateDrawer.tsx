@@ -73,7 +73,7 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
           scoreMetadata={scoreMetadata}
         />
         {hasNonAnnotationScores && (
-          <div className="mt-4 text-xs text-muted-foreground">
+          <div className="text-muted-foreground mt-4 text-xs">
             API and eval scores visible on left. Add manual annotations above.
           </div>
         )}

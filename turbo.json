@@ -14,11 +14,21 @@
     "db:migrate": {
       "cache": false
     },
-    "db:deploy": {},
-    "db:reset": {},
-    "db:push": {},
-    "db:seed": {},
-    "db:seed:examples": {},
+    "db:deploy": {
+      "cache": false
+    },
+    "db:reset": {
+      "cache": false
+    },
+    "db:push": {
+      "cache": false
+    },
+    "db:seed": {
+      "cache": false
+    },
+    "db:seed:examples": {
+      "cache": false
+    },
     "dev": {
       "cache": false,
       "persistent": true,
@@ -34,13 +44,26 @@
       "persistent": true,
       "dependsOn": ["db:generate"]
     },
+    // Prisma generate writes client types into node_modules. Turbo cache hits
+    // only replay logs and do not restore those side effects on fresh CI runners.
     "db:generate": {
+      "inputs": ["packages/shared/prisma/schema.prisma"],
       "cache": false,
       "dependsOn": ["^db:generate"]
     },
     "lint": {
       "cache": true,
       "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["db:generate", "^build"],
+      "cache": true,
+      "outputs": []
+    },
+    "build:check": {
+      "dependsOn": ["db:generate", "^build"],
+      "outputs": [".next-check/**", "!.next-check/cache/**"],
+      "cache": true
     },
     "test": {
       "dependsOn": ["^test", "db:generate"],

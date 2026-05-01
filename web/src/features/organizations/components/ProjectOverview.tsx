@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
+import { Separator } from "@/src/components/ui/separator";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { PlusIcon } from "lucide-react";
@@ -21,7 +22,6 @@ import { StringParam, useQueryParams } from "use-query-params";
 import { Input } from "@/src/components/ui/input";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { env } from "@/src/env.mjs";
-import { Divider } from "@tremor/react";
 import { Fragment } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
@@ -32,6 +32,7 @@ import {
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { type User } from "next-auth";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const OrganizationProjectTiles = ({
   org,
@@ -76,6 +77,8 @@ const OrganizationProjectTiles = ({
 };
 
 const DemoOrganizationTile = () => {
+  const capture = usePostHogClientCapture();
+
   return (
     <Card>
       <CardHeader>
@@ -87,7 +90,14 @@ const DemoOrganizationTile = () => {
       </CardContent>
       <CardFooter>
         <Button asChild variant="secondary">
-          <Link href={`/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}/traces`}>
+          <Link
+            href={`/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}/traces`}
+            onClick={() =>
+              capture("organizations:demo_project_button_click", {
+                location: "project_overview_demo_tile",
+              })
+            }
+          >
             View Demo Project
           </Link>
         </Button>
@@ -312,7 +322,7 @@ export const OrganizationProjectOverview = () => {
         .map((org) => (
           <Fragment key={org.id}>
             {!queryOrgId && org.id === env.NEXT_PUBLIC_DEMO_ORG_ID && (
-              <Divider />
+              <Separator />
             )}
             <SingleOrganizationProjectOverviewTile
               orgId={org.id}

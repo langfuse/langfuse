@@ -47,9 +47,7 @@ async function addTemporaryColumnIfNotExists() {
   }
 }
 
-export default class AddGenerationsCostBackfill
-  implements IBackgroundMigration
-{
+export default class AddGenerationsCostBackfill implements IBackgroundMigration {
   private isAborted = false;
 
   async validate(

@@ -7,7 +7,7 @@ import { DataGenerator } from "./data-generators";
 import { ClickHouseQueryBuilder } from "./clickhouse-builder";
 import { FrameworkTraceLoader } from "./framework-traces/framework-trace-loader";
 import { EVAL_TRACE_COUNT, SEED_DATASETS } from "./postgres-seed-constants";
-import { MEDIA_TEST_TRACE_IDS } from "../seed-media";
+import { MEDIA_TEST_TRACE_IDS, getSeedMediaFixture } from "../seed-media";
 import {
   clickhouseClient,
   createTrace,
@@ -31,7 +31,7 @@ const DATASET_RUN_SCORE_NAMES = [
  * Orchestrates seeding operations across ClickHouse and PostgreSQL.
  *
  * Use createXxxData() for specific data types:
- * - createDatasetExperimentData(): Dataset runs in langfuse-prompt-experiments env
+ * - createDatasetExperimentData(): Dataset runs in langfuse-prompt-experiment env
  * - createEvaluationData(): Evaluation data in langfuse-evaluation env
  * - createSyntheticData(): Large synthetic data in default env
  * - executeFullSeed(): All data types together
@@ -464,6 +464,23 @@ export class SeederOrchestrator {
     );
 
     const now = Date.now();
+    const imageFixture = getSeedMediaFixture("image");
+    const pdfFixture = getSeedMediaFixture("pdf");
+    const audioFixture = getSeedMediaFixture("audio");
+
+    const getMediaMetadata = (
+      field: "input" | "output" | "metadata",
+      fixture: ReturnType<typeof getSeedMediaFixture>,
+    ): Record<string, string> =>
+      fixture
+        ? {
+            [`${field}_media_id`]: fixture.mediaId,
+            [`${field}_media_content_type`]: fixture.contentType,
+            [`${field}_media_reference_string`]: fixture.referenceString,
+          }
+        : {
+            [`${field}_media_status`]: "missing-seed-media-fixture",
+          };
 
     for (const projectId of projectIds) {
       logger.info(`Processing media test traces for project ${projectId}`);
@@ -475,12 +492,38 @@ export class SeederOrchestrator {
           project_id: projectId,
           name: "Media Test: Image Only",
           timestamp: now,
-          input: JSON.stringify({
-            message: "This trace has an image attachment in input",
-            description: "Used for testing media rendering in JSON Beta view",
-          }),
-          output: JSON.stringify({ status: "success" }),
-          metadata: { test_type: "media", media_types: "image" },
+          input: JSON.stringify([
+            {
+              role: "user",
+              content: imageFixture
+                ? [
+                    {
+                      type: "text",
+                      text: "Please analyze the seeded image attachment.",
+                    },
+                    {
+                      type: "image_url",
+                      image_url: {
+                        url: imageFixture.referenceString,
+                      },
+                    },
+                  ]
+                : "Please analyze the seeded image attachment. The media fixture is missing.",
+            },
+          ]),
+          output: JSON.stringify([
+            {
+              role: "assistant",
+              content:
+                "This trace is meant to render one inline seeded image in the input and expose its metadata on the trace.",
+            },
+          ]),
+          metadata: {
+            test_type: "media",
+            media_types: "image",
+            render_mode: "chatml-inline-image",
+            ...getMediaMetadata("input", imageFixture),
+          },
           tags: ["media-test", "image"],
           environment: "default",
         }),
@@ -491,18 +534,36 @@ export class SeederOrchestrator {
           name: "Media Test: All Types",
           timestamp: now + 1000,
           input: JSON.stringify({
-            message: "This trace has an image in input",
-            description: "Testing image attachment",
+            message: "This trace has an image attachment in input",
+            description: "Testing trace-level input attachment metadata",
+            attachment: imageFixture
+              ? {
+                  mediaId: imageFixture.mediaId,
+                  contentType: imageFixture.contentType,
+                  referenceString: imageFixture.referenceString,
+                }
+              : "seed media fixture missing",
           }),
           output: JSON.stringify({
-            message: "This trace has a PDF in output",
-            description: "Testing PDF attachment",
+            message: "This trace has a PDF attachment in output",
+            description: "Testing trace-level output attachment metadata",
+            attachment: pdfFixture
+              ? {
+                  mediaId: pdfFixture.mediaId,
+                  contentType: pdfFixture.contentType,
+                  referenceString: pdfFixture.referenceString,
+                }
+              : "seed media fixture missing",
           }),
           metadata: {
-            message: "This trace has audio in metadata",
-            description: "Testing audio attachment",
+            message: "This trace has an audio attachment in metadata",
+            description: "Testing trace-level metadata attachment metadata",
             test_type: "media",
             media_types: "image,pdf,audio",
+            render_mode: "json-with-attachment-metadata",
+            ...getMediaMetadata("input", imageFixture),
+            ...getMediaMetadata("output", pdfFixture),
+            ...getMediaMetadata("metadata", audioFixture),
           },
           tags: ["media-test", "all-types"],
           environment: "default",
@@ -521,23 +582,41 @@ export class SeederOrchestrator {
             },
             {
               role: "user",
-              content:
-                "Please analyze the attached image and describe what you see.",
+              content: imageFixture
+                ? [
+                    {
+                      type: "text",
+                      text: "Please analyze the attached seeded image and describe what you see.",
+                    },
+                    {
+                      type: "image_url",
+                      image_url: {
+                        url: imageFixture.referenceString,
+                      },
+                    },
+                  ]
+                : "Please analyze the attached seeded image and describe what you see. The media fixture is missing.",
             },
           ]),
           output: JSON.stringify([
             {
               role: "assistant",
               content:
-                "I can see the Langfuse logo in the image. It appears to be a modern, clean design with distinctive branding elements. The attached PDF contains additional documentation about the Bitcoin whitepaper.",
+                "I can see the Langfuse logo in the image. The trace also includes a PDF attachment on the output field and an audio attachment on the metadata field. Check the trace metadata for the deterministic media IDs and reference strings.",
             },
           ]),
           metadata: {
-            message: "This trace has audio in metadata",
-            description: "Testing audio attachment with ChatML format",
+            message:
+              "This trace has audio in metadata and explicit media metadata for every field",
+            description:
+              "Testing ChatML media rendering with deterministic media references",
             test_type: "media",
             media_types: "image,pdf,audio",
             format: "chatml",
+            render_mode: "chatml-inline-image-plus-trace-metadata",
+            ...getMediaMetadata("input", imageFixture),
+            ...getMediaMetadata("output", pdfFixture),
+            ...getMediaMetadata("metadata", audioFixture),
           },
           tags: ["media-test", "all-types", "chatml"],
           environment: "default",

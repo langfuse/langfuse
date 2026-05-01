@@ -34,6 +34,16 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     queryPrefix: "t",
   },
   {
+    // Alias for name - allows traceName filter (used in evals) to work on traces table
+    // this happens in the v4 beta if someone filters for traceName in beta mode and then switches back to non-beta
+    // TODO: remove after beta v4 is concluded
+    uiTableName: "Trace Name",
+    uiTableId: "traceName",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "name",
+    queryPrefix: "t",
+  },
+  {
     uiTableName: "Timestamp",
     uiTableId: "timestamp",
     clickhouseTableName: "traces",
@@ -85,6 +95,14 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "Tags",
     uiTableId: "tags",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "tags",
+    queryPrefix: "t",
+  },
+  {
+    // Alias for tags so canonical traceTags filters work on the traces table too.
+    uiTableName: "Trace Tags",
+    uiTableId: "traceTags",
     clickhouseTableName: "traces",
     clickhouseSelect: "tags",
     queryPrefix: "t",

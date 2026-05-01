@@ -228,6 +228,9 @@ export function IOPreview({
        */}
       {selectedView === "json-beta" ? (
         <IOPreviewJSON
+          input={input}
+          output={output}
+          metadata={metadata}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
           parsedMetadata={parsedMetadata}
@@ -289,7 +292,7 @@ export function IOPreview({
             <Button
               variant="ghost"
               size="sm"
-              className="absolute right-1.5 top-1.5 h-5 w-5 p-0"
+              className="absolute top-1.5 right-1.5 h-5 w-5 p-0"
               onClick={() => {
                 capture("notification:dismiss_notification", {
                   notification_id: EMPTY_IO_ALERT_ID,
@@ -305,14 +308,14 @@ export function IOPreview({
               <X className="h-3.5 w-3.5" />
             </Button>
             <div className="flex w-full flex-row items-center gap-2 pr-6">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
-                <BookOpen className="h-4 w-4 text-muted-foreground" />
+              <div className="bg-accent flex h-8 w-8 items-center justify-center rounded-full">
+                <BookOpen className="text-muted-foreground h-4 w-4" />
               </div>
               <h3 className="text-sm font-semibold">
                 Looks like this trace didn&apos;t receive an input or output.
               </h3>
             </div>
-            <p className="max-w-sm text-sm text-muted-foreground">
+            <p className="text-muted-foreground max-w-sm text-sm">
               Add it in your code to make debugging a lot easier.
             </p>
             <ActionButton

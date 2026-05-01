@@ -6,6 +6,7 @@ import { type Role } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
+import { hasOwnRole } from "./hasOwnRole";
 
 type HasOrganizationAccessParams =
   | {
@@ -55,15 +56,13 @@ export const useHasOrganizationAccess = (p: {
 
 // For use in UI components as function, if session is already available
 export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
-  const isAdmin = "role" in p ? p.admin : p.session?.user?.admin;
+  const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
   if (isAdmin) return true;
 
-  const organizationRole: Role | undefined =
-    "role" in p
-      ? p.role
-      : p.session?.user?.organizations.find(
-          (org) => org.id === p.organizationId,
-        )?.role;
+  const organizationRole: Role | undefined = hasOwnRole(p)
+    ? p.role
+    : p.session?.user?.organizations.find((org) => org.id === p.organizationId)
+        ?.role;
   if (organizationRole === undefined) return false;
 
   return organizationRoleAccessRights[organizationRole].includes(p.scope);

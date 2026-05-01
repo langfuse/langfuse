@@ -11,6 +11,8 @@ import { Badge } from "@/src/components/ui/badge";
 import { ActionButton } from "@/src/components/ActionButton";
 import { LayoutDashboard } from "lucide-react";
 import Page from "@/src/components/layouts/page";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { ObservationsEventsTable } from "@/src/features/events/components";
 
 const tabs = ["Traces", "Sessions", "Scores"] as const;
 
@@ -18,11 +20,25 @@ export default function UserPage() {
   const router = useRouter();
   const userId = router.query.userId as string;
   const projectId = router.query.projectId as string;
+  const { isBetaEnabled } = useV4Beta();
 
-  const user = api.users.byId.useQuery({
-    projectId: projectId,
-    userId,
-  });
+  const userV3 = api.users.byId.useQuery(
+    {
+      projectId: projectId,
+      userId,
+    },
+    { enabled: !isBetaEnabled },
+  );
+
+  const userV4 = api.users.byIdFromEvents.useQuery(
+    {
+      projectId: projectId,
+      userId,
+    },
+    { enabled: isBetaEnabled },
+  );
+
+  const user = isBetaEnabled ? userV4 : userV3;
 
   const [currentTab, setCurrentTab] = useQueryParam(
     "tab",
@@ -58,7 +74,6 @@ export default function UserPage() {
         title: userId,
         breadcrumb: [{ name: "Users", href: `/project/${projectId}/users` }],
         itemType: "USER",
-
         actionButtonsRight: (
           <>
             <ActionButton
@@ -101,12 +116,14 @@ export default function UserPage() {
               Active:{" "}
               {user.data.firstTrace
                 ? `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`
-                : "No traces yet"}
+                : isBetaEnabled
+                  ? "No activity yet"
+                  : "No traces yet"}
             </Badge>
           </div>
         )}
 
-        <div className="border-t border-border" />
+        <div className="border-border border-t" />
 
         <div>
           <div className="sm:hidden">
@@ -116,7 +133,7 @@ export default function UserPage() {
             <select
               id="tabs"
               name="tabs"
-              className="block w-full rounded-md border-border bg-background py-2 pl-3 pr-10 text-base text-foreground focus:outline-none sm:text-sm"
+              className="border-border bg-background text-foreground block w-full rounded-md py-2 pr-10 pl-3 text-base focus:outline-hidden sm:text-sm"
               defaultValue={currentTab}
               onChange={(e) => handleTabChange(e.currentTarget.value)}
             >
@@ -126,7 +143,7 @@ export default function UserPage() {
             </select>
           </div>
           <div className="hidden sm:block">
-            <div className="border-b border-border">
+            <div className="border-border border-b">
               <nav className="-mb-px flex" aria-label="Tabs">
                 {tabs.map((tab) => (
                   <button
@@ -134,8 +151,8 @@ export default function UserPage() {
                     className={cn(
                       tab === currentTab
                         ? "border-primary-accent text-primary-accent"
-                        : "border-transparent text-muted-foreground hover:border-border hover:text-primary",
-                      "whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium",
+                        : "text-muted-foreground hover:border-border hover:text-primary border-transparent",
+                      "border-b-2 px-4 py-3 text-sm font-medium whitespace-nowrap",
                     )}
                     aria-current={tab === currentTab ? "page" : undefined}
                     onClick={() => handleTabChange(tab)}
@@ -163,27 +180,42 @@ function ScoresTab({ userId, projectId }: TabProps) {
     <ScoresTable
       projectId={projectId}
       userId={userId}
-      omittedFilter={["User ID"]}
+      hiddenColumns={["userId"]}
     />
   );
 }
 
 function TracesTab({ userId, projectId }: TabProps) {
+  const { isBetaEnabled } = useV4Beta();
+
+  if (isBetaEnabled) {
+    return (
+      <ObservationsEventsTable
+        projectId={projectId}
+        userId={userId}
+        omittedFilter={["userId"]}
+      />
+    );
+  }
+
   return (
     <TracesTable
       projectId={projectId}
       userId={userId}
-      omittedFilter={["User ID"]}
+      omittedFilter={["userId"]}
     />
   );
 }
 
 function SessionsTab({ userId, projectId }: TabProps) {
+  const { isBetaEnabled } = useV4Beta();
+
   return (
     <SessionsTable
       projectId={projectId}
       userId={userId}
-      omittedFilter={["User IDs"]}
+      omittedFilter={["userIds"]}
+      isBetaEnabled={isBetaEnabled}
     />
   );
 }

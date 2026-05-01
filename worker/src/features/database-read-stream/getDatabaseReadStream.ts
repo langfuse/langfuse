@@ -28,7 +28,11 @@ import {
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
-import { BatchExportTracesRow, BatchExportSessionsRow } from "./types";
+import {
+  BatchExportTracesRow,
+  BatchExportSessionsRow,
+  BatchExportEventsRow,
+} from "./types";
 import { fetchCommentsForExport } from "./fetchCommentsForExport";
 
 const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
@@ -36,6 +40,7 @@ const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   sessions: "createdAt",
   traces: "timestamp",
   observations: "startTime",
+  events: "startTime",
   dataset_run_items: "createdAt",
   dataset_items: "createdAt", // TODO: flip to validFrom once we write in new format
   audit_logs: "createdAt",
@@ -45,6 +50,7 @@ const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   sessions: "createdAt",
   traces: "timestamp",
   observations: "startTime",
+  events: "startTime",
   dataset_run_items: "createdAt",
   dataset_items: "createdAt",
   audit_logs: "createdAt",
@@ -60,7 +66,10 @@ export const isTraceTimestampFilter = (
   return filter.column === "Timestamp" && filter.type === "datetime";
 };
 export const getChunkWithFlattenedScores = <
-  T extends BatchExportTracesRow[] | FullObservationsWithScores,
+  T extends
+    | BatchExportTracesRow[]
+    | FullObservationsWithScores
+    | BatchExportEventsRow[],
 >(
   chunk: T,
   emptyScoreColumns: Record<string, null>,

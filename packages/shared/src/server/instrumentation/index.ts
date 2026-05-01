@@ -9,6 +9,31 @@ import { logger } from "../logger";
 
 // type CallbackFn<T> = () => T;
 
+/**
+ * IORedis request hook that records the full Redis command as a span attribute.
+ * Redacts credentials from AUTH/HELLO and values from API key cache operations.
+ */
+export function ioredisRequestHook(
+  span: opentelemetry.Span,
+  { cmdName, cmdArgs }: { cmdName: string; cmdArgs: unknown[] },
+): void {
+  if (!Array.isArray(cmdArgs) || cmdArgs.length === 0) return;
+  const cmd = cmdName.toUpperCase();
+  // AUTH and HELLO carry raw credentials — redact all args
+  if (cmd === "AUTH" || cmd === "HELLO") {
+    span.setAttribute("redis.full_command", `${cmdName} [REDACTED]`);
+    return;
+  }
+  const args = [...cmdArgs].map(String);
+  // Redact API key cache values: SET [prefix:]api-key:{hash} <json>
+  if (args[0]?.includes("api-key:")) {
+    for (let i = 1; i < args.length; i++) {
+      args[i] = "[REDACTED]";
+    }
+  }
+  span.setAttribute("redis.full_command", `${cmdName} ${args.join(" ")}`);
+}
+
 export type TCarrier = {
   traceparent?: string;
   tracestate?: string;
@@ -263,6 +288,25 @@ const flushMetricsToCloudWatch = () => {
     });
 };
 
+// Metrics ending with these suffixes have their tags flattened into the
+// CloudWatch metric name (excluding "unit"). Other metrics are unaffected.
+const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate"];
+
+function buildCloudWatchKey(
+  stat: string,
+  tags?: { [tag: string]: string | number },
+): string {
+  if (!tags || !CW_TAG_FLATTENED_SUFFIXES.some((s) => stat.endsWith(s))) {
+    return stat;
+  }
+  const suffix = Object.entries(tags)
+    .filter(([k]) => k !== "unit")
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}_${v}`)
+    .join(".");
+  return suffix ? `${stat}.${suffix}` : stat;
+}
+
 export const recordGauge = (
   stat: string,
   value?: number | undefined,
@@ -273,7 +317,7 @@ export const recordGauge = (
     | undefined,
 ) => {
   if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    sendCloudWatchMetric(stat, value ?? 0, true);
+    sendCloudWatchMetric(buildCloudWatchKey(stat, tags), value ?? 0, true);
   }
   dd.dogstatsd.gauge(stat, value, tags);
 };
@@ -284,7 +328,7 @@ export const recordIncrement = (
   tags?: { [tag: string]: string | number } | undefined,
 ) => {
   if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    sendCloudWatchMetric(stat, value ?? 1, false);
+    sendCloudWatchMetric(buildCloudWatchKey(stat, tags), value ?? 1, false);
   }
   dd.dogstatsd.increment(stat, value, tags);
 };

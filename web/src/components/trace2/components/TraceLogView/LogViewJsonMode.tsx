@@ -53,8 +53,8 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
       {/* Loading state */}
       {isLoading && (
         <div className="flex flex-1 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-sm text-muted-foreground">
+          <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
+          <span className="text-muted-foreground ml-2 text-sm">
             Loading observations (0/{totalCount})...
           </span>
         </div>
@@ -63,7 +63,7 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
       {/* Error state */}
       {isError && !isLoading && (
         <div className="flex flex-1 items-center justify-center">
-          <div className="rounded border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+          <div className="border-destructive/50 bg-destructive/10 text-destructive rounded border p-4 text-sm">
             Failed to load observation data
           </div>
         </div>
@@ -86,7 +86,7 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
       {/* Empty state */}
       {!data && !isLoading && !isError && (
         <div className="flex flex-1 items-center justify-center">
-          <div className="text-sm text-muted-foreground">
+          <div className="text-muted-foreground text-sm">
             No observation data available
           </div>
         </div>

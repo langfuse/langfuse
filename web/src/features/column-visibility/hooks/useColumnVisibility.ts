@@ -2,7 +2,7 @@ import { type VisibilityState } from "@tanstack/react-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { useEffect } from "react";
-import { isEqual } from "lodash";
+import isEqual from "lodash/isEqual";
 
 // returns deep copy of local storage object
 const readStoredVisibilityState = (

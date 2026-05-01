@@ -1,7 +1,7 @@
 import { Wrench } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import type { z } from "zod/v4";
+import type { z } from "zod";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 
 interface ToolCallInvocationsViewProps {
@@ -51,8 +51,8 @@ export function ToolCallInvocationsView({
             <div className="flex w-full items-center justify-between gap-2 py-1">
               {/* Left: Tool icon + number + name */}
               <div className="flex items-center gap-2">
-                <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="font-mono text-xs font-medium text-foreground">
+                <Wrench className="text-muted-foreground h-3.5 w-3.5" />
+                <span className="text-foreground font-mono text-xs font-medium">
                   {invocationNumber !== undefined && (
                     <span className="mr-1">{invocationNumber}.</span>
                   )}
@@ -62,7 +62,7 @@ export function ToolCallInvocationsView({
 
               {/* Right: Call ID if available */}
               {toolCall.id && (
-                <span className="font-mono text-xs text-muted-foreground">
+                <span className="text-muted-foreground font-mono text-xs">
                   {toolCall.id}
                 </span>
               )}
@@ -70,7 +70,7 @@ export function ToolCallInvocationsView({
 
             {/* Arguments view */}
             <div className="py-2 [&_.io-message-content]:px-0">
-              <div className="mb-1.5 text-xs font-medium text-muted-foreground">
+              <div className="text-muted-foreground mb-1.5 text-xs font-medium">
                 Arguments
               </div>
               <PrettyJsonView

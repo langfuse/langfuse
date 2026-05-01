@@ -37,7 +37,7 @@ const getPromptNameHandler = async (
     projectId: authCheck.scope.projectId,
     version,
     label,
-    resolve: resolve ?? true, // Default to true for backward compatibility
+    resolve,
   });
 
   if (!prompt) {

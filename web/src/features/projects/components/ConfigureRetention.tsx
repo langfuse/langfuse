@@ -1,7 +1,7 @@
 import { Card } from "@/src/components/ui/card";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import type * as z from "zod/v4";
+import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -64,7 +64,7 @@ export default function ConfigureRetention() {
     <div>
       <Header title="Data Retention" />
       <Card className="mb-4 p-3">
-        <p className="mb-4 text-sm text-primary">
+        <p className="text-primary mb-4 text-sm">
           Data retention automatically deletes events older than the specified
           number of days. The value must be 0 or at least 3 days. Set to 0 to
           retain data indefinitely. The deletion happens asynchronously, i.e.
@@ -72,7 +72,7 @@ export default function ConfigureRetention() {
         </p>
         {Boolean(form.getValues().retention) &&
         form.getValues().retention !== project?.retentionDays ? (
-          <p className="mb-4 text-sm text-primary">
+          <p className="text-primary mb-4 text-sm">
             Your Project&#39;s retention will be set from &quot;
             {project?.retentionDays ?? "Indefinite"}
             &quot; to &quot;
@@ -82,11 +82,11 @@ export default function ConfigureRetention() {
             &quot; days.
           </p>
         ) : !Boolean(project?.retentionDays) ? (
-          <p className="mb-4 text-sm text-primary">
+          <p className="text-primary mb-4 text-sm">
             Your Project retains data indefinitely.
           </p>
         ) : (
-          <p className="mb-4 text-sm text-primary">
+          <p className="text-primary mb-4 text-sm">
             Your Project&#39;s current retention is &quot;
             {project?.retentionDays ?? ""}
             &quot; days.
@@ -116,7 +116,7 @@ export default function ConfigureRetention() {
                       />
                       {!hasAccess && (
                         <span title="No access">
-                          <LockIcon className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted" />
+                          <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
                         </span>
                       )}
                     </div>

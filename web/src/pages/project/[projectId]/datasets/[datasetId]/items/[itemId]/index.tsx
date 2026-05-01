@@ -96,7 +96,7 @@ function DatasetItemContent() {
           )}
 
           {/* Version panel toggle button */}
-          <div className="sticky top-0 z-10 flex justify-end border-b bg-background p-2">
+          <div className="bg-background sticky top-0 z-10 flex justify-end border-b p-2">
             <Button
               variant="ghost"
               size="sm"
@@ -143,7 +143,7 @@ function DatasetItemContent() {
             {isViewingOldVersion &&
               selectedVersion &&
               !itemChangedAtVersion && (
-                <div className="mb-4 text-sm text-muted-foreground">
+                <div className="text-muted-foreground mb-4 text-sm">
                   Item unchanged in this version
                 </div>
               )}

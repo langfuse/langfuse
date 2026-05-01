@@ -1,7 +1,18 @@
 import React, { useMemo } from "react";
-import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
-import { Label, Pie, PieChart as PieChartComponent } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/src/components/ui/chart";
+import {
+  Label,
+  Pie,
+  PieChart as PieChartComponent,
+  Sector,
+  type PieSectorShapeProps,
+} from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 
 /**
  * PieChart component
@@ -20,6 +31,8 @@ export const PieChart: React.FC<ChartProps> = ({
     },
   },
   accessibilityLayer = true,
+  valueFormatter = compactNumberFormatter,
+  subtleFill = false,
 }) => {
   // Calculate total metric value for center label
   const totalValue = useMemo(() => {
@@ -31,16 +44,41 @@ export const PieChart: React.FC<ChartProps> = ({
     return data.map((item, index) => ({
       name: item.dimension || "Unknown",
       value: item.metric,
-      fill: `hsl(var(--chart-${(index % 4) + 1}))`,
+      fill: `hsl(var(--chart-${(index % 8) + 1}))`,
     }));
   }, [data]);
+
+  const renderSector = (props: PieSectorShapeProps) => {
+    const outerRadius =
+      typeof props.outerRadius === "number" ? props.outerRadius : 0;
+    const expandedOuterRadius = props.isActive ? outerRadius + 10 : outerRadius;
+
+    return (
+      <Sector
+        {...props}
+        outerRadius={expandedOuterRadius}
+        opacity={
+          subtleFill ? (props.isActive ? 0.9 : 0.45) : props.isActive ? 1 : 0.82
+        }
+        stroke="hsl(var(--background))"
+        strokeWidth={props.isActive ? 4 : 3}
+      />
+    );
+  };
 
   return (
     <ChartContainer config={config}>
       <PieChartComponent accessibilityLayer={accessibilityLayer}>
         <ChartTooltip
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          itemStyle={{ color: "hsl(var(--foreground))" }}
+          content={({ active, payload, label }) => (
+            <ChartTooltipContent
+              active={active}
+              payload={payload}
+              label={label}
+              valueFormatter={(v) => valueFormatter(Number(v))}
+            />
+          )}
         />
         <Pie
           data={chartData}
@@ -52,6 +90,7 @@ export const PieChart: React.FC<ChartProps> = ({
           outerRadius={120}
           paddingAngle={2}
           strokeWidth={5}
+          shape={renderSector}
         >
           {/* Label in the center of the donut */}
           {data.length > 0 && (
@@ -70,7 +109,7 @@ export const PieChart: React.FC<ChartProps> = ({
                         y={viewBox.cy}
                         className="fill-foreground text-3xl font-bold"
                       >
-                        {totalValue.toLocaleString()}
+                        {numberFormatter(totalValue, 0)}
                       </tspan>
                       <tspan
                         x={viewBox.cx}

@@ -1,27 +1,113 @@
-import { BatchExportTableName } from "@langfuse/shared";
-import { BatchActionType } from "@langfuse/shared";
-import { expect, describe, it, vi } from "vitest";
+import {
+  BatchExportTableName,
+  BatchActionType,
+  BatchTableNames,
+  BatchActionStatus,
+  EvalTargetObject,
+} from "@langfuse/shared";
+import { expect, describe, it } from "vitest";
 import { v4 as uuidv4 } from "uuid";
 import { handleBatchActionJob } from "../features/batchAction/handleBatchActionJob";
-import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
+import {
+  getDatabaseReadStreamPaginated,
+  getTraceIdentifierStream,
+} from "../features/database-read-stream/getDatabaseReadStream";
 import {
   createOrgProjectAndApiKey,
   createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
-  getQueue,
+  createEvent,
+  createEventsCh,
   getScoresByIds,
   QueueJobs,
   QueueName,
-  logger,
   createDatasetRunItemsCh,
   createDatasetRunItem,
   createDatasetItem,
+  createNewRedisInstance,
+  getQueuePrefix,
+  redisQueueRetryOptions,
+  TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Decimal } from "decimal.js";
 import waitForExpect from "wait-for-expect";
+import { Queue } from "bullmq";
+
+const maybeDescribe =
+  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+    ? describe
+    : describe.skip;
+
+const withIsolatedCreateEvalQueue = async <T>(
+  projectId: string,
+  fn: (queue: Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>) => Promise<T>,
+) => {
+  const queueName = `${QueueName.CreateEvalQueue}-${projectId}-${uuidv4()}`;
+  const redis = createNewRedisInstance({
+    enableOfflineQueue: false,
+    ...redisQueueRetryOptions,
+  });
+  if (!redis) {
+    throw new Error("Redis is not initialized");
+  }
+
+  const queue = new Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>(
+    queueName,
+    {
+      connection: redis,
+      prefix: getQueuePrefix(queueName),
+    },
+  );
+
+  try {
+    return await fn(queue);
+  } finally {
+    try {
+      await queue.obliterate({ force: true });
+    } finally {
+      try {
+        await queue.close();
+      } finally {
+        redis.disconnect();
+      }
+    }
+  }
+};
+
+const getCreateEvalQueueJobs = async (
+  queue: Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>,
+) => {
+  return await queue.getJobs([
+    "waiting",
+    "delayed",
+    "paused",
+    "prioritized",
+    "active",
+    "completed",
+    "failed",
+  ]);
+};
+
+const waitForCreateEvalQueueJobs = async ({
+  queue,
+  expectedLength,
+}: {
+  queue: Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>;
+  expectedLength: number;
+}) => {
+  let jobs: Awaited<ReturnType<typeof getCreateEvalQueueJobs>> = [];
+
+  await waitForExpect(async () => {
+    jobs = await getCreateEvalQueueJobs(queue);
+
+    expect(jobs.map((job) => job.data.payload)).toHaveLength(expectedLength);
+  }, 15_000);
+
+  return jobs;
+};
 
 describe("select all test suite", () => {
   it("should schedule trace deletions via pending_deletions table", async () => {
@@ -211,25 +297,23 @@ describe("select all test suite", () => {
   });
 
   it("should create eval jobs for historic traces", async () => {
-    // remove all jobs from the evaluation execution queue
-    const queue = getQueue(QueueName.CreateEvalQueue);
-    await queue?.obliterate({ force: true });
-
     const { projectId } = await createOrgProjectAndApiKey();
 
+    const traceTimestamp = new Date("2024-01-01T00:00:00.000Z");
+    const cutoffCreatedAt = new Date("2024-01-02T00:00:00.000Z"); // one day later
     const traceId1 = uuidv4();
     const traces = [
       createTrace({
         project_id: projectId,
         id: traceId1,
         user_id: "user1",
-        timestamp: new Date().getTime(),
+        timestamp: traceTimestamp.getTime(),
       }),
       createTrace({
         project_id: projectId,
         id: uuidv4(),
         user_id: "user2",
-        timestamp: new Date().getTime(),
+        timestamp: traceTimestamp.getTime(),
       }),
     ];
 
@@ -247,7 +331,7 @@ describe("select all test suite", () => {
         model: "gpt-3.5-turbo",
         provider: "openai",
         modelParams: {},
-        outputSchema: {
+        outputDefinition: {
           reasoning: "Please explain your reasoning",
           score: "Please provide a score between 0 and 1",
         },
@@ -270,7 +354,7 @@ describe("select all test suite", () => {
         jobType: "EVAL",
         delay: 0,
         sampling: new Decimal("1"),
-        targetObject: "trace",
+        targetObject: EvalTargetObject.TRACE,
         scoreName: "score",
         variableMapping: JSON.parse("[]"),
         evalTemplateId: templateId,
@@ -284,9 +368,9 @@ describe("select all test suite", () => {
       payload: {
         projectId,
         actionId: "eval-create" as const,
-        targetObject: "trace" as const,
+        targetObject: EvalTargetObject.TRACE,
         configId,
-        cutoffCreatedAt: new Date(),
+        cutoffCreatedAt,
         query: {
           filter: [
             {
@@ -304,36 +388,48 @@ describe("select all test suite", () => {
       },
     };
 
-    await handleBatchActionJob(payload);
-
     await waitForExpect(async () => {
-      try {
-        const queue = getQueue(QueueName.CreateEvalQueue);
+      const traceStream = await getTraceIdentifierStream({
+        projectId,
+        cutoffCreatedAt,
+        filter: payload.payload.query.filter,
+        orderBy: payload.payload.query.orderBy,
+      });
 
-        const jobs = await queue?.getJobs();
-
-        expect(jobs).toHaveLength(1);
-
-        if (!jobs) {
-          throw new Error("No jobs found");
-        }
-
-        const job = jobs[0];
-
-        expect(job.name).toBe("create-eval-job");
-        expect(job.data.payload.projectId).toBe(projectId);
-        expect(job.data.payload.traceId).toBe(traceId1);
-        expect(job.data.payload.configId).toBe(configId);
-      } catch (e) {
-        logger.error(e);
-        throw e;
+      const traceIds: string[] = [];
+      for await (const trace of traceStream) {
+        traceIds.push(trace.id);
       }
+
+      expect(traceIds).toEqual([traceId1]);
+    }, 15_000);
+
+    await withIsolatedCreateEvalQueue(projectId, async (queue) => {
+      await handleBatchActionJob(payload, { evalCreatorQueue: queue });
+
+      const jobs = await waitForCreateEvalQueueJobs({
+        queue,
+        expectedLength: 1,
+      });
+
+      const job = jobs[0];
+
+      if (!job) {
+        throw new Error("No jobs found");
+      }
+
+      expect(job.data.payload.projectId).toBe(projectId);
+      expect(job.data.payload.traceId).toBe(traceId1);
+      expect(job.data.payload.configId).toBe(configId);
     });
-  });
+  }, 30_000);
 
   it("should create eval jobs for historic datasets", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
+    const traceTimestamp = new Date("2024-01-01T00:00:00.000Z");
+    const datasetRunItemTimestamp = new Date("2024-01-01T00:00:00.000Z");
+    const cutoffCreatedAt = new Date("2024-01-02T00:00:00.000Z"); // one day later
     const traceId1 = uuidv4();
     const traceId2 = uuidv4();
 
@@ -342,13 +438,13 @@ describe("select all test suite", () => {
         project_id: projectId,
         id: traceId1,
         user_id: "user1",
-        timestamp: new Date().getTime(),
+        timestamp: traceTimestamp.getTime(),
       }),
       createTrace({
         project_id: projectId,
         id: traceId2,
         user_id: "user2",
-        timestamp: new Date().getTime(),
+        timestamp: traceTimestamp.getTime(),
       }),
     ];
 
@@ -399,6 +495,10 @@ describe("select all test suite", () => {
       trace_id: traceId1,
       dataset_run_id: runId,
       dataset_id: dataset.id,
+      dataset_run_created_at: datasetRunItemTimestamp.getTime(),
+      created_at: datasetRunItemTimestamp.getTime(),
+      updated_at: datasetRunItemTimestamp.getTime(),
+      event_ts: datasetRunItemTimestamp.getTime(),
     });
 
     const datasetRunItem2 = createDatasetRunItem({
@@ -408,27 +508,13 @@ describe("select all test suite", () => {
       trace_id: traceId2,
       dataset_run_id: runId,
       dataset_id: dataset.id,
+      dataset_run_created_at: datasetRunItemTimestamp.getTime(),
+      created_at: datasetRunItemTimestamp.getTime(),
+      updated_at: datasetRunItemTimestamp.getTime(),
+      event_ts: datasetRunItemTimestamp.getTime(),
     });
 
     await createDatasetRunItemsCh([datasetRunItem1, datasetRunItem2]);
-
-    // Create clickhouse run items
-    await createDatasetRunItemsCh([
-      createDatasetRunItem({
-        project_id: projectId,
-        dataset_id: dataset.id,
-        dataset_run_id: runId,
-        dataset_item_id: datasetItem1.id,
-        trace_id: traceId1,
-      }),
-      createDatasetRunItem({
-        project_id: projectId,
-        dataset_id: dataset.id,
-        dataset_run_id: runId,
-        dataset_item_id: datasetItem2.id,
-        trace_id: traceId2,
-      }),
-    ]);
 
     const templateId = uuidv4();
 
@@ -442,7 +528,7 @@ describe("select all test suite", () => {
         model: "gpt-3.5-turbo",
         provider: "openai",
         modelParams: {},
-        outputSchema: {
+        outputDefinition: {
           reasoning: "Please explain your reasoning",
           score: "Please provide a score between 0 and 1",
         },
@@ -465,15 +551,12 @@ describe("select all test suite", () => {
         jobType: "EVAL",
         delay: 0,
         sampling: new Decimal("1"),
-        targetObject: "dataset",
+        targetObject: EvalTargetObject.DATASET,
         scoreName: "score",
         variableMapping: JSON.parse("[]"),
         evalTemplateId: templateId,
       },
     });
-
-    const queue = getQueue(QueueName.CreateEvalQueue);
-    await queue?.obliterate({ force: true });
 
     const payload = {
       id: uuidv4(),
@@ -482,9 +565,9 @@ describe("select all test suite", () => {
       payload: {
         projectId,
         actionId: "eval-create" as const,
-        targetObject: "dataset" as const,
+        targetObject: EvalTargetObject.DATASET,
         configId,
-        cutoffCreatedAt: new Date(),
+        cutoffCreatedAt,
         query: {
           filter: [
             {
@@ -502,49 +585,59 @@ describe("select all test suite", () => {
       },
     };
 
-    await handleBatchActionJob(payload);
-
     await waitForExpect(async () => {
-      try {
-        const jobs = await queue?.getJobs();
-        expect(jobs).toHaveLength(2);
-        const jobTraceIds = jobs?.map((job) => job.data.payload.traceId);
-        expect(jobTraceIds).toContain(traceId1);
-        expect(jobTraceIds).toContain(traceId2);
+      const dbReadStream = await getDatabaseReadStreamPaginated({
+        projectId,
+        cutoffCreatedAt,
+        filter: payload.payload.query.filter,
+        orderBy: payload.payload.query.orderBy,
+        tableName: BatchTableNames.DatasetRunItems,
+      });
 
-        const jobDatasetIds = jobs?.map(
-          (job) => job.data.payload.datasetItemId,
-        );
-        expect(jobDatasetIds).toContain(datasetItem1.id);
-        expect(jobDatasetIds).toContain(datasetItem2.id);
-        const configIds = jobs?.map((job) => job.data.payload.configId);
-        expect(configIds).toContain(configId);
-      } catch (e) {
-        logger.error(e);
-        throw e;
+      const datasetRunItems: unknown[] = [];
+      for await (const item of dbReadStream) {
+        datasetRunItems.push(item);
       }
+
+      expect(datasetRunItems).toHaveLength(2);
+    }, 15_000);
+
+    await withIsolatedCreateEvalQueue(projectId, async (queue) => {
+      await handleBatchActionJob(payload, { evalCreatorQueue: queue });
+
+      const jobs = await waitForCreateEvalQueueJobs({
+        queue,
+        expectedLength: 2,
+      });
+
+      const jobTraceIds = jobs.map((job) => job.data.payload.traceId);
+      expect(jobTraceIds).toContain(traceId1);
+      expect(jobTraceIds).toContain(traceId2);
+
+      const jobDatasetIds = jobs.map((job) => job.data.payload.datasetItemId);
+      expect(jobDatasetIds).toContain(datasetItem1.id);
+      expect(jobDatasetIds).toContain(datasetItem2.id);
+      const configIds = jobs.map((job) => job.data.payload.configId);
+      expect(configIds).toContain(configId);
     });
-  });
+  }, 30_000);
 
   it("should not create evals if config does not exist", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     // Create a trace
     const traceId = uuidv4();
+    const traceTimestamp = new Date("2024-01-01T00:00:00.000Z");
     await createTracesCh([
       createTrace({
         project_id: projectId,
         id: traceId,
-        timestamp: new Date("2024-01-01").getTime(),
+        timestamp: traceTimestamp.getTime(),
       }),
     ]);
 
     // Use a non-existent config ID
     const nonExistentConfigId = uuidv4();
-
-    const queue = getQueue(QueueName.CreateEvalQueue);
-    // Clear any existing jobs
-    await queue?.obliterate({ force: true });
 
     const payload = {
       id: uuidv4(),
@@ -553,9 +646,9 @@ describe("select all test suite", () => {
       payload: {
         projectId,
         actionId: "eval-create" as const,
-        targetObject: "trace" as const,
+        targetObject: EvalTargetObject.TRACE,
         configId: nonExistentConfigId,
-        cutoffCreatedAt: new Date(),
+        cutoffCreatedAt: new Date("2024-01-02T00:00:00.000Z"),
         query: {
           filter: [],
           orderBy: {
@@ -566,13 +659,280 @@ describe("select all test suite", () => {
       },
     };
 
-    // This should not throw
-    await expect(handleBatchActionJob(payload)).resolves.not.toThrow();
+    await withIsolatedCreateEvalQueue(projectId, async (queue) => {
+      await expect(
+        handleBatchActionJob(payload, { evalCreatorQueue: queue }),
+      ).resolves.not.toThrow();
 
-    // Verify no jobs were created
-    await waitForExpect(async () => {
-      const jobs = await queue?.getJobs();
+      const jobs = await waitForCreateEvalQueueJobs({
+        queue,
+        expectedLength: 0,
+      });
+
       expect(jobs).toHaveLength(0);
     });
+  });
+});
+
+maybeDescribe("events table batch actions", () => {
+  it("should add observations to dataset from events table with full mapping", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = uuidv4();
+    const trace = createTrace({
+      project_id: projectId,
+      id: traceId,
+      timestamp: new Date().getTime(),
+    });
+    await createTracesCh([trace]);
+
+    const eventInput1 = { prompt: "Hello, how are you?" };
+    const eventOutput1 = { response: "I'm fine, thank you!" };
+    const eventInput2 = { prompt: "What is 2+2?" };
+    const eventOutput2 = { response: "4" };
+
+    const event1 = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      input: eventInput1,
+      output: eventOutput1,
+      metadata_names: ["source"],
+      metadata_values: ["test"],
+    });
+    const event2 = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      input: eventInput2,
+      output: eventOutput2,
+      metadata_names: ["source"],
+      metadata_values: ["test"],
+    });
+
+    await createEventsCh([event1, event2]);
+
+    const datasetName = uuidv4();
+    const dataset = await prisma.dataset.create({
+      data: {
+        id: uuidv4(),
+        projectId,
+        name: datasetName,
+      },
+    });
+
+    const batchAction = await prisma.batchAction.create({
+      data: {
+        projectId,
+        userId: "test-user",
+        actionType: "observation-add-to-dataset",
+        tableName: BatchTableNames.Events,
+        status: BatchActionStatus.Queued,
+        query: { filter: [], orderBy: null },
+      },
+    });
+
+    await handleBatchActionJob({
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        batchActionId: batchAction.id,
+        projectId,
+        actionId: "observation-add-to-dataset" as const,
+        tableName: BatchTableNames.Events,
+        cutoffCreatedAt: new Date(),
+        query: { filter: [], orderBy: null },
+        config: {
+          datasetId: dataset.id,
+          datasetName: dataset.name,
+          mapping: {
+            input: { mode: "full" as const },
+            expectedOutput: { mode: "full" as const },
+            metadata: { mode: "none" as const },
+          },
+        },
+        type: BatchActionType.Create,
+      },
+    });
+
+    const datasetItems = await prisma.datasetItem.findMany({
+      where: { datasetId: dataset.id },
+    });
+
+    expect(datasetItems).toHaveLength(2);
+
+    const eventSpanIds = [event1.span_id, event2.span_id];
+    for (const item of datasetItems) {
+      expect(eventSpanIds).toContain(item.sourceObservationId);
+      expect(item.sourceTraceId).toBe(traceId);
+      expect(item.metadata).toBeNull();
+    }
+
+    // Verify each item's input/output matches the corresponding event
+    const item1 = datasetItems.find(
+      (i) => i.sourceObservationId === event1.span_id,
+    );
+    const item2 = datasetItems.find(
+      (i) => i.sourceObservationId === event2.span_id,
+    );
+
+    expect(item1?.input).toEqual(eventInput1);
+    expect(item1?.expectedOutput).toEqual(eventOutput1);
+    expect(item2?.input).toEqual(eventInput2);
+    expect(item2?.expectedOutput).toEqual(eventOutput2);
+
+    // Verify batch action status
+    const updatedBatchAction = await prisma.batchAction.findUnique({
+      where: { id: batchAction.id },
+    });
+    expect(updatedBatchAction?.status).toBe(BatchActionStatus.Completed);
+    expect(updatedBatchAction?.processedCount).toBe(2);
+  });
+
+  it("should apply jsonSelector mapping when adding events to dataset", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = uuidv4();
+    const trace = createTrace({
+      project_id: projectId,
+      id: traceId,
+      timestamp: new Date().getTime(),
+    });
+    await createTracesCh([trace]);
+
+    const eventInput = {
+      messages: [
+        { role: "system", content: "You are helpful." },
+        { role: "user", content: "What is 2+2?" },
+      ],
+    };
+    const eventOutput = {
+      choices: [{ message: { content: "4", role: "assistant" } }],
+    };
+    const eventMetadata = { user_id: "user-123", session_id: "session-456" };
+
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      input: eventInput,
+      output: eventOutput,
+      metadata_names: Object.keys(eventMetadata),
+      metadata_values: Object.values(eventMetadata),
+    });
+
+    await createEventsCh([event]);
+
+    const datasetName = uuidv4();
+    const dataset = await prisma.dataset.create({
+      data: {
+        id: uuidv4(),
+        projectId,
+        name: datasetName,
+      },
+    });
+
+    const batchAction = await prisma.batchAction.create({
+      data: {
+        projectId,
+        userId: "test-user",
+        actionType: "observation-add-to-dataset",
+        tableName: BatchTableNames.Events,
+        status: BatchActionStatus.Queued,
+        query: { filter: [], orderBy: null },
+      },
+    });
+
+    await handleBatchActionJob({
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        batchActionId: batchAction.id,
+        projectId,
+        actionId: "observation-add-to-dataset" as const,
+        tableName: BatchTableNames.Events,
+        cutoffCreatedAt: new Date(),
+        query: { filter: [], orderBy: null },
+        config: {
+          datasetId: dataset.id,
+          datasetName: dataset.name,
+          mapping: {
+            input: {
+              mode: "custom" as const,
+              custom: {
+                type: "keyValueMap" as const,
+                keyValueMapConfig: {
+                  entries: [
+                    {
+                      id: "1",
+                      key: "prompt",
+                      sourceField: "input" as const,
+                      value: "$.messages[1].content",
+                    },
+                    {
+                      id: "2",
+                      key: "system",
+                      sourceField: "input" as const,
+                      value: "$.messages[0].content",
+                    },
+                  ],
+                },
+              },
+            },
+            expectedOutput: {
+              mode: "custom" as const,
+              custom: {
+                type: "root" as const,
+                rootConfig: {
+                  sourceField: "output" as const,
+                  jsonPath: "$.choices[0].message.content",
+                },
+              },
+            },
+            metadata: {
+              mode: "custom" as const,
+              custom: {
+                type: "keyValueMap" as const,
+                keyValueMapConfig: {
+                  entries: [
+                    {
+                      id: "3",
+                      key: "user",
+                      sourceField: "metadata" as const,
+                      value: "$.user_id",
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        type: BatchActionType.Create,
+      },
+    });
+
+    const datasetItems = await prisma.datasetItem.findMany({
+      where: { datasetId: dataset.id },
+    });
+
+    expect(datasetItems).toHaveLength(1);
+
+    const item = datasetItems[0];
+    expect(item.sourceObservationId).toBe(event.span_id);
+    expect(item.sourceTraceId).toBe(traceId);
+    expect(item.input).toEqual({
+      prompt: "What is 2+2?",
+      system: "You are helpful.",
+    });
+    // The jsonPath extracts the string "4" from output, but it's stored as a
+    // JSON scalar in Postgres. Prisma deserializes the JSON column as a number.
+    expect(item.expectedOutput).toBe(4);
+    expect(item.metadata).toEqual({ user: "user-123" });
+
+    // Verify batch action status
+    const updatedBatchAction = await prisma.batchAction.findUnique({
+      where: { id: batchAction.id },
+    });
+    expect(updatedBatchAction?.status).toBe(BatchActionStatus.Completed);
+    expect(updatedBatchAction?.processedCount).toBe(1);
   });
 });

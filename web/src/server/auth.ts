@@ -7,7 +7,10 @@ import {
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@langfuse/shared/src/db";
-import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+import {
+  hashPassword,
+  verifyPassword,
+} from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
@@ -41,7 +44,7 @@ import {
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
 import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { CloudConfigSchema } from "@langfuse/shared";
 import {
   CustomSSOProvider,
@@ -61,6 +64,7 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
+import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -121,11 +125,17 @@ const staticProviders: Provider[] = [
         },
       });
 
-      if (!dbUser) throw new Error("Invalid credentials");
-      if (dbUser.password === null)
+      if (!dbUser) {
+        // Keep bcrypt work comparable across failed login paths to reduce timing-based user enumeration.
+        await hashPassword(credentials.password);
+        throw new Error("Invalid credentials");
+      }
+
+      if (dbUser.password === null) {
         throw new Error(
           "Please sign in with the identity provider (e.g. Google, GitHub, Azure AD, etc.) that is linked to your account.",
         );
+      }
 
       const isValidPassword = await verifyPassword(
         credentials.password,
@@ -183,6 +193,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_CUSTOM_CHECKS ? { checks: env.AUTH_CUSTOM_CHECKS } : {}),
     }),
@@ -197,6 +213,12 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
         env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_GOOGLE_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_GOOGLE_CHECKS ? { checks: env.AUTH_GOOGLE_CHECKS } : {}),
     }),
@@ -216,6 +238,12 @@ if (
         env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_OKTA_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_OKTA_CHECKS ? { checks: env.AUTH_OKTA_CHECKS } : {}),
     }),
@@ -225,22 +253,53 @@ if (
   env.AUTH_AUTHENTIK_CLIENT_ID &&
   env.AUTH_AUTHENTIK_CLIENT_SECRET &&
   env.AUTH_AUTHENTIK_ISSUER
-)
-  staticProviders.push(
-    AuthentikProvider({
-      clientId: env.AUTH_AUTHENTIK_CLIENT_ID,
-      clientSecret: env.AUTH_AUTHENTIK_CLIENT_SECRET,
-      issuer: env.AUTH_AUTHENTIK_ISSUER,
-      allowDangerousEmailAccountLinking:
-        env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
-      client: {
-        token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
-      },
-      ...(env.AUTH_AUTHENTIK_CHECKS
-        ? { checks: env.AUTH_AUTHENTIK_CHECKS }
+) {
+  const authentikProvider = AuthentikProvider({
+    clientId: env.AUTH_AUTHENTIK_CLIENT_ID,
+    clientSecret: env.AUTH_AUTHENTIK_CLIENT_SECRET,
+    issuer: env.AUTH_AUTHENTIK_ISSUER,
+    allowDangerousEmailAccountLinking:
+      env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
+    client: {
+      token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
+      ...(env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG
+        ? {
+            id_token_signed_response_alg:
+              env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG,
+          }
         : {}),
-    }),
-  );
+    },
+    ...(env.AUTH_AUTHENTIK_CHECKS ? { checks: env.AUTH_AUTHENTIK_CHECKS } : {}),
+  });
+
+  if (env.AUTH_AUTHENTIK_AUTHORIZATION_URL) {
+    // For reverse proxy setups where authentik's external URL differs from
+    // the internal issuer, well-known discovery can't be used. We disable it
+    // and derive token/userinfo/JWKS endpoints from the issuer, assuming
+    // authentik's standard URL layout: <host>/application/o/<slug>.
+    const authentikIssuer = env.AUTH_AUTHENTIK_ISSUER.replace(/\/$/, "");
+    const authentikBase = authentikIssuer.replace(
+      /\/application\/o\/[^/]+$/,
+      "/application/o/",
+    );
+    const authentikJwksUrl = `${authentikIssuer}/jwks/`;
+
+    authentikProvider.wellKnown = undefined;
+    authentikProvider.authorization = {
+      url: env.AUTH_AUTHENTIK_AUTHORIZATION_URL,
+      params: { scope: "openid email profile" },
+    };
+    authentikProvider.token = {
+      url: `${authentikBase}token/`,
+    };
+    authentikProvider.userinfo = {
+      url: `${authentikBase}userinfo/`,
+    };
+    authentikProvider.jwks_endpoint = authentikJwksUrl;
+  }
+
+  staticProviders.push(authentikProvider);
+}
 
 if (
   env.AUTH_ONELOGIN_CLIENT_ID &&
@@ -256,6 +315,12 @@ if (
         env.AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_ONELOGIN_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_ONELOGIN_CHECKS ? { checks: env.AUTH_ONELOGIN_CHECKS } : {}),
     }),
@@ -275,8 +340,54 @@ if (
         env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_AUTH0_CHECKS ? { checks: env.AUTH_AUTH0_CHECKS } : {}),
+    }),
+  );
+
+// Langfuse Cloud only: "Sign in with ClickHouse Cloud"
+// Uses Auth0Provider with a custom provider ID so the callback URL becomes
+// /api/auth/callback/clickhouse-cloud. NOT intended for self-hosted Langfuse.
+if (
+  env.AUTH_CLICKHOUSE_CLOUD_CLIENT_ID &&
+  env.AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET &&
+  env.AUTH_CLICKHOUSE_CLOUD_ISSUER &&
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+)
+  staticProviders.push(
+    Auth0Provider({
+      id: "clickhouse-cloud",
+      name: "ClickHouse Cloud",
+      clientId: env.AUTH_CLICKHOUSE_CLOUD_CLIENT_ID,
+      clientSecret: env.AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET,
+      issuer: env.AUTH_CLICKHOUSE_CLOUD_ISSUER,
+      authorization: {
+        params: {
+          scope: "openid email profile",
+          // audience: "langfuse",
+        },
+      },
+      allowDangerousEmailAccountLinking:
+        env.AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method:
+          env.AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
+      },
+      ...(env.AUTH_CLICKHOUSE_CLOUD_CHECKS
+        ? { checks: env.AUTH_CLICKHOUSE_CLOUD_CHECKS }
+        : {}),
     }),
   );
 
@@ -285,6 +396,10 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
     GitHubProvider({
       clientId: env.AUTH_GITHUB_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
+      // Required for RFC 9207: GitHub now sends iss in OAuth callbacks
+      // TODO perhaps add "https://github.com/login/oauth/.well-known/openid-configuration"
+      // when github starts providing userinfo
+      issuer: "https://github.com/login/oauth",
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
       client: {
@@ -304,6 +419,7 @@ if (
       clientId: env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
       enterprise: { baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL },
+      issuer: new URL("/login/oauth", env.AUTH_GITHUB_ENTERPRISE_BASE_URL).href,
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
       client: {
@@ -327,6 +443,12 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       issuer: env.AUTH_GITLAB_ISSUER,
       client: {
         token_endpoint_auth_method: env.AUTH_GITLAB_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       authorization: {
         url: `${env.AUTH_GITLAB_URL}/oauth/authorize`,
@@ -352,6 +474,12 @@ if (
         env.AUTH_AZURE_AD_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_AZURE_AD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_AZURE_AD_CHECKS ? { checks: env.AUTH_AZURE_AD_CHECKS } : {}),
     }),
@@ -371,6 +499,12 @@ if (
         env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_COGNITO_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_COGNITO_CHECKS
         ? { checks: env.AUTH_COGNITO_CHECKS }
@@ -396,6 +530,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_KEYCLOAK_CHECKS ? { checks: env.AUTH_KEYCLOAK_CHECKS } : {}),
     }),
@@ -418,6 +558,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_JUMPCLOUD_CHECKS
         ? { checks: env.AUTH_JUMPCLOUD_CHECKS }
@@ -447,6 +593,12 @@ if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
         env.AUTH_WORDPRESS_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_WORDPRESS_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_WORDPRESS_CHECKS
         ? { checks: env.AUTH_WORDPRESS_CHECKS }
@@ -477,7 +629,7 @@ const extendedPrismaAdapter: Adapter = {
 
     const user = await prismaAdapter.createUser(profile);
 
-    await createProjectMembershipsOnSignup(user);
+    await createProjectMembershipsOnSignup(user, { userWasJustCreated: true });
 
     return user;
   },
@@ -622,8 +774,10 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               email: true,
               image: true,
               emailVerified: true,
+              createdAt: true,
               featureFlags: true,
               admin: true,
+              v4BetaEnabled: true,
               organizationMemberships: {
                 include: {
                   organization: {
@@ -649,6 +803,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
           span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
+          const isCloudDeploymentOrDev = Boolean(
+            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          );
 
           return {
             ...session,
@@ -671,6 +828,23 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
+                    v4BetaEnabled: isCloudDeploymentOrDev
+                      ? dbUser.v4BetaEnabled
+                      : false,
+                    canToggleV4: isCloudDeploymentOrDev
+                      ? canToggleV4({
+                          userCreatedAt: dbUser.createdAt,
+                          organizations: dbUser.organizationMemberships.map(
+                            (orgMembership) => ({
+                              id: orgMembership.organization.id,
+                              createdAt: orgMembership.organization.createdAt,
+                            }),
+                          ),
+                          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+                            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+                            : [],
+                        })
+                      : false,
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,
                     ),
@@ -704,6 +878,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                                 name: project.name,
                                 role: projectRole,
                                 retentionDays: project.retentionDays,
+                                hasTraces: project.hasTraces,
                                 deletedAt: project.deletedAt,
                                 metadata:
                                   (project.metadata as Record<
@@ -742,7 +917,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             logger.error("No email found in user object");
             throw new Error("No email found in user object");
           }
-          if (z.string().email().safeParse(email).success === false) {
+          if (z.email().safeParse(email).success === false) {
             logger.error("Invalid email found in user object");
             throw new Error("Invalid email found in user object");
           }

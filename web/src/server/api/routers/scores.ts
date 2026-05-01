@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -14,6 +14,7 @@ import {
 import {
   orderBy,
   paginationZod,
+  normalizeOrderByForTable,
   singleFilter,
   timeFilter,
   UpdateAnnotationScoreData,
@@ -25,6 +26,7 @@ import {
   ActionId,
   BatchExportTableName,
   type ScoreDomain,
+  type FilterState,
   CreateAnnotationScoreData,
   type ScoreConfigDomain,
   ScoreSourceEnum,
@@ -35,11 +37,17 @@ import {
   getScoresGroupedByNameSourceType,
   getScoresUiCount,
   getScoresUiTable,
+  getScoresUiCountFromEvents,
+  getScoresUiTableFromEvents,
+  getTraceMetadataByIdsFromEvents,
   getScoreNames,
   getScoreStringValues,
   getTracesGroupedByTags,
   getTracesGroupedByName,
   getTracesGroupedByUsers,
+  getEventsGroupedByTraceName,
+  getEventsGroupedByTraceTags,
+  getEventsGroupedByUserId,
   tracesTableUiColumnDefinitions,
   upsertScore,
   logger,
@@ -85,6 +93,13 @@ type AllScoresReturnType = Omit<ScoreDomain, "metadata"> & {
   hasMetadata: boolean;
 };
 
+type AllScoresFromEventsReturnType = Omit<ScoreDomain, "metadata"> & {
+  jobConfigurationId: string | null;
+  authorUserImage: string | null;
+  authorUserName: string | null;
+  hasMetadata: boolean;
+};
+
 export const scoresRouter = createTRPCRouter({
   /**
    * Get all scores for a project, meant for internal use and *excludes metadata of scores*
@@ -92,10 +107,14 @@ export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "timestamp",
+      });
       const clickhouseScoreData = await getScoresUiTable({
         projectId: input.projectId,
         filter: input.filter ?? [],
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         limit: input.limit,
         offset: input.page * input.limit,
         excludeMetadata: true,
@@ -170,16 +189,186 @@ export const scoresRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "timestamp",
+      });
       const clickhouseScoreData = await getScoresUiCount({
         projectId: input.projectId,
         filter: input.filter ?? [],
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         limit: 1,
         offset: 0,
       });
 
       return {
         totalCount: clickhouseScoreData,
+      };
+    }),
+  /**
+   * v4: Get all scores without traces JOIN. Trace metadata loaded via metricsFromEvents.
+   */
+  allFromEvents: protectedProjectProcedure
+    .input(ScoreAllOptions)
+    .query(async ({ input, ctx }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "timestamp",
+      });
+      const clickhouseScoreData = await getScoresUiTableFromEvents({
+        projectId: input.projectId,
+        filter: input.filter ?? [],
+        orderBy: normalizedOrderBy,
+        limit: input.limit,
+        offset: input.page * input.limit,
+      });
+
+      const [jobExecutions, users] = await Promise.all([
+        ctx.prisma.jobExecution.findMany({
+          where: {
+            projectId: input.projectId,
+            jobOutputScoreId: {
+              in: clickhouseScoreData.map((score) => score.id),
+            },
+          },
+          select: {
+            id: true,
+            jobConfigurationId: true,
+            jobOutputScoreId: true,
+          },
+        }),
+        ctx.prisma.user.findMany({
+          where: {
+            id: {
+              in: clickhouseScoreData
+                .map((score) => score.authorUserId)
+                .filter((s): s is string => Boolean(s)),
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          },
+        }),
+      ]);
+
+      return {
+        scores: clickhouseScoreData.map<AllScoresFromEventsReturnType>(
+          (score) => {
+            const jobExecution = jobExecutions.find(
+              (je) => je.jobOutputScoreId === score.id,
+            );
+            const user = users.find((u) => u.id === score.authorUserId);
+            return {
+              ...score,
+              jobConfigurationId: jobExecution?.jobConfigurationId ?? null,
+              authorUserImage: user?.image ?? null,
+              authorUserName: user?.name ?? null,
+            };
+          },
+        ),
+      };
+    }),
+  /**
+   * v4: Count scores without traces JOIN.
+   */
+  countAllFromEvents: protectedProjectProcedure
+    .input(ScoreAllOptions)
+    .query(async ({ input }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "timestamp",
+      });
+      const count = await getScoresUiCountFromEvents({
+        projectId: input.projectId,
+        filter: input.filter ?? [],
+        orderBy: normalizedOrderBy,
+        limit: 1,
+        offset: 0,
+      });
+
+      return {
+        totalCount: count,
+      };
+    }),
+  /**
+   * v4: Load trace metadata (name, userId, tags) via eventsTracesAggregation
+   * builder for a page of scores.
+   */
+  metricsFromEvents: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input }) => {
+      if (input.traceIds.length === 0) return [];
+      const rows = await getTraceMetadataByIdsFromEvents({
+        projectId: input.projectId,
+        traceIds: input.traceIds,
+      });
+      return rows.map((row) => ({
+        traceId: row.id,
+        traceName: row.name || null,
+        userId: row.user_id || null,
+        tags: row.tags && row.tags.length > 0 ? row.tags : null,
+      }));
+    }),
+  /**
+   * v4: Filter options via events-backed aggregations instead of traces table.
+   */
+  filterOptionsFromEvents: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        timestampFilter: z.array(timeFilter).optional(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const { timestampFilter } = input;
+
+      const eventsFilter: FilterState = [];
+      if (timestampFilter && timestampFilter.length > 0) {
+        eventsFilter.push(
+          ...timestampFilter.map((tf) => ({
+            ...tf,
+            column: "startTime" as const,
+          })),
+        );
+      }
+
+      const scoredTracesScope =
+        "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String})";
+
+      const [names, tags, traceNames, userIds, stringValues] =
+        await Promise.all([
+          getScoreNames(input.projectId, timestampFilter ?? []),
+          getEventsGroupedByTraceTags(input.projectId, eventsFilter, {
+            extraWhereRaw: scoredTracesScope,
+          }),
+          getEventsGroupedByTraceName(input.projectId, eventsFilter, {
+            extraWhereRaw: scoredTracesScope,
+          }),
+          getEventsGroupedByUserId(input.projectId, eventsFilter, {
+            extraWhereRaw: scoredTracesScope,
+          }),
+          getScoreStringValues(input.projectId, timestampFilter ?? []),
+        ]);
+
+      return {
+        name: names.map((i) => ({ value: i.name, count: i.count })),
+        tags: tags.map((t) => ({ value: t.tag })),
+        traceName: traceNames.map((tn) => ({
+          value: tn.traceName,
+          count: Number(tn.count),
+        })),
+        userId: userIds.map((u) => ({
+          value: u.userId,
+          count: Number(u.count),
+        })),
+        stringValue: stringValues,
       };
     }),
   filterOptions: protectedProjectProcedure

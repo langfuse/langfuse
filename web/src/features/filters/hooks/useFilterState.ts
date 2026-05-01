@@ -21,6 +21,15 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
+import { experimentsTableCols } from "@/src/features/experiments/components/table/filter-config";
+import { experimentItemsTableCols } from "@/src/features/experiments/config/experiment-items-filter-config";
+import {
+  escapePipeInValue,
+  splitOnUnescapedPipe,
+  unescapePipeInValue,
+} from "../lib/filter-query-encoding";
+import { normalizeLegacySessionPositionInTraceKey } from "@/src/components/session/session-position-in-trace";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -41,7 +50,8 @@ const getCommaArrayParam = (table: TableName) => ({
           const stringified = `${columnId};${f.type};${
             f.type === "numberObject" ||
             f.type === "stringObject" ||
-            f.type === "categoryOptions"
+            f.type === "categoryOptions" ||
+            f.type === "positionInTrace"
               ? f.key
               : ""
           };${f.operator};${encodeURIComponent(
@@ -50,8 +60,12 @@ const getCommaArrayParam = (table: TableName) => ({
               : f.type === "stringOptions" ||
                   f.type === "arrayOptions" ||
                   f.type === "categoryOptions"
-                ? f.value.join("|")
-                : f.value,
+                ? (f.value as string[]).map(escapePipeInValue).join("|")
+                : f.type === "positionInTrace"
+                  ? f.value === undefined || f.value === null
+                    ? ""
+                    : f.value
+                  : f.value,
           )}`;
 
           if (DEBUG_QUERY_STATE) console.log("stringified", stringified);
@@ -70,6 +84,10 @@ const getCommaArrayParam = (table: TableName) => ({
         if (DEBUG_QUERY_STATE)
           console.log("values", [column, type, key, operator, value]);
         const decodedValue = value ? decodeURIComponent(value) : undefined;
+        const normalizedKey =
+          type === "positionInTrace"
+            ? normalizeLegacySessionPositionInTraceKey(key)
+            : key;
         const parsedValue =
           decodedValue === undefined || type === undefined
             ? undefined
@@ -77,18 +95,24 @@ const getCommaArrayParam = (table: TableName) => ({
               ? new Date(decodedValue)
               : type === "number" || type === "numberObject"
                 ? Number(decodedValue)
-                : type === "stringOptions" ||
-                    type === "arrayOptions" ||
-                    type === "categoryOptions"
-                  ? decodedValue.split("|")
-                  : type === "boolean"
-                    ? decodedValue === "true"
-                    : decodedValue;
+                : type === "positionInTrace"
+                  ? decodedValue === ""
+                    ? undefined
+                    : Number(decodedValue)
+                  : type === "stringOptions" ||
+                      type === "arrayOptions" ||
+                      type === "categoryOptions"
+                    ? splitOnUnescapedPipe(decodedValue).map(
+                        unescapePipeInValue,
+                      )
+                    : type === "boolean"
+                      ? decodedValue === "true"
+                      : decodedValue;
 
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
           column: getColumnName(table, column),
-          key: key !== "" ? key : undefined,
+          key: normalizedKey !== "" ? normalizedKey : undefined,
           operator,
           value: parsedValue,
           type,
@@ -105,6 +129,8 @@ export const useQueryFilterState = (
   table: TableName,
   projectId?: string, // Passing projectId is expected as filters might differ across projects. However, we can't call hooks conditionally. There is a case in the prompts table where this will only be used if projectId is defined, but it's not defined in all cases.
 ) => {
+  const peekContext = usePeekTableState();
+
   const [sessionFilterState, setSessionFilterState] =
     useSessionStorage<FilterState>(
       !!projectId ? `${table}FilterState-${projectId}` : `${table}FilterState`,
@@ -133,6 +159,16 @@ export const useQueryFilterState = (
     withDefault(getCommaArrayParam(table), sessionFilterState),
   );
 
+  if (peekContext) {
+    const setState = (newFilters: FilterState) => {
+      peekContext.setTableState({
+        ...peekContext.tableState,
+        filters: newFilters,
+      });
+    };
+    return [peekContext.tableState.filters, setState] as const;
+  }
+
   const setFilterStateWithSession = (newState: FilterState): void => {
     setFilterState(newState);
     setSessionFilterState(newState);
@@ -153,6 +189,8 @@ const tableCols = {
   dataset_items: datasetItemFilterColumns,
   dataset_runs: datasetRunsTableCols,
   dataset_run_items_by_run: datasetRunItemsTableCols,
+  experiments: experimentsTableCols,
+  "experiment-items": experimentItemsTableCols,
   widgets: [
     { id: "environment", name: "Environment" },
     { id: "traceName", name: "Trace Name" },

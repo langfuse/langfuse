@@ -1,4 +1,3 @@
-import { StreamingTextResponse } from "ai";
 import { NextResponse, type NextRequest } from "next/server";
 
 import {
@@ -39,7 +38,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
       projectId: body.projectId,
     });
 
-    return opentelemetry.context.with(baggageCtx, async () => {
+    return await opentelemetry.context.with(baggageCtx, async () => {
       const {
         messages,
         modelParams,
@@ -131,14 +130,26 @@ export default async function chatCompletionHandler(req: NextRequest) {
           streaming,
         });
 
-        return new StreamingTextResponse(completion);
+        return new Response(completion, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+          },
+        });
       } else {
         const completion = await fetchLLMCompletion({
           ...fetchLLMCompletionParams,
           streaming,
         });
 
-        return NextResponse.json({ content: completion });
+        if (typeof completion === "string") {
+          return NextResponse.json({ content: completion });
+        } else {
+          return NextResponse.json({
+            content: completion.text,
+            reasoning: completion.reasoning,
+          });
+        }
       }
     });
   } catch (err) {
@@ -155,14 +166,16 @@ export default async function chatCompletionHandler(req: NextRequest) {
     }
 
     if (err instanceof Error) {
+      const statusCode =
+        (err as any)?.response?.status ?? (err as any)?.status ?? 500;
+      const errorMessage = err.message || "An unknown error occurred";
+
       return NextResponse.json(
         {
-          message: err.message,
-          error: err,
+          message: errorMessage,
+          error: err.name || "Error",
         },
-        {
-          status: (err as any)?.response?.status ?? (err as any)?.status ?? 500,
-        },
+        { status: statusCode },
       );
     }
 

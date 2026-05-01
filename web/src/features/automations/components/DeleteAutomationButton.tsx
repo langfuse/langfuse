@@ -64,7 +64,7 @@ export const DeleteAutomationButton: React.FC<DeleteAutomationButtonProps> = ({
           <Button
             type="button"
             variant="outline"
-            className="flex items-center border-light-red"
+            className="border-light-red flex items-center"
             disabled={!hasAccess}
           >
             <span className="text-dark-red">Delete</span>

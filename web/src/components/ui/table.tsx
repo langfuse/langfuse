@@ -1,6 +1,11 @@
 import * as React from "react";
 
+import { Button } from "@/src/components/ui/button";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { cn } from "@/src/utils/tailwind";
+import { Check, Copy } from "lucide-react";
+
+type TableDensity = "compact" | "comfortable";
 
 const Table = React.forwardRef<
   HTMLTableElement,
@@ -44,7 +49,7 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     className={cn(
-      "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
+      "bg-muted/50 border-t font-medium last:[&>tr]:border-b-0",
       className,
     )}
     {...props}
@@ -59,7 +64,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+      "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
       className,
     )}
     {...props}
@@ -74,7 +79,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "relative h-10 border-b bg-background px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+      "bg-background text-muted-foreground relative h-10 border-b px-2 text-left align-middle font-medium [&:has([role=checkbox])]:pr-0",
       className,
     )}
     {...props}
@@ -84,12 +89,13 @@ TableHead.displayName = "TableHead";
 
 const TableCell = React.forwardRef<
   HTMLTableCellElement,
-  React.TdHTMLAttributes<HTMLTableCellElement>
->(({ className, ...props }, ref) => (
+  React.TdHTMLAttributes<HTMLTableCellElement> & { density?: TableDensity }
+>(({ className, density = "compact", ...props }, ref) => (
   <td
     ref={ref}
     className={cn(
-      "h-full px-2 py-0 align-middle [&:has([role=checkbox])]:pr-0",
+      "h-full align-middle [&:has([role=checkbox])]:pr-0",
+      density === "comfortable" ? "p-2" : "px-2 py-0",
       "border-b [:last-child_>_&]:border-b-0",
       className,
     )}
@@ -98,13 +104,66 @@ const TableCell = React.forwardRef<
 ));
 TableCell.displayName = "TableCell";
 
+type TableCellWithCopyButtonProps =
+  React.TdHTMLAttributes<HTMLTableCellElement> & {
+    text: string;
+    density?: TableDensity;
+    copyButtonLabel?: string;
+  };
+
+const TableCellWithCopyButton = React.forwardRef<
+  HTMLTableCellElement,
+  TableCellWithCopyButtonProps
+>(({ text, copyButtonLabel, className, ...props }, ref) => {
+  const { copy, isCopied } = useCopyToClipboard();
+
+  return (
+    <TableCell
+      ref={ref}
+      className={cn("relative min-w-0 pr-10", className)}
+      title={text}
+      {...props}
+    >
+      {text}
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        className="absolute top-1/2 right-2 -translate-y-1/2"
+        title={copyButtonLabel ?? "Copy to clipboard"}
+        aria-label={copyButtonLabel ?? "Copy to clipboard"}
+        onClick={async (event) => {
+          event.preventDefault();
+          const button = event.currentTarget;
+          try {
+            await copy(text);
+          } catch {
+            // Clipboard writes can be rejected when the browser denies permission.
+          }
+
+          if (button) {
+            // The original button might no longer be in the DOM if React re-rendered the component after the state update.
+            button.focus();
+          }
+        }}
+      >
+        {isCopied ? (
+          <Check className="h-3 w-3" />
+        ) : (
+          <Copy className="h-3 w-3" />
+        )}
+      </Button>
+    </TableCell>
+  );
+});
+TableCellWithCopyButton.displayName = "TableCellWithCopyButton";
+
 const TableCaption = React.forwardRef<
   HTMLTableCaptionElement,
   React.HTMLAttributes<HTMLTableCaptionElement>
 >(({ className, ...props }, ref) => (
   <caption
     ref={ref}
-    className={cn("mt-4 text-sm text-muted-foreground", className)}
+    className={cn("text-muted-foreground mt-4 text-sm", className)}
     {...props}
   />
 ));
@@ -118,5 +177,6 @@ export {
   TableHead,
   TableRow,
   TableCell,
+  TableCellWithCopyButton,
   TableCaption,
 };

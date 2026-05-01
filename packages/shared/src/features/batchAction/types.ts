@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { singleFilter } from "../../interfaces/filters";
 import { orderBy } from "../../interfaces/orderBy";
 import { BatchTableNames } from "../../interfaces/tableNames";
@@ -24,9 +24,11 @@ export enum ActionId {
   SessionAddToAnnotationQueue = "session-add-to-annotation-queue",
   ObservationAddToAnnotationQueue = "observation-add-to-annotation-queue",
   ObservationAddToDataset = "observation-add-to-dataset",
+  ObservationBatchEvaluation = "observation-run-batched-evaluation",
+  ExperimentCompare = "experiment-compare",
 }
 
-const ActionIdSchema = z.nativeEnum(ActionId);
+const ActionIdSchema = z.enum(ActionId);
 
 export const BatchActionQuerySchema = z.object({
   filter: z.array(singleFilter).nullable(),

@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -32,10 +32,11 @@ export const posthogIntegrationRouter = createTRPCRouter({
           return null;
         }
 
-        const { encryptedPosthogApiKey, ...config } = dbConfig;
+        const { encryptedPosthogApiKey, exportSource, ...config } = dbConfig;
 
         return {
           ...config,
+          exportSource,
           posthogApiKey: decrypt(encryptedPosthogApiKey),
         };
       } catch (e) {
@@ -101,11 +102,13 @@ export const posthogIntegrationRouter = createTRPCRouter({
           posthogHostName: config.posthogHostname,
           encryptedPosthogApiKey,
           enabled: config.enabled,
+          exportSource: config.exportSource,
         },
         update: {
           encryptedPosthogApiKey,
           posthogHostName: config.posthogHostname,
           enabled: config.enabled,
+          exportSource: config.exportSource,
         },
       });
     }),
