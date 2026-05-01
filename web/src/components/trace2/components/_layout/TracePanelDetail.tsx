@@ -19,26 +19,17 @@ import { useSelection } from "../../contexts/SelectionContext";
 import { useTraceData } from "../../contexts/TraceDataContext";
 import { TraceDetailView } from "../TraceDetailView/TraceDetailView";
 import { ObservationDetailView } from "../ObservationDetailView/ObservationDetailView";
-import { useMemo, useEffect } from "react";
+import { useMemo } from "react";
 
 export function TracePanelDetail() {
-  const { selectedNodeId, setSelectedNodeId } = useSelection();
+  const { selectedNodeId } = useSelection();
   const {
     trace,
-    roots,
     nodeMap,
     observations,
     serverScores: scores,
     corrections,
   } = useTraceData();
-
-  // Auto-select first root observation when roots are observations (not TRACE wrapped)
-  // This happens for events-based traces with observation roots
-  useEffect(() => {
-    if (!selectedNodeId && roots.length > 0 && roots[0].type !== "TRACE") {
-      setSelectedNodeId(roots[0].id);
-    }
-  }, [selectedNodeId, roots, setSelectedNodeId]);
 
   // Memoize to prevent recreation when deps haven't changed
   const content = useMemo(() => {
@@ -55,7 +46,7 @@ export function TracePanelDetail() {
       if (!observationData) {
         return (
           <div className="flex h-full w-full items-center justify-center p-4">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Observation not found
             </p>
           </div>
@@ -83,6 +74,6 @@ export function TracePanelDetail() {
   }, [selectedNodeId, nodeMap, trace, observations, scores, corrections]);
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-background">{content}</div>
+    <div className="bg-background h-full w-full overflow-y-auto">{content}</div>
   );
 }

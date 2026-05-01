@@ -1,5 +1,7 @@
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  deleteMediaFiles,
+  findExpiredMediaByProjectId,
   getS3MediaStorageClient,
   logger,
   recordGauge,
@@ -155,10 +157,7 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
   private async processProject(workload: ProjectWorkload): Promise<void> {
     // Delete media files (S3 + PostgreSQL)
     if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
-      await this.deleteExpiredMedia(
-        workload,
-        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-      );
+      await this.deleteExpiredMedia(workload);
     }
 
     // Delete blob storage entries (S3 + ClickHouse soft delete)
@@ -175,16 +174,10 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
     });
   }
 
-  private async deleteExpiredMedia(
-    workload: ProjectWorkload,
-    bucket: string,
-  ): Promise<void> {
-    const mediaFiles = await prisma.media.findMany({
-      select: { id: true, bucketPath: true },
-      where: {
-        projectId: workload.projectId,
-        createdAt: { lte: workload.cutoffDate },
-      },
+  private async deleteExpiredMedia(workload: ProjectWorkload): Promise<void> {
+    const mediaFiles = await findExpiredMediaByProjectId({
+      projectId: workload.projectId,
+      cutoffDate: workload.cutoffDate,
     });
 
     // Record gauge for observed work
@@ -196,16 +189,12 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
       return;
     }
 
-    // Delete from S3 first
-    const mediaStorageClient = getS3MediaStorageClient(bucket);
-    await mediaStorageClient.deleteFiles(mediaFiles.map((f) => f.bucketPath));
-
-    // Delete from PostgreSQL (cascades to traceMedia/observationMedia)
-    await prisma.media.deleteMany({
-      where: {
-        id: { in: mediaFiles.map((f) => f.id) },
-        projectId: workload.projectId,
-      },
+    await deleteMediaFiles({
+      projectId: workload.projectId,
+      mediaFiles,
+      storageClient: getS3MediaStorageClient(
+        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET!,
+      ),
     });
 
     // Record successful deletion metrics

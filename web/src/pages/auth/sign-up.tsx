@@ -14,7 +14,7 @@ import { signIn } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { env } from "@/src/env.mjs";
 import { useState } from "react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
@@ -45,7 +45,7 @@ const signupVerifyFormSchema = z.object({
   }).refine((value) => /^[a-zA-Z0-9\s]+$/.test(value), {
     message: "Name can only contain letters, numbers, and spaces",
   }),
-  email: z.string().email(),
+  email: z.email(),
 });
 
 type SignupPhase = "form" | "otp";
@@ -119,7 +119,7 @@ function StandardSignupFlow({
     form.clearErrors();
 
     // Ensure email is valid before hitting the API
-    // We use z.string().email() manually because we don't use the full schema resolver in the first step
+    // We use z.email() manually because we don't use the full schema resolver in the first step
     // or we could just trigger validation for the email field only
     const emailValue = form.getValues("email");
     // Basic check using zod directly or trigger
@@ -130,7 +130,7 @@ function StandardSignupFlow({
 
     // Manual email validation to match sign-in behavior
     // Although signupSchema.shape.email is ZodString, let's just use a new Zod check for simplicity and robustness
-    const emailSchema = z.string().email();
+    const emailSchema = z.email();
     const emailResult = emailSchema.safeParse(emailValue);
 
     if (!emailResult.success) {
@@ -295,7 +295,7 @@ function StandardSignupFlow({
             {showPasswordStep ? "Sign up" : "Continue"}
           </Button>
           {formError ? (
-            <div className="text-center text-sm font-medium text-destructive">
+            <div className="text-destructive text-center text-sm font-medium">
               {formError}
             </div>
           ) : null}
@@ -408,16 +408,16 @@ function VerifiedSignupFlow({
         <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
           <div className="sm:mx-auto sm:w-full sm:max-w-md">
             <LangfuseIcon className="mx-auto" />
-            <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
+            <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
               Check your email
             </h2>
-            <p className="mt-2 text-center text-sm text-muted-foreground">
+            <p className="text-muted-foreground mt-2 text-center text-sm">
               We sent a verification code to{" "}
               <span className="font-medium">{otpEmail}</span>
             </p>
           </div>
 
-          <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+          <div className="bg-background mt-14 px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
             <div className="space-y-6">
               <div>
                 <label
@@ -447,15 +447,15 @@ function VerifiedSignupFlow({
                 Verify
               </Button>
               {otpError && (
-                <div className="text-center text-sm font-medium text-destructive">
+                <div className="text-destructive text-center text-sm font-medium">
                   {otpError}
                 </div>
               )}
-              <p className="text-center text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-center text-xs">
                 The code is valid for 3 minutes.{" "}
                 <button
                   type="button"
-                  className="font-medium text-primary-accent hover:text-hover-primary-accent"
+                  className="text-primary-accent hover:text-hover-primary-accent font-medium"
                   onClick={() => {
                     setPhase("form");
                     setOtpCode("");
@@ -520,7 +520,7 @@ function VerifiedSignupFlow({
             Continue
           </Button>
           {formError ? (
-            <div className="text-center text-sm font-medium text-destructive">
+            <div className="text-destructive text-center text-sm font-medium">
               {formError}
             </div>
           ) : null}
@@ -553,7 +553,7 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <LangfuseIcon className="mx-auto" />
-          <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
+          <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             Create new account
           </h2>
         </div>
@@ -565,7 +565,7 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
 
         <CloudRegionSwitch isSignUpPage />
 
-        <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+        <div className="bg-background mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           {children}
         </div>
         <CloudPrivacyNotice action="creating an account" />
@@ -577,11 +577,11 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
 function SignupFooter() {
   const router = useRouter();
   return (
-    <p className="mt-10 text-center text-sm text-muted-foreground">
+    <p className="text-muted-foreground mt-10 text-center text-sm">
       Already have an account?{" "}
       <Link
         href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
-        className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
+        className="text-primary-accent hover:text-hover-primary-accent leading-6 font-semibold"
       >
         Sign in
       </Link>

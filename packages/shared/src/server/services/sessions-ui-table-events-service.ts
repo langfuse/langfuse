@@ -18,6 +18,8 @@ import {
 } from "../queries/clickhouse-sql/query-fragments";
 import { queryClickhouse } from "../repositories";
 import { sessionCols } from "../tableMappings/mapSessionTable";
+import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
+import { findUiColumnMapping } from "../../tableDefinitions";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
 
 type SessionEventsBaseReturnType = {
@@ -169,7 +171,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
     props;
 
   const sessionFilters = new FilterList(
-    createFilterFromFilterState(filter, sessionCols),
+    createFilterFromFilterState(filter, sessionCols, sessionsViewCols),
   );
   const sessionsFilterRes = sessionFilters.apply();
 
@@ -185,10 +187,8 @@ const getSessionsTableFromEventsGeneric = async <T>(
 
   const requiresScoresJoin =
     sessionFilters.some((f) => f.clickhouseTable === "scores") ||
-    sessionCols.find(
-      (c) =>
-        c.uiTableName === orderBy?.column || c.uiTableId === orderBy?.column,
-    )?.clickhouseTableName === "scores";
+    findUiColumnMapping(sessionCols, orderBy?.column)?.clickhouseTableName ===
+      "scores";
 
   // Build session_data CTE
   const sessionsBuilder = eventsSessionsAggregation({

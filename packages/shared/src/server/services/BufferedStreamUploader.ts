@@ -30,7 +30,7 @@ export interface ChunkedUploadStrategy {
   initialize(): Promise<void>;
   uploadPart(data: Buffer, partNumber: number): Promise<CompletedPart>;
   complete(parts: CompletedPart[]): Promise<void>;
-  abort(): Promise<void>;
+  abort(reason?: string): Promise<void>;
   uploadSingleObject(data: Buffer): Promise<void>;
 }
 
@@ -126,7 +126,9 @@ export class BufferedStreamUploader {
 
       // Handle empty stream: abort chunked upload, use single object upload instead
       if (this.partNumber === 0) {
-        await this.params.strategy.abort();
+        await this.params.strategy.abort(
+          "empty stream, falling back to single-part upload",
+        );
         await this.params.strategy.uploadSingleObject(Buffer.alloc(0));
         this.isCompleted = true;
         return;
@@ -140,7 +142,7 @@ export class BufferedStreamUploader {
     } finally {
       if (!this.isCompleted) {
         await Promise.all(this.inFlightUploads.values());
-        await this.params.strategy.abort();
+        await this.params.strategy.abort("upload failed or incomplete");
       }
     }
   }

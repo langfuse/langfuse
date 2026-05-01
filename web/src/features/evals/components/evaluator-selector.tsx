@@ -146,7 +146,7 @@ export function EvaluatorSelector({
                         className="max-h-[300px] max-w-[400px] overflow-y-auto"
                       >
                         <p className="mb-1 font-medium">Evaluation prompt</p>
-                        <pre className="whitespace-pre-wrap break-words text-xs text-muted-foreground">
+                        <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
                           {latestVersion.prompt}
                         </pre>
                       </TooltipContent>
@@ -156,7 +156,7 @@ export function EvaluatorSelector({
                         <TooltipTrigger asChild>
                           <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                         </TooltipTrigger>
-                        <TooltipContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal text-sm">
+                        <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
                           <p>Requires project-level evaluation model</p>
                           <Link
                             href={`/project/${projectId}/evals/default-model`}
@@ -175,7 +175,7 @@ export function EvaluatorSelector({
                         <Link
                           href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
                           target="_blank"
-                          className="ml-auto opacity-0 hover:opacity-100 group-hover:opacity-100"
+                          className="ml-auto opacity-0 group-hover:opacity-100 hover:opacity-100"
                           onClick={(e) => {
                             e.stopPropagation();
                           }}
@@ -188,7 +188,7 @@ export function EvaluatorSelector({
                       <Link
                         href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
                         target="_blank"
-                        className="ml-auto opacity-0 hover:opacity-100 group-hover:opacity-100"
+                        className="ml-auto opacity-0 group-hover:opacity-100 hover:opacity-100"
                         onClick={(e) => {
                           e.stopPropagation();
                         }}
@@ -237,7 +237,7 @@ export function EvaluatorSelector({
                         className="max-h-[300px] max-w-[400px] overflow-y-auto"
                       >
                         <p className="mb-1 font-medium">Evaluation prompt</p>
-                        <pre className="whitespace-pre-wrap break-words text-xs text-muted-foreground">
+                        <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
                           {latestVersion.prompt}
                         </pre>
                       </TooltipContent>
@@ -250,7 +250,7 @@ export function EvaluatorSelector({
                         <TooltipTrigger asChild>
                           <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                         </TooltipTrigger>
-                        <TooltipContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal text-sm">
+                        <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
                           <p>Requires project-level evaluation model</p>
                           <Link
                             href={`/project/${projectId}/evals/default-model`}
@@ -269,7 +269,7 @@ export function EvaluatorSelector({
                         <Link
                           href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
                           target="_blank"
-                          className="ml-auto opacity-0 hover:opacity-100 group-hover:opacity-100"
+                          className="ml-auto opacity-0 group-hover:opacity-100 hover:opacity-100"
                           onClick={(e) => {
                             e.stopPropagation();
                           }}
@@ -282,7 +282,7 @@ export function EvaluatorSelector({
                       <Link
                         href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
                         target="_blank"
-                        className="ml-auto opacity-0 hover:opacity-100 group-hover:opacity-100"
+                        className="ml-auto opacity-0 group-hover:opacity-100 hover:opacity-100"
                         onClick={(e) => {
                           e.stopPropagation();
                         }}

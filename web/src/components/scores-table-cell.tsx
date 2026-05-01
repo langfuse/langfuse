@@ -74,21 +74,24 @@ export const ScoresTableCell = ({
 
     return (
       <span
-        className={cn("flex flex-row gap-0.5 rounded-sm", COLOR_MAP.get(value))}
+        className={cn(
+          "flex min-w-0 flex-row gap-0.5 rounded-sm",
+          COLOR_MAP.get(value),
+        )}
       >
-        {value}
+        <span className="truncate">{value}</span>
         {aggregate.comment && (
           <HoverCard>
-            <HoverCardTrigger className="inline-block cursor-pointer">
+            <HoverCardTrigger className="inline-block shrink-0 cursor-pointer">
               <MessageCircleMore size={12} />
             </HoverCardTrigger>
-            <HoverCardContent className="flex flex-col whitespace-normal break-normal p-0 text-xs">
-              <div className="sticky top-0 z-10 flex h-8 items-center justify-end bg-popover px-1">
+            <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">
+              <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-end px-1">
                 <Button
                   onClick={handleCopy}
                   variant="ghost"
                   size="icon-xs"
-                  className="rounded p-1 hover:bg-accent"
+                  className="hover:bg-accent rounded p-1"
                   aria-label={copied ? "Copied" : "Copy to clipboard"}
                 >
                   {copied ? (
@@ -127,7 +130,7 @@ export const ScoresTableCell = ({
           <HoverCardTrigger asChild>
             <div
               className={cn(
-                "cursor-pointer overflow-hidden group-hover:text-accent-dark-blue/55",
+                "group-hover:text-accent-dark-blue/55 cursor-pointer overflow-hidden",
                 wrap ? "line-clamp-5" : "text-ellipsis whitespace-nowrap",
               )}
             >
@@ -140,7 +143,7 @@ export const ScoresTableCell = ({
               />
             </div>
           </HoverCardTrigger>
-          <HoverCardContent className="z-20 flex max-h-[40vh] max-w-64 flex-col overflow-y-auto whitespace-normal break-normal text-xs">
+          <HoverCardContent className="z-20 flex max-h-[40vh] max-w-64 flex-col overflow-y-auto text-xs break-normal whitespace-normal">
             <ScoreValueCounts valueCounts={aggregate.valueCounts} wrap />
           </HoverCardContent>
         </HoverCard>
@@ -188,9 +191,9 @@ function AggregateScoreMetadataPeek({
       <HoverCardTrigger className="inline-block cursor-pointer">
         <BracesIcon size={12} />
       </HoverCardTrigger>
-      <HoverCardContent className="overflow-hidden whitespace-normal break-normal rounded-md border-none p-0 text-xs">
+      <HoverCardContent className="overflow-hidden rounded-md border-none p-0 text-xs break-normal whitespace-normal">
         {metadataLoaded ? (
-          <JSONView codeClassName="!rounded-md" json={metadata} />
+          <JSONView codeClassName="rounded-md!" json={metadata} />
         ) : (
           <Skeleton className="h-12 w-full" />
         )}

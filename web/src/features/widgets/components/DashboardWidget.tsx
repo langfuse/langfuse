@@ -6,7 +6,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
@@ -20,9 +20,16 @@ import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
-import { formatMetricName } from "@/src/features/widgets/utils";
+import {
+  formatMetricName,
+  shouldUseWidgetSSE,
+  sanitizePivotTableDefaultSort,
+} from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
-import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
+import {
+  getChartLoadingProgress,
+  getChartLoadingStateProps,
+} from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { type ViewVersion } from "@/src/features/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
@@ -32,6 +39,7 @@ import {
   isV2BreakdownChart,
   buildWidgetOrderBy,
 } from "@/src/features/query/validateQuery";
+import { requiresV2 } from "@/src/features/query/dataModel";
 
 export interface WidgetPlacement {
   id: string;
@@ -74,10 +82,19 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
+  const widgetRequiresV2 = requiresV2({
+    view: widget.data?.view ?? "traces",
+    dimensions: widget.data?.dimensions ?? [],
+    measures:
+      widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ?? [],
+    filters: widget.data?.filters ?? [],
+  });
   // If widget requires v2 features (minVersion >= 2), must use v2.
   // Otherwise follow the beta toggle.
   const metricsVersion: ViewVersion =
-    (widget.data?.minVersion ?? 1) >= 2 || isBetaEnabled ? "v2" : "v1";
+    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2 || isBetaEnabled
+      ? "v2"
+      : "v1";
   const hasCUDAccess =
     useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
     dashboardOwner !== "LANGFUSE";
@@ -85,12 +102,16 @@ export function DashboardWidget({
   // Initialize sort state for pivot tables
   const defaultSort =
     widget.data?.chartConfig.type === "PIVOT_TABLE"
-      ? widget.data?.chartConfig.defaultSort
+      ? sanitizePivotTableDefaultSort(widget.data.chartConfig.defaultSort, {
+          dimensions: widget.data.dimensions,
+          metrics: widget.data.metrics,
+        })
       : undefined;
 
   const [sortState, setSortState] = useState<OrderByState | null>(() => {
     return defaultSort || null;
   });
+  const [retryCount, setRetryCount] = useState(0);
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -149,7 +170,10 @@ export function DashboardWidget({
           aggregation: metric.agg as z.infer<typeof metricAggregations>,
         })) ?? [],
       filters: [
-        ...(widget.data?.filters ?? []),
+        ...mapLegacyUiTableFilterToView(
+          (widget.data?.view as z.infer<typeof views>) ?? "traces",
+          widget.data?.filters ?? [],
+        ),
         ...mapLegacyUiTableFilterToView(
           (widget.data?.view as z.infer<typeof views>) ?? "traces",
           filterState,
@@ -170,7 +194,6 @@ export function DashboardWidget({
         : ({ valid: true } as const),
     [widgetQuery, metricsVersion, widget.data],
   );
-
   const queryResult = useScheduledDashboardExecuteQuery(
     {
       projectId,
@@ -187,6 +210,11 @@ export function DashboardWidget({
       meta: {
         silentHttpCodes: [422],
       },
+      refreshKey: retryCount,
+      useSSE: shouldUseWidgetSSE({
+        isV4Enabled: isBetaEnabled,
+        version: metricsVersion,
+      }),
       enabled:
         !widget.isPending && Boolean(widget.data) && queryValidation.valid,
     },
@@ -195,7 +223,26 @@ export function DashboardWidget({
   const chartLoadingState = getChartLoadingStateProps({
     isPending: queryResult.isPending,
     isError: queryResult.isError,
+    errorMessage: queryResult.error,
   });
+  const usesBackendProgress = shouldUseWidgetSSE({
+    isV4Enabled: isBetaEnabled,
+    version: metricsVersion,
+  });
+  const loadingStateLayout =
+    placement.y_size <= 2
+      ? "tight"
+      : placement.x_size <= 4
+        ? "compact"
+        : "default";
+  const loadingProgress = getChartLoadingProgress({
+    isPending: queryResult.isPending,
+    progress: queryResult.progress,
+    useBackendProgress: usesBackendProgress,
+  });
+  const handleRetry = useCallback(() => {
+    setRetryCount((current) => current + 1);
+  }, []);
 
   const transformedData = useMemo(() => {
     if (!widget.data || !queryResult.data) {
@@ -285,7 +332,7 @@ export function DashboardWidget({
   if (widget.isPending) {
     return (
       <div
-        className={`flex items-center justify-center rounded-lg border bg-background p-4`}
+        className={`bg-background flex items-center justify-center rounded-lg border p-4`}
       >
         <div className="text-muted-foreground">Loading...</div>
       </div>
@@ -295,7 +342,7 @@ export function DashboardWidget({
   if (!widget.data) {
     return (
       <div
-        className={`flex items-center justify-center rounded-lg border bg-background p-4`}
+        className={`bg-background flex items-center justify-center rounded-lg border p-4`}
       >
         <div className="text-muted-foreground">Widget not found</div>
       </div>
@@ -304,7 +351,7 @@ export function DashboardWidget({
 
   return (
     <div
-      className={`group flex h-full w-full flex-col overflow-hidden rounded-lg border bg-background p-4`}
+      className={`bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4`}
     >
       <div className="flex items-center justify-between">
         <span className="truncate font-medium" title={widget.data.name}>
@@ -318,12 +365,12 @@ export function DashboardWidget({
             <>
               <GripVerticalIcon
                 size={16}
-                className="drag-handle hidden cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing lg:group-hover:block"
+                className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
               />
               {widget.data.owner === "PROJECT" ? (
                 <button
                   onClick={handleEdit}
-                  className="hidden text-muted-foreground hover:text-foreground group-hover:block"
+                  className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
                   <PencilIcon size={16} />
@@ -331,7 +378,7 @@ export function DashboardWidget({
               ) : widget.data.owner === "LANGFUSE" ? (
                 <button
                   onClick={handleCopy}
-                  className="hidden text-muted-foreground hover:text-foreground group-hover:block"
+                  className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Copy widget"
                 >
                   <CopyIcon size={16} />
@@ -339,7 +386,7 @@ export function DashboardWidget({
               ) : null}
               <button
                 onClick={handleDelete}
-                className="hidden text-muted-foreground hover:text-destructive group-hover:block"
+                className="text-muted-foreground hover:text-destructive hidden group-hover:block"
                 aria-label="Delete widget"
               >
                 <TrashIcon size={16} />
@@ -357,23 +404,25 @@ export function DashboardWidget({
         </div>
       </div>
       <div
-        className="mb-4 truncate text-sm text-muted-foreground"
+        className="text-muted-foreground mb-4 truncate text-sm"
         title={widget.data.description}
       >
         {widget.data.description}
       </div>
-      <div className="relative min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col">
         {!queryValidation.valid ? (
-          <ChartLoadingState
-            isLoading={true}
-            showSpinner={false}
-            showHintImmediately={true}
-            hintText={queryValidation.reason}
-            className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
-            hintClassName="max-w-sm px-4"
-          />
+          <div className="relative min-h-0 flex-1">
+            <ChartLoadingState
+              isLoading={true}
+              showSpinner={false}
+              showHintImmediately={true}
+              hintText={queryValidation.reason}
+              layout={loadingStateLayout}
+              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+            />
+          </div>
         ) : (
-          <>
+          <div className="relative min-h-0 flex-1">
             <Chart
               chartType={widget.data.chartType}
               data={transformedData}
@@ -392,6 +441,7 @@ export function DashboardWidget({
                   metrics: widget.data.metrics.map(
                     (metric) => `${metric.agg}_${metric.measure}`,
                   ),
+                  defaultSort,
                 }),
               }}
               sortState={
@@ -407,10 +457,12 @@ export function DashboardWidget({
               showSpinner={chartLoadingState.showSpinner}
               showHintImmediately={chartLoadingState.showHintImmediately}
               hintText={chartLoadingState.hintText}
-              className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
-              hintClassName="max-w-sm px-4"
+              onRetry={queryResult.isError ? handleRetry : undefined}
+              progress={loadingProgress}
+              layout={loadingStateLayout}
+              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
             />
-          </>
+          </div>
         )}
       </div>
     </div>

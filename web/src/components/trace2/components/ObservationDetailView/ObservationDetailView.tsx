@@ -63,6 +63,7 @@ import {
   aggregateTraceMetrics,
   getDescendantIds,
 } from "@/src/components/trace2/lib/trace-aggregation";
+import TagList from "@/src/features/tag/components/TagList";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -82,9 +83,9 @@ export function ObservationDetailView({
   } = useSelection();
 
   // V4 beta mode and observations for log tab
-  const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
+  const { isBetaEnabled: isV4Enabled } = useV4Beta();
   const { observations, roots, nodeMap } = useTraceData();
-  const showLogViewTab = isV4BetaEnabled && observations.length > 0;
+  const showLogViewTab = isV4Enabled && observations.length > 0;
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
 
@@ -129,6 +130,7 @@ export function ObservationDetailView({
     setJsonViewPreference,
     jsonBetaEnabled,
     setJsonBetaEnabled,
+    isPeekMode,
   } = useViewPreferences();
 
   // Map jsonViewPreference to currentView format expected by child components
@@ -351,7 +353,7 @@ export function ObservationDetailView({
                           sideOffset={8}
                         >
                           <p className="font-medium">JSON view unavailable</p>
-                          <p className="mt-1 text-muted-foreground">
+                          <p className="text-muted-foreground mt-1">
                             Disabled for traces with{" "}
                             {TRACE_VIEW_CONFIG.logView.virtualizationThreshold}+
                             observations to maintain performance.
@@ -374,7 +376,7 @@ export function ObservationDetailView({
                         checked={jsonBetaEnabled}
                         onCheckedChange={handleBetaToggle}
                       />
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-muted-foreground text-xs">
                         Beta
                       </span>
                     </div>
@@ -396,6 +398,25 @@ export function ObservationDetailView({
                 : "overflow-auto pb-4"
             }`}
           >
+            {isRoot &&
+              observation.traceTags &&
+              observation.traceTags.length > 0 && (
+                <>
+                  <div
+                    className={`px-2 pt-2 text-sm font-medium ${currentView !== "pretty" ? "shrink-0" : ""}`}
+                  >
+                    Tags
+                  </div>
+                  <div
+                    className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView !== "pretty" ? "shrink-0" : ""}`}
+                  >
+                    <TagList
+                      selectedTags={observation.traceTags}
+                      isLoading={false}
+                    />
+                  </div>
+                </>
+              )}
             <IOPreview
               key={observation.id}
               observationName={observation.name ?? undefined}
@@ -457,7 +478,7 @@ export function ObservationDetailView({
               environment={observation.environment}
             />
             {currentView !== "json-beta" && (
-              <div className="h-4 w-full flex-shrink-0" />
+              <div className="h-4 w-full shrink-0" />
             )}
           </div>
         </TabsBarContent>
@@ -465,7 +486,7 @@ export function ObservationDetailView({
         {/* Scores tab content */}
         <TabsBarContent
           value="scores"
-          className="mb-2 mr-4 mt-0 flex h-full min-h-0 flex-1 overflow-hidden"
+          className="mt-0 mr-4 mb-2 flex h-full min-h-0 flex-1 overflow-hidden"
         >
           <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
             <ScoresTable
@@ -476,11 +497,12 @@ export function ObservationDetailView({
                 "traceId",
                 "observationId",
                 "traceName",
+                "traceTags",
                 "jobConfigurationId",
                 "userId",
               ]}
               localStorageSuffix="ObservationPreview"
-              disableUrlPersistence
+              disableUrlPersistence={isPeekMode}
             />
           </div>
         </TabsBarContent>

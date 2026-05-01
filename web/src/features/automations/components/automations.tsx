@@ -316,7 +316,7 @@ export default function AutomationsPage() {
 
     return (
       <div className="h-full p-6">
-        <div className="flex h-full items-center justify-center text-muted-foreground">
+        <div className="text-muted-foreground flex h-full items-center justify-center">
           <div className="text-center">
             <h3 className="text-lg font-medium">Select an automation</h3>
             <p className="mt-2 text-sm">

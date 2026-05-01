@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { applyCommentFilters } from "@langfuse/shared/src/server";
@@ -11,6 +11,7 @@ import {
   filterAndValidateDbScoreList,
   type FilterState,
   type OrderByState,
+  normalizeOrderByForTable,
   orderBy,
   paginationZod,
   type PrismaClient,
@@ -18,7 +19,7 @@ import {
   timeFilter,
   type SessionOptions,
   type ScoreDomain,
-  AGGREGATABLE_SCORE_TYPES,
+  LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
@@ -126,7 +127,7 @@ const handleGetSessionById = async (input: {
 
   const validatedScores = filterAndValidateDbScoreList({
     scores,
-    dataTypes: AGGREGATABLE_SCORE_TYPES,
+    dataTypes: LISTABLE_SCORE_TYPES,
     onParseError: traceException,
   });
 
@@ -184,10 +185,14 @@ export const sessionRouter = createTRPCRouter({
         input.projectId,
         filterState,
       );
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "createdAt",
+      });
       const sessions = await getSessionsTable({
         projectId: input.projectId,
         filter: finalFilter,
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         page: input.page,
         limit: input.limit,
       });
@@ -243,10 +248,14 @@ export const sessionRouter = createTRPCRouter({
         input.projectId,
         filterState,
       );
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "createdAt",
+      });
       const sessions = await getSessionsTableFromEvents({
         projectId: input.projectId,
         filter: finalFilter,
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         page: input.page,
         limit: input.limit,
       });
@@ -301,10 +310,14 @@ export const sessionRouter = createTRPCRouter({
         input.projectId,
         filterState,
       );
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "createdAt",
+      });
       const count = await getSessionsTableCount({
         projectId: input.projectId,
         filter: finalFilter,
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         page: 0,
         limit: 1,
       });
@@ -331,10 +344,14 @@ export const sessionRouter = createTRPCRouter({
         input.projectId,
         filterState,
       );
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "createdAt",
+      });
       const count = await getSessionsTableCountFromEvents({
         projectId: input.projectId,
         filter: finalFilter,
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         page: 0,
         limit: 1,
       });
@@ -388,7 +405,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,
-        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        dataTypes: LISTABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -457,7 +474,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,
-        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        dataTypes: LISTABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -640,7 +657,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores: ScoreDomain[] = filterAndValidateDbScoreList({
         scores,
-        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        dataTypes: LISTABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -684,7 +701,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores: ScoreDomain[] = filterAndValidateDbScoreList({
         scores,
-        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        dataTypes: LISTABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -730,7 +747,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,
-        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        dataTypes: LISTABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -772,26 +789,18 @@ export const sessionRouter = createTRPCRouter({
       let offset: number | undefined;
 
       if (positionFilter) {
-        if (positionFilter.key === "root") {
-          filterState.push({
-            column: "hasParentObservation",
-            type: "boolean",
-            operator: "=",
-            value: false,
-          });
-          orderBy = { column: "startTime", order: "ASC" };
-          limit = 1;
-        } else {
-          const fromEnd =
-            positionFilter.key === "last" ||
-            positionFilter.key === "nthFromEnd";
-          orderBy = { column: "startTime", order: fromEnd ? "DESC" : "ASC" };
-          const rawIndex =
-            positionFilter.key === "last" ? 1 : (positionFilter.value ?? 1);
-          const safeIndex = Math.max(1, rawIndex);
-          offset = safeIndex - 1;
-          limit = 1;
-        }
+        const fromEnd =
+          positionFilter.key === "last" || positionFilter.key === "nthFromEnd";
+        orderBy = { column: "startTime", order: fromEnd ? "DESC" : "ASC" };
+        const rawIndex =
+          positionFilter.key === "last" ||
+          positionFilter.key === "first" ||
+          positionFilter.key === "root"
+            ? 1
+            : (positionFilter.value ?? 1);
+        const safeIndex = Math.max(1, rawIndex);
+        offset = safeIndex - 1;
+        limit = 1;
       }
 
       const observations = await getObservationsWithModelDataFromEventsTable({
@@ -803,7 +812,7 @@ export const sessionRouter = createTRPCRouter({
         limit,
         offset,
         selectIOAndMetadata: true,
-        renderingProps: { truncated: true, shouldJsonParse: true },
+        renderingProps: { truncated: false, shouldJsonParse: true },
       });
 
       return observations;

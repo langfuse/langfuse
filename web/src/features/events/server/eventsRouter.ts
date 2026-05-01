@@ -1,5 +1,5 @@
-import { type z } from "zod/v4";
-import { z as zodSchema } from "zod/v4";
+import { type z } from "zod";
+import { z as zodSchema } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -7,6 +7,7 @@ import {
 import {
   type Observation,
   type OrderByState,
+  normalizeOrderByForTable,
   paginationZod,
   timeFilter,
 } from "@langfuse/shared";
@@ -25,6 +26,7 @@ import {
   getObservationsForTraceFromEventsTable,
   MAX_OBSERVATIONS_PER_TRACE,
   applyCommentFilters,
+  getLatestSdkVersionInfoFromEvents,
 } from "@langfuse/shared/src/server";
 
 import {
@@ -88,14 +90,18 @@ export const eventsRouter = createTRPCRouter({
           name: "get-event-list-trpc",
         },
         async (span) => {
-          addAttributesToSpan({ span, input, orderBy: input.orderBy });
+          const normalizedOrderBy = normalizeOrderByForTable({
+            orderBy: input.orderBy,
+            expectedTimeColumn: "startTime",
+          });
+          addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
 
           return getEventList({
             projectId: ctx.session.projectId,
             filter: filterState,
             searchQuery: input.searchQuery ?? undefined,
             searchType: input.searchType,
-            orderBy: input.orderBy,
+            orderBy: normalizedOrderBy,
             page: input.page,
             limit: input.limit,
           });
@@ -121,13 +127,17 @@ export const eventsRouter = createTRPCRouter({
           name: "get-event-count-trpc",
         },
         async (span) => {
-          addAttributesToSpan({ span, input, orderBy: input.orderBy });
+          const normalizedOrderBy = normalizeOrderByForTable({
+            orderBy: input.orderBy,
+            expectedTimeColumn: "startTime",
+          });
+          addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
           return getEventCount({
             projectId: ctx.session.projectId,
             filter: filterState,
             searchQuery: input.searchQuery ?? undefined,
             searchType: input.searchType,
-            orderBy: input.orderBy,
+            orderBy: normalizedOrderBy,
           });
         },
       );
@@ -322,6 +332,23 @@ export const eventsRouter = createTRPCRouter({
         );
       },
     ),
+  /**
+   * Get SDK metadata for a project.
+   * Returns info about the SDK being used (name, version, language).
+   */
+  getSdkVersionInfo: protectedProjectProcedure
+    .input(zodSchema.object({ projectId: zodSchema.string() }))
+    .query(async ({ input }) => {
+      return instrumentAsync(
+        { name: "get-sdk-metadata-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          return getLatestSdkVersionInfoFromEvents({
+            projectId: input.projectId,
+          });
+        },
+      );
+    }),
 });
 
 export const addAttributesToSpan = ({

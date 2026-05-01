@@ -1,11 +1,9 @@
-/** @jest-environment node */
-
 import {
   makeZodVerifiedAPICall,
   makeAPICall,
 } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { randomUUID } from "crypto";
 import { Role } from "@langfuse/shared";
 import {
@@ -17,7 +15,7 @@ import {
 const MembershipResponseSchema = z.object({
   userId: z.string(),
   role: z.enum(Role),
-  email: z.string().email(),
+  email: z.email(),
   name: z.string().nullable(),
 });
 

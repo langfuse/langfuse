@@ -77,11 +77,11 @@ export function VirtualizedTreeNodeWrapper({
       <div className="flex w-full pl-2">
         {/* 1. Indents: ancestor level indicators */}
         {depth > 0 && (
-          <div className="flex flex-shrink-0">
+          <div className="flex shrink-0">
             {Array.from({ length: depth - 1 }, (_, i) => (
               <div key={i} className="relative w-5">
                 {treeLines[i] && (
-                  <div className="absolute bottom-0 left-3 top-0 w-px bg-border" />
+                  <div className="bg-border absolute top-0 bottom-0 left-3 w-px" />
                 )}
               </div>
             ))}
@@ -90,37 +90,37 @@ export function VirtualizedTreeNodeWrapper({
 
         {/* 2. Current element bars: up/down/horizontal connectors */}
         {depth > 0 && (
-          <div className="relative w-5 flex-shrink-0">
+          <div className="relative w-5 shrink-0">
             <>
               {/* Vertical bar connecting upwards */}
               <div
                 className={cn(
-                  "absolute left-3 top-0 w-px bg-border",
+                  "bg-border absolute top-0 left-3 w-px",
                   isLastSibling ? "h-3" : "bottom-3",
                 )}
               />
               {/* Vertical bar connecting downwards if not last sibling */}
               {!isLastSibling && (
-                <div className="absolute bottom-0 left-3 top-3 w-px bg-border" />
+                <div className="bg-border absolute top-3 bottom-0 left-3 w-px" />
               )}
               {/* Horizontal bar connecting to icon */}
-              <div className="absolute left-3 top-3 h-px w-2 bg-border" />
+              <div className="bg-border absolute top-3 left-3 h-px w-2" />
             </>
           </div>
         )}
 
         {/* 3. Icon + child connector: fixed width container */}
-        <div className="relative flex w-6 flex-shrink-0 flex-col py-1.5">
+        <div className="relative flex w-6 shrink-0 flex-col py-1.5">
           <div className="relative z-10 flex h-4 items-center justify-center">
-            <ItemBadge type={nodeType} isSmall className="!size-3" />
+            <ItemBadge type={nodeType} isSmall className="size-3!" />
           </div>
           {/* Vertical bar downwards if there are expanded children */}
           {hasChildren && !isCollapsed && (
-            <div className="absolute bottom-0 left-1/2 top-3 w-px bg-border" />
+            <div className="bg-border absolute top-3 bottom-0 left-1/2 w-px" />
           )}
           {/* Root node downward connector */}
           {depth === 0 && hasChildren && !isCollapsed && (
-            <div className="absolute bottom-0 left-1/2 top-3 w-px bg-border" />
+            <div className="bg-border absolute top-3 bottom-0 left-1/2 w-px" />
           )}
         </div>
 
@@ -139,7 +139,7 @@ export function VirtualizedTreeNodeWrapper({
                 ev.stopPropagation();
                 onToggleCollapse();
               }}
-              className="h-6 w-6 flex-shrink-0 hover:bg-primary/10"
+              className="hover:bg-primary/10 h-6 w-6 shrink-0"
             >
               <span
                 className={cn(

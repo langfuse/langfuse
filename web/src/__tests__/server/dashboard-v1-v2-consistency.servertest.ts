@@ -186,7 +186,7 @@ const SEED_PROJECT_ID = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 async function seedFromSeeder(targetProjectId: string) {
   const client = clickhouseClient();
-  for (const table of ["traces", "observations", "events", "scores"]) {
+  for (const table of ["traces", "observations", "events_full", "scores"]) {
     try {
       await client.command({
         query: `INSERT INTO ${table} SELECT * REPLACE({newProjectId: String} AS project_id) FROM ${table} FINAL WHERE project_id = {seedProjectId: String}`,

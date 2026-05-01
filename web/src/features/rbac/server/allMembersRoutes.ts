@@ -10,7 +10,7 @@ import {
 import { paginationZod, type PrismaClient, Role } from "@langfuse/shared";
 import { formatAuthProviderName } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const orgLevelMemberQuery = z.object({
   orgId: z.string(),

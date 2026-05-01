@@ -1,9 +1,10 @@
 import isEmpty from "lodash/isEmpty";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
 import { ScoreSourceType } from "../../domain";
+import { TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
 import { applyScoreValidation } from "../../utils/scores";
 
 export const idSchema = z
@@ -39,7 +40,7 @@ const MixedUsage = z.object({
   totalCost: z.number().nullish(),
 });
 
-export const stringDateTime = z.string().datetime({ offset: true }).nullish();
+export const stringDateTime = z.iso.datetime({ offset: true }).nullish();
 
 export const usage = MixedUsage.nullish()
   // transform mixed usage model input to new one
@@ -221,27 +222,35 @@ export const UsageDetails = z
   ])
   .nullish();
 
-const INTERNAL_ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE =
-  "Only alphanumeric lower case characters, hyphens, and underscores are allowed";
-
-const ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE =
-  INTERNAL_ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE +
-  " and it must not start with 'langfuse'";
-
 /** Default environment name used when no environment is specified. */
 export const DEFAULT_TRACE_ENVIRONMENT = "default" as const;
 
 const PublicEnvironmentName = z
   .string()
   .toLowerCase()
-  .max(40, "Maximum length is 40 characters")
-  .regex(/^(?!langfuse)[a-z0-9-_]+$/, ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE)
+  .transform((val) => {
+    // Strip leading "langfuse" prefix (with optional separator)
+    const stripped = val.replace(/^langfuse[-_]?/, "");
+    // Truncate to 40 chars, validate allowed chars
+    const truncated = stripped.slice(0, 40);
+    if (!truncated || !/^[a-z0-9-_]+$/.test(truncated)) {
+      return DEFAULT_TRACE_ENVIRONMENT;
+    }
+    return truncated;
+  })
+  .catch(DEFAULT_TRACE_ENVIRONMENT)
   .default(DEFAULT_TRACE_ENVIRONMENT);
 
 const InternalEnvironmentName = z
   .string()
-  .max(40, "Maximum length is 40 characters")
-  .regex(/^[a-z0-9-_]+$/, INTERNAL_ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE)
+  .transform((val) => {
+    const truncated = val.slice(0, 40);
+    if (!truncated || !/^[a-z0-9-_]+$/.test(truncated)) {
+      return DEFAULT_TRACE_ENVIRONMENT;
+    }
+    return truncated;
+  })
+  .catch(DEFAULT_TRACE_ENVIRONMENT)
   .default(DEFAULT_TRACE_ENVIRONMENT);
 
 /** @deprecated Use PublicEnvironmentName or InternalEnvironmentName instead */
@@ -518,21 +527,21 @@ const createAllIngestionSchemas = ({
 
   const ScoreBody = applyScoreValidation(
     z.discriminatedUnion("dataType", [
-      BaseScoreBody.merge(
+      BaseScoreBody.extend(
         z.object({
           value: z.number(),
           dataType: z.literal("NUMERIC"),
           configId: z.string().nullish(),
-        }),
+        }).shape,
       ),
-      BaseScoreBody.merge(
+      BaseScoreBody.extend(
         z.object({
           value: z.string(),
           dataType: z.literal("CATEGORICAL"),
           configId: z.string().nullish(),
-        }),
+        }).shape,
       ),
-      BaseScoreBody.merge(
+      BaseScoreBody.extend(
         z.object({
           value: z.number().refine((value) => value === 0 || value === 1, {
             message:
@@ -540,21 +549,28 @@ const createAllIngestionSchemas = ({
           }),
           dataType: z.literal("BOOLEAN"),
           configId: z.string().nullish(),
-        }),
+        }).shape,
       ),
-      BaseScoreBody.merge(
+      BaseScoreBody.extend(
         z.object({
           value: z.string(),
           dataType: z.literal("CORRECTION"),
           configId: z.undefined().nullish(), // Cannot have config
-        }),
+        }).shape,
       ),
-      BaseScoreBody.merge(
+      BaseScoreBody.extend(
+        z.object({
+          value: z.string().min(1).max(TEXT_SCORE_MAX_LENGTH),
+          dataType: z.literal("TEXT"),
+          configId: z.string().nullish(),
+        }).shape,
+      ),
+      BaseScoreBody.extend(
         z.object({
           value: z.union([z.string(), z.number()]),
           dataType: z.undefined(),
           configId: z.string().nullish(),
-        }),
+        }).shape,
       ),
     ]),
   );
@@ -580,7 +596,7 @@ const createAllIngestionSchemas = ({
   // Event schemas
   const base = z.object({
     id: idSchema,
-    timestamp: z.string().datetime({ offset: true }),
+    timestamp: z.iso.datetime({ offset: true }),
     metadata: jsonSchema.nullish(),
   });
 
@@ -790,6 +806,7 @@ export const ingestionEvent = publicSchemas.ingestionEvent;
  * since the factory patterns only differ in environment validation rules, not in the actual TypeScript types.
  * The environment field remains `string` in all cases - only the validation logic differs.
  */
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- Internal backwards-compatible ingestion schema alias.
 export type IngestionEventType = z.infer<typeof ingestionEvent>;
 export type TraceEventType = z.infer<typeof traceEvent>;
 export type ScoreEventType = z.infer<typeof scoreEvent>;

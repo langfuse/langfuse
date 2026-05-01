@@ -8,34 +8,48 @@ import {
 import { TableViewPresetTableName, type FilterState } from "@langfuse/shared";
 import { useState } from "react";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
 import type { FilterConfig } from "./lib/filter-config";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
 
-const mockUseRouter = jest.fn();
-const mockCapture = jest.fn();
-const mockGetDefaultUseQuery = jest.fn();
-const mockGetByIdUseQuery = jest.fn();
+const mockUseRouter = vi.fn();
+const mockCapture = vi.fn();
+const mockGetDefaultUseQuery = vi.fn();
+const mockGetByIdUseQuery = vi.fn();
 
 const queryParamStore = new Map<string, unknown>();
 
-jest.mock("next/router", () => ({
+type MockViewQueryResult = {
+  data?: unknown;
+  error?: unknown;
+  isSuccess?: boolean;
+  isError?: boolean;
+};
+
+const hasDefaultValue = (value: unknown): value is { __default: unknown } =>
+  typeof value === "object" && value !== null && "__default" in value;
+
+const isMockViewQueryResult = (value: unknown): value is MockViewQueryResult =>
+  typeof value === "object" && value !== null;
+
+vi.mock("next/router", () => ({
   useRouter: () => mockUseRouter(),
 }));
 
-jest.mock("posthog-js/react", () => ({
+vi.mock("posthog-js/react", () => ({
   usePostHog: () => ({
     capture: mockCapture,
   }),
 }));
 
-jest.mock(
+vi.mock(
   "../../components/table/table-view-presets/components/data-table-view-presets-drawer",
   () => ({
     isSystemPresetId: () => false,
   }),
 );
 
-jest.mock("../../utils/api", () => ({
+vi.mock("../../utils/api", () => ({
   api: {
     TableViewPresets: {
       getDefault: {
@@ -43,20 +57,18 @@ jest.mock("../../utils/api", () => ({
       },
       getById: {
         useQuery: (...args: unknown[]) => {
-          const result = mockGetByIdUseQuery(...args) as
-            | {
-                data?: unknown;
-                error?: unknown;
-                isSuccess?: boolean;
-                isError?: boolean;
-              }
-            | undefined;
+          const result = mockGetByIdUseQuery(...args);
+          const normalizedResult = isMockViewQueryResult(result)
+            ? result
+            : undefined;
 
           return {
-            data: result?.data,
-            error: result?.error ?? null,
-            isSuccess: result?.isSuccess ?? result?.data !== undefined,
-            isError: result?.isError ?? !!result?.error,
+            data: normalizedResult?.data,
+            error: normalizedResult?.error ?? null,
+            isSuccess:
+              normalizedResult?.isSuccess ??
+              normalizedResult?.data !== undefined,
+            isError: normalizedResult?.isError ?? !!normalizedResult?.error,
           };
         },
       },
@@ -64,9 +76,9 @@ jest.mock("../../utils/api", () => ({
   },
 }));
 
-jest.mock("use-query-params", () => {
+vi.mock("use-query-params", async () => {
   const React = require("react");
-  const actual = jest.requireActual("use-query-params");
+  const actual = await vi.importActual("use-query-params");
 
   const StringParam = { __type: "string" } as const;
   const withDefault = (param: unknown, defaultValue: unknown) => ({
@@ -75,12 +87,7 @@ jest.mock("use-query-params", () => {
   });
 
   const readDefault = (config: unknown) =>
-    typeof config === "object" &&
-    config !== null &&
-    "__default" in config &&
-    (config as { __default?: unknown }).__default !== undefined
-      ? (config as { __default: unknown }).__default
-      : null;
+    hasDefaultValue(config) ? config.__default : null;
 
   return {
     ...actual,
@@ -127,11 +134,7 @@ jest.mock("use-query-params", () => {
   };
 });
 
-const HIDDEN_ENVIRONMENTS = [
-  "langfuse-prompt-experiment",
-  "langfuse-evaluation",
-  "sdk-experiment",
-];
+const HIDDEN_ENVIRONMENTS = [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS];
 
 const TEST_FILTER_CONFIG: FilterConfig = {
   tableName: "traces",
@@ -166,18 +169,14 @@ const TEST_FILTER_CONFIG: FilterConfig = {
 };
 
 const TEST_OPTIONS = {
-  environment: [
-    "production",
-    "staging",
-    "langfuse-prompt-experiment",
-    "langfuse-evaluation",
-    "sdk-experiment",
-  ],
+  environment: ["production", "staging", ...HIDDEN_ENVIRONMENTS],
   name: ["checkout", "search"],
 };
 
 function SavedViewHarness() {
   const queryFilter = useSidebarFilterState(TEST_FILTER_CONFIG, TEST_OPTIONS, {
+    stateLocation: "urlAndSessionStorage",
+    sessionFilterContextId: null,
     implicitDefaultConfig: {
       hiddenEnvironments: [...HIDDEN_ENVIRONMENTS],
     },
@@ -213,10 +212,14 @@ function SavedViewHarness() {
   );
 }
 
-function ViewSelectionHarness() {
+function ViewSelectionHarness({
+  tableName = TableViewPresetTableName.Traces,
+}: {
+  tableName?: TableViewPresetTableName;
+}) {
   const [appliedFilters, setAppliedFilters] = useState<FilterState>([]);
   const { selectedViewId, handleSetViewId } = useTableViewManager({
-    tableName: TableViewPresetTableName.Traces,
+    tableName,
     projectId: "project-1",
     stateUpdaters: {
       setFilters: setAppliedFilters,
@@ -253,7 +256,7 @@ describe("Saved view restore with implicit environment defaults", () => {
   let savedViewFilters: FilterState;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     sessionStorage.clear();
     queryParamStore.clear();
     savedViewFilters = OLD_SAVED_VIEW_FILTERS;
@@ -430,5 +433,69 @@ describe("Saved view restore with implicit environment defaults", () => {
       expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
       expect(screen.getByTestId("applied-filter-count").textContent).toBe("0");
     });
+  });
+
+  it("clears a permalink when the fetched saved view belongs to a different table", async () => {
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "view-1",
+        name: "Traces saved view",
+        tableName: TableViewPresetTableName.Traces,
+        projectId: "project-1",
+        orderBy: null,
+        filters: OLD_SAVED_VIEW_FILTERS,
+        columnOrder: null,
+        columnVisibility: null,
+        searchQuery: "",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        createdBy: "user-1",
+        createdByUser: null,
+      },
+      error: null,
+    });
+
+    render(
+      <ViewSelectionHarness
+        tableName={TableViewPresetTableName.Observations}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    });
+
+    expect(screen.getByTestId("applied-filter-count").textContent).toBe("0");
+    expect(queryParamStore.has("viewId")).toBe(false);
+  });
+
+  it("does not restore a stored saved view from another table namespace", async () => {
+    queryParamStore.delete("viewId");
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: {},
+    });
+
+    sessionStorage.setItem(
+      "observations-project-1-viewId",
+      JSON.stringify("view-1"),
+    );
+
+    render(
+      <ViewSelectionHarness
+        tableName={TableViewPresetTableName.ObservationsEvents}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    });
+
+    expect(screen.getByTestId("applied-filter-count").textContent).toBe("0");
+    expect(mockGetByIdUseQuery).toHaveBeenCalled();
+    expect(mockGetByIdUseQuery).toHaveBeenCalledWith(
+      { projectId: "project-1", viewId: null },
+      expect.objectContaining({ enabled: false }),
+    );
   });
 });

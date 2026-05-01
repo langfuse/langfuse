@@ -1,12 +1,11 @@
 import { api } from "@/src/utils/api";
 import {
-  type TableViewPresetTableName,
+  TableViewPresetTableName,
   type FilterState,
   type OrderByState,
-  type TableViewPresetDomain,
+  type TableViewPresetState,
   type ColumnDefinition,
 } from "@langfuse/shared";
-import { type DefaultViewScope } from "@langfuse/shared/src/server";
 import { useRouter } from "next/router";
 import { useEffect, useCallback, useState, useRef } from "react";
 import { type VisibilityState } from "@tanstack/react-table";
@@ -37,7 +36,16 @@ interface UseTableStateProps {
     filterColumnDefinition?: ColumnDefinition[];
   };
   currentFilterState?: FilterState;
+  disabled?: boolean;
 }
+
+const isViewApplicableToTable = (
+  currentTableName: TableViewPresetTableName,
+  viewTableName: TableViewPresetTableName,
+) =>
+  currentTableName === viewTableName ||
+  (currentTableName === TableViewPresetTableName.ObservationsEvents &&
+    viewTableName === TableViewPresetTableName.Observations);
 
 /**
  * Hook to manage table view state with permalink support
@@ -48,6 +56,7 @@ export function useTableViewManager({
   stateUpdaters,
   validationContext = {},
   currentFilterState,
+  disabled = false,
 }: UseTableStateProps) {
   const router = useRouter();
   const isRouterReady = router.isReady;
@@ -76,7 +85,7 @@ export function useTableViewManager({
     api.TableViewPresets.getDefault.useQuery(
       { projectId, viewName: tableName },
       {
-        enabled: !!projectId,
+        enabled: !!projectId && !disabled,
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes
       },
     );
@@ -124,15 +133,13 @@ export function useTableViewManager({
   // Single resolve effect: walk priority list and either return early (pending) or initialize.
   // `selectedViewId` (use-query-params state) is the single source of truth for bootstrap/fetch.
   useEffect(() => {
+    if (disabled) return;
     if (isInitialized) return;
     if (!isRouterReady) return;
 
-    // If viewId already in URL and not a system preset → getById query handles it.
-    // Sync to session storage so navigating away and back restores the view.
+    // If viewId already in the URL and is not a system preset, let the getById
+    // query resolve it.
     if (selectedViewId && !isSystemPresetId(selectedViewId)) {
-      if (storedViewId !== selectedViewId) {
-        setStoredViewId(selectedViewId);
-      }
       return;
     }
 
@@ -166,6 +173,7 @@ export function useTableViewManager({
     setIsInitialized(true);
     setIsLoading(false);
   }, [
+    disabled,
     isInitialized,
     isRouterReady,
     selectedViewId,
@@ -179,7 +187,7 @@ export function useTableViewManager({
 
   // Method to apply state from a view
   const applyViewState = useCallback(
-    (viewData: TableViewPresetDomain) => {
+    (viewData: TableViewPresetState) => {
       // lock table
       setIsLoading(true);
 
@@ -192,6 +200,7 @@ export function useTableViewManager({
         validOrderBy = validateOrderBy(
           viewData.orderBy,
           validationContext.columns,
+          validationContext.filterColumnDefinition,
         );
       }
 
@@ -267,6 +276,7 @@ export function useTableViewManager({
     { viewId: selectedViewId as string, projectId },
     {
       enabled:
+        !disabled &&
         isRouterReady &&
         !!selectedViewId &&
         !isInitialized &&
@@ -275,12 +285,17 @@ export function useTableViewManager({
   );
 
   useEffect(() => {
+    if (disabled) return;
     if (!isSelectedViewSuccess || !selectedViewData) return;
     const requestedViewId = selectedViewId;
     if (!requestedViewId) return;
     if (isInitializedRef.current) return;
     if (selectedViewIdRef.current !== requestedViewId) return;
     if (selectedViewData.id !== requestedViewId) return;
+    if (!isViewApplicableToTable(tableName, selectedViewData.tableName)) {
+      handleSetViewId(null);
+      return;
+    }
 
     // Track permalink visit
     capture("saved_views:permalink_visit", {
@@ -290,18 +305,26 @@ export function useTableViewManager({
     });
 
     applyViewState(selectedViewData);
+    if (storedViewId !== requestedViewId) {
+      setStoredViewId(requestedViewId);
+    }
     isInitializedRef.current = true;
     setIsInitialized(true);
   }, [
+    disabled,
     isSelectedViewSuccess,
     selectedViewData,
     selectedViewId,
+    handleSetViewId,
     capture,
     tableName,
     applyViewState,
+    storedViewId,
+    setStoredViewId,
   ]);
 
   useEffect(() => {
+    if (disabled) return;
     if (!isSelectedViewError || !selectedViewError) return;
     const requestedViewId = selectedViewId;
     if (!requestedViewId) return;
@@ -313,7 +336,13 @@ export function useTableViewManager({
     setIsLoading(false);
     handleSetViewId(null);
     showErrorToast("Error applying view", selectedViewError.message, "WARNING");
-  }, [isSelectedViewError, selectedViewError, selectedViewId, handleSetViewId]);
+  }, [
+    disabled,
+    isSelectedViewError,
+    selectedViewError,
+    selectedViewId,
+    handleSetViewId,
+  ]);
 
   // Observe when filter state propagates from saved view
   // After calling setFilters, URL updates async → filterState recalculates → this effect detects completion
@@ -338,11 +367,21 @@ export function useTableViewManager({
     }
   }, [currentFilterState]);
 
+  if (disabled) {
+    return {
+      isLoading: false,
+      applyViewState: () => {},
+      handleSetViewId: () => {},
+      selectedViewId: null,
+      defaultViewScope: null,
+    };
+  }
+
   return {
     isLoading,
     applyViewState,
     handleSetViewId,
     selectedViewId,
-    defaultViewScope: resolvedDefault?.scope as DefaultViewScope | null,
+    defaultViewScope: resolvedDefault?.scope ?? null,
   };
 }

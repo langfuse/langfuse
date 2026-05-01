@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
-  Github,
   Bug,
   Lightbulb,
   Sparkles,
@@ -10,8 +9,7 @@ import {
   Radio,
   Calendar,
 } from "lucide-react";
-//eslint-disable-next-line no-restricted-imports
-import { SiDiscord } from "react-icons/si";
+import { SiDiscord, SiGithub } from "react-icons/si";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import { Separator } from "@/src/components/ui/separator";
 import { usePlan } from "@/src/features/entitlements/hooks";
@@ -22,12 +20,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 
 type SupportType = "in-app-support" | "custom" | "community";
 
-export function IntroSection({
-  onStartForm,
-}: {
-  onStartForm: () => void;
-  displayDensity?: "default" | "compact";
-}) {
+export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
   const uiCustomization = useUiCustomization();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
@@ -61,7 +54,7 @@ export function IntroSection({
         <div className="flex items-center gap-2 text-base font-semibold">
           <Sparkles className="h-4 w-4" /> Ask AI
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="text-muted-foreground mt-1 text-sm">
           Get instant, helpful answers. Our AI knows the docs, examples, and
           best practices to guide you fast.
         </p>
@@ -83,7 +76,7 @@ export function IntroSection({
         <div className="flex items-center gap-2 text-base font-semibold">
           <LibraryBig className="h-4 w-4" /> Docs
         </div>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Dive into guides, concepts, and API reference — clear steps and
           examples to move quickly.
         </p>
@@ -109,7 +102,7 @@ export function IntroSection({
             <div className="flex items-center gap-2 text-base font-semibold">
               <LifeBuoy className="h-4 w-4" /> Support
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Ask AI & Docs did not unblock you? Get in touch with the support
               team.
             </p>
@@ -167,7 +160,7 @@ export function IntroSection({
             <div className="flex items-center gap-2 text-base font-semibold">
               <LifeBuoy className="h-4 w-4" /> Email a Support Engineer
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Ask AI & Docs did not unblock you? One of our support engineers
               will help you get unblocked.
             </p>
@@ -186,7 +179,7 @@ export function IntroSection({
             <div className="flex items-center gap-2 text-base font-semibold">
               <LifeBuoy className="h-4 w-4" /> Community Support
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Ask AI & Docs did not unblock you? Get help from and share
               feedback with the community.
             </p>
@@ -196,7 +189,7 @@ export function IntroSection({
                 target="_blank"
                 rel="noopener"
               >
-                <Github className="mr-2 h-4 w-4" /> Get Help ↗
+                <SiGithub className="mr-2 h-4 w-4" /> Get Help ↗
               </a>
             </Button>
             <Button variant="outline" asChild>
@@ -226,9 +219,9 @@ export function IntroSection({
       {supportType !== "custom" && (
         <div>
           <div className="flex items-center gap-2 text-base font-semibold">
-            <Github className="h-4 w-4" /> Community & Resources
+            <SiGithub className="h-4 w-4" /> Community & Resources
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="text-muted-foreground mt-1 text-sm">
             Join the conversation and connect with the Langfuse community.
           </p>
           <div className="mt-3 grid grid-cols-1 gap-2">
@@ -238,7 +231,7 @@ export function IntroSection({
                 target="_blank"
                 rel="noopener"
               >
-                <Github className="mr-2 h-4 w-4" /> GitHub ↗
+                <SiGithub className="mr-2 h-4 w-4" /> GitHub ↗
               </a>
             </Button>
             <Button asChild variant="ghost" className="justify-start px-1.5">

@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma, type Role } from "@langfuse/shared";
 import { v4 } from "uuid";

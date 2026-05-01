@@ -1,8 +1,11 @@
 import { useState, useCallback, useMemo } from "react";
-import { type EvalTemplate } from "@langfuse/shared";
+import {
+  type EvalTemplate,
+  isJobConfigExecutable,
+  JobConfigState,
+} from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type PartialConfig } from "@/src/features/evals/types";
-import partition from "lodash/partition";
 
 const partitionEvaluators = (
   evaluators: RouterOutputs["evals"]["jobConfigsByTarget"] | undefined,
@@ -21,15 +24,22 @@ const partitionEvaluators = (
       );
     }) || [];
 
-  const [activeEvaluators, pausedEvaluators] = partition(
-    filteredEvaluators,
-    (evaluator) => evaluator.status === "ACTIVE",
+  const activeEvaluators = filteredEvaluators.filter((evaluator) =>
+    isJobConfigExecutable({
+      status: evaluator.status,
+      blockedAt: evaluator.blockedAt,
+    }),
+  );
+  const pausedEvaluators = filteredEvaluators.filter(
+    (evaluator) =>
+      evaluator.status === JobConfigState.ACTIVE &&
+      evaluator.blockedAt !== null,
   );
 
   const activeIds = activeEvaluators.map(
     (evaluator) => evaluator.evalTemplateId,
   );
-  const inactiveIds = pausedEvaluators.map(
+  const pausedIds = pausedEvaluators.map(
     (evaluator) => evaluator.evalTemplateId,
   );
 
@@ -41,7 +51,7 @@ const partitionEvaluators = (
 
   return {
     activeEvaluators: activeIds,
-    pausedEvaluators: inactiveIds,
+    pausedEvaluators: pausedIds,
     evaluatorTargetObjects,
   };
 };
@@ -94,8 +104,8 @@ export function useExperimentEvaluatorData({
           ...config,
           evalTemplate: {
             ...config.evalTemplate,
-            outputSchema: config.evalTemplate
-              .outputSchema as EvalTemplate["outputSchema"],
+            outputDefinition: config.evalTemplate
+              .outputDefinition as EvalTemplate["outputDefinition"],
           },
         } as PartialConfig & { evalTemplate: EvalTemplate };
 

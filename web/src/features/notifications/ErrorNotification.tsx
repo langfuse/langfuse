@@ -1,4 +1,5 @@
 import { Button } from "@/src/components/ui/button";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { AlertTriangle, X } from "lucide-react";
 
@@ -20,6 +21,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   path,
 }) => {
   const { setOpen } = useSupportDrawer();
+  const capture = usePostHogClientCapture();
   const isError = type === "ERROR";
   const textColor = isError
     ? "text-destructive-foreground"
@@ -39,13 +41,13 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
       <div className="flex min-w-[300px] flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
           <AlertTriangle size={20} className={textColor} />
-          <div className={`m-0 text-sm font-medium leading-tight ${textColor}`}>
+          <div className={`m-0 text-sm leading-tight font-medium ${textColor}`}>
             {error}
           </div>
         </div>
         {description && (
           <div
-            className={`whitespace-pre-line text-sm leading-tight ${textColor}`}
+            className={`text-sm leading-tight whitespace-pre-line ${textColor}`}
           >
             {description}
           </div>
@@ -61,6 +63,10 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
             variant="errorNotification"
             size={"sm"}
             onClick={() => {
+              capture("toast:report_issue", {
+                toast_type: type,
+                path,
+              });
               setOpen(true);
             }}
           >
@@ -70,7 +76,13 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
       </div>
       <button
         className={`flex h-6 w-6 cursor-pointer items-start justify-end border-none bg-transparent p-0 ${textColor} transition-colors duration-200`}
-        onClick={() => dismissToast(toast)}
+        onClick={() => {
+          capture("toast:dismiss", {
+            toast_type: type,
+            path,
+          });
+          dismissToast(toast);
+        }}
         onPointerDown={(e) => {
           e.stopPropagation();
           e.preventDefault();

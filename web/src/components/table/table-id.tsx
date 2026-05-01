@@ -11,7 +11,7 @@ export default function TableIdOrName({
     <div
       title={value}
       className={cn(
-        "inline-block max-w-full overflow-hidden text-ellipsis text-nowrap rounded py-0.5 text-xs font-semibold",
+        "inline-block max-w-full overflow-hidden rounded py-0.5 text-xs font-semibold text-nowrap text-ellipsis",
         className,
       )}
     >

@@ -136,9 +136,9 @@ export function MultiSelectCombobox<T>({
       <div className="relative">
         <div
           ref={containerRef}
-          className="flex max-h-14 min-h-9 w-full overflow-y-auto rounded-md border border-input bg-background text-xs"
+          className="border-input bg-background flex max-h-14 min-h-9 w-full overflow-y-auto rounded-md border text-xs"
         >
-          <Search className="absolute left-2 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
+          <Search className="text-muted-foreground absolute top-2.5 left-2 z-10 h-4 w-4" />
           <div className="flex max-h-full flex-1 flex-wrap items-center gap-1 pl-8">
             {/* Selected Items Pills */}
             {showSelectedItemsInInput
@@ -164,14 +164,14 @@ export function MultiSelectCombobox<T>({
               onFocus={handleInputFocus}
               onBlur={handleInputBlur}
               disabled={disabled}
-              className="min-w-24 flex-1 border-none bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+              className="placeholder:text-muted-foreground min-w-24 flex-1 border-none bg-transparent text-xs outline-hidden"
             />
           </div>
           {searchQuery && (
             <Button
               variant="ghost"
               size="sm"
-              className="absolute right-2 top-1 h-7 w-7 p-0"
+              className="absolute top-1 right-2 h-7 w-7 p-0"
               onClick={() => onSearchChange("")}
             >
               <X className="h-3 w-3" />
@@ -188,7 +188,7 @@ export function MultiSelectCombobox<T>({
             <div
               className={
                 dropdownClassName ??
-                "absolute top-0 z-10 max-h-48 w-full overflow-y-auto rounded-md border bg-background shadow-md"
+                "bg-background absolute top-0 z-10 max-h-48 w-full overflow-y-auto rounded-md border shadow-md"
               }
               onMouseDown={(e) => e.preventDefault()}
               onWheel={(e) => e.stopPropagation()}
@@ -206,12 +206,12 @@ export function MultiSelectCombobox<T>({
                     () => handleItemToggle(item),
                   )}
                   {(index < array.length - 1 || hasMoreResults) && (
-                    <div className="border-b border-border/50" />
+                    <div className="border-border/50 border-b" />
                   )}
                 </div>
               ))}
               {hasMoreResults && (
-                <div className="flex items-center gap-3 px-3 py-2 text-muted-foreground">
+                <div className="text-muted-foreground flex items-center gap-3 px-3 py-2">
                   <MoreHorizontal className="h-4 w-4" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs italic">
@@ -222,7 +222,7 @@ export function MultiSelectCombobox<T>({
               )}
             </div>
           ) : (
-            <div className="absolute top-0 z-10 w-full rounded-md border bg-background py-6 text-center text-xs text-muted-foreground shadow-md">
+            <div className="bg-background text-muted-foreground absolute top-0 z-10 w-full rounded-md border py-6 text-center text-xs shadow-md">
               {searchQuery
                 ? `No results found for "${searchQuery}"`
                 : "No results available"}

@@ -65,13 +65,13 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
     return (
       <div className="flex flex-col gap-2">
         {showHelp && (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Define the structure using JSON Schema format.{" "}
             <a
               href="https://json-schema.org/learn/miscellaneous-examples"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center underline hover:text-foreground"
+              className="hover:text-foreground inline-flex items-center underline"
             >
               See JSON Schema examples
               <ArrowUpRight className="ml-0.5 h-3 w-3" />
@@ -93,12 +93,12 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
             size="sm"
             onClick={prettifyJson}
             disabled={disabled}
-            className="absolute right-3 top-3 text-xs"
+            className="absolute top-3 right-3 text-xs"
           >
             Prettify
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-muted-foreground text-xs">
           Must be a valid JSON Schema object
         </p>
       </div>

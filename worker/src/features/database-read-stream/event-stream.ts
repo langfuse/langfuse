@@ -9,10 +9,10 @@
 
 import {
   FilterCondition,
-  ScoreDataTypeEnum,
   type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
+  eventsTableCols,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
@@ -113,6 +113,7 @@ export const getEventsStream = async (props: {
         },
       ],
       eventsTableUiColumnDefinitions,
+      eventsTableCols,
     ),
   );
 
@@ -121,6 +122,7 @@ export const getEventsStream = async (props: {
   const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
     "span_id",
     "name",
+    "trace_name",
     "user_id",
     "session_id",
     "trace_id",
@@ -134,10 +136,11 @@ export const getEventsStream = async (props: {
     .selectRaw(
       "s.scores_avg as scores_avg",
       "s.score_categories as score_categories",
+      "s.score_categories_tuples as score_categories_tuples",
     )
     .withCTE(
       "scores_agg",
-      eventsScoresAggregation({ projectId, categoricalEncoding: "tuple" }),
+      eventsScoresAggregation({ projectId, includeTupleEncoding: true }),
     )
     .leftJoin(
       "scores_agg s",
@@ -194,6 +197,7 @@ export const getEventsStream = async (props: {
         }[]
       | undefined;
     score_categories: string[] | undefined;
+    score_categories_tuples: [string, string | null, string][] | undefined;
   };
 
   const asyncGenerator = queryClickhouseStream<EventRow>({
@@ -222,11 +226,11 @@ export const getEventsStream = async (props: {
     }));
 
     // Process categorical scores (tuples from ClickHouse)
-    const categoricalScores = (bufferedRow.score_categories ?? []).map(
-      (cat: any) => ({
+    const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
+      (cat: [string, string | null, string]) => ({
         name: cat[0],
         value: null,
-        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        dataType: cat[2],
         stringValue: cat[1],
       }),
     );
@@ -387,6 +391,7 @@ export const getEventsStreamForEval = async (props: {
         },
       ],
       eventsTableUiColumnDefinitions,
+      eventsTableCols,
     ),
   );
 
@@ -395,6 +400,7 @@ export const getEventsStreamForEval = async (props: {
   const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
     "span_id",
     "name",
+    "trace_name",
     "user_id",
     "session_id",
     "trace_id",
@@ -445,6 +451,9 @@ export const getEventsStreamForEval = async (props: {
     input: unknown;
     output: unknown;
     metadata: Record<string, unknown> | null;
+    experiment_id: string | null;
+    experiment_item_root_span_id: string | null;
+    experiment_item_expected_output: string | null;
   };
 
   const asyncGenerator = queryClickhouseStream<EvalEventRow>({
@@ -525,6 +534,7 @@ export const getEventsStreamForDataset = async (props: {
         },
       ],
       eventsTableUiColumnDefinitions,
+      eventsTableCols,
     ),
   );
 
@@ -533,6 +543,7 @@ export const getEventsStreamForDataset = async (props: {
   const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
     "span_id",
     "name",
+    "trace_name",
     "user_id",
     "session_id",
     "trace_id",

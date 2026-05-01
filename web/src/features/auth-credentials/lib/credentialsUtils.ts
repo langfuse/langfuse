@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { env } from "@/src/env.mjs";
 
 const DEFAULT_CUTOFF_MINUTES = 10;
@@ -21,7 +21,7 @@ export function isEmailVerifiedWithinCutoff(
   if (!emailVerifiedDateTime)
     return { verified: false, reason: "not_verified" };
 
-  const typed = z.string().datetime().safeParse(emailVerifiedDateTime);
+  const typed = z.iso.datetime().safeParse(emailVerifiedDateTime);
   if (!typed.success) {
     throw new Error("Invalid date string provided for emailVerifiedDateTime");
   }

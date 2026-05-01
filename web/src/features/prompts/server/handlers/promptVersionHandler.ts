@@ -1,5 +1,5 @@
 import { logger } from "@langfuse/shared/src/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { LATEST_PROMPT_LABEL } from "@langfuse/shared";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";

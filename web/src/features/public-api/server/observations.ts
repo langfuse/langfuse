@@ -9,7 +9,7 @@ import {
   convertObservation,
   shouldSkipObservationsFinal,
 } from "@langfuse/shared/src/server";
-import type { FilterState } from "@langfuse/shared";
+import { type FilterState, observationsTableCols } from "@langfuse/shared";
 
 type QueryType = {
   page: number;
@@ -173,6 +173,7 @@ const generateFilter = (query: QueryType) => {
     observationsTableUiColumnDefinitions.filter(
       (c) => c.clickhouseTableName !== "scores",
     ),
+    observationsTableCols,
   );
 
   // Remove score filters since observations don't support scores in response

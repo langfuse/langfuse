@@ -33,6 +33,7 @@ export const TraceEventsRow = React.memo(
     traceCommentCounts,
     showCorrections,
     filterState,
+    hideTracePanel = false,
   }: {
     trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
     projectId: string;
@@ -41,6 +42,7 @@ export const TraceEventsRow = React.memo(
     traceCommentCounts: Map<string, number> | undefined;
     showCorrections: boolean;
     filterState: FilterState;
+    hideTracePanel?: boolean;
   }) => {
     const observationsQuery =
       api.sessions.observationsForTraceFromEvents.useQuery(
@@ -59,15 +61,25 @@ export const TraceEventsRow = React.memo(
 
     return (
       <Card className="border-border shadow-none">
-        <div className="grid md:grid-cols-[1fr_1px_358px] lg:grid-cols-[1fr_1px_30rem]">
-          <div className="overflow-hidden py-4 pl-4 pr-4">
+        <div
+          className={
+            hideTracePanel
+              ? "grid"
+              : "grid md:grid-cols-[1fr_1px_358px] lg:grid-cols-[1fr_1px_30rem]"
+          }
+        >
+          <div className="overflow-hidden py-4 pr-4 pl-4">
             {observationsQuery.isLoading ? (
               <JsonSkeleton className="h-full w-full" numRows={8} />
+            ) : observationsQuery.isError ? (
+              <div className="text-destructive p-2 text-xs">
+                Failed to load observations.
+              </div>
             ) : observationsQuery.data && observationsQuery.data.length > 0 ? (
               <div className="flex flex-col gap-4">
                 {observationsQuery.data.map((observation) => (
                   <div key={observation.id} className="flex flex-col gap-2">
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
                       <span>{observation.name ?? "Observation"}</span>
                       <span className="-mr-1">•</span>
                       <span className="inline-flex items-center gap-1">
@@ -105,83 +117,87 @@ export const TraceEventsRow = React.memo(
                 ))}
               </div>
             ) : (
-              <div className="p-2 text-xs text-muted-foreground">
+              <div className="text-muted-foreground p-2 text-xs">
                 No observations match the current filter.
               </div>
             )}
           </div>
-          <div className="hidden bg-border md:block"></div>
-          <div className="flex flex-col border-t py-4 pl-4 pr-4 md:border-0">
-            <div className="mb-4 flex flex-col gap-2">
-              <Link
-                href={`/project/${projectId}/traces/${trace.id}`}
-                className="flex items-start gap-2 rounded-lg border p-2 transition-colors hover:bg-accent"
-                onClick={(e) => {
-                  if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
-                    e.preventDefault();
-                    openPeek(trace.id, trace);
-                  }
-                }}
-              >
-                <ItemBadge type="TRACE" isSmall />
-                <div className="flex flex-col">
-                  <span className="text-xs font-medium">
-                    {trace.name ?? "Trace"} ({trace.id})&nbsp;↗
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {trace.timestamp.toLocaleString()}
-                  </span>
+          {!hideTracePanel && (
+            <>
+              <div className="bg-border hidden md:block"></div>
+              <div className="flex flex-col border-t py-4 pr-4 pl-4 md:border-0">
+                <div className="mb-4 flex flex-col gap-2">
+                  <Link
+                    href={`/project/${projectId}/traces/${trace.id}`}
+                    className="hover:bg-accent flex items-start gap-2 rounded-lg border p-2 transition-colors"
+                    onClick={(e) => {
+                      if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
+                        e.preventDefault();
+                        openPeek(trace.id, trace);
+                      }
+                    }}
+                  >
+                    <ItemBadge type="TRACE" isSmall />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium">
+                        {trace.name ?? "Trace"} ({trace.id})&nbsp;↗
+                      </span>
+                      <span className="text-muted-foreground text-xs">
+                        {trace.timestamp.toLocaleString()}
+                      </span>
+                    </div>
+                  </Link>
+                  <div className="flex flex-wrap gap-2">
+                    <NewDatasetItemFromTraceId
+                      projectId={projectId}
+                      traceId={trace.id}
+                      timestamp={new Date(trace.timestamp)}
+                      buttonVariant="outline"
+                    />
+                    <div className="flex items-start">
+                      <AnnotateDrawer
+                        key={"annotation-drawer" + trace.id}
+                        projectId={projectId}
+                        scoreTarget={{
+                          type: "trace",
+                          traceId: trace.id,
+                        }}
+                        scores={trace.scores}
+                        buttonVariant="outline"
+                        analyticsData={{
+                          type: "trace",
+                          source: "SessionDetail",
+                        }}
+                        scoreMetadata={{
+                          projectId: projectId,
+                          environment: trace.environment ?? undefined,
+                        }}
+                      />
+                      <CreateNewAnnotationQueueItem
+                        projectId={projectId}
+                        objectId={trace.id}
+                        objectType={AnnotationQueueObjectType.TRACE}
+                        variant="outline"
+                      />
+                    </div>
+                    <CommentDrawerButton
+                      projectId={projectId}
+                      variant="outline"
+                      objectId={trace.id}
+                      objectType="TRACE"
+                      count={getNumberFromMap(traceCommentCounts, trace.id)}
+                    />
+                  </div>
                 </div>
-              </Link>
-              <div className="flex flex-wrap gap-2">
-                <NewDatasetItemFromTraceId
-                  projectId={projectId}
-                  traceId={trace.id}
-                  timestamp={new Date(trace.timestamp)}
-                  buttonVariant="outline"
-                />
-                <div className="flex items-start">
-                  <AnnotateDrawer
-                    key={"annotation-drawer" + trace.id}
-                    projectId={projectId}
-                    scoreTarget={{
-                      type: "trace",
-                      traceId: trace.id,
-                    }}
-                    scores={trace.scores}
-                    buttonVariant="outline"
-                    analyticsData={{
-                      type: "trace",
-                      source: "SessionDetail",
-                    }}
-                    scoreMetadata={{
-                      projectId: projectId,
-                      environment: trace.environment ?? undefined,
-                    }}
-                  />
-                  <CreateNewAnnotationQueueItem
-                    projectId={projectId}
-                    objectId={trace.id}
-                    objectType={AnnotationQueueObjectType.TRACE}
-                    variant="outline"
-                  />
+                <div className="flex-1">
+                  <p className="mb-1 font-medium">Scores</p>
+                  <div className="flex flex-wrap content-start items-start gap-1">
+                    <GroupedScoreBadges scores={trace.scores} />
+                  </div>
                 </div>
-                <CommentDrawerButton
-                  projectId={projectId}
-                  variant="outline"
-                  objectId={trace.id}
-                  objectType="TRACE"
-                  count={getNumberFromMap(traceCommentCounts, trace.id)}
-                />
               </div>
-            </div>
-            <div className="flex-1">
-              <p className="mb-1 font-medium">Scores</p>
-              <div className="flex flex-wrap content-start items-start gap-1">
-                <GroupedScoreBadges scores={trace.scores} />
-              </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </Card>
     );
@@ -201,6 +217,7 @@ export const LazyTraceEventsRow = React.forwardRef<
     traceCommentCounts: Map<string, number> | undefined;
     showCorrections: boolean;
     filterState: FilterState;
+    hideTracePanel?: boolean;
     onLoad?: (index: number) => void;
   }
 >((props, measureRef) => {

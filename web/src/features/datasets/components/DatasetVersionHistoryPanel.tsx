@@ -108,7 +108,7 @@ export function DatasetVersionHistoryPanel({
   if (!versions || versions.length === 0) {
     return (
       <div className="flex h-full items-center justify-center p-4">
-        <div className="text-center text-sm text-muted-foreground">
+        <div className="text-muted-foreground text-center text-sm">
           <Clock className="mx-auto mb-2 h-8 w-8" />
           <p>No versions found</p>
         </div>
@@ -145,15 +145,15 @@ export function DatasetVersionHistoryPanel({
           }}
           variant="ghost"
           className={cn(
-            "flex h-auto flex-1 flex-col items-start gap-1 rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/50",
-            isSelected && "bg-muted font-medium hover:bg-muted",
+            "hover:bg-muted/50 flex h-auto flex-1 flex-col items-start gap-1 rounded-md px-3 py-2.5 text-left text-sm transition-colors",
+            isSelected && "bg-muted hover:bg-muted font-medium",
           )}
         >
           <div className="flex w-full items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
               {isItemVersion && (
                 <span
-                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                  className="bg-primary h-1.5 w-1.5 shrink-0 rounded-full"
                   title="Item modified in this version"
                 />
               )}
@@ -162,7 +162,7 @@ export function DatasetVersionHistoryPanel({
               </span>
             </div>
             {isLatest && (
-              <span className="shrink-0 rounded-md bg-accent-light-green px-2 py-0.5 text-xs font-medium text-accent-dark-green dark:bg-accent-dark-green dark:text-accent-light-green">
+              <span className="bg-accent-light-green text-accent-dark-green dark:bg-accent-dark-green dark:text-accent-light-green shrink-0 rounded-md px-2 py-0.5 text-xs font-medium">
                 Latest
               </span>
             )}
@@ -218,7 +218,7 @@ export function DatasetVersionHistoryPanel({
       {/* Header */}
       <div className="border-b p-4">
         <h3 className="text-lg font-semibold">Version History</h3>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           {versions.length} version{versions.length !== 1 ? "s" : ""}
         </p>
       </div>

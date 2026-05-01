@@ -159,7 +159,8 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Metadata",
     uiTableId: "metadata",
     clickhouseTableName: "events_proto",
-    clickhouseSelect: 'e."metadata"',
+    clickhouseSelect: "metadata",
+    queryPrefix: "e",
   },
   {
     uiTableName: "Version",
@@ -172,6 +173,12 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "promptName",
     clickhouseTableName: "events_proto",
     clickhouseSelect: "e.prompt_name",
+  },
+  {
+    uiTableName: "Prompt Version",
+    uiTableId: "promptVersion",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "e.prompt_version",
   },
   {
     uiTableName: "Input",
@@ -232,6 +239,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "parentObservationId",
     clickhouseTableName: "events_proto",
     clickhouseSelect: 'e."parent_span_id"',
+    emptyEqualsNull: true,
   },
   {
     uiTableName: "Experiment Dataset ID",
@@ -250,6 +258,12 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "experimentName",
     clickhouseTableName: "events_proto",
     clickhouseSelect: 'e."experiment_name"',
+  },
+  {
+    uiTableName: "Is Experiment Item Root Span",
+    uiTableId: "isExperimentItemRootSpan",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "e.experiment_item_root_span_id = e.span_id",
   },
   {
     uiTableName: "Available Tools",

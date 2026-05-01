@@ -314,7 +314,7 @@ async function main() {
           model: evalTemplate.model,
           vars: evalTemplate.vars,
           provider: evalTemplate.provider,
-          outputSchema: evalTemplate.outputSchema,
+          outputDefinition: evalTemplate.outputDefinition,
           modelParams: evalTemplate.modelParams,
         },
         update: {},
@@ -961,6 +961,14 @@ async function generateConfigs(project: Project) {
       ],
       description:
         "Used to indicate if text was harmful or offensive in nature.",
+      isArchived: false,
+    },
+    {
+      id: `config-${v4()}`,
+      projectId: project.id,
+      name: "Feedback",
+      dataType: ScoreDataTypeEnum.TEXT,
+      description: "Free-form text feedback on the output quality.",
       isArchived: false,
     },
   ];

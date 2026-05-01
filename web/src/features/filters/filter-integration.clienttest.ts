@@ -6,28 +6,36 @@
 
 import {
   type FilterState,
+  type ColumnDefinition,
   tracesTableCols,
   observationsTableCols,
 } from "@langfuse/shared";
 import {
   encodeFiltersGeneric,
   decodeFiltersGeneric,
+  computeSelectedValues,
 } from "./lib/filter-query-encoding";
 import { validateFilters } from "@/src/components/table/table-view-presets/validation";
 import { traceFilterConfig } from "./config/traces-config";
 import { observationFilterConfig } from "./config/observations-config";
 import { transformFiltersForBackend } from "./lib/filter-transform";
 import { sessionFilterConfig } from "./config/sessions-config";
+import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import {
   decodeAndNormalizeFilters,
   resolveCheckboxOperator,
 } from "./hooks/useSidebarFilterState";
+import {
+  SESSION_DETAIL_SYSTEM_PRESETS,
+  getSessionDetailPresetToApply,
+} from "@/src/components/session/session-detail-presets";
 import {
   buildManagedEnvironmentPolicyConfig,
   buildImplicitEnvironmentFilter,
   buildEffectiveEnvironmentFilter,
   stripImplicitEnvironmentFilterFromExplicitState,
 } from "./lib/managedEnvironmentPolicy";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
@@ -300,9 +308,10 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     // This is what useTableViewManager does: validates then applies
     const validated = validateFilters(oldSavedView, tracesTableCols);
 
-    // Should pass through unchanged - no env/timestamp to validate
-    expect(validated).toEqual(oldSavedView);
+    // "name" is normalized to "traceName" via alias
     expect(validated).toHaveLength(2);
+    expect(validated[0]?.column).toBe("traceName");
+    expect(validated[1]?.column).toBe("latency");
   });
 
   it("should save new view with environment filter and restore it correctly", () => {
@@ -328,10 +337,10 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     // 2. RESTORE: Later, load from database and validate
     const validated = validateFilters(savedToDB, tracesTableCols);
 
-    // Should restore with environment filter intact
-    expect(validated).toEqual(newFilterState);
+    // Should restore with environment filter intact, "name" normalized to "traceName"
     expect(validated).toHaveLength(2);
     expect(validated[0]?.column).toBe("environment"); // ✅ Environment preserved
+    expect(validated[1]?.column).toBe("traceName"); // Normalized via alias
   });
 
   it("should save new view with timestamp filter and restore it correctly", () => {
@@ -360,10 +369,10 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     // SAVE → RESTORE cycle
     const validated = validateFilters(newFilterState, tracesTableCols);
 
-    // Should restore with timestamp filters intact
-    expect(validated).toEqual(newFilterState);
+    // Should restore with timestamp filters intact, "name" normalized to "traceName"
     expect(validated).toHaveLength(3);
     expect(validated[0]?.column).toBe("timestamp"); // ✅ Timestamp preserved
+    expect(validated[2]?.column).toBe("traceName"); // Normalized via alias
   });
 
   it("should demonstrate BUG: restore fails with filtered column definitions", () => {
@@ -394,7 +403,7 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
 
     // BUG: environment filter incorrectly removed during restore!
     expect(validated).toHaveLength(1); // ❌ Lost environment filter
-    expect(validated[0]?.column).toBe("name");
+    expect(validated[0]?.column).toBe("traceName");
     // This would show error toast: "Outdated view - Some filters were ignored"
   });
 
@@ -423,9 +432,12 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
 
     const validated = validateFilters(mixedView, tracesTableCols);
 
-    // Should remove deletedColumn, keep environment and name
+    // Should remove deletedColumn, keep environment and name (name normalized to traceName via alias)
     expect(validated).toHaveLength(2);
-    expect(validated.map((f) => f.column)).toEqual(["environment", "name"]);
+    expect(validated.map((f) => f.column)).toEqual([
+      "environment",
+      "traceName",
+    ]);
   });
 
   it("should normalize old display names to column IDs", () => {
@@ -447,10 +459,10 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
 
     const validated = validateFilters(oldViewWithDisplayNames, tracesTableCols);
 
-    // Should normalize "User ID" to "userId", keep "name" as-is
+    // Should normalize "User ID" to "userId", normalize "name" to "traceName" via alias
     expect(validated).toHaveLength(2);
     expect(validated[0]?.column).toBe("userId"); // Normalized!
-    expect(validated[1]?.column).toBe("name"); // Already correct
+    expect(validated[1]?.column).toBe("traceName"); // Normalized via alias!
   });
 
   it("should handle old saved view metadata filter with column name metadata key", () => {
@@ -575,8 +587,25 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     expect(result[1]?.value).toBe("a");
   });
 
-  it("should handle backend column remapping from URL", () => {
-    // Observations/traces table: "tags" (frontend) → "traceTags" (ClickHouse backend)
+  it("should drop filters for columns missing in active table definitions", () => {
+    const urlFilter =
+      "environment;stringOptions;;any of;production,trace_scores_v4_only;number;;>=;0.8";
+
+    const normalized = decodeAndNormalizeFilters(
+      urlFilter,
+      traceFilterConfig.columnDefinitions,
+    );
+
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0]).toEqual({
+      column: "environment",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["production"],
+    });
+  });
+
+  it("should normalize legacy tags filter from URL to the canonical traceTags column", () => {
     const urlFilter = "tags;arrayOptions;;any of;tag1";
 
     const normalized = decodeAndNormalizeFilters(
@@ -584,12 +613,108 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
       traceFilterConfig.columnDefinitions,
     );
 
-    const result = transformFiltersForBackend(normalized, {
-      tags: "traceTags",
-    });
+    const result = transformFiltersForBackend(normalized, {});
 
     expect(result).toHaveLength(1);
     expect(result[0]?.column).toBe("traceTags");
+  });
+
+  it("should preserve empty arrayOptions none-of filters through complete URL flow", () => {
+    const filters: FilterState = [
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "none of",
+        value: [],
+      },
+    ];
+
+    expect(simulateUrlFlow(filters)).toEqual(filters);
+  });
+
+  it("should discard stale positionInTrace URL filters on the general events table", () => {
+    const urlFilter = "positionInTrace;positionInTrace;last;=;";
+
+    const normalized = decodeAndNormalizeFilters(
+      urlFilter,
+      observationEventsFilterConfig.columnDefinitions,
+    );
+
+    expect(normalized).toEqual([]);
+  });
+});
+
+describe("Saved view validation", () => {
+  it("should discard stale positionInTrace filters on the general events table", () => {
+    const filters: FilterState = [
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "last",
+      },
+    ];
+
+    expect(
+      validateFilters(filters, observationEventsFilterConfig.columnDefinitions),
+    ).toEqual([]);
+  });
+
+  it("should preserve the session detail positionInTrace presets when the session view defines the column", () => {
+    const sessionEventColumns: ColumnDefinition[] = [
+      ...observationEventsFilterConfig.columnDefinitions,
+      {
+        name: "Position in Trace",
+        id: "positionInTrace",
+        type: "positionInTrace",
+        internal: "positionInTrace",
+      },
+    ];
+    const defaultPreset = getSessionDetailPresetToApply({
+      selectedViewId: null,
+      hasFilters: false,
+    });
+    const lastPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
+      (preset) => preset.name === "Last Generation in Trace",
+    );
+
+    expect(defaultPreset).toEqual(SESSION_DETAIL_SYSTEM_PRESETS[0]);
+    expect(defaultPreset?.filters).toEqual([
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
+      },
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "first",
+      },
+    ]);
+    expect(
+      validateFilters(defaultPreset?.filters ?? [], sessionEventColumns),
+    ).toEqual(defaultPreset?.filters ?? []);
+    expect(lastPreset?.filters).toEqual([
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
+      },
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "last",
+      },
+    ]);
+    expect(SESSION_DETAIL_SYSTEM_PRESETS).not.toContainEqual(
+      expect.objectContaining({
+        name: "Root Observation",
+      }),
+    );
   });
 });
 
@@ -611,7 +736,7 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
       });
     });
 
-    it('should switch from "none of" to "any of" for arrayOptions', () => {
+    it('should preserve "none of" for arrayOptions', () => {
       const result = resolveCheckboxOperator({
         colType: "arrayOptions",
         existingFilter: {
@@ -624,9 +749,8 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
         availableValues,
       });
 
-      // Must NOT keep "none of" — it gives wrong results for multi-valued arrays
       expect(result).toEqual({
-        finalOperator: "any of",
+        finalOperator: "none of",
         finalValues: ["tag-1", "tag-2"],
       });
     });
@@ -726,12 +850,30 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
   });
 });
 
+describe("computeSelectedValues", () => {
+  it('should keep excluded values checked for arrayOptions "none of" filters', () => {
+    const result = computeSelectedValues(["tag-1", "tag-2", "tag-3"], {
+      type: "arrayOptions",
+      operator: "none of",
+      value: ["tag-2"],
+    });
+
+    expect(result).toEqual(["tag-2"]);
+  });
+
+  it('should continue to invert "none of" for stringOptions filters', () => {
+    const result = computeSelectedValues(["prod", "staging", "dev"], {
+      type: "stringOptions",
+      operator: "none of",
+      value: ["dev"],
+    });
+
+    expect(result).toEqual(["prod", "staging"]);
+  });
+});
+
 describe("Implicit Environment Defaults (sidebar only)", () => {
-  const hiddenEnvironments = [
-    "langfuse-prompt-experiment",
-    "langfuse-evaluation",
-    "sdk-experiment",
-  ];
+  const hiddenEnvironments = [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS];
   const availableValues = [
     "production",
     "staging",

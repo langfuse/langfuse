@@ -21,7 +21,7 @@ import {
   getTraceIdentifierStream,
 } from "../database-read-stream/getDatabaseReadStream";
 import { env } from "../../env";
-import { Job } from "bullmq";
+import { Job, Queue } from "bullmq";
 import {
   processAddObservationsToQueue,
   processAddSessionsToQueue,
@@ -44,6 +44,10 @@ const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
   return filters.map((f: FilterCondition) =>
     f.type === "datetime" ? { ...f, value: new Date(f.value) } : f,
   );
+};
+
+type HandleBatchActionJobDeps = {
+  evalCreatorQueue?: Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>;
 };
 
 /**
@@ -136,6 +140,7 @@ const assertIsDatasetRunItemTableRecord = (
 
 export const handleBatchActionJob = async (
   batchActionJob: Job<TQueueJobTypes[QueueName.BatchActionQueue]>["data"],
+  deps: HandleBatchActionJobDeps = {},
 ) => {
   const batchActionEvent: BatchActionProcessingEventType =
     batchActionJob.payload;
@@ -256,7 +261,8 @@ export const handleBatchActionJob = async (
             rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
           });
 
-    const evalCreatorQueue = CreateEvalQueue.getInstance();
+    const evalCreatorQueue =
+      deps.evalCreatorQueue ?? CreateEvalQueue.getInstance();
     if (!evalCreatorQueue) {
       logger.error("CreateEvalQueue is not initialized");
       return;
@@ -390,8 +396,8 @@ export const handleBatchActionJob = async (
         where: {
           id: { in: selectedEvaluatorIds },
           projectId,
-          targetObject: EvalTargetObject.EVENT,
-          // status may be both active or inactive, no need to filter
+          // Preserve the selected evaluators as-is. Executability is checked
+          // later when each scheduling attempt runs.
         },
         select: {
           id: true,
@@ -400,6 +406,8 @@ export const handleBatchActionJob = async (
           scoreName: true,
           targetObject: true,
           variableMapping: true,
+          status: true,
+          blockedAt: true,
         },
       });
 
@@ -423,7 +431,7 @@ export const handleBatchActionJob = async (
           log:
             error instanceof Error
               ? error.message
-              : "Selected evaluators are missing or not observation-scoped for historical event evaluation.",
+              : "Selected evaluators are missing or invalid for historical evaluation.",
         },
       });
 

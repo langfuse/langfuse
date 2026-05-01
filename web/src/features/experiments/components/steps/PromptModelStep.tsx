@@ -123,7 +123,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
-                  className="w-[--radix-popover-trigger-width] overflow-auto p-0"
+                  className="w-(--radix-popover-trigger-width) overflow-auto p-0"
                   align="start"
                 >
                   <InputCommand>
@@ -183,7 +183,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
-                  className="w-[--radix-popover-trigger-width] p-0"
+                  className="w-(--radix-popover-trigger-width) p-0"
                   align="start"
                 >
                   <InputCommand>
@@ -264,7 +264,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
             {form.formState.errors.modelConfig && (
               <p
                 id="modelConfig"
-                className={cn("text-sm font-medium text-destructive")}
+                className={cn("text-destructive text-sm font-medium")}
               >
                 {[
                   form.formState.errors.modelConfig?.model?.message,
@@ -309,7 +309,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent
-                        className="w-[--radix-popover-trigger-width] p-0"
+                        className="w-(--radix-popover-trigger-width) p-0"
                         align="start"
                       >
                         <InputCommand>

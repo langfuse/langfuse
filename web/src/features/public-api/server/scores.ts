@@ -13,18 +13,31 @@ import {
   removeObjectKeys,
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
+  scoresTableCols,
   type ScoreDomain,
   type FilterState,
 } from "@langfuse/shared";
 
+type ScoreApiResult = Omit<ScoreDomain, "longStringValue"> & {
+  stringValue?: string | null;
+};
+type TextScoreApiResult = Omit<ScoreDomain, "longStringValue" | "value"> & {
+  stringValue?: string | null;
+};
+
 /**
  * Converts a ScoreDomain object to API format.
  * For CORRECTION scores, moves longStringValue to stringValue for API compatibility.
+ * For TEXT scores, removes longStringValue and value (always 0, not meaningful).
  * For other score types, removes longStringValue.
  */
-export const convertScoreToPublicApi = <T extends ScoreDomain>(
-  score: T,
-): Omit<T, "longStringValue"> & { stringValue?: string | null } => {
+export function convertScoreToPublicApi(
+  score: ScoreDomain & { dataType: "TEXT" },
+): TextScoreApiResult;
+export function convertScoreToPublicApi(score: ScoreDomain): ScoreApiResult;
+export function convertScoreToPublicApi(
+  score: ScoreDomain,
+): ScoreApiResult | TextScoreApiResult {
   if (score.dataType === ScoreDataTypeEnum.CORRECTION) {
     const { longStringValue, ...rest } = score;
     return {
@@ -33,8 +46,12 @@ export const convertScoreToPublicApi = <T extends ScoreDomain>(
     };
   }
 
+  if (score.dataType === ScoreDataTypeEnum.TEXT) {
+    return removeObjectKeys(score, ["longStringValue", "value"]);
+  }
+
   return removeObjectKeys(score, ["longStringValue"]);
-};
+}
 
 export type ScoreQueryType = {
   page: number;
@@ -432,6 +449,7 @@ const generateScoreFilter = (
     secureScoreFilterOptions,
     filter.advancedFilters,
     scoresTableUiColumnDefinitions,
+    scoresTableCols,
   );
   scoresFilter.push(
     new StringFilter({

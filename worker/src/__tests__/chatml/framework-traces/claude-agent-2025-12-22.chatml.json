@@ -1,0 +1,169 @@
+{
+  "2cc13e77781787fd": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01TKoqQLvY2UWuC49qnD48y7",
+              "name": "mcp__weather__get_weather",
+              "input": {
+                "city": "Berlin"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "371496f71d82baed": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Great! Here's the current weather for both cities:\n\n**Berlin**: Cloudy, 59°F (15°C)\n**New York**: Sunny, 75°F (24°C)\n\nNew York is enjoying warmer, sunny weather while Berlin is a bit cooler with cloudy skies. Is there anything else you'd like to know about these destinations?"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "e9aac170e5d48125": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I'll check the weather in both Berlin and New York for you."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "f8e8f040dc94e67e": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01NtVat4vJLFfVd5TqdLHcA7",
+              "name": "mcp__weather__get_weather",
+              "input": {
+                "city": "New York"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "805dc5dff9e33e32": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Great! Here's the current weather for both cities:\n\n**Berlin**: Cloudy, 59°F (15°C)\n**New York**: Sunny, 75°F (24°C)\n\nNew York is enjoying warmer, sunny weather while Berlin is a bit cooler with cloudy skies. Is there anything else you'd like to know about these destinations?"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "edbd987c5f361fdf": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "content": [
+            {
+              "type": "text",
+              "text": "Weather in New York: Sunny, 75°F"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "f411dab686a064b1": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "content": [
+            {
+              "type": "text",
+              "text": "Weather in Berlin: Cloudy, 59°F"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

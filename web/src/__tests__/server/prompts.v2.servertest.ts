@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import { prisma } from "@langfuse/shared/src/db";
 import { disconnectQueues, makeAPICall } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
@@ -11,7 +9,7 @@ import {
   PromptType,
 } from "@langfuse/shared";
 import { parsePromptDependencyTags } from "@langfuse/shared";
-import { generateId, nanoid } from "ai";
+import { nanoid } from "nanoid";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import {
@@ -26,6 +24,10 @@ import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
+
+afterAll(async () => {
+  await disconnectQueues();
+});
 
 type CreatePromptInDBParams = {
   promptId?: string;
@@ -69,7 +71,7 @@ const setupTriggerAndAction = async (projectId: string) => {
       id: v4(),
       projectId: projectId,
       eventSource: "prompt",
-      eventActions: ["updated"],
+      eventActions: [],
       filter: [],
       status: "ACTIVE",
     },
@@ -126,9 +128,6 @@ const testPromptEquality = (
 };
 
 describe("/api/public/v2/prompts API Endpoint", () => {
-  afterAll(async () => {
-    await disconnectQueues();
-  });
   describe("when fetching a prompt", () => {
     it("should return a 401 if key is invalid", async () => {
       const projectId = uuidv4();
@@ -544,7 +543,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
     it("should create and fetch a chat prompt with message placeholders", async () => {
       const { auth } = await createOrgProjectAndApiKey();
-      const promptName = `prompt-name-message-placeholders${generateId()}`;
+      const promptName = `prompt-name-message-placeholders${nanoid()}`;
       const commitMessage = "feat: add message placeholders support";
       const chatMessages = [
         {
@@ -1000,9 +999,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
           "angled[brac]es]",
         ];
 
-        for (const name of validNames) {
-          await testValidName(name, auth);
-        }
+        await Promise.all(validNames.map((name) => testValidName(name, auth)));
       });
     });
 
@@ -1210,7 +1207,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     let projectId: string;
     let auth: string;
 
-    beforeEach(async () => {
+    beforeAll(async () => {
       // Create a prompt in a different project
       ({ projectId: projectId, auth: auth } =
         await createOrgProjectAndApiKey());
@@ -1860,6 +1857,37 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       const body = response.body as Prompt;
       expect(body.labels).toContain("production");
       expect(body.prompt).toContain("@@@langfusePrompt");
+      expect(body.resolutionGraph).toBeNull();
+    });
+
+    it("should return the raw prompt when resolve=false even if a dependency is missing", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const parentContent =
+        "Parent: @@@langfusePrompt:name=missing-child-prompt|version=1@@@";
+
+      await createPromptInDB({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        version: 1,
+        config: {},
+        projectId,
+        createdBy: "user-1",
+      });
+
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(parentPromptName)}?version=1&resolve=false`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const body = response.body as Prompt;
+      expect(body.prompt).toBe(parentContent);
+      expect(body.resolutionGraph).toBeNull();
     });
   });
 });
@@ -1867,10 +1895,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
   let triggerId: string;
   let actionId: string;
-
-  afterAll(async () => {
-    await disconnectQueues();
-  });
 
   it("should update the labels of a prompt", async () => {
     const { projectId: newProjectId, auth: newAuth } =

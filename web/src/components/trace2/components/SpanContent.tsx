@@ -104,14 +104,14 @@ export function SpanContent({
       onMouseEnter={onHover}
       title={node.name}
       className={cn(
-        "peer relative flex min-w-0 flex-1 items-start rounded-md py-0.5 pl-1 pr-2 text-left",
+        "peer relative flex min-w-0 flex-1 items-start rounded-md py-0.5 pr-2 pl-1 text-left",
         className,
       )}
     >
       <div className="flex min-w-0 flex-col">
         {/* Name and badges row */}
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <span className="flex-shrink truncate text-xs">
+          <span className="shrink truncate text-xs">
             {node.name || `Unnamed ${node.type.toLowerCase()}`}
           </span>
 
@@ -152,7 +152,7 @@ export function SpanContent({
                     : undefined
                 }
                 className={cn(
-                  "text-xs text-muted-foreground",
+                  "text-muted-foreground text-xs",
                   parentTotalDuration &&
                     colorCodeMetrics &&
                     heatMapTextColor({
@@ -171,7 +171,7 @@ export function SpanContent({
             {/* Token counts */}
             {shouldRenderCostTokens &&
             (node.inputUsage || node.outputUsage || node.totalUsage) ? (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 {formatTokenCounts(
                   node.inputUsage,
                   node.outputUsage,
@@ -189,7 +189,7 @@ export function SpanContent({
                     : undefined
                 }
                 className={cn(
-                  "text-xs text-muted-foreground",
+                  "text-muted-foreground text-xs",
                   parentTotalCost &&
                     colorCodeMetrics &&
                     heatMapTextColor({

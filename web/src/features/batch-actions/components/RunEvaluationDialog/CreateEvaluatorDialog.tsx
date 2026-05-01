@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { EvalTargetObject } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  type EvalTargetObject as EvalTargetObjectType,
+} from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import {
   Dialog,
@@ -19,10 +22,16 @@ type CreateEvaluatorDialogProps = {
   projectId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  targetObject?: EvalTargetObjectType;
 };
 
 export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
-  const { projectId, open, onOpenChange } = props;
+  const {
+    projectId,
+    open,
+    onOpenChange,
+    targetObject = EvalTargetObject.EVENT,
+  } = props;
   const [templateId, setTemplateId] = useState<string | null>(null);
   const utils = api.useUtils();
 
@@ -46,28 +55,36 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[90vh] max-w-screen-md pb-0">
+      <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) pb-0">
         <DialogHeader>
           <DialogTitle>
-            Create Evaluator for batched observation runs
+            Create Evaluator for batched{" "}
+            {targetObject === EvalTargetObject.EVENT
+              ? "observation"
+              : "experiment"}{" "}
+            runs
           </DialogTitle>
           <DialogDescription>
-            This form creates an evaluator for batched observation runs.
+            This form creates an evaluator for batched{" "}
+            {targetObject === EvalTargetObject.EVENT
+              ? "observation"
+              : "experiment"}{" "}
+            runs.
           </DialogDescription>
         </DialogHeader>
 
-        <DialogBody className="max-h-[72vh] overflow-y-auto pb-0 pr-1">
+        <DialogBody className="max-h-[72vh] overflow-y-auto pr-1 pb-0">
           {!templateId ? (
             <div className="space-y-4 px-1 pb-1">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Select an evaluator template to configure.
               </p>
               {templatesQuery.isLoading ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Loading templates...
                 </p>
               ) : templatesQuery.isError ? (
-                <p className="text-sm text-destructive">
+                <p className="text-destructive text-sm">
                   Failed to load templates: {templatesQuery.error.message}
                 </p>
               ) : (
@@ -99,21 +116,22 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
                 hideTargetSelection
                 hidePreviewTable
                 defaultRunOnLive={false}
+                defaultTarget={targetObject}
                 onFormSuccess={() => {
                   handleClose(false);
                   void utils.evals.jobConfigsByTarget.invalidate({
                     projectId,
-                    targetObject: EvalTargetObject.EVENT,
+                    targetObject,
                   });
                   showSuccessToast({
                     title: "Evaluator created",
                     description:
-                      "Select it in the previous step to run it on selected observations.",
+                      "Select it in the previous step to run it on selected items.",
                   });
                 }}
                 preprocessFormValues={(values) => ({
                   ...values,
-                  target: EvalTargetObject.EVENT,
+                  target: targetObject,
                   timeScope: ["NEW"],
                   ...(values.runOnLive
                     ? {}

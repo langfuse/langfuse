@@ -146,7 +146,7 @@ TraceLayoutDesktop.ResizeHandle = function ResizeHandle() {
   return (
     <Separator
       id={RESIZABLE_PANEL_HANDLE_ID}
-      className="relative w-px bg-border transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 active:after:opacity-100"
+      className="bg-border relative w-px transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 active:after:opacity-100"
       onDoubleClick={handleTogglePanel}
     />
   );

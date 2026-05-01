@@ -1,39 +1,72 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   commons: ./commons.yml
-  pagination: ./utils/pagination.yml
 service:
   auth: true
   base-path: /api/public
   endpoints:
-    get:
-      docs: Get a observation
-      method: GET
-      path: /observations/{observationId}
-      path-parameters:
-        observationId:
-          type: string
-          docs: The unique langfuse identifier of an observation, can be an event, span or generation
-      response: commons.ObservationsView
     getMany:
       docs: |
-        Get a list of observations.
+        Get a list of observations with cursor-based pagination and flexible field selection.
 
-        Consider using the [v2 observations endpoint](/api-reference#tag/observationsv2/GET/api/public/v2/observations) for cursor-based pagination and field selection.
+        ## Cursor-based Pagination
+        This endpoint uses cursor-based pagination for efficient traversal of large datasets.
+        The cursor is returned in the response metadata and should be passed in subsequent requests
+        to retrieve the next page of results.
+
+        ## Field Selection
+        Use the `fields` parameter to control which observation fields are returned:
+        - `core` - Always included: id, traceId, startTime, endTime, projectId, parentObservationId, type
+        - `basic` - name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId
+        - `time` - completionStartTime, createdAt, updatedAt
+        - `io` - input, output
+        - `metadata` - metadata (truncated to 200 chars by default, use `expandMetadata` to get full values)
+        - `model` - providedModelName, internalModelId, modelParameters
+        - `usage` - usageDetails, costDetails, totalCost
+        - `prompt` - promptId, promptName, promptVersion
+        - `metrics` - latency, timeToFirstToken
+
+        If not specified, `core` and `basic` field groups are returned.
+
+        ## Filters
+        Multiple filtering options are available via query parameters or the structured `filter` parameter.
+        When using the `filter` parameter, it takes precedence over individual query parameter filters.
       method: GET
-      path: /observations
+      path: /v2/observations
       request:
-        name: GetObservationsRequest
+        name: GetObservationsV2Request
         query-parameters:
-          page:
-            type: optional<integer>
-            docs: Page number, starts at 1.
+          fields:
+            type: optional<string>
+            docs: |
+              Comma-separated list of field groups to include in the response.
+              Available groups: core, basic, time, io, metadata, model, usage, prompt, metrics.
+              If not specified, `core` and `basic` field groups are returned.
+              Example: "basic,usage,model"
+          expandMetadata:
+            type: optional<string>
+            docs: |
+              Comma-separated list of metadata keys to return non-truncated.
+              By default, metadata values over 200 characters are truncated.
+              Use this parameter to retrieve full values for specific keys.
+              Example: "key1,key2"
           limit:
             type: optional<integer>
-            docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit.
+            docs: Number of items to return per page. Maximum 1000, default 50.
+          cursor:
+            type: optional<string>
+            docs: Base64-encoded cursor for pagination. Use the cursor from the previous response to get the next page.
+          parseIoAsJson:
+            type: optional<boolean>
+            docs: |
+              **Deprecated.** Setting this to `true` will return a 400 error.
+              Input/output fields are always returned as raw strings.
+              Remove this parameter or set it to `false`.
           name: optional<string>
           userId: optional<string>
-          type: optional<string>
+          type:
+            type: optional<string>
+            docs: Filter by observation type (e.g., "GENERATION", "SPAN", "EVENT", "AGENT", "TOOL", "CHAIN", "RETRIEVER", "EVALUATOR", "EMBEDDING", "GUARDRAIL")
           traceId: optional<string>
           level:
             type: optional<commons.ObservationLevel>
@@ -94,6 +127,13 @@ service:
               - `level` (string) - Log level (DEBUG, DEFAULT, WARNING, ERROR)
               - `statusMessage` (string) - Status message
               - `version` (string) - Version tag
+              - `userId` (string) - User ID
+              - `sessionId` (string) - Session ID
+
+              ### Trace-Related Fields
+              - `traceName` (string) - Name of the parent trace
+              - `traceTags` (arrayOptions) - Tags from the parent trace
+              - `tags` (arrayOptions) - Alias for traceTags
 
               ### Performance Metrics
               - `latency` (number) - Latency in seconds (calculated: end_time - start_time)
@@ -111,18 +151,12 @@ service:
               - `totalCost` (number) - Total cost in USD
 
               ### Model Information
-              - `model` (string) - Provided model name
+              - `model` (string) - Provided model name (alias: `providedModelName`)
               - `promptName` (string) - Associated prompt name
               - `promptVersion` (number) - Associated prompt version
 
               ### Structured Data
               - `metadata` (stringObject/numberObject/categoryOptions) - Metadata key-value pairs. Use `key` parameter to filter on specific metadata keys.
-
-              ### Associated Trace Fields (requires join with traces table)
-              - `userId` (string) - User ID from associated trace
-              - `traceName` (string) - Name from associated trace
-              - `traceEnvironment` (string) - Environment from associated trace
-              - `traceTags` (arrayOptions) - Tags from associated trace
 
               ## Filter Examples
               ```json
@@ -148,15 +182,24 @@ service:
                 }
               ]
               ```
-      response: ObservationsViews
+      response: ObservationsV2Response
 
 types:
-  Observations:
-    properties:
-      data: list<commons.Observation>
-      meta: pagination.MetaResponse
+  ObservationsV2Response:
+    docs: |
+      Response containing observations with field-group-based filtering and cursor-based pagination.
 
-  ObservationsViews:
+      The `data` array contains observation objects with only the requested field groups included.
+      Use the `cursor` in `meta` to retrieve the next page of results.
     properties:
-      data: list<commons.ObservationsView>
-      meta: pagination.MetaResponse
+      data:
+        type: list<commons.ObservationV2>
+        docs: Array of observation objects. Fields included depend on the `fields` parameter in the request.
+      meta: ObservationsV2Meta
+
+  ObservationsV2Meta:
+    docs: Metadata for cursor-based pagination
+    properties:
+      cursor:
+        type: optional<string>
+        docs: Base64-encoded cursor to use for retrieving the next page. If not present, there are no more results.

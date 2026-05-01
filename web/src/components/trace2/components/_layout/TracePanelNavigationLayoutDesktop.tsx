@@ -56,7 +56,7 @@ export function TracePanelNavigationLayoutDesktop({
               <ResizablePanel defaultSize="60%" minSize="20%">
                 <div className="h-full overflow-hidden">{children}</div>
               </ResizablePanel>
-              <ResizableHandle className="h-px bg-border" />
+              <ResizableHandle className="bg-border h-px" />
               <ResizablePanel defaultSize="40%" minSize="20%">
                 <div className="h-full overflow-hidden">{secondaryContent}</div>
               </ResizablePanel>

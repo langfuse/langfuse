@@ -9,7 +9,7 @@ import { z } from "zod/v4";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
 
 const signupVerifySchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   name: StringNoHTMLNonEmpty.refine((value) => noUrlCheck(value), {
     message: "Input should not contain a URL",
   }).refine((value) => /^[a-zA-Z0-9\s]+$/.test(value), {

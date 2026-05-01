@@ -32,7 +32,7 @@ export function TimelineScale({
               style={{ left: `${index * STEP_SIZE}px` }}
             >
               <span
-                className="absolute left-2 text-xs text-muted-foreground"
+                className="text-muted-foreground absolute left-2 text-xs"
                 title={`${timeValue.toFixed(2)}s`}
               >
                 {timeValue.toFixed(2)}s
@@ -52,7 +52,7 @@ export function TimelineScale({
             return (
               <div
                 key={`grid-${index}`}
-                className="absolute h-full border-l border-border/30"
+                className="border-border/30 absolute h-full border-l"
                 style={{ left: `${index * STEP_SIZE}px` }}
               />
             );

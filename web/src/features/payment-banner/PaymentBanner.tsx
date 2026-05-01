@@ -65,7 +65,7 @@ export function PaymentBanner() {
   const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
 
   const drawerVariants = cva(
-    "fixed top-0 z-[51] flex w-full items-center justify-between gap-4 px-4 py-1 sm:px-4 lg:px-4",
+    "fixed top-0 z-51 flex w-full items-center justify-between gap-4 px-4 py-1 sm:px-4 lg:px-4",
     {
       variants: {
         type: {
@@ -94,7 +94,7 @@ export function PaymentBanner() {
       aria-live="polite"
     >
       <div className="flex items-center gap-3">
-        <AlertCircle className="h-4 w-4 flex-shrink-0" />
+        <AlertCircle className="h-4 w-4 shrink-0" />
         <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
           <span className="text-sm font-semibold">Billing Issue:</span>
           <span className="text-sm">

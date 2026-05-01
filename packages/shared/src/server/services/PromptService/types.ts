@@ -7,6 +7,7 @@ export type PromptResult = Prompt & {
 export type PromptParams = {
   projectId: string;
   promptName: string;
+  resolve?: boolean;
 } & (
   | { version: number; label: undefined }
   | { version: null | undefined; label: string }

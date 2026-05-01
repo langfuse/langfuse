@@ -9,6 +9,7 @@ import {
   updateEvents,
   getTraceByIdFromEventsTable,
   getObservationsBatchIOFromEventsTable,
+  getLatestSdkVersionInfoFromEvents,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
@@ -39,6 +40,34 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("getObservationsWithModelDataFromEventsTable", () => {
+    it("should return trace tags for events table observations", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "tagged-event",
+          tags: ["chat", "prod"],
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(observationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      const observation = result.find((o) => o.id === observationId);
+      expect(observation).toBeDefined();
+      expect(observation?.traceTags).toEqual(["chat", "prod"]);
+    });
+
     it("should return observations with model data", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -203,6 +232,36 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result2.length).toBeLessThanOrEqual(2);
     });
 
+    it("should return release field in the result set", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "release-field-test",
+          release: "1.2.3",
+          version: "V2",
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(observationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      const observation = result.find((o) => o.id === observationId);
+      expect(observation).toBeDefined();
+      expect(observation?.release).toBe("1.2.3");
+      expect(observation?.version).toBe("V2");
+    });
+
     it("should handle events without end_time (null latency)", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -345,6 +404,69 @@ describe("Clickhouse Events Repository Test", () => {
 
       expect(count).toBe(5);
       expect(observations.length).toBe(5);
+    });
+  });
+
+  maybe("Search Query Tests", () => {
+    it("should not throw when searchQuery is combined with score filter", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: uniqueProjectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-span",
+      });
+
+      await createEventsCh([event]);
+
+      // Verify that search columns qualified with e.* prefix do not conflict
+      // with the scores_agg LEFT JOIN when both are present.
+      const scoreFilter: FilterCondition = {
+        type: "numberObject" as const,
+        column: "scores_avg",
+        operator: ">" as const,
+        key: "Clinical Risk",
+        value: 0,
+      };
+
+      const count = await getObservationsCountFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [scoreFilter],
+        searchQuery: "test",
+      });
+
+      expect(count).toBeGreaterThanOrEqual(0);
+    });
+
+    it("should not throw when searchQuery is provided without filters", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: uniqueProjectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-span",
+      });
+
+      await createEventsCh([event]);
+
+      // Verify basic search with qualified e.* columns works without errors.
+      const count = await getObservationsCountFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [],
+        searchQuery: "test",
+      });
+
+      expect(count).toBeGreaterThanOrEqual(0);
     });
   });
 
@@ -521,6 +643,83 @@ describe("Clickhouse Events Repository Test", () => {
 
         expect(result.length).toBe(1);
         expect(result[0].name).toBe("event-recent-end");
+      });
+    });
+
+    describe("Prompt Filters", () => {
+      it("should filter observations by prompt name and prompt version", async () => {
+        const uniqueProjectId = randomUUID();
+        const traceId = randomUUID();
+        const matchingEventId = randomUUID();
+
+        const events = [
+          createEvent({
+            id: matchingEventId,
+            span_id: matchingEventId,
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "prompt-match",
+            prompt_name: "chat-parent",
+            prompt_version: 1,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "wrong-version",
+            prompt_name: "chat-parent",
+            prompt_version: 2,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "wrong-name",
+            prompt_name: "other-prompt",
+            prompt_version: 1,
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const filter: FilterCondition[] = [
+          {
+            type: "string",
+            column: "Prompt Name",
+            operator: "=",
+            value: "chat-parent",
+          },
+          {
+            type: "number",
+            column: "Prompt Version",
+            operator: "=",
+            value: 1,
+          },
+        ];
+
+        const [observations, count] = await Promise.all([
+          getObservationsWithModelDataFromEventsTable({
+            projectId: uniqueProjectId,
+            filter,
+            limit: 100,
+            offset: 0,
+          }),
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter,
+          }),
+        ]);
+
+        expect(count).toBe(1);
+        expect(observations).toHaveLength(1);
+        expect(observations[0]?.id).toBe(matchingEventId);
+        expect(observations[0]?.promptName).toBe("chat-parent");
+        expect(observations[0]?.promptVersion).toBe(1);
       });
     });
 
@@ -896,7 +1095,8 @@ describe("Clickhouse Events Repository Test", () => {
             trace_id: traceId,
             type: "SPAN",
             name: "md1",
-            metadata: { source: "api-server", region: "us-east" },
+            metadata_names: ["source", "region"],
+            metadata_values: ["api-server", "us-east"],
             start_time: now * 1000,
           }),
           createEvent({
@@ -906,7 +1106,8 @@ describe("Clickhouse Events Repository Test", () => {
             trace_id: traceId,
             type: "SPAN",
             name: "md2",
-            metadata: { source: "UI", region: "us-east" },
+            metadata_names: ["source", "region"],
+            metadata_values: ["UI", "us-east"],
             start_time: now * 1000,
           }),
           createEvent({
@@ -916,7 +1117,8 @@ describe("Clickhouse Events Repository Test", () => {
             trace_id: traceId,
             type: "SPAN",
             name: "md3",
-            metadata: { source: "UI", region: "us-west" },
+            metadata_names: ["source", "region"],
+            metadata_values: ["UI", "us-west"],
             start_time: now * 1000,
           }),
         ];
@@ -953,10 +1155,294 @@ describe("Clickhouse Events Repository Test", () => {
         expect(result.length).toBe(1);
         expect(result[0].name).toBe("md1");
       });
+
+      it("should return the first value when metadata_names contains duplicates", async () => {
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+
+        // Insert event with duplicate key "foo" in metadata_names.
+        // metadata_names = ["foo", "foo"], metadata_raw_values = ["bar", "baz"]
+        // Expected: reading metadata["foo"] should return "bar" (first occurrence wins).
+        const event = createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "duplicate-metadata-read",
+          metadata_names: ["foo", "foo"],
+          metadata_values: ["bar", "baz"],
+          start_time: now * 1000,
+        });
+
+        await createEventsCh([event]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [idFilter(observationId)],
+          limit: 1000,
+          offset: 0,
+          selectIOAndMetadata: true,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].metadata).toBeDefined();
+        expect((result[0].metadata as Record<string, string>)["foo"]).toBe(
+          "bar",
+        );
+      });
+
+      it("should filter on the first value when metadata_names contains duplicates", async () => {
+        const traceId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        const matchId = randomUUID();
+        const matchEvent = createEvent({
+          id: matchId,
+          span_id: matchId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "dup-filter-match",
+          metadata_names: ["foo", "foo"],
+          metadata_values: ["bar", "baz"],
+          start_time: now * 1000,
+        });
+
+        await createEventsCh([matchEvent]);
+
+        // Filter for foo = "bar" (first value) should match
+        const resultBar = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "=",
+              key: "foo",
+              value: "bar",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(resultBar.length).toBe(1);
+        expect(resultBar[0].name).toBe("dup-filter-match");
+
+        // Filter for foo = "baz" (second value) should NOT match
+        const resultBaz = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "=",
+              key: "foo",
+              value: "baz",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(resultBaz.length).toBe(0);
+      });
+
+      it("equality on absent key with empty value does NOT match", async () => {
+        // Today arr[indexOf(names, missing)] resolves to '' (Array(String)
+        // default), so `metadata.foo = ''` would match rows that never had
+        // the key. The has(metadata_names, ?) conjunct fixes this.
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "no-foo-key-eq-empty",
+            metadata_names: ["bar"],
+            metadata_values: ["baz"],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "=",
+              key: "foo",
+              value: "",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(0);
+      });
+
+      it("'does not contain' on absent key with non-empty needle does NOT match", async () => {
+        // Headline correctness fix: previously rows with the key absent
+        // matched `does not contain V` (because position('', V) = 0 is true
+        // for non-empty V). The has(metadata_names, ?) conjunct restricts
+        // the result to rows where the key actually exists.
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "no-foo-key-dnc",
+            metadata_names: ["bar"],
+            metadata_values: ["baz"],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "does not contain",
+              key: "foo",
+              value: "anything",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(0);
+      });
     });
   });
 
   maybe("getObservationByIdFromEventsTable", () => {
+    it("should return trace-level fields for event observations", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "test-trace-fields-byid",
+          trace_name: "trace-with-tags",
+          tags: ["chat", "prod"],
+          user_id: "user-123",
+          session_id: "session-123",
+        }),
+      ]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.traceName).toBe("trace-with-tags");
+      expect(observation?.traceTags).toEqual(["chat", "prod"]);
+      expect(observation?.userId).toBe("user-123");
+      expect(observation?.sessionId).toBe("session-123");
+    });
+
+    it("should return release field when fetching observation by id", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "release-byid-test",
+          release: "2.0.0",
+          version: "V3",
+        }),
+      ]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.release).toBe("2.0.0");
+      expect(observation?.version).toBe("V3");
+    });
+
     it("should return observation by id with input and output", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -1757,7 +2243,8 @@ describe("Clickhouse Events Repository Test", () => {
           name: "test-observation-1",
           input: "This is input for observation 1",
           output: "This is output for observation 1",
-          metadata: { key1: "value1", source: "test" },
+          metadata_names: ["key1", "source"],
+          metadata_values: ["value1", "test"],
           start_time: nowMicro,
         }),
         createEvent({
@@ -1769,7 +2256,8 @@ describe("Clickhouse Events Repository Test", () => {
           name: "test-observation-2",
           input: "This is input for observation 2",
           output: "This is output for observation 2",
-          metadata: { key2: "value2", environment: "production" },
+          metadata_names: ["key2", "environment"],
+          metadata_values: ["value2", "production"],
           start_time: nowMicro + 1000,
         }),
         createEvent({
@@ -1781,7 +2269,8 @@ describe("Clickhouse Events Repository Test", () => {
           name: "test-observation-3",
           input: "This is input for observation 3",
           output: "This is output for observation 3",
-          metadata: { key3: "value3" },
+          metadata_names: ["key3"],
+          metadata_values: ["value3"],
           start_time: nowMicro + 2000,
         }),
       ];
@@ -1914,6 +2403,158 @@ describe("Clickhouse Events Repository Test", () => {
       // Should not return anything since projectId doesn't match
       expect(result).toBeDefined();
       expect(result.length).toBe(0);
+    });
+  });
+
+  maybe("getLatestSdkVersionInfoFromEvents", () => {
+    it("should return isOtel: false for v2 data (no scope metadata)", async () => {
+      const uniqueProjectId = randomUUID();
+
+      // v2 data has no scope key in metadata
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: Date.now() * 1000,
+          metadata_names: ["version"],
+          metadata_values: ["2.x"],
+          scope_name: "",
+          scope_version: "",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(false);
+    });
+
+    it("should return isOtel: true with v3 version from metadata", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Insert v2 data
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now - 10000000, // older
+          metadata_names: ["version"],
+          metadata_values: ["2.x"],
+          scope_name: "",
+          scope_version: "",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      // Insert v3 data - SDK info in metadata as nested JSON
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now, // newer
+          metadata_names: ["resourceAttributes", "scope"],
+          metadata_values: [
+            '{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry"}',
+            '{"name":"langfuse-sdk","version":"3.14.6"}',
+          ],
+          scope_name: "", // v3 has empty direct columns
+          scope_version: "",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.version).toBe("3.14.6");
+    });
+
+    it("should return v4 version from direct columns when available", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Insert v2 data (oldest)
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now - 20000000,
+          metadata_names: ["version"],
+          metadata_values: ["2.x"],
+          scope_name: "",
+          scope_version: "",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      // Insert v3 data (middle)
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now - 10000000,
+          metadata_names: ["resourceAttributes", "scope"],
+          metadata_values: [
+            '{"telemetry.sdk.language":"python"}',
+            '{"name":"langfuse-sdk","version":"3.14.6"}',
+          ],
+          scope_name: "",
+          scope_version: "",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      // Insert v4 data (newest) - SDK info in direct columns
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now, // newest
+          metadata_names: ["scope.name", "scope.version"],
+          metadata_values: ["langfuse-sdk", "4.2.0"],
+          scope_name: "langfuse-sdk",
+          scope_version: "4.2.0",
+          telemetry_sdk_language: "python",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.version).toBe("4.2.0");
+    });
+
+    it("should return isOtel: true for Vercel AI SDK events (OTel without Langfuse SDK)", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Vercel AI SDK: sent via OTel but without Langfuse SDK
+      // scope.name is "ai" (instrumentation scope), no version
+      // resourceAttributes has telemetry.sdk.name = "opentelemetry"
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now,
+          metadata_names: ["resourceAttributes", "scope"],
+          metadata_values: [
+            '{"telemetry.sdk.language":"nodejs","telemetry.sdk.name":"opentelemetry"}',
+            '{"name":"ai","attributes":{}}',
+          ],
+          scope_name: "", // No direct columns for raw OTel
+          scope_version: "",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.name).toBe("ai");
+      expect(result.language).toBe("nodejs");
+      expect(result.version).toBeUndefined();
     });
   });
 });

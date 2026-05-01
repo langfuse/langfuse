@@ -1,19 +1,11 @@
-const JAPANESE_CHAR_RANGE = "\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF";
-
 export function getIsCharOrUnderscore(value: string): boolean {
-  const charOrUnderscore = new RegExp(
-    `^[a-zA-Z_${JAPANESE_CHAR_RANGE}]+$`,
-    "u",
-  );
+  const charOrUnderscore = /^[\p{L}\p{N}_]+$/u;
 
   return charOrUnderscore.test(value);
 }
 
-// Regex for valid variable names (letters, underscores, starting with letter)
-export const VARIABLE_REGEX = new RegExp(
-  `^[a-zA-Z${JAPANESE_CHAR_RANGE}][a-zA-Z${JAPANESE_CHAR_RANGE}_]*$`,
-  "u",
-);
+// Regex for valid variable names (unicode letters, underscores, starting with letter)
+export const VARIABLE_REGEX = /^\p{L}[\p{L}\p{N}_]*$/u;
 
 // Regex to find variables in mustache syntax
 export const MUSTACHE_REGEX = /{{([^{}]*)}}+/g;

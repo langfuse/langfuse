@@ -18,7 +18,8 @@ import { type ReactNode } from "react";
 type TabDefinition = {
   value: string;
   label: string;
-  href: string;
+  href?: string;
+  onClick?: () => void;
   querySelector?: (
     query: ParsedUrlQuery,
   ) => Record<string, string | string[] | undefined>;
@@ -32,6 +33,9 @@ type PageTabsProps = {
   className?: string;
   listClassName?: string;
 };
+
+const containerLayoutClassName =
+  "lg:mx-auto lg:w-full lg:max-w-screen-lg lg:px-8 xl:max-w-screen-xl 2xl:max-w-[1400px]";
 
 export type PageHeaderProps = {
   title: string;
@@ -70,7 +74,7 @@ const PageHeader = ({
   return (
     <div
       className={cn([
-        "sticky top-banner-offset z-30 w-full border-b bg-background shadow-sm",
+        "top-banner-offset bg-background sticky z-30 w-full border-b shadow-xs",
         className,
       ])}
       id="page-header"
@@ -81,7 +85,7 @@ const PageHeader = ({
           <div
             className={cn(
               "flex min-h-11 items-center gap-3 px-3 py-2",
-              container && "lg:container",
+              container && containerLayoutClassName,
             )}
           >
             {showSidebarTrigger ? (
@@ -106,11 +110,11 @@ const PageHeader = ({
           <div
             className={cn(
               "flex min-h-11 w-full flex-wrap items-center justify-between gap-1 px-3 py-1 md:flex-nowrap",
-              container && "lg:container",
+              container && containerLayoutClassName,
             )}
           >
             {/* Left side content */}
-            <div className="flex flex-grow flex-wrap items-center md:flex-grow-0">
+            <div className="flex grow flex-wrap items-center md:grow-0">
               <div className="mr-2 flex items-center gap-1">
                 {itemType && (
                   <div className="flex items-center">
@@ -118,13 +122,13 @@ const PageHeader = ({
                   </div>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
-                  <h2 className="line-clamp-1 text-lg font-semibold leading-7">
+                  <h2 className="line-clamp-1 text-lg leading-7 font-semibold">
                     {titleTooltip ? (
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span
-                              className="cursor-help break-words"
+                              className="cursor-help wrap-break-word"
                               data-testid="page-header-title"
                             >
                               {title}
@@ -147,7 +151,7 @@ const PageHeader = ({
                       </TooltipProvider>
                     ) : (
                       <span
-                        className="break-words"
+                        className="wrap-break-word"
                         title={title}
                         data-testid="page-header-title"
                       >
@@ -180,7 +184,7 @@ const PageHeader = ({
             </div>
 
             {/* Right side content */}
-            <div className="ml-auto flex flex-grow flex-wrap items-center justify-end gap-1">
+            <div className="ml-auto flex grow flex-wrap items-center justify-end gap-1">
               {actionButtonsRight}
             </div>
           </div>
@@ -193,25 +197,43 @@ const PageHeader = ({
                   tabsProps.listClassName,
                 )}
               >
-                {tabsProps.tabs.map((tab) => (
-                  <Link
-                    key={tab.value}
-                    href={{
-                      pathname: tab.href,
-                      query: tab.querySelector?.(router.query),
-                    }}
-                    className={cn(
-                      "inline-flex h-full items-center justify-center whitespace-nowrap rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium transition-all hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                      tab.value === tabsProps.activeTab
-                        ? "border-primary-accent bg-transparent shadow-none"
-                        : "",
-                      tab.disabled && "pointer-events-none opacity-50",
-                      tab.className,
-                    )}
-                  >
-                    {tab.label}
-                  </Link>
-                ))}
+                {tabsProps.tabs.map((tab) => {
+                  const tabClassName = cn(
+                    "hover:bg-muted/50 focus-visible:ring-ring inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+                    tab.value === tabsProps.activeTab
+                      ? "border-primary-accent bg-transparent shadow-none"
+                      : "",
+                    tab.disabled && "pointer-events-none opacity-50",
+                    tab.className,
+                  );
+
+                  if (tab.onClick) {
+                    return (
+                      <button
+                        key={tab.value}
+                        type="button"
+                        onClick={tab.onClick}
+                        className={tabClassName}
+                        disabled={tab.disabled}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <Link
+                      key={tab.value}
+                      href={{
+                        pathname: tab.href ?? "",
+                        query: tab.querySelector?.(router.query),
+                      }}
+                      className={tabClassName}
+                    >
+                      {tab.label}
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           )}

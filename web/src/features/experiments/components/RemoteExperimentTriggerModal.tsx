@@ -1,7 +1,7 @@
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -70,7 +70,13 @@ export const RemoteExperimentTriggerModal = ({
   const runRemoteExperimentMutation =
     api.datasets.triggerRemoteExperiment.useMutation({
       onSuccess: (data) => {
-        if (data.success) {
+        if (data.success && data.skipped) {
+          showErrorToast(
+            "Trigger is disabled",
+            "Enable the trigger in settings to run remote experiments.",
+            "WARNING",
+          );
+        } else if (data.success) {
           showSuccessToast({
             title: "Remote experiment triggered",
             description:

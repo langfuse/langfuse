@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 
 // Source field type
 export const SourceFieldSchema = z.enum(["input", "output", "metadata"]);

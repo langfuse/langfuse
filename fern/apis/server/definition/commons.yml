@@ -431,6 +431,12 @@ types:
       stringValue:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
+  TextScoreV1:
+    extends: BaseScoreV1
+    properties:
+      stringValue:
+        type: string
+        docs: The text content of the score (1-500 characters)
   ScoreV1:
     discriminant: "dataType"
     union:
@@ -443,6 +449,9 @@ types:
       BOOLEAN:
         type: BooleanScoreV1
         docs: "Score with BOOLEAN data type"
+      TEXT:
+        type: TextScoreV1
+        docs: "Score with TEXT data type"
 
   # Source: packages/shared/src/features/scores/interfaces/api/v2/schemas.ts - APIScoreSchemaV2
   BaseScore:
@@ -516,6 +525,12 @@ types:
       stringValue:
         type: string
         docs: The string representation of the correction content
+  TextScore:
+    extends: BaseScore
+    properties:
+      stringValue:
+        type: string
+        docs: The text content of the score (1-500 characters)
   Score:
     discriminant: "dataType"
     union:
@@ -531,13 +546,16 @@ types:
       CORRECTION:
         type: CorrectionScore
         docs: "Score with CORRECTION data type"
+      TEXT:
+        type: TextScore
+        docs: "Score with TEXT data type"
 
   CreateScoreValue:
     discriminated: false
     union:
       - double
       - string
-    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores
+    docs: The value of the score. Must be passed as string for categorical and text scores, and numeric for boolean and numeric scores
 
   # Source: web/src/features/public-api/types/comments.ts - APIComment
   Comment:
@@ -932,6 +950,7 @@ types:
       - NUMERIC
       - BOOLEAN
       - CATEGORICAL
+      - TEXT
 
   ScoreDataType:
     enum:
@@ -939,6 +958,7 @@ types:
       - BOOLEAN
       - CATEGORICAL
       - CORRECTION
+      - TEXT
 
 errors:
   Error:

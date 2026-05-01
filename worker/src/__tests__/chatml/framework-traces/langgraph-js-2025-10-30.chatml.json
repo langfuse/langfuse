@@ -1,0 +1,586 @@
+{
+  "0856a1825ccee968": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What's the weather in San Francisco?"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "call_VEZJgIQLgzcb80IIyQJm7JCi",
+              "name": "get_weather",
+              "arguments": "{\"city\":\"San Francisco\"}",
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "role": "get_weather",
+          "content": "It's always sunny in San Francisco!"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "It's always sunny in San Francisco! \n\nWould you like more details (current temperature, hourly forecast, or a multi-day outlook)?"
+        }
+      ]
+    }
+  },
+  "8f0ee27d91863fde": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What's the weather in San Francisco?"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "call_VEZJgIQLgzcb80IIyQJm7JCi",
+              "name": "get_weather",
+              "arguments": "{\"city\":\"San Francisco\"}",
+              "type": "function"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "0fa7a562ce43f546": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"role\"\n    ],\n    \"message\": \"Invalid input: expected string, received function\"\n  }\n]"
+      }
+    }
+  },
+  "0fabddcbcd5cee2d": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What's the weather in San Francisco?"
+        }
+      ]
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"role\"\n    ],\n    \"message\": \"Invalid input: expected string, received function\"\n  },\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      1,\n      \"role\"\n    ],\n    \"message\": \"Invalid input: expected string, received function\"\n  },\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      2,\n      \"role\"\n    ],\n    \"message\": \"Invalid input: expected string, received function\"\n  },\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      3,\n      \"role\"\n    ],\n    \"message\": \"Invalid input: expected string, received function\"\n  }\n]"
+      }
+    }
+  },
+  "1a436b274dae3895": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"role\"\n    ],\n    \"message\": \"Invalid input: expected string, received function\"\n  }\n]"
+      }
+    }
+  },
+  "2285cbc61d44c3e3": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"role\"\n    ],\n    \"message\": \"Invalid input: expected string, received function\"\n  }\n]"
+      }
+    }
+  },
+  "23450fb0c54069a3": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"role\"\n    ],\n    \"message\": \"Invalid input: expected string, received function\"\n  }\n]"
+      }
+    }
+  },
+  "29937389e09f9525": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "json": {
+            "output": [
+              {
+                "lc": 1,
+                "type": "constructor",
+                "id": [
+                  "langchain_core",
+                  "messages",
+                  "HumanMessage"
+                ],
+                "kwargs": {
+                  "content": "What's the weather in San Francisco?",
+                  "additional_kwargs": {},
+                  "response_metadata": {},
+                  "id": "44fe5ba2-2f09-4ec2-9385-33e26c43f469"
+                }
+              },
+              {
+                "lc": 1,
+                "type": "constructor",
+                "id": [
+                  "langchain_core",
+                  "messages",
+                  "AIMessage"
+                ],
+                "kwargs": {
+                  "id": "chatcmpl-CWIZpV1k7an0crpr6hsnDXp1j2wdo",
+                  "name": "model",
+                  "content": "",
+                  "additional_kwargs": {
+                    "tool_calls": [
+                      {
+                        "id": "call_VEZJgIQLgzcb80IIyQJm7JCi",
+                        "type": "function",
+                        "function": {
+                          "name": "get_weather",
+                          "arguments": "{\"city\":\"San Francisco\"}"
+                        }
+                      }
+                    ]
+                  },
+                  "response_metadata": {
+                    "tokenUsage": {
+                      "promptTokens": 142,
+                      "completionTokens": 24,
+                      "totalTokens": 166
+                    },
+                    "finish_reason": "tool_calls",
+                    "model_provider": "openai",
+                    "model_name": "gpt-5-mini-2025-08-07"
+                  },
+                  "type": "ai",
+                  "tool_calls": [
+                    {
+                      "name": "get_weather",
+                      "args": {
+                        "city": "San Francisco"
+                      },
+                      "type": "tool_call",
+                      "id": "call_VEZJgIQLgzcb80IIyQJm7JCi"
+                    }
+                  ],
+                  "invalid_tool_calls": [],
+                  "usage_metadata": {
+                    "output_tokens": 24,
+                    "input_tokens": 142,
+                    "total_tokens": 166,
+                    "input_token_details": {
+                      "audio": 0,
+                      "cache_read": 0
+                    },
+                    "output_token_details": {
+                      "audio": 0,
+                      "reasoning": 0
+                    }
+                  }
+                }
+              },
+              {
+                "lc": 1,
+                "type": "constructor",
+                "id": [
+                  "langchain_core",
+                  "messages",
+                  "ToolMessage"
+                ],
+                "kwargs": {
+                  "status": "success",
+                  "content": "It's always sunny in San Francisco!",
+                  "tool_call_id": "call_VEZJgIQLgzcb80IIyQJm7JCi",
+                  "name": "get_weather",
+                  "metadata": {},
+                  "additional_kwargs": {},
+                  "response_metadata": {},
+                  "id": "62384f1e-7993-405d-80d5-e62fc1102f78"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "4059d1450dfaeabd": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"role\"\n    ],\n    \"message\": \"Invalid input: expected string, received function\"\n  }\n]"
+      }
+    }
+  },
+  "405be02ff1aec7f8": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "json": {
+            "output": [
+              {
+                "lc": 1,
+                "type": "constructor",
+                "id": [
+                  "langchain_core",
+                  "messages",
+                  "HumanMessage"
+                ],
+                "kwargs": {
+                  "content": "What's the weather in San Francisco?",
+                  "additional_kwargs": {},
+                  "response_metadata": {},
+                  "id": "44fe5ba2-2f09-4ec2-9385-33e26c43f469"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "4a19536760554d30": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What's the weather in San Francisco?"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What's the weather in San Francisco?"
+        }
+      ]
+    }
+  },
+  "4bd9001eb2207296": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What's the weather in San Francisco?"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What's the weather in San Francisco?"
+        }
+      ]
+    }
+  },
+  "5418736422abc167": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0\n    ],\n    \"message\": \"Invalid input: expected object, received string\"\n  }\n]"
+      }
+    }
+  },
+  "62fd894173738caf": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"role\"\n    ],\n    \"message\": \"Invalid input: expected string, received function\"\n  }\n]"
+      }
+    }
+  },
+  "841f49934638899f": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "json": {
+            "output": [
+              {
+                "lg_name": "Send",
+                "node": "tools",
+                "args": {
+                  "messages": [
+                    {
+                      "lc": 1,
+                      "type": "constructor",
+                      "id": [
+                        "langchain_core",
+                        "messages",
+                        "HumanMessage"
+                      ],
+                      "kwargs": {
+                        "content": "What's the weather in San Francisco?",
+                        "additional_kwargs": {},
+                        "response_metadata": {},
+                        "id": "44fe5ba2-2f09-4ec2-9385-33e26c43f469"
+                      }
+                    },
+                    {
+                      "lc": 1,
+                      "type": "constructor",
+                      "id": [
+                        "langchain_core",
+                        "messages",
+                        "AIMessage"
+                      ],
+                      "kwargs": {
+                        "id": "chatcmpl-CWIZpV1k7an0crpr6hsnDXp1j2wdo",
+                        "name": "model",
+                        "content": "",
+                        "additional_kwargs": {
+                          "tool_calls": [
+                            {
+                              "id": "call_VEZJgIQLgzcb80IIyQJm7JCi",
+                              "type": "function",
+                              "function": {
+                                "name": "get_weather",
+                                "arguments": "{\"city\":\"San Francisco\"}"
+                              }
+                            }
+                          ]
+                        },
+                        "response_metadata": {
+                          "tokenUsage": {
+                            "promptTokens": 142,
+                            "completionTokens": 24,
+                            "totalTokens": 166
+                          },
+                          "finish_reason": "tool_calls",
+                          "model_provider": "openai",
+                          "model_name": "gpt-5-mini-2025-08-07"
+                        },
+                        "type": "ai",
+                        "tool_calls": [
+                          {
+                            "name": "get_weather",
+                            "args": {
+                              "city": "San Francisco"
+                            },
+                            "type": "tool_call",
+                            "id": "call_VEZJgIQLgzcb80IIyQJm7JCi"
+                          }
+                        ],
+                        "invalid_tool_calls": [],
+                        "usage_metadata": {
+                          "output_tokens": 24,
+                          "input_tokens": 142,
+                          "total_tokens": 166,
+                          "input_token_details": {
+                            "audio": 0,
+                            "cache_read": 0
+                          },
+                          "output_token_details": {
+                            "audio": 0,
+                            "reasoning": 0
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "_privateState": {
+                    "threadLevelCallCount": 1,
+                    "runModelCallCount": 0
+                  },
+                  "lg_tool_call": {
+                    "name": "get_weather",
+                    "args": {
+                      "city": "San Francisco"
+                    },
+                    "type": "tool_call",
+                    "id": "call_VEZJgIQLgzcb80IIyQJm7JCi"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "94d8f57d1d47f9d3": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"role\"\n    ],\n    \"message\": \"Invalid input: expected string, received function\"\n  }\n]"
+      }
+    }
+  },
+  "b6ebcf125bccb1e0": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"role\"\n    ],\n    \"message\": \"Invalid input: expected string, received function\"\n  }\n]"
+      }
+    }
+  },
+  "c3a547a43cb47b18": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"role\"\n    ],\n    \"message\": \"Invalid input: expected string, received function\"\n  }\n]"
+      }
+    }
+  },
+  "dc6fa04662de9504": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"role\"\n    ],\n    \"message\": \"Invalid input: expected string, received function\"\n  }\n]"
+      }
+    }
+  },
+  "f610e93ab2a4d66c": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What's the weather in San Francisco?"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What's the weather in San Francisco?"
+        }
+      ]
+    }
+  }
+}

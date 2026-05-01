@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -6,7 +6,6 @@ import {
 import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { DB } from "@/src/server/db";
 import {
   paginationZod,
   singleFilter,
@@ -35,7 +34,7 @@ import {
   getDatasetRunItemsByDatasetIdCh,
   getDatasetRunItemsCountByDatasetIdCh,
   getDatasetRunsTableMetricsCh,
-  getScoresForDatasetRuns,
+  getScoresForExperiments,
   getTraceScoresForDatasetRuns,
   getDatasetRunItemsCountCh,
   getNumericScoresGroupedByName,
@@ -79,7 +78,7 @@ import { v4 } from "uuid";
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
 
 /**
- * Adds a case-insensitive search condition to a Kysely query
+ * Adds a case-insensitive search condition to a query
  * @param searchQuery The search term (optional)
  * @returns The search condition
  */
@@ -324,7 +323,12 @@ export const datasetRouter = createTRPCRouter({
         // datasets
         ctx.prisma.$queryRaw<
           Array<
-            Omit<Dataset, "remoteExperimentUrl" | "remoteExperimentPayload"> & {
+            Omit<
+              Dataset,
+              | "remoteExperimentUrl"
+              | "remoteExperimentPayload"
+              | "remoteExperimentEnabled"
+            > & {
               row_type: "folder" | "dataset";
             }
           >
@@ -374,30 +378,20 @@ export const datasetRouter = createTRPCRouter({
       if (input.datasetIds.length === 0) return { metrics: [] };
 
       // Get dataset runs metrics
-      const query = DB.selectFrom("datasets")
-        .leftJoin("dataset_runs", (join) =>
-          join
-            .onRef("datasets.id", "=", "dataset_runs.dataset_id")
-            .on("dataset_runs.project_id", "=", input.projectId),
-        )
-        .select(({ eb }) => [
-          "datasets.id",
-          eb.fn.count("dataset_runs.id").distinct().as("countDatasetRuns"),
-          eb.fn.max("dataset_runs.created_at").as("lastRunAt"),
-        ])
-        .where("datasets.project_id", "=", input.projectId)
-        .where("datasets.id", "in", input.datasetIds)
-        .groupBy("datasets.id");
-
-      const compiledQuery = query.compile();
-
-      const runsMetrics = await ctx.prisma.$queryRawUnsafe<
+      const runsMetrics = await ctx.prisma.$queryRaw<
         Array<{
           id: string;
           countDatasetRuns: number;
           lastRunAt: Date | null;
         }>
-      >(compiledQuery.sql, ...compiledQuery.parameters);
+      >`
+        SELECT d.id, COUNT(DISTINCT dr.id) AS "countDatasetRuns", MAX(dr.created_at) AS "lastRunAt"
+        FROM datasets d
+        LEFT JOIN dataset_runs dr ON d.id = dr.dataset_id AND dr.project_id = ${input.projectId}
+        WHERE d.project_id = ${input.projectId}
+        AND d.id IN (${Prisma.join(input.datasetIds)})
+        GROUP BY d.id
+      `;
 
       // Get dataset items count for all datasets
       const itemsCounts = await getDatasetItemsCountGrouped({
@@ -575,7 +569,7 @@ export const datasetRouter = createTRPCRouter({
         runsWithMetricsIds.length > 0
           ? getTraceScoresForDatasetRuns(input.projectId, runsWithMetricsIds)
           : [],
-        getScoresForDatasetRuns({
+        getScoresForExperiments({
           projectId: input.projectId,
           runIds: runsWithMetrics.map((run) => run.id),
           includeHasMetadata: true,
@@ -1647,6 +1641,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         url: z.string(),
         defaultPayload: z.string(),
+        enabled: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -1677,6 +1672,7 @@ export const datasetRouter = createTRPCRouter({
           id: input.datasetId,
           remoteExperimentUrl: input.url,
           remoteExperimentPayload: input.defaultPayload ?? {},
+          remoteExperimentEnabled: input.enabled,
         },
         projectId: input.projectId,
       });
@@ -1701,6 +1697,7 @@ export const datasetRouter = createTRPCRouter({
         select: {
           remoteExperimentUrl: true,
           remoteExperimentPayload: true,
+          remoteExperimentEnabled: true,
         },
       });
 
@@ -1709,6 +1706,7 @@ export const datasetRouter = createTRPCRouter({
       return {
         url: dataset.remoteExperimentUrl,
         payload: dataset.remoteExperimentPayload,
+        enabled: dataset.remoteExperimentEnabled,
       };
     }),
   triggerRemoteExperiment: protectedProjectProcedure
@@ -1738,6 +1736,7 @@ export const datasetRouter = createTRPCRouter({
           name: true,
           remoteExperimentUrl: true,
           remoteExperimentPayload: true,
+          remoteExperimentEnabled: true,
         },
       });
 
@@ -1753,6 +1752,15 @@ export const datasetRouter = createTRPCRouter({
           code: "BAD_REQUEST",
           message: "No remote run URL configured for this dataset",
         });
+      }
+
+      if (!dataset.remoteExperimentEnabled) {
+        // Trigger is configured but intentionally disabled — skip the remote call
+        // without surfacing an error toast to the user.
+        return {
+          success: true,
+          skipped: true,
+        };
       }
 
       try {
@@ -1836,6 +1844,8 @@ export const datasetRouter = createTRPCRouter({
           id: input.datasetId,
           remoteExperimentUrl: null,
           remoteExperimentPayload: Prisma.DbNull,
+          // Reset to true so a future upsert doesn't inherit a stale disabled state
+          remoteExperimentEnabled: true,
         },
         projectId: input.projectId,
       });

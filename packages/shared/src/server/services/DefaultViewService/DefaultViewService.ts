@@ -1,5 +1,10 @@
 import { prisma } from "../../../db";
-import type { DefaultViewScope, ResolvedDefault } from "./types";
+import { TableViewPresetTableName } from "../../../domain/table-view-presets";
+import type {
+  DefaultViewAssignments,
+  DefaultViewScope,
+  ResolvedDefault,
+} from "./types";
 
 interface GetResolvedDefaultParams {
   projectId: string;
@@ -22,7 +27,67 @@ interface ClearDefaultParams {
   userId?: string;
 }
 
+const getReadCompatibleViewNames = (viewName: string) =>
+  viewName === TableViewPresetTableName.ObservationsEvents
+    ? [
+        TableViewPresetTableName.ObservationsEvents,
+        TableViewPresetTableName.Observations,
+      ]
+    : [viewName];
+
+const getCanonicalViewName = (viewName: string) =>
+  viewName === TableViewPresetTableName.ObservationsEvents
+    ? TableViewPresetTableName.ObservationsEvents
+    : viewName;
+
+const pickPreferredDefaultViewId = (
+  defaults: {
+    viewId: string;
+    viewName: string;
+    userId: string | null;
+  }[],
+  preferredViewNames: string[],
+  userId: string | null,
+) =>
+  preferredViewNames
+    .map((viewName) =>
+      defaults.find((defaultView) => {
+        return (
+          defaultView.viewName === viewName && defaultView.userId === userId
+        );
+      }),
+    )
+    .find(Boolean)?.viewId ?? null;
+
 export class DefaultViewService {
+  public static async getDefaultAssignments({
+    projectId,
+    viewName,
+    userId,
+  }: GetResolvedDefaultParams): Promise<DefaultViewAssignments> {
+    const compatibleViewNames = getReadCompatibleViewNames(viewName);
+    const defaults = await prisma.defaultView.findMany({
+      where: {
+        projectId,
+        viewName: {
+          in: compatibleViewNames,
+        },
+        OR: userId ? [{ userId }, { userId: null }] : [{ userId: null }],
+      },
+    });
+
+    return {
+      userDefaultViewId: userId
+        ? pickPreferredDefaultViewId(defaults, compatibleViewNames, userId)
+        : null,
+      projectDefaultViewId: pickPreferredDefaultViewId(
+        defaults,
+        compatibleViewNames,
+        null,
+      ),
+    };
+  }
+
   /**
    * Get the resolved default view for a given context.
    * Priority: user default > project default > null
@@ -32,27 +97,18 @@ export class DefaultViewService {
     viewName,
     userId,
   }: GetResolvedDefaultParams): Promise<ResolvedDefault | null> {
-    // Get all defaults for this project/viewName (both user and project level)
-    const defaults = await prisma.defaultView.findMany({
-      where: {
-        projectId,
-        viewName,
-        OR: userId ? [{ userId }, { userId: null }] : [{ userId: null }],
-      },
+    const assignments = await DefaultViewService.getDefaultAssignments({
+      projectId,
+      viewName,
+      userId,
     });
 
-    // Check for user-level default first (if userId provided)
-    if (userId) {
-      const userDefault = defaults.find((d) => d.userId === userId);
-      if (userDefault) {
-        return { viewId: userDefault.viewId, scope: "user" };
-      }
+    if (assignments.userDefaultViewId) {
+      return { viewId: assignments.userDefaultViewId, scope: "user" };
     }
 
-    // Fall back to project-level default
-    const projectDefault = defaults.find((d) => d.userId === null);
-    if (projectDefault) {
-      return { viewId: projectDefault.viewId, scope: "project" };
+    if (assignments.projectDefaultViewId) {
+      return { viewId: assignments.projectDefaultViewId, scope: "project" };
     }
 
     return null;
@@ -70,6 +126,7 @@ export class DefaultViewService {
     userId,
   }: SetAsDefaultParams): Promise<void> {
     const userIdToUse = scope === "user" ? userId : null;
+    const canonicalViewName = getCanonicalViewName(viewName);
 
     if (scope === "user" && !userId) {
       throw new Error("userId is required for user-level defaults");
@@ -82,7 +139,7 @@ export class DefaultViewService {
         const existing = await tx.defaultView.findFirst({
           where: {
             projectId,
-            viewName,
+            viewName: canonicalViewName,
             userId: userIdToUse,
           },
         });
@@ -90,14 +147,14 @@ export class DefaultViewService {
         if (existing) {
           await tx.defaultView.update({
             where: { id: existing.id },
-            data: { viewId },
+            data: { viewId, viewName: canonicalViewName },
           });
         } else {
           await tx.defaultView.create({
             data: {
               projectId,
               userId: userIdToUse,
-              viewName,
+              viewName: canonicalViewName,
               viewId,
             },
           });
@@ -114,6 +171,7 @@ export class DefaultViewService {
     userId,
   }: ClearDefaultParams): Promise<void> {
     const userIdToUse = scope === "user" ? userId : null;
+    const canonicalViewName = getCanonicalViewName(viewName);
 
     if (scope === "user" && !userId) {
       throw new Error("userId is required for clearing user-level defaults");
@@ -122,7 +180,7 @@ export class DefaultViewService {
     await prisma.defaultView.deleteMany({
       where: {
         projectId,
-        viewName,
+        viewName: canonicalViewName,
         userId: userIdToUse,
       },
     });

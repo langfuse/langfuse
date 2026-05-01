@@ -39,7 +39,7 @@ export const CopyIdsPopover = ({
         onClick={() => handleCopy(idItems[0].id)}
       >
         {copiedId === idItems[0].id ? (
-          <CheckIcon className="h-3 w-3 text-muted-green" />
+          <CheckIcon className="text-muted-green h-3 w-3" />
         ) : (
           <CopyIcon className="h-3 w-3" />
         )}
@@ -68,10 +68,10 @@ export const CopyIdsPopover = ({
           {idItems.map((item) => (
             <div
               key={item.id}
-              className="group flex items-center justify-between gap-2 rounded-sm px-2 py-1.5 transition-colors hover:bg-muted/50"
+              className="hover:bg-muted/50 group flex items-center justify-between gap-2 rounded-sm px-2 py-1.5 transition-colors"
             >
               <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-xs font-medium text-muted-foreground">
+                <span className="text-muted-foreground text-xs font-medium">
                   {item.name}
                 </span>
                 <span
@@ -88,7 +88,7 @@ export const CopyIdsPopover = ({
                 onClick={() => handleCopy(item.id)}
               >
                 {copiedId === item.id ? (
-                  <CheckIcon className="h-3 w-3 text-muted-green" />
+                  <CheckIcon className="text-muted-green h-3 w-3" />
                 ) : (
                   <CopyIcon className="h-3 w-3" />
                 )}
