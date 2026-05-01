@@ -70,6 +70,7 @@ export function TraceDetailView({
 }: TraceDetailViewProps) {
   // Tab and view state from URL (via SelectionContext)
   const { selectedTab, setSelectedTab } = useSelection();
+  const utils = api.useUtils();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
   const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false);
 
@@ -182,8 +183,22 @@ export function TraceDetailView({
     useIsAuthenticatedAndProjectMember(projectId);
   const showScoresTab = isAuthenticatedAndProjectMember;
 
+  const refreshTraceScores = useCallback(() => {
+    void utils.traces.byIdWithObservationsAndScores.invalidate({
+      projectId,
+      traceId: trace.id,
+    });
+    void utils.events.scoresForTrace.invalidate({
+      projectId,
+      traceId: trace.id,
+    });
+  }, [projectId, trace.id, utils]);
+
   // Handle tab change
   const handleTabChange = (value: string) => {
+    if (value === "scores") {
+      refreshTraceScores();
+    }
     setSelectedTab(value as "preview" | "log" | "scores");
   };
 
