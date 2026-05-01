@@ -1,12 +1,11 @@
 import { api } from "@/src/utils/api";
 import {
-  type TableViewPresetTableName,
+  TableViewPresetTableName,
   type FilterState,
   type OrderByState,
   type TableViewPresetState,
   type ColumnDefinition,
 } from "@langfuse/shared";
-import { type DefaultViewScope } from "@langfuse/shared/src/server";
 import { useRouter } from "next/router";
 import { useEffect, useCallback, useState, useRef } from "react";
 import { type VisibilityState } from "@tanstack/react-table";
@@ -39,6 +38,14 @@ interface UseTableStateProps {
   currentFilterState?: FilterState;
   disabled?: boolean;
 }
+
+const isViewApplicableToTable = (
+  currentTableName: TableViewPresetTableName,
+  viewTableName: TableViewPresetTableName,
+) =>
+  currentTableName === viewTableName ||
+  (currentTableName === TableViewPresetTableName.ObservationsEvents &&
+    viewTableName === TableViewPresetTableName.Observations);
 
 /**
  * Hook to manage table view state with permalink support
@@ -130,12 +137,9 @@ export function useTableViewManager({
     if (isInitialized) return;
     if (!isRouterReady) return;
 
-    // If viewId already in URL and not a system preset → getById query handles it.
-    // Sync to session storage so navigating away and back restores the view.
+    // If viewId already in the URL and is not a system preset, let the getById
+    // query resolve it.
     if (selectedViewId && !isSystemPresetId(selectedViewId)) {
-      if (storedViewId !== selectedViewId) {
-        setStoredViewId(selectedViewId);
-      }
       return;
     }
 
@@ -288,6 +292,10 @@ export function useTableViewManager({
     if (isInitializedRef.current) return;
     if (selectedViewIdRef.current !== requestedViewId) return;
     if (selectedViewData.id !== requestedViewId) return;
+    if (!isViewApplicableToTable(tableName, selectedViewData.tableName)) {
+      handleSetViewId(null);
+      return;
+    }
 
     // Track permalink visit
     capture("saved_views:permalink_visit", {
@@ -297,6 +305,9 @@ export function useTableViewManager({
     });
 
     applyViewState(selectedViewData);
+    if (storedViewId !== requestedViewId) {
+      setStoredViewId(requestedViewId);
+    }
     isInitializedRef.current = true;
     setIsInitialized(true);
   }, [
@@ -304,9 +315,12 @@ export function useTableViewManager({
     isSelectedViewSuccess,
     selectedViewData,
     selectedViewId,
+    handleSetViewId,
     capture,
     tableName,
     applyViewState,
+    storedViewId,
+    setStoredViewId,
   ]);
 
   useEffect(() => {
@@ -368,6 +382,6 @@ export function useTableViewManager({
     applyViewState,
     handleSetViewId,
     selectedViewId,
-    defaultViewScope: resolvedDefault?.scope as DefaultViewScope | null,
+    defaultViewScope: resolvedDefault?.scope ?? null,
   };
 }

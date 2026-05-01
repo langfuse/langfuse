@@ -8,8 +8,8 @@ const ReleaseApiRes = z.array(
   z.object({
     repo: z.string(),
     latestRelease: z.string(),
-    publishedAt: z.string().datetime(),
-    url: z.string().url(),
+    publishedAt: z.iso.datetime(),
+    url: z.url(),
   }),
 );
 

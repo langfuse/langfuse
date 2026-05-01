@@ -13,20 +13,18 @@ function getStorageKey(prefix: string, userId?: string) {
 export function useExperimentAccess() {
   const { data: session } = useSession();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
+  const { isBetaEnabled: isV4BetaEnabled, canToggleV4 } = useV4Beta();
 
   const userId = session?.user?.id;
-  const isAdmin = session?.user?.admin ?? false;
-  const isFeatureEnabledOnUser =
-    session?.user?.featureFlags["experimentsV4Enabled"] ?? false;
 
-  const { hasRoleAccess, isEnabled: canAccessExperiments } =
-    getExperimentsAccess({
-      isLangfuseCloud,
-      isV4BetaEnabled,
-      isAdmin,
-      isFeatureEnabledOnUser,
-    });
+  // New users (canToggleV4 = false) get experiments beta auto-enabled
+  // Only compute isNewCloudUser after session loads to avoid treating all users as "new" during loading
+  const isNewCloudUser = isLangfuseCloud && !canToggleV4;
+
+  const { isEnabled: canAccessExperiments } = getExperimentsAccess({
+    isLangfuseCloud,
+    isV4BetaEnabled,
+  });
 
   const [isExperimentsBetaEnabled, setExperimentsBetaEnabled] =
     useLocalStorage<boolean>(
@@ -34,17 +32,21 @@ export function useExperimentAccess() {
       false,
     );
 
+  // For new cloud users, experiments beta is always enabled (bypass localStorage)
+  const effectiveExperimentsBetaEnabled =
+    isNewCloudUser || isExperimentsBetaEnabled;
+
   return {
     canAccessExperiments,
-    canUseExperimentsBetaToggle: canAccessExperiments,
+    // Hide toggle for new cloud users - they get experiments beta automatically
+    canUseExperimentsBetaToggle: canAccessExperiments && !isNewCloudUser,
     canSeeExperimentsNav: canAccessExperiments,
+    // New cloud users always have experiments beta active; others need localStorage toggle
     isExperimentsBetaActive:
-      canAccessExperiments && isExperimentsBetaEnabled && isV4BetaEnabled,
-    isExperimentsBetaEnabled,
+      canAccessExperiments && effectiveExperimentsBetaEnabled,
+    // Return effective value so pages render correctly for new users
+    isExperimentsBetaEnabled: effectiveExperimentsBetaEnabled,
     setExperimentsBetaEnabled,
-    isAdmin,
-    isFeatureEnabledOnUser,
-    hasRoleAccess,
     isV4BetaEnabled,
   };
 }

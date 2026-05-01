@@ -1,4 +1,3 @@
-/** @jest-environment node */
 // Set environment variable before any imports to ensure it's picked up by env module
 process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
   "true";
@@ -171,6 +170,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(getDatasetV2.body).not.toHaveProperty("items");
     expect(getDatasetV2.body).not.toHaveProperty("runs");
+    // Remote experiment fields should not be exposed in public API
+    expect(getDatasetV2.body).not.toHaveProperty("remoteExperimentEnabled");
+    expect(getDatasetV2.body).not.toHaveProperty("remoteExperimentUrl");
+    expect(getDatasetV2.body).not.toHaveProperty("remoteExperimentPayload");
   });
 
   it("should not return ARCHIVED dataset items when getting a dataset", async () => {
@@ -320,21 +323,17 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     ).toBe(true);
   });
 
-  it("should return 404 when getting an ARCHIVED dataset item by id", async () => {
+  it("should return archived dataset item when getting by id", async () => {
     const datasetName = `dataset-archived-by-id-${v4()}`;
 
-    // Create dataset
     await makeZodVerifiedAPICall(
       PostDatasetsV1Response,
       "POST",
       "/api/public/datasets",
-      {
-        name: datasetName,
-      },
+      { name: datasetName },
       auth,
     );
 
-    // Create an archived dataset item
     const archivedItem = await makeZodVerifiedAPICall(
       PostDatasetItemsV1Response,
       "POST",
@@ -350,16 +349,29 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(archivedItem.status).toBe(200);
     expect(archivedItem.body.status).toBe("ARCHIVED");
 
-    // Try to get the archived item by id - should return 404
-    const getArchivedItem = await makeAPICall(
+    const getArchivedItem = await makeZodVerifiedAPICall(
+      GetDatasetItemV1Response,
       "GET",
       `/api/public/dataset-items/archived-item-by-id`,
       undefined,
       auth,
     );
-    expect(getArchivedItem.status).toBe(404);
+    expect(getArchivedItem.status).toBe(200);
+    expect(getArchivedItem.body.id).toBe("archived-item-by-id");
+    expect(getArchivedItem.body.status).toBe("ARCHIVED");
+  });
 
-    // Create an active item to verify GET still works for active items
+  it("should return active dataset item when getting by id", async () => {
+    const datasetName = `dataset-active-by-id-${v4()}`;
+
+    await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      { name: datasetName },
+      auth,
+    );
+
     const activeItem = await makeZodVerifiedAPICall(
       PostDatasetItemsV1Response,
       "POST",
@@ -374,7 +386,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
     expect(activeItem.status).toBe(200);
 
-    // Get the active item by id - should succeed
     const getActiveItem = await makeZodVerifiedAPICall(
       GetDatasetItemV1Response,
       "GET",
@@ -598,6 +609,12 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         page: 1,
       }),
     });
+    // Remote experiment fields should not be exposed in public API
+    for (const dataset of getDatasetsV2.body.data) {
+      expect(dataset).not.toHaveProperty("remoteExperimentEnabled");
+      expect(dataset).not.toHaveProperty("remoteExperimentUrl");
+      expect(dataset).not.toHaveProperty("remoteExperimentPayload");
+    }
   });
 
   it("should create and get a dataset items (via datasets (v1), individually, and as a list)", async () => {

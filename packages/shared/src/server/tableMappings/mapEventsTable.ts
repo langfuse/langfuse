@@ -260,6 +260,12 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 'e."experiment_name"',
   },
   {
+    uiTableName: "Is Experiment Item Root Span",
+    uiTableId: "isExperimentItemRootSpan",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "e.experiment_item_root_span_id = e.span_id",
+  },
+  {
     uiTableName: "Available Tools",
     uiTableId: "toolDefinitions",
     clickhouseTableName: "events_proto",

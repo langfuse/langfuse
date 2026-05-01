@@ -331,7 +331,6 @@ export function DataTableControls({
 interface BaseFacetProps {
   label: string;
   tooltip?: string;
-  children?: React.ReactNode;
   filterKey: string;
   filterKeyShort?: string | null;
   expanded?: boolean;
@@ -350,8 +349,8 @@ interface CategoricalFacetProps extends BaseFacetProps {
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
   renderIcon?: (value: string) => React.ReactNode;
-  operator?: "any of" | "all of";
-  onOperatorChange?: (operator: "any of" | "all of") => void;
+  operator?: "any of" | "all of" | "none of";
+  onOperatorChange?: (operator: "any of" | "all of" | "none of") => void;
   textFilters?: TextFilterEntry[];
   onTextFilterAdd?: (
     operator: "contains" | "does not contain",
@@ -637,23 +636,26 @@ export function CategoricalFacet({
         {/* SELECT MODE: Checkboxes with optional counts */}
         {filterMode === "select" && (
           <div className="px-2">
-            {/* SOME/ALL Operator Toggle for arrayOptions filters
+            {/* SOME/ALL/NONE operator toggle for arrayOptions filters
 
                 This toggle appears for multi-valued array columns (arrayOptions) like tags.
-                It allows switching between OR and AND logic:
+                It allows switching between the supported array matching modes:
                 - SOME: Match items with ANY selected value (OR logic)
                 - ALL: Match items with ALL selected values (AND logic)
+                - NONE: Exclude items with ANY selected value
 
-                The toggle is automatically enabled by useSidebarFilterState for any
-                arrayOptions column when selections exist. Other filter types (stringOptions,
-                boolean, numeric) don't get this toggle as "ALL" wouldn't be semantically meaningful.
+                The toggle is shown whenever useSidebarFilterState exposes operator controls
+                for an arrayOptions column, including before any values are selected so users
+                can persist an operator preference first. Other filter types (stringOptions,
+                boolean, numeric) don't get this toggle because these array-specific modes
+                are not semantically meaningful there.
 
                 Currently enabled for:
                 - Traces: tags
                 - Sessions: userIds, tags
                 - Prompts: labels, tags
             */}
-            {onOperatorChange && value.length > 0 && (
+            {onOperatorChange && (
               <div className="mb-1.5 flex items-center gap-1.5 px-2">
                 <span className="text-muted-foreground/80 text-[10px]">
                   Match:
@@ -674,13 +676,25 @@ export function CategoricalFacet({
                   <button
                     onClick={() => onOperatorChange("all of")}
                     className={cn(
-                      "rounded-r px-1.5 py-0.5 transition-colors",
+                      "px-1.5 py-0.5 transition-colors",
                       operator === "all of"
                         ? "bg-accent text-accent-foreground font-medium"
                         : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     ALL
+                  </button>
+                  <div className="bg-border/50 w-px" />
+                  <button
+                    onClick={() => onOperatorChange("none of")}
+                    className={cn(
+                      "rounded-r px-1.5 py-0.5 transition-colors",
+                      operator === "none of"
+                        ? "bg-accent text-accent-foreground font-medium"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    NONE
                   </button>
                 </div>
               </div>

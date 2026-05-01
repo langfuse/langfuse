@@ -22,6 +22,10 @@ import { backOff } from "exponential-backoff";
 import { ServiceUnavailableError } from "../../errors";
 import { BufferedStreamUploader } from "./BufferedStreamUploader";
 import { S3ChunkedUploadStrategy } from "./S3ChunkedUploadStrategy";
+import * as objectstorage from "oci-objectstorage";
+import * as common from "oci-common";
+import { UploadManager as OciUploadManager } from "oci-objectstorage";
+import { URL } from "node:url";
 
 export interface S3SseConfig {
   serverSideEncryption?: string;
@@ -127,6 +131,7 @@ export class StorageServiceFactory {
    * @param params.region - Region in which the bucket resides
    * @param params.forcePathStyle - Add bucket name into the path instead of the domain name. Mainly used for MinIO.
    * @param params.useAzureBlob - Use Azure Blob Storage instead of S3
+   * @param params.useOCIObjectStorage - Use OCI Object Storage instead of S3
    * @param params.useGoogleCloudStorage - Use Google Cloud Storage instead of S3
    * @param params.googleCloudCredentials - Google Cloud Storage credentials JSON string or path to credentials file
    * @param params.awsSse - Server-side encryption method (e.g., "aws:kms")
@@ -142,6 +147,7 @@ export class StorageServiceFactory {
     forcePathStyle: boolean;
     useAzureBlob?: boolean;
     useGoogleCloudStorage?: boolean;
+    useOCIObjectStorage?: boolean;
     googleCloudCredentials?: string;
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
@@ -166,6 +172,13 @@ export class StorageServiceFactory {
           env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS,
       };
       return new GoogleCloudStorageService(googleParams);
+    }
+    if (
+      params.useOCIObjectStorage !== undefined
+        ? params.useOCIObjectStorage
+        : env.LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE === "true"
+    ) {
+      return new OCIObjectStorageService(params);
     }
     return new S3StorageService(params);
   }
@@ -496,6 +509,10 @@ class S3StorageService implements StorageService {
       endpoint: params.endpoint,
       region: params.region,
       forcePathStyle: params.forcePathStyle,
+      // Restore pre-v3.729 default so CompleteMultipartUpload doesn't send a
+      // composite CRC32 header, which GCS's S3-compat layer rejects with 412.
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
       requestHandler: {
         httpsAgent: {
           maxSockets: env.LANGFUSE_S3_CONCURRENT_WRITES,
@@ -512,6 +529,8 @@ class S3StorageService implements StorageService {
           endpoint: params.externalEndpoint,
           region: params.region,
           forcePathStyle: params.forcePathStyle,
+          requestChecksumCalculation: "WHEN_REQUIRED",
+          responseChecksumValidation: "WHEN_REQUIRED",
           requestHandler: {
             httpsAgent: {
               maxSockets: env.LANGFUSE_S3_CONCURRENT_WRITES,
@@ -1006,6 +1025,495 @@ class GoogleCloudStorageService implements StorageService {
     } catch (err) {
       logger.error(`Failed to delete files from Google Cloud Storage`, err);
       handleStorageError(err, "delete files from Google Cloud Storage");
+    }
+  }
+}
+
+class OCIObjectStorageService implements StorageService {
+  private client?: objectstorage.ObjectStorageClient;
+  private clientInit: Promise<void>;
+  private bucketName: string;
+  private externalEndpoint?: string;
+  private namespaceName: string = "";
+
+  constructor(params: {
+    bucketName: string;
+    endpoint: string | undefined;
+    externalEndpoint?: string | undefined;
+    region: string | undefined;
+  }) {
+    this.bucketName = params.bucketName;
+    this.externalEndpoint = params.externalEndpoint;
+    this.clientInit = this.initClient(params);
+  }
+
+  private async initClient(params: { endpoint?: string; region?: string }) {
+    let provider: common.AuthenticationDetailsProvider;
+    switch (env.LANGFUSE_OCI_AUTH_TYPE) {
+      case "workload_identity": {
+        provider =
+          new common.OkeWorkloadIdentityAuthenticationDetailsProvider.OkeWorkloadIdentityAuthenticationDetailsProviderBuilder().build();
+
+        break;
+      }
+
+      case "instance_principal": {
+        provider =
+          await new common.InstancePrincipalsAuthenticationDetailsProviderBuilder().build();
+
+        break;
+      }
+
+      case "resource_principal": {
+        provider =
+          common.ResourcePrincipalAuthenticationDetailsProvider.builder();
+
+        break;
+      }
+
+      case "oci_profile": {
+        provider = new common.ConfigFileAuthenticationDetailsProvider(
+          env.LANGFUSE_OCI_CONFIG_FILE,
+          env.LANGFUSE_OCI_CONFIG_PROFILE,
+        );
+
+        break;
+      }
+
+      case "session_token": {
+        provider = new common.SessionAuthDetailProvider(
+          env.LANGFUSE_OCI_CONFIG_FILE,
+          env.LANGFUSE_OCI_CONFIG_PROFILE,
+        );
+
+        break;
+      }
+
+      default:
+        throw new Error(
+          "OCI auth not configured: set LANGFUSE_OCI_AUTH_TYPE to " +
+            "'workload_identity' | 'instance_principal' | 'resource_principal' | 'oci_profile' | 'session_token'",
+        );
+    }
+
+    this.client = new objectstorage.ObjectStorageClient({
+      authenticationDetailsProvider: provider,
+    });
+
+    const regionId = params.region?.trim();
+    if (regionId) this.client.region = common.Region.fromRegionId(regionId);
+    const endpoint = params.endpoint?.trim();
+    if (endpoint) this.client.endpoint = endpoint;
+  }
+
+  private async ensureClient() {
+    await this.clientInit;
+    if (!this.client)
+      throw new Error("OCI ObjectStorage client failed to initialize");
+    return this.client;
+  }
+
+  private async ensureNamespace(): Promise<string> {
+    if (this.namespaceName) return this.namespaceName;
+    const client = await this.ensureClient();
+    const nsResp = await client.getNamespace({});
+    this.namespaceName = nsResp.value ?? "";
+    return this.namespaceName;
+  }
+
+  private async getClientAndNamespace(): Promise<{
+    client: objectstorage.ObjectStorageClient;
+    namespaceName: string;
+  }> {
+    const client = await this.ensureClient();
+    const namespaceName = await this.ensureNamespace(); // uses the same client init + cached namespace
+    return { client, namespaceName };
+  }
+
+  private async streamToString(
+    readable: any, // could be many shapes, so use `any`
+  ): Promise<string> {
+    if (!readable) return "";
+
+    // Helper: convert many chunk shapes to Buffer
+    const toBuffer = (chunk: any): Buffer => {
+      if (Buffer.isBuffer(chunk)) return chunk;
+      if (typeof chunk === "string") return Buffer.from(chunk, "utf8");
+      if (chunk instanceof ArrayBuffer) return Buffer.from(chunk);
+      // TypedArray / DataView
+      if (ArrayBuffer.isView(chunk)) {
+        return Buffer.from(
+          (chunk as Uint8Array).buffer,
+          (chunk as any).byteOffset ?? 0,
+          (chunk as any).byteLength ?? undefined,
+        );
+      }
+      // Fallback: try Buffer.from (may throw)
+      return Buffer.from(chunk);
+    };
+
+    // 1) Node.js Readable (EventEmitter style)
+    if (
+      typeof readable.on === "function" &&
+      typeof readable.read !== "undefined"
+    ) {
+      return await new Promise<string>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        readable.on("data", (chunk: any) => {
+          try {
+            chunks.push(toBuffer(chunk));
+          } catch (_err) {
+            // if conversion fails, push as Buffer of stringified chunk
+            chunks.push(Buffer.from(String(chunk)));
+          }
+        });
+        readable.on("error", (err: any) => reject(err));
+        readable.on("end", () => {
+          resolve(Buffer.concat(chunks).toString("utf8"));
+        });
+      });
+    }
+
+    // 2) WHATWG ReadableStream (browser / some fetch-like APIs)
+    if (typeof readable.getReader === "function") {
+      const reader = readable.getReader();
+      const chunks: Buffer[] = [];
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(toBuffer(value));
+        }
+        return Buffer.concat(chunks).toString("utf8");
+      } finally {
+        // safe to close reader if available
+        try {
+          if (reader.releaseLock) reader.releaseLock();
+        } catch (_err) {
+          // intentionally ignore releaseLock errors
+        }
+      }
+    }
+
+    // 3) Buffer / Uint8Array / ArrayBuffer direct
+    if (Buffer.isBuffer(readable)) return readable.toString("utf8");
+    if (readable instanceof Uint8Array)
+      return Buffer.from(readable).toString("utf8");
+    if (readable instanceof ArrayBuffer)
+      return Buffer.from(readable).toString("utf8");
+
+    // 4) Blob (browser)
+    if (typeof Blob !== "undefined" && readable instanceof Blob) {
+      const ab = await readable.arrayBuffer();
+      return Buffer.from(ab).toString("utf8");
+    }
+
+    // 5) Async iterable (some stream implementations)
+    if (typeof readable[Symbol.asyncIterator] === "function") {
+      const chunks: Buffer[] = [];
+      for await (const chunk of readable) {
+        chunks.push(toBuffer(chunk));
+      }
+      return Buffer.concat(chunks).toString("utf8");
+    }
+
+    // 6) Synchronous iterable
+    if (typeof readable[Symbol.iterator] === "function") {
+      const chunks: Buffer[] = [];
+      for (const chunk of readable) {
+        chunks.push(toBuffer(chunk));
+      }
+      return Buffer.concat(chunks).toString("utf8");
+    }
+
+    // 7) Fallback: try string conversion
+    try {
+      return String(readable);
+    } catch (_err) {
+      // If all else fails, throw a helpful error
+      throw new TypeError("Unsupported body type passed to streamToString");
+    }
+  }
+  public async uploadFile({
+    fileName,
+    fileType,
+    data,
+    partSize,
+    queueSize,
+  }: UploadFile): Promise<void> {
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      const uploadManager = new OciUploadManager(client, {
+        partSize: partSize ?? 20 * 1024 * 1024,
+        maxConcurrentUploads: queueSize ?? 5,
+      });
+
+      // UploadManager in the OCI SDK expects content shaped as one of:
+      // { blob }, { filePath }, or { stream }.
+      // To work reliably in Node, always provide { stream }.
+      const stream =
+        typeof data === "string"
+          ? Readable.from([data])
+          : data instanceof Readable
+            ? data
+            : Buffer.isBuffer(data as any)
+              ? Readable.from([data as any])
+              : Readable.from([String(data)]);
+
+      const contentLength =
+        typeof data === "string"
+          ? Buffer.byteLength(data)
+          : Buffer.isBuffer(data as any)
+            ? (data as any).byteLength
+            : undefined;
+
+      await uploadManager.upload({
+        requestDetails: {
+          namespaceName,
+          bucketName: this.bucketName,
+          objectName: fileName,
+          contentType: fileType,
+          ...(contentLength ? { contentLength } : {}),
+        },
+        content: { stream },
+      });
+
+      return;
+    } catch (err) {
+      logger.error(
+        `Failed to upload file to OCI Object Storage  ${fileName}`,
+        err,
+      );
+      handleStorageError(err, "upload file to OCI Object Storage ");
+    }
+  }
+
+  public async uploadFileBuffered({
+    fileName,
+    fileType,
+    data,
+    partSizeBytes,
+  }: UploadFileBuffered): Promise<void> {
+    await this.uploadFile({
+      fileName,
+      fileType,
+      data,
+      partSize: partSizeBytes,
+    });
+  }
+
+  public async uploadWithSignedUrl({
+    fileName,
+    fileType,
+    data,
+    expiresInSeconds,
+    partSize,
+    queueSize,
+  }: UploadWithSignedUrl): Promise<{ signedUrl: string }> {
+    try {
+      await this.uploadFile({ fileName, data, fileType, partSize, queueSize });
+
+      const signedUrl = await this.getSignedUrl(fileName, expiresInSeconds);
+
+      return { signedUrl };
+    } catch (err) {
+      logger.error(
+        `Failed to upload file to OCI Object Storage  ${fileName}`,
+        err,
+      );
+      handleStorageError(
+        err,
+        "upload file to OCI Object Storage  or generate signed URL",
+      );
+    }
+  }
+
+  public async uploadJson(path: string, body: Record<string, unknown>[]) {
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      const jsonString = JSON.stringify(body);
+      const req: objectstorage.requests.PutObjectRequest = {
+        namespaceName,
+        bucketName: this.bucketName,
+        objectName: path,
+        contentLength: Buffer.byteLength(jsonString),
+        putObjectBody: Readable.from([jsonString]),
+        contentType: "application/json",
+      };
+      await client.putObject(req);
+    } catch (err) {
+      logger.error(`Failed to upload JSON to OCI Object Storage ${path}`, err);
+      handleStorageError(err, "upload JSON to OCI Object Storage ");
+    }
+  }
+
+  public async download(path: string): Promise<string> {
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      const req: objectstorage.requests.GetObjectRequest = {
+        namespaceName,
+        bucketName: this.bucketName,
+        objectName: path,
+      };
+      const response = await client.getObject(req);
+      const bodyStream = (response as any).value as
+        | NodeJS.ReadableStream
+        | undefined;
+      return await this.streamToString(bodyStream);
+    } catch (err) {
+      logger.error(
+        `Failed to download file from OCI Object Storage  ${path}`,
+        err,
+      );
+      handleStorageError(err, "download file from OCI Object Storage ");
+    }
+  }
+
+  public async listFiles(
+    prefix: string,
+  ): Promise<{ file: string; createdAt: Date }[]> {
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      const req: objectstorage.requests.ListObjectsRequest = {
+        namespaceName,
+        bucketName: this.bucketName,
+        prefix,
+      };
+      const resp = await client.listObjects(req);
+      const objects = ((resp as any).listObjects?.objects ?? []) as Array<{
+        name?: string;
+        timeCreated?: Date | string;
+      }>;
+      return (
+        objects.flatMap((obj) =>
+          obj.name
+            ? [
+                {
+                  file: obj.name,
+                  createdAt: obj.timeCreated
+                    ? new Date(obj.timeCreated as any)
+                    : new Date(),
+                },
+              ]
+            : [],
+        ) ?? []
+      );
+    } catch (err) {
+      logger.error(
+        `Failed to list files from OCI Object Storage  ${prefix}`,
+        err,
+      );
+      handleStorageError(err, "list files from OCI Object Storage ");
+    }
+  }
+
+  public async getSignedUrl(
+    fileName: string,
+    ttlSeconds: number,
+    asAttachment: boolean = true,
+  ): Promise<string> {
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      const expiresOn = new Date(Date.now() + ttlSeconds * 1000);
+      const req: objectstorage.requests.CreatePreauthenticatedRequestRequest = {
+        namespaceName,
+        bucketName: this.bucketName,
+        createPreauthenticatedRequestDetails: {
+          name: `read-${fileName}-${Date.now()}`,
+          accessType: "ObjectRead" as any,
+          objectName: fileName,
+          timeExpires: expiresOn as any,
+        } as any,
+      };
+      const resp = await client.createPreauthenticatedRequest(req);
+      const accessUri = (resp.preauthenticatedRequest as any)
+        .accessUri as string;
+      const base = this.externalEndpoint ?? client.endpoint;
+
+      if (!base) {
+        throw new Error(
+          "Cannot build PAR URL: no externalEndpoint configured and client.endpoint is empty",
+        );
+      }
+      const baseUrl = new URL(base);
+      const parUrl = new URL(accessUri, baseUrl);
+      if (asAttachment) {
+        parUrl.searchParams.set("download", "1");
+      }
+      const url = parUrl.toString();
+      return url;
+    } catch (err) {
+      logger.error(
+        `Failed to generate presigned URL (PAR) for OCI Object Storage  ${fileName}`,
+        err,
+      );
+      handleStorageError(err, "generate signed URL for OCI Object Storage ");
+    }
+  }
+
+  public async deleteFiles(paths: string[]): Promise<void> {
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      for (const p of paths) {
+        const req: objectstorage.requests.DeleteObjectRequest = {
+          namespaceName,
+          bucketName: this.bucketName,
+          objectName: p,
+        } as any;
+        await client.deleteObject(req as any);
+      }
+    } catch (err) {
+      logger.error(`Failed to delete files from OCI Object Storage `, {
+        error: err,
+        files: paths,
+      });
+      handleStorageError(err, "delete files from OCI Object Storage ");
+    }
+  }
+
+  public async getSignedUploadUrl(params: {
+    path: string;
+    ttlSeconds: number;
+    sha256Hash: string;
+    contentType: string;
+    contentLength: number;
+  }): Promise<string> {
+    const { path, ttlSeconds } = params;
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      const expiresOn = new Date(Date.now() + ttlSeconds * 1000);
+      const req: objectstorage.requests.CreatePreauthenticatedRequestRequest = {
+        namespaceName,
+        bucketName: this.bucketName,
+        createPreauthenticatedRequestDetails: {
+          name: `write-${path}-${Date.now()}`,
+          accessType: "ObjectWrite" as any,
+          objectName: path,
+          timeExpires: expiresOn as any,
+        } as any,
+      };
+      const resp = await client.createPreauthenticatedRequest(req);
+      const accessUri = (resp.preauthenticatedRequest as any)
+        .accessUri as string;
+      const base = this.externalEndpoint ?? client.endpoint;
+
+      if (!base) {
+        throw new Error(
+          "Cannot build PAR URL: no externalEndpoint configured and client.endpoint is empty",
+        );
+      }
+      const baseUrl = new URL(base);
+      let url = new URL(accessUri, baseUrl).toString();
+      return url;
+    } catch (err) {
+      logger.error(
+        `Failed to generate presigned upload URL (PAR) for OCI Object Storage  ${path}`,
+        err,
+      );
+      handleStorageError(
+        err,
+        "generate presigned upload URL for OCI Object Storage ",
+      );
     }
   }
 }

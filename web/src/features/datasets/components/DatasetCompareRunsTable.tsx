@@ -28,8 +28,7 @@ import { useColumnFilterState } from "@/src/features/filters/hooks/useColumnFilt
 import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
-import { TablePeekView } from "@/src/components/table/peek";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 
 export type DatasetCompareRunRowData = {
   id: string;
@@ -44,7 +43,6 @@ function DatasetCompareRunsTableInternal(props: {
   projectId: string;
   datasetId: string;
   runIds: string[];
-  localExperiments: { key: string; value: string }[];
 }) {
   const { toggleField, isFieldSelected } = useDatasetCompareFields();
   const [isFieldsDropdownOpen, setIsFieldsDropdownOpen] = useState(false);
@@ -116,12 +114,11 @@ function DatasetCompareRunsTableInternal(props: {
   const peekConfig = useMemo(
     () => ({
       itemType: "TRACE" as const,
-      children: <PeekViewTraceDetail projectId={props.projectId} />,
       closePeek,
       expandPeek,
       // openPeek is handled by DatasetAggregateTableCell's custom handleOpenPeek
     }),
-    [props.projectId, closePeek, expandPeek],
+    [closePeek, expandPeek],
   );
 
   const { runAggregateColumns, isLoading: cellsLoading } =
@@ -303,7 +300,7 @@ function DatasetCompareRunsTableInternal(props: {
         }}
         peekView={peekConfig}
       />
-      <TablePeekView peekView={peekConfig} />
+      <TablePeekViewTraceDetail {...peekConfig} projectId={props.projectId} />
     </>
   );
 }
@@ -312,7 +309,6 @@ export function DatasetCompareRunsTable(props: {
   projectId: string;
   datasetId: string;
   runIds: string[];
-  localExperiments: { key: string; value: string }[];
 }) {
   return (
     <DatasetCompareFieldsProvider>

@@ -1,86 +1,60 @@
-/** @jest-environment node */
-
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
+  createOrgProjectAndApiKey,
   createTrace,
   createTracesCh,
   createObservation,
   createObservationsCh,
-  createEvent,
-  createEventsCh,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { env } from "@/src/env.mjs";
 
 describe("Observations Comment Filtering", () => {
-  const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
-  const useEventsTable =
-    env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
+  let projectId: string;
+  let caller: ReturnType<typeof appRouter.createCaller>;
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: "seed-org-id",
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: "Test Project",
-            },
-          ],
+  beforeAll(async () => {
+    const setup = await createOrgProjectAndApiKey();
+    projectId = setup.projectId;
+
+    const session: Session = {
+      expires: "1",
+      user: {
+        id: "user-1",
+        canCreateOrganizations: true,
+        name: "Demo User",
+        organizations: [
+          {
+            id: setup.orgId,
+            name: "Test Organization",
+            role: "OWNER",
+            plan: "cloud:hobby",
+            cloudConfig: undefined,
+            projects: [
+              {
+                id: projectId,
+                role: "ADMIN",
+                retentionDays: 30,
+                deletedAt: null,
+                name: "Test Project",
+              },
+            ],
+          },
+        ],
+        featureFlags: {
+          excludeClickhouseRead: false,
+          templateFlag: true,
         },
-      ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
+        admin: true,
       },
-      admin: true,
-    },
-    environment: {} as any,
-  };
+      environment: {} as any,
+    };
 
-  const ctx = createInnerTRPCContext({ session });
-  const caller = appRouter.createCaller({ ...ctx, prisma });
-
-  // Helper to create observation data in the appropriate format
-  const createObservationData = (data: {
-    id: string;
-    project_id: string;
-    trace_id: string;
-    type: string;
-  }) => {
-    if (useEventsTable) {
-      return createEvent({
-        ...data,
-        span_id: data.id,
-      });
-    } else {
-      return createObservation(data);
-    }
-  };
-
-  // Helper to insert observations into the correct table
-  const insertObservations = async (observations: any[]) => {
-    if (useEventsTable) {
-      await createEventsCh(observations);
-    } else {
-      await createObservationsCh(observations);
-    }
-  };
+    const ctx = createInnerTRPCContext({ session });
+    caller = appRouter.createCaller({ ...ctx, prisma });
+  });
 
   // Helper to create standard query params
   const createQueryParams = (filter: any[]) => ({
@@ -109,19 +83,19 @@ describe("Observations Comment Filtering", () => {
       const observation1Id = randomUUID();
       const observation2Id = randomUUID();
 
-      const observation1 = createObservationData({
+      const observation1 = createObservation({
         id: observation1Id,
         project_id: projectId,
         trace_id: trace1.id,
         type: "GENERATION",
       });
-      const observation2 = createObservationData({
+      const observation2 = createObservation({
         id: observation2Id,
         project_id: projectId,
         trace_id: trace2.id,
         type: "GENERATION",
       });
-      await insertObservations([observation1, observation2]);
+      await createObservationsCh([observation1, observation2]);
 
       // Add 2 comments to observation1
       await prisma.comment.createMany({
@@ -189,19 +163,19 @@ describe("Observations Comment Filtering", () => {
       const observation1Id = randomUUID();
       const observation2Id = randomUUID();
 
-      const observation1 = createObservationData({
+      const observation1 = createObservation({
         id: observation1Id,
         project_id: projectId,
         trace_id: trace1.id,
         type: "GENERATION",
       });
-      const observation2 = createObservationData({
+      const observation2 = createObservation({
         id: observation2Id,
         project_id: projectId,
         trace_id: trace2.id,
         type: "GENERATION",
       });
-      await insertObservations([observation1, observation2]);
+      await createObservationsCh([observation1, observation2]);
 
       // Add comments with different content
       await prisma.comment.create({
@@ -251,13 +225,13 @@ describe("Observations Comment Filtering", () => {
       await createTracesCh([trace]);
 
       const observationId = randomUUID();
-      const observation = createObservationData({
+      const observation = createObservation({
         id: observationId,
         project_id: projectId,
         trace_id: trace.id,
         type: "GENERATION",
       });
-      await insertObservations([observation]);
+      await createObservationsCh([observation]);
 
       // Add 2 comments with "bug" in content
       await prisma.comment.createMany({
@@ -311,13 +285,13 @@ describe("Observations Comment Filtering", () => {
       await createTracesCh([trace]);
 
       const observationId = randomUUID();
-      const observation = createObservationData({
+      const observation = createObservation({
         id: observationId,
         project_id: projectId,
         trace_id: trace.id,
         type: "GENERATION",
       });
-      await insertObservations([observation]);
+      await createObservationsCh([observation]);
 
       // Add comment
       await prisma.comment.create({
@@ -362,13 +336,13 @@ describe("Observations Comment Filtering", () => {
       await createTracesCh([trace]);
 
       const observationId = randomUUID();
-      const observation = createObservationData({
+      const observation = createObservation({
         id: observationId,
         project_id: projectId,
         trace_id: trace.id,
         type: "GENERATION",
       });
-      await insertObservations([observation]);
+      await createObservationsCh([observation]);
 
       // Add comment
       await prisma.comment.create({
@@ -417,13 +391,13 @@ describe("Observations Comment Filtering", () => {
       await createTracesCh([trace]);
 
       const observationId = randomUUID();
-      const observation = createObservationData({
+      const observation = createObservation({
         id: observationId,
         project_id: projectId,
         trace_id: trace.id,
         type: "GENERATION",
       });
-      await insertObservations([observation]);
+      await createObservationsCh([observation]);
 
       // Add comment
       await prisma.comment.create({
@@ -459,13 +433,13 @@ describe("Observations Comment Filtering", () => {
       await createTracesCh([trace]);
 
       const observationId = randomUUID();
-      const observation = createObservationData({
+      const observation = createObservation({
         id: observationId,
         project_id: projectId,
         trace_id: trace.id,
         type: "GENERATION",
       });
-      await insertObservations([observation]);
+      await createObservationsCh([observation]);
 
       // Add comment with special characters
       await prisma.comment.create({

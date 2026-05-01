@@ -34,12 +34,18 @@ evaluating, and debugging AI applications.
   [`skills/add-model-price/SKILL.md`](skills/add-model-price/SKILL.md)
 - Code review tasks:
   [`skills/code-review/SKILL.md`](skills/code-review/SKILL.md)
+- Debugging a Linear issue, GitHub issue, or incident report using Datadog
+  (APM, logs, metrics) to establish a root cause:
+  [`skills/debug-issue-with-datadog/SKILL.md`](skills/debug-issue-with-datadog/SKILL.md)
 - Changelog drafting for completed feature branches:
   [`skills/changelog-writing/SKILL.md`](skills/changelog-writing/SKILL.md)
 - ClickHouse schema/query review:
   [`skills/clickhouse-best-practices/SKILL.md`](skills/clickhouse-best-practices/SKILL.md)
 - Monorepo/Turbo task graph changes:
   [`skills/turborepo/SKILL.md`](skills/turborepo/SKILL.md)
+- pnpm dependency upgrades, package-version bumps, or `minimumReleaseAgeExclude`
+  decisions in `pnpm-workspace.yaml`:
+  [`skills/pnpm-upgrade-package/SKILL.md`](skills/pnpm-upgrade-package/SKILL.md)
 - User-visible frontend changes, Playwright review, or browser signoff:
   [`skills/frontend-browser-review/SKILL.md`](skills/frontend-browser-review/SKILL.md)
 - Web UI and frontend entry points:
@@ -95,8 +101,8 @@ langfuse/
 - Build check: `pnpm run build:check`
 - Full build: `pnpm run build`
 - Full reset/bootstrap (destructive): `pnpm run dx`
-- Codex environment bootstrap: `bash scripts/codex/setup.sh`
-- Codex environment maintenance: `bash scripts/codex/maintenance.sh`
+- Environment/worktree bootstrap: `bash scripts/codex/setup.sh`
+- Environment/worktree maintenance: `bash scripts/codex/maintenance.sh`
 - Install Playwright Chromium for agent browser review: `pnpm run playwright:install`
 
 Minimum verification matrix:
@@ -121,7 +127,9 @@ Minimum verification matrix:
   - `*/dist/*`
   - `packages/shared/prisma/generated/*`
 - Public API contract changes must update Fern sources in `fern/apis/**` and
-  regenerated outputs; never hand-edit `generated/**`.
+  regenerated outputs. Never hand-edit `generated/**`.
+- Before adding constants, value lists, or display mappings, search for an
+  existing owner and reuse or extend that source of truth.
 - Keep tests independent and parallel-safe.
 - For bug fixes, write the failing test first, confirm it fails, then fix the
   bug.

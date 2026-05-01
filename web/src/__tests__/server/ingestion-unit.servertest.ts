@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import { createMocks } from "node-mocks-http";
 import handler from "@/src/pages/api/public/ingestion";
 import { type NextApiResponse, type NextApiRequest } from "next";
@@ -43,15 +41,15 @@ Timed out fetching a new connection from the connection pool. More info:  (Curre
   meta: { modelName: 'ApiKey', connection_limit: 1, timeout: 10 }
 */
 
-jest.mock("@langfuse/shared/src/db", () => {
-  const originalModule = jest.requireActual("@langfuse/shared/src/db");
+vi.mock("@langfuse/shared/src/db", async () => {
+  const originalModule = await vi.importActual("@langfuse/shared/src/db");
 
   // Create a mock for PrismaClient
   const mockPrismaClient = {
     apiKey: {
-      findMany: jest.fn(),
-      findFirst: jest.fn(),
-      findUnique: jest.fn(() => {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      findUnique: vi.fn(() => {
         throw new Prisma.PrismaClientKnownRequestError(
           "Timed out fetching a new connection from the connection pool. More info: (Current connection pool timeout: 10, connection limit: 1)",
           {
@@ -61,18 +59,18 @@ jest.mock("@langfuse/shared/src/db", () => {
           },
         );
       }),
-      findUniqueOrThrow: jest.fn(),
-      findFirstOrThrow: jest.fn(),
-      create: jest.fn(),
-      createMany: jest.fn(),
-      delete: jest.fn(),
-      update: jest.fn(),
-      updateMany: jest.fn(),
-      upsert: jest.fn(),
-      deleteMany: jest.fn(),
-      count: jest.fn(),
-      aggregate: jest.fn(),
-      groupBy: jest.fn(),
+      findUniqueOrThrow: vi.fn(),
+      findFirstOrThrow: vi.fn(),
+      create: vi.fn(),
+      createMany: vi.fn(),
+      delete: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+      upsert: vi.fn(),
+      deleteMany: vi.fn(),
+      count: vi.fn(),
+      aggregate: vi.fn(),
+      groupBy: vi.fn(),
     },
   };
 

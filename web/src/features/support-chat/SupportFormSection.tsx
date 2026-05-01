@@ -199,12 +199,12 @@ export function SupportFormSection({
       setFiles(undefined);
       if (data.pylonIssueFailed) {
         showErrorToast(
-          "Pylon Sync Failed",
-          "The support ticket was created but failed to sync to Pylon. Check server logs for details.",
-          "WARNING",
+          "Support request was not sent",
+          "Please contact support@langfuse.com",
         );
+      } else {
+        onSuccess();
       }
-      onSuccess();
     },
     onSettled: () => setIsSubmittingLocal(false),
   });
@@ -343,7 +343,12 @@ export function SupportFormSection({
         projectId: project?.id,
         browserMetadata: {
           userAgent: navigator.userAgent,
-          platform: navigator.platform,
+          platform:
+            (
+              navigator as Navigator & {
+                userAgentData?: { platform?: string };
+              }
+            ).userAgentData?.platform ?? undefined,
           language: navigator.language,
           viewport: { w: window.innerWidth, h: window.innerHeight },
         },

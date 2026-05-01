@@ -1,6 +1,5 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { useRouter } from "next/router";
-import { useQueryParams, StringParam } from "use-query-params";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
@@ -16,16 +15,8 @@ import { useQueryProject } from "@/src/features/projects/hooks";
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const { isBetaEnabled } = useV4Beta();
-  const [, setQueryParams] = useQueryParams({ viewMode: StringParam });
+  const { isBetaEnabled, isInitializing } = useV4Beta();
   const { project } = useQueryProject();
-
-  // Clear viewMode query when beta is turned off (e.g. from sidebar)
-  useEffect(() => {
-    if (!isBetaEnabled) {
-      setQueryParams({ viewMode: undefined });
-    }
-  }, [isBetaEnabled, setQueryParams]);
 
   // Check if the user has tracing configured
   // Skip polling entirely if the project flag is already set in the session
@@ -88,15 +79,23 @@ export default function Traces() {
           ),
           href: "https://langfuse.com/docs/observability/data-model",
         },
-        tabsProps: isBetaEnabled
-          ? undefined
-          : {
-              tabs: getTracingTabs(projectId),
-              activeTab: TRACING_TABS.TRACES,
-            },
+        tabsProps:
+          isBetaEnabled || isInitializing
+            ? undefined
+            : {
+                tabs: getTracingTabs(projectId),
+                activeTab: TRACING_TABS.TRACES,
+              },
       }}
     >
-      {isBetaEnabled ? (
+      {isInitializing ? (
+        <>
+          {/* Wait for the beta flag before mounting either table. Otherwise the
+              legacy table can briefly mount, restore a v3 saved view, and
+              promote its viewId into the URL before the correct mode
+              resolves. */}
+        </>
+      ) : isBetaEnabled ? (
         <ObservationsEventsTable projectId={projectId} />
       ) : (
         <TracesTable projectId={projectId} />

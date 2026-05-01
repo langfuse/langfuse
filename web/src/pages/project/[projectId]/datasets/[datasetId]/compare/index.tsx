@@ -54,7 +54,6 @@ function DatasetCompareInternal() {
     runs,
     dataset,
     runsData,
-    localRuns,
     handleExperimentSettled: handleExperimentSettledBase,
     setRunState,
     setLocalRuns,
@@ -259,7 +258,6 @@ function DatasetCompareInternal() {
             projectId={projectId}
             datasetId={datasetId}
             runIds={runIds ?? []}
-            localExperiments={localRuns}
           />
         </div>
         <SidePanel

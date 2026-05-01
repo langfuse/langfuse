@@ -1,3 +1,5 @@
+import crypto from "crypto";
+
 import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
 import { type IncomingHttpHeaders } from "http";
@@ -41,7 +43,29 @@ export class AdminApiAuthService {
     }
 
     const [scheme, token] = authString.split(" ");
-    if (scheme !== "Bearer" || !token || token !== env.ADMIN_API_KEY) {
+    if (scheme !== "Bearer" || !token) {
+      return {
+        isAuthorized: false,
+        error: "Unauthorized: Invalid token",
+      };
+    }
+
+    // Keep this comparison in sync with the project-scoped admin-key check in
+    // web/src/features/public-api/server/createAuthedProjectAPIRoute.ts.
+    try {
+      // timingSafeEqual throws on different input lengths, handle accordingly
+      if (
+        !crypto.timingSafeEqual(
+          Buffer.from(token),
+          Buffer.from(env.ADMIN_API_KEY),
+        )
+      ) {
+        return {
+          isAuthorized: false,
+          error: "Unauthorized: Invalid token",
+        };
+      }
+    } catch {
       return {
         isAuthorized: false,
         error: "Unauthorized: Invalid token",

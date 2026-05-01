@@ -323,7 +323,12 @@ export const datasetRouter = createTRPCRouter({
         // datasets
         ctx.prisma.$queryRaw<
           Array<
-            Omit<Dataset, "remoteExperimentUrl" | "remoteExperimentPayload"> & {
+            Omit<
+              Dataset,
+              | "remoteExperimentUrl"
+              | "remoteExperimentPayload"
+              | "remoteExperimentEnabled"
+            > & {
               row_type: "folder" | "dataset";
             }
           >
@@ -1636,6 +1641,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         url: z.string(),
         defaultPayload: z.string(),
+        enabled: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -1666,6 +1672,7 @@ export const datasetRouter = createTRPCRouter({
           id: input.datasetId,
           remoteExperimentUrl: input.url,
           remoteExperimentPayload: input.defaultPayload ?? {},
+          remoteExperimentEnabled: input.enabled,
         },
         projectId: input.projectId,
       });
@@ -1690,6 +1697,7 @@ export const datasetRouter = createTRPCRouter({
         select: {
           remoteExperimentUrl: true,
           remoteExperimentPayload: true,
+          remoteExperimentEnabled: true,
         },
       });
 
@@ -1698,6 +1706,7 @@ export const datasetRouter = createTRPCRouter({
       return {
         url: dataset.remoteExperimentUrl,
         payload: dataset.remoteExperimentPayload,
+        enabled: dataset.remoteExperimentEnabled,
       };
     }),
   triggerRemoteExperiment: protectedProjectProcedure
@@ -1727,6 +1736,7 @@ export const datasetRouter = createTRPCRouter({
           name: true,
           remoteExperimentUrl: true,
           remoteExperimentPayload: true,
+          remoteExperimentEnabled: true,
         },
       });
 
@@ -1742,6 +1752,15 @@ export const datasetRouter = createTRPCRouter({
           code: "BAD_REQUEST",
           message: "No remote run URL configured for this dataset",
         });
+      }
+
+      if (!dataset.remoteExperimentEnabled) {
+        // Trigger is configured but intentionally disabled — skip the remote call
+        // without surfacing an error toast to the user.
+        return {
+          success: true,
+          skipped: true,
+        };
       }
 
       try {
@@ -1825,6 +1844,8 @@ export const datasetRouter = createTRPCRouter({
           id: input.datasetId,
           remoteExperimentUrl: null,
           remoteExperimentPayload: Prisma.DbNull,
+          // Reset to true so a future upsert doesn't inherit a stale disabled state
+          remoteExperimentEnabled: true,
         },
         projectId: input.projectId,
       });

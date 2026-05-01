@@ -1,5 +1,38 @@
-import { describe, it, expect } from "vitest";
-import { validateWebhookURL } from "@langfuse/shared/src/server";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+
+const { resolve4Mock, resolve6Mock } = vi.hoisted(() => ({
+  resolve4Mock: vi.fn<(hostname: string) => Promise<string[]>>(),
+  resolve6Mock: vi.fn<(hostname: string) => Promise<string[]>>(),
+}));
+
+vi.mock("node:dns/promises", () => ({
+  default: {
+    resolve4: resolve4Mock,
+    resolve6: resolve6Mock,
+  },
+  resolve4: resolve4Mock,
+  resolve6: resolve6Mock,
+}));
+
+import { validateWebhookURL } from "../../../packages/shared/src/server/webhooks/validation";
+
+const nonexistentDomain = "this-domain-definitely-does-not-exist-12345.com";
+
+const dnsError = (code: string, hostname: string) =>
+  Object.assign(new Error(`queryA ${code} ${hostname}`), { code });
+
+beforeEach(() => {
+  vi.clearAllMocks();
+
+  resolve4Mock.mockImplementation(async (hostname: string) => {
+    if (hostname === nonexistentDomain) {
+      throw dnsError("ENOTFOUND", hostname);
+    }
+
+    return ["93.184.216.34"];
+  });
+  resolve6Mock.mockRejectedValue(dnsError("ENODATA", "mocked-hostname"));
+});
 
 describe("Webhook URL Validation", () => {
   describe("validateWebhookURL", () => {
@@ -109,10 +142,10 @@ describe("Webhook URL Validation", () => {
 
     it("should handle DNS resolution failures gracefully", async () => {
       await expect(
-        validateWebhookURL(
-          "https://this-domain-definitely-does-not-exist-12345.com/hook",
-        ),
+        validateWebhookURL(`https://${nonexistentDomain}/hook`),
       ).rejects.toThrow("DNS lookup failed");
+      expect(resolve4Mock).toHaveBeenCalledWith(nonexistentDomain);
+      expect(resolve6Mock).toHaveBeenCalledWith(nonexistentDomain);
     });
 
     it("should reject URL-encoded localhost bypass attempts", async () => {

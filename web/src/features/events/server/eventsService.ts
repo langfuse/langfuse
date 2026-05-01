@@ -1,7 +1,7 @@
 import { type z } from "zod";
 import {
-  AGGREGATABLE_SCORE_TYPES,
   type FilterCondition,
+  LISTABLE_SCORE_TYPES,
   filterAndValidateDbScoreList,
 } from "@langfuse/shared";
 import {
@@ -109,10 +109,30 @@ export async function getEventList(params: GetObservationsListParams) {
     ),
   );
 
+  // Earliest observation startTime on this page — used as a partition-pruning
+  // lower bound for observation-level scores.  Safe because
+  // score.timestamp >= observation.start_time - 1 hour
+  // (SCORE_TO_TRACE_OBSERVATIONS_INTERVAL).
+  const minStartTime = observations.reduce(
+    (min, obs) => (obs.startTime < min ? obs.startTime : min),
+    observations[0].startTime,
+  );
+
+  // For trace-level scores the bound must account for the fact that
+  // trace.timestamp can be up to 2 days before observation.start_time
+  // (OBSERVATIONS_TO_TRACE_INTERVAL).  The events table does not carry
+  // trace timestamps, so we derive a safe lower bound:
+  //   minStartTime - 2 days  (earliest possible trace.timestamp)
+  // getScoresForTraces then applies its own 1-hour buffer, giving:
+  //   s.timestamp >= (minStartTime - 2 days) - 1 hour
+  const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+  const minTraceTimestamp = new Date(minStartTime.getTime() - TWO_DAYS_MS);
+
   const [scores, traceScores] = await Promise.all([
     getScoresForObservations({
       projectId: params.projectId,
       observationIds: observations.map((observation) => observation.id),
+      minTimestamp: minStartTime,
       excludeMetadata: true,
       includeHasMetadata: true,
     }),
@@ -120,6 +140,7 @@ export async function getEventList(params: GetObservationsListParams) {
       ? getScoresForTraces({
           projectId: params.projectId,
           traceIds,
+          timestamp: minTraceTimestamp,
           excludeMetadata: true,
           includeHasMetadata: true,
         })
@@ -128,13 +149,13 @@ export async function getEventList(params: GetObservationsListParams) {
 
   const validatedScores = filterAndValidateDbScoreList({
     scores,
-    dataTypes: AGGREGATABLE_SCORE_TYPES,
+    dataTypes: LISTABLE_SCORE_TYPES,
     includeHasMetadata: true,
     onParseError: traceException,
   });
   const validatedTraceScores = filterAndValidateDbScoreList({
     scores: traceScores,
-    dataTypes: AGGREGATABLE_SCORE_TYPES,
+    dataTypes: LISTABLE_SCORE_TYPES,
     includeHasMetadata: true,
     onParseError: traceException,
   });

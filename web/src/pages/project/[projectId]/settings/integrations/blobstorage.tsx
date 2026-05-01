@@ -75,7 +75,7 @@ export default function BlobStorageIntegrationSettings() {
   );
 
   const syncStatus =
-    state.isInitialLoading || !hasAccess || !state.data
+    state.isLoading || !hasAccess || !state.data
       ? undefined
       : deriveSyncStatus({
           enabled: state.data.enabled,
@@ -246,6 +246,7 @@ const BlobStorageIntegrationSettingsForm = ({
       secretAccessKey: state?.secretAccessKey || null,
       prefix: state?.prefix || "",
       exportFrequency: (state?.exportFrequency || "daily") as
+        | "every_20_minutes"
         | "daily"
         | "weekly"
         | "hourly",
@@ -275,6 +276,7 @@ const BlobStorageIntegrationSettingsForm = ({
       secretAccessKey: state?.secretAccessKey || null,
       prefix: state?.prefix || "",
       exportFrequency: (state?.exportFrequency || "daily") as
+        | "every_20_minutes"
         | "daily"
         | "weekly"
         | "hourly",
@@ -392,7 +394,7 @@ const BlobStorageIntegrationSettingsForm = ({
               </FormControl>
               <FormDescription>
                 {integrationType === "AZURE_BLOB_STORAGE"
-                  ? "The Azure storage container name"
+                  ? "Azure container name (3-63 chars, lowercase letters, numbers, and hyphens only)"
                   : "The S3 bucket name"}
               </FormDescription>
               <FormMessage />
@@ -571,6 +573,9 @@ const BlobStorageIntegrationSettingsForm = ({
                     <SelectValue placeholder="Select frequency" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="every_20_minutes">
+                      Every 20 Minutes
+                    </SelectItem>
                     <SelectItem value="hourly">Hourly</SelectItem>
                     <SelectItem value="daily">Daily</SelectItem>
                     <SelectItem value="weekly">Weekly</SelectItem>

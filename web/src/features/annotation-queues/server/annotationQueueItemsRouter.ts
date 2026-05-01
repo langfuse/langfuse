@@ -20,6 +20,7 @@ import {
 } from "@langfuse/shared";
 import {
   getObservationById,
+  getObservationByIdFromEventsTable,
   getTraceIdsForObservations,
   logger,
 } from "@langfuse/shared/src/server";
@@ -39,7 +40,9 @@ const MAP_OBJECT_TYPE_TO_ACTION_PROPS: Record<
   {
     actionId: Exclude<
       ActionId,
-      ActionId.ObservationAddToDataset | ActionId.ObservationBatchEvaluation
+      | ActionId.ObservationAddToDataset
+      | ActionId.ObservationBatchEvaluation
+      | ActionId.ExperimentCompare
     >;
     tableName: BatchTableNames;
   }
@@ -85,6 +88,7 @@ export const queueItemRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         itemId: z.string(),
+        isBetaEnabled: z.boolean().optional().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -122,10 +126,15 @@ export const queueItemRouter = createTRPCRouter({
       };
 
       if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-        const clickhouseObservation = await getObservationById({
-          id: item.objectId,
-          projectId: input.projectId,
-        });
+        const clickhouseObservation = input.isBetaEnabled
+          ? await getObservationByIdFromEventsTable({
+              id: item.objectId,
+              projectId: input.projectId,
+            })
+          : await getObservationById({
+              id: item.objectId,
+              projectId: input.projectId,
+            });
 
         if (!clickhouseObservation) {
           throw new LangfuseNotFoundError("Observation not found");

@@ -35,6 +35,7 @@ import { z } from "zod";
  * - LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID
  * - LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY
  * - LANGFUSE_LLM_CONNECTION_BEDROCK_REGION
+ * - LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY
  * - LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY
  * - LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY
  */
@@ -744,6 +745,105 @@ describe("LLM Connection Tests", () => {
     }, 30_000);
   });
 
+  describe("Bedrock (API Key)", () => {
+    const MODEL = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0";
+
+    const checkEnvVars = () => {
+      if (!process.env.LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY) {
+        throw new Error(
+          "LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY not set. " +
+            "This test requires a valid Bedrock API key to verify bearer-token auth. " +
+            "Set the environment variable to run this test.",
+        );
+      }
+      if (!process.env.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION) {
+        throw new Error(
+          "LANGFUSE_LLM_CONNECTION_BEDROCK_REGION not set. " +
+            "This test requires a valid AWS region (e.g., 'us-east-1') to verify the Bedrock LLM connection. " +
+            "Set the environment variable to run this test.",
+        );
+      }
+    };
+
+    const getApiKey = () => {
+      checkEnvVars();
+      return JSON.stringify({
+        apiKey: process.env.LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY!,
+      });
+    };
+
+    const getConfig = () => ({
+      region: process.env.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION!,
+    });
+
+    test("simple completion", async () => {
+      checkEnvVars();
+
+      const completion = await fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "bedrock",
+          adapter: LLMAdapter.Bedrock,
+          model: MODEL,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(getApiKey()),
+          config: getConfig(),
+        },
+      });
+
+      expect(typeof completion).toBe("string");
+      expect(completion).toContain("4");
+    }, 30_000);
+
+    test("streaming completion", async () => {
+      checkEnvVars();
+
+      const stream = await fetchLLMCompletion({
+        streaming: true,
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "bedrock",
+          adapter: LLMAdapter.Bedrock,
+          model: MODEL,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(getApiKey()),
+          config: getConfig(),
+        },
+      });
+
+      const decoder = new TextDecoder();
+      let fullResponse = "";
+      let chunkCount = 0;
+
+      for await (const chunk of stream) {
+        fullResponse += decoder.decode(chunk);
+        chunkCount++;
+      }
+
+      expect(chunkCount).toBeGreaterThan(0);
+      expect(fullResponse).toContain("4");
+    }, 30_000);
+  });
+
   describe("VertexAI", () => {
     const MODEL = "gemini-2.0-flash";
 
@@ -948,7 +1048,7 @@ describe("LLM Connection Tests", () => {
   });
 
   describe("GoogleAIStudio", () => {
-    const MODEL = "gemini-2.0-flash";
+    const MODEL = "gemini-2.5-flash-lite";
 
     const checkEnvVar = () => {
       if (!process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY) {

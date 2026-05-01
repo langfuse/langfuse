@@ -1,12 +1,17 @@
-import { DatasetItemDomain, Prisma } from "@langfuse/shared";
+import {
+  asRecord,
+  convertEventRecordToObservationForEval,
+  DatasetItemDomain,
+  Prisma,
+} from "@langfuse/shared";
 import {
   ChatMessage,
+  convertDateToClickhouseDateTime,
   createDatasetItemFilterState,
   DatasetRunItemUpsertQueue,
   eventTypes,
   ExperimentCreateEventSchema,
   fetchLLMCompletion,
-  GenerationDetails,
   getDatasetItems,
   IngestionEventType,
   LangfuseInternalTraceEnvironment,
@@ -32,6 +37,7 @@ import {
 import { randomUUID } from "crypto";
 import { createW3CTraceId } from "../utils";
 import { scheduleExperimentObservationEvals } from "./scheduleExperimentEvals";
+import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 
 async function getExistingRunItemDatasetItemIds(
   projectId: string,
@@ -127,20 +133,6 @@ async function processItem(
   if (!llmResult.success) return { success: false };
 
   /********************
-   * SCHEDULE EXPERIMENT OBSERVATION EVALS *
-   ********************/
-
-  if (llmResult.generationDetails) {
-    await scheduleExperimentObservationEvals({
-      projectId,
-      traceId: newTraceId,
-      datasetItem,
-      config,
-      generationDetails: llmResult.generationDetails,
-    });
-  }
-
-  /********************
    * ASYNC RUN ITEM EVAL *
    ********************/
 
@@ -169,7 +161,7 @@ async function processLLMCall(
   traceId: string,
   datasetItem: DatasetItemDomain & { input: Prisma.JsonObject },
   config: PromptExperimentConfig,
-): Promise<{ success: boolean; generationDetails?: GenerationDetails }> {
+): Promise<{ success: boolean }> {
   let messages: ChatMessage[] = [];
   // Extract and replace variables in prompt
   try {
@@ -186,9 +178,6 @@ async function processLLMCall(
     );
     return { success: false };
   }
-
-  let generationDetails: GenerationDetails | null = null;
-
   const traceSinkParams: TraceSinkParams = {
     environment: LangfuseInternalTraceEnvironment.PromptExperiments,
     traceName: `dataset-run-item-${runItemId.slice(0, 5)}`,
@@ -202,9 +191,24 @@ async function processLLMCall(
       experiment_run_name: config.experimentRunName,
     },
     prompt: config.prompt,
-    onGenerationComplete: (details) => {
-      generationDetails = details;
-    },
+    eventsWriter: createInternalEventsWriter({
+      experimentContext: {
+        id: config.runId,
+        name: config.datasetRun.name,
+        metadata: asRecord(config.datasetRun.metadata),
+        description: config.datasetRun.description,
+        datasetId: datasetItem.datasetId,
+        itemId: datasetItem.id,
+        itemVersion: convertDateToClickhouseDateTime(datasetItem.validFrom),
+        itemExpectedOutput: datasetItem.expectedOutput,
+        itemMetadata: asRecord(datasetItem.metadata),
+      },
+      onRootEventRecordReady: async (rootEventRecord) => {
+        await scheduleExperimentObservationEvals({
+          observation: convertEventRecordToObservationForEval(rootEventRecord),
+        });
+      },
+    }),
   };
 
   await fetchLLMCompletion({
@@ -222,10 +226,7 @@ async function processLLMCall(
     traceSinkParams,
   }).catch(); // catch errors and do not retry
 
-  return {
-    success: true,
-    generationDetails: generationDetails ?? undefined,
-  };
+  return { success: true };
 }
 
 async function getItemsToProcess(
