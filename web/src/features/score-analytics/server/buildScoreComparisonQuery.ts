@@ -1010,5 +1010,23 @@ export function buildScoreComparisonQuery(params: {
       CAST(NULL AS Nullable(Float64)) as col11,
       CAST(NULL AS Nullable(Float64)) as col12
     FROM timeseries_categorical2_matched
+
+    ${isNumeric ? `UNION ALL
+
+    SELECT
+      'bounds' as result_type,
+      min1 as col1,
+      max1 as col2,
+      min2 as col3,
+      max2 as col4,
+      global_min as col5,
+      global_max as col6,
+      CAST(NULL AS Nullable(Float64)) as col7,
+      CAST(NULL AS Nullable(Float64)) as col8,
+      CAST(NULL AS Nullable(String)) as col9,
+      CAST(NULL AS Nullable(String)) as col10,
+      CAST(NULL AS Nullable(Float64)) as col11,
+      CAST(NULL AS Nullable(Float64)) as col12
+    FROM bounds` : ""}
   `;
 }
