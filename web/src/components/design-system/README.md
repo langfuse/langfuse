@@ -71,12 +71,6 @@ design-system/
 - Boolean props must use `is` / `should`:
   - `isLoading`, `shouldTruncate`
 
----
-
-Replace that section with:
-
----
-
 ### Logic Separation
 
 Design-system components own **visual states**, not business logic.
