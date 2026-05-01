@@ -30,6 +30,7 @@ import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersi
 import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 export const DatasetItemDetailPage = ({
   activeTab,
@@ -81,7 +82,9 @@ export const DatasetItemDetailPage = ({
 
   const mutDelete = api.datasets.deleteDatasetItem.useMutation({
     onSuccess: () => {
-      router.push(`/project/${projectId}/datasets/${datasetId}/items`);
+      router.push(
+        `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}/items`,
+      );
     },
   });
 
@@ -131,11 +134,11 @@ export const DatasetItemDetailPage = ({
           { name: "Datasets", href: `/project/${projectId}/datasets` },
           {
             name: dataset.data?.name ?? datasetId,
-            href: `/project/${projectId}/datasets/${datasetId}`,
+            href: `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}`,
           },
           {
             name: "Items",
-            href: `/project/${projectId}/datasets/${datasetId}/items`,
+            href: `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}/items`,
           },
         ],
         tabsProps: {
@@ -211,7 +214,7 @@ export const DatasetItemDetailPage = ({
             <DetailPageNav
               currentId={itemId}
               path={(entry) =>
-                `/project/${projectId}/datasets/${datasetId}/items/${entry.id}`
+                `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}/items/${entry.id}`
               }
               listKey="datasetItems"
             />

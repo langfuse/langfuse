@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { Check, AlertCircle } from "lucide-react";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 type StatusStepProps = {
   projectId: string;
@@ -200,7 +201,7 @@ export function StatusStep({
                 className="flex-1"
                 onClick={() =>
                   router.push(
-                    `/project/${projectId}/datasets/${encodeURIComponent(dataset.id)}/items`,
+                    `/project/${projectId}/datasets/${encodeDatasetPathSegment(dataset.id)}/items`,
                   )
                 }
               >

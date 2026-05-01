@@ -34,6 +34,7 @@ import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 import { DatasetSchemaInput } from "./DatasetSchemaInput";
 import { DatasetSchemaValidationError } from "./DatasetSchemaValidationError";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 type ServerSideSchemaValidationErrors = {
   datasetItemId: string;
@@ -289,7 +290,7 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
               form.reset();
               if (props.redirectOnSuccess !== false) {
                 router.push(
-                  `/project/${props.projectId}/datasets/${result.dataset.id}/items`,
+                  `/project/${props.projectId}/datasets/${encodeDatasetPathSegment(result.dataset.id)}/items`,
                 );
               }
             } else {

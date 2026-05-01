@@ -29,6 +29,7 @@ import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersi
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 function DatasetItemsView() {
   const router = useRouter();
@@ -112,7 +113,7 @@ function DatasetItemsView() {
             <DetailPageNav
               currentId={datasetId}
               path={(entry) =>
-                `/project/${projectId}/datasets/${entry.id}/items/`
+                `/project/${projectId}/datasets/${encodeDatasetPathSegment(entry.id)}/items/`
               }
               listKey="datasets"
             />

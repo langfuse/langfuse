@@ -25,6 +25,7 @@ import { parseJsonPrioritised } from "@langfuse/shared";
 import { ActionButton } from "@/src/components/ActionButton";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
 import { type Prisma } from "@langfuse/shared";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 /**
  * Component for creating a new dataset item from an existing object.
@@ -126,7 +127,7 @@ export const NewDatasetItemFromExistingObject = (props: {
                     asChild
                   >
                     <Link
-                      href={`/project/${props.projectId}/datasets/${datasetId}/items/${datasetItemId}`}
+                      href={`/project/${props.projectId}/datasets/${encodeDatasetPathSegment(datasetId)}/items/${datasetItemId}`}
                     >
                       {datasetName}
                     </Link>
