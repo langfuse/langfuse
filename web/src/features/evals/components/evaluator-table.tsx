@@ -529,7 +529,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           </DialogHeader>
           {existingEvaluator.isLoading ? (
             <div className="flex items-center justify-center p-4">
-              <Spinner size="h-6 w-6" />
+              <Spinner size="lg" />
             </div>
           ) : (
             <EvaluatorForm

@@ -185,7 +185,7 @@ export default function Experiments() {
         <ExperimentsTable projectId={projectId} />
       ) : (
         <div className="flex h-full items-center justify-center">
-          <Spinner size="h-8 w-8" variant="text-muted-foreground" />
+          <Spinner size="xl" variant="text-muted-foreground" />
         </div>
       )}
     </Page>

@@ -128,7 +128,7 @@ export function DistributionBooleanCard() {
           <CardDescription>Loading chart...</CardDescription>
         </CardHeader>
         <CardContent className="flex h-[340px] flex-col items-center justify-center pl-0">
-          <Spinner size="h-8 w-8" variant="text-muted-foreground" />
+          <Spinner size="xl" variant="text-muted-foreground" />
         </CardContent>
       </Card>
     );

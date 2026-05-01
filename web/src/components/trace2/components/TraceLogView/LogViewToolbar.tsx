@@ -244,7 +244,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                     disabled={isDownloadLoading}
                   >
                     {isDownloadLoading ? (
-                      <Spinner size="h-3.5 w-3.5" />
+                      <Spinner size="xs" />
                     ) : isCopied ? (
                       <Check className="h-3.5 w-3.5" />
                     ) : (
@@ -296,7 +296,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                     disabled={isDownloadLoading}
                   >
                     {isDownloadLoading ? (
-                      <Spinner size="h-3.5 w-3.5" />
+                      <Spinner size="xs" />
                     ) : (
                       <Download className="h-3.5 w-3.5" />
                     )}

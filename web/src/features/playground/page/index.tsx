@@ -162,7 +162,7 @@ export default function PlaygroundPage() {
                   <>
                     <span className="hidden sm:inline">•</span>
                     <div className="flex items-center gap-1">
-                      <Spinner size="h-3 w-3" />
+                      <Spinner size="xxs" />
                       <span className="hidden whitespace-nowrap sm:inline">
                         {executionStatus}
                       </span>
@@ -184,7 +184,7 @@ export default function PlaygroundPage() {
                 }
               >
                 {globalIsExecutingAll ? (
-                  <Spinner size="h-3 w-3" />
+                  <Spinner size="xxs" />
                 ) : (
                   <Play className="h-3 w-3" />
                 )}

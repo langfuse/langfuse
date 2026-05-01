@@ -203,7 +203,7 @@ export function CorrectedOutputField({
                 )}
                 {isValidJson && saveStatus === "saving" && (
                   <div className="mr-2 flex items-center gap-1">
-                    <Spinner size="h-3 w-3" />
+                    <Spinner size="xxs" />
                     <span className="text-muted-foreground text-xs">
                       Saving
                     </span>

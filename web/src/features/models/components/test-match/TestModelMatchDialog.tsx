@@ -133,7 +133,7 @@ export function TestModelMatchDialog({
                   <>
                     {isLoading && (
                       <div className="bg-muted/30 text-muted-foreground flex min-h-[300px] items-center justify-center gap-2 rounded-lg border p-6">
-                        <Spinner size="h-5 w-5" />
+                        <Spinner size="md" />
                         <span>Testing match...</span>
                       </div>
                     )}

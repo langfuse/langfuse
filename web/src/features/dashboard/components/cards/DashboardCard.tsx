@@ -47,7 +47,7 @@ export const DashboardCard = ({
         {headerChildren}
         {isLoading ? (
           <div className="absolute top-5 right-5">
-            <Spinner size="h-5 w-5" />
+            <Spinner size="md" />
           </div>
         ) : null}
       </CardHeader>

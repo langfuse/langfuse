@@ -149,7 +149,7 @@ export function TableActionDialog({
               <DialogFooter>
                 {isInProgress.data && (
                   <div className="flex items-center gap-1">
-                    <Spinner size="h-3 w-3" />
+                    <Spinner size="xxs" />
                     <p className="text-muted-foreground text-sm">
                       Batch action is in progress, please wait.
                     </p>
@@ -173,7 +173,7 @@ export function TableActionDialog({
           <DialogFooter>
             {isInProgress.data && (
               <div className="flex items-center gap-1">
-                <Spinner size="h-3 w-3" />
+                <Spinner size="xxs" />
                 <p className="text-muted-foreground text-sm">
                   Batch action is in progress, please wait.
                 </p>

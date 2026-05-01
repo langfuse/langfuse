@@ -212,7 +212,7 @@ export function TimelineChartCard() {
           <CardDescription>Loading chart...</CardDescription>
         </CardHeader>
         <CardContent className="flex h-[340px] grow items-center justify-center">
-          <Spinner size="h-8 w-8" variant="text-muted-foreground" />
+          <Spinner size="xl" variant="text-muted-foreground" />
         </CardContent>
       </Card>
     );

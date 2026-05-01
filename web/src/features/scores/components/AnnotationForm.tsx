@@ -191,7 +191,7 @@ function AnnotateHeader({
         <div className="flex items-center justify-end" key="saving-spinner">
           <div className="mr-1 items-center justify-center">
             {showSaving ? (
-              <Spinner size="h-3 w-3" />
+              <Spinner size="xxs" />
             ) : (
               <Check className="h-3 w-3" />
             )}

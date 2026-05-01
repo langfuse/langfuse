@@ -652,7 +652,7 @@ export function SupportFormSection({
             >
               {isSubmittingLocal ? (
                 <span className="inline-flex items-center gap-2">
-                  <Spinner size="h-4 w-4" />
+                  <Spinner size="sm" />
                   Submitting…
                 </span>
               ) : messageIsShortAfterWarning ? (

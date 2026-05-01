@@ -22,7 +22,7 @@ export const AutomationButton = ({
 
   const numberIndicator = numberOfAutomations.isLoading ? (
     <span className="ml-1.5 inline-flex w-6 items-center justify-center rounded-sm bg-transparent px-1 text-xs">
-      <Spinner size="h-3 w-3" />
+      <Spinner size="xxs" />
     </span>
   ) : (
     <span

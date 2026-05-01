@@ -180,7 +180,7 @@ export const RemoteExperimentUpsertForm = ({
             {dataset.isSuccess ? (
               <>&quot;{dataset.data?.name}&quot;</>
             ) : (
-              <Spinner size="h-4 w-4" variant="inline" />
+              <Spinner size="sm" variant="inline" />
             )}
           </strong>
           . Configure a webhook URL to trigger remote custom dataset runs from
@@ -272,7 +272,7 @@ export const RemoteExperimentUpsertForm = ({
                 >
                   {deleteRemoteExperimentMutation.isPending && (
                     <div className="mr-2">
-                      <Spinner size="h-4 w-4" />
+                      <Spinner size="sm" />
                     </div>
                   )}
                   Delete
@@ -284,7 +284,7 @@ export const RemoteExperimentUpsertForm = ({
               >
                 {upsertRemoteExperimentMutation.isPending ? (
                   <div className="mr-2">
-                    <Spinner size="h-4 w-4" />
+                    <Spinner size="sm" />
                   </div>
                 ) : null}
                 {existingRemoteExperiment ? "Update" : "Set up"}

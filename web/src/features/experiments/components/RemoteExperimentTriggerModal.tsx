@@ -181,7 +181,7 @@ export const RemoteExperimentTriggerModal = ({
               >
                 {runRemoteExperimentMutation.isPending && (
                   <div className="mr-2">
-                    <Spinner size="h-4 w-4" />
+                    <Spinner size="sm" />
                   </div>
                 )}
                 Run

@@ -102,7 +102,7 @@ export function ChartLoadingState({
         )}
       >
         <div className="flex h-4 w-4 items-center justify-center">
-          <Spinner size="h-4 w-4" />
+          <Spinner size="sm" />
         </div>
       </div>
     );
