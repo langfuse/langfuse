@@ -83,7 +83,7 @@ export default function ExperimentResults() {
     return (
       <Page headerProps={{ title: "Experiments" }}>
         <div className="flex h-full items-center justify-center">
-          <Spinner size="xl" variant="text-muted-foreground" />
+          <Spinner size="xl" variant="muted" />
         </div>
       </Page>
     );

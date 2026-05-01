@@ -4,8 +4,8 @@ import { Loader2 } from "lucide-react";
 const classes = cva("animate-spin", {
   variants: {
     variant: {
-      "text-primary": "text-primary",
-      "text-muted-foreground": "text-muted-foreground",
+      primary: "text-primary",
+      muted: "text-muted-foreground",
     },
     size: {
       xxs: "h-3 w-3",
@@ -30,7 +30,7 @@ export default function Spinner({
   size,
   display,
 }: {
-  variant?: "text-primary" | "text-muted-foreground";
+  variant?: "primary" | "muted";
   size: "xxs" | "xs" | "sm" | "md" | "lg" | "xl" | "xxl" | "full";
   display?: "block" | "inline";
 }) {

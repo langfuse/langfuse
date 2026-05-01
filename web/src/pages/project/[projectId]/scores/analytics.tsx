@@ -271,7 +271,7 @@ export default function ScoresAnalyticsV2Page() {
             </ScoreAnalyticsProvider>
           ) : (
             <div className="flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
-              <Spinner size="xxl" variant="text-muted-foreground" />
+              <Spinner size="xxl" variant="muted" />
               <p className="text-muted-foreground text-sm">
                 Loading analytics data...
               </p>

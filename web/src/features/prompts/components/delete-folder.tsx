@@ -90,7 +90,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
             <h4 className="mb-2 text-sm font-medium">Prompts to delete:</h4>
             {prompts.isLoading ? (
               <div className="flex items-center justify-center py-4">
-                <Spinner size="sm" variant="text-muted-foreground" />
+                <Spinner size="sm" variant="muted" />
               </div>
             ) : prompts.isError ? (
               <div className="py-2 text-xs text-red-500">

@@ -53,7 +53,7 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
       {/* Loading state */}
       {isLoading && (
         <div className="flex flex-1 items-center justify-center">
-          <Spinner size="md" variant="text-muted-foreground" />
+          <Spinner size="md" variant="muted" />
           <span className="text-muted-foreground ml-2 text-sm">
             Loading observations (0/{totalCount})...
           </span>
