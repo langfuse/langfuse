@@ -91,7 +91,7 @@ export { Button, buttonVariants };
 function Spinner() {
   return (
     <div className="flex h-1/2 items-center justify-center">
-      <SpinnerLib variant="h-full w-full animate-spin" />
+      <SpinnerLib size="h-full w-full" />
     </div>
   );
 }

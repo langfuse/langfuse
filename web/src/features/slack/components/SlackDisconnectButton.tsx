@@ -135,7 +135,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
     <>
       {isDisconnecting ? (
         <div className={showText ? "mr-2" : ""}>
-          <Spinner variant="h-4 w-4 animate-spin" />
+          <Spinner size="h-4 w-4" />
         </div>
       ) : (
         <Unlink className={showText ? "mr-2 h-4 w-4" : "h-4 w-4"} />
@@ -199,7 +199,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
               {isDisconnecting ? (
                 <>
                   <div className="mr-2">
-                    <Spinner variant="h-4 w-4 animate-spin" />
+                    <Spinner size="h-4 w-4" />
                   </div>
                   Disconnecting...
                 </>

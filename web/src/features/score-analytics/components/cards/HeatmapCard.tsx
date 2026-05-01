@@ -166,7 +166,7 @@ export function HeatmapCard() {
           <CardDescription>Loading heatmap...</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col items-center justify-center pl-1">
-          <Spinner variant="text-muted-foreground h-8 w-8 animate-spin" />
+          <Spinner size="h-8 w-8" variant="text-muted-foreground" />
         </CardContent>
       </Card>
     );

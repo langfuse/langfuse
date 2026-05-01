@@ -48,7 +48,7 @@ export function StatisticsCard() {
           <CardDescription>Loading statistics...</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-center py-12">
-          <Spinner variant="text-muted-foreground h-8 w-8 animate-spin" />
+          <Spinner size="h-8 w-8" variant="text-muted-foreground" />
         </CardContent>
       </Card>
     );

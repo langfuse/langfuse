@@ -66,7 +66,7 @@ export function StatusStep({
         <div className="flex flex-col items-center text-center">
           {!isComplete && (
             <div className="bg-primary/10 mb-4 rounded-full p-6">
-              <Spinner variant="text-primary h-12 w-12 animate-spin" />
+              <Spinner size="h-12 w-12" variant="text-primary" />
             </div>
           )}
           {isSuccess && (

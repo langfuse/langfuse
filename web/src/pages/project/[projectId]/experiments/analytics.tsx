@@ -58,7 +58,7 @@ export default function ExperimentAnalytics() {
     return (
       <Page headerProps={{ title: "Analytics" }}>
         <div className="flex h-full items-center justify-center">
-          <Spinner variant="text-muted-foreground h-8 w-8 animate-spin" />
+          <Spinner size="h-8 w-8" variant="text-muted-foreground" />
         </div>
       </Page>
     );
