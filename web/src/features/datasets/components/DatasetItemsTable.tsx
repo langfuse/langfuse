@@ -37,6 +37,7 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
 import { EditDatasetItemDialog } from "./EditDatasetItemDialog";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 type RowData = {
   id: string;
@@ -155,7 +156,7 @@ export function DatasetItemsTable({
           : "";
         return (
           <TableLink
-            path={`/project/${projectId}/datasets/${datasetId}/items/${id}${versionParam}`}
+            path={`/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}/items/${id}${versionParam}`}
             value={id}
           />
         );

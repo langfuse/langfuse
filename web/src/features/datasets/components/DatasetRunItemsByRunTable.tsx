@@ -24,6 +24,7 @@ import { type DatasetRunItemByRunRowData } from "@/src/features/datasets/lib/typ
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 export function DatasetRunItemsByRunTable(props: {
   projectId: string;
@@ -108,7 +109,7 @@ export function DatasetRunItemsByRunTable(props: {
           : "";
         return (
           <TableLink
-            path={`/project/${props.projectId}/datasets/${props.datasetId}/items/${datasetItemId}${versionParam}`}
+            path={`/project/${props.projectId}/datasets/${encodeDatasetPathSegment(props.datasetId)}/items/${datasetItemId}${versionParam}`}
             value={datasetItemId}
           />
         );

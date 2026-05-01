@@ -29,6 +29,7 @@ import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 export type DatasetCompareRunRowData = {
   id: string;
@@ -142,7 +143,7 @@ function DatasetCompareRunsTableInternal(props: {
         const id: string = row.getValue("id");
         return (
           <TableLink
-            path={`/project/${props.projectId}/datasets/${props.datasetId}/items/${id}`}
+            path={`/project/${props.projectId}/datasets/${encodeDatasetPathSegment(props.datasetId)}/items/${id}`}
             value={id}
           />
         );
