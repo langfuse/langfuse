@@ -305,6 +305,7 @@ describe("unstable public eval services", () => {
       {
         id: "ceval_123",
         scoreName: "answer_quality",
+        targetObject: EvalTargetObject.EVENT,
         variableMapping: [
           {
             templateVariable: "input",
@@ -346,6 +347,7 @@ describe("unstable public eval services", () => {
       select: {
         id: true,
         scoreName: true,
+        targetObject: true,
         variableMapping: true,
       },
     });
@@ -373,6 +375,64 @@ describe("unstable public eval services", () => {
     });
   });
 
+  it("preserves legacy trace mapping fields when auto-upgrading linked evaluators", async () => {
+    mockEvalTemplateFindMany.mockResolvedValueOnce([
+      {
+        id: "tmpl_project_v2",
+        version: 2,
+      },
+    ]);
+    mockJobConfigurationFindMany.mockResolvedValueOnce([
+      {
+        id: "ceval_legacy_trace",
+        scoreName: "answer_quality",
+        targetObject: EvalTargetObject.TRACE,
+        variableMapping: [
+          {
+            templateVariable: "input",
+            langfuseObject: "trace",
+            objectName: null,
+            selectedColumnId: "input",
+            jsonSelector: null,
+          },
+        ],
+      },
+    ]);
+    mockEvalTemplateCreate.mockResolvedValueOnce({
+      ...projectTemplate,
+      id: "tmpl_project_v3",
+      version: 3,
+    });
+
+    await createPublicEvaluator({
+      projectId: "project_123",
+      input: {
+        name: "Answer correctness",
+        prompt: "Judge {{input}}",
+        outputDefinition: numericOutputDefinition,
+      },
+    });
+
+    expect(mockJobConfigurationUpdate).toHaveBeenCalledWith({
+      where: {
+        id: "ceval_legacy_trace",
+        projectId: "project_123",
+      },
+      data: {
+        evalTemplateId: "tmpl_project_v3",
+        variableMapping: [
+          {
+            templateVariable: "input",
+            langfuseObject: "trace",
+            objectName: null,
+            selectedColumnId: "input",
+            jsonSelector: null,
+          },
+        ],
+      },
+    });
+  });
+
   it("drops obsolete variable mappings when auto-upgrading linked evaluation rules", async () => {
     mockEvalTemplateFindMany.mockResolvedValueOnce([
       {
@@ -384,6 +444,7 @@ describe("unstable public eval services", () => {
       {
         id: "ceval_123",
         scoreName: "answer_quality",
+        targetObject: EvalTargetObject.EVENT,
         variableMapping: [
           {
             templateVariable: "input",
@@ -444,6 +505,7 @@ describe("unstable public eval services", () => {
       {
         id: "ceval_123",
         scoreName: "answer_quality",
+        targetObject: EvalTargetObject.EVENT,
         variableMapping: [
           {
             templateVariable: "input",
