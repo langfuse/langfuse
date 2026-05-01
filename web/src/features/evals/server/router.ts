@@ -26,6 +26,7 @@ import {
   orderBy,
   jsonSchema,
   EvalTargetObject,
+  EvalTargetObjectSchema,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -77,7 +78,7 @@ const ConfigWithTemplateSchema = z.object({
   projectId: z.string(),
   evalTemplateId: z.string(),
   scoreName: z.string(),
-  targetObject: z.string(),
+  targetObject: EvalTargetObjectSchema,
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   // Accept either full variableMapping (trace/dataset) or simplified observationVariableMapping (event/experiment)
   variableMapping: z.union([
@@ -156,7 +157,7 @@ const CreateEvalJobSchema = z.object({
   projectId: z.string(),
   evalTemplateId: z.string(),
   scoreName: z.string().min(1),
-  target: z.string(), // should be z.enum(["trace", "dataset-run-item"])
+  target: EvalTargetObjectSchema,
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   // Accept either full variableMapping (trace/dataset) or simplified observationVariableMapping (event/experiment)
   mapping: z.union([
@@ -181,6 +182,32 @@ const UpdateEvalJobSchema = z.object({
   status: z.enum(EvaluatorStatus).optional(),
   timeScope: z.array(JobTimeScopeZod).optional(),
 });
+
+const validateVariableMappingForTarget = ({
+  targetObject,
+  mapping,
+}: {
+  targetObject: string;
+  mapping: unknown;
+}) => {
+  const result =
+    targetObject === EvalTargetObject.EVENT ||
+    targetObject === EvalTargetObject.EXPERIMENT
+      ? z.array(observationVariableMapping).safeParse(mapping)
+      : targetObject === EvalTargetObject.TRACE ||
+          targetObject === EvalTargetObject.DATASET
+        ? z.array(variableMapping).safeParse(mapping)
+        : null;
+
+  if (!result?.success) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Variable mapping does not match evaluator target.",
+    });
+  }
+
+  return result.data;
+};
 
 const validateEvalTemplateCanRun = async ({
   prisma,
@@ -735,6 +762,11 @@ export const evalRouter = createTRPCRouter({
         throw new Error("Template not found");
       }
 
+      const variableMappingForTarget = validateVariableMappingForTarget({
+        targetObject: input.target,
+        mapping: input.mapping,
+      });
+
       const jobId = uuidv4();
       await auditLog({
         session: ctx.session,
@@ -752,7 +784,7 @@ export const evalRouter = createTRPCRouter({
           scoreName: input.scoreName,
           targetObject: input.target,
           filter: input.filter ?? [],
-          variableMapping: input.mapping,
+          variableMapping: variableMappingForTarget,
           sampling: input.sampling,
           delay: input.delay,
           status: input.status,
@@ -1142,6 +1174,18 @@ export const evalRouter = createTRPCRouter({
         });
       }
 
+      const validatedConfig = {
+        ...config,
+        ...(config.variableMapping !== undefined
+          ? {
+              variableMapping: validateVariableMappingForTarget({
+                targetObject: existingJob.targetObject,
+                mapping: config.variableMapping,
+              }),
+            }
+          : {}),
+      };
+
       await auditLog({
         session: ctx.session,
         resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
@@ -1171,8 +1215,10 @@ export const evalRouter = createTRPCRouter({
       }
 
       const updatedConfig = {
-        ...config,
-        ...(config.status !== undefined ? resetEvalConfigBlockFields : {}),
+        ...validatedConfig,
+        ...(validatedConfig.status !== undefined
+          ? resetEvalConfigBlockFields
+          : {}),
       };
 
       const updatedJob = await ctx.prisma.jobConfiguration.update({

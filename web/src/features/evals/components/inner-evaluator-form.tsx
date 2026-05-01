@@ -52,7 +52,7 @@ import {
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { validateAndTransformVariableMapping } from "@/src/features/evals/utils/variable-mapping-validation";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
-import { EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject, EvalTargetObjectSchema } from "@langfuse/shared";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
 import { Suspense, lazy } from "react";
 import {
@@ -335,6 +335,14 @@ export const InnerEvaluatorForm = (props: {
   } = useEvalConfigFilterOptions({ projectId: props.projectId });
 
   const targetState = useEvaluatorTargetState();
+  const defaultTargetResult = EvalTargetObjectSchema.safeParse(
+    props.existingEvaluator?.targetObject ??
+      props.defaultTarget ??
+      EvalTargetObject.EVENT,
+  );
+  const defaultTarget = defaultTargetResult.success
+    ? defaultTargetResult.data
+    : EvalTargetObject.EVENT;
 
   const form = useForm({
     resolver: zodResolver(evalConfigFormSchema),
@@ -342,20 +350,13 @@ export const InnerEvaluatorForm = (props: {
     defaultValues: {
       scoreName:
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
-      target:
-        props.existingEvaluator?.targetObject ??
-        props.defaultTarget ??
-        EvalTargetObject.EVENT,
+      target: defaultTarget,
       filter: props.existingEvaluator?.filter
         ? z.array(singleFilter).parse(props.existingEvaluator.filter)
-        : (props.existingEvaluator?.targetObject ??
-              props.defaultTarget ??
-              EvalTargetObject.EVENT) === EvalTargetObject.TRACE
+        : defaultTarget === EvalTargetObject.TRACE
           ? // For new trace evaluators, exclude internal environments by default
             DEFAULT_TRACE_FILTER
-          : (props.existingEvaluator?.targetObject ??
-                props.defaultTarget ??
-                EvalTargetObject.EVENT) === EvalTargetObject.EVENT
+          : defaultTarget === EvalTargetObject.EVENT
             ? // For new observation evaluators, default to GENERATION type
               DEFAULT_OBSERVATION_FILTER
             : [],
