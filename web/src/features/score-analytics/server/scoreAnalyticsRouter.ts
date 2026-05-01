@@ -417,6 +417,7 @@ export const scoreAnalyticsRouter = createTRPCRouter({
       const timeseriesCategorical2MatchedRows = results.filter(
         (r) => r.result_type === "timeseries_categorical2_matched",
       );
+      const boundsRow = results.find((r) => r.result_type === "bounds");
 
       // Build structured response
       return {
@@ -552,6 +553,20 @@ export const scoreAnalyticsRouter = createTRPCRouter({
               : "Large dataset - skipping FINAL for performance",
           },
         },
+        // Empirical bounds from ClickHouse (numeric scores only)
+        // Used as a fallback when heatmap is empty (no matched observations) to
+        // ensure bin label ranges stay within the actual data range rather than
+        // extrapolating beyond it via mean ± 3*std.
+        numericBounds: boundsRow
+          ? {
+              min1: boundsRow.col1,
+              max1: boundsRow.col2,
+              min2: boundsRow.col3,
+              max2: boundsRow.col4,
+              globalMin: boundsRow.col5,
+              globalMax: boundsRow.col6,
+            }
+          : null,
         // Metadata about query mode and score comparison
         metadata: {
           mode: input.mode ?? "two", // Echo back the mode from frontend

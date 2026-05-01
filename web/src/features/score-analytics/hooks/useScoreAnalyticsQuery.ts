@@ -425,14 +425,24 @@ export function useScoreAnalyticsQuery(
         apiData.statistics.mean1 !== null &&
         apiData.statistics.std1 !== null
       ) {
-        // For score1 individual
+        // Prefer empirical min/max from the backend bounds row (computed directly
+        // from ClickHouse data) so labels stay within the actual data range.
+        // If numericBounds is unavailable, fall back to mean ± 3*std but clamp
+        // to empirical bounds when both are present.
         const mean1 = apiData.statistics.mean1;
         const std1 = apiData.statistics.std1;
-        binLabelsIndividual1 = generateBinLabels({
-          min: mean1 - 3 * std1,
-          max: mean1 + 3 * std1,
-          nBins,
-        });
+
+        // Use empirical min1/max1 when available; otherwise use mean ± 3*std
+        const min1 =
+          apiData.numericBounds?.min1 != null
+            ? apiData.numericBounds.min1
+            : mean1 - 3 * std1;
+        const max1 =
+          apiData.numericBounds?.max1 != null
+            ? apiData.numericBounds.max1
+            : mean1 + 3 * std1;
+
+        binLabelsIndividual1 = generateBinLabels({ min: min1, max: max1, nBins });
 
         // For score2 individual (if available)
         if (
@@ -441,15 +451,28 @@ export function useScoreAnalyticsQuery(
         ) {
           const mean2 = apiData.statistics.mean2;
           const std2 = apiData.statistics.std2;
-          binLabelsIndividual2 = generateBinLabels({
-            min: mean2 - 3 * std2,
-            max: mean2 + 3 * std2,
-            nBins,
-          });
 
-          // Global bounds: union of both ranges
-          const globalMin = Math.min(mean1 - 3 * std1, mean2 - 3 * std2);
-          const globalMax = Math.max(mean1 + 3 * std1, mean2 + 3 * std2);
+          // Use empirical min2/max2 when available; otherwise use mean ± 3*std
+          const min2 =
+            apiData.numericBounds?.min2 != null
+              ? apiData.numericBounds.min2
+              : mean2 - 3 * std2;
+          const max2 =
+            apiData.numericBounds?.max2 != null
+              ? apiData.numericBounds.max2
+              : mean2 + 3 * std2;
+
+          binLabelsIndividual2 = generateBinLabels({ min: min2, max: max2, nBins });
+
+          // Global bounds: prefer empirical global bounds; otherwise union of individual ranges
+          const globalMin =
+            apiData.numericBounds?.globalMin != null
+              ? apiData.numericBounds.globalMin
+              : Math.min(min1, min2);
+          const globalMax =
+            apiData.numericBounds?.globalMax != null
+              ? apiData.numericBounds.globalMax
+              : Math.max(max1, max2);
           binLabelsGlobal = generateBinLabels({
             min: globalMin,
             max: globalMax,
