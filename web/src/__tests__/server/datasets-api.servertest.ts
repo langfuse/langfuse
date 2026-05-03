@@ -323,7 +323,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     ).toBe(true);
   });
 
-  it("should return archived dataset item when getting by id", async () => {
+  it("should not return archived dataset item when getting by id", async () => {
     const datasetName = `dataset-archived-by-id-${v4()}`;
 
     await makeZodVerifiedAPICall(
@@ -356,9 +356,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       undefined,
       auth,
     );
-    expect(getArchivedItem.status).toBe(200);
-    expect(getArchivedItem.body.id).toBe("archived-item-by-id");
-    expect(getArchivedItem.body.status).toBe("ARCHIVED");
+    // Archived items should not be returned by the public API (fix for #10205)
+    expect(getArchivedItem.status).toBe(404);
   });
 
   it("should return active dataset item when getting by id", async () => {
