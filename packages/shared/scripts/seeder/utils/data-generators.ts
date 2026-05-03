@@ -41,7 +41,7 @@ import {
  * Generates realistic test data for traces, observations, and scores.
  *
  * Use generateXxxTraces() for creating different data types:
- * - generateDatasetTrace(): For dataset experiment runs (langfuse-prompt-experiments env)
+ * - generateDatasetTrace(): For dataset experiment runs (langfuse-prompt-experiment env)
  * - generateEvaluationTraces(): For evaluation data (langfuse-evaluation env)
  * - generateSyntheticTraces(): For large-scale synthetic data (default env)
  */
@@ -87,6 +87,9 @@ export class DataGenerator {
       input.runNumber || 0,
     );
 
+    // Add small random offset (1-10 seconds) for realistic variation
+    const itemCreatedAt = input.runCreatedAt + this.randomInt(1, 10) * 1000;
+
     return createDatasetRunItem({
       id: datasetRunItemId,
       project_id: projectId,
@@ -110,6 +113,9 @@ export class DataGenerator {
       ),
       dataset_item_input: input.item.input,
       dataset_item_expected_output: input.item.expectedOutput,
+      created_at: itemCreatedAt,
+      updated_at: itemCreatedAt,
+      event_ts: itemCreatedAt,
     });
   }
 
@@ -151,8 +157,8 @@ export class DataGenerator {
       name: `dataset-run-item-${uuidv4()}`,
       input: traceInput,
       output: traceOutput,
-      environment: "langfuse-prompt-experiments",
-      metadata: { experimentType: "langfuse-prompt-experiments" },
+      environment: "langfuse-prompt-experiment",
+      metadata: { experimentType: "langfuse-prompt-experiment" },
       public: false,
       bookmarked: false,
       session_id: null,
@@ -212,7 +218,7 @@ export class DataGenerator {
         total: Math.round(totalCost * 100000) / 100000,
       },
       total_cost: Math.round(totalCost * 100000) / 100000,
-      environment: "langfuse-prompt-experiments",
+      environment: "langfuse-prompt-experiment",
     });
   }
 
@@ -237,7 +243,7 @@ export class DataGenerator {
       string_value: undefined,
       data_type: "NUMERIC",
       source: "API",
-      environment: "langfuse-prompt-experiments",
+      environment: "langfuse-prompt-experiment",
     });
   }
 
@@ -265,7 +271,7 @@ export class DataGenerator {
       string_value: undefined,
       data_type: "NUMERIC",
       source: "API",
-      environment: "langfuse-prompt-experiments",
+      environment: "langfuse-prompt-experiment",
     });
   }
 
@@ -332,6 +338,7 @@ export class DataGenerator {
               evalJobConfiguration.evalTemplateId,
               traceIndex,
               projectId,
+              i,
             ),
             trace_id: trace.id,
             project_id: projectId,

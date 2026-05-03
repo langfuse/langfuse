@@ -1,7 +1,7 @@
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -70,24 +70,26 @@ export const RemoteExperimentTriggerModal = ({
   const runRemoteExperimentMutation =
     api.datasets.triggerRemoteExperiment.useMutation({
       onSuccess: (data) => {
-        if (data.success) {
+        if (data.success && data.skipped) {
+          showErrorToast(
+            "Trigger is disabled",
+            "Enable the trigger in settings to run remote experiments.",
+            "WARNING",
+          );
+        } else if (data.success) {
           showSuccessToast({
-            title: "Dataset run started",
-            description: "Your dataset run may take a few minutes to complete.",
+            title: "Remote experiment triggered",
+            description:
+              "Your remote experiment may take a few minutes to complete.",
           });
         } else {
           showErrorToast(
-            "Failed to start dataset run",
-            "Please try again or check your remote dataset run configuration.",
+            "Failed to trigger remote experiment",
+            data.error ||
+              "Please try again or check your remote experiment configuration.",
           );
         }
         setShowTriggerModal(false);
-      },
-      onError: (error) => {
-        showErrorToast(
-          error.message || "Failed to start dataset run",
-          "Please try again or check your remote dataset run configuration.",
-        );
       },
     });
 

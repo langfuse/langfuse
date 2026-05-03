@@ -70,6 +70,7 @@ export function TraceDetailView({
 }: TraceDetailViewProps) {
   // Tab and view state from URL (via SelectionContext)
   const { selectedTab, setSelectedTab } = useSelection();
+  const utils = api.useUtils();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
   const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false);
 
@@ -93,6 +94,7 @@ export function TraceDetailView({
     setJsonViewPreference,
     jsonBetaEnabled,
     setJsonBetaEnabled,
+    isPeekMode,
   } = useViewPreferences();
 
   // Map jsonViewPreference to currentView format expected by child components
@@ -177,13 +179,26 @@ export function TraceDetailView({
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
 
   // Scores tab visibility: hide for public trace viewers and in peek mode (annotation queues)
-  const { isPeekMode } = useViewPreferences();
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
-  const showScoresTab = isAuthenticatedAndProjectMember && !isPeekMode;
+  const showScoresTab = isAuthenticatedAndProjectMember;
+
+  const refreshTraceScores = useCallback(() => {
+    void utils.traces.byIdWithObservationsAndScores.invalidate({
+      projectId,
+      traceId: trace.id,
+    });
+    void utils.events.scoresForTrace.invalidate({
+      projectId,
+      traceId: trace.id,
+    });
+  }, [projectId, trace.id, utils]);
 
   // Handle tab change
   const handleTabChange = (value: string) => {
+    if (value === "scores") {
+      refreshTraceScores();
+    }
     setSelectedTab(value as "preview" | "log" | "scores");
   };
 
@@ -192,6 +207,8 @@ export function TraceDetailView({
       {/* Header section (extracted component) */}
       <TraceDetailViewHeader
         trace={trace}
+        observations={observations}
+        parsedMetadata={parsedMetadata}
         projectId={projectId}
         traceScores={traceScores}
         commentCount={comments.get(trace.id)}
@@ -273,7 +290,7 @@ export function TraceDetailView({
                           sideOffset={8}
                         >
                           <p className="font-medium">JSON view unavailable</p>
-                          <p className="mt-1 text-muted-foreground">
+                          <p className="text-muted-foreground mt-1">
                             Disabled for traces with{" "}
                             {TRACE_VIEW_CONFIG.logView.virtualizationThreshold}+
                             observations to maintain performance.
@@ -296,7 +313,7 @@ export function TraceDetailView({
                         checked={jsonBetaEnabled}
                         onCheckedChange={handleBetaToggle}
                       />
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-muted-foreground text-xs">
                         Beta
                       </span>
                     </div>
@@ -322,12 +339,12 @@ export function TraceDetailView({
             {trace.tags.length > 0 && (
               <>
                 <div
-                  className={`px-2 pt-2 text-sm font-medium ${currentView !== "pretty" ? "flex-shrink-0" : ""}`}
+                  className={`px-2 pt-2 text-sm font-medium ${currentView !== "pretty" ? "shrink-0" : ""}`}
                 >
                   Tags
                 </div>
                 <div
-                  className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView !== "pretty" ? "flex-shrink-0" : ""}`}
+                  className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView !== "pretty" ? "shrink-0" : ""}`}
                 >
                   <TagList selectedTags={trace.tags} isLoading={false} />
                 </div>
@@ -416,10 +433,16 @@ export function TraceDetailView({
             <div className="flex h-full min-h-0 w-full flex-col overflow-hidden pr-3">
               <ScoresTable
                 projectId={projectId}
-                omittedFilter={["Trace ID"]}
                 traceId={trace.id}
-                hiddenColumns={["traceName", "jobConfigurationId", "userId"]}
+                hiddenColumns={[
+                  "traceId",
+                  "traceName",
+                  "traceTags",
+                  "jobConfigurationId",
+                  "userId",
+                ]}
                 localStorageSuffix="TracePreview"
+                disableUrlPersistence={isPeekMode}
               />
             </div>
           </TabsBarContent>

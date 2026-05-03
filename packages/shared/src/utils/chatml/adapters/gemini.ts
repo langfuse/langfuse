@@ -3,8 +3,9 @@ import {
   parseMetadata,
   stringifyToolResultContent,
   isRichToolResult,
+  getNestedProperty,
 } from "../helpers";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Detection schemas for Gemini/VertexAI formats
@@ -67,15 +68,25 @@ function getField(obj: unknown, snakeName: string, camelName: string): unknown {
 // The format {role: "tool", content: {type: "function"}} is LangGraph, handled by langgraph adapter
 
 /**
- * Extract both tool calls and text from parts array
- * Handles: function_call/functionCall, text, function_response/functionResponse
+ * Thinking part structure for Gemini
+ */
+type ThinkingPart = {
+  content: string;
+};
+
+/**
+ * Extract tool calls, text, and thinking from parts array
+ * Handles: function_call/functionCall, text, function_response/functionResponse, thought
  * snake_case is from python SDK while camelCase is from JavaScript SDK / REST
+ * Gemini indicates thinking with `thought: true` flag on text parts
  */
 function extractFromParts(parts: unknown[]): {
   toolCalls: Array<Record<string, unknown>>;
+  thinkingParts: ThinkingPart[];
   text: string;
 } {
   const toolCalls: Array<Record<string, unknown>> = [];
+  const thinkingParts: ThinkingPart[] = [];
   const textParts: string[] = [];
 
   for (const part of parts) {
@@ -105,10 +116,17 @@ function extractFromParts(parts: unknown[]): {
 
     // {text: "..."} or {type: "text", text: "..."}
     // text can be a string (normal response) or an object (when responseMimeType: "application/json")
+    // Check for thought flag (Gemini thinking indicator)
     if (p.text !== undefined && p.text !== null) {
-      textParts.push(
-        typeof p.text === "string" ? p.text : JSON.stringify(p.text, null, 2),
-      );
+      const textContent =
+        typeof p.text === "string" ? p.text : JSON.stringify(p.text, null, 2);
+
+      // Gemini uses `thought: true` flag to indicate thinking content
+      if (p.thought === true) {
+        thinkingParts.push({ content: textContent });
+      } else {
+        textParts.push(textContent);
+      }
       continue;
     }
 
@@ -122,6 +140,7 @@ function extractFromParts(parts: unknown[]): {
 
   return {
     toolCalls,
+    thinkingParts,
     text: textParts.join(""),
   };
 }
@@ -235,15 +254,23 @@ function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
   // process top-level parts array
   // Gemini format: {parts: [{function_call/text/function_response}], role: "..."}
   if (normalized.parts && Array.isArray(normalized.parts)) {
-    const { toolCalls, text } = extractFromParts(normalized.parts);
+    const { toolCalls, thinkingParts, text } = extractFromParts(
+      normalized.parts,
+    );
     if (toolCalls.length > 0) {
       normalized.tool_calls = toolCalls;
     }
+    if (thinkingParts.length > 0) {
+      normalized.thinking = thinkingParts.map((t) => ({
+        type: "thinking" as const,
+        content: t.content,
+      }));
+    }
     if (text) {
       normalized.content = text;
-      // Remove parts to avoid showing in passthrough
-      delete normalized.parts;
     }
+    // Remove parts to avoid showing in passthrough (regardless of content)
+    delete normalized.parts;
   }
 
   // process nested content.parts[]
@@ -256,9 +283,15 @@ function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
   ) {
     const content = normalized.content as Record<string, unknown>;
     if (Array.isArray(content.parts)) {
-      const { toolCalls } = extractFromParts(content.parts);
+      const { toolCalls, thinkingParts } = extractFromParts(content.parts);
       if (toolCalls.length > 0) {
         normalized.tool_calls = toolCalls;
+      }
+      if (thinkingParts.length > 0) {
+        normalized.thinking = thinkingParts.map((t) => ({
+          type: "thinking" as const,
+          content: t.content,
+        }));
       }
 
       // Extract role if nested
@@ -271,9 +304,15 @@ function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
   // process content as array (structured content format)
   // Gemini format: {content: [{type: "text", text: "..."}]}
   if (Array.isArray(normalized.content)) {
-    const { text } = extractFromParts(normalized.content);
+    const { text, thinkingParts } = extractFromParts(normalized.content);
     if (text) {
       normalized.content = text;
+    }
+    if (thinkingParts.length > 0) {
+      normalized.thinking = thinkingParts.map((t) => ({
+        type: "thinking" as const,
+        content: t.content,
+      }));
     }
   }
 
@@ -420,8 +459,19 @@ export const geminiAdapter: ProviderAdapter = {
   detect(ctx: NormalizerContext): boolean {
     const meta = parseMetadata(ctx.metadata);
 
-    // HINTS: Fast checks for explicit Gemini indicators
     if (ctx.framework === "gemini") return true;
+
+    // EXCLUSIONS: Fast checks for explicit non-Gemini indicators
+    const scopeName = getNestedProperty(meta, "scope", "name");
+    if (scopeName === "pydantic-ai") return false;
+    if (scopeName === "agent_framework") return false;
+    if (
+      typeof scopeName === "string" &&
+      scopeName.includes("Microsoft.Extensions.AI")
+    )
+      return false;
+
+    // HINTS: Fast checks for explicit Gemini indicators
     if (ctx.observationName?.toLowerCase().includes("gemini")) return true;
     if (ctx.observationName?.toLowerCase().includes("vertex")) return true;
     if (meta?.ls_provider === "google_vertexai") return true;

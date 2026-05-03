@@ -20,6 +20,10 @@ export const useViewMutations = ({
 
   const updateConfigMutation = api.TableViewPresets.update.useMutation({
     onSuccess: (data) => {
+      utils.TableViewPresets.getById.invalidate({
+        viewId: data.view.id,
+      });
+      utils.TableViewPresets.getByTableName.invalidate();
       showSuccessToast({
         title: "View updated",
         description: `${data.view.name} has been updated to reflect your current table state`,

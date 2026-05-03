@@ -5,7 +5,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   UnauthorizedError,
   LangfuseNotFoundError,
@@ -51,7 +51,6 @@ export default async function handler(
       const projectId = authCheck.scope.projectId;
       const promptName = searchParams.name;
       const version = searchParams.version ?? undefined;
-      const shouldResolve = searchParams.resolve ?? true; // Default to true for backward compatibility
 
       const rateLimitCheck =
         await RateLimitService.getInstance().rateLimitRequest(
@@ -67,7 +66,6 @@ export default async function handler(
         promptName,
         projectId,
         version,
-        resolve: shouldResolve,
       });
 
       if (!prompt) throw new LangfuseNotFoundError("Prompt not found");

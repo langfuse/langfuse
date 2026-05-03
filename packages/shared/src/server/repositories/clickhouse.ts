@@ -9,13 +9,18 @@ import { getTracer, instrumentAsync } from "../instrumentation";
 import { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
-import { context, SpanKind, trace } from "@opentelemetry/api";
+import { type Span, context, SpanKind, trace } from "@opentelemetry/api";
 import { backOff } from "exponential-backoff";
 import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
-import { ClickHouseSettings } from "@clickhouse/client";
+import {
+  ClickHouseSettings,
+  type RowOrProgress,
+  type DataFormat,
+} from "@clickhouse/client";
+import { RESOURCE_LIMIT_ERROR_MESSAGE } from "../../errors/errorMessages";
 
 /**
  * Custom error class for ClickHouse resource-related errors
@@ -41,10 +46,7 @@ const ERROR_TYPE_CONFIG: Record<
 type ErrorType = keyof typeof ERROR_TYPE_CONFIG;
 
 export class ClickHouseResourceError extends Error {
-  static ERROR_ADVICE_MESSAGE = [
-    "We got notified about this issue and are looking into it.",
-    "We are continuously improving our API performance.",
-  ].join(" ");
+  static ERROR_ADVICE_MESSAGE = RESOURCE_LIMIT_ERROR_MESSAGE;
 
   public readonly errorType: ErrorType;
 
@@ -97,6 +99,22 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
   }
   return s3StorageServiceClient;
 };
+
+/**
+ * Guard against reads from the legacy 'events' table.
+ * Reads must use events_core or events_full instead.
+ * Matches "FROM events" or "JOIN events" as a standalone table name
+ * (not events_core, events_full, or CTE aliases like filtered_events).
+ */
+const LEGACY_EVENTS_TABLE_PATTERN = /\b(?:from|join)\s+events\b(?!_)/i;
+
+function assertNoLegacyEventsRead(query: string): void {
+  if (LEGACY_EVENTS_TABLE_PATTERN.test(query)) {
+    throw new Error(
+      `Reading from legacy 'events' table is forbidden. Use events_core or events_full. Query: ${query.slice(0, 200)}`,
+    );
+  }
+}
 
 export async function upsertClickhouse<
   T extends Record<string, unknown>,
@@ -204,69 +222,23 @@ export async function upsertClickhouse<
   );
 }
 
-export async function* queryClickhouseStream<T>(opts: {
-  query: string;
-  params?: Record<string, unknown> | undefined;
-  clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags?: Record<string, string>;
-  preferredClickhouseService?: PreferredClickhouseService;
-  clickhouseSettings?: ClickHouseSettings;
-}): AsyncGenerator<T> {
+export async function* queryClickhouseStream<T>(
+  opts: ClickhouseQueryOpts,
+): AsyncGenerator<T> {
+  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
   const tracer = getTracer("clickhouse-query-stream");
   const span = tracer.startSpan("clickhouse-query-stream", {
     kind: SpanKind.CLIENT,
   });
 
   try {
+    setSpanQueryAttributes(span, opts.query);
+
     const res = await context
-      .with(trace.setSpan(context.active(), span), async () => {
-        // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
-        span.setAttribute("ch.query.text", opts.query);
-        span.setAttribute("db.system", "clickhouse");
-        span.setAttribute("db.query.text", opts.query);
-        span.setAttribute("db.operation.name", "SELECT");
-
-        const res = await clickhouseClient(
-          opts.clickhouseConfigs,
-          opts.preferredClickhouseService,
-        ).query({
-          query: opts.query,
-          format: "JSONEachRow",
-          query_params: opts.params,
-          clickhouse_settings: {
-            ...opts.clickhouseSettings,
-            log_comment: JSON.stringify(opts.tags ?? {}),
-          },
-        });
-
-        // same logic as for prisma. we want to see queries in development
-        if (env.NODE_ENV === "development") {
-          logger.info(`clickhouse:query ${res.query_id} ${opts.query}`);
-        }
-
-        span.setAttribute("ch.queryId", res.query_id);
-
-        // add summary headers to the span. Helps to tune performance
-        const summaryHeader = res.response_headers["x-clickhouse-summary"];
-        if (summaryHeader) {
-          try {
-            const summary = Array.isArray(summaryHeader)
-              ? JSON.parse(summaryHeader[0])
-              : JSON.parse(summaryHeader);
-            for (const key in summary) {
-              span.setAttribute(`ch.${key}`, summary[key]);
-            }
-          } catch (error) {
-            logger.debug(
-              `Failed to parse clickhouse summary header ${summaryHeader}`,
-              error,
-            );
-          }
-        }
-        return res;
-      })
+      .with(trace.setSpan(context.active(), span), () =>
+        sendClickhouseQuery({ ...opts, format: "JSONEachRow", span }),
+      )
       .catch((error) => {
-        // Transform resource errors to provide actionable advice
         throw ClickHouseResourceError.wrapIfResourceError(error as Error);
       });
 
@@ -276,7 +248,7 @@ export async function* queryClickhouseStream<T>(opts: {
       }
     }
   } catch (error) {
-    // Also catch errors during streaming
+    if (error instanceof ClickHouseResourceError) throw error;
     throw ClickHouseResourceError.wrapIfResourceError(error as Error);
   } finally {
     span.end();
@@ -320,6 +292,77 @@ function handleExceptionRow<T>(parsedRow: T): T {
   return parsedRow;
 }
 
+export type ClickhouseQueryOpts = {
+  query: string;
+  params?: Record<string, unknown>;
+  clickhouseConfigs?: NodeClickHouseClientConfigOptions;
+  tags?: Record<string, string>;
+  preferredClickhouseService?: PreferredClickhouseService;
+  clickhouseSettings?: ClickHouseSettings;
+  allowLegacyEventsRead?: boolean;
+};
+
+function recordSummaryOnSpan(
+  span: Span,
+  responseHeaders: Record<string, string | string[] | undefined>,
+): void {
+  const summaryHeader = responseHeaders["x-clickhouse-summary"];
+  if (!summaryHeader) return;
+  try {
+    const summary = Array.isArray(summaryHeader)
+      ? JSON.parse(summaryHeader[0])
+      : JSON.parse(summaryHeader);
+    for (const key in summary) {
+      span.setAttribute(`ch.${key}`, summary[key]);
+    }
+  } catch (error) {
+    logger.debug(
+      `Failed to parse clickhouse summary header ${summaryHeader}`,
+      error,
+    );
+  }
+}
+
+function setSpanQueryAttributes(span: Span, query: string): void {
+  span.setAttribute("ch.query.text", query);
+  span.setAttribute("db.system", "clickhouse");
+  span.setAttribute("db.query.text", query);
+  span.setAttribute("db.operation.name", "SELECT");
+}
+
+async function sendClickhouseQuery<F extends DataFormat>(opts: {
+  query: string;
+  params?: Record<string, unknown>;
+  clickhouseConfigs?: NodeClickHouseClientConfigOptions;
+  tags?: Record<string, string>;
+  preferredClickhouseService?: PreferredClickhouseService;
+  clickhouseSettings?: ClickHouseSettings;
+  format: F;
+  span: Span;
+}) {
+  const res = await clickhouseClient(
+    opts.clickhouseConfigs,
+    opts.preferredClickhouseService,
+  ).query({
+    query: opts.query,
+    format: opts.format,
+    query_params: opts.params,
+    clickhouse_settings: {
+      ...opts.clickhouseSettings,
+      log_comment: JSON.stringify(opts.tags ?? {}),
+    },
+  });
+
+  if (env.NODE_ENV === "development") {
+    logger.info(`clickhouse:query ${res.query_id} ${opts.query}`);
+  }
+
+  opts.span.setAttribute("ch.queryId", res.query_id);
+  recordSummaryOnSpan(opts.span, res.response_headers);
+
+  return res;
+}
+
 /**
  * Determines if an error is retryable (socket hang up, connection reset, broken pipe, etc.)
  */
@@ -342,65 +385,27 @@ function isRetryableError(error: unknown): boolean {
   return retryablePatterns.some((pattern) => errorMessage.includes(pattern));
 }
 
-export async function queryClickhouse<T>(opts: {
-  query: string;
-  params?: Record<string, unknown> | undefined;
-  clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags?: Record<string, string>;
-  preferredClickhouseService?: PreferredClickhouseService;
-  clickhouseSettings?: ClickHouseSettings;
-}): Promise<T[]> {
+export async function queryClickhouse<T>(
+  opts: ClickhouseQueryOpts,
+): Promise<T[]> {
+  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
   return await instrumentAsync(
     { name: "clickhouse-query", spanKind: SpanKind.CLIENT },
     async (span) => {
-      // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
-      span.setAttribute("ch.query.text", opts.query);
-      span.setAttribute("db.system", "clickhouse");
-      span.setAttribute("db.query.text", opts.query);
-      span.setAttribute("db.operation.name", "SELECT");
+      setSpanQueryAttributes(span, opts.query);
 
-      // Retry logic for socket hang up and other network errors
       return await backOff(
         async () => {
-          // same logic as for prisma. we want to see queries in development
-          if (env.NODE_ENV === "development") {
-            logger.info(`clickhouse:query ${opts.query}`);
-          }
-          const res = await clickhouseClient(
-            opts.clickhouseConfigs,
-            opts.preferredClickhouseService,
-          ).query({
-            query: opts.query,
-            format: "JSONEachRow",
-            query_params: opts.params,
-            clickhouse_settings: {
+          const res = await sendClickhouseQuery({
+            ...opts,
+            clickhouseSettings: {
               asterisk_include_alias_columns: 1,
               asterisk_include_materialized_columns: 1,
               ...opts.clickhouseSettings,
-              log_comment: JSON.stringify(opts.tags ?? {}),
             },
+            format: "JSONEachRow",
+            span,
           });
-
-          span.setAttribute("ch.queryId", res.query_id);
-
-          // add summary headers to the span. Helps to tune performance
-          const summaryHeader = res.response_headers["x-clickhouse-summary"];
-          if (summaryHeader) {
-            try {
-              const summary = Array.isArray(summaryHeader)
-                ? JSON.parse(summaryHeader[0])
-                : JSON.parse(summaryHeader);
-              for (const key in summary) {
-                span.setAttribute(`ch.${key}`, summary[key]);
-              }
-            } catch (error) {
-              logger.debug(
-                `Failed to parse clickhouse summary header ${summaryHeader}`,
-                error,
-              );
-            }
-          }
-
           return (await res.json<T>()).map(handleExceptionRow);
         },
         {
@@ -436,11 +441,53 @@ export async function queryClickhouse<T>(opts: {
           maxDelay: 100,
         },
       ).catch((error) => {
-        // Transform resource errors to provide actionable advice
         throw ClickHouseResourceError.wrapIfResourceError(error as Error);
       });
     },
   );
+}
+
+export async function* queryClickhouseWithProgress<T>(
+  opts: ClickhouseQueryOpts,
+): AsyncGenerator<RowOrProgress<T>> {
+  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+
+  const tracer = getTracer("clickhouse-query-progress");
+  const span = tracer.startSpan("clickhouse-query-progress", {
+    kind: SpanKind.CLIENT,
+  });
+
+  try {
+    setSpanQueryAttributes(span, opts.query);
+
+    const res = await context
+      .with(trace.setSpan(context.active(), span), () =>
+        sendClickhouseQuery({
+          ...opts,
+          clickhouseSettings: {
+            asterisk_include_alias_columns: 1,
+            asterisk_include_materialized_columns: 1,
+            ...opts.clickhouseSettings,
+          },
+          format: "JSONEachRowWithProgress",
+          span,
+        }),
+      )
+      .catch((error) => {
+        throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+      });
+
+    for await (const rows of res.stream()) {
+      for (const row of rows) {
+        yield row.json() as RowOrProgress<T>;
+      }
+    }
+  } catch (error) {
+    if (error instanceof ClickHouseResourceError) throw error;
+    throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+  } finally {
+    span.end();
+  }
 }
 
 export async function commandClickhouse(opts: {
@@ -450,6 +497,7 @@ export async function commandClickhouse(opts: {
   tags?: Record<string, string>;
   clickhouseSettings?: ClickHouseSettings;
   abortSignal?: AbortSignal;
+  session_id?: string;
 }): Promise<void> {
   return await instrumentAsync(
     { name: "clickhouse-command", spanKind: SpanKind.CLIENT },
@@ -463,6 +511,7 @@ export async function commandClickhouse(opts: {
       const res = await clickhouseClient(opts.clickhouseConfigs).command({
         query: opts.query,
         query_params: opts.params,
+        ...(opts.session_id ? { session_id: opts.session_id } : {}),
         ...(opts.tags?.queryId
           ? { query_id: opts.tags.queryId as string }
           : {}),
@@ -499,6 +548,13 @@ export async function commandClickhouse(opts: {
     },
   );
 }
+
+export {
+  isProgressRow,
+  isRow,
+  isException,
+  type RowOrProgress,
+} from "@clickhouse/client";
 
 export function parseClickhouseUTCDateTimeFormat(dateStr: string): Date {
   return new Date(`${dateStr.replace(" ", "T")}Z`);

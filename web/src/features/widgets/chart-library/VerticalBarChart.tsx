@@ -1,7 +1,12 @@
 import React from "react";
-import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 
 /**
  * VerticalBarChart component
@@ -20,9 +25,14 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
     },
   },
   accessibilityLayer = true,
+  valueFormatter = compactNumberFormatter,
+  subtleFill = false,
 }) => {
   return (
-    <ChartContainer config={config}>
+    <ChartContainer
+      config={config}
+      className="[&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
+    >
       <BarChart accessibilityLayer={accessibilityLayer} data={data}>
         <XAxis
           type="category"
@@ -31,6 +41,7 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          niceTicks="auto"
         />
         <YAxis
           type="number"
@@ -42,11 +53,20 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
         <Bar
           dataKey="metric"
           radius={[4, 4, 0, 0]}
-          className="fill-[--color-metric]"
+          className="fill-(--color-metric)"
+          fillOpacity={subtleFill ? 0.3 : 1}
         />
         <ChartTooltip
+          cursor={false}
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          itemStyle={{ color: "hsl(var(--foreground))" }}
+          content={({ active, payload, label }) => (
+            <ChartTooltipContent
+              active={active}
+              payload={payload}
+              label={label}
+              valueFormatter={(v) => valueFormatter(Number(v))}
+            />
+          )}
         />
       </BarChart>
     </ChartContainer>

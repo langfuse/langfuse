@@ -14,7 +14,7 @@ export async function hashSecretKey(key: string) {
   return hashedKey;
 }
 
-async function generateKeySet() {
+export async function generateKeySet() {
   return {
     pk: `pk-lf-${randomUUID()}`,
     sk: `sk-lf-${randomUUID()}`,

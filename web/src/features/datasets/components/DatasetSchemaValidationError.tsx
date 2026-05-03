@@ -56,15 +56,15 @@ export const DatasetSchemaValidationError: React.FC<
         </Button>
 
         {isExpanded && (
-          <div className="mt-3 space-y-3 rounded-md border border-destructive/20 bg-destructive/5 p-3">
+          <div className="border-destructive/20 bg-destructive/5 mt-3 space-y-3 rounded-md border p-3">
             {errors.map((error, idx) => (
               <div
                 key={`${error.datasetItemId}-${error.field}`}
-                className="space-y-1 border-b border-destructive/10 pb-3 last:border-0 last:pb-0"
+                className="border-destructive/10 space-y-1 border-b pb-3 last:border-0 last:pb-0"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-muted-foreground">
+                    <span className="text-muted-foreground font-mono text-xs">
                       #{idx + 1}
                     </span>
                     <Link
@@ -77,7 +77,7 @@ export const DatasetSchemaValidationError: React.FC<
                       <ExternalLink className="h-3 w-3" />
                     </Link>
                   </div>
-                  <span className="rounded bg-destructive/20 px-2 py-0.5 text-xs font-medium">
+                  <span className="bg-destructive/20 rounded px-2 py-0.5 text-xs font-medium">
                     {error.field === "input" ? "Input" : "Expected Output"}
                   </span>
                 </div>
@@ -85,7 +85,7 @@ export const DatasetSchemaValidationError: React.FC<
                 <ul className="ml-6 space-y-1 text-sm">
                   {error.errors.map((err, errIdx) => (
                     <li key={errIdx} className="text-destructive">
-                      <span className="font-mono text-xs text-muted-foreground">
+                      <span className="text-muted-foreground font-mono text-xs">
                         Path {err.path}
                       </span>
                       : {err.message}
@@ -96,7 +96,7 @@ export const DatasetSchemaValidationError: React.FC<
             ))}
 
             {hasMoreThan10 && (
-              <p className="pt-2 text-xs text-muted-foreground">
+              <p className="text-muted-foreground pt-2 text-xs">
                 Fix these errors to see if there are additional validation
                 issues.
               </p>

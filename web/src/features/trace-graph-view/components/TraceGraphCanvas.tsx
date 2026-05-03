@@ -449,12 +449,12 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       onMouseLeave={() => setIsHovering(false)}
     >
       {isHovering && (
-        <div className="absolute right-2 top-2 z-10 flex flex-col gap-1">
+        <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
           <Button
             onClick={handleZoomIn}
             variant="ghost"
             size="icon"
-            className="p-1.5 shadow-md dark:shadow-border"
+            className="dark:shadow-border p-1.5 shadow-md"
             title="Zoom in"
           >
             <ZoomIn className="h-4 w-4" />
@@ -463,7 +463,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
             onClick={handleZoomOut}
             variant="ghost"
             size="icon"
-            className="p-1.5 shadow-md dark:shadow-border"
+            className="dark:shadow-border p-1.5 shadow-md"
             title="Zoom out"
           >
             <ZoomOut className="h-4 w-4" />
@@ -472,7 +472,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
             onClick={handleReset}
             variant="ghost"
             size="icon"
-            className="p-1.5 shadow-md dark:shadow-border"
+            className="dark:shadow-border p-1.5 shadow-md"
             title="Reset view"
           >
             <RotateCcw className="h-4 w-4" />

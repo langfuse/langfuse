@@ -18,20 +18,31 @@ import { useHandlePrefetchObservation } from "../hooks/useHandlePrefetchObservat
 import { type TreeNode } from "../lib/types";
 
 export function TraceTree() {
-  const { tree, comments } = useTraceData();
+  const { roots, comments } = useTraceData();
   const { selectedNodeId, setSelectedNodeId, collapsedNodes, toggleCollapsed } =
     useSelection();
   const { handleHover } = useHandlePrefetchObservation();
 
-  // Calculate root totals for heatmap color scaling
-  // These values are used as the "max" reference for all nodes
-  const rootTotalCost = tree.totalCost;
+  // TODO: Extract aggregation logic to shared utility - duplicated in tree-building.ts and TraceTimeline/index.tsx
+  // Calculate aggregated totals across all roots for heatmap color scaling
+  const rootTotalCost = roots.reduce(
+    (acc, r) => {
+      if (!r.totalCost) return acc;
+      return acc ? acc.plus(r.totalCost) : r.totalCost;
+    },
+    undefined as (typeof roots)[0]["totalCost"],
+  );
+
   const rootTotalDuration =
-    tree.latency != null ? tree.latency * 1000 : undefined;
+    roots.length > 0
+      ? Math.max(
+          ...roots.map((r) => (r.latency != null ? r.latency * 1000 : 0)),
+        )
+      : undefined;
 
   return (
     <VirtualizedTree
-      tree={tree}
+      roots={roots}
       collapsedNodes={collapsedNodes}
       selectedNodeId={selectedNodeId}
       onToggleCollapse={toggleCollapsed}

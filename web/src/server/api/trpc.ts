@@ -19,10 +19,11 @@ import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 import { getServerAuthSession } from "@/src/server/auth";
 import { prisma, Role } from "@langfuse/shared/src/db";
-import * as z from "zod/v4";
+import * as z from "zod";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
 import { getTRPCErrorCodeFromHTTPStatusCode } from "@/src/server/utils/trpc-utils";
+import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 
 type CreateContextOptions = {
   session: Session | null;
@@ -44,7 +45,6 @@ export const createInnerTRPCContext = (opts: CreateContextOptions) => {
     session: opts.session,
     headers: opts.headers,
     prisma,
-    DB,
   };
 };
 
@@ -81,9 +81,8 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
 import { initTRPC, TRPCError } from "@trpc/server";
 import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 import superjson from "superjson";
-import { ZodError } from "zod/v4";
+import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
-import { DB } from "@/src/server/db";
 import {
   getTraceById,
   logger,
@@ -108,7 +107,7 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
       data: {
         ...shape.data,
         zodError:
-          error.cause instanceof ZodError ? error.cause.flatten() : null,
+          error.cause instanceof ZodError ? z.flattenError(error.cause) : null,
       },
     };
   },
@@ -143,6 +142,10 @@ const logErrorByCode = (errorCode: TRPCError["code"], error: TRPCError) => {
     logger.info(`middleware intercepted error with code ${errorCode}`, {
       error,
     });
+  } else if (errorCode === "UNPROCESSABLE_CONTENT") {
+    logger.warn(`middleware intercepted error with code ${errorCode}`, {
+      error,
+    });
   } else {
     logger.error(`middleware intercepted error with code ${errorCode}`, {
       error,
@@ -158,11 +161,11 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
     if (res.error.cause instanceof ClickHouseResourceError) {
       // Surface ClickHouse errors using an advice message
       // which is supposed to provide a bit of guidance to the user.
+      logErrorByCode("UNPROCESSABLE_CONTENT", res.error);
       res.error = new TRPCError({
-        code: "SERVICE_UNAVAILABLE",
+        code: "UNPROCESSABLE_CONTENT",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       });
-      logErrorByCode(res.error.code, res.error);
     } else {
       // Throw a new TRPC error with:
       // - The same error code as the original error
@@ -173,6 +176,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         ? "We have been notified and are working on it."
         : "Please check error logs in your self-hosted deployment.";
 
+      logErrorByCode(code, res.error);
       res.error = new TRPCError({
         code,
         cause: null, // do not expose stack traces
@@ -180,7 +184,6 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
           ? res.error.message
           : "Internal error. " + errorMessage,
       });
-      logErrorByCode(code, res.error);
     }
   }
 
@@ -295,6 +298,11 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
           message: "Project not found",
         });
       }
+      await sendAdminAccessWebhook({
+        email: ctx.session.user.email,
+        projectId,
+        orgId: dbProject.orgId,
+      });
       return next({
         ctx: {
           // infers the `session` as non-nullable
@@ -314,6 +322,14 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "User is not a member of this project",
+    });
+  }
+
+  if (ctx.session.user.admin === true) {
+    await sendAdminAccessWebhook({
+      email: ctx.session.user.email,
+      projectId,
+      orgId: sessionProject.organization.id,
     });
   }
 
@@ -369,6 +385,13 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "User is not a member of this organization",
+    });
+  }
+
+  if (ctx.session.user.admin === true) {
+    await sendAdminAccessWebhook({
+      email: ctx.session.user.email,
+      orgId,
     });
   }
 
@@ -482,6 +505,14 @@ const enforceTraceAccess = t.middleware(async (opts) => {
         "User is not a member of this project and this trace is not public",
     });
   }
+
+  if (ctx.session?.user?.admin === true) {
+    await sendAdminAccessWebhook({
+      email: ctx.session.user.email,
+      projectId,
+    });
+  }
+
   return next({
     ctx: {
       session: {
@@ -522,7 +553,7 @@ const enforceSessionAccess = t.middleware(async (opts) => {
   const { sessionId, projectId } = result.data;
 
   // trace sessions are stored in postgres. No need to check for clickhouse eligibility.
-  const session = await prisma.traceSession.findFirst({
+  const session = await ctx.prisma.traceSession.findFirst({
     where: {
       id: sessionId,
       projectId,
@@ -558,6 +589,13 @@ const enforceSessionAccess = t.middleware(async (opts) => {
       code: "UNAUTHORIZED",
       message:
         "User is not a member of this project and this session is not public",
+    });
+  }
+
+  if (ctx.session?.user?.admin === true) {
+    await sendAdminAccessWebhook({
+      email: ctx.session.user.email,
+      projectId,
     });
   }
 

@@ -1,6 +1,4 @@
-import z from "zod/v4";
 import { JSONPath } from "jsonpath-plus";
-import { variableMapping } from "./types";
 
 /**
  * Parses an unknown value to a string representation
@@ -55,42 +53,55 @@ function parseMultiEncodedJson(value: unknown): unknown {
 }
 
 function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
-  // selectedColumn should already be preprocessed by preprocessObjectWithJsonFields
-  // so we can directly use it with JSONPath
+  // JSONPath can only query objects/arrays — return primitives as-is
+  if (typeof selectedColumn !== "object" || selectedColumn === null) {
+    return selectedColumn;
+  }
+
   const result = JSONPath({
     path: jsonSelector,
     json: selectedColumn as any, // JSONPath accepts unknown but types are strict
+    eval: false,
   });
 
-  return Array.isArray(result) && result.length > 0 ? result[0] : undefined;
+  if (!Array.isArray(result) || result.length === 0) {
+    return undefined;
+  }
+
+  // For single-match queries (e.g. $.name), return the unwrapped value.
+  // For multi-match queries (e.g. $[1:], $[*].name), return the full array.
+  return result.length === 1 ? result[0] : result;
 }
 
 export function extractValueFromObject(
   obj: Record<string, unknown>,
-  mapping: z.infer<typeof variableMapping>,
+  selectedColumnId: string,
+  jsonSelector?: string,
   parseJson?: (selectedColumn: unknown, jsonSelector: string) => unknown,
 ): { value: string; error: Error | null } {
-  let selectedColumn = obj[mapping.selectedColumnId];
-
-  // Simple preprocessing: attempt to parse to valid JSON object
-  if (typeof selectedColumn === "string") {
-    selectedColumn = parseMultiEncodedJson(selectedColumn);
-  }
+  const selectedColumn = obj[selectedColumnId];
 
   const jsonParser = parseJson || parseJsonDefault;
 
   let jsonSelectedColumn;
   let error: Error | null = null;
 
-  if (mapping.jsonSelector && selectedColumn) {
+  if (jsonSelector && selectedColumn) {
+    // Only parse multi-encoded JSON when a selector is present — avoids
+    // mutating formatting (e.g. whitespace) for the no-selector passthrough.
+    const parsed =
+      typeof selectedColumn === "string"
+        ? parseMultiEncodedJson(selectedColumn)
+        : selectedColumn;
+
     try {
-      jsonSelectedColumn = jsonParser(selectedColumn, mapping.jsonSelector);
+      jsonSelectedColumn = jsonParser(parsed, jsonSelector);
     } catch (err) {
       error =
         err instanceof Error
           ? err
           : new Error("There was an unknown error parsing the JSON");
-      jsonSelectedColumn = selectedColumn; // Fallback to original value
+      jsonSelectedColumn = selectedColumn; // Fallback to raw original value
     }
   } else {
     jsonSelectedColumn = selectedColumn;

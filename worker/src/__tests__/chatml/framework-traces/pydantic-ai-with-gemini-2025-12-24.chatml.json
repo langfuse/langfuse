@@ -1,0 +1,25 @@
+{
+  "8ffb64580a84a3f0": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "what is 1+1?\nOutput format:\n```json\n{\n    \"answer\": your answer,\n    \"rationale\": \"explanation for answer\"\n}\n```"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "{\"answer\": \"2\", \"rationale\": \"The operation 1+1 is a basic arithmetic addition. Adding the integer 1 to itself results in the integer 2.\"}",
+          "json": {
+            "finish_reason": "stop"
+          }
+        }
+      ]
+    }
+  }
+}

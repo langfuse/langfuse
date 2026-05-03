@@ -16,6 +16,12 @@ import {
 import { v4 } from "uuid";
 import { FieldValidationError } from "../../utils/jsonSchemaValidation";
 import { DatasetItemDomain, DatasetItemDomainWithoutIO } from "../../domain";
+import {
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "./clickhouse";
+import { postgresSearchCondition } from "../queries";
+import { TracingSearchType } from "../../interfaces/search";
 
 const emptyNormalizeOpts: { sanitizeControlChars?: boolean } = {};
 const emptyValidateOpts: { normalizeUndefinedToNull?: boolean } = {};
@@ -369,16 +375,35 @@ export async function upsertDatasetItem(
     [Implementation.VERSIONED]: async () => {
       // VERSIONED: Invalidate old row by setting valid_to, then create new row
       await prisma.$transaction(async (tx) => {
-        const newValidFrom = new Date();
+        // 0. Re-read if there is an existing item to get the validFrom timestamp
+        const current = await tx.datasetItem.findFirst({
+          where: {
+            id: itemId,
+            projectId: props.projectId,
+            validTo: null,
+          },
+          orderBy: {
+            validFrom: "desc",
+          },
+        });
+
+        if (current && current.datasetId !== dataset.id) {
+          throw new LangfuseNotFoundError(
+            `Dataset item with id ${itemId} not found for project ${props.projectId}`,
+          );
+        }
+
+        const baseTs = current?.validFrom.getTime() ?? 0;
+        const newValidFrom = new Date(Math.max(Date.now(), baseTs + 1));
 
         // 1. If updating existing item, invalidate the current version
-        if (existingItem) {
+        if (current) {
           await tx.datasetItem.update({
             where: {
               id_projectId_validFrom: {
-                id: existingItem.id,
+                id: current.id,
                 projectId: props.projectId,
-                validFrom: existingItem.validFrom,
+                validFrom: current.validFrom,
               },
             },
             data: {
@@ -924,48 +949,6 @@ function buildPrismaWhereFromFilterState(filterState: FilterState): any {
 }
 
 /**
- * Builds SQL search filter for full-text search on dataset items.
- * Applies ILIKE search on id, input, expectedOutput, and metadata fields.
- * Returns Prisma.empty if no search query provided.
- *
- * @param tableAlias - The table alias to use (default 'di' for dataset items)
- */
-function buildDatasetItemSearchCondition(
-  searchQuery?: string,
-  searchType?: ("id" | "content")[],
-  tableAlias: string = "di",
-): Prisma.Sql {
-  if (!searchQuery || searchQuery === "") {
-    return Prisma.empty;
-  }
-
-  const types = searchType ?? ["content"];
-  const searchConditions: Prisma.Sql[] = [];
-
-  if (types.includes("id")) {
-    searchConditions.push(
-      Prisma.sql`${Prisma.raw(tableAlias)}.id ILIKE ${`%${searchQuery}%`}`,
-    );
-  }
-
-  if (types.includes("content")) {
-    searchConditions.push(
-      Prisma.sql`${Prisma.raw(tableAlias)}.input::text ILIKE ${`%${searchQuery}%`}`,
-    );
-    searchConditions.push(
-      Prisma.sql`${Prisma.raw(tableAlias)}.expected_output::text ILIKE ${`%${searchQuery}%`}`,
-    );
-    searchConditions.push(
-      Prisma.sql`${Prisma.raw(tableAlias)}.metadata::text ILIKE ${`%${searchQuery}%`}`,
-    );
-  }
-
-  return searchConditions.length > 0
-    ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
-    : Prisma.empty;
-}
-
-/**
  * Builds SQL query for STATEFUL dataset items with search support.
  * Simple direct query without version logic.
  */
@@ -975,7 +958,7 @@ function buildStatefulDatasetItemsQuery(
   includeDatasetName: boolean,
   filter: FilterState,
   searchQuery?: string,
-  searchType?: ("id" | "content")[],
+  searchType?: TracingSearchType[],
   limit?: number,
   offset?: number,
 ): Prisma.Sql {
@@ -997,11 +980,17 @@ function buildStatefulDatasetItemsQuery(
     "dataset_item_events",
   );
 
-  const searchCondition = buildDatasetItemSearchCondition(
+  const searchCondition = postgresSearchCondition({
     searchQuery,
-    searchType,
-    "di",
-  );
+    searchType: searchType ?? ["content"],
+    tablePrefix: "di",
+    metadataColumns: ["id"],
+    contentColumns: {
+      content: ["input", "expected_output", "metadata"],
+      input: "input",
+      output: "expected_output",
+    },
+  });
 
   const paginationClause =
     limit !== undefined
@@ -1012,6 +1001,7 @@ function buildStatefulDatasetItemsQuery(
     SELECT
       di.id,
       di.project_id,
+      di.valid_from,
       di.dataset_id,
       ${ioFields}
       di.source_trace_id,
@@ -1037,7 +1027,7 @@ function buildStatefulDatasetItemsCountQuery(
   projectId: string,
   filter: FilterState,
   searchQuery?: string,
-  searchType?: ("id" | "content")[],
+  searchType?: TracingSearchType[],
 ): Prisma.Sql {
   const filterCondition = tableColumnsToSqlFilterAndPrefix(
     filter,
@@ -1045,11 +1035,17 @@ function buildStatefulDatasetItemsCountQuery(
     "dataset_item_events",
   );
 
-  const searchCondition = buildDatasetItemSearchCondition(
+  const searchCondition = postgresSearchCondition({
     searchQuery,
-    searchType,
-    "di",
-  );
+    searchType: searchType ?? ["content"],
+    tablePrefix: "di",
+    metadataColumns: ["id"],
+    contentColumns: {
+      content: ["input", "expected_output", "metadata"],
+      input: "input",
+      output: "expected_output",
+    },
+  });
 
   return Prisma.sql`
     SELECT COUNT(*) as count
@@ -1082,7 +1078,7 @@ function buildDatasetItemsAtVersionQuery(
   filter: FilterState,
   version: Date | undefined,
   searchQuery?: string,
-  searchType?: ("id" | "content")[],
+  searchType?: TracingSearchType[],
   limit?: number,
   offset?: number,
 ): Prisma.Sql {
@@ -1104,10 +1100,16 @@ function buildDatasetItemsAtVersionQuery(
     "dataset_item_events",
   );
 
-  const searchCondition = buildDatasetItemSearchCondition(
+  const searchCondition = postgresSearchCondition({
     searchQuery,
-    searchType,
-  );
+    searchType: searchType ?? ["content"],
+    metadataColumns: ["id"],
+    contentColumns: {
+      content: ["input", "expected_output", "metadata"],
+      input: "input",
+      output: "expected_output",
+    },
+  });
 
   const paginationClause =
     limit !== undefined
@@ -1156,7 +1158,7 @@ function buildDatasetItemsCountQuery(
   filter: FilterState,
   version?: Date,
   searchQuery?: string,
-  searchType?: ("id" | "content")[],
+  searchType?: TracingSearchType[],
 ): Prisma.Sql {
   const filterCondition = tableColumnsToSqlFilterAndPrefix(
     filter,
@@ -1164,10 +1166,16 @@ function buildDatasetItemsCountQuery(
     "dataset_item_events",
   );
 
-  const searchCondition = buildDatasetItemSearchCondition(
+  const searchCondition = postgresSearchCondition({
     searchQuery,
-    searchType,
-  );
+    searchType: searchType ?? ["content"],
+    metadataColumns: ["id"],
+    contentColumns: {
+      content: ["input", "expected_output", "metadata"],
+      input: "input",
+      output: "expected_output",
+    },
+  });
 
   // New temporal query using valid_from and valid_to
   // Much simpler and more performant - no DISTINCT ON or CTE needed!
@@ -1268,7 +1276,7 @@ async function getDatasetItemsInternal<
   filter: FilterState;
   version?: Date;
   searchQuery?: string;
-  searchType?: ("id" | "content")[];
+  searchType?: TracingSearchType[];
   limit?: number;
   offset?: number;
 }): Promise<
@@ -1324,7 +1332,7 @@ async function getDatasetItemsCountAtVersionInternal(params: {
   filterState: FilterState;
   version?: Date;
   searchQuery?: string;
-  searchType?: ("id" | "content")[];
+  searchType?: TracingSearchType[];
 }): Promise<number> {
   const query = buildDatasetItemsCountQuery(
     params.projectId,
@@ -1452,7 +1460,7 @@ export async function getDatasetItems<
   filterState: FilterState;
   version?: Date;
   searchQuery?: string;
-  searchType?: ("id" | "content")[];
+  searchType?: TracingSearchType[];
   includeIO?: IncludeIO;
   includeDatasetName?: IncludeDatasetName;
   limit?: number;
@@ -1569,7 +1577,7 @@ export async function getDatasetItemsCount(props: {
   filterState: FilterState;
   version?: Date;
   searchQuery?: string;
-  searchType?: ("id" | "content")[];
+  searchType?: TracingSearchType[];
 }): Promise<number> {
   return executeWithDatasetServiceStrategy(OperationType.READ, {
     [Implementation.STATEFUL]: async () => {
@@ -1684,6 +1692,83 @@ export async function listDatasetVersions(props: {
       );
 
       return result.map((row) => row.valid_from);
+    },
+  });
+}
+
+/**
+ * Resolves the dataset version that was active for a specific experiment run.
+ *
+ * 1. Queries MAX(created_at) from dataset_run_items - represents when last item was added
+ * 2. Uses that timestamp to resolve the dataset version - MAX(valid_from) satisfying temporal condition
+ *
+ * @returns The valid_from timestamp representing the dataset version, or null if not found
+ */
+export async function getDatasetVersionForRun(params: {
+  projectId: string;
+  datasetId: string;
+  runId: string;
+}): Promise<Date | null> {
+  return executeWithDatasetServiceStrategy(OperationType.READ, {
+    [Implementation.STATEFUL]: async () => {
+      // No versioning in stateful mode
+      return null;
+    },
+    [Implementation.VERSIONED]: async () => {
+      // Step 1: Get the latest creation timestamp from dataset run items (ClickHouse)
+      const maxCreatedAtResult = await queryClickhouse<{
+        max_created_at: string | null;
+        max_dataset_item_version: string | null;
+      }>({
+        query: `
+          SELECT 
+            maxOrNull(created_at) as max_created_at,
+            maxOrNull(dataset_item_version) as max_dataset_item_version
+          FROM dataset_run_items_rmt
+          WHERE project_id = {projectId: String}
+            AND dataset_id = {datasetId: String}
+            AND dataset_run_id = {runId: String}
+        `,
+        params: {
+          projectId: params.projectId,
+          datasetId: params.datasetId,
+          runId: params.runId,
+        },
+        tags: {
+          feature: "datasets",
+          operation: "getDatasetVersionForRun",
+        },
+      });
+
+      const maxCreatedAt = maxCreatedAtResult[0]?.max_created_at ?? null;
+      const maxDatasetItemVersion =
+        maxCreatedAtResult[0]?.max_dataset_item_version ?? null;
+
+      if (maxDatasetItemVersion) {
+        return parseClickhouseUTCDateTimeFormat(maxDatasetItemVersion);
+      }
+
+      if (!maxCreatedAt) {
+        return null;
+      }
+
+      // dataset item version takes precedence over created_at
+      // max_created_at as fallback for experiments that ran before dataset item versioning was introduced
+      const formattedTimestamp = parseClickhouseUTCDateTimeFormat(maxCreatedAt);
+      // Step 2: Resolve to dataset version using temporal query (PostgreSQL)
+      const result = await prisma.$queryRaw<Array<{ valid_from: Date | null }>>(
+        Prisma.sql`
+          SELECT MAX(valid_from) as valid_from
+          FROM dataset_items
+          WHERE project_id = ${params.projectId}
+            AND dataset_id = ${params.datasetId}
+            AND is_deleted = false
+            AND valid_from <= ${formattedTimestamp}
+            AND (valid_to IS NULL OR valid_to > ${formattedTimestamp})
+        `,
+      );
+
+      return result[0]?.valid_from ?? null;
     },
   });
 }

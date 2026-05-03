@@ -15,7 +15,7 @@ import {
   QueueJobs,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const batchExportRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -30,7 +30,7 @@ export const batchExportRouter = createTRPCRouter({
         });
 
         const { projectId, query, format, name } = input;
-        logger.info("[TRPC] Creating export job", { job: input });
+        logger.info("[BATCH EXPORT] Creating export job", { job: input });
         const userId = ctx.session.user.id;
 
         // Create export job
@@ -66,7 +66,7 @@ export const batchExportRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        logger.error(e);
+        logger.error("[BATCH EXPORT] Failed to create export job", e);
         if (e instanceof TRPCError) {
           throw e;
         }

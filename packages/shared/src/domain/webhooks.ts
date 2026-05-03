@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { jsonSchema } from "../utils/zod";
 import { EventActionSchema } from "./automations";
 
@@ -22,6 +22,7 @@ export const PromptWebhookOutboundSchema = z
       name: z.string(),
       version: z.number(),
       projectId: z.string(),
+      createdBy: z.string(),
       labels: z.array(z.string()),
       prompt: jsonSchema.nullable(),
       type: z.string(),
@@ -31,6 +32,12 @@ export const PromptWebhookOutboundSchema = z
       createdAt: z.coerce.date(),
       updatedAt: z.coerce.date(),
     }),
+    user: z
+      .object({
+        name: z.string().nullable(),
+        email: z.string().nullable(),
+      })
+      .optional(),
   })
   .and(WebhookOutboundBaseSchema);
 

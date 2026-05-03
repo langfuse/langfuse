@@ -45,12 +45,12 @@ export default function HfSpaces({ deploymentDomain }: PageProps) {
               height={36}
             />
           </div>
-          <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
+          <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             Langfuse on Hugging Face
           </h2>
         </div>
 
-        <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+        <div className="bg-background mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <div className="space-y-8">
             <CodeView content={deploymentDomain} title="HF Space Host" />
 

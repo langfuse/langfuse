@@ -195,6 +195,134 @@ types:
         type: nullable<double>
         docs: The time to the first token in seconds
 
+  # Source: web/src/features/public-api/types/observations.ts - APIObservationV2
+  ObservationV2:
+    docs: |
+      An observation from the v2 API with field-group-based selection.
+      Core fields are always present. Other fields are included only when their field group is requested.
+    properties:
+      # Core fields (always present)
+      id:
+        type: string
+        docs: The unique identifier of the observation
+      traceId:
+        type: nullable<string>
+        docs: The trace ID associated with the observation
+      startTime:
+        type: datetime
+        docs: The start time of the observation
+      endTime:
+        type: nullable<datetime>
+        docs: The end time of the observation
+      projectId:
+        type: string
+        docs: The project ID this observation belongs to
+      parentObservationId:
+        type: nullable<string>
+        docs: The parent observation ID
+      type:
+        type: string
+        docs: The type of the observation (e.g. GENERATION, SPAN, EVENT)
+
+      # Basic fields (field group: basic)
+      name:
+        type: optional<nullable<string>>
+        docs: The name of the observation
+      level:
+        type: optional<ObservationLevel>
+        docs: The level of the observation
+      statusMessage:
+        type: optional<nullable<string>>
+        docs: The status message of the observation
+      version:
+        type: optional<nullable<string>>
+        docs: The version of the observation
+      environment:
+        type: optional<nullable<string>>
+        docs: The environment from which this observation originated
+      bookmarked:
+        type: optional<boolean>
+        docs: Whether the observation is bookmarked
+      public:
+        type: optional<boolean>
+        docs: Whether the observation is public
+      userId:
+        type: optional<nullable<string>>
+        docs: The user ID associated with the observation
+      sessionId:
+        type: optional<nullable<string>>
+        docs: The session ID associated with the observation
+
+      # Time fields (field group: time)
+      completionStartTime:
+        type: optional<nullable<datetime>>
+        docs: The completion start time of the observation
+      createdAt:
+        type: optional<datetime>
+        docs: The creation timestamp of the observation
+      updatedAt:
+        type: optional<datetime>
+        docs: The last update timestamp of the observation
+
+      # IO fields (field group: io)
+      input:
+        type: optional<unknown>
+        docs: The input data of the observation
+      output:
+        type: optional<unknown>
+        docs: The output data of the observation
+
+      # Metadata fields (field group: metadata)
+      metadata:
+        type: optional<unknown>
+        docs: Additional metadata of the observation
+
+      # Model fields (field group: model)
+      providedModelName:
+        type: optional<nullable<string>>
+        docs: The model name as provided by the user
+      internalModelId:
+        type: optional<nullable<string>>
+        docs: The internal model ID matched by Langfuse
+      modelParameters:
+        type: optional<unknown>
+        docs: The parameters of the model used for the observation
+
+      # Usage fields (field group: usage)
+      usageDetails:
+        type: optional<map<string, integer>>
+        docs: The usage details of the observation. Key is the usage metric name, value is the number of units consumed.
+      costDetails:
+        type: optional<map<string, double>>
+        docs: The cost details of the observation. Key is the cost metric name, value is the cost in USD.
+      totalCost:
+        type: optional<nullable<double>>
+        docs: The total cost of the observation in USD
+
+      # Prompt fields (field group: prompt)
+      promptId:
+        type: optional<nullable<string>>
+        docs: The prompt ID associated with the observation
+      promptName:
+        type: optional<nullable<string>>
+        docs: The prompt name associated with the observation
+      promptVersion:
+        type: optional<nullable<integer>>
+        docs: The prompt version associated with the observation
+
+      # Metrics fields (field group: metrics)
+      latency:
+        type: optional<nullable<double>>
+        docs: The latency in seconds
+      timeToFirstToken:
+        type: optional<nullable<double>>
+        docs: The time to first token in seconds
+
+      # Enrichment fields (added by server-side enrichment)
+      modelId:
+        type: optional<nullable<string>>
+        docs: The matched model ID
+
   Usage:
     docs: (Deprecated. Use usageDetails and costDetails instead.) Standard interface for usage and cost
     properties:
@@ -303,6 +431,12 @@ types:
       stringValue:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
+  TextScoreV1:
+    extends: BaseScoreV1
+    properties:
+      stringValue:
+        type: string
+        docs: The text content of the score (1-500 characters)
   ScoreV1:
     discriminant: "dataType"
     union:
@@ -315,6 +449,9 @@ types:
       BOOLEAN:
         type: BooleanScoreV1
         docs: "Score with BOOLEAN data type"
+      TEXT:
+        type: TextScoreV1
+        docs: "Score with TEXT data type"
 
   # Source: packages/shared/src/features/scores/interfaces/api/v2/schemas.ts - APIScoreSchemaV2
   BaseScore:
@@ -379,6 +516,21 @@ types:
       stringValue:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
+  CorrectionScore:
+    extends: BaseScore
+    properties:
+      value:
+        type: double
+        docs: The numeric value of the score. Always 0 for correction scores.
+      stringValue:
+        type: string
+        docs: The string representation of the correction content
+  TextScore:
+    extends: BaseScore
+    properties:
+      stringValue:
+        type: string
+        docs: The text content of the score (1-500 characters)
   Score:
     discriminant: "dataType"
     union:
@@ -391,13 +543,19 @@ types:
       BOOLEAN:
         type: BooleanScore
         docs: "Score with BOOLEAN data type"
+      CORRECTION:
+        type: CorrectionScore
+        docs: "Score with CORRECTION data type"
+      TEXT:
+        type: TextScore
+        docs: "Score with TEXT data type"
 
   CreateScoreValue:
     discriminated: false
     union:
       - double
       - string
-    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores
+    docs: The value of the score. Must be passed as string for categorical and text scores, and numeric for boolean and numeric scores
 
   # Source: web/src/features/public-api/types/comments.ts - APIComment
   Comment:
@@ -769,6 +927,7 @@ types:
     union:
       - optional<string>
       - optional<integer>
+      - optional<float>
       - optional<boolean>
       - optional<list<string>>
   CommentObjectType:
@@ -791,6 +950,7 @@ types:
       - NUMERIC
       - BOOLEAN
       - CATEGORICAL
+      - TEXT
 
   ScoreDataType:
     enum:
@@ -798,6 +958,7 @@ types:
       - BOOLEAN
       - CATEGORICAL
       - CORRECTION
+      - TEXT
 
 errors:
   Error:

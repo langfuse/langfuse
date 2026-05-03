@@ -6,22 +6,24 @@ import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import Page from "@/src/components/layouts/page";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
-import {
-  type JobExecutionState,
-  generateJobExecutionCounts,
-} from "@/src/features/evals/utils/job-execution-utils";
+import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
+import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
+import { type EvaluatorExecutionStatusCount } from "@langfuse/shared";
+import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 
 const JobExecutionCounts = ({
-  jobExecutionsByState,
+  isLoading,
+  jobExecutionCounts,
 }: {
-  jobExecutionsByState?: JobExecutionState[];
+  isLoading?: boolean;
+  jobExecutionCounts?: EvaluatorExecutionStatusCount[];
 }) => {
-  if (!jobExecutionsByState || jobExecutionsByState.length === 0) {
+  if (!isLoading && (!jobExecutionCounts || jobExecutionCounts.length === 0)) {
     return null;
   }
 
-  const counts = generateJobExecutionCounts(jobExecutionsByState);
-  return <LevelCountsDisplay counts={counts} />;
+  const counts = generateJobExecutionCounts(jobExecutionCounts);
+  return <LevelCountsDisplay counts={counts} isLoading={isLoading} />;
 };
 
 export const EvaluatorDetail = () => {
@@ -33,6 +35,12 @@ export const EvaluatorDetail = () => {
   const evaluator = api.evals.configById.useQuery({
     projectId: projectId,
     id: evaluatorId,
+  });
+
+  const lazyExecutionCounts = useLazyEvaluatorExecutionCounts({
+    projectId,
+    evaluatorId,
+    evaluator: evaluator.data,
   });
 
   // get all templates for the current template name
@@ -66,6 +74,11 @@ export const EvaluatorDetail = () => {
           evalTemplate: evaluator.data.evalTemplate,
         }
       : undefined;
+  const displayStatus =
+    lazyExecutionCounts.displayStatus ?? evaluator.data.displayStatus;
+  const shouldRenderExecutionCounts =
+    lazyExecutionCounts.isLoading ||
+    Boolean(lazyExecutionCounts.jobExecutionCounts?.length);
 
   return (
     <Page
@@ -83,15 +96,16 @@ export const EvaluatorDetail = () => {
 
         actionButtonsRight: (
           <>
-            {evaluator.data?.jobExecutionsByState && (
-              <div className="flex flex-col items-center justify-center rounded-md bg-muted-gray px-2">
+            {shouldRenderExecutionCounts && (
+              <div className="bg-muted-gray flex min-h-6 min-w-24 flex-col items-center justify-center rounded-md px-2">
                 <JobExecutionCounts
-                  jobExecutionsByState={evaluator.data.jobExecutionsByState}
+                  isLoading={lazyExecutionCounts.isLoading}
+                  jobExecutionCounts={lazyExecutionCounts.jobExecutionCounts}
                 />
               </div>
             )}
             <StatusBadge
-              type={evaluator.data?.finalStatus.toLowerCase()}
+              type={displayStatus.toLowerCase()}
               isLive
               className="max-h-8"
             />
@@ -112,6 +126,14 @@ export const EvaluatorDetail = () => {
     >
       {existingEvaluator && (
         <div className="flex h-full flex-col overflow-hidden">
+          {existingEvaluator.blockedAt && (
+            <div className="mx-3 mt-3">
+              <EvaluatorPausedCallout
+                projectId={projectId}
+                evalConfig={existingEvaluator}
+              />
+            </div>
+          )}
           <EvalLogTable
             projectId={projectId}
             jobConfigurationId={existingEvaluator.id}

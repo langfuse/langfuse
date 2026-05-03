@@ -10,6 +10,7 @@ const langfuseUrls = {
   EU: "https://cloud.langfuse.com",
   STAGING: "https://staging.langfuse.com",
   HIPAA: "https://hipaa.cloud.langfuse.com",
+  JP: "https://jp.cloud.langfuse.com",
 };
 
 type SendMembershipInvitationParams = {
@@ -50,6 +51,7 @@ export const sendMembershipInvitationEmail = async ({
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "US" ||
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU" ||
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA" ||
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "JP" ||
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
       ? langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]
       : env.NEXTAUTH_URL;

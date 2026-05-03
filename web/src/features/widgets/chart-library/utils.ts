@@ -44,6 +44,7 @@ export const isTimeSeriesChart = (
 ): boolean => {
   switch (chartType) {
     case "LINE_TIME_SERIES":
+    case "AREA_TIME_SERIES":
     case "BAR_TIME_SERIES":
       return true;
     case "HORIZONTAL_BAR":
@@ -71,6 +72,8 @@ export function getChartTypeDisplayName(
   switch (chartType) {
     case "LINE_TIME_SERIES":
       return "Line Chart (Time Series)";
+    case "AREA_TIME_SERIES":
+      return "Area Chart (Time Series)";
     case "BAR_TIME_SERIES":
       return "Bar Chart (Time Series)";
     case "HORIZONTAL_BAR":

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Keep the MCP low-level Server API for now; migration to McpServer needs endpoint-level coverage. */
 /**
  * MCP Streamable HTTP Transport
  *
@@ -16,7 +17,7 @@ import { logger } from "@langfuse/shared/src/server";
  * Handle MCP request using Streamable HTTP transport.
  *
  * This function:
- * 1. Sets CORS headers for MCP clients
+ * 1. Validates request headers
  * 2. Creates a StreamableHTTPServerTransport (stateless mode)
  * 3. Connects the server to the transport
  * 4. Routes the request to the transport handler
@@ -38,7 +39,7 @@ export async function handleMcpRequest(
   res: NextApiResponse,
 ): Promise<void> {
   try {
-    // Note: CORS headers and OPTIONS handling are now in index.ts (before authentication)
+    // Note: request validation, CORS headers, and OPTIONS handling happen in index.ts
 
     // Validate Accept header for POST requests (per spec)
     if (req.method === "POST") {
@@ -65,24 +66,33 @@ export async function handleMcpRequest(
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // Stateless mode
       enableJsonResponse: true, // Use JSON response (simpler for stateless mode)
-      enableDnsRebindingProtection: true, // CVE-2025-66414: Protect against DNS rebinding attacks
     });
 
-    // Connect server to transport
-    await server.connect(transport);
+    try {
+      // Connect server to transport
+      await server.connect(transport);
 
-    logger.info("MCP server connected via Streamable HTTP transport", {
-      method: req.method,
-    });
+      logger.info("MCP server connected via Streamable HTTP transport", {
+        method: req.method,
+      });
 
-    // Handle the request through the transport
-    // IMPORTANT: The transport manages the response lifecycle internally.
-    // It will send the response and end it when appropriate.
-    // Do NOT call res.end() after this - the transport handles it.
-    await transport.handleRequest(req, res, req.body);
+      // Handle the request through the transport
+      // IMPORTANT: The transport manages the response lifecycle internally.
+      // It will send the response and end it when appropriate.
+      // Do NOT call res.end() after this - the transport handles it.
+      await transport.handleRequest(req, res, req.body);
 
-    // Note: Do NOT end the response here. The transport has already
-    // sent the response (JSON or SSE) and ended it appropriately.
+      // Note: Do NOT end the response here. The transport has already
+      // sent the response (JSON or SSE) and ended it appropriately.
+    } finally {
+      // Clean up server and transport to prevent memory leaks
+      // server.close() internally calls transport.close()
+      await server.close().catch((err) => {
+        logger.warn("Error closing MCP server", {
+          error: err instanceof Error ? err.message : "Unknown",
+        });
+      });
+    }
   } catch (error) {
     logger.error("MCP transport error", {
       message: error instanceof Error ? error.message : "Unknown error",

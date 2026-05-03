@@ -1,4 +1,4 @@
-import type { z } from "zod/v4";
+import type { z } from "zod";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import type { combineInputOutputMessages } from "@/src/utils/chatml";
 
@@ -79,4 +79,21 @@ export function parseToolCallsFromMessage(
     : message.json?.tool_calls && Array.isArray(message.json?.tool_calls)
       ? message.json.tool_calls
       : [];
+}
+
+/**
+ * Check if message has thinking content.
+ */
+export function hasThinkingContent(message: ChatMlMessage): boolean {
+  return Array.isArray(message.thinking) && message.thinking.length > 0;
+}
+
+/**
+ * Check if message has redacted thinking content.
+ */
+export function hasRedactedThinkingContent(message: ChatMlMessage): boolean {
+  return (
+    Array.isArray(message.redacted_thinking) &&
+    message.redacted_thinking.length > 0
+  );
 }

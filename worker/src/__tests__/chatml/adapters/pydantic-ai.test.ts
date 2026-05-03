@@ -151,5 +151,53 @@ describe("Pydantic AI Adapter", () => {
       expect(result.data?.[3].content).toContain("Pun idea");
       expect(result.data?.[3].tools).toHaveLength(2); // Available tools attached
     });
+
+    it("should extract thinking parts", () => {
+      const output = [
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "thinking",
+              content:
+                "The user wants weather info.\n- Location: NYC\n- Need to call weather API",
+            },
+            {
+              type: "tool_call",
+              id: "toolu_123",
+              name: "get_weather",
+              arguments: { city: "NYC" },
+            },
+          ],
+        },
+      ];
+
+      const metadata = {
+        attributes: {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "claude-sonnet-4-5@20250929",
+          model_request_parameters: {
+            function_tools: [
+              {
+                name: "get_weather",
+                description: "Get weather for a city",
+                parameters_json_schema: {
+                  type: "object",
+                  properties: { city: { type: "string" } },
+                },
+              },
+            ],
+          },
+        },
+        scope: { name: "pydantic-ai" },
+      };
+
+      const result = normalizeInput(output, { metadata });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].thinking?.[0].content).toContain("NYC");
+      expect(result.data?.[0].tool_calls?.[0].name).toBe("get_weather");
+      expect(result.data?.[0].tools?.[0].name).toBe("get_weather");
+    });
   });
 });

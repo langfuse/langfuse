@@ -61,7 +61,7 @@ const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
       <LangfuseIcon size={size === "sm" ? 16 : 20} />
       <span
         className={cn(
-          "ml-2 font-mono font-semibold leading-none group-data-[collapsible=icon]:hidden",
+          "ml-2 font-mono leading-none font-semibold group-data-[collapsible=icon]:hidden",
           size === "sm" ? "text-sm" : "text-xl",
         )}
       >

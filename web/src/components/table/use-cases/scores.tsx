@@ -5,17 +5,27 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
+import {
+  TableBadgeLoadingCell,
+  TableTextLoadingCell,
+} from "@/src/components/table/loading-cells";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "../../ui/IOTableCell";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
-  scoreFilterConfig,
+  type UseSidebarFilterStateOptions,
+  useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import {
+  getScoreFilterConfig,
   SCORE_COLUMN_TO_BACKEND_KEY,
+  type ScoresTableHiddenColumn,
 } from "@/src/features/filters/config/scores-config";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -28,12 +38,12 @@ import {
   isPresent,
   type FilterState,
   type ScoreDataTypeType,
+  LISTABLE_SCORE_TYPES,
   BatchExportTableName,
   BatchActionType,
   TableViewPresetTableName,
   type TimeFilter,
 } from "@langfuse/shared";
-import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -42,7 +52,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import type { TableAction } from "@/src/features/table/types";
 import type { RowSelectionState } from "@tanstack/react-table";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
@@ -50,6 +60,8 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import TableIdOrName from "@/src/components/table/table-id";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 export type ScoresTableRow = {
   id: string;
@@ -76,6 +88,16 @@ export type ScoresTableRow = {
   executionTraceId?: string;
 };
 
+export type ScoresTableProps = {
+  projectId: string;
+  userId?: string;
+  traceId?: string;
+  observationId?: string;
+  hiddenColumns?: ScoresTableHiddenColumn[];
+  localStorageSuffix?: string;
+  disableUrlPersistence?: boolean;
+};
+
 function createFilterState(
   userFilterState: FilterState,
   omittedFilters: Record<string, string>[],
@@ -99,20 +121,26 @@ export default function ScoresTable({
   observationId,
   hiddenColumns = [],
   localStorageSuffix = "",
-}: {
-  projectId: string;
-  userId?: string;
-  traceId?: string;
-  observationId?: string;
-  omittedFilter?: string[];
-  hiddenColumns?: string[];
-  localStorageSuffix?: string;
-}) {
+  disableUrlPersistence = false,
+}: ScoresTableProps) {
+  const peekContext = usePeekTableState();
+
+  const scoresFilterConfig = useMemo(
+    () => getScoreFilterConfig(hiddenColumns),
+    [hiddenColumns],
+  );
+  const hiddenColumnSet = useMemo(
+    () => new Set<string>(hiddenColumns),
+    [hiddenColumns],
+  );
+  const { isBetaEnabled } = useV4Beta();
+  // In v4beta, scores must exclusively use events-backed endpoints (no traces-table route).
+  const useEventsBackedScores = isBetaEnabled;
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "scores");
 
@@ -182,6 +210,19 @@ export default function ScoresTable({
     },
     onSettled: () => {
       void utils.scores.all.invalidate();
+      void utils.scores.allFromEvents.invalidate();
+      void utils.scores.countAllFromEvents.invalidate();
+
+      if (traceId) {
+        void utils.traces.byIdWithObservationsAndScores.invalidate({
+          projectId,
+          traceId,
+        });
+        void utils.events.scoresForTrace.invalidate({
+          projectId,
+          traceId,
+        });
+      }
     },
   });
 
@@ -204,26 +245,46 @@ export default function ScoresTable({
     setSelectedRows({});
   };
 
-  const filterOptions = api.scores.filterOptions.useQuery(
-    {
-      projectId,
-      timestampFilter:
-        dateRangeFilter.length > 0
-          ? (dateRangeFilter as TimeFilter[])
-          : undefined,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
+  // Filter options — v3 vs v4
+  const filterOptionsTimestampInput = {
+    projectId,
+    timestampFilter:
+      dateRangeFilter.length > 0
+        ? (dateRangeFilter as TimeFilter[])
+        : undefined,
+  };
+
+  const filterOptionsQueryConfig = {
+    trpc: {
+      context: {
+        skipBatch: true,
       },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
+    },
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: Infinity,
+  } as const;
+
+  const filterOptionsV3 = api.scores.filterOptions.useQuery(
+    filterOptionsTimestampInput,
+    {
+      ...filterOptionsQueryConfig,
+      enabled: !useEventsBackedScores,
     },
   );
+
+  const filterOptionsV4 = api.scores.filterOptionsFromEvents.useQuery(
+    filterOptionsTimestampInput,
+    {
+      ...filterOptionsQueryConfig,
+      enabled: useEventsBackedScores,
+    },
+  );
+
+  const filterOptions = useEventsBackedScores
+    ? filterOptionsV4
+    : filterOptionsV3;
 
   const newFilterOptions = React.useMemo(
     () => ({
@@ -233,7 +294,7 @@ export default function ScoresTable({
           count: n.count !== undefined ? Number(n.count) : undefined,
         })) ?? undefined,
       source: ["ANNOTATION", "API", "EVAL"],
-      dataType: ["NUMERIC", "CATEGORICAL", "BOOLEAN"],
+      dataType: [...LISTABLE_SCORE_TYPES],
       value: [],
       stringValue:
         filterOptions.data?.stringValue?.map((sv) => ({
@@ -256,11 +317,41 @@ export default function ScoresTable({
     [filterOptions.data, environmentOptions],
   );
 
+  const isSidebarFilterLoading =
+    filterOptions.isPending || environmentFilterOptions.isPending;
+
+  const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
+    const baseOptions = {
+      loading: isSidebarFilterLoading,
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+    };
+
+    if (peekContext) {
+      return {
+        ...baseOptions,
+        stateLocation: "peekContext",
+        context: peekContext,
+      };
+    }
+
+    if (disableUrlPersistence) {
+      return {
+        ...baseOptions,
+        stateLocation: "memory",
+      };
+    }
+
+    return {
+      ...baseOptions,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId,
+    };
+  }, [disableUrlPersistence, isSidebarFilterLoading, peekContext, projectId]);
+
   const queryFilter = useSidebarFilterState(
-    scoreFilterConfig,
+    scoresFilterConfig,
     newFilterOptions,
-    projectId,
-    filterOptions.isPending || environmentFilterOptions.isPending,
+    queryFilterOptions,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -273,7 +364,7 @@ export default function ScoresTable({
   );
 
   const filterState = createFilterState(
-    queryFilter.filterState.concat(dateRangeFilter),
+    queryFilter.effectiveFilterState.concat(dateRangeFilter),
     [
       ...(userId ? [{ key: "User ID", value: userId }] : []),
       ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
@@ -286,7 +377,7 @@ export default function ScoresTable({
   const backendFilterState = transformFiltersForBackend(
     filterState,
     SCORE_COLUMN_TO_BACKEND_KEY,
-    scoreFilterConfig.columnDefinitions,
+    scoresFilterConfig.columnDefinitions,
   );
 
   const getCountPayload = {
@@ -304,19 +395,51 @@ export default function ScoresTable({
     orderBy: orderByState,
   };
 
-  const scores = api.scores.all.useQuery(getAllPayload, {
-    enabled: !environmentFilterOptions.isLoading,
-  });
-  const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload, {
-    enabled: !environmentFilterOptions.isLoading,
+  // Base data — v3 (existing, unchanged)
+  const scoresV3 = api.scores.all.useQuery(getAllPayload, {
+    enabled: !environmentFilterOptions.isLoading && !useEventsBackedScores,
   });
 
+  // Base data — v4 (no traces JOIN)
+  const scoresV4 = api.scores.allFromEvents.useQuery(getAllPayload, {
+    enabled: !environmentFilterOptions.isLoading && useEventsBackedScores,
+  });
+
+  const scores = useEventsBackedScores ? scoresV4 : scoresV3;
+
+  // Count — v3 vs v4
+  const countV3 = api.scores.countAll.useQuery(getCountPayload, {
+    enabled: !environmentFilterOptions.isLoading && !useEventsBackedScores,
+  });
+  const countV4 = api.scores.countAllFromEvents.useQuery(getCountPayload, {
+    enabled: !environmentFilterOptions.isLoading && useEventsBackedScores,
+  });
+  const totalScoreCountQuery = useEventsBackedScores ? countV4 : countV3;
+
   const totalCount = totalScoreCountQuery.data?.totalCount ?? null;
+
+  // Metrics — v4 only (loads trace metadata from events-backed aggregations)
+  const scoreMetrics = api.scores.metricsFromEvents.useQuery(
+    {
+      projectId,
+      traceIds: [
+        ...new Set(
+          scoresV4.data?.scores
+            .map((s) => s.traceId)
+            .filter((id): id is string => Boolean(id)) ?? [],
+        ),
+      ],
+    },
+    {
+      enabled: scoresV4.data !== undefined && useEventsBackedScores,
+    },
+  );
 
   const { selectActionColumn } = TableSelectionManager<ScoresTableRow>({
     projectId,
     tableName: "scores",
     setSelectedRows,
+    setSelectAll,
   });
 
   const rawColumns: LangfuseColumnDef<ScoresTableRow>[] = [
@@ -344,7 +467,10 @@ export default function ScoresTable({
       enableHiding: true,
       enableSorting: true,
       size: 150,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
+        if (isBetaEnabled && !scoreMetrics.data)
+          return <TableTextLoadingCell />;
         const value = row.getValue("traceName") as ScoresTableRow["traceName"];
         const filter = encodeURIComponent(
           `name;stringOptions;;any of;${value}`,
@@ -436,6 +562,7 @@ export default function ScoresTable({
       id: "environment",
       size: 150,
       enableHiding: true,
+      loadingCell: <TableBadgeLoadingCell />,
       cell: ({ row }) => {
         const value = row.getValue("environment") as string | undefined;
         return value ? (
@@ -459,7 +586,10 @@ export default function ScoresTable({
       enableHiding: true,
       enableSorting: true,
       size: 100,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
+        if (isBetaEnabled && !scoreMetrics.data)
+          return <TableTextLoadingCell />;
         const value = row.getValue("userId");
         return typeof value === "string" ? (
           <>
@@ -520,6 +650,13 @@ export default function ScoresTable({
       header: "Metadata",
       id: "metadata",
       size: 400,
+      loadingCell: () => (
+        <IOTableCell
+          isLoading
+          data={undefined}
+          singleLine={rowHeight === "s"}
+        />
+      ),
       headerTooltip: {
         description: "Add metadata to scores to track additional information.",
         // TODO: docs for metadata on scores
@@ -543,6 +680,13 @@ export default function ScoresTable({
       id: "comment",
       enableHiding: true,
       size: 400,
+      loadingCell: () => (
+        <IOTableCell
+          isLoading
+          data={undefined}
+          singleLine={rowHeight === "s"}
+        />
+      ),
       cell: ({ row }) => {
         const value = row.getValue("comment") as ScoresTableRow["comment"];
         return (
@@ -603,10 +747,14 @@ export default function ScoresTable({
       size: 250,
       enableHiding: true,
       defaultHidden: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
+        if (isBetaEnabled && !scoreMetrics.data)
+          return <TableTextLoadingCell />;
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
-          traceTags && (
+          traceTags &&
+          traceTags.length > 0 && (
             <div
               className={cn(
                 "flex gap-x-2 gap-y-1",
@@ -641,7 +789,7 @@ export default function ScoresTable({
   ];
 
   const columns = rawColumns.filter(
-    (c) => !!c.id && !hiddenColumns.includes(c.id),
+    (c) => !!c.id && !hiddenColumnSet.has(c.id),
   );
 
   const [columnVisibility, setColumnVisibility] =
@@ -688,6 +836,53 @@ export default function ScoresTable({
     };
   };
 
+  // Merge v4 metrics into table rows
+  const enrichedScores = useMemo(() => {
+    if (!isBetaEnabled) {
+      return scoresV3.data?.scores.map(convertToTableRow);
+    }
+
+    const v4Data = scoresV4.data?.scores;
+    if (!v4Data) return undefined;
+
+    const metaByTraceId = new Map(
+      scoreMetrics.data?.map((m) => [m.traceId, m]) ?? [],
+    );
+
+    return v4Data.map((score) => {
+      const meta = metaByTraceId.get(score.traceId ?? "");
+      return {
+        id: score.id,
+        timestamp: score.timestamp,
+        source: score.source,
+        name: score.name,
+        dataType: score.dataType,
+        value:
+          isNumericDataType(score.dataType) && isPresent(score.value)
+            ? score.value % 1 === 0
+              ? String(score.value)
+              : score.value.toFixed(4)
+            : (score.stringValue ?? ""),
+        author: {
+          userId: score.authorUserId ?? undefined,
+          image: score.authorUserImage ?? undefined,
+          name: score.authorUserName ?? undefined,
+        },
+        comment: score.comment ?? undefined,
+        observationId: score.observationId ?? undefined,
+        sessionId: score.sessionId ?? undefined,
+        traceId: score.traceId ?? undefined,
+        traceName: meta?.traceName ?? undefined,
+        userId: meta?.userId ?? undefined,
+        jobConfigurationId: score.jobConfigurationId ?? undefined,
+        traceTags: meta?.tags ?? undefined,
+        environment: score.environment ?? undefined,
+        executionTraceId: score.executionTraceId ?? undefined,
+      } satisfies ScoresTableRow;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scores.data, scoreMetrics.data, isBetaEnabled]);
+
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Scores,
     projectId,
@@ -699,21 +894,33 @@ export default function ScoresTable({
     },
     validationContext: {
       columns,
-      filterColumnDefinition: scoreFilterConfig.columnDefinitions,
+      filterColumnDefinition: scoresFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
   });
+
+  const visibleSelectedScoreIds = useMemo(
+    () =>
+      Object.keys(selectedRows).filter((scoreId) =>
+        scores.data?.scores.map((s) => s.id).includes(scoreId),
+      ),
+    [selectedRows, scores.data?.scores],
+  );
+
+  const selectedScoreCount = selectAll
+    ? totalCount
+    : visibleSelectedScoreIds.length;
 
   return (
     <DataTableControlsProvider
-      tableName={scoreFilterConfig.tableName}
-      defaultSidebarCollapsed={scoreFilterConfig.defaultSidebarCollapsed}
+      tableName={scoresFilterConfig.tableName}
+      defaultSidebarCollapsed={scoresFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           columns={columns}
-          filterState={queryFilter.filterState}
+          filterState={queryFilter.explicitFilterState}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
           columnOrder={columnOrder}
@@ -724,14 +931,17 @@ export default function ScoresTable({
             controllers: viewControllers,
           }}
           actionButtons={[
-            Object.keys(selectedRows).filter((scoreId) =>
-              scores.data?.scores.map((s) => s.id).includes(scoreId),
-            ).length > 0 ? (
+            visibleSelectedScoreIds.length > 0 || selectAll ? (
               <TableActionMenu
                 key="scores-multi-select-actions"
                 projectId={projectId}
                 actions={tableActions}
                 tableName={BatchExportTableName.Scores}
+                selectedCount={selectedScoreCount}
+                onClearSelection={() => {
+                  setSelectedRows({});
+                  setSelectAll(false);
+                }}
               />
             ) : null,
             <BatchExportTableButton
@@ -747,9 +957,7 @@ export default function ScoresTable({
           multiSelect={{
             selectAll,
             setSelectAll,
-            selectedRowIds: Object.keys(selectedRows).filter((scoreId) =>
-              scores.data?.scores.map((s) => s.id).includes(scoreId),
-            ),
+            selectedRowIds: visibleSelectedScoreIds,
             setRowSelection: setSelectedRows,
             totalCount,
             ...paginationState,
@@ -764,6 +972,19 @@ export default function ScoresTable({
             <DataTable
               tableName={"scores"}
               columns={columns}
+              noResultsMessage={
+                <div className="flex flex-col items-center">
+                  <span>No scores found.</span>
+                  <a
+                    href="https://langfuse.com/faq/all/what-are-scores"
+                    className="text-primary pointer-events-auto italic underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    What are scores?
+                  </a>
+                </div>
+              }
               data={
                 scores.isPending || isViewLoading
                   ? { isLoading: true, isError: false }
@@ -776,7 +997,7 @@ export default function ScoresTable({
                     : {
                         isLoading: false,
                         isError: false,
-                        data: scores.data?.scores.map(convertToTableRow) ?? [],
+                        data: enrichedScores ?? [],
                       }
               }
               pagination={{
@@ -787,6 +1008,7 @@ export default function ScoresTable({
               setOrderBy={setOrderByState}
               orderBy={orderByState}
               rowSelection={selectedRows}
+              highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               columnVisibility={columnVisibility}
               onColumnVisibilityChange={setColumnVisibility}

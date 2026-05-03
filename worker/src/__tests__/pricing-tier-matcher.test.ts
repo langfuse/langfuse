@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Decimal } from "decimal.js";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { validateRegexPattern } from "@langfuse/shared";
 import {
   matchPricingTier,

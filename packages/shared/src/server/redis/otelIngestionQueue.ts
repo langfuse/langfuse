@@ -8,8 +8,6 @@ import {
 import { logger } from "../logger";
 import { getShardIndex } from "./sharding";
 import { env } from "../../env";
-import { randomUUID } from "crypto";
-
 export class OtelIngestionQueue {
   private static instances: Map<
     number,
@@ -42,19 +40,22 @@ export class OtelIngestionQueue {
   }
 
   /**
-   * Get the otel ingestion queue instance for the given shard name. If not provided, uses a random shard.
+   * Get the otel ingestion queue instance for the given sharding key or shard name.
+   * @param shardingKey - ShardingKey is being hashed and randomly allocated to a shard. Should be `projectId-fileKey`.
    * @param shardName - Name of the shard. Should be `otel-ingestion-queue-${shardIndex}` or plainly `otel-ingestion-queue` for the first shard.
    */
   public static getInstance({
+    shardingKey,
     shardName,
   }: {
+    shardingKey?: string;
     shardName?: string;
-  }): Queue<TQueueJobTypes[QueueName.OtelIngestionQueue]> | null {
+  } = {}): Queue<TQueueJobTypes[QueueName.OtelIngestionQueue]> | null {
     const shardIndex =
       OtelIngestionQueue.getShardIndexFromShardName(shardName) ??
-      (env.REDIS_CLUSTER_ENABLED === "true"
+      (env.REDIS_CLUSTER_ENABLED === "true" && shardingKey
         ? getShardIndex(
-            randomUUID(),
+            shardingKey,
             env.LANGFUSE_OTEL_INGESTION_QUEUE_SHARD_COUNT,
           )
         : 0);

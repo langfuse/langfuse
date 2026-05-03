@@ -49,7 +49,7 @@ export function NotificationSettings() {
         <Header title="Notification Settings" />
         <Card className="mt-4">
           <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Loading preferences...
             </p>
           </CardContent>
@@ -69,7 +69,7 @@ export function NotificationSettings() {
         <CardContent className="space-y-6 p-6">
           <div>
             <h3 className="text-lg font-medium">Email Notifications</h3>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Manage your email notification preferences for this project.
             </p>
           </div>
@@ -80,7 +80,7 @@ export function NotificationSettings() {
                 <Label htmlFor="comment-mention" className="text-base">
                   Comment Mentions
                 </Label>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Receive an email when someone mentions you in a comment
                 </p>
               </div>
@@ -96,8 +96,8 @@ export function NotificationSettings() {
       </Card>
 
       {updatePreference.isError && (
-        <div className="mt-4 rounded-lg border border-destructive bg-destructive/10 p-4">
-          <p className="text-sm text-destructive">
+        <div className="border-destructive bg-destructive/10 mt-4 rounded-lg border p-4">
+          <p className="text-destructive text-sm">
             Failed to update notification preference. Please try again.
           </p>
         </div>

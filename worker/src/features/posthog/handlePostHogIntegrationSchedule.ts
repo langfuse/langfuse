@@ -2,6 +2,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   PostHogIntegrationProcessingQueue,
   QueueJobs,
+  logger,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
@@ -16,11 +17,20 @@ export const handlePostHogIntegrationSchedule = async () => {
     },
   });
 
+  if (postHogIntegrationProjects.length === 0) {
+    logger.info("[POSTHOG] No PostHog integrations ready for sync");
+    return;
+  }
+
   const postHogIntegrationProcessingQueue =
     PostHogIntegrationProcessingQueue.getInstance();
   if (!postHogIntegrationProcessingQueue) {
     throw new Error("PostHogIntegrationProcessingQueue not initialized");
   }
+
+  logger.info(
+    `[POSTHOG] Scheduling ${postHogIntegrationProjects.length} PostHog integrations for sync`,
+  );
 
   await postHogIntegrationProcessingQueue.addBulk(
     postHogIntegrationProjects.map((integration) => ({
@@ -34,8 +44,11 @@ export const handlePostHogIntegrationSchedule = async () => {
         },
       },
       opts: {
-        // Use projectId and last sync as jobId to prevent duplicate jobs.
+        // Deduplicate by projectId + lastSyncAt so the same project isn't queued
+        // twice for the same sync window. removeOnFail ensures failed jobs are
+        // immediately cleaned up so they don't block re-queuing on the next cycle.
         jobId: `${integration.projectId}-${integration.lastSyncAt?.toISOString() ?? ""}`,
+        removeOnFail: true,
       },
     })),
   );

@@ -1,18 +1,33 @@
-import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
-import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { api } from "@/src/utils/api";
-import { mapLegacyUiTableFilterToView } from "@/src/features/query";
 
-export const getAllModels = (
+export type TimeSeriesChartDataPoint = {
+  ts: number;
+  values: { label: string; value?: number }[];
+};
+import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import {
+  type ViewVersion,
+  mapLegacyUiTableFilterToView,
+} from "@/src/features/query";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+
+type UseAllModelsOptions = {
+  enabled?: boolean;
+  queryId: string;
+};
+
+export const useAllModels = (
   projectId: string,
   globalFilterState: FilterState,
   fromTimestamp: Date,
   toTimestamp: Date,
+  metricsVersion?: ViewVersion,
+  options?: UseAllModelsOptions,
 ) => {
-  const allModels = api.dashboard.executeQuery.useQuery(
+  const allModels = useScheduledDashboardExecuteQuery(
     {
       projectId,
+      version: metricsVersion,
       query: {
         view: "observations",
         dimensions: [{ field: "providedModelName" }],
@@ -38,6 +53,8 @@ export const getAllModels = (
           skipBatch: true,
         },
       },
+      enabled: options?.enabled ?? true,
+      queryId: `${options?.queryId ?? "dashboard:all-models"}:models`,
     },
   );
 

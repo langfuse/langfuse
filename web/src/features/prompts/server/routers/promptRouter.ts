@@ -1,5 +1,4 @@
-import { z } from "zod/v4";
-
+import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -8,7 +7,11 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
-import { createPrompt, duplicatePrompt } from "../actions/createPrompt";
+import {
+  createPrompt,
+  duplicatePrompt,
+  duplicateFolder,
+} from "../actions/createPrompt";
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
 import {
   CreatePromptTRPCSchema,
@@ -27,43 +30,25 @@ import {
   PromptService,
   redis,
   logger,
+  escapeSqlLikePattern,
   tableColumnsToSqlFilterAndPrefix,
   getObservationsWithPromptName,
   getObservationMetricsForPrompts,
   getAggregatedScoresForPrompts,
+  postgresSearchCondition,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
 
-const buildPromptSearchFilter = (
-  searchQuery: string | undefined | null,
-  searchType?: TracingSearchType[],
-): Prisma.Sql => {
-  if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
+const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
+  if (!pathPrefix) {
     return Prisma.empty;
   }
 
-  const q = searchQuery;
-  const types = searchType ?? ["id"];
-  const searchConditions: Prisma.Sql[] = [];
-
-  if (types.includes("id")) {
-    searchConditions.push(Prisma.sql`p.name ILIKE ${`%${q}%`}`);
-    searchConditions.push(
-      Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`})`,
-    );
-  }
-
-  if (types.includes("content")) {
-    searchConditions.push(Prisma.sql`p.prompt::text ILIKE ${`%${q}%`}`);
-  }
-
-  return searchConditions.length > 0
-    ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
-    : Prisma.empty;
+  const escapedPathPrefix = escapeSqlLikePattern(pathPrefix);
+  return Prisma.sql` AND (p.name LIKE ${`${escapedPathPrefix}/%`} ESCAPE '\\' OR p.name = ${pathPrefix})`;
 };
-
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter),
@@ -73,6 +58,19 @@ const PromptFilterOptions = z.object({
   searchQuery: z.string().optional(),
   searchType: z.array(TracingSearchType).optional(),
 });
+
+const promptMetricsTimeWindow = {
+  fromTimestamp: z.date().optional(),
+  toTimestamp: z.date().optional(),
+};
+
+const isValidPromptMetricsTimeWindow = ({
+  fromTimestamp,
+  toTimestamp,
+}: {
+  fromTimestamp?: Date;
+  toTimestamp?: Date;
+}) => !fromTimestamp || !toTimestamp || fromTimestamp < toTimestamp;
 
 export const promptRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
@@ -119,22 +117,24 @@ export const promptRouter = createTRPCRouter({
       );
 
       // pathFilter: SQL WHERE clause to filter prompts by folder (e.g., "AND p.name LIKE 'folder/%'")
-      const pathFilter = input.pathPrefix
-        ? (() => {
-            const prefix = input.pathPrefix;
-            // Escape backslashes and other LIKE special characters for pattern matching
-            const escapedPrefix = prefix
-              .replace(/\\/g, "\\\\")
-              .replace(/%/g, "\\%")
-              .replace(/_/g, "\\_");
-            return Prisma.sql` AND (p.name LIKE ${`${escapedPrefix}/%`} OR p.name = ${escapedPrefix})`;
-          })()
-        : Prisma.empty;
+      const pathFilter = buildPathPrefixFilter(input.pathPrefix);
 
-      const searchFilter = buildPromptSearchFilter(
-        input.searchQuery,
-        input.searchType,
-      );
+      const additionalConditions = input.searchType?.includes("id")
+        ? [
+            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`})`,
+          ]
+        : [];
+
+      const searchCondition = postgresSearchCondition({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tablePrefix: "p",
+        metadataColumns: ["name"],
+        contentColumns: {
+          content: ["prompt"],
+        },
+        additionalConditions,
+      });
 
       const [prompts, promptCount] = await Promise.all([
         // prompts
@@ -158,7 +158,7 @@ export const promptRouter = createTRPCRouter({
             input.limit,
             input.page,
             pathFilter, // SQL WHERE clause: filters DB to only prompts in current folder, derived from prefix.
-            searchFilter,
+            searchCondition,
             input.pathPrefix, // Raw folder path: used for segment splitting & folder detection logic
           ),
         ),
@@ -172,7 +172,7 @@ export const promptRouter = createTRPCRouter({
             1, // limit
             0, // input.page,
             pathFilter,
-            searchFilter,
+            searchCondition,
             input.pathPrefix,
           ),
         ),
@@ -210,17 +210,24 @@ export const promptRouter = createTRPCRouter({
             )
           : Prisma.empty;
 
-      const pathFilter = input.pathPrefix
-        ? (() => {
-            const prefix = input.pathPrefix;
-            return Prisma.sql` AND (p.name LIKE ${`${prefix}/%`} OR p.name = ${prefix})`;
-          })()
-        : Prisma.empty;
+      const pathFilter = buildPathPrefixFilter(input.pathPrefix);
 
-      const searchFilter = buildPromptSearchFilter(
-        input.searchQuery,
-        input.searchType,
-      );
+      const additionalConditions = input.searchType?.includes("id")
+        ? [
+            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`})`,
+          ]
+        : [];
+
+      const searchCondition = postgresSearchCondition({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tablePrefix: "p",
+        metadataColumns: ["name"],
+        contentColumns: {
+          content: ["prompt"],
+        },
+        additionalConditions,
+      });
 
       const count = await ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
         generatePromptQuery(
@@ -231,7 +238,7 @@ export const promptRouter = createTRPCRouter({
           1, // limit
           0, // page
           pathFilter,
-          searchFilter,
+          searchCondition,
           input.pathPrefix,
         ),
       );
@@ -242,16 +249,24 @@ export const promptRouter = createTRPCRouter({
     }),
   metrics: protectedProjectProcedure
     .input(
-      z.object({
-        projectId: z.string(),
-        promptNames: z.array(z.string()),
-      }),
+      z
+        .object({
+          projectId: z.string(),
+          promptNames: z.array(z.string()),
+          ...promptMetricsTimeWindow,
+        })
+        .refine(isValidPromptMetricsTimeWindow, {
+          message: "fromTimestamp must be before toTimestamp",
+        }),
     )
     .query(async ({ input }) => {
-      if (input.promptNames.length === 0) return [];
+      const { projectId, promptNames, ...timeWindow } = input;
+      if (promptNames.length === 0) return [];
+
       const res = await getObservationsWithPromptName(
-        input.projectId,
-        input.promptNames,
+        projectId,
+        promptNames,
+        timeWindow,
       );
       return res.map(({ promptName, count }) => ({
         promptName,
@@ -307,6 +322,11 @@ export const promptRouter = createTRPCRouter({
         ...input,
         prisma: ctx.prisma,
         createdBy: ctx.session.user.id,
+        user: {
+          id: ctx.session.user.id,
+          name: ctx.session.user.name ?? null,
+          email: ctx.session.user.email ?? null,
+        },
       });
 
       if (!prompt) {
@@ -349,6 +369,11 @@ export const promptRouter = createTRPCRouter({
         isSingleVersion: input.isSingleVersion,
         createdBy: ctx.session.user.id,
         prisma: ctx.prisma,
+        user: {
+          id: ctx.session.user.id,
+          name: ctx.session.user.name ?? null,
+          email: ctx.session.user.email ?? null,
+        },
       });
 
       if (!prompt) {
@@ -367,6 +392,56 @@ export const promptRouter = createTRPCRouter({
       );
 
       return prompt;
+    }),
+  duplicateFolder: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        sourcePath: StringNoHTMLNonEmpty,
+        targetPath: StringNoHTMLNonEmpty,
+        isSingleVersion: z.boolean(),
+        rewritePromptReferences: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:CUD",
+      });
+
+      // TODO: Decide product behavior for protected labels on duplication.
+      // We currently preserve labels here to match duplicatePrompt, which also
+      // duplicates protected labels without a separate promptProtectedLabels:CUD
+      // check. If duplicates should be treated as factually new prompts, strip
+      // protected labels in both duplication flows instead of diverging here.
+      const result = await duplicateFolder({
+        projectId: input.projectId,
+        sourcePath: input.sourcePath,
+        targetPath: input.targetPath,
+        isSingleVersion: input.isSingleVersion,
+        rewritePromptReferences: input.rewritePromptReferences,
+        createdBy: ctx.session.user.id,
+        prisma: ctx.prisma,
+        user: {
+          id: ctx.session.user.id,
+          name: ctx.session.user.name ?? null,
+          email: ctx.session.user.email ?? null,
+        },
+      });
+
+      await auditLog(
+        {
+          session: ctx.session,
+          resourceType: "prompt",
+          resourceId: input.targetPath,
+          action: "create",
+          after: result,
+        },
+        ctx.prisma,
+      );
+
+      return result;
     }),
   filterOptions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -416,12 +491,19 @@ export const promptRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        promptName: z.string(),
+        promptName: z.string().optional(),
+        pathPrefix: z.string().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        const { projectId, promptName } = input;
+        const { projectId, promptName, pathPrefix } = input;
+        if (!promptName && !pathPrefix) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Either promptName or pathPrefix must be provided",
+          });
+        }
 
         throwIfNoProjectAccess({
           session: ctx.session,
@@ -429,11 +511,21 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
+        // Prisma translates `startsWith` to SQL LIKE on PostgreSQL, so `%` and `_`
+        // must be escaped when the prefix should be interpreted literally.
+        const escapedPathPrefix = pathPrefix
+          ? escapeSqlLikePattern(pathPrefix)
+          : undefined;
+
         // fetch prompts before deletion to enable audit logging
         const prompts = await ctx.prisma.prompt.findMany({
           where: {
             projectId,
-            name: input.promptName,
+            name: promptName
+              ? promptName
+              : {
+                  startsWith: `${escapedPathPrefix}/`,
+                },
           },
         });
 
@@ -441,6 +533,7 @@ export const promptRouter = createTRPCRouter({
           {
             parent_name: string;
             parent_version: number;
+            child_name: string;
             child_version: number;
             child_label: string;
           }[]
@@ -448,6 +541,7 @@ export const promptRouter = createTRPCRouter({
           SELECT
             p."name" AS "parent_name",
             p."version" AS "parent_version",
+            pd."child_name" AS "child_name",
             pd."child_version" AS "child_version",
             pd."child_label" AS "child_label"
           FROM
@@ -456,14 +550,23 @@ export const promptRouter = createTRPCRouter({
           WHERE
             p.project_id = ${projectId}
             AND pd.project_id = ${projectId}
-            AND pd.child_name = ${input.promptName}
+            AND ${
+              promptName
+                ? Prisma.sql`pd.child_name = ${promptName}`
+                : Prisma.sql`pd.child_name LIKE ${`${escapedPathPrefix}/%`} ESCAPE '\\'`
+            }
+            ${
+              escapedPathPrefix
+                ? Prisma.sql`AND p."name" NOT LIKE ${`${escapedPathPrefix}/%`} ESCAPE '\\'`
+                : Prisma.empty
+            }
       `;
 
         if (dependents.length > 0) {
           const dependencyMessages = dependents
             .map(
               (d) =>
-                `${d.parent_name} v${d.parent_version} depends on ${promptName} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
+                `${d.parent_name} v${d.parent_version} depends on ${d.child_name} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
             )
             .join("\n");
 
@@ -503,12 +606,10 @@ export const promptRouter = createTRPCRouter({
           );
         }
 
-        // Lock and invalidate cache for _all_ versions and labels of the prompt
         const promptService = new PromptService(ctx.prisma, redis);
-        await promptService.lockCache({ projectId, promptName });
-        await promptService.invalidateCache({ projectId, promptName });
+        const promptNames = [...new Set(prompts.map((p) => p.name))];
 
-        // Delete all prompts with the given name
+        // Delete all prompts with the given id
         await ctx.prisma.prompt.deleteMany({
           where: {
             projectId,
@@ -518,8 +619,7 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        // Unlock cache
-        await promptService.unlockCache({ projectId, promptName });
+        promptService.invalidateCache({ projectId });
 
         // Trigger webhooks for prompt deletion
         await Promise.all(
@@ -527,9 +627,16 @@ export const promptRouter = createTRPCRouter({
             promptChangeEventSourcing(
               await promptService.resolvePrompt(prompt),
               "deleted",
+              {
+                id: ctx.session.user.id,
+                name: ctx.session.user.name ?? null,
+                email: ctx.session.user.email ?? null,
+              },
             ),
           ),
         );
+
+        return { deletedNames: promptNames };
       } catch (e) {
         logger.error(e);
         throw e;
@@ -668,21 +775,22 @@ export const promptRouter = createTRPCRouter({
           }
         }
 
-        // Lock and invalidate cache for _all_ versions and labels of the prompt
         const promptService = new PromptService(ctx.prisma, redis);
-        await promptService.lockCache({ projectId, promptName });
-        await promptService.invalidateCache({ projectId, promptName });
 
         // Execute transaction
         await ctx.prisma.$transaction(transaction);
-
-        // Unlock cache
-        await promptService.unlockCache({ projectId, promptName });
+        // Rotate cache epoch only after successful commit.
+        await promptService.invalidateCache({ projectId });
 
         // Trigger webhooks for prompt version deletion
         await promptChangeEventSourcing(
           await promptService.resolvePrompt(promptVersion),
           "deleted",
+          {
+            id: ctx.session.user.id,
+            name: ctx.session.user.name ?? null,
+            email: ctx.session.user.email ?? null,
+          },
         );
       } catch (e) {
         logger.error(e);
@@ -850,16 +958,12 @@ export const promptRouter = createTRPCRouter({
           );
         });
 
-        // Lock and invalidate cache for _all_ versions and labels of the prompt
         const promptService = new PromptService(ctx.prisma, redis);
-        await promptService.lockCache({ projectId, promptName });
-        await promptService.invalidateCache({ projectId, promptName });
 
         // Execute transaction
         await ctx.prisma.$transaction(toBeExecuted);
-
-        // Unlock cache
-        await promptService.unlockCache({ projectId, promptName });
+        // Rotate cache epoch only after successful commit.
+        await promptService.invalidateCache({ projectId });
 
         // Trigger webhooks for prompt label update
         const updatedPrompts = await ctx.prisma.prompt.findMany({
@@ -875,6 +979,11 @@ export const promptRouter = createTRPCRouter({
             promptChangeEventSourcing(
               await promptService.resolvePrompt(prompt),
               "updated",
+              {
+                id: ctx.session.user.id,
+                name: ctx.session.user.name ?? null,
+                email: ctx.session.user.email ?? null,
+              },
             ),
           ),
         );
@@ -992,10 +1101,7 @@ export const promptRouter = createTRPCRouter({
           after: input.tags,
         });
 
-        // Lock and invalidate cache for _all_ versions and labels of the prompt
         const promptService = new PromptService(ctx.prisma, redis);
-        await promptService.lockCache({ projectId, promptName });
-        await promptService.invalidateCache({ projectId, promptName });
 
         await ctx.prisma.prompt.updateMany({
           where: {
@@ -1009,8 +1115,8 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        // Unlock cache
-        await promptService.unlockCache({ projectId, promptName });
+        // Rotate cache epoch only after successful commit.
+        await promptService.invalidateCache({ projectId });
 
         // Trigger webhooks for prompt tag update
 
@@ -1023,6 +1129,11 @@ export const promptRouter = createTRPCRouter({
             promptChangeEventSourcing(
               await promptService.resolvePrompt(prompt),
               "updated",
+              {
+                id: ctx.session.user.id,
+                name: ctx.session.user.name ?? null,
+                email: ctx.session.user.email ?? null,
+              },
             ),
           ),
         );
@@ -1047,6 +1158,7 @@ export const promptRouter = createTRPCRouter({
           version: true,
           type: true,
           prompt: true,
+          labels: true,
         },
         where: {
           projectId: input.projectId,
@@ -1122,22 +1234,29 @@ export const promptRouter = createTRPCRouter({
     }),
   versionMetrics: protectedProjectProcedure
     .input(
-      z.object({
-        projectId: z.string(),
-        promptIds: z.array(z.string()),
-      }),
+      z
+        .object({
+          projectId: z.string(),
+          promptIds: z.array(z.string()),
+          ...promptMetricsTimeWindow,
+        })
+        .refine(isValidPromptMetricsTimeWindow, {
+          message: "fromTimestamp must be before toTimestamp",
+        }),
     )
     .query(async ({ input, ctx }) => {
+      const { projectId, promptIds, ...timeWindow } = input;
+
       throwIfNoProjectAccess({
         session: ctx.session,
-        projectId: input.projectId,
+        projectId,
         scope: "prompts:read",
       });
 
       const [observations, observationScores, traceScores] = await Promise.all([
-        getObservationMetricsForPrompts(input.projectId, input.promptIds),
-        getScoresForPromptIds(input.projectId, input.promptIds, "observation"),
-        getScoresForPromptIds(input.projectId, input.promptIds, "trace"),
+        getObservationMetricsForPrompts(projectId, promptIds, timeWindow),
+        getScoresForPromptIds(projectId, promptIds, "observation", timeWindow),
+        getScoresForPromptIds(projectId, promptIds, "trace", timeWindow),
       ]);
 
       return observations.map((r) => {
@@ -1335,11 +1454,16 @@ const getScoresForPromptIds = async (
   projectId: string,
   promptIds: string[],
   fetchScoreRelation: "observation" | "trace",
+  timeWindow: {
+    fromTimestamp?: Date;
+    toTimestamp?: Date;
+  } = {},
 ) => {
   const scores = await getAggregatedScoresForPrompts(
     projectId,
     promptIds,
     fetchScoreRelation,
+    timeWindow,
   );
 
   return promptIds.map((promptId) => {

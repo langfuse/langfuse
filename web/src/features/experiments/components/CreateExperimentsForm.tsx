@@ -68,7 +68,6 @@ export const CreateExperimentsForm = ({
     projectId,
     scope: "promptExperiments:CUD",
   });
-
   const datasetId = defaultValues.datasetId;
 
   const existingRemoteExperiment = api.datasets.getRemoteExperiment.useQuery(
@@ -121,11 +120,11 @@ export const CreateExperimentsForm = ({
                   via User Interface
                 </CardTitle>
                 <CardDescription>
-                  Test single prompts and model configurations via Langfuse UI
+                  Test single prompts and model configurations via Langfuse UI.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
+                <ul className="text-muted-foreground list-disc space-y-2 pl-4 text-sm">
                   <li>Compare prompt versions</li>
                   <li>Compare model configurations</li>
                   <li>No code required</li>
@@ -160,11 +159,12 @@ export const CreateExperimentsForm = ({
                   via SDK / API
                 </CardTitle>
                 <CardDescription>
-                  Start any dataset run via the Langfuse SDKs
+                  Start any dataset run via the Langfuse SDKs. To configure runs
+                  via webhook, use the button below.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
+                <ul className="text-muted-foreground list-disc space-y-2 pl-4 text-sm">
                   <li>Full control over dataset run execution</li>
                   <li>Custom evaluation logic</li>
                   <li>Integration with your codebase</li>
@@ -175,12 +175,19 @@ export const CreateExperimentsForm = ({
                   <div className="flex items-start">
                     <Button
                       className="rounded-r-none"
+                      disabled={existingRemoteExperiment.data.enabled === false}
+                      title={
+                        existingRemoteExperiment.data.enabled === false
+                          ? "Enable in settings to run"
+                          : undefined
+                      }
                       onClick={() => setShowRemoteExperimentTriggerModal(true)}
                     >
                       Run
                     </Button>
                     <Button
                       className="rounded-l-none rounded-r-md border-l-2 px-2"
+                      title="Edit remote trigger settings"
                       onClick={() => setShowRemoteExperimentUpsertForm(true)}
                     >
                       <span className="relative mr-1 text-xs">
@@ -208,7 +215,7 @@ export const CreateExperimentsForm = ({
                   <Button
                     variant="outline"
                     title="Set up remote dataset run in UI trigger"
-                    className="h-8 w-8 flex-shrink-0"
+                    className="h-8 w-8 shrink-0"
                     size="icon"
                     onClick={() => setShowRemoteExperimentUpsertForm(true)}
                   >

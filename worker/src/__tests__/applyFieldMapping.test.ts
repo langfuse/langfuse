@@ -26,7 +26,7 @@ describe("applyFieldMapping", () => {
     metadata: {
       user_id: "user-123",
       session_id: "session-456",
-      tags: ["math", "simple"],
+      tags: ["math", "simple", "hello"],
     },
   };
 
@@ -74,6 +74,11 @@ describe("applyFieldMapping", () => {
   });
 
   describe("evaluateJsonPath", () => {
+    it("should return the full object if on root '$' and object is string", () => {
+      const result = evaluateJsonPath("Hello", "$");
+      expect(result).toBe("Hello");
+    });
+
     it("should extract nested values using JSON path", () => {
       expect(
         evaluateJsonPath(sampleObservation.input, "$.messages[0].content"),
@@ -125,11 +130,14 @@ describe("applyFieldMapping", () => {
       expect(evaluateJsonPath(sampleObservation.metadata, "$.tags[1]")).toBe(
         "simple",
       );
+      expect(
+        evaluateJsonPath(sampleObservation.metadata, "$.tags[1:]"),
+      ).toEqual(["simple", "hello"]);
     });
 
     it("should return all results for array slice syntax", () => {
       expect(evaluateJsonPath(sampleObservation.metadata, "$.tags[1:]")).toEqual(
-        ["simple"],
+        ["simple", "hello"],
       );
       expect(evaluateJsonPath(sampleObservation.metadata, "$.tags[0:2]")).toEqual(
         ["math", "simple"],
@@ -151,7 +159,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toEqual(sampleObservation.input);
+      expect(result.value).toEqual(sampleObservation.input);
     });
 
     it("should return full output for 'full' mode with output as default", () => {
@@ -161,7 +169,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "output",
       });
 
-      expect(result).toEqual(sampleObservation.output);
+      expect(result.value).toEqual(sampleObservation.output);
     });
 
     it("should return full metadata for 'full' mode with metadata as default", () => {
@@ -171,7 +179,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "metadata",
       });
 
-      expect(result).toEqual(sampleObservation.metadata);
+      expect(result.value).toEqual(sampleObservation.metadata);
     });
   });
 
@@ -183,7 +191,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toBeNull();
+      expect(result.value).toBeNull();
     });
   });
 
@@ -204,7 +212,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toBe("What is 2+2?");
+      expect(result.value).toBe("What is 2+2?");
     });
 
     it("should allow extracting from different source field", () => {
@@ -223,7 +231,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toBe("4");
+      expect(result.value).toBe("4");
     });
 
     it("should return undefined for non-existent path", () => {
@@ -242,7 +250,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toBeUndefined();
+      expect(result.value).toBeUndefined();
     });
 
     it("should fallback to default source field if no custom config", () => {
@@ -257,7 +265,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "metadata",
       });
 
-      expect(result).toEqual(sampleObservation.metadata);
+      expect(result.value).toEqual(sampleObservation.metadata);
     });
   });
 
@@ -290,7 +298,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toEqual({
+      expect(result.value).toEqual({
         prompt: "What is 2+2?",
         response: "4",
       });
@@ -324,7 +332,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toEqual({
+      expect(result.value).toEqual({
         type: "conversation",
         version: "1.0",
       });
@@ -364,7 +372,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toEqual({
+      expect(result.value).toEqual({
         prompt: "What is 2+2?",
         category: "math",
         user: "user-123",
@@ -401,7 +409,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toEqual({
+      expect(result.value).toEqual({
         context: {
           user_id: "user-123",
           session_id: "session-456",
@@ -431,7 +439,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toEqual({
+      expect(result.value).toEqual({
         a: {
           b: {
             c: {
@@ -488,7 +496,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toEqual({
+      expect(result.value).toEqual({
         prompt: "What is 2+2?",
         context: {
           user_id: "user-123",
@@ -535,7 +543,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toEqual({
+      expect(result.value).toEqual({
         prompt: "What is 2+2?",
         context: {
           user: "user-123",
@@ -572,7 +580,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toEqual({
+      expect(result.value).toEqual({
         settings: {
           theme: "dark",
           language: "en",
@@ -608,7 +616,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toEqual({
+      expect(result.value).toEqual({
         prompt: "What is 2+2?",
         empty_string: "",
       });
@@ -644,7 +652,7 @@ describe("applyFieldMapping", () => {
       });
 
       // The nested key should overwrite the flat value
-      expect(result).toEqual({
+      expect(result.value).toEqual({
         context: {
           nested: "nested-value",
         },
@@ -691,6 +699,7 @@ describe("applyFieldMapping", () => {
         input: { prompt: "What is 2+2?" },
         expectedOutput: "4",
         metadata: null,
+        errors: [],
       });
     });
 
@@ -708,6 +717,7 @@ describe("applyFieldMapping", () => {
         input: sampleObservation.input,
         expectedOutput: sampleObservation.output,
         metadata: sampleObservation.metadata,
+        errors: [],
       });
     });
 
@@ -769,7 +779,146 @@ describe("applyFieldMapping", () => {
         },
         expectedOutput: "4",
         metadata: null,
+        errors: [],
       });
+    });
+
+    it("should collect json_path_miss errors for non-matching root paths", () => {
+      const result = applyFullMapping({
+        observation: sampleObservation,
+        mapping: {
+          input: {
+            mode: "custom",
+            custom: {
+              type: "root",
+              rootConfig: {
+                sourceField: "input",
+                jsonPath: "$.nonExistent.deeply.nested",
+              },
+            },
+          },
+          expectedOutput: { mode: "full" },
+          metadata: { mode: "none" },
+        },
+      });
+
+      expect(result.input).toBeUndefined();
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toMatchObject({
+        type: "json_path_miss",
+        targetField: "input",
+        sourceField: "input",
+        jsonPath: "$.nonExistent.deeply.nested",
+        mappingKey: null,
+      });
+      expect(result.errors[0].message).toContain("did not match");
+    });
+
+    it("should collect json_path_miss errors for non-matching keyValueMap paths", () => {
+      const result = applyFullMapping({
+        observation: sampleObservation,
+        mapping: {
+          input: {
+            mode: "custom",
+            custom: {
+              type: "keyValueMap",
+              keyValueMapConfig: {
+                entries: [
+                  {
+                    id: "1",
+                    key: "prompt",
+                    sourceField: "input",
+                    value: "$.messages[1].content", // matches
+                  },
+                  {
+                    id: "2",
+                    key: "missing",
+                    sourceField: "output",
+                    value: "$.nonExistent", // does not match
+                  },
+                ],
+              },
+            },
+          },
+          expectedOutput: { mode: "full" },
+          metadata: { mode: "none" },
+        },
+      });
+
+      expect(result.input).toEqual({
+        prompt: "What is 2+2?",
+        missing: undefined,
+      });
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toMatchObject({
+        type: "json_path_miss",
+        targetField: "input",
+        sourceField: "output",
+        jsonPath: "$.nonExistent",
+        mappingKey: "missing",
+      });
+    });
+
+    it("should collect errors across multiple fields", () => {
+      const result = applyFullMapping({
+        observation: sampleObservation,
+        mapping: {
+          input: {
+            mode: "custom",
+            custom: {
+              type: "root",
+              rootConfig: {
+                sourceField: "input",
+                jsonPath: "$.nope",
+              },
+            },
+          },
+          expectedOutput: {
+            mode: "custom",
+            custom: {
+              type: "root",
+              rootConfig: {
+                sourceField: "output",
+                jsonPath: "$.alsoNope",
+              },
+            },
+          },
+          metadata: { mode: "none" },
+        },
+      });
+
+      expect(result.errors).toHaveLength(2);
+      expect(result.errors[0].targetField).toBe("input");
+      expect(result.errors[1].targetField).toBe("expectedOutput");
+    });
+
+    it("should not collect errors for literal string values in keyValueMap", () => {
+      const result = applyFullMapping({
+        observation: sampleObservation,
+        mapping: {
+          input: {
+            mode: "custom",
+            custom: {
+              type: "keyValueMap",
+              keyValueMapConfig: {
+                entries: [
+                  {
+                    id: "1",
+                    key: "type",
+                    sourceField: "input",
+                    value: "conversation", // literal, not JSON path
+                  },
+                ],
+              },
+            },
+          },
+          expectedOutput: { mode: "full" },
+          metadata: { mode: "none" },
+        },
+      });
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.input).toEqual({ type: "conversation" });
     });
   });
 
@@ -828,7 +977,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toBeNull();
+      expect(result.value).toBeNull();
     });
 
     it("should handle undefined paths gracefully", () => {
@@ -853,7 +1002,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toEqual({
+      expect(result.value).toEqual({
         nonexistent: undefined,
       });
     });
@@ -873,7 +1022,7 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "input",
       });
 
-      expect(result).toEqual(sampleObservation.input);
+      expect(result.value).toEqual(sampleObservation.input);
     });
 
     it("should handle no custom config by returning default source", () => {
@@ -885,7 +1034,158 @@ describe("applyFieldMapping", () => {
         defaultSourceField: "metadata",
       });
 
-      expect(result).toEqual(sampleObservation.metadata);
+      expect(result.value).toEqual(sampleObservation.metadata);
+    });
+  });
+
+  describe("invalid JSON path syntax", () => {
+    const invalidPath = "$..[?(@.x=)]";
+
+    it("should not throw and report error for invalid root path", () => {
+      const result = applyFieldMappingConfig({
+        observation: sampleObservation,
+        config: {
+          mode: "custom",
+          custom: {
+            type: "root",
+            rootConfig: {
+              sourceField: "input",
+              jsonPath: invalidPath,
+            },
+          },
+        },
+        defaultSourceField: "input",
+      });
+
+      expect(result.value).toBeUndefined();
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toMatchObject({
+        sourceField: "input",
+        jsonPath: invalidPath,
+        mappingKey: null,
+      });
+      expect(result.errors[0].message).toBeTruthy();
+    });
+
+    it("should not throw and isolate invalid entries in keyValueMap", () => {
+      const result = applyFieldMappingConfig({
+        observation: sampleObservation,
+        config: {
+          mode: "custom",
+          custom: {
+            type: "keyValueMap",
+            keyValueMapConfig: {
+              entries: [
+                {
+                  id: "1",
+                  key: "good",
+                  sourceField: "input",
+                  value: "$.model",
+                },
+                {
+                  id: "2",
+                  key: "bad",
+                  sourceField: "input",
+                  value: invalidPath,
+                },
+              ],
+            },
+          },
+        },
+        defaultSourceField: "input",
+      });
+
+      expect(result.value).toEqual({ good: "gpt-4", bad: undefined });
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toMatchObject({
+        sourceField: "input",
+        jsonPath: invalidPath,
+        mappingKey: "bad",
+      });
+    });
+
+    it("should collect multiple errors from multiple invalid keyValueMap entries", () => {
+      const secondInvalidPath = "$..[?(@.y<)]";
+
+      const result = applyFieldMappingConfig({
+        observation: sampleObservation,
+        config: {
+          mode: "custom",
+          custom: {
+            type: "keyValueMap",
+            keyValueMapConfig: {
+              entries: [
+                {
+                  id: "1",
+                  key: "bad_one",
+                  sourceField: "input",
+                  value: invalidPath,
+                },
+                {
+                  id: "2",
+                  key: "good",
+                  sourceField: "input",
+                  value: "$.model",
+                },
+                {
+                  id: "3",
+                  key: "bad_two",
+                  sourceField: "output",
+                  value: secondInvalidPath,
+                },
+              ],
+            },
+          },
+        },
+        defaultSourceField: "input",
+      });
+
+      expect(result.value).toEqual({
+        bad_one: undefined,
+        good: "gpt-4",
+        bad_two: undefined,
+      });
+      expect(result.errors).toHaveLength(2);
+      expect(result.errors[0]).toMatchObject({
+        sourceField: "input",
+        jsonPath: invalidPath,
+        mappingKey: "bad_one",
+      });
+      expect(result.errors[1]).toMatchObject({
+        sourceField: "output",
+        jsonPath: secondInvalidPath,
+        mappingKey: "bad_two",
+      });
+    });
+
+    it("applyFullMapping should surface json_path_error for invalid paths", () => {
+      const result = applyFullMapping({
+        observation: sampleObservation,
+        mapping: {
+          input: {
+            mode: "custom",
+            custom: {
+              type: "root",
+              rootConfig: {
+                sourceField: "input",
+                jsonPath: invalidPath,
+              },
+            },
+          },
+          expectedOutput: { mode: "full" },
+          metadata: { mode: "none" },
+        },
+      });
+
+      expect(result.input).toBeUndefined();
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toMatchObject({
+        type: "json_path_error",
+        targetField: "input",
+        sourceField: "input",
+        jsonPath: invalidPath,
+        mappingKey: null,
+      });
     });
   });
 });

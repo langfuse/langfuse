@@ -6,15 +6,22 @@ import {
   createObservationsCh,
   createOrgProjectAndApiKey,
   createTraceScore,
+  createSessionScore,
+  createDatasetRunScore,
   createScoresCh,
   createTrace,
   createTracesCh,
+  createEvent,
+  createEventsCh,
   StorageService,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Job } from "bullmq";
-import { handleBlobStorageIntegrationProjectJob } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
+import {
+  handleBlobStorageIntegrationProjectJob,
+  BLOB_STORAGE_LAG_BUFFER_MS,
+} from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
@@ -26,6 +33,10 @@ import { encrypt } from "@langfuse/shared/encryption";
 // Unfortunately, this is necessary as we don't have a good way to skip empty file uploads
 // and at least azurite doesn't handle them gracefully.
 const maybeIt = env.LANGFUSE_USE_AZURE_BLOB === "true" ? it.skip : it;
+const maybeDescribe =
+  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+    ? describe
+    : describe.skip;
 
 describe("BlobStorageIntegrationProcessingJob", () => {
   let storageService: StorageService;
@@ -91,6 +102,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
         enabled: false,
         exportFrequency: "hourly",
+        compressed: false,
       },
     });
 
@@ -104,307 +116,26 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     expect(files.filter((f) => f.file.includes(projectId))).toHaveLength(0);
   });
 
-  it("should export traces, generations, and scores to S3", async () => {
-    // Setup
-    const { projectId } = await createOrgProjectAndApiKey();
-    s3Prefix = projectId;
-    const now = new Date();
-    // Set lastSyncAt to 2 hours ago so the chunked export (1 hour window) covers recent data
-    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+  maybeDescribe("events table export tests", () => {
+    it("should export traces, generations, and scores to S3", async () => {
+      // Setup
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const sessionScoreId = randomUUID();
+      const sessionId = randomUUID();
+      const datasetRunScoreId = randomUUID();
+      const datasetRunId = randomUUID();
+      // Set lastSyncAt to 2 hours ago so the chunked export (1 hour window) covers recent data
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
-    // Create integration
-    await prisma.blobStorageIntegration.create({
-      data: {
-        projectId,
-        type: BlobStorageIntegrationType.S3,
-        bucketName,
-        prefix: s3Prefix,
-        accessKeyId: minioAccessKeyId,
-        secretAccessKey: encrypt(minioAccessKeySecret),
-        region: region ? region : "auto",
-        endpoint: minioEndpoint,
-        forcePathStyle:
-          env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-        enabled: true,
-        exportFrequency: "hourly",
-        nextSyncAt: twoHoursAgo,
-        lastSyncAt: twoHoursAgo,
-      },
-    });
-
-    // Create test data within the export window (2 hours ago to 1 hour ago)
-    // With 30-min lag buffer, actual window is 2h ago to (1h ago or now-30min, whichever is earlier)
-    const traceId = randomUUID();
-    const observationId = randomUUID();
-    const scoreId = randomUUID();
-
-    // Create trace, observation, and score in Clickhouse
-    // Data is at 90 minutes ago, which falls within the chunked export window
-    await Promise.all([
-      createTracesCh([
-        createTrace({
-          id: traceId,
-          project_id: projectId,
-          timestamp: now.getTime() - 90 * 60 * 1000, // 90 min before now
-          name: "Test Trace",
-        }),
-      ]),
-      createObservationsCh([
-        createObservation({
-          id: observationId,
-          trace_id: traceId,
-          project_id: projectId,
-          start_time: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
-          name: "Test Observation",
-        }),
-      ]),
-      createScoresCh([
-        createTraceScore({
-          id: scoreId,
-          trace_id: traceId,
-          project_id: projectId,
-          timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
-          name: "Test Score",
-          value: 0.95,
-        }),
-      ]),
-    ]);
-
-    // When
-    await handleBlobStorageIntegrationProjectJob({
-      data: { payload: { projectId } },
-    } as Job);
-
-    // Then
-    const files = await s3StorageService.listFiles(s3Prefix);
-    const projectFiles = files.filter((f) => f.file.includes(projectId));
-
-    // Should have 3 files (traces, observations, scores)
-    expect(projectFiles).toHaveLength(3);
-
-    // Check file paths follow the expected pattern
-    const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
-    const observationFile = projectFiles.find((f) =>
-      f.file.includes("/observations/"),
-    );
-    const scoreFile = projectFiles.find((f) => f.file.includes("/scores/"));
-
-    expect(traceFile).toBeDefined();
-    expect(observationFile).toBeDefined();
-    expect(scoreFile).toBeDefined();
-
-    // Check file contents
-    if (traceFile) {
-      const content = await s3StorageService.download(traceFile.file);
-      expect(content).toContain(traceId);
-      expect(content).toContain("Test Trace");
-    }
-
-    if (observationFile) {
-      const content = await s3StorageService.download(observationFile.file);
-      expect(content).toContain(observationId);
-      expect(content).toContain("Test Observation");
-    }
-
-    if (scoreFile) {
-      const content = await s3StorageService.download(scoreFile.file);
-      expect(content).toContain(scoreId);
-      expect(content).toContain("Test Score");
-      expect(content).toContain("0.95");
-    }
-
-    // Check integration lastSyncAt and nextSyncAt are updated
-    const updatedIntegration = await prisma.blobStorageIntegration.findUnique({
-      where: { projectId },
-    });
-
-    if (updatedIntegration?.lastSyncAt && updatedIntegration?.nextSyncAt) {
-      expect(updatedIntegration.lastSyncAt.getTime()).toBeGreaterThan(
-        twoHoursAgo.getTime(),
-      );
-      expect(updatedIntegration.nextSyncAt.getTime()).toBeGreaterThan(
-        now.getTime(),
-      );
-    } else {
-      expect.fail("Integration should have lastSyncAt and nextSyncAt set");
-    }
-  });
-
-  it("should respect export frequency when setting nextSyncAt", async () => {
-    const { projectId } = await createOrgProjectAndApiKey();
-
-    // Setup for weekly export
-    const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-
-    await prisma.blobStorageIntegration.create({
-      data: {
-        projectId,
-        type: BlobStorageIntegrationType.S3,
-        bucketName,
-        prefix: "",
-        accessKeyId: minioAccessKeyId,
-        secretAccessKey: encrypt(minioAccessKeySecret),
-        region: region,
-        endpoint: minioEndpoint,
-        forcePathStyle:
-          env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-        enabled: true,
-        exportFrequency: "weekly",
-        lastSyncAt: oneHourAgo,
-      },
-    });
-
-    // Create test data
-    const traceId = randomUUID();
-    await createTracesCh([
-      createTrace({
-        id: traceId,
-        project_id: projectId,
-        timestamp: oneHourAgo.getTime() + 10 * 60 * 1000,
-      }),
-    ]);
-
-    // When
-    await handleBlobStorageIntegrationProjectJob({
-      data: { payload: { projectId } },
-    } as Job);
-
-    // Then
-    const updatedIntegration = await prisma.blobStorageIntegration.findUnique({
-      where: { projectId },
-    });
-
-    // Should be set to 7 days in the future from maxTimestamp (now - 30min)
-    const expectedNextSync = new Date(
-      now.getTime() - 30 * 60 * 1000 + 7 * 24 * 60 * 60 * 1000,
-    );
-
-    if (updatedIntegration?.nextSyncAt) {
-      // Use a tolerance value in milliseconds instead of numeric precision
-      const tolerance = 1000; // 1 second tolerance
-      expect(
-        Math.abs(
-          updatedIntegration.nextSyncAt.getTime() - expectedNextSync.getTime(),
-        ),
-      ).toBeLessThan(tolerance);
-    } else {
-      expect.fail("Integration should have nextSyncAt set");
-    }
-  });
-
-  it("should use prefix in file path when specified", async () => {
-    // Setup
-    const { projectId } = await createOrgProjectAndApiKey();
-    s3Prefix = "test-prefix";
-    const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-
-    await prisma.blobStorageIntegration.create({
-      data: {
-        projectId,
-        type: BlobStorageIntegrationType.S3,
-        bucketName,
-        prefix: s3Prefix,
-        accessKeyId: minioAccessKeyId,
-        secretAccessKey: encrypt(minioAccessKeySecret),
-        region: region ? region : "auto",
-        endpoint: minioEndpoint,
-        forcePathStyle:
-          env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-        enabled: true,
-        exportFrequency: "daily",
-        lastSyncAt: oneHourAgo,
-      },
-    });
-
-    // Create test data
-    const traceId = randomUUID();
-    await createTracesCh([
-      createTrace({
-        id: traceId,
-        project_id: projectId,
-        timestamp: oneHourAgo.getTime() + 10 * 60 * 1000,
-      }),
-    ]);
-
-    // When
-    await handleBlobStorageIntegrationProjectJob({
-      data: { payload: { projectId } },
-    } as Job);
-
-    // Then
-    const files = await storageService.listFiles(s3Prefix);
-    const projectFiles = files.filter((f) => f.file.includes(projectId));
-
-    // All files should have the prefix
-    expect(projectFiles.every((f) => f.file.startsWith(s3Prefix))).toBe(true);
-  });
-
-  it("should handle CSV, JSON, and JSONL file types correctly", async () => {
-    // Setup
-    const { projectId } = await createOrgProjectAndApiKey();
-    s3Prefix = `${projectId}/`;
-    const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-
-    // Create test data
-    const traceId = randomUUID();
-    const observationId = randomUUID();
-    const scoreId = randomUUID();
-
-    await Promise.all([
-      createTracesCh([
-        createTrace({
-          id: traceId,
-          project_id: projectId,
-          timestamp: now.getTime() - 40 * 60 * 1000, // 40 min before now
-          name: "Test Trace",
-        }),
-      ]),
-      createObservationsCh([
-        createObservation({
-          id: observationId,
-          trace_id: traceId,
-          project_id: projectId,
-          start_time: now.getTime() - 35 * 60 * 1000, // 35 minutes before now
-          name: "Test Observation",
-        }),
-      ]),
-      createScoresCh([
-        createTraceScore({
-          id: scoreId,
-          trace_id: traceId,
-          project_id: projectId,
-          timestamp: now.getTime() - 35 * 60 * 1000, // 35 minutes before now
-          name: "Test Score",
-          value: 0.95,
-        }),
-      ]),
-    ]);
-
-    // Test each file type
-    for (const fileType of [
-      BlobStorageIntegrationFileType.CSV,
-      BlobStorageIntegrationFileType.JSON,
-      BlobStorageIntegrationFileType.JSONL,
-    ]) {
-      const fileTypePrefix = `${fileType.toLowerCase()}-test/`;
-      const prefix = `${s3Prefix}${fileTypePrefix}`;
-
-      // Create integration with specific file type
-      await prisma.blobStorageIntegration.upsert({
-        where: { projectId },
-        update: {
-          prefix,
-          fileType,
-          lastSyncAt: oneHourAgo,
-        },
-        create: {
+      // Create integration
+      await prisma.blobStorageIntegration.create({
+        data: {
           projectId,
           type: BlobStorageIntegrationType.S3,
           bucketName,
-          prefix,
+          prefix: s3Prefix,
           accessKeyId: minioAccessKeyId,
           secretAccessKey: encrypt(minioAccessKeySecret),
           region: region ? region : "auto",
@@ -413,70 +144,509 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
           exportFrequency: "hourly",
-          fileType,
-          lastSyncAt: oneHourAgo,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS",
+          nextSyncAt: twoHoursAgo,
+          lastSyncAt: twoHoursAgo,
+          compressed: false,
         },
       });
 
-      // Process the integration
+      // Create test data within the export window (2 hours ago to 1 hour ago)
+      // With 20-min lag buffer, actual window is 2h ago to (1h ago or now-20min, whichever is earlier)
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const scoreId = randomUUID();
+      const modelId = randomUUID();
+
+      const dataTime = now.getTime() - 90 * 60 * 1000; // 90 minutes before now
+
+      // Create a Model + PricingTier + Prices in Postgres for model enrichment
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          projectId,
+          modelName: "gpt-4-test",
+          matchPattern: "gpt-4-test",
+          unit: "TOKENS",
+          pricingTiers: {
+            create: {
+              name: "Standard",
+              isDefault: true,
+              conditions: [],
+              priority: 0,
+              prices: {
+                createMany: {
+                  data: [
+                    { modelId, usageType: "input", price: "0.03" },
+                    { modelId, usageType: "output", price: "0.06" },
+                    { modelId, usageType: "total", price: "0.09" },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Create event data for events table export
+      const event = createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "Test Event",
+        start_time: dataTime * 1000, // microseconds
+        end_time: (dataTime + 5000) * 1000, // 5s later (microseconds)
+        bookmarked: true,
+        public: true,
+        model_id: modelId,
+      });
+
+      // Create trace, observation, score, and event in Clickhouse
+      // Data is at 90 minutes ago, which falls within the chunked export window
+      await Promise.all([
+        createTracesCh([
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: dataTime,
+            name: "Test Trace",
+          }),
+        ]),
+        createObservationsCh([
+          createObservation({
+            id: observationId,
+            trace_id: traceId,
+            project_id: projectId,
+            start_time: dataTime,
+            end_time: dataTime + 5000, // 5s later
+            completion_start_time: dataTime + 1000, // 1s later
+            total_cost: 42.5,
+            usage_details: { input: 100, output: 200, total: 300 },
+            internal_model_id: modelId,
+            name: "Test Observation",
+          }),
+        ]),
+        createScoresCh([
+          createTraceScore({
+            id: scoreId,
+            trace_id: traceId,
+            project_id: projectId,
+            timestamp: dataTime,
+            name: "Test Score",
+            value: 0.95,
+          }),
+          createSessionScore({
+            id: sessionScoreId,
+            session_id: sessionId,
+            project_id: projectId,
+            timestamp: dataTime,
+            name: "Test Session Score",
+            value: 0.8,
+          }),
+          createDatasetRunScore({
+            id: datasetRunScoreId,
+            dataset_run_id: datasetRunId,
+            project_id: projectId,
+            timestamp: dataTime,
+            name: "Test Dataset Run Score",
+            value: 0.7,
+          }),
+        ]),
+        createEventsCh([event]),
+      ]);
+
+      // When
       await handleBlobStorageIntegrationProjectJob({
         data: { payload: { projectId } },
       } as Job);
 
-      // Get files for this file type
-      const files = await s3StorageService.listFiles(prefix);
-      const projectFiles = files.filter(
-        (f) => f.file.includes(projectId) && f.file.includes(fileTypePrefix),
+      // Then
+      const files = await s3StorageService.listFiles(s3Prefix);
+      const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+      // Should have 4 files (traces, observations, scores, events)
+      expect(projectFiles).toHaveLength(4);
+
+      // Check file paths follow the expected pattern
+      const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
+      const observationFile = projectFiles.find((f) =>
+        f.file.includes("/observations/"),
+      );
+      const scoreFile = projectFiles.find((f) => f.file.includes("/scores/"));
+      const eventFile = projectFiles.find((f) =>
+        f.file.includes("/observations_v2/"),
       );
 
-      // Should have 3 files (traces, observations, scores)
-      expect(projectFiles).toHaveLength(3);
+      expect(traceFile).toBeDefined();
+      expect(observationFile).toBeDefined();
+      expect(scoreFile).toBeDefined();
+      expect(eventFile).toBeDefined();
 
-      // Check file extensions
-      const expectedExtension = fileType.toLowerCase();
-      expect(
-        projectFiles.every((f) => f.file.endsWith(`.${expectedExtension}`)),
-      ).toBe(true);
+      // Check file contents
+      if (traceFile) {
+        const content = await s3StorageService.download(traceFile.file);
+        expect(content).toContain(traceId);
+        expect(content).toContain("Test Trace");
+        // Verify new fields: created_at, updated_at
+        expect(content).toContain("created_at");
+        expect(content).toContain("updated_at");
+      }
 
-      // Check file contents for each type
-      for (const file of projectFiles) {
-        const content = await s3StorageService.download(file.file);
+      if (observationFile) {
+        const content = await s3StorageService.download(observationFile.file);
+        expect(content).toContain(observationId);
+        expect(content).toContain("Test Observation");
+        // Verify new fields: total_cost, latency, time_to_first_token
+        expect(content).toContain("total_cost");
+        expect(content).toContain("latency");
+        expect(content).toContain("time_to_first_token");
+        // Verify usage_details map contains actual token counts (CSV escapes " as "")
+        expect(content).toContain('""input"":100');
+        expect(content).toContain('""output"":200');
+        // Verify model pricing enrichment
+        expect(content).toContain("input_price");
+        expect(content).toContain("output_price");
+        expect(content).toContain("total_price");
+        expect(content).toContain("0.03");
+        expect(content).toContain("0.06");
+        // Verify newly added native fields
+        expect(content).toContain("prompt_id");
+        expect(content).toContain("tool_calls");
+        expect(content).toContain("tool_definitions");
+        expect(content).toContain("usage_pricing_tier_name");
+      }
 
-        // Verify content based on file type
-        if (file.file.includes("/traces/")) {
-          expect(content).toContain(traceId);
-          expect(content).toContain("Test Trace");
-        } else if (file.file.includes("/observations/")) {
-          expect(content).toContain(observationId);
-          expect(content).toContain("Test Observation");
-        } else if (file.file.includes("/scores/")) {
-          expect(content).toContain(scoreId);
-          expect(content).toContain("Test Score");
-          expect(content).toContain("0.95");
-        }
+      if (scoreFile) {
+        const content = await s3StorageService.download(scoreFile.file);
+        expect(content).toContain(scoreId);
+        expect(content).toContain("Test Score");
+        expect(content).toContain("0.95");
+        // Verify session_id is exported for session-scoped scores
+        expect(content).toContain(sessionScoreId);
+        expect(content).toContain(sessionId);
+        expect(content).toContain("Test Session Score");
+        expect(content).toContain("0.8");
+        // Verify dataset_run_id is exported for dataset-run-scoped scores
+        expect(content).toContain(datasetRunScoreId);
+        expect(content).toContain(datasetRunId);
+        expect(content).toContain("Test Dataset Run Score");
+        expect(content).toContain("0.7");
+        // Verify new fields: created_at, updated_at
+        expect(content).toContain("created_at");
+        expect(content).toContain("updated_at");
+      }
 
-        // Verify format based on file type
-        switch (fileType) {
-          case BlobStorageIntegrationFileType.CSV:
-            // CSV should have commas and newlines
-            expect(content).toContain(",");
-            break;
-          case BlobStorageIntegrationFileType.JSON:
-            // JSON should be parseable and have array brackets
-            expect(content.trim().startsWith("[")).toBe(true);
-            expect(content.trim().endsWith("]")).toBe(true);
-            expect(() => JSON.parse(content)).not.toThrow();
-            break;
-          case BlobStorageIntegrationFileType.JSONL:
-            // JSONL should have newlines and each line should be parseable JSON
-            const lines = content.trim().split("\n");
-            expect(lines.length).toBeGreaterThan(0);
-            // Check first line is valid JSON
-            expect(() => JSON.parse(lines[0])).not.toThrow();
-            break;
+      if (eventFile) {
+        const content = await s3StorageService.download(eventFile.file);
+        expect(content).toContain(event.span_id);
+        expect(content).toContain("Test Event");
+        // Verify new fields: bookmarked, public, created_at, updated_at
+        expect(content).toContain("bookmarked");
+        expect(content).toContain("public");
+        expect(content).toContain("created_at");
+        expect(content).toContain("updated_at");
+        // Verify usage_details map contains actual token counts (CSV escapes " as "")
+        expect(content).toContain('""input"":1234');
+        expect(content).toContain('""output"":5678');
+        // Verify model pricing enrichment with actual values
+        expect(content).toContain("input_price");
+        expect(content).toContain("output_price");
+        expect(content).toContain("total_price");
+        expect(content).toContain("0.03");
+        expect(content).toContain("0.06");
+        // Verify newly added native fields
+        expect(content).toContain("tool_calls");
+        expect(content).toContain("tool_definitions");
+        expect(content).toContain("usage_pricing_tier_name");
+      }
+
+      // Check integration lastSyncAt and nextSyncAt are updated
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+
+      if (updatedIntegration?.lastSyncAt && updatedIntegration?.nextSyncAt) {
+        expect(updatedIntegration.lastSyncAt.getTime()).toBeGreaterThan(
+          twoHoursAgo.getTime(),
+        );
+        expect(updatedIntegration.nextSyncAt.getTime()).toBeGreaterThan(
+          now.getTime(),
+        );
+      } else {
+        expect.fail("Integration should have lastSyncAt and nextSyncAt set");
+      }
+    });
+
+    it("should respect export frequency when setting nextSyncAt", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      // Setup for weekly export
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: "",
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region,
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "weekly",
+          lastSyncAt: oneHourAgo,
+          compressed: false,
+        },
+      });
+
+      // Create test data
+      const traceId = randomUUID();
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+          timestamp: oneHourAgo.getTime() + 10 * 60 * 1000,
+        }),
+      ]);
+
+      // When
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      // Then
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+
+      // Should be set to 7 days in the future from maxTimestamp (now - lag buffer)
+      const expectedNextSync = new Date(
+        now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS + 7 * 24 * 60 * 60 * 1000,
+      );
+
+      if (updatedIntegration?.nextSyncAt) {
+        // Use a tolerance value in milliseconds instead of numeric precision
+        const tolerance = 1000; // 1 second tolerance
+        expect(
+          Math.abs(
+            updatedIntegration.nextSyncAt.getTime() -
+              expectedNextSync.getTime(),
+          ),
+        ).toBeLessThan(tolerance);
+      } else {
+        expect.fail("Integration should have nextSyncAt set");
+      }
+    });
+
+    it("should use prefix in file path when specified", async () => {
+      // Setup
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = "test-prefix";
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          lastSyncAt: oneHourAgo,
+          compressed: false,
+        },
+      });
+
+      // Create test data
+      const traceId = randomUUID();
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+          timestamp: oneHourAgo.getTime() + 10 * 60 * 1000,
+        }),
+      ]);
+
+      // When
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      // Then
+      const files = await storageService.listFiles(s3Prefix);
+      const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+      // All files should have the prefix
+      expect(projectFiles.every((f) => f.file.startsWith(s3Prefix))).toBe(true);
+    });
+
+    it("should handle CSV, JSON, and JSONL file types correctly", async () => {
+      // Setup
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = `${projectId}/`;
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+      // Create test data
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const scoreId = randomUUID();
+
+      // Create event data for events table export
+      const event = createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "Test Event",
+        start_time: (now.getTime() - 35 * 60 * 1000) * 1000, // 35 minutes before now (microseconds)
+      });
+
+      await Promise.all([
+        createTracesCh([
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime() - 40 * 60 * 1000, // 40 min before now
+            name: "Test Trace",
+          }),
+        ]),
+        createObservationsCh([
+          createObservation({
+            id: observationId,
+            trace_id: traceId,
+            project_id: projectId,
+            start_time: now.getTime() - 35 * 60 * 1000, // 35 minutes before now
+            name: "Test Observation",
+          }),
+        ]),
+        createScoresCh([
+          createTraceScore({
+            id: scoreId,
+            trace_id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime() - 35 * 60 * 1000, // 35 minutes before now
+            name: "Test Score",
+            value: 0.95,
+          }),
+        ]),
+        createEventsCh([event]),
+      ]);
+
+      // Test each file type
+      for (const fileType of [
+        BlobStorageIntegrationFileType.CSV,
+        BlobStorageIntegrationFileType.JSON,
+        BlobStorageIntegrationFileType.JSONL,
+      ]) {
+        const fileTypePrefix = `${fileType.toLowerCase()}-test/`;
+        const prefix = `${s3Prefix}${fileTypePrefix}`;
+
+        // Create integration with specific file type
+        await prisma.blobStorageIntegration.upsert({
+          where: { projectId },
+          update: {
+            prefix,
+            fileType,
+            lastSyncAt: oneHourAgo,
+          },
+          create: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            exportSource: "TRACES_OBSERVATIONS_EVENTS",
+            fileType,
+            lastSyncAt: oneHourAgo,
+            compressed: false,
+          },
+        });
+
+        // Process the integration
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        // Get files for this file type
+        const files = await s3StorageService.listFiles(prefix);
+        const projectFiles = files.filter(
+          (f) => f.file.includes(projectId) && f.file.includes(fileTypePrefix),
+        );
+
+        // Should have 4 files (traces, observations, scores, events)
+        expect(projectFiles).toHaveLength(4);
+
+        // Check file extensions
+        const expectedExtension = fileType.toLowerCase();
+        expect(
+          projectFiles.every((f) => f.file.endsWith(`.${expectedExtension}`)),
+        ).toBe(true);
+
+        // Check file contents for each type
+        for (const file of projectFiles) {
+          const content = await s3StorageService.download(file.file);
+
+          // Verify content based on file type
+          if (file.file.includes("/traces/")) {
+            expect(content).toContain(traceId);
+            expect(content).toContain("Test Trace");
+          } else if (file.file.includes("/observations/")) {
+            expect(content).toContain(observationId);
+            expect(content).toContain("Test Observation");
+          } else if (file.file.includes("/scores/")) {
+            expect(content).toContain(scoreId);
+            expect(content).toContain("Test Score");
+            expect(content).toContain("0.95");
+          } else if (file.file.includes("/events/")) {
+            expect(content).toContain(event.span_id);
+            expect(content).toContain("Test Event");
+          }
+
+          // Verify format based on file type
+          switch (fileType) {
+            case BlobStorageIntegrationFileType.CSV:
+              // CSV should have commas and newlines
+              expect(content).toContain(",");
+              break;
+            case BlobStorageIntegrationFileType.JSON:
+              // JSON should be parseable and have array brackets
+              expect(content.trim().startsWith("[")).toBe(true);
+              expect(content.trim().endsWith("]")).toBe(true);
+              expect(() => JSON.parse(content)).not.toThrow();
+              break;
+            case BlobStorageIntegrationFileType.JSONL:
+              // JSONL should have newlines and each line should be parseable JSON
+              const lines = content.trim().split("\n");
+              expect(lines.length).toBeGreaterThan(0);
+              // Check first line is valid JSON
+              expect(() => JSON.parse(lines[0])).not.toThrow();
+              break;
+          }
         }
       }
-    }
+    });
   });
 
   describe("BlobStorageExportMode minTimestamp behavior", () => {
@@ -515,6 +685,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             exportMode: "FULL_HISTORY",
             exportStartDate: null,
             lastSyncAt: null, // First export
+            compressed: false,
           },
         });
 
@@ -591,6 +762,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           exportMode: "FROM_TODAY" as any,
           exportStartDate: new Date(), // Use current date
           lastSyncAt: null, // First export
+          compressed: false,
         },
       });
 
@@ -654,6 +826,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           exportMode: "FROM_CUSTOM_DATE" as any,
           exportStartDate: customDate,
           lastSyncAt: null, // First export
+          compressed: false,
         },
       });
 
@@ -713,6 +886,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             exportMode: "FULL_HISTORY",
             exportStartDate: null,
             lastSyncAt: null,
+            compressed: false,
           },
         });
 
@@ -789,6 +963,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           enabled: true,
           exportFrequency: "hourly",
           lastSyncAt: twoDaysAgo, // Start from 2 days ago
+          compressed: false,
         },
       });
 
@@ -846,6 +1021,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           enabled: true,
           exportFrequency: "hourly",
           lastSyncAt: oneHourAgo,
+          compressed: false,
         },
       });
 
@@ -883,5 +1059,173 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         now.getTime(),
       );
     });
+  });
+
+  describe("gzip compression", () => {
+    maybeIt(
+      "should produce .csv.gz files when compressed is true",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            fileType: BlobStorageIntegrationFileType.CSV,
+            compressed: true,
+            lastSyncAt: oneHourAgo,
+          },
+        });
+
+        const traceId = randomUUID();
+        await createTracesCh([
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime() - 40 * 60 * 1000,
+            name: "Compressed Trace",
+          }),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+        expect(projectFiles.length).toBeGreaterThan(0);
+        expect(projectFiles.every((f) => f.file.endsWith(".csv.gz"))).toBe(
+          true,
+        );
+      },
+    );
+
+    maybeIt(
+      "should produce plain .csv files when compressed is false",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            fileType: BlobStorageIntegrationFileType.CSV,
+            compressed: false,
+            lastSyncAt: oneHourAgo,
+          },
+        });
+
+        const traceId = randomUUID();
+        await createTracesCh([
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime() - 40 * 60 * 1000,
+            name: "Uncompressed Trace",
+          }),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+        expect(projectFiles.length).toBeGreaterThan(0);
+        expect(
+          projectFiles.every(
+            (f) => f.file.endsWith(".csv") && !f.file.endsWith(".csv.gz"),
+          ),
+        ).toBe(true);
+
+        // Verify content is plain text (readable)
+        const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
+        if (traceFile) {
+          const content = await s3StorageService.download(traceFile.file);
+          expect(content).toContain(traceId);
+          expect(content).toContain("Uncompressed Trace");
+        }
+      },
+    );
+
+    maybeIt(
+      "should produce .jsonl.gz files when compressed with JSONL format",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            fileType: BlobStorageIntegrationFileType.JSONL,
+            compressed: true,
+            lastSyncAt: oneHourAgo,
+          },
+        });
+
+        const traceId = randomUUID();
+        await createTracesCh([
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime() - 40 * 60 * 1000,
+            name: "JSONL Compressed Trace",
+          }),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+        expect(projectFiles.length).toBeGreaterThan(0);
+        expect(projectFiles.every((f) => f.file.endsWith(".jsonl.gz"))).toBe(
+          true,
+        );
+      },
+    );
   });
 });

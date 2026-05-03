@@ -1,5 +1,5 @@
 import { getObservationsV2FromEventsTableForPublicApi } from "@langfuse/shared/src/server";
-import { NotImplementedError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
@@ -18,7 +18,7 @@ export default withMiddlewares({
     responseSchema: GetObservationsV2Response,
     fn: async ({ query, auth }) => {
       if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") {
-        throw new NotImplementedError(
+        throw new LangfuseNotFoundError(
           "v2 APIs are currently in beta and only available on Langfuse Cloud",
         );
       }
@@ -42,7 +42,6 @@ export default withMiddlewares({
         toStartTime: query.toStartTime ?? undefined,
         version: query.version ?? undefined,
         advancedFilters: query.filter,
-        parseIoAsJson: query.parseIoAsJson ?? false,
         cursor: query.cursor ?? undefined,
         fields: fieldGroups,
         expandMetadataKeys,

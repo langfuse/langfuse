@@ -4,14 +4,16 @@ import {
   paginationZod,
   paginationMetaResponseZod,
   queryStringZod,
+  versionZod,
   type DatasetRuns as DbDatasetRuns,
   type Dataset as DbDataset,
   removeObjectKeys,
   type DatasetRunItemDomain,
   type DatasetItemDomain,
+  stringDateTime,
 } from "@langfuse/shared";
 import { DatasetJSONSchema } from "@langfuse/shared/src/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Objects
@@ -102,6 +104,7 @@ export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
     "datasetItemInput",
     "datasetItemExpectedOutput",
     "datasetItemMetadata",
+    "datasetItemVersion",
     "datasetId",
     "error",
   ]);
@@ -109,7 +112,11 @@ export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
 export const transformDbDatasetToAPIDataset = (
   dataset: DbDataset,
 ): z.infer<typeof APIDataset> =>
-  removeObjectKeys(dataset, ["remoteExperimentUrl", "remoteExperimentPayload"]);
+  removeObjectKeys(dataset, [
+    "remoteExperimentUrl",
+    "remoteExperimentPayload",
+    "remoteExperimentEnabled",
+  ]);
 
 /**
  * Endpoints
@@ -177,12 +184,27 @@ export const PostDatasetItemsV1Body = z.object({
 export const PostDatasetItemsV1Response = APIDatasetItem.strict();
 
 // GET /dataset-items
-export const GetDatasetItemsV1Query = z.object({
-  datasetName: z.string().nullish(),
-  sourceTraceId: z.string().nullish(),
-  sourceObservationId: z.string().nullish(),
-  ...publicApiPaginationZod,
-});
+export const GetDatasetItemsV1Query = z
+  .object({
+    datasetName: z.string().nullish(),
+    sourceTraceId: z.string().nullish(),
+    sourceObservationId: z.string().nullish(),
+    version: versionZod.nullish(),
+    ...publicApiPaginationZod,
+  })
+  .refine(
+    (data) => {
+      // If version is provided, datasetName must also be provided
+      if (data.version && !data.datasetName) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "datasetName is required when version parameter is provided",
+      path: ["datasetName"],
+    },
+  );
 export const GetDatasetItemsV1Response = z
   .object({
     data: z.array(APIDatasetItem),
@@ -215,6 +237,8 @@ export const PostDatasetRunItemsV1Body = z
     datasetItemId: z.string(),
     observationId: z.string().nullish(),
     traceId: z.string().nullish(),
+    datasetVersion: versionZod.nullish(),
+    createdAt: stringDateTime,
   })
   .strict()
   .refine((data) => data.observationId || data.traceId, {

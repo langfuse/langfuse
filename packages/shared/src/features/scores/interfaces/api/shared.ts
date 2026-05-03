@@ -1,12 +1,19 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { publicApiPaginationZod } from "../../../../utils/zod";
 import { stringDateTime } from "../../../../utils/typeChecks";
 import { applyScoreValidation } from "../../../../utils/scores";
 import { PostScoreBodyFoundationSchema } from "../shared";
 import {
+  ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE,
+  isAnnotationScoreMissingConfigId,
+  PublicApiCreateScoreSourceDomain,
   ScoreDataTypeDomain,
   ScoreSourceDomain,
+  ScoreSourceEnum,
+  TEXT_SCORE_MAX_LENGTH,
 } from "../../../../domain/scores";
+import { singleFilter } from "../../../../interfaces/filters";
+import { InvalidRequestError } from "../../../../errors";
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
 
@@ -55,15 +62,29 @@ export const GetScoresQuery = z.object({
         .filter((f) => SCORE_FIELD_GROUPS.includes(f as ScoreFieldGroup));
     })
     .pipe(z.array(z.enum(SCORE_FIELD_GROUPS)).nullable()),
+  filter: z
+    .string()
+    .optional()
+    .transform((str) => {
+      if (!str) return undefined;
+      try {
+        const parsed = JSON.parse(str);
+        return parsed;
+      } catch (e) {
+        if (e instanceof InvalidRequestError) throw e;
+        throw new InvalidRequestError("Invalid JSON in filter parameter");
+      }
+    })
+    .pipe(z.array(singleFilter).optional()),
 });
 
 // POST /scores
-// Please note that the POST /scores endpoint supports all score types (trace, session, dataset run) across v1 and v2.
-/**
- * PostScoresBody is copied for the ingestion API as `ScoreBody`. Please copy any changes here in `packages/shared/src/features/ingestion/types.ts`
- */
+// Roughly mirrors ScoreBody in `packages/shared/src/server/ingestion/types.ts`;
+// keep them in sync for fields that cross both surfaces.
 export const PostScoresBody = applyScoreValidation(
-  PostScoreBodyFoundationSchema.and(
+  PostScoreBodyFoundationSchema.extend({
+    source: PublicApiCreateScoreSourceDomain.default(ScoreSourceEnum.API),
+  }).and(
     z.discriminatedUnion("dataType", [
       z.object({
         value: z.number(),
@@ -89,13 +110,21 @@ export const PostScoresBody = applyScoreValidation(
         configId: z.undefined().nullish(), // Cannot have config
       }),
       z.object({
+        value: z.string().min(1).max(TEXT_SCORE_MAX_LENGTH),
+        dataType: z.literal("TEXT"),
+        configId: z.string().nullish(),
+      }),
+      z.object({
         value: z.union([z.string(), z.number()]),
         dataType: z.undefined(),
         configId: z.string().nullish(),
       }),
     ]),
   ),
-);
+).refine((data) => !isAnnotationScoreMissingConfigId(data), {
+  message: ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE,
+  path: ["configId"],
+});
 
 export const PostScoresResponse = z.object({ id: z.string() });
 

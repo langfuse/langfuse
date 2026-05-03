@@ -21,6 +21,7 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
     evalTemplates,
     activeEvaluators,
     pausedEvaluators,
+    evaluatorTargetObjects,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -50,10 +51,11 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
             onEvaluatorToggled={handleEvaluatorToggled}
             activeTemplateIds={activeEvaluators}
             inactiveTemplateIds={pausedEvaluators}
+            evaluatorTargetObjects={evaluatorTargetObjects}
             disabled={!hasEvalWriteAccess}
           />
         ) : (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             {!hasEvalReadAccess
               ? "You don't have permission to manage evaluators"
               : "Please select a dataset first to configure evaluators"}
@@ -72,7 +74,7 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
             }
           }}
         >
-          <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
+          <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}

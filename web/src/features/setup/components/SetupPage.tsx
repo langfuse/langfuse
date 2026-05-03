@@ -66,7 +66,7 @@ export function SetupPage() {
               className={cn(
                 stepInt !== 1
                   ? "text-muted-foreground"
-                  : "font-semibold text-foreground",
+                  : "text-foreground font-semibold",
               )}
             >
               1. Create Organization
@@ -79,7 +79,7 @@ export function SetupPage() {
               className={cn(
                 stepInt !== 2
                   ? "text-muted-foreground"
-                  : "font-semibold text-foreground",
+                  : "text-foreground font-semibold",
               )}
             >
               2. Invite Members
@@ -92,7 +92,7 @@ export function SetupPage() {
               className={cn(
                 stepInt !== 3
                   ? "text-muted-foreground"
-                  : "font-semibold text-foreground",
+                  : "text-foreground font-semibold",
               )}
             >
               3. Create Project
@@ -106,7 +106,7 @@ export function SetupPage() {
           stepInt === 1 && (
             <div>
               <Header title="New Organization" />
-              <p className="mb-4 text-sm text-muted-foreground">
+              <p className="text-muted-foreground mb-4 text-sm">
                 Organizations are used to manage your projects and teams.
               </p>
               <NewOrganizationForm
@@ -123,7 +123,7 @@ export function SetupPage() {
             <div className="flex flex-col gap-10">
               <div>
                 <Header title="Organization Members" />
-                <p className="mb-4 text-sm text-muted-foreground">
+                <p className="text-muted-foreground mb-4 text-sm">
                   Invite members to your organization to collaborate on
                   projects. You can always add more members later.
                 </p>
@@ -140,7 +140,7 @@ export function SetupPage() {
           stepInt === 3 && organization && (
             <div>
               <Header title="New Project" />
-              <p className="mb-4 text-sm text-muted-foreground">
+              <p className="text-muted-foreground mb-4 text-sm">
                 Projects are used to group traces, datasets, evals and prompts.
                 Multiple environments are best separated via tags within a
                 project.

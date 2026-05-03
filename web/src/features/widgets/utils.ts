@@ -1,4 +1,4 @@
-import { startCase } from "lodash";
+import startCase from "lodash/startCase";
 import { type FilterState } from "@langfuse/shared";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 
@@ -12,6 +12,43 @@ export type WidgetChartConfig = {
     order: "ASC" | "DESC";
   };
 };
+
+type PivotSortMetric = {
+  measure: string;
+  agg: string;
+};
+
+type PivotSortDimension = {
+  field: string;
+};
+
+type PivotDefaultSort = NonNullable<WidgetChartConfig["defaultSort"]>;
+
+/**
+ * Old widgets can retain stale pivot defaultSort fields after metrics or
+ * dimensions change. Ignore those persisted sort keys instead of letting them
+ * reach QueryBuilder as invalid orderBy columns.
+ */
+export function sanitizePivotTableDefaultSort(
+  defaultSort: WidgetChartConfig["defaultSort"] | undefined,
+  params: {
+    dimensions: PivotSortDimension[];
+    metrics: PivotSortMetric[];
+  },
+): PivotDefaultSort | undefined {
+  if (!defaultSort) {
+    return undefined;
+  }
+
+  const validDimensionSort = params.dimensions.some(
+    (dimension) => dimension.field === defaultSort.column,
+  );
+  const validMetricSort = params.metrics.some(
+    (metric) => `${metric.agg}_${metric.measure}` === defaultSort.column,
+  );
+
+  return validDimensionSort || validMetricSort ? defaultSort : undefined;
+}
 
 /**
  * Formats a metric name for display, handling special cases like count_count -> Count
@@ -132,4 +169,28 @@ export function buildWidgetDescription({
   }
 
   return sentence;
+}
+
+/**
+ * Returns the default view for the new widget form.
+ * When v4 beta is enabled, defaults to "observations" because "traces"
+ * is excluded from viewsV2 (no v2-specific API support).
+ */
+export function getDefaultView(
+  isBetaEnabled: boolean,
+): "traces" | "observations" {
+  return isBetaEnabled ? "observations" : "traces";
+}
+
+/**
+ * SSE progress is only enabled on the v4 beta dashboard query path.
+ */
+export function shouldUseWidgetSSE({
+  isV4Enabled,
+  version,
+}: {
+  isV4Enabled: boolean;
+  version: "v1" | "v2";
+}): boolean {
+  return isV4Enabled && version === "v2";
 }

@@ -11,8 +11,9 @@ require("dotenv").config();
 import {
   evalJobCreatorQueueProcessor,
   evalJobDatasetCreatorQueueProcessor,
-  evalJobExecutorQueueProcessor,
+  evalJobExecutorQueueProcessorBuilder,
   evalJobTraceCreatorQueueProcessor,
+  llmAsJudgeExecutionQueueProcessorBuilder,
 } from "./queues/evalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
@@ -28,17 +29,19 @@ import {
   PostHogIntegrationQueue,
   MixpanelIntegrationQueue,
   QueueName,
-  QueueJobs,
   logger,
   BlobStorageIntegrationQueue,
   DeadLetterRetryQueue,
   IngestionQueue,
+  SecondaryIngestionQueue,
   OtelIngestionQueue,
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
+  CloudUsageMeteringQueue,
   EventPropagationQueue,
-  BatchProjectCleanerQueue,
-  BATCH_DELETION_TABLES,
+  EvalExecutionQueue,
+  SecondaryEvalExecutionQueue,
+  LLMAsJudgeExecutionQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -75,8 +78,19 @@ import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
 import { notificationQueueProcessor } from "./queues/notificationQueue";
-import { MutationMonitor } from "./features/mutation-monitoring/mutationMonitor";
-import { batchProjectCleanerProcessor } from "./queues/batchProjectCleanerQueue";
+import {
+  BatchProjectCleaner,
+  BATCH_DELETION_TABLES,
+} from "./features/batch-project-cleaner";
+import {
+  BatchDataRetentionCleaner,
+  BATCH_DATA_RETENTION_TABLES,
+} from "./features/batch-data-retention-cleaner";
+import { MediaRetentionCleaner } from "./features/media-retention-cleaner";
+import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-cleaner";
+import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
+import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
+import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 
 const app = express();
 
@@ -223,20 +237,54 @@ if (env.QUEUE_CONSUMER_DATASET_RUN_ITEM_UPSERT_QUEUE_IS_ENABLED === "true") {
 }
 
 if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.EvaluationExecution,
-    evalJobExecutorQueueProcessor,
-    {
-      concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
-      // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
-      // We set it to 60s to reduce the number of lock renewals and also be less sensitive to high CPU wait times.
-      // We also update the stalledInterval check to 120s from 30s default to perform the check less frequently.
-      // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
-      lockDuration: 60000, // 60 seconds
-      stalledInterval: 120000, // 120 seconds
-      maxStalledCount: 3,
-    },
-  );
+  const shardNames = EvalExecutionQueue.getShardNames();
+  shardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      evalJobExecutorQueueProcessorBuilder(true, shardName),
+      {
+        concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
+        // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
+        // We set it to 60s to reduce the number of lock renewals and also be less sensitive to high CPU wait times.
+        // We also update the stalledInterval check to 120s from 30s default to perform the check less frequently.
+        // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
+        lockDuration: 60000, // 60 seconds
+        stalledInterval: 120000, // 120 seconds
+        maxStalledCount: 3,
+      },
+    );
+  });
+
+  const llmAsJudgeShardNames = LLMAsJudgeExecutionQueue.getShardNames();
+  llmAsJudgeShardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      llmAsJudgeExecutionQueueProcessorBuilder(shardName),
+      {
+        concurrency: env.LANGFUSE_LLM_AS_JUDGE_EXECUTION_WORKER_CONCURRENCY,
+        lockDuration: 60000,
+        stalledInterval: 120000,
+        maxStalledCount: 3,
+      },
+    );
+  });
+}
+
+if (env.QUEUE_CONSUMER_EVAL_EXECUTION_SECONDARY_QUEUE_IS_ENABLED === "true") {
+  const shardNames = SecondaryEvalExecutionQueue.getShardNames();
+  shardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      evalJobExecutorQueueProcessorBuilder(false, shardName),
+      {
+        concurrency:
+          env.LANGFUSE_EVAL_EXECUTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY,
+        lockDuration: 60000, // 60 seconds
+        stalledInterval: 120000, // 120 seconds
+        maxStalledCount: 3,
+      },
+    );
+  });
 }
 
 if (env.QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED === "true") {
@@ -293,20 +341,26 @@ if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {
 }
 
 if (env.QUEUE_CONSUMER_INGESTION_SECONDARY_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.IngestionSecondaryQueue,
-    ingestionQueueProcessorBuilder(false),
-    {
-      concurrency:
-        env.LANGFUSE_INGESTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY,
-    },
-  );
+  const shardNames = SecondaryIngestionQueue.getShardNames();
+  shardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      ingestionQueueProcessorBuilder(false),
+      {
+        concurrency:
+          env.LANGFUSE_INGESTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY,
+      },
+    );
+  });
 }
 
 if (
   env.QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED === "true" &&
   env.STRIPE_SECRET_KEY
 ) {
+  // Instantiate the queue to trigger scheduled jobs
+  CloudUsageMeteringQueue.getInstance();
+
   WorkerManager.register(
     QueueName.CloudUsageMeteringQueue,
     cloudUsageMeteringQueueProcessor,
@@ -429,6 +483,13 @@ if (env.QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED === "true") {
         max: 1,
         duration: 10_000,
       },
+      // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
+      // We set it to 60s to reduce the number of lock renewals and also be less sensitive to high CPU wait times.
+      // We also update the stalledInterval check to 120s from 30s default to perform the check less frequently.
+      // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
+      lockDuration: 60000, // 60 seconds
+      stalledInterval: 120000, // 120 seconds
+      maxStalledCount: 3,
     },
   );
 }
@@ -539,45 +600,84 @@ if (env.QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED === "true") {
   );
 }
 
-if (env.LANGFUSE_MUTATION_MONITOR_ENABLED === "true") {
-  // Start the ClickHouse mutation monitor after all workers are registered
-  MutationMonitor.start();
-}
-
 // Batch project cleaners for bulk deletion of ClickHouse data
-if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.BatchProjectCleanerQueue,
-    batchProjectCleanerProcessor,
-    {
-      concurrency: 1, // only 1 job at a time per process.
-      limiter: {
-        max: 1,
-        duration: env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS, // no more than 1 job at a time globally
-      },
-    },
-  );
+export const batchProjectCleaners: BatchProjectCleaner[] = [];
 
-  // Schedule repeatable jobs for each table
-  const queue = BatchProjectCleanerQueue.getInstance();
-  if (queue) {
-    const tables = BATCH_DELETION_TABLES.filter(
-      (t) =>
-        t !== "events" ||
-        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true",
-    );
-    for (const table of tables) {
-      queue
-        .upsertJobScheduler(
-          `batch-project-cleaner-${table}`,
-          { every: env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS },
-          { name: QueueJobs.BatchProjectCleanerJob, data: { table } },
-        )
-        .catch((err) =>
-          logger.error(`Error scheduling batch-project-cleaner-${table}`, err),
-        );
+if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
+  for (const table of BATCH_DELETION_TABLES) {
+    // Only start the events table cleaners if the events table experiment is enabled
+    if (
+      (table !== "events_full" && table !== "events_core") ||
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+    ) {
+      const cleaner = new BatchProjectCleaner(table);
+      batchProjectCleaners.push(cleaner);
+      cleaner.start();
     }
   }
+}
+
+// Batch data retention cleaners for bulk deletion of expired ClickHouse data
+export const batchDataRetentionCleaners: BatchDataRetentionCleaner[] = [];
+
+if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
+  for (const table of BATCH_DATA_RETENTION_TABLES) {
+    // Only start the events table cleaners if the events table experiment is enabled
+    if (
+      (table !== "events_full" && table !== "events_core") ||
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+    ) {
+      const cleaner = new BatchDataRetentionCleaner(table);
+      batchDataRetentionCleaners.push(cleaner);
+      cleaner.start();
+    }
+  }
+}
+
+// Media retention cleaner for media files and blob storage
+export let mediaRetentionCleaner: MediaRetentionCleaner | null = null;
+
+if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
+  mediaRetentionCleaner = new MediaRetentionCleaner();
+  mediaRetentionCleaner.start();
+}
+
+// Batch project media cleaner for S3 media cleanup of soft-deleted projects
+export let batchProjectMediaCleaner: BatchProjectMediaCleaner | null = null;
+
+if (
+  env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true" &&
+  env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET
+) {
+  batchProjectMediaCleaner = new BatchProjectMediaCleaner();
+  batchProjectMediaCleaner.start();
+}
+
+// Batch project blob cleaner for ingestion event S3/ClickHouse cleanup of soft-deleted projects
+export let batchProjectBlobCleaner: BatchProjectBlobCleaner | null = null;
+
+if (
+  env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true" &&
+  env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true"
+) {
+  batchProjectBlobCleaner = new BatchProjectBlobCleaner();
+  batchProjectBlobCleaner.start();
+}
+
+// Batch trace deletion cleaner for supplementary trace deletion
+export let batchTraceDeletionCleaner: BatchTraceDeletionCleaner | null = null;
+
+if (env.LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED === "true") {
+  batchTraceDeletionCleaner = new BatchTraceDeletionCleaner();
+  batchTraceDeletionCleaner.start();
+}
+
+// Queue metrics background reporter
+export let queueMetricsRunner: QueueMetricsRunner | null = null;
+
+if (env.LANGFUSE_QUEUE_METRICS_ENABLED === "true") {
+  queueMetricsRunner = new QueueMetricsRunner();
+  queueMetricsRunner.start();
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

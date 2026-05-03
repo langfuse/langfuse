@@ -7,12 +7,12 @@ import {
   type ActionCreate,
   type ActionDomain,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 // Define the form schema for GitHub dispatch actions
 export const GitHubDispatchActionFormSchema = z.object({
   githubDispatch: z.object({
-    url: z.string().url("Invalid URL"),
+    url: z.url("Invalid URL"),
     eventType: z.string().min(1, "Event type is required").max(100),
     githubToken: z.string(),
     displayGitHubToken: z.string().optional(), // Display value for existing token
@@ -23,9 +23,7 @@ type GitHubDispatchActionFormData = z.infer<
   typeof GitHubDispatchActionFormSchema
 >;
 
-export class GitHubDispatchActionHandler
-  implements BaseActionHandler<GitHubDispatchActionFormData>
-{
+export class GitHubDispatchActionHandler implements BaseActionHandler<GitHubDispatchActionFormData> {
   actionType = "GITHUB_DISPATCH" as const;
 
   getDefaultValues(

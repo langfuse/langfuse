@@ -51,6 +51,27 @@ export function UserIdBadge({
   );
 }
 
+export function TargetTraceBadge({
+  targetTraceId,
+  projectId,
+}: {
+  targetTraceId: string | null;
+  projectId: string;
+}) {
+  if (!targetTraceId) return null;
+  return (
+    <Link
+      href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
+      className="inline-flex"
+    >
+      <Badge>
+        <span className="truncate">Target Trace: {targetTraceId}</span>
+        <ExternalLinkIcon className="ml-1 h-3 w-3" />
+      </Badge>
+    </Link>
+  );
+}
+
 export function EnvironmentBadge({
   environment,
 }: {

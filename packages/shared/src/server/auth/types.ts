@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { Plan, plans } from "../../features/entitlements/plans";
 import { CloudConfigRateLimit } from "../../interfaces/rate-limits";
 import { ApiKeyScope, MakeOptional } from "../../";
@@ -8,9 +8,9 @@ const ApiKeyBaseSchema = z.object({
   note: z.string().nullable(),
   publicKey: z.string(),
   displaySecretKey: z.string(),
-  createdAt: z.string().datetime().nullable(),
-  lastUsedAt: z.string().datetime().nullable(),
-  expiresAt: z.string().datetime().nullable(),
+  createdAt: z.iso.datetime().nullable(),
+  lastUsedAt: z.iso.datetime().nullable(),
+  expiresAt: z.iso.datetime().nullable(),
   fastHashedSecretKey: z.string(),
   hashedSecretKey: z.string(),
   orgId: z.string(),
@@ -54,9 +54,11 @@ export type AuthHeaderValidVerificationResultIngestion = {
   scope: ApiAccessScopeIngestion;
 };
 
+export type ApiAccessLevel = "organization" | "project" | "scores";
+
 type BaseApiAccessScope = {
   projectId: string | null;
-  accessLevel: "organization" | "project" | "scores";
+  accessLevel: ApiAccessLevel;
 };
 
 type ApiAccessScopeMetadata = {

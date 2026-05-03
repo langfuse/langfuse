@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
+import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
@@ -38,6 +39,11 @@ import {
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import {
+  filterAlreadyRenderedMedia,
+  getRenderedInlineMediaIds,
+  getStandaloneMediaReferenceStrings,
+} from "@/src/components/ui/markdown-media.utils";
+import {
   StringOrMarkdownSchema,
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
@@ -74,8 +80,115 @@ const MAX_CELL_DISPLAY_CHARS = 2000;
 const ASSISTANT_TITLES = ["assistant", "Output", "model"];
 const SYSTEM_TITLES = ["system", "Input"];
 
-const MONO_TEXT_CLASSES = "font-mono text-xs break-words";
+const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
+
+// Guards to keep decoding bounded on very large payloads. Exceeding either
+// limit returns the remainder undecoded (preserving browser responsiveness
+// over decoding completeness).
+export const DECODE_UNICODE_MAX_NODES = 50_000;
+export const DECODE_UNICODE_MAX_DEPTH = 200;
+
+/**
+ * Iteratively decode \uXXXX escape sequences in all string values of a parsed JSON
+ * structure. Used so that traces ingested via Python SDK's json.dumps(ensure_ascii=True)
+ * display non-ASCII characters (e.g. Japanese, Chinese) correctly in the trace detail
+ * view. Mirrors the approach used in IOTableCell and batch export (see PR #12882).
+ *
+ * Uses greedy mode to handle both \uXXXX (single-escaped) and \\uXXXX (double-escaped)
+ * forms that can appear depending on the ingest path.
+ *
+ * Implemented iteratively (explicit stack) with node-count and depth caps so that
+ * very large or deeply nested payloads cannot blow the call stack or freeze the tab.
+ */
+export function decodeUnicodeInJson(value: unknown): unknown {
+  if (typeof value === "string") {
+    return decodeUnicodeEscapesOnly(value, true);
+  }
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+
+  const root: unknown[] | Record<string, unknown> = Array.isArray(value)
+    ? []
+    : {};
+
+  type Frame = {
+    source: unknown[] | Record<string, unknown>;
+    target: unknown[] | Record<string, unknown>;
+    depth: number;
+  };
+  const stack: Frame[] = [
+    {
+      source: value as unknown[] | Record<string, unknown>,
+      target: root,
+      depth: 0,
+    },
+  ];
+
+  let nodeCount = 0;
+  let budgetExceeded = false;
+
+  while (stack.length > 0) {
+    const { source, target, depth } = stack.pop()!;
+
+    if (Array.isArray(source)) {
+      const arr = target as unknown[];
+      for (let i = 0; i < source.length; i++) {
+        const v = source[i];
+        if (budgetExceeded || ++nodeCount > DECODE_UNICODE_MAX_NODES) {
+          budgetExceeded = true;
+          arr[i] = v;
+          continue;
+        }
+        arr[i] = assignDecodedOrDescend(v, depth, stack);
+      }
+    } else {
+      const obj = target as Record<string, unknown>;
+      for (const k of Object.keys(source as Record<string, unknown>)) {
+        const v = (source as Record<string, unknown>)[k];
+        // Keys can also contain \uXXXX escapes when the ingest path double-
+        // encodes the payload, so decode them alongside the values.
+        const decodedKey = decodeUnicodeEscapesOnly(k, true);
+        if (budgetExceeded || ++nodeCount > DECODE_UNICODE_MAX_NODES) {
+          budgetExceeded = true;
+          obj[decodedKey] = v;
+          continue;
+        }
+        obj[decodedKey] = assignDecodedOrDescend(v, depth, stack);
+      }
+    }
+  }
+
+  return root;
+}
+
+function assignDecodedOrDescend(
+  v: unknown,
+  depth: number,
+  stack: Array<{
+    source: unknown[] | Record<string, unknown>;
+    target: unknown[] | Record<string, unknown>;
+    depth: number;
+  }>,
+): unknown {
+  if (typeof v === "string") {
+    return decodeUnicodeEscapesOnly(v, true);
+  }
+  if (v === null || typeof v !== "object") {
+    return v;
+  }
+  if (depth + 1 > DECODE_UNICODE_MAX_DEPTH) {
+    return v; // bail on deeper subtrees to avoid runaway work
+  }
+  const child: unknown[] | Record<string, unknown> = Array.isArray(v) ? [] : {};
+  stack.push({
+    source: v as unknown[] | Record<string, unknown>,
+    target: child,
+    depth: depth + 1,
+  });
+  return child;
+}
 
 function shouldShowValue(value: unknown, showNullValues: boolean): boolean {
   if (showNullValues) return true;
@@ -117,7 +230,7 @@ function getContainerClasses(
   title: string | undefined,
   scrollable: boolean | undefined,
   codeClassName: string | undefined,
-  baseClasses = "whitespace-pre-wrap break-words p-3 text-xs",
+  baseClasses = "whitespace-pre-wrap wrap-break-word p-3 text-xs",
 ) {
   return cn(
     baseClasses,
@@ -389,7 +502,7 @@ const JsonTableRowComponent = memo(
         className={cn(
           isExpandable ? "cursor-pointer" : "",
           row.original.level === 0 && stickyTopLevelKey
-            ? "sticky z-10 bg-background shadow-sm"
+            ? "bg-background sticky z-10 shadow-xs"
             : "",
         )}
         style={
@@ -401,7 +514,7 @@ const JsonTableRowComponent = memo(
         {row.getVisibleCells().map((cell) => (
           <TableCell
             key={cell.id}
-            className="whitespace-normal px-2 py-1 align-top"
+            className="px-2 py-1 align-top whitespace-normal"
             style={{ width: `${cell.column.columnDef.size}%` }}
           >
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -430,7 +543,7 @@ function JsonPrettyTable({
   showObservationTypeBadge = false,
 }: {
   data: JsonTableRow[];
-  expandAllRef?: React.MutableRefObject<(() => void) | null>;
+  expandAllRef?: React.RefObject<(() => void) | null>;
   onExpandStateChange?: (allExpanded: boolean) => void;
   noBorder?: boolean;
   expanded: ExpandedState;
@@ -496,9 +609,9 @@ function JsonPrettyTable({
             : null;
 
         const content = (
-          <div className="flex items-start break-words">
+          <div className="flex items-start wrap-break-word">
             <div
-              className="flex flex-shrink-0 items-center justify-end"
+              className="flex shrink-0 items-center justify-end"
               style={{ width: `${indentationWidth}px` }}
             >
               {row.original.hasChildren && (
@@ -551,7 +664,7 @@ function JsonPrettyTable({
           }
 
           return (
-            <div className="sticky z-[5] py-1" style={{ top: topPosition }}>
+            <div className="sticky z-5 py-1" style={{ top: topPosition }}>
               {content}
             </div>
           );
@@ -751,7 +864,6 @@ export function PrettyJsonView(props: {
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
   scrollable?: boolean;
-  projectIdForPromptButtons?: string;
   controlButtons?: React.ReactNode;
   currentView?: "pretty" | "json";
   externalExpansionState?: Record<string, boolean> | boolean;
@@ -761,12 +873,14 @@ export function PrettyJsonView(props: {
   showNullValues?: boolean;
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
+  /** Content to render between header and main content (e.g., thinking blocks) */
+  afterHeader?: React.ReactNode;
 }) {
   // Use pre-parsed data if available, otherwise parse on-demand
   const parsedJson = useMemo(() => {
     // If pre-parsed data is provided, use it directly (skip parsing)
     if (props.parsedJson !== undefined) {
-      return props.parsedJson;
+      return decodeUnicodeInJson(props.parsedJson);
     }
 
     // If still parsing in Web Worker, return null (will show loading state)
@@ -776,7 +890,7 @@ export function PrettyJsonView(props: {
 
     // Fast path: if already an object, likely no parsing needed
     if (typeof props.json !== "string") {
-      return props.json;
+      return decodeUnicodeInJson(props.json);
     }
 
     // Only parse strings, with size/depth limits
@@ -785,8 +899,23 @@ export function PrettyJsonView(props: {
       maxDepth: 2,
     });
 
-    return result;
+    // Decode \uXXXX escapes so Python SDK (ensure_ascii=True) traces display
+    // non-ASCII characters correctly in the trace detail view.
+    return decodeUnicodeInJson(result);
   }, [props.json, props.parsedJson, props.isParsing]);
+
+  // JSONView internally calls deepParseJson (with maxDepth:3) which mutates
+  // nested string fields in place. Because baseTableData[].rawChildData holds
+  // references back into parsedJson, sharing parsedJson with JSONView would
+  // corrupt the table's lazy-loaded children whenever JSONView renders (even
+  // while hidden via display:none). Pass a deep clone so the two views stay
+  // independent.
+  const jsonViewInput = useMemo(() => {
+    if (parsedJson === null || parsedJson === undefined) return props.json;
+    if (typeof parsedJson !== "object") return parsedJson;
+    return structuredClone(parsedJson);
+  }, [parsedJson, props.json]);
+
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
@@ -1161,6 +1290,18 @@ export function PrettyJsonView(props: {
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
   const isPrettyView = actualCurrentView === "pretty";
   const isMarkdownMode = isMarkdown && isPrettyView;
+  const standaloneMediaReferenceStrings =
+    typeof markdownContent === "string"
+      ? getStandaloneMediaReferenceStrings(markdownContent)
+      : [];
+  const shouldRenderStandaloneMedia =
+    isMarkdownMode && standaloneMediaReferenceStrings.length > 0;
+  const remainingMarkdownMedia = filterAlreadyRenderedMedia(
+    props.media,
+    getRenderedInlineMediaIds({
+      markdown: markdownContent ?? "",
+    }),
+  );
   const shouldUseTableView =
     isPrettyView && !isChatML && !isMarkdown && !emptyValueDisplay;
 
@@ -1190,7 +1331,7 @@ export function PrettyJsonView(props: {
               <Skeleton className="h-3 w-1/2" />
               <Skeleton className="h-3 w-2/3" />
               {props.isParsing && (
-                <div className="mt-2 text-xs text-muted-foreground">
+                <div className="text-muted-foreground mt-2 text-xs">
                   Parsing in background...
                 </div>
               )}
@@ -1216,7 +1357,19 @@ export function PrettyJsonView(props: {
         </div>
       ) : isMarkdownMode ? (
         <div className="io-message-content">
-          <MarkdownView markdown={markdownContent || ""} />
+          {shouldRenderStandaloneMedia ? (
+            standaloneMediaReferenceStrings.map((referenceString, index) => (
+              <LangfuseMediaView
+                key={`${referenceString}-${index}`}
+                mediaReferenceString={referenceString}
+              />
+            ))
+          ) : (
+            <MarkdownView
+              markdown={markdownContent || ""}
+              media={props.media}
+            />
+          )}
         </div>
       ) : (
         <>
@@ -1230,7 +1383,7 @@ export function PrettyJsonView(props: {
                 props.title,
                 props.scrollable,
                 props.codeClassName,
-                "flex whitespace-pre-wrap break-words text-xs",
+                "flex text-xs wrap-break-word whitespace-pre-wrap",
               )}
             >
               {props.isLoading ? (
@@ -1263,7 +1416,11 @@ export function PrettyJsonView(props: {
             style={{ display: shouldUseTableView ? "none" : "block" }}
           >
             <JSONView
-              json={props.json}
+              // Use the unicode-decoded payload so that \uXXXX escapes from
+              // Python SDK ensure_ascii=True render as original characters.
+              // Pass a clone to avoid JSONView's internal deepParseJson
+              // mutating the shared parsedJson / rawChildData tree.
+              json={jsonViewInput}
               title={props.title} // Title value used for background styling
               hideTitle={true} // But hide the title, we display it
               className=""
@@ -1272,20 +1429,19 @@ export function PrettyJsonView(props: {
               collapseStringsAfterLength={props.collapseStringsAfterLength}
               media={props.media}
               scrollable={props.scrollable}
-              projectIdForPromptButtons={props.projectIdForPromptButtons}
               externalJsonCollapsed={jsonIsCollapsed}
               onToggleCollapse={handleJsonToggleCollapse}
             />
           </div>
         </>
       )}
-      {props.media && props.media.length > 0 && isPrettyView && (
+      {shouldRenderStandaloneMedia && remainingMarkdownMedia.length > 0 && (
         <>
-          <div className="my-1 px-2 py-1 text-xs text-muted-foreground">
+          <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
             Media
           </div>
           <div className="flex flex-wrap gap-2 p-4 pt-1">
-            {props.media.map((m) => (
+            {remainingMarkdownMedia.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
                 asFileIcon={true}
@@ -1295,6 +1451,25 @@ export function PrettyJsonView(props: {
           </div>
         </>
       )}
+      {props.media &&
+        props.media.length > 0 &&
+        isPrettyView &&
+        !isMarkdownMode && (
+          <>
+            <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
+              Media
+            </div>
+            <div className="flex flex-wrap gap-2 p-4 pt-1">
+              {props.media.map((m) => (
+                <LangfuseMediaView
+                  mediaAPIReturnValue={m}
+                  asFileIcon={true}
+                  key={m.mediaId}
+                />
+              ))}
+            </div>
+          </>
+        )}
     </>
   );
 
@@ -1320,7 +1495,7 @@ export function PrettyJsonView(props: {
                   variant="ghost"
                   size="icon-xs"
                   onClick={() => expandAllRef.current?.()}
-                  className="-mr-2 hover:bg-border"
+                  className="hover:bg-border -mr-2"
                   title={
                     allRowsExpanded ? "Collapse all rows" : "Expand all rows"
                   }
@@ -1337,7 +1512,7 @@ export function PrettyJsonView(props: {
                   variant="ghost"
                   size="icon-xs"
                   onClick={handleJsonToggleCollapse}
-                  className="-mr-2 hover:bg-border"
+                  className="hover:bg-border -mr-2"
                   title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
                 >
                   {jsonIsCollapsed ? (
@@ -1352,6 +1527,7 @@ export function PrettyJsonView(props: {
           }
         />
       ) : null}
+      {props.afterHeader}
       {props.scrollable ? (
         <div
           className={cn(

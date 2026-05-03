@@ -80,6 +80,12 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "string_value",
   },
   {
+    uiTableName: "Metadata",
+    uiTableId: "metadata",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "metadata",
+  },
+  {
     uiTableName: "Trace Name",
     uiTableId: "traceName",
     clickhouseTableName: "traces",
@@ -96,5 +102,37 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "trace_tags",
     clickhouseTableName: "traces",
     clickhouseSelect: "t.tags",
+  },
+];
+
+/**
+ * v4 column definitions for scores table — trace columns reference the traces
+ * CTE built from a flat EventsQueryBuilder. The CTE is joined as alias "e".
+ */
+export const scoresTableUiColumnDefinitionsFromEvents: UiColumnMappings = [
+  // All scores-native columns are identical to v3
+  ...scoresTableUiColumnDefinitions.filter(
+    (c) => c.clickhouseTableName === "scores",
+  ),
+  {
+    uiTableName: "Trace Name",
+    uiTableId: "traceName",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "name",
+    queryPrefix: "e",
+  },
+  {
+    uiTableName: "User ID",
+    uiTableId: "userId",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "user_id",
+    queryPrefix: "e",
+  },
+  {
+    uiTableName: "Trace Tags",
+    uiTableId: "trace_tags",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "tags",
+    queryPrefix: "e",
   },
 ];

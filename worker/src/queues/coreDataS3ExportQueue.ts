@@ -67,6 +67,7 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
         admin: true,
         email: true,
         featureFlags: true,
+        v4BetaEnabled: true,
         createdAt: true,
         updatedAt: true,
       },

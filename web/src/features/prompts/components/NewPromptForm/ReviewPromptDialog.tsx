@@ -83,7 +83,7 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
         </DialogHeader>
 
         <DialogBody>
-          <div className="max-h-[80vh] max-w-screen-xl space-y-6 overflow-y-auto">
+          <div className="max-h-[80vh] max-w-(--breakpoint-xl) space-y-6 overflow-y-auto">
             <div className="space-y-6">
               <div className="space-y-4">
                 <div>
@@ -114,7 +114,7 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
             type="button"
             variant="secondary"
             onClick={() => setOpen(false)}
-            className="min-w-[8rem]"
+            className="min-w-32"
           >
             Cancel
           </Button>
@@ -122,7 +122,7 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
             onClick={onConfirm}
             loading={isLoading}
             variant={newPromptValue?.isActive ? "destructive" : "default"}
-            className="min-w-[8rem]"
+            className="min-w-32"
           >
             Save new version
             {newPromptValue?.isActive ? " and promote to production" : ""}
