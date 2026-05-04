@@ -2,11 +2,11 @@ import { type MetadataDomain } from "@langfuse/shared";
 
 /**
  * Metadata serialized as string for client-side consumption.
- * Required because SuperJSON cannot handle certain top-level keys like "property".
+ * Required because SuperJSON cannot handle certain top-level keys like "prototype".
  *
  * Client-side code should use type guards to check if metadata is string or object.
  */
-export type MetadataDomainClient = string | null | undefined;
+export type MetadataDomainClient = string | null;
 
 /**
  * Helper type to transform domain types for frontend by stringifying metadata.
@@ -22,13 +22,27 @@ export type WithStringifiedMetadata<
 
 /**
  * Stringifies metadata field for frontend consumption.
- * Returns null if metadata is null/undefined or empty object.
+ * Returns null if metadata is null/undefined.
  */
 export const stringifyMetadata = (
-  metadata: MetadataDomain | null | undefined,
+  metadata: MetadataDomain | MetadataDomainClient | null | undefined,
 ): MetadataDomainClient => {
   if (!metadata) return null;
+  if (typeof metadata === "string") return metadata;
   return JSON.stringify(metadata);
+};
+
+export const parseStringifiedMetadata = (
+  metadata: MetadataDomain | MetadataDomainClient | null | undefined,
+): MetadataDomain | null => {
+  if (!metadata) return null;
+  if (typeof metadata !== "string") return metadata;
+
+  try {
+    return JSON.parse(metadata) as MetadataDomain;
+  } catch {
+    return null;
+  }
 };
 
 /**

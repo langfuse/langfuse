@@ -1,7 +1,10 @@
-import { type TraceDomain } from "@langfuse/shared";
+import { type MetadataDomain, type TraceDomain } from "@langfuse/shared";
 import { type FullEventsObservations } from "@langfuse/shared/src/server";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import {
+  stringifyMetadata,
+  type WithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 
 export type SyntheticTrace = WithStringifiedMetadata<
   Omit<TraceDomain, "input" | "output">
@@ -27,7 +30,11 @@ export interface AdaptedTraceData {
 export function adaptEventsToTraceFormat(params: {
   events: FullEventsObservations;
   traceId: string;
-  rootIO?: { input: unknown; output: unknown; metadata?: unknown } | null;
+  rootIO?: {
+    input: unknown;
+    output: unknown;
+    metadata?: MetadataDomain | string | null;
+  } | null;
 }): AdaptedTraceData {
   const { events, traceId, rootIO } = params;
 
@@ -77,7 +84,8 @@ export function adaptEventsToTraceFormat(params: {
     timestamp: earliest.startTime,
     input: rootIO?.input ? JSON.stringify(rootIO.input) : null,
     output: rootIO?.output ? JSON.stringify(rootIO.output) : null,
-    metadata: JSON.stringify(rootIO?.metadata ?? root?.metadata ?? {}),
+    metadata:
+      stringifyMetadata(rootIO?.metadata ?? root?.metadata ?? {}) ?? "{}",
     tags: traceTags ?? [],
     bookmarked: root?.bookmarked ?? false,
     public: root?.public ?? false,
@@ -98,8 +106,7 @@ export function adaptEventsToTraceFormat(params: {
   const observations: ObservationReturnTypeWithMetadata[] = events.map((e) => ({
     ...e,
     traceId: traceId,
-    metadata:
-      typeof e.metadata === "string" ? e.metadata : JSON.stringify(e.metadata),
+    metadata: stringifyMetadata(e.metadata) ?? null,
     input: undefined,
     output: undefined,
   }));

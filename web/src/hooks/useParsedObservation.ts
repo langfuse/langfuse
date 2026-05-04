@@ -15,15 +15,33 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useEffect } from "react";
 import { api } from "@/src/utils/api";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { type Observation } from "@langfuse/shared";
+import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
 import {
   type ObservationReturnTypeWithMetadata,
   type ObservationReturnType,
 } from "@/src/server/api/routers/traces";
-import { stringifyMetadata } from "@/src/utils/clientSideDomainTypes";
+import {
+  stringifyMetadata,
+  type WithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 import type {
   ParseRequest,
   ParseResponse,
 } from "@/src/workers/json-parser.worker";
+
+export type ObservationWithStringifiedIO = Omit<
+  WithStringifiedMetadata<Observation>,
+  "input" | "output"
+> & {
+  input: string | null;
+  output: string | null;
+};
+
+type ParsedObservationResult =
+  | ObservationWithStringifiedIO
+  | EventBatchIOOutput
+  | undefined;
 
 /**
  * Threshold for using Web Worker vs sync parsing (in characters).
@@ -226,16 +244,16 @@ export function useParsedObservation({
     },
   );
 
-  const mergedObservation = useMemo(() => {
+  const mergedObservation = useMemo<ParsedObservationResult>(() => {
     if (isBetaEnabled) {
       if (baseObservation && eventsQuery.data) {
         return {
           ...baseObservation,
-          input: eventsQuery.data.input as string,
-          output: eventsQuery.data.output as string,
+          input: eventsQuery.data.input as string | null,
+          output: eventsQuery.data.output as string | null,
           // Stringify metadata to match ObservationReturnTypeWithMetadata format
           metadata: stringifyMetadata(eventsQuery.data.metadata),
-        };
+        } satisfies ObservationWithStringifiedIO;
       }
       // No base observation provided: return events data as-is (incomplete type)
       return eventsQuery.data;

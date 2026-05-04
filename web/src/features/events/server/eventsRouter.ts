@@ -11,6 +11,10 @@ import {
   paginationZod,
   timeFilter,
 } from "@langfuse/shared";
+import {
+  toDomainWithStringifiedMetadata,
+  type WithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 import { EventsTableOptions } from "./types";
 import {
   getEventList,
@@ -39,9 +43,8 @@ const GetAllEventsInput = EventsTableOptions.extend({
   ...paginationZod,
 });
 
-export type EventBatchIOOutput = Pick<
-  Observation,
-  "id" | "input" | "output" | "metadata"
+export type EventBatchIOOutput = WithStringifiedMetadata<
+  Pick<Observation, "id" | "input" | "output" | "metadata">
 >;
 
 export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
@@ -175,13 +178,15 @@ export const eventsRouter = createTRPCRouter({
           span.setAttribute("project_id", input.projectId);
           span.setAttribute("observation_count", input.observations.length);
 
-          return getEventBatchIO({
+          const batchIO = await getEventBatchIO({
             projectId: ctx.session.projectId,
             observations: input.observations,
             minStartTime: input.minStartTime,
             maxStartTime: input.maxStartTime,
             truncated: input.truncated,
           });
+
+          return batchIO.map(toDomainWithStringifiedMetadata);
         },
       );
     }),
