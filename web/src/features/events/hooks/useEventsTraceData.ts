@@ -14,7 +14,6 @@ import type { FullEventsObservations } from "@langfuse/shared/src/server";
 import {
   type WithStringifiedMetadata,
   toDomainArrayWithStringifiedMetadata,
-  parseStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
 import { partition } from "lodash";
 
@@ -147,7 +146,7 @@ export function useEventsTraceData(
         ? {
             input: rootIO.input,
             output: rootIO.output,
-            metadata: parseStringifiedMetadata(rootIO.metadata),
+            metadata: rootIO.metadata,
           }
         : undefined,
     });

@@ -1,4 +1,4 @@
-import { parseJsonPrioritised, type MetadataDomain } from "@langfuse/shared";
+import { type MetadataDomain } from "@langfuse/shared";
 
 /**
  * Metadata serialized as string for client-side consumption.
@@ -30,19 +30,6 @@ export const stringifyMetadata = (
   if (!metadata) return null;
   if (typeof metadata === "string") return metadata;
   return JSON.stringify(metadata);
-};
-
-export const parseStringifiedMetadata = (
-  metadata: MetadataDomain | MetadataDomainClient | null | undefined,
-): MetadataDomain | null => {
-  if (!metadata) return null;
-  if (typeof metadata !== "string") return metadata;
-
-  const parsed = parseJsonPrioritised(metadata);
-
-  return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-    ? (parsed as MetadataDomain)
-    : null;
 };
 
 /**
