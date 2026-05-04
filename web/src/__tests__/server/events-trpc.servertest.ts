@@ -4,7 +4,20 @@ import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
+import type * as EventsService from "@/src/features/events/server/eventsService";
+import { getEventBatchIO } from "@/src/features/events/server/eventsService";
+
+vi.mock(
+  "@/src/features/events/server/eventsService",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof EventsService>();
+
+    return {
+      ...actual,
+      getEventBatchIO: vi.fn(),
+    };
+  },
+);
 
 describe("events trpc", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -51,17 +64,16 @@ describe("events trpc", () => {
       const observationId = randomUUID();
       const startTime = new Date();
 
-      await createEventsCh([
-        createEvent({
+      vi.mocked(getEventBatchIO).mockResolvedValueOnce([
+        {
           id: observationId,
-          span_id: observationId,
-          trace_id: traceId,
-          project_id: projectId,
-          start_time: startTime.getTime() * 1000,
-          end_time: startTime.getTime() * 1000,
-          metadata_names: ["prototype", "safeKey"],
-          metadata_values: ["test", "safe-value"],
-        }),
+          input: { input: "value" },
+          output: null,
+          metadata: {
+            prototype: "test",
+            safeKey: "safe-value",
+          },
+        },
       ]);
 
       const result = await caller.events.batchIO({
