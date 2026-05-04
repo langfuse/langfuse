@@ -14,7 +14,6 @@ import {
   mapLegacyUiTableFilterToView,
   getResultUnit,
 } from "@/src/features/query";
-import { latencyFormatter, usdFormatter } from "@/src/utils/numbers";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Select,
@@ -743,28 +742,6 @@ export function WidgetForm({
   const measureSupportsHistogram =
     validAggregationsForMeasure.includes("histogram") &&
     selectedMeasure !== "count";
-
-  const resultUnit = useMemo(
-    () =>
-      getResultUnit(
-        selectedView,
-        selectedMeasure,
-        selectedAggregation,
-        viewVersion,
-      ),
-    [selectedView, selectedMeasure, selectedAggregation, viewVersion],
-  );
-
-  const valueFormatter = useMemo(() => {
-    switch (resultUnit) {
-      case "millisecond":
-        return latencyFormatter;
-      case "USD":
-        return usdFormatter;
-      default:
-        return undefined;
-    }
-  }, [resultUnit]);
 
   // Sync aggregation and chart type when selections change
   useEffect(() => {
@@ -1989,10 +1966,22 @@ export function WidgetForm({
                         ? {
                             type: selectedChartType as DashboardWidgetChartType,
                             bins: histogramBins,
+                            unit: getResultUnit(
+                              selectedView,
+                              selectedMeasure,
+                              selectedAggregation,
+                              viewVersion,
+                            ),
                           }
                         : {
                             type: selectedChartType as DashboardWidgetChartType,
                             row_limit: rowLimit,
+                            unit: getResultUnit(
+                              selectedView,
+                              selectedMeasure,
+                              selectedAggregation,
+                              viewVersion,
+                            ),
                           }
                   }
                   sortState={
@@ -2002,7 +1991,6 @@ export function WidgetForm({
                   }
                   onSortChange={undefined}
                   isLoading={queryResult.isPending}
-                  valueFormatter={valueFormatter}
                 />
                 <ChartLoadingState
                   isLoading={chartLoadingState.isLoading}

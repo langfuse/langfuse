@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import { valueFormatter as valueFormatterByUnit } from "@/src/features/widgets/chart-library/utils";
 import { CardContent } from "@/src/components/ui/card";
 import LineChartTimeSeries from "@/src/features/widgets/chart-library/LineChartTimeSeries";
 import AreaChartTimeSeries from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
@@ -23,9 +24,9 @@ export const Chart = ({
   sortState,
   onSortChange,
   isLoading = false,
-  valueFormatter,
   legendPosition,
   overrideWarning = false,
+  valueFormatter: valueFormatterOverride,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -37,6 +38,7 @@ export const Chart = ({
     dimensions?: string[];
     metrics?: string[];
     units?: (string | undefined)[];
+    unit?: string | undefined;
     defaultSort?: OrderByState;
     show_value_labels?: boolean;
     show_data_point_dots?: boolean;
@@ -45,12 +47,16 @@ export const Chart = ({
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
-  valueFormatter?: (value: number) => string;
   legendPosition?: "above" | "none";
   overrideWarning?: boolean;
+  valueFormatter?: (value: number) => string;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
+
+  const valueFormatter =
+    valueFormatterOverride ??
+    ((v: number) => valueFormatterByUnit(v, chartConfig?.unit, true));
 
   const renderedData = useMemo(() => {
     return data.map((item) => {

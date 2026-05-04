@@ -7,7 +7,6 @@ import {
   mapLegacyUiTableFilterToView,
   getResultUnit,
 } from "@/src/features/query";
-import { latencyFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
@@ -229,28 +228,6 @@ export function DashboardWidget({
     setRetryCount((current) => current + 1);
   }, []);
 
-  const resultUnit = useMemo(
-    () =>
-      getResultUnit(
-        widget.data?.view ?? "",
-        widget.data?.metrics[0]?.measure ?? "",
-        widget.data?.metrics[0]?.agg,
-        metricsVersion,
-      ),
-    [widget.data?.view, widget.data?.metrics, metricsVersion],
-  );
-
-  const valueFormatter = useMemo(() => {
-    switch (resultUnit) {
-      case "millisecond":
-        return latencyFormatter;
-      case "USD":
-        return usdFormatter;
-      default:
-        return undefined;
-    }
-  }, [resultUnit]);
-
   const transformedData = useMemo(() => {
     if (!widget.data || !queryResult.data) {
       return [];
@@ -457,6 +434,14 @@ export function DashboardWidget({
                     ),
                   ),
                 }),
+                ...(widget.data.chartType !== "PIVOT_TABLE" && {
+                  unit: getResultUnit(
+                    widget.data.view,
+                    widget.data.metrics[0]?.measure ?? "",
+                    widget.data.metrics[0]?.agg,
+                    metricsVersion,
+                  ),
+                }),
               }}
               sortState={
                 widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
@@ -465,7 +450,6 @@ export function DashboardWidget({
                 widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
               }
               isLoading={queryResult.isPending}
-              valueFormatter={valueFormatter}
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}
