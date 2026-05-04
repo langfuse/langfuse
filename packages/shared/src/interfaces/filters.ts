@@ -53,10 +53,16 @@ export const arrayOptionsFilter = z
     value: z.array(z.string()),
     type: z.literal("arrayOptions"),
   })
-  .refine((data) => data.operator === "all of" || data.value.length > 0, {
-    message:
-      "Value array must not be empty unless operator is 'all of' (which represents waiting for selection)",
-  });
+  .refine(
+    (data) =>
+      data.operator === "all of" ||
+      data.operator === "none of" ||
+      data.value.length > 0,
+    {
+      message:
+        "Value array must not be empty unless operator is 'all of' or 'none of' (which represent waiting for selection)",
+    },
+  );
 export const stringObjectFilter = z.object({
   type: z.literal("stringObject"),
   column: z.string(),
@@ -95,7 +101,7 @@ export const positionInTraceFilter = z
     const needsValue = data.key === "nthFromEnd" || data.key === "nthFromStart";
     if (needsValue && (!data.value || data.value < 1)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "Position must be >= 1 for nth selection",
         path: ["value"],
       });

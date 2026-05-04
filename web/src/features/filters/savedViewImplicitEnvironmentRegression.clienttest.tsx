@@ -12,10 +12,10 @@ import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-enviro
 import type { FilterConfig } from "./lib/filter-config";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
 
-const mockUseRouter = jest.fn();
-const mockCapture = jest.fn();
-const mockGetDefaultUseQuery = jest.fn();
-const mockGetByIdUseQuery = jest.fn();
+const mockUseRouter = vi.fn();
+const mockCapture = vi.fn();
+const mockGetDefaultUseQuery = vi.fn();
+const mockGetByIdUseQuery = vi.fn();
 
 const queryParamStore = new Map<string, unknown>();
 
@@ -32,24 +32,24 @@ const hasDefaultValue = (value: unknown): value is { __default: unknown } =>
 const isMockViewQueryResult = (value: unknown): value is MockViewQueryResult =>
   typeof value === "object" && value !== null;
 
-jest.mock("next/router", () => ({
+vi.mock("next/router", () => ({
   useRouter: () => mockUseRouter(),
 }));
 
-jest.mock("posthog-js/react", () => ({
+vi.mock("posthog-js/react", () => ({
   usePostHog: () => ({
     capture: mockCapture,
   }),
 }));
 
-jest.mock(
+vi.mock(
   "../../components/table/table-view-presets/components/data-table-view-presets-drawer",
   () => ({
     isSystemPresetId: () => false,
   }),
 );
 
-jest.mock("../../utils/api", () => ({
+vi.mock("../../utils/api", () => ({
   api: {
     TableViewPresets: {
       getDefault: {
@@ -76,9 +76,9 @@ jest.mock("../../utils/api", () => ({
   },
 }));
 
-jest.mock("use-query-params", () => {
+vi.mock("use-query-params", async () => {
   const React = require("react");
-  const actual = jest.requireActual("use-query-params");
+  const actual = await vi.importActual("use-query-params");
 
   const StringParam = { __type: "string" } as const;
   const withDefault = (param: unknown, defaultValue: unknown) => ({
@@ -175,6 +175,8 @@ const TEST_OPTIONS = {
 
 function SavedViewHarness() {
   const queryFilter = useSidebarFilterState(TEST_FILTER_CONFIG, TEST_OPTIONS, {
+    stateLocation: "urlAndSessionStorage",
+    sessionFilterContextId: null,
     implicitDefaultConfig: {
       hiddenEnvironments: [...HIDDEN_ENVIRONMENTS],
     },
@@ -212,10 +214,8 @@ function SavedViewHarness() {
 
 function ViewSelectionHarness({
   tableName = TableViewPresetTableName.Traces,
-  viewPersistenceKey,
 }: {
   tableName?: TableViewPresetTableName;
-  viewPersistenceKey?: string;
 }) {
   const [appliedFilters, setAppliedFilters] = useState<FilterState>([]);
   const { selectedViewId, handleSetViewId } = useTableViewManager({
@@ -231,7 +231,6 @@ function ViewSelectionHarness({
       filterColumnDefinition: TEST_FILTER_CONFIG.columnDefinitions,
     },
     currentFilterState: appliedFilters,
-    viewPersistenceKey,
   });
 
   return (
@@ -257,7 +256,7 @@ describe("Saved view restore with implicit environment defaults", () => {
   let savedViewFilters: FilterState;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     sessionStorage.clear();
     queryParamStore.clear();
     savedViewFilters = OLD_SAVED_VIEW_FILTERS;
@@ -470,7 +469,7 @@ describe("Saved view restore with implicit environment defaults", () => {
     expect(queryParamStore.has("viewId")).toBe(false);
   });
 
-  it("does not restore a stored saved view from another mode's persistence key", async () => {
+  it("does not restore a stored saved view from another table namespace", async () => {
     queryParamStore.delete("viewId");
     mockUseRouter.mockReturnValue({
       isReady: true,
@@ -478,14 +477,13 @@ describe("Saved view restore with implicit environment defaults", () => {
     });
 
     sessionStorage.setItem(
-      "observations-v3-project-1-viewId",
+      "observations-project-1-viewId",
       JSON.stringify("view-1"),
     );
 
     render(
       <ViewSelectionHarness
-        tableName={TableViewPresetTableName.Observations}
-        viewPersistenceKey="observations-v4"
+        tableName={TableViewPresetTableName.ObservationsEvents}
       />,
     );
 

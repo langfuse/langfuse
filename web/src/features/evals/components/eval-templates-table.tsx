@@ -337,10 +337,9 @@ export default function EvalsTemplateTable({
           "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
         ],
       },
-      children: <PeekViewEvaluatorTemplateDetail projectId={projectId} />,
       ...peekNavigationProps,
     }),
-    [projectId, peekNavigationProps],
+    [peekNavigationProps],
   );
 
   const convertToTableRow = (
@@ -409,7 +408,9 @@ export default function EvalsTemplateTable({
           />
         </div>
       </div>
-      <TablePeekView peekView={peekConfig} />
+      <TablePeekView {...peekConfig}>
+        <PeekViewEvaluatorTemplateDetail projectId={projectId} />
+      </TablePeekView>
       <Dialog
         open={!!editTemplateId && template.isSuccess}
         onOpenChange={(open) => {

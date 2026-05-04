@@ -15,16 +15,16 @@ export const batchExportQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.BatchExport]>,
 ) => {
   try {
-    logger.info("Executing Batch Export Job", job.data.payload);
+    logger.info("[BATCH EXPORT] Executing Batch Export Job", job.data.payload);
     await handleBatchExportJob(job.data.payload);
 
-    logger.info("Finished Batch Export Job", job.data.payload);
+    logger.info("[BATCH EXPORT] Finished Batch Export Job", job.data.payload);
 
     return true;
   } catch (e) {
     if (e instanceof LangfuseNotFoundError) {
       logger.warn(
-        `Batch export ${job.data.payload.batchExportId} not found. Job will be skipped.`,
+        `[BATCH EXPORT] Batch export ${job.data.payload.batchExportId} not found. Job will be skipped.`,
       );
       return true;
     }
@@ -44,7 +44,7 @@ export const batchExportQueueProcessor = async (
     });
 
     logger.error(
-      `Failed Batch Export job for id ${job.data.payload.batchExportId} and project id ${job.data.payload.projectId}`,
+      `[BATCH EXPORT] Failed Batch Export job for id ${job.data.payload.batchExportId} and project id ${job.data.payload.projectId}`,
       e,
     );
     traceException(e);

@@ -65,7 +65,7 @@ export default function MixpanelIntegrationSettings() {
   );
 
   const status =
-    state.isInitialLoading || !hasAccess
+    state.isLoading || !hasAccess
       ? undefined
       : state.data?.enabled
         ? "active"

@@ -168,14 +168,14 @@ const formSchema = z
       switch (violation.type) {
         case "minimum_count":
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             message: getMinimumCategoricalCategoriesMessage(),
             path: ["categories"],
           });
           return;
         case "duplicate_value":
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             message: "Categories must be unique",
             path: ["categories", violation.index, "value"],
           });

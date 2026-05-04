@@ -139,6 +139,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     newFilterOptions,
     {
       loading: false,
+      stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
     },
   );
@@ -419,10 +420,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
         ],
       },
-      children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
       ...peekNavigationProps,
     }),
-    [projectId, peekNavigationProps],
+    [peekNavigationProps],
   );
 
   return (
@@ -518,7 +518,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             />
           </div>
         </ResizableFilterLayout>
-        <TablePeekView peekView={peekConfig} />
+        <TablePeekView {...peekConfig}>
+          <PeekViewEvaluatorConfigDetail projectId={projectId} />
+        </TablePeekView>
       </div>
       <Dialog
         open={!!editConfigId && existingEvaluator.isSuccess}

@@ -59,6 +59,19 @@ const PromptFilterOptions = z.object({
   searchType: z.array(TracingSearchType).optional(),
 });
 
+const promptMetricsTimeWindow = {
+  fromTimestamp: z.date().optional(),
+  toTimestamp: z.date().optional(),
+};
+
+const isValidPromptMetricsTimeWindow = ({
+  fromTimestamp,
+  toTimestamp,
+}: {
+  fromTimestamp?: Date;
+  toTimestamp?: Date;
+}) => !fromTimestamp || !toTimestamp || fromTimestamp < toTimestamp;
+
 export const promptRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
     .input(
@@ -236,16 +249,24 @@ export const promptRouter = createTRPCRouter({
     }),
   metrics: protectedProjectProcedure
     .input(
-      z.object({
-        projectId: z.string(),
-        promptNames: z.array(z.string()),
-      }),
+      z
+        .object({
+          projectId: z.string(),
+          promptNames: z.array(z.string()),
+          ...promptMetricsTimeWindow,
+        })
+        .refine(isValidPromptMetricsTimeWindow, {
+          message: "fromTimestamp must be before toTimestamp",
+        }),
     )
     .query(async ({ input }) => {
-      if (input.promptNames.length === 0) return [];
+      const { projectId, promptNames, ...timeWindow } = input;
+      if (promptNames.length === 0) return [];
+
       const res = await getObservationsWithPromptName(
-        input.projectId,
-        input.promptNames,
+        projectId,
+        promptNames,
+        timeWindow,
       );
       return res.map(({ promptName, count }) => ({
         promptName,
@@ -1213,22 +1234,29 @@ export const promptRouter = createTRPCRouter({
     }),
   versionMetrics: protectedProjectProcedure
     .input(
-      z.object({
-        projectId: z.string(),
-        promptIds: z.array(z.string()),
-      }),
+      z
+        .object({
+          projectId: z.string(),
+          promptIds: z.array(z.string()),
+          ...promptMetricsTimeWindow,
+        })
+        .refine(isValidPromptMetricsTimeWindow, {
+          message: "fromTimestamp must be before toTimestamp",
+        }),
     )
     .query(async ({ input, ctx }) => {
+      const { projectId, promptIds, ...timeWindow } = input;
+
       throwIfNoProjectAccess({
         session: ctx.session,
-        projectId: input.projectId,
+        projectId,
         scope: "prompts:read",
       });
 
       const [observations, observationScores, traceScores] = await Promise.all([
-        getObservationMetricsForPrompts(input.projectId, input.promptIds),
-        getScoresForPromptIds(input.projectId, input.promptIds, "observation"),
-        getScoresForPromptIds(input.projectId, input.promptIds, "trace"),
+        getObservationMetricsForPrompts(projectId, promptIds, timeWindow),
+        getScoresForPromptIds(projectId, promptIds, "observation", timeWindow),
+        getScoresForPromptIds(projectId, promptIds, "trace", timeWindow),
       ]);
 
       return observations.map((r) => {
@@ -1426,11 +1454,16 @@ const getScoresForPromptIds = async (
   projectId: string,
   promptIds: string[],
   fetchScoreRelation: "observation" | "trace",
+  timeWindow: {
+    fromTimestamp?: Date;
+    toTimestamp?: Date;
+  } = {},
 ) => {
   const scores = await getAggregatedScoresForPrompts(
     projectId,
     promptIds,
     fetchScoreRelation,
+    timeWindow,
   );
 
   return promptIds.map((promptId) => {

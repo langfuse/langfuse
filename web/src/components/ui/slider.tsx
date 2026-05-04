@@ -16,7 +16,7 @@ export interface SliderProps extends React.ComponentPropsWithoutRef<
 }
 
 const Slider = React.forwardRef<
-  React.ElementRef<typeof SliderPrimitive.Root>,
+  React.ComponentRef<typeof SliderPrimitive.Root>,
   SliderProps
 >(
   (

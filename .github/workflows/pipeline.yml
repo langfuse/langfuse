@@ -30,10 +30,28 @@ jobs:
       contents: read
       pull-requests: read
     steps:
+      # Replaces fkirc/skip-duplicate-actions — skips runs whose git tree
+      # was already tested in a prior successful run of this workflow.
       - id: skip_check
-        uses: fkirc/skip-duplicate-actions@f75f66ce1886f00957d99748a42c724f4330bdcf # v5
-        with:
-          do_not_skip: '["workflow_dispatch"]'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CURRENT_TREE=$(gh api "repos/${{ github.repository }}/git/commits/${{ github.sha }}" --jq '.tree.sha')
+
+          MATCH=$(gh api "repos/${{ github.repository }}/actions/workflows/pipeline.yml/runs?status=success&per_page=20" \
+            --jq "[.workflow_runs[] | select(.id != ${{ github.run_id }} and .head_commit.tree_id == \"$CURRENT_TREE\")] | first | .head_sha // empty")
+
+          if [[ -n "$MATCH" ]]; then
+            echo "::notice::Tree $CURRENT_TREE already tested in a prior successful run (commit $MATCH) — skipping"
+            echo "should_skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Recommended for paths-filter action
@@ -82,6 +100,8 @@ jobs:
           cp .env.dev.example .env
       - name: lint web
         run: pnpm run lint
+      - name: typecheck
+        run: pnpm run typecheck
 
   prettier-check:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -199,20 +219,22 @@ jobs:
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }}, shard${{ matrix.shard }}/3)
+    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
         node-version: [24]
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
-        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -240,9 +262,11 @@ jobs:
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
           echo "LANGFUSE_CACHE_PROMPT_ENABLED=false" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
+          echo "LANGFUSE_TRACE_DELETE_DELAY_MS=1" >> .env
           echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100" >> .env
           echo "ADMIN_API_KEY=admin-api-key" >> .env
           echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test" >> .env
+          echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true" >> .env
       - name: Setup Turbo cache
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4 # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
@@ -288,6 +312,9 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -303,11 +330,11 @@ jobs:
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
         working-directory: web
-        run: npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects server --shard=${{ matrix.shard }}/3
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server
       - name: run test-client
-        if: matrix.deploy-mode == '' && matrix.shard == 1
+        if: matrix.deploy-mode == ''
         working-directory: web
-        run: npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects client
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project client
 
   tests-worker:
     timeout-minutes: 20
@@ -345,7 +372,10 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -418,7 +448,10 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -512,7 +545,10 @@ jobs:
           cp .env.dev.example web/.env
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Run + migrate
@@ -536,8 +572,11 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Install playwright
-        run: pnpm --filter=web exec playwright install --with-deps
+        run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
 
@@ -569,7 +608,10 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -596,6 +638,9 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Run server
         run: (pnpm run start&)
       - name: Check worker health
@@ -642,13 +687,53 @@ jobs:
         run: exit 1
         working-directory: .
       - name: Notify Slack
-        uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2
-        if: always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
         with:
-          status: ${{ job.status }}
-          notify_when: "failure"
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "❌ CI failed on ${{ github.ref_name }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "❌ CI Failed",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch/Tag:*\n`${{ github.ref_name }}`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Triggered by:*\n${{ github.actor }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow Logs",
+                        "emoji": true
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                      "style": "danger"
+                    }
+                  ]
+                }
+              ]
+            }
       - name: Output job results
         run: |
           echo "Job results: ${STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS}"
@@ -712,7 +797,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Setup Blacksmith Builder
-        uses: useblacksmith/setup-docker-builder@5241b2e9423e8b1fa37ed6050ecb62d0fb9a4e38 # v1
+        uses: useblacksmith/setup-docker-builder@5241b2e9423e8b1fa37ed6050ecb62d0fb9a4e38 # v1.6.0
       - name: Extract metadata (labels) for Docker
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
@@ -732,7 +817,7 @@ jobs:
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
       - name: Build and push image by digest to GitHub Container Registry (${{ matrix.component }}, ${{ matrix.platform_tag }})
         id: build-ghcr
-        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
+        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2.1.0
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -743,7 +828,7 @@ jobs:
           sbom: false
       - name: Build and push image by digest to Docker Hub (${{ matrix.component }}, ${{ matrix.platform_tag }})
         id: build-dockerhub
-        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
+        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2.1.0
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -806,7 +891,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Setup Blacksmith Builder
-        uses: useblacksmith/setup-docker-builder@5241b2e9423e8b1fa37ed6050ecb62d0fb9a4e38 # v1
+        uses: useblacksmith/setup-docker-builder@5241b2e9423e8b1fa37ed6050ecb62d0fb9a4e38 # v1.6.0
       - name: Download release digests
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -921,10 +1006,50 @@ jobs:
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
       - name: Notify Slack
-        uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2
-        if: always()
+        if: failure()
+        uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
         with:
-          status: ${{ job.status }}
-          notify_when: "failure"
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "❌ Docker release failed on ${{ github.ref_name }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "❌ Docker Release Failed",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Tag:*\n`${{ github.ref_name }}`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Triggered by:*\n${{ github.actor }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow Logs",
+                        "emoji": true
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                      "style": "danger"
+                    }
+                  ]
+                }
+              ]
+            }

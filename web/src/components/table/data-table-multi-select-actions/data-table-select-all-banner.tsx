@@ -12,7 +12,7 @@ export function DataTableSelectAllBanner({
   const totalPages = totalCount ? Math.ceil(totalCount / pageSize) : 0;
 
   return (
-    <div className="bg-input @container mb-2 flex flex-wrap items-center justify-center gap-2 rounded-sm p-2">
+    <div className="bg-light-blue/40 dark:bg-light-blue/50 @container mb-2 flex flex-wrap items-center justify-center gap-2 rounded-sm p-2">
       {selectAll ? (
         <span className="text-sm">
           All{" "}

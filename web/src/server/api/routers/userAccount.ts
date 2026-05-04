@@ -133,7 +133,10 @@ export const userAccountRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const isCloudDeployment = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-      if (!isCloudDeployment) {
+      if (
+        !isCloudDeployment &&
+        process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
+      ) {
         return {
           success: true,
           v4BetaEnabled: false,

@@ -7,8 +7,9 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
-  compilePersistedEvalOutputDefinition,
   ZodModelConfig,
+  PersistedEvalOutputDefinitionSchema,
+  compilePersistedEvalOutputDefinition,
   deriveEvaluatorDisplayStateFromExecutionCounts,
   type OrderByState,
   singleFilter,
@@ -25,7 +26,7 @@ import {
   orderBy,
   jsonSchema,
   EvalTargetObject,
-  PersistedEvalOutputDefinitionSchema,
+  EvalTargetObjectSchema,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -60,13 +61,24 @@ import {
   selectDatasetEvaluatorsForStatusChange,
   shouldValidateBeforeActivation,
 } from "@/src/features/evals/server/evalConfigState";
+import {
+  EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
+  JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+} from "@/src/features/evals/server/audit-log-resource-types";
+import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
+
+// Filter columns that used to be backed by the Postgres `traces` and
+// `scores` JOINs.  Those tables now live in ClickHouse, so the eval logs
+// query can no longer resolve them.  Filters referencing these columns are
+// dropped server-side to keep bookmarked URLs from failing.
+const DEPRECATED_FILTER_COLUMNS = new Set(["scoreValue", "sessionId"]);
 
 const ConfigWithTemplateSchema = z.object({
   id: z.string(),
   projectId: z.string(),
   evalTemplateId: z.string(),
   scoreName: z.string(),
-  targetObject: z.string(),
+  targetObject: EvalTargetObjectSchema,
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   // Accept either full variableMapping (trace/dataset) or simplified observationVariableMapping (event/experiment)
   variableMapping: z.union([
@@ -145,7 +157,7 @@ const CreateEvalJobSchema = z.object({
   projectId: z.string(),
   evalTemplateId: z.string(),
   scoreName: z.string().min(1),
-  target: z.string(), // should be z.enum(["trace", "dataset-run-item"])
+  target: EvalTargetObjectSchema,
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   // Accept either full variableMapping (trace/dataset) or simplified observationVariableMapping (event/experiment)
   mapping: z.union([
@@ -171,6 +183,32 @@ const UpdateEvalJobSchema = z.object({
   timeScope: z.array(JobTimeScopeZod).optional(),
 });
 
+const validateVariableMappingForTarget = ({
+  targetObject,
+  mapping,
+}: {
+  targetObject: string;
+  mapping: unknown;
+}) => {
+  const result =
+    targetObject === EvalTargetObject.EVENT ||
+    targetObject === EvalTargetObject.EXPERIMENT
+      ? z.array(observationVariableMapping).safeParse(mapping)
+      : targetObject === EvalTargetObject.TRACE ||
+          targetObject === EvalTargetObject.DATASET
+        ? z.array(variableMapping).safeParse(mapping)
+        : null;
+
+  if (!result?.success) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Variable mapping does not match evaluator target.",
+    });
+  }
+
+  return result.data;
+};
+
 const validateEvalTemplateCanRun = async ({
   prisma,
   projectId,
@@ -194,40 +232,21 @@ const validateEvalTemplateCanRun = async ({
     });
   }
 
-  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+  const error = await getEvaluatorDefinitionPreflightError({
     projectId,
-    template.provider ?? undefined,
-    template.model ?? undefined,
-    template.modelParams,
-  );
+    template: {
+      name: template.name,
+      provider: template.provider,
+      model: template.model,
+      modelParams: template.modelParams,
+      outputDefinition: template.outputDefinition,
+    },
+  });
 
-  if (!modelConfig.valid) {
+  if (error) {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
-      message: `No valid LLM model found for evaluator "${template.name}". ${modelConfig.error}`,
-    });
-  }
-
-  try {
-    const parsedOutputDefinition = PersistedEvalOutputDefinitionSchema.parse(
-      template.outputDefinition,
-    );
-    const compiledOutputDefinition = compilePersistedEvalOutputDefinition(
-      parsedOutputDefinition,
-    );
-
-    await testModelCall({
-      provider: modelConfig.config.provider,
-      model: modelConfig.config.model,
-      apiKey: modelConfig.config.apiKey,
-      modelConfig: modelConfig.config.modelParams,
-      structuredOutputSchema: compiledOutputDefinition.outputResultSchema,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: `Model configuration not valid for evaluator "${template.name}". ${message}`,
+      message: error,
     });
   }
 };
@@ -743,10 +762,15 @@ export const evalRouter = createTRPCRouter({
         throw new Error("Template not found");
       }
 
+      const variableMappingForTarget = validateVariableMappingForTarget({
+        targetObject: input.target,
+        mapping: input.mapping,
+      });
+
       const jobId = uuidv4();
       await auditLog({
         session: ctx.session,
-        resourceType: "job",
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
         resourceId: jobId,
         action: "create",
       });
@@ -760,7 +784,7 @@ export const evalRouter = createTRPCRouter({
           scoreName: input.scoreName,
           targetObject: input.target,
           filter: input.filter ?? [],
-          variableMapping: input.mapping,
+          variableMapping: variableMappingForTarget,
           sampling: input.sampling,
           delay: input.delay,
           status: input.status,
@@ -984,7 +1008,7 @@ export const evalRouter = createTRPCRouter({
 
         await auditLog({
           session: ctx.session,
-          resourceType: "evalTemplate",
+          resourceType: EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
           resourceId: evalTemplate.id,
           action: "create",
         });
@@ -1150,9 +1174,21 @@ export const evalRouter = createTRPCRouter({
         });
       }
 
+      const validatedConfig = {
+        ...config,
+        ...(config.variableMapping !== undefined
+          ? {
+              variableMapping: validateVariableMappingForTarget({
+                targetObject: existingJob.targetObject,
+                mapping: config.variableMapping,
+              }),
+            }
+          : {}),
+      };
+
       await auditLog({
         session: ctx.session,
-        resourceType: "job",
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
         resourceId: evalConfigId,
         action: "update",
       });
@@ -1179,8 +1215,10 @@ export const evalRouter = createTRPCRouter({
       }
 
       const updatedConfig = {
-        ...config,
-        ...(config.status !== undefined ? resetEvalConfigBlockFields : {}),
+        ...validatedConfig,
+        ...(validatedConfig.status !== undefined
+          ? resetEvalConfigBlockFields
+          : {}),
       };
 
       const updatedJob = await ctx.prisma.jobConfiguration.update({
@@ -1267,7 +1305,7 @@ export const evalRouter = createTRPCRouter({
 
       await auditLog({
         session: ctx.session,
-        resourceType: "job",
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
         resourceId: evalConfigId,
         action: "delete",
       });
@@ -1346,8 +1384,15 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJobExecution:read",
       });
 
+      // Strip deprecated filters — these columns were removed from the UI
+      // because they required traces/scores data that no longer lives in
+      // Postgres, but bookmarked URLs may still include them.
+      const filters = input.filter.filter(
+        (f) => !DEPRECATED_FILTER_COLUMNS.has(f.column),
+      );
+
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        input.filter,
+        filters,
         evalExecutionsFilterCols,
         "job_executions",
       );
@@ -1366,7 +1411,7 @@ export const evalRouter = createTRPCRouter({
               | "jobConfigurationId"
               | "executionTraceId"
               | "error"
-            > & { sessionId: string | null }
+            >
           >
         >(
           generateExecutionsQuery(
@@ -1379,8 +1424,7 @@ export const evalRouter = createTRPCRouter({
             je.job_template_id as "jobTemplateId",
             je.job_configuration_id as "jobConfigurationId",
             je.execution_trace_id as "executionTraceId",
-            je.error,
-            t.session_id as "sessionId"
+            je.error
             `,
             input.projectId,
             filterCondition,
@@ -1603,8 +1647,6 @@ const generateExecutionsQuery = (
   SELECT
    ${select}
    FROM job_executions je
-   LEFT JOIN traces t ON je.job_input_trace_id = t.id AND je.project_id = t.project_id
-   LEFT JOIN scores s ON je.job_output_score_id = s.id AND je.project_id = s.project_id
    WHERE je.project_id = ${projectId}
    ${filterCondition}
    AND je.status != 'CANCELLED'

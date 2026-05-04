@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
@@ -403,6 +401,54 @@ describe("evals trpc", () => {
     });
   });
 
+  describe("evals.createJob", () => {
+    it("rejects observation-only variable mappings for trace evaluators", async () => {
+      const { project, caller } = await prepare();
+
+      const evalTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "trace-template",
+          version: 1,
+          prompt: "Score this response",
+          outputDefinition: createNumericEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription: "How good",
+          }),
+        },
+      });
+
+      await expect(
+        caller.evals.createJob({
+          projectId: project.id,
+          evalTemplateId: evalTemplate.id,
+          scoreName: "bad-trace-score",
+          target: EvalTargetObject.TRACE,
+          filter: [],
+          mapping: [
+            {
+              templateVariable: "input",
+              selectedColumnId: "input",
+              jsonSelector: null,
+            },
+          ],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+        }),
+      ).rejects.toThrow("Variable mapping does not match evaluator target.");
+
+      await expect(
+        prisma.jobConfiguration.findFirst({
+          where: {
+            projectId: project.id,
+            scoreName: "bad-trace-score",
+          },
+        }),
+      ).resolves.toBeNull();
+    });
+  });
+
   describe("evals.updateConfig", () => {
     it("should update an evaluator configuration", async () => {
       const { project, caller } = await prepare();
@@ -444,6 +490,59 @@ describe("evals trpc", () => {
       expect(updatedJob?.id).toEqual(evalJobConfig.id);
       expect(updatedJob?.status).toEqual("INACTIVE");
       expect(updatedJob?.timeScope).toEqual(["NEW"]);
+    });
+
+    it("rejects observation-only variable mapping updates for trace evaluators", async () => {
+      const { project, caller } = await prepare();
+
+      const traceVariableMapping = [
+        {
+          templateVariable: "input",
+          objectName: null,
+          langfuseObject: "trace",
+          selectedColumnId: "input",
+          jsonSelector: null,
+        },
+      ];
+
+      const evalJobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: traceVariableMapping,
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          timeScope: ["NEW"],
+        },
+      });
+
+      await expect(
+        caller.evals.updateEvalJob({
+          projectId: project.id,
+          evalConfigId: evalJobConfig.id,
+          config: {
+            variableMapping: [
+              {
+                templateVariable: "input",
+                selectedColumnId: "input",
+                jsonSelector: null,
+              },
+            ],
+          },
+        }),
+      ).rejects.toThrow("Variable mapping does not match evaluator target.");
+
+      const unchangedJob = await prisma.jobConfiguration.findUnique({
+        where: {
+          id: evalJobConfig.id,
+        },
+      });
+
+      expect(unchangedJob?.variableMapping).toEqual(traceVariableMapping);
     });
 
     it("when the evaluator ran on existing traces, time scope cannot be changed to NEW only", async () => {

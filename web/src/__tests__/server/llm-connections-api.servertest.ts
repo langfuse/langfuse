@@ -1,11 +1,10 @@
-/** @jest-environment node */
-
 import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
 import {
+  DeleteLlmConnectionV1Response,
   GetLlmConnectionsV1Response,
   PutLlmConnectionV1Response,
 } from "@/src/features/public-api/types/llm-connections";
@@ -15,7 +14,35 @@ import { encrypt } from "@langfuse/shared/encryption";
 
 // Generate truly unique provider names for tests to avoid conflicts
 const generateUniqueProvider = (baseName: string) =>
-  `${baseName}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  `${baseName}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+
+// Use public IP literals for happy-path baseURL tests so these API tests do
+// not depend on external DNS. DNS/SSRF behavior is covered by focused
+// baseUrlValidation tests.
+const TEST_PUBLIC_LLM_BASE_URL = "https://1.1.1.1/v1";
+const TEST_UPDATED_PUBLIC_LLM_BASE_URL = "https://1.1.1.1/v2";
+const TEST_CUSTOM_PUBLIC_LLM_BASE_URL = "https://1.1.1.1/custom/v1";
+const TEST_SCHEMA_PUBLIC_LLM_BASE_URL = "https://1.1.1.1/schema/v1";
+
+const BEDROCK_AWS_CREDENTIALS = {
+  accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+  secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+};
+const BEDROCK_API_KEY_CREDENTIALS = { apiKey: "bedrock-api-key-1234" };
+const BEDROCK_REGION_CONFIG = { region: "us-east-1" };
+const VERTEX_AI_CREDENTIALS = {
+  type: "service_account",
+  project_id: "test-project",
+  private_key_id: "key123",
+  private_key: "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----",
+  client_email: "test@test-project.iam.gserviceaccount.com",
+  client_id: "123456789",
+  auth_uri: "https://accounts.google.com/o/oauth2/auth",
+  token_uri: "https://oauth2.googleapis.com/token",
+  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+  client_x509_cert_url:
+    "https://www.googleapis.com/robot/v1/metadata/x509/test",
+};
 
 describe("/api/public/llm-connections API Endpoints", () => {
   let auth: string;
@@ -60,7 +87,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
           adapter: LLMAdapter.OpenAI,
           secretKey: encrypt("sk-test1"),
           displaySecretKey: "...est1",
-          baseURL: "https://api.openai.com/v1",
+          baseURL: TEST_PUBLIC_LLM_BASE_URL,
           customModels: ["gpt-4", "gpt-3.5-turbo"],
           withDefaultModels: true,
           extraHeaders: encrypt(JSON.stringify({ "X-Custom": "header1" })),
@@ -117,7 +144,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(secondConnection.provider).toBe(provider1);
       expect(secondConnection.adapter).toBe(LLMAdapter.OpenAI);
       expect(secondConnection.displaySecretKey).toBe("...est1");
-      expect(secondConnection.baseURL).toBe("https://api.openai.com/v1");
+      expect(secondConnection.baseURL).toBe(TEST_PUBLIC_LLM_BASE_URL);
       expect(secondConnection.customModels).toEqual(["gpt-4", "gpt-3.5-turbo"]);
       expect(secondConnection.withDefaultModels).toBe(true);
       expect(secondConnection.extraHeaderKeys).toEqual(["X-Custom"]);
@@ -212,22 +239,22 @@ describe("/api/public/llm-connections API Endpoints", () => {
     });
 
     it("should return 400 for invalid query parameters", async () => {
-      // Test negative page
-      const negativePageResponse = await makeAPICall(
-        "GET",
-        "/api/public/llm-connections?page=-1&limit=10",
-        undefined,
-        auth,
-      );
-      expect(negativePageResponse.status).toBe(400);
+      const [negativePageResponse, negativeLimitResponse] = await Promise.all([
+        makeAPICall(
+          "GET",
+          "/api/public/llm-connections?page=-1&limit=10",
+          undefined,
+          auth,
+        ),
+        makeAPICall(
+          "GET",
+          "/api/public/llm-connections?page=1&limit=-1",
+          undefined,
+          auth,
+        ),
+      ]);
 
-      // Test negative limit
-      const negativeLimitResponse = await makeAPICall(
-        "GET",
-        "/api/public/llm-connections?page=1&limit=-1",
-        undefined,
-        auth,
-      );
+      expect(negativePageResponse.status).toBe(400);
       expect(negativeLimitResponse.status).toBe(400);
     });
 
@@ -283,7 +310,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
         provider: generateUniqueProvider("openai"),
         adapter: LLMAdapter.OpenAI,
         secretKey: "sk-test123",
-        baseURL: "https://api.openai.com/v1",
+        baseURL: TEST_PUBLIC_LLM_BASE_URL,
         customModels: ["gpt-4", "gpt-3.5-turbo"],
         withDefaultModels: true,
         extraHeaders: {
@@ -304,7 +331,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(response.body.provider).toBe(createData.provider);
       expect(response.body.adapter).toBe(LLMAdapter.OpenAI);
       expect(response.body.displaySecretKey).toBe("...t123");
-      expect(response.body.baseURL).toBe("https://api.openai.com/v1");
+      expect(response.body.baseURL).toBe(TEST_PUBLIC_LLM_BASE_URL);
       expect(response.body.customModels).toEqual(["gpt-4", "gpt-3.5-turbo"]);
       expect(response.body.withDefaultModels).toBe(true);
       expect(response.body.extraHeaderKeys).toEqual(["X-Custom"]);
@@ -384,7 +411,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
           adapter: LLMAdapter.OpenAI,
           secretKey: encrypt("sk-original"),
           displaySecretKey: "...nal",
-          baseURL: "https://original.com",
+          baseURL: TEST_PUBLIC_LLM_BASE_URL,
           customModels: ["gpt-3.5"],
           withDefaultModels: true,
         },
@@ -395,7 +422,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
         provider: existingProvider,
         adapter: LLMAdapter.Anthropic, // Changed adapter
         secretKey: "sk-updated",
-        baseURL: "https://updated.com",
+        baseURL: TEST_UPDATED_PUBLIC_LLM_BASE_URL,
         customModels: ["claude-3"],
         withDefaultModels: false,
       };
@@ -414,7 +441,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(response.body.provider).toBe(existingProvider);
       expect(response.body.adapter).toBe(LLMAdapter.Anthropic); // Updated
       expect(response.body.displaySecretKey).toBe("...ated"); // Updated
-      expect(response.body.baseURL).toBe("https://updated.com"); // Updated
+      expect(response.body.baseURL).toBe(TEST_UPDATED_PUBLIC_LLM_BASE_URL); // Updated
       expect(response.body.customModels).toEqual(["claude-3"]); // Updated
       expect(response.body.withDefaultModels).toBe(false); // Updated
     });
@@ -437,82 +464,71 @@ describe("/api/public/llm-connections API Endpoints", () => {
     });
 
     it("should return 400 for invalid request body", async () => {
-      // Test empty provider
-      const emptyProviderResponse = await makeAPICall(
-        "PUT",
-        "/api/public/llm-connections",
-        {
-          provider: "",
-          adapter: LLMAdapter.OpenAI,
-          secretKey: "sk-test",
-        },
-        auth,
-      );
-      expect(emptyProviderResponse.status).toBe(400);
+      const responses = await Promise.all([
+        makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: "",
+            adapter: LLMAdapter.OpenAI,
+            secretKey: "sk-test",
+          },
+          auth,
+        ),
+        makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            adapter: LLMAdapter.OpenAI,
+            secretKey: "sk-test",
+          },
+          auth,
+        ),
+        makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: generateUniqueProvider("test-provider-missing-adapter"),
+            secretKey: "sk-test",
+          },
+          auth,
+        ),
+        makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: generateUniqueProvider("test-provider-empty-secret"),
+            adapter: LLMAdapter.OpenAI,
+            secretKey: "",
+          },
+          auth,
+        ),
+        makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: generateUniqueProvider("test-provider-invalid-url"),
+            adapter: LLMAdapter.OpenAI,
+            secretKey: "sk-test",
+            baseURL: "not-a-valid-url",
+          },
+          auth,
+        ),
+        makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: generateUniqueProvider("test-provider-invalid-adapter"),
+            adapter: "invalid-adapter",
+            secretKey: "sk-test",
+          },
+          auth,
+        ),
+      ]);
 
-      // Test missing provider
-      const missingProviderResponse = await makeAPICall(
-        "PUT",
-        "/api/public/llm-connections",
-        {
-          adapter: LLMAdapter.OpenAI,
-          secretKey: "sk-test",
-        },
-        auth,
-      );
-      expect(missingProviderResponse.status).toBe(400);
-
-      // Test missing adapter
-      const missingAdapterResponse = await makeAPICall(
-        "PUT",
-        "/api/public/llm-connections",
-        {
-          provider: generateUniqueProvider("test-provider-missing-adapter"),
-          secretKey: "sk-test",
-        },
-        auth,
-      );
-      expect(missingAdapterResponse.status).toBe(400);
-
-      // Test empty secretKey
-      const emptySecretResponse = await makeAPICall(
-        "PUT",
-        "/api/public/llm-connections",
-        {
-          provider: generateUniqueProvider("test-provider-empty-secret"),
-          adapter: LLMAdapter.OpenAI,
-          secretKey: "",
-        },
-        auth,
-      );
-      expect(emptySecretResponse.status).toBe(400);
-
-      // Test invalid baseURL
-      const invalidUrlResponse = await makeAPICall(
-        "PUT",
-        "/api/public/llm-connections",
-        {
-          provider: generateUniqueProvider("test-provider-invalid-url"),
-          adapter: LLMAdapter.OpenAI,
-          secretKey: "sk-test",
-          baseURL: "not-a-valid-url",
-        },
-        auth,
-      );
-      expect(invalidUrlResponse.status).toBe(400);
-
-      // Test invalid adapter enum
-      const invalidAdapterResponse = await makeAPICall(
-        "PUT",
-        "/api/public/llm-connections",
-        {
-          provider: generateUniqueProvider("test-provider-invalid-adapter"),
-          adapter: "invalid-adapter",
-          secretKey: "sk-test",
-        },
-        auth,
-      );
-      expect(invalidAdapterResponse.status).toBe(400);
+      for (const response of responses) {
+        expect(response.status).toBe(400);
+      }
     });
 
     it("should handle all LLM adapter types", async () => {
@@ -536,20 +552,24 @@ describe("/api/public/llm-connections API Endpoints", () => {
         },
       ];
 
-      for (const { adapter, provider } of adaptersWithoutConfig) {
-        const response = await makeZodVerifiedAPICall(
-          PutLlmConnectionV1Response,
-          "PUT",
-          "/api/public/llm-connections",
-          {
-            provider,
-            adapter,
-            secretKey: `sk-${provider}-test`,
-          },
-          auth,
-          201,
-        );
+      const adapterResponses = await Promise.all(
+        adaptersWithoutConfig.map(({ adapter, provider }) =>
+          makeZodVerifiedAPICall(
+            PutLlmConnectionV1Response,
+            "PUT",
+            "/api/public/llm-connections",
+            {
+              provider,
+              adapter,
+              secretKey: `sk-${provider}-test`,
+            },
+            auth,
+            201,
+          ).then((response) => ({ adapter, provider, response })),
+        ),
+      );
 
+      for (const { adapter, provider, response } of adapterResponses) {
         expect(response.status).toBe(201);
         expect(response.body.adapter).toBe(adapter);
         expect(response.body.provider).toBe(provider);
@@ -564,11 +584,8 @@ describe("/api/public/llm-connections API Endpoints", () => {
         {
           provider: generateUniqueProvider("test-bedrock"),
           adapter: LLMAdapter.Bedrock,
-          secretKey: JSON.stringify({
-            accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-            secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-          }),
-          config: { region: "us-east-1" },
+          secretKey: JSON.stringify(BEDROCK_AWS_CREDENTIALS),
+          config: BEDROCK_REGION_CONFIG,
         },
         auth,
         201,
@@ -584,8 +601,8 @@ describe("/api/public/llm-connections API Endpoints", () => {
         {
           provider: generateUniqueProvider("test-bedrock-api-key"),
           adapter: LLMAdapter.Bedrock,
-          secretKey: JSON.stringify({ apiKey: "bedrock-api-key-1234" }),
-          config: { region: "us-east-1" },
+          secretKey: JSON.stringify(BEDROCK_API_KEY_CREDENTIALS),
+          config: BEDROCK_REGION_CONFIG,
         },
         auth,
         201,
@@ -605,21 +622,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
         {
           provider: generateUniqueProvider("test-vertex"),
           adapter: LLMAdapter.VertexAI,
-          secretKey: JSON.stringify({
-            type: "service_account",
-            project_id: "test-project",
-            private_key_id: "key123",
-            private_key:
-              "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----",
-            client_email: "test@test-project.iam.gserviceaccount.com",
-            client_id: "123456789",
-            auth_uri: "https://accounts.google.com/o/oauth2/auth",
-            token_uri: "https://oauth2.googleapis.com/token",
-            auth_provider_x509_cert_url:
-              "https://www.googleapis.com/oauth2/v1/certs",
-            client_x509_cert_url:
-              "https://www.googleapis.com/robot/v1/metadata/x509/test",
-          }),
+          secretKey: JSON.stringify(VERTEX_AI_CREDENTIALS),
         },
         auth,
         201,
@@ -639,7 +642,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
           provider: generateUniqueProvider("full-test"),
           adapter: LLMAdapter.OpenAI,
           secretKey: "sk-full-test",
-          baseURL: "https://custom.api.com/v1",
+          baseURL: TEST_CUSTOM_PUBLIC_LLM_BASE_URL,
           customModels: ["custom-model-1", "custom-model-2"],
           withDefaultModels: false,
           extraHeaders: {
@@ -652,7 +655,9 @@ describe("/api/public/llm-connections API Endpoints", () => {
       );
 
       expect(fullDataResponse.status).toBe(201);
-      expect(fullDataResponse.body.baseURL).toBe("https://custom.api.com/v1");
+      expect(fullDataResponse.body.baseURL).toBe(
+        TEST_CUSTOM_PUBLIC_LLM_BASE_URL,
+      );
       expect(fullDataResponse.body.customModels).toEqual([
         "custom-model-1",
         "custom-model-2",
@@ -812,20 +817,24 @@ describe("/api/public/llm-connections API Endpoints", () => {
         generateUniqueProvider("ProviderWithCaps"),
       ];
 
-      for (const provider of specialProviders) {
-        const response = await makeZodVerifiedAPICall(
-          PutLlmConnectionV1Response,
-          "PUT",
-          "/api/public/llm-connections",
-          {
-            provider,
-            adapter: LLMAdapter.OpenAI,
-            secretKey: `sk-${provider}-test`,
-          },
-          auth,
-          201,
-        );
+      const responses = await Promise.all(
+        specialProviders.map((provider) =>
+          makeZodVerifiedAPICall(
+            PutLlmConnectionV1Response,
+            "PUT",
+            "/api/public/llm-connections",
+            {
+              provider,
+              adapter: LLMAdapter.OpenAI,
+              secretKey: `sk-${provider}-test`,
+            },
+            auth,
+            201,
+          ).then((response) => ({ provider, response })),
+        ),
+      );
 
+      for (const { provider, response } of responses) {
         expect(response.status).toBe(201);
         expect(response.body.provider).toBe(provider);
       }
@@ -890,10 +899,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
         const createData = {
           provider: generateUniqueProvider("bedrock-config-test"),
           adapter: LLMAdapter.Bedrock,
-          secretKey: JSON.stringify({
-            accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-            secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-          }),
+          secretKey: JSON.stringify(BEDROCK_AWS_CREDENTIALS),
           config: {
             region: "us-east-1",
           },
@@ -963,10 +969,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
         const createData = {
           provider: generateUniqueProvider("bedrock-no-config"),
           adapter: LLMAdapter.Bedrock,
-          secretKey: JSON.stringify({
-            accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-            secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-          }),
+          secretKey: JSON.stringify(BEDROCK_AWS_CREDENTIALS),
           // No config provided
         };
 
@@ -987,10 +990,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
         const createData = {
           provider: generateUniqueProvider("bedrock-bad-config"),
           adapter: LLMAdapter.Bedrock,
-          secretKey: JSON.stringify({
-            accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-            secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-          }),
+          secretKey: JSON.stringify(BEDROCK_AWS_CREDENTIALS),
           config: {
             location: "us-central1", // Wrong key - should be 'region'
           },
@@ -1014,7 +1014,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
           provider: generateUniqueProvider("bedrock-default-creds"),
           adapter: LLMAdapter.Bedrock,
           secretKey: "__BEDROCK_DEFAULT_CREDENTIALS__",
-          config: { region: "us-east-1" },
+          config: BEDROCK_REGION_CONFIG,
         };
 
         const response = await makeAPICall(
@@ -1035,7 +1035,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
           provider: generateUniqueProvider("bedrock-invalid-creds"),
           adapter: LLMAdapter.Bedrock,
           secretKey: JSON.stringify({ unknownField: "value" }),
-          config: { region: "us-east-1" },
+          config: BEDROCK_REGION_CONFIG,
         };
 
         const response = await makeAPICall(
@@ -1055,21 +1055,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
         const createData = {
           provider: generateUniqueProvider("vertexai-config-test"),
           adapter: LLMAdapter.VertexAI,
-          secretKey: JSON.stringify({
-            type: "service_account",
-            project_id: "test-project",
-            private_key_id: "key123",
-            private_key:
-              "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----",
-            client_email: "test@test-project.iam.gserviceaccount.com",
-            client_id: "123456789",
-            auth_uri: "https://accounts.google.com/o/oauth2/auth",
-            token_uri: "https://oauth2.googleapis.com/token",
-            auth_provider_x509_cert_url:
-              "https://www.googleapis.com/oauth2/v1/certs",
-            client_x509_cert_url:
-              "https://www.googleapis.com/robot/v1/metadata/x509/test",
-          }),
+          secretKey: JSON.stringify(VERTEX_AI_CREDENTIALS),
           config: {
             location: "us-central1",
           },
@@ -1092,21 +1078,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
         const createData = {
           provider: generateUniqueProvider("vertexai-no-config"),
           adapter: LLMAdapter.VertexAI,
-          secretKey: JSON.stringify({
-            type: "service_account",
-            project_id: "test-project",
-            private_key_id: "key123",
-            private_key:
-              "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----",
-            client_email: "test@test-project.iam.gserviceaccount.com",
-            client_id: "123456789",
-            auth_uri: "https://accounts.google.com/o/oauth2/auth",
-            token_uri: "https://oauth2.googleapis.com/token",
-            auth_provider_x509_cert_url:
-              "https://www.googleapis.com/oauth2/v1/certs",
-            client_x509_cert_url:
-              "https://www.googleapis.com/robot/v1/metadata/x509/test",
-          }),
+          secretKey: JSON.stringify(VERTEX_AI_CREDENTIALS),
           // No config - allowed for VertexAI
         };
 
@@ -1157,11 +1129,8 @@ describe("/api/public/llm-connections API Endpoints", () => {
           {
             provider,
             adapter: LLMAdapter.Bedrock,
-            secretKey: JSON.stringify({
-              accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-              secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-            }),
-            config: { region: "us-east-1" },
+            secretKey: JSON.stringify(BEDROCK_AWS_CREDENTIALS),
+            config: BEDROCK_REGION_CONFIG,
           },
           auth,
           201,
@@ -1175,10 +1144,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
           {
             provider,
             adapter: LLMAdapter.Bedrock,
-            secretKey: JSON.stringify({
-              accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-              secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-            }),
+            secretKey: JSON.stringify(BEDROCK_AWS_CREDENTIALS),
             config: { region: "eu-west-1" },
           },
           auth,
@@ -1197,12 +1163,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
             projectId,
             provider,
             adapter: LLMAdapter.Bedrock,
-            secretKey: encrypt(
-              JSON.stringify({
-                accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-                secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-              }),
-            ),
+            secretKey: encrypt(JSON.stringify(BEDROCK_AWS_CREDENTIALS)),
             displaySecretKey: "...KEY",
             config: { region: "ap-southeast-1" },
           },
@@ -1226,21 +1187,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
         const createData = {
           provider: generateUniqueProvider("vertexai-bad-config"),
           adapter: LLMAdapter.VertexAI,
-          secretKey: JSON.stringify({
-            type: "service_account",
-            project_id: "test-project",
-            private_key_id: "key123",
-            private_key:
-              "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----",
-            client_email: "test@test-project.iam.gserviceaccount.com",
-            client_id: "123456789",
-            auth_uri: "https://accounts.google.com/o/oauth2/auth",
-            token_uri: "https://oauth2.googleapis.com/token",
-            auth_provider_x509_cert_url:
-              "https://www.googleapis.com/oauth2/v1/certs",
-            client_x509_cert_url:
-              "https://www.googleapis.com/robot/v1/metadata/x509/test",
-          }),
+          secretKey: JSON.stringify(VERTEX_AI_CREDENTIALS),
           config: {
             region: "us-east-1", // Wrong key - should be 'location'
           },
@@ -1258,6 +1205,131 @@ describe("/api/public/llm-connections API Endpoints", () => {
           "Invalid VertexAI config",
         );
       });
+    });
+  });
+
+  describe("DELETE /api/public/llm-connections/{id}", () => {
+    it("should delete an existing LLM connection", async () => {
+      const provider = generateUniqueProvider("delete-test");
+      const connection = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider,
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("sk-delete"),
+          displaySecretKey: "...lete",
+        },
+      });
+
+      const response = await makeZodVerifiedAPICall(
+        DeleteLlmConnectionV1Response,
+        "DELETE",
+        `/api/public/llm-connections/${connection.id}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe("LLM connection successfully deleted");
+
+      const dbConnection = await prisma.llmApiKeys.findUnique({
+        where: { id: connection.id },
+      });
+      expect(dbConnection).toBeNull();
+    });
+
+    it("should create an audit log entry for delete", async () => {
+      const connection = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider: generateUniqueProvider("audit-delete"),
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("sk-audit-delete"),
+          displaySecretKey: "...lete",
+        },
+      });
+
+      await makeZodVerifiedAPICall(
+        DeleteLlmConnectionV1Response,
+        "DELETE",
+        `/api/public/llm-connections/${connection.id}`,
+        undefined,
+        auth,
+      );
+
+      const auditLogs = await prisma.auditLog.findMany({
+        where: {
+          resourceType: "llmApiKey",
+          resourceId: connection.id,
+          action: "delete",
+        },
+      });
+      expect(auditLogs).toHaveLength(1);
+    });
+
+    it("should return 404 for non-existent connection id", async () => {
+      const response = await makeAPICall(
+        "DELETE",
+        "/api/public/llm-connections/non-existent-id",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(404);
+    });
+
+    it("should not delete a connection from a different project", async () => {
+      const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
+      const otherConnection = await prisma.llmApiKeys.create({
+        data: {
+          projectId: otherProjectId,
+          provider: generateUniqueProvider("cross-project-delete"),
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("sk-other"),
+          displaySecretKey: "...dfg3",
+        },
+      });
+
+      const response = await makeAPICall(
+        "DELETE",
+        `/api/public/llm-connections/${otherConnection.id}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(404);
+
+      // Verify the other project's connection is still intact
+      const stillThere = await prisma.llmApiKeys.findUnique({
+        where: { id: otherConnection.id },
+      });
+      expect(stillThere).toBeTruthy();
+    });
+
+    it("should return 401 for invalid auth", async () => {
+      const connection = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider: generateUniqueProvider("delete-unauth"),
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("sk-unauth"),
+          displaySecretKey: "...auth",
+        },
+      });
+
+      const response = await makeAPICall(
+        "DELETE",
+        `/api/public/llm-connections/${connection.id}`,
+        undefined,
+        "invalid-auth",
+      );
+
+      expect(response.status).toBe(401);
+
+      const stillThere = await prisma.llmApiKeys.findUnique({
+        where: { id: connection.id },
+      });
+      expect(stillThere).toBeTruthy();
     });
   });
 
@@ -1339,22 +1411,22 @@ describe("/api/public/llm-connections API Endpoints", () => {
     });
 
     it("should require valid API key authentication", async () => {
-      // Test with malformed auth header
-      const malformedAuthResponse = await makeAPICall(
-        "GET",
-        "/api/public/llm-connections",
-        undefined,
-        "invalid-format",
-      );
-      expect(malformedAuthResponse.status).toBe(401);
+      const [malformedAuthResponse, fakeKeyResponse] = await Promise.all([
+        makeAPICall(
+          "GET",
+          "/api/public/llm-connections",
+          undefined,
+          "invalid-format",
+        ),
+        makeAPICall(
+          "GET",
+          "/api/public/llm-connections",
+          undefined,
+          "Basic " + Buffer.from("pk-lf-fake-key:").toString("base64"),
+        ),
+      ]);
 
-      // Test with non-existent API key
-      const fakeKeyResponse = await makeAPICall(
-        "GET",
-        "/api/public/llm-connections",
-        undefined,
-        "Basic " + Buffer.from("pk-lf-fake-key:").toString("base64"),
-      );
+      expect(malformedAuthResponse.status).toBe(401);
       expect(fakeKeyResponse.status).toBe(401);
     });
   });
@@ -1477,7 +1549,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
           provider: generateUniqueProvider("schema-test"),
           adapter: LLMAdapter.OpenAI,
           secretKey: "sk-schema-test",
-          baseURL: "https://api.example.com/v1",
+          baseURL: TEST_SCHEMA_PUBLIC_LLM_BASE_URL,
           customModels: ["model-1", "model-2"],
           withDefaultModels: true,
           extraHeaders: { "X-Test": "value" },

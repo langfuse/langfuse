@@ -52,7 +52,7 @@ import {
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { validateAndTransformVariableMapping } from "@/src/features/evals/utils/variable-mapping-validation";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
-import { EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject, EvalTargetObjectSchema } from "@langfuse/shared";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
 import { Suspense, lazy } from "react";
 import {
@@ -204,9 +204,13 @@ const ObservationsPreview = memo(
   ({
     projectId,
     filterState,
+    isNewCompatible,
+    compatibilityCheckWasPerformed,
   }: {
     projectId: string;
     filterState: z.infer<typeof singleFilter>[];
+    isNewCompatible: boolean;
+    compatibilityCheckWasPerformed: boolean;
   }) => {
     const { isBetaEnabled } = useV4Beta();
 
@@ -219,6 +223,10 @@ const ObservationsPreview = memo(
       } as TableDateRange;
     }, []);
 
+    // Show upgrade message only when SDK check was performed and user is not on OTEL SDK
+    const showSdkUpgradeMessage =
+      compatibilityCheckWasPerformed && !isNewCompatible;
+
     return (
       <>
         <div className="flex flex-col items-start gap-1">
@@ -228,7 +236,32 @@ const ObservationsPreview = memo(
         </div>
         <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-            {isBetaEnabled ? (
+            {showSdkUpgradeMessage ? (
+              <div className="flex h-[30dvh] flex-col items-center justify-center gap-2 border-t p-4 text-center">
+                <AlertTriangle className="text-dark-yellow h-8 w-8" />
+                <div className="flex flex-col gap-1">
+                  <span className="text-foreground font-medium">
+                    Please verify your SDK version
+                  </span>
+                  <span className="text-muted-foreground max-w-md text-sm">
+                    We did not find any data ingested with langfuse
+                    OTEL-compatible SDKs in the last 7 days. Observation-level
+                    evaluators require JS SDK v4+ or Python SDK v3+. You can
+                    still configure this evaluator now—it will start running
+                    once you upgrade.{" "}
+                    <a
+                      href="https://langfuse.com/docs/observability/sdk/upgrade-path"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-dark-blue font-medium hover:opacity-80"
+                    >
+                      Learn more
+                    </a>
+                    .
+                  </span>
+                </div>
+              </div>
+            ) : isBetaEnabled ? (
               <EventsTable
                 projectId={projectId}
                 hideControls
@@ -271,6 +304,7 @@ export const InnerEvaluatorForm = (props: {
   hidePreviewTable?: boolean;
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
+  defaultTarget?: EvalTargetObject;
   renderFooter?: (params: {
     isLoading: boolean;
     formError: string | null;
@@ -301,6 +335,14 @@ export const InnerEvaluatorForm = (props: {
   } = useEvalConfigFilterOptions({ projectId: props.projectId });
 
   const targetState = useEvaluatorTargetState();
+  const defaultTargetResult = EvalTargetObjectSchema.safeParse(
+    props.existingEvaluator?.targetObject ??
+      props.defaultTarget ??
+      EvalTargetObject.EVENT,
+  );
+  const defaultTarget = defaultTargetResult.success
+    ? defaultTargetResult.data
+    : EvalTargetObject.EVENT;
 
   const form = useForm({
     resolver: zodResolver(evalConfigFormSchema),
@@ -308,15 +350,13 @@ export const InnerEvaluatorForm = (props: {
     defaultValues: {
       scoreName:
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
-      target: props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT,
+      target: defaultTarget,
       filter: props.existingEvaluator?.filter
         ? z.array(singleFilter).parse(props.existingEvaluator.filter)
-        : (props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT) ===
-            EvalTargetObject.TRACE
+        : defaultTarget === EvalTargetObject.TRACE
           ? // For new trace evaluators, exclude internal environments by default
             DEFAULT_TRACE_FILTER
-          : (props.existingEvaluator?.targetObject ??
-                EvalTargetObject.EVENT) === EvalTargetObject.EVENT
+          : defaultTarget === EvalTargetObject.EVENT
             ? // For new observation evaluators, default to GENERATION type
               DEFAULT_OBSERVATION_FILTER
             : [],
@@ -1065,6 +1105,10 @@ export const InnerEvaluatorForm = (props: {
                       <ObservationsPreview
                         projectId={props.projectId}
                         filterState={form.watch("filter") ?? []}
+                        isNewCompatible={props.evalCapabilities.isNewCompatible}
+                        compatibilityCheckWasPerformed={
+                          props.evalCapabilities.compatibilityCheckWasPerformed
+                        }
                       />
                     )}
                   </>
@@ -1134,6 +1178,10 @@ export const InnerEvaluatorForm = (props: {
         shouldWrapVariables={props.shouldWrapVariables}
         hideAdvancedSettings={props.hideAdvancedSettings}
         oldConfigId={props.oldConfigId}
+        isNewCompatible={props.evalCapabilities.isNewCompatible}
+        compatibilityCheckWasPerformed={
+          props.evalCapabilities.compatibilityCheckWasPerformed
+        }
       />
     </div>
   );

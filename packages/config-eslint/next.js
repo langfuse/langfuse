@@ -62,6 +62,9 @@ export default [
     name: "langfuse/next/typescript",
     files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
+      parserOptions: {
+        projectService: true,
+      },
       globals: {
         React: "readonly",
         JSX: "readonly",
@@ -76,6 +79,21 @@ export default [
     },
     rules: {
       "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
+      "no-restricted-syntax": [
+        "warn",
+        {
+          selector:
+            "Literal[value=/\\boverflow-scroll\\b|\\boverflow-x-scroll\\b|\\boverflow-y-scroll\\b/]",
+          message:
+            "Avoid Tailwind's forced scrollbars (`overflow-scroll`, `overflow-x-scroll`, `overflow-y-scroll`). Prefer an auto/hidden/clip variant instead.",
+        },
+        {
+          selector:
+            "TemplateElement[value.raw=/\\boverflow-scroll\\b|\\boverflow-x-scroll\\b|\\boverflow-y-scroll\\b/]",
+          message:
+            "Avoid Tailwind's forced scrollbars (`overflow-scroll`, `overflow-x-scroll`, `overflow-y-scroll`). Prefer an auto/hidden/clip variant instead.",
+        },
+      ],
       // Custom rules from old config
       "@typescript-eslint/consistent-type-imports": [
         "warn",
@@ -94,7 +112,9 @@ export default [
           ignoreRestSiblings: true,
         },
       ],
+      "@typescript-eslint/no-deprecated": "warn",
       "react/jsx-key": ["error", { warnOnDuplicates: true }],
+      "react/no-unused-prop-types": "warn",
     },
   },
 ];

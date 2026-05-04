@@ -7465,4 +7465,73 @@ describe("OTel Resource Span Mapping", () => {
       );
     });
   });
+
+  describe("Prototype pollution protection", () => {
+    const publicKey = "pk-lf-1234567890";
+
+    it("should not pollute Object.prototype via __proto__ in gen_ai.prompt attributes", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const spanId = "abcdef1234567890";
+
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "langfuse-sdk",
+              version: "2.0.0",
+              attributes: [
+                {
+                  key: "public_key",
+                  value: { stringValue: publicKey },
+                },
+              ],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex").toJSON(),
+                spanId: Buffer.from(spanId, "hex").toJSON(),
+                name: "pollution-test",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000000, high: 0, unsigned: true },
+                endTimeUnixNano: { low: 2000000000, high: 0, unsigned: true },
+                attributes: [
+                  {
+                    key: "gen_ai.prompt.role",
+                    value: { stringValue: "user" },
+                  },
+                  {
+                    key: "gen_ai.prompt.content",
+                    value: { stringValue: "hello" },
+                  },
+                  {
+                    key: "gen_ai.prompt.__proto__.POLLUTED",
+                    value: { stringValue: "SUCCESS" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set([traceId]),
+        publicKey,
+      );
+
+      // Verify Object.prototype was NOT polluted
+      expect(({} as any).POLLUTED).toBeUndefined();
+      expect(Object.prototype.hasOwnProperty("POLLUTED" as any)).toBe(false);
+    });
+  });
 });

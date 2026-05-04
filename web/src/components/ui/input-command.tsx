@@ -12,7 +12,7 @@ import { Dialog, DialogBody, DialogContent } from "@/src/components/ui/dialog";
 import { cn } from "@/src/utils/tailwind";
 
 const InputCommand = React.forwardRef<
-  React.ElementRef<typeof CommandPrimitive>,
+  React.ComponentRef<typeof CommandPrimitive>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive>
 >(({ className, ...props }, ref) => (
   <CommandPrimitive
@@ -46,7 +46,7 @@ const InputCommandDialog = ({
 };
 
 const InputCommandInput = React.forwardRef<
-  React.ElementRef<typeof CommandPrimitive.Input>,
+  React.ComponentRef<typeof CommandPrimitive.Input>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & {
     variant?: "default" | "bottom";
   }
@@ -74,7 +74,7 @@ const InputCommandInput = React.forwardRef<
 InputCommandInput.displayName = CommandPrimitive.Input.displayName;
 
 const InputCommandList = React.forwardRef<
-  React.ElementRef<typeof CommandPrimitive.List>,
+  React.ComponentRef<typeof CommandPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.List>
 >(({ className, ...props }, ref) => (
   <CommandPrimitive.List
@@ -87,7 +87,7 @@ const InputCommandList = React.forwardRef<
 InputCommandList.displayName = CommandPrimitive.List.displayName;
 
 const InputCommandEmpty = React.forwardRef<
-  React.ElementRef<typeof CommandPrimitive.Empty>,
+  React.ComponentRef<typeof CommandPrimitive.Empty>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Empty>
 >((props, ref) => (
   <CommandPrimitive.Empty
@@ -100,7 +100,7 @@ const InputCommandEmpty = React.forwardRef<
 InputCommandEmpty.displayName = CommandPrimitive.Empty.displayName;
 
 const InputCommandGroup = React.forwardRef<
-  React.ElementRef<typeof CommandPrimitive.Group>,
+  React.ComponentRef<typeof CommandPrimitive.Group>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Group>
 >(({ className, ...props }, ref) => (
   <CommandPrimitive.Group
@@ -116,7 +116,7 @@ const InputCommandGroup = React.forwardRef<
 InputCommandGroup.displayName = CommandPrimitive.Group.displayName;
 
 const InputCommandSeparator = React.forwardRef<
-  React.ElementRef<typeof CommandPrimitive.Separator>,
+  React.ComponentRef<typeof CommandPrimitive.Separator>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Separator>
 >(({ className, ...props }, ref) => (
   <CommandPrimitive.Separator
@@ -128,7 +128,7 @@ const InputCommandSeparator = React.forwardRef<
 InputCommandSeparator.displayName = CommandPrimitive.Separator.displayName;
 
 const InputCommandItem = React.forwardRef<
-  React.ElementRef<typeof CommandPrimitive.Item>,
+  React.ComponentRef<typeof CommandPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Item>
 >(({ className, ...props }, ref) => (
   <CommandPrimitive.Item
