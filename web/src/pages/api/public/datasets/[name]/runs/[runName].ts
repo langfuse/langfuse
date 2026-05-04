@@ -60,9 +60,8 @@ export default withMiddlewares({
           ? query.useEventsTable === true
           : env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
 
-      // Apply pagination with defaults
-      const page = query.page ?? 1;
-      const limit = query.limit ?? 50;
+      // Apply pagination (defaults provided by publicApiPaginationZod: page=1, limit=50)
+      const { page, limit } = query;
       const offset = (page - 1) * limit;
 
       const [datasetRunItems, totalItems] = useEventsTable

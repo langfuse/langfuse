@@ -3,7 +3,6 @@ import {
   publicApiPaginationZod,
   paginationZod,
   paginationMetaResponseZod,
-  optionalPaginationZod,
   queryStringZod,
   versionZod,
   type DatasetRuns as DbDatasetRuns,
@@ -203,7 +202,7 @@ export const GetDatasetRunV1Query = z.object({
   name: queryStringZod, // dataset name from URL, name as it is v1
   runName: queryStringZod,
   useEventsTable: useEventsTableSchema,
-  ...optionalPaginationZod,
+  ...publicApiPaginationZod,
 });
 export const GetDatasetRunV1Response = APIDatasetRun.extend({
   datasetRunItems: z.array(APIDatasetRunItem),
