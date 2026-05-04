@@ -2,21 +2,38 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 import { promptNameHandler } from "@/src/features/prompts/server/handlers/promptNameHandler";
 import { promptVersionHandler } from "@/src/features/prompts/server/handlers/promptVersionHandler";
+import { prisma } from "@langfuse/shared/src/db";
 
 const VERSION_SEGMENT = "versions";
 
-const setPromptRouteQuery = (req: NextApiRequest) => {
-  const promptPath = req.query.promptName;
-  const segments = Array.isArray(promptPath) ? promptPath : [promptPath];
+const isVersionRoute = (segments: string[]) => {
   const versionSegmentIndex = segments.lastIndexOf(VERSION_SEGMENT);
 
-  if (
+  return (
     versionSegmentIndex > 0 &&
     versionSegmentIndex === segments.length - 2 &&
-    req.method === "PATCH"
-  ) {
-    req.query.promptName = segments.slice(0, versionSegmentIndex);
-    req.query.promptVersion = segments[versionSegmentIndex + 1];
+    /^\d+$/.test(segments[versionSegmentIndex + 1] ?? "")
+  );
+};
+
+const promptExists = async (promptName: string) =>
+  Boolean(
+    await prisma.prompt.findFirst({
+      where: { name: promptName },
+      select: { id: true },
+    }),
+  );
+
+const setPromptRouteQuery = async (req: NextApiRequest) => {
+  const promptPath = req.query.promptName;
+  const segments = (Array.isArray(promptPath) ? promptPath : [promptPath]).filter(
+    (segment): segment is string => typeof segment === "string",
+  );
+  const promptName = segments.join("/");
+
+  if (isVersionRoute(segments) && !(await promptExists(promptName))) {
+    req.query.promptName = segments.slice(0, -2);
+    req.query.promptVersion = segments[segments.length - 1];
     return promptVersionHandler;
   }
 
@@ -24,9 +41,9 @@ const setPromptRouteQuery = (req: NextApiRequest) => {
   return promptNameHandler;
 };
 
-export default function promptRouteHandler(
+export default async function promptRouteHandler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  return setPromptRouteQuery(req)(req, res);
+  return (await setPromptRouteQuery(req))(req, res);
 }

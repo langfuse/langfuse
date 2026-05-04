@@ -214,6 +214,39 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       testPromptEquality(createPromptParams, fetchedPrompt.body);
     });
 
+    it("should fetch a prompt when the decoded name contains a versions segment", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const promptName = `folder/versions/${nanoid()}`;
+
+      const createPromptParams: CreatePromptInDBParams = {
+        name: promptName,
+        prompt: "prompt",
+        labels: ["production"],
+        version: 1,
+        config: {
+          temperature: 0.1,
+        },
+        projectId,
+        createdBy: "user-1",
+      };
+
+      await createPromptInDB(createPromptParams);
+
+      const fetchedPrompt = await makeAPICall<Prompt>(
+        "GET",
+        `${baseURI}/${promptName}`,
+        undefined,
+        auth,
+      );
+      expect(fetchedPrompt.status).toBe(200);
+
+      if (!isPrompt(fetchedPrompt.body)) {
+        throw new Error("Expected body to be a prompt");
+      }
+
+      testPromptEquality(createPromptParams, fetchedPrompt.body);
+    });
+
     it("should fetch a prompt with special characters", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const promptName = "promptName?!+ =@#;" + nanoid();
@@ -1963,6 +1996,51 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
     });
     expect(updatedPrompt?.labels).toContain("production");
     expect(updatedPrompt?.labels).toContain("new-label");
+  });
+
+  it("should not treat an existing prompt name ending in versions/{number} as a version route", async () => {
+    const { projectId: newProjectId, auth: newAuth } =
+      await createOrgProjectAndApiKey();
+
+    const ambiguousPrompt = await prisma.prompt.create({
+      data: {
+        name: "api/versions/2",
+        projectId: newProjectId,
+        version: 1,
+        labels: ["production"],
+        createdBy: "user-test",
+        prompt: "ambiguous-prompt",
+      },
+    });
+
+    const apiPromptVersionTwo = await prisma.prompt.create({
+      data: {
+        name: "api",
+        projectId: newProjectId,
+        version: 2,
+        labels: ["production"],
+        createdBy: "user-test",
+        prompt: "api-prompt",
+      },
+    });
+
+    const response = await makeAPICall(
+      "PATCH",
+      `${baseURI}/${ambiguousPrompt.name}`,
+      {
+        newLabels: ["new-label"],
+      },
+      newAuth,
+    );
+
+    expect(response.status).toBe(405);
+
+    const unchangedApiPrompt = await prisma.prompt.findUnique({
+      where: {
+        id: apiPromptVersionTwo.id,
+      },
+    });
+    expect(unchangedApiPrompt?.labels).toEqual(["production"]);
   });
 
   it("should update the labels of a prompt", async () => {
