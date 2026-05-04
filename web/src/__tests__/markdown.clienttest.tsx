@@ -1,4 +1,6 @@
+import { render, screen } from "@testing-library/react";
 import { containsAnyMarkdown } from "@/src/components/schemas/MarkdownSchema";
+import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 
 describe("containsAnyMarkdown Function", () => {
   it("Detects simple bold using asterisks", () => {
@@ -39,6 +41,10 @@ describe("containsAnyMarkdown Function", () => {
     expect(containsAnyMarkdown("1. First item\n2. Second item")).toBe(true);
   });
 
+  it("Does not treat a standalone ordered list marker as markdown", () => {
+    expect(containsAnyMarkdown("2.")).toBe(false);
+  });
+
   it("Detects blockquotes", () => {
     expect(containsAnyMarkdown("> This is a blockquote")).toBe(true);
   });
@@ -64,5 +70,23 @@ describe("containsAnyMarkdown Function", () => {
   it("Detects combination of markdown elements", () => {
     const complexMarkdown = "**Bold** and _italic_ and `code`";
     expect(containsAnyMarkdown(complexMarkdown)).toBe(true);
+  });
+});
+
+describe("MarkdownView", () => {
+  it("renders a standalone ordered list marker as plain text", () => {
+    render(<MarkdownView markdown="2." />);
+
+    expect(screen.getByText("2.")).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
+  it("preserves actual ordered markdown lists", () => {
+    render(<MarkdownView markdown={"1. First item\n2. Second item"} />);
+
+    const list = screen.getByRole("list");
+    expect(list).toBeInTheDocument();
+    expect(screen.getByText("First item")).toBeInTheDocument();
+    expect(screen.getByText("Second item")).toBeInTheDocument();
   });
 });
