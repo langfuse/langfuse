@@ -1,6 +1,7 @@
 import {
   InternalServerError,
   PromptWebhookOutboundSchema,
+  GitHubDispatchWebhookOutboundSchema,
   WebhookDefaultHeaders,
   ActionExecutionStatus,
   LangfuseNotFoundError,
@@ -10,6 +11,7 @@ import {
   isGitHubDispatchAction,
   type AutomationDomain,
   type ActionDomainWithSecrets,
+  type PromptDomain,
 } from "@langfuse/shared";
 import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
@@ -425,6 +427,22 @@ async function executeWebhookAction({
 /**
  * Execute GitHub Dispatch action with repository dispatch API
  */
+function toGitHubDispatchPromptMetadata(prompt: PromptDomain) {
+  return {
+    id: prompt.id,
+    name: prompt.name,
+    version: prompt.version,
+    projectId: prompt.projectId,
+    labels: prompt.labels,
+    tags: prompt.tags,
+    type: prompt.type,
+    createdBy: prompt.createdBy,
+    commitMessage: prompt.commitMessage,
+    createdAt: prompt.createdAt,
+    updatedAt: prompt.updatedAt,
+  };
+}
+
 async function executeGitHubDispatchAction({
   input,
   automation,
@@ -462,36 +480,28 @@ async function executeGitHubDispatchAction({
       }
     : undefined;
 
-  // Validate and prepare Langfuse payload
-  const validatedPayload = PromptWebhookOutboundSchema.safeParse({
+  const clientPayload = {
     id: input.executionId,
     timestamp: new Date(),
     type: input.payload.type,
-    apiVersion: "v1",
+    apiVersion: "v1" as const,
     action: input.payload.action,
-    prompt: input.payload.prompt,
-    user: webhookUser,
+    ...(webhookUser ? { user: webhookUser } : {}),
+    prompt: toGitHubDispatchPromptMetadata(input.payload.prompt),
+  };
+
+  const validatedPayload = GitHubDispatchWebhookOutboundSchema.safeParse({
+    event_type: githubConfig.eventType,
+    client_payload,
   });
 
   if (!validatedPayload.success) {
     throw new InternalServerError(
-      `Invalid webhook payload: ${validatedPayload.error.message}`,
+      `Invalid GitHub dispatch payload: ${validatedPayload.error.message}`,
     );
   }
 
-  // Use configured event_type (required field)
-  const eventType = githubConfig.eventType;
-
-  // Transform to GitHub dispatch format
-  const { prompt, user, ...otherFields } = validatedPayload.data;
-  const githubPayload = JSON.stringify({
-    event_type: eventType,
-    client_payload: {
-      ...otherFields,
-      ...(user ? { user } : {}),
-      prompt,
-    },
-  });
+  const githubPayload = JSON.stringify(validatedPayload.data);
 
   // Prepare headers with GitHub token
   const requestHeaders: Record<string, string> = {};

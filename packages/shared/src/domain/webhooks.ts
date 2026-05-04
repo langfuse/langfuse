@@ -43,11 +43,39 @@ export const PromptWebhookOutboundSchema = z
 
 export type PromptWebhookOutput = z.infer<typeof PromptWebhookOutboundSchema>;
 
-export const GitHubDispatchWebhookOutboundSchema = z.object({
-  event_type: z.string(),
-  client_payload: PromptWebhookOutboundSchema,
+export const GitHubDispatchPromptMetadataSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  version: z.number(),
+  projectId: z.string(),
+  labels: z.array(z.string()),
+  tags: z.array(z.string()),
+  type: z.string(),
+  createdBy: z.string(),
+  commitMessage: z.string().nullable(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
 });
 
+export const GitHubDispatchClientPayloadSchema =
+  WebhookOutboundBaseSchema.extend({
+    prompt: GitHubDispatchPromptMetadataSchema,
+    user: z
+      .object({
+        name: z.string().nullable(),
+        email: z.string().nullable(),
+      })
+      .optional(),
+  });
+
+export const GitHubDispatchWebhookOutboundSchema = z.object({
+  event_type: z.string(),
+  client_payload: GitHubDispatchClientPayloadSchema,
+});
+
+export type GitHubDispatchClientPayload = z.infer<
+  typeof GitHubDispatchClientPayloadSchema
+>;
 export type GitHubDispatchWebhookOutput = z.infer<
   typeof GitHubDispatchWebhookOutboundSchema
 >;
