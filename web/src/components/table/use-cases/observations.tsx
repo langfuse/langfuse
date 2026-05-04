@@ -1286,6 +1286,7 @@ export default function ObservationsTable({
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
       setSearchQuery: setSearchQuery,
@@ -1293,8 +1294,12 @@ export default function ObservationsTable({
     validationContext: {
       columns,
       filterColumnDefinition: observationsFilterConfig.columnDefinitions,
+      expandableFilterColumns: observationsFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
     },
     currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
   });
 

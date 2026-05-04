@@ -888,14 +888,19 @@ export default function ExperimentItemsTable({
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
     },
     validationContext: {
       columns,
       filterColumnDefinition: experimentItemsFilterConfig.columnDefinitions,
+      expandableFilterColumns: experimentItemsFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
   });
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {

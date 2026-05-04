@@ -1317,6 +1317,7 @@ export default function TracesTable({
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
       setSearchQuery: setSearchQuery,
@@ -1324,8 +1325,12 @@ export default function TracesTable({
     validationContext: {
       columns,
       filterColumnDefinition: tracesFilterConfig.columnDefinitions,
+      expandableFilterColumns: tracesFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
     },
     currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
   });
 

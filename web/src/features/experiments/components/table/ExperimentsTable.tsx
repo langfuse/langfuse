@@ -482,14 +482,17 @@ export default function ExperimentsTable({
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
     },
     validationContext: {
       columns,
       filterColumnDefinition: filterConfig.columnDefinitions,
+      expandableFilterColumns: filterConfig.facets.map((facet) => facet.column),
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
   });
 
   const rows: ExperimentsTableRow[] = useMemo(() => {
