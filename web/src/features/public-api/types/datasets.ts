@@ -119,6 +119,13 @@ export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
  * Note: The `id` field is the span_id (observation ID) in the events-based path,
  * representing the root observation linked to this dataset item in this run.
  * This differs from the legacy path which uses the dataset_run_item table's UUID.
+ *
+ * `observationId` is set unconditionally to `span_id` because in the events model,
+ * traces are stored as synthetic observations with `span_id = 't-<traceId>'`
+ * (see `convertTraceToStagingObservation`). This differs from the legacy path where
+ * `observationId` is `null` for trace-only items. Users must use `useEventsTable`
+ * consistently: fetch with `GET /observations/{observationId}?useEventsTable=true`
+ * to resolve both real observation IDs and synthetic trace span IDs.
  */
 export const transformEventsDatasetRunItemToAPI = (item: {
   span_id: string;
