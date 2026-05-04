@@ -19,10 +19,7 @@
   },
   "exclude": [
     "node_modules",
-    "sdk",
-    "src/__tests__/**",
-    "**/*.clienttest.*",
-    "**/*.servertest.*"
+    "sdk"
   ],
   "include": [
     "**/*.cjs",

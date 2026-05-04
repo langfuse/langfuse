@@ -1,3 +1,4 @@
+import type { Mock, MockInstance } from "vitest";
 import {
   act,
   fireEvent,
@@ -7,29 +8,29 @@ import {
 } from "@testing-library/react";
 import { NewProjectForm } from "./NewProjectForm";
 
-const mockUseSession = jest.fn();
-const mockUseMutation = jest.fn();
-const mockCapture = jest.fn();
-const mockShowErrorToast = jest.fn();
+const mockUseSession = vi.fn();
+const mockUseMutation = vi.fn();
+const mockCapture = vi.fn();
+const mockShowErrorToast = vi.fn();
 
 let resolveUpdateSession: (() => void) | undefined;
 let rejectUpdateSession: ((error: Error) => void) | undefined;
-let mutateAsyncMock: jest.Mock;
-let consoleErrorSpy: jest.SpyInstance;
+let mutateAsyncMock: Mock;
+let consoleErrorSpy: MockInstance;
 
-jest.mock("next-auth/react", () => ({
+vi.mock("next-auth/react", () => ({
   useSession: () => mockUseSession(),
 }));
 
-jest.mock("../../posthog-analytics/usePostHogClientCapture", () => ({
+vi.mock("../../posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => mockCapture,
 }));
 
-jest.mock("../../notifications/showErrorToast", () => ({
+vi.mock("../../notifications/showErrorToast", () => ({
   showErrorToast: (...args: unknown[]) => mockShowErrorToast(...args),
 }));
 
-jest.mock("../../../utils/api", () => ({
+vi.mock("../../../utils/api", () => ({
   api: {
     projects: {
       create: {
@@ -41,10 +42,10 @@ jest.mock("../../../utils/api", () => ({
 
 describe("NewProjectForm", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    vi.clearAllMocks();
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    mutateAsyncMock = jest.fn().mockResolvedValue({ id: "project-123" });
+    mutateAsyncMock = vi.fn().mockResolvedValue({ id: "project-123" });
     resolveUpdateSession = undefined;
     rejectUpdateSession = undefined;
 
@@ -55,7 +56,7 @@ describe("NewProjectForm", () => {
     }));
 
     mockUseSession.mockReturnValue({
-      update: jest.fn(
+      update: vi.fn(
         () =>
           new Promise<void>((resolve) => {
             resolveUpdateSession = resolve;
@@ -69,7 +70,7 @@ describe("NewProjectForm", () => {
   });
 
   it("waits for the session refresh before calling onSuccess", async () => {
-    const onSuccess = jest.fn();
+    const onSuccess = vi.fn();
 
     render(<NewProjectForm orgId="org-123" onSuccess={onSuccess} />);
 
@@ -95,10 +96,10 @@ describe("NewProjectForm", () => {
   });
 
   it("shows a warning when the session refresh fails after project creation", async () => {
-    const onSuccess = jest.fn();
+    const onSuccess = vi.fn();
 
     mockUseSession.mockReturnValue({
-      update: jest.fn(
+      update: vi.fn(
         () =>
           new Promise<void>((_, reject) => {
             rejectUpdateSession = reject;
