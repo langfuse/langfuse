@@ -107,9 +107,9 @@ export function getChartTypeDisplayName(
  * - "millisecond" → latencyFormatter (auto-scales ms/s/min/h/d)
  * - "USD" → usdFormatter
  * - any other unit (or undefined):
- *   - very small magnitudes (10^-3 to 10^-15) → compactSmallNumberFormatter
- *     regardless of `compact`, since scientific notation is the only way to
- *     keep meaningful precision (otherwise these collapse to "0")
+ *   - sub-unit magnitudes (|value| < 1, non-zero) → compactSmallNumberFormatter
+ *     regardless of `compact`, since the regular formatters round small
+ *     values toward "0" and lose precision
  *   - else `compact` true → compactNumberFormatter (e.g. "12K") for axis
  *     ticks
  *   - else → numberFormatter with up to 2 fractional digits and no
@@ -130,7 +130,7 @@ export function valueFormatter(
     case "USD":
       return usdFormatter(value);
     default:
-      if (value !== 0 && Math.abs(value) < 1e-3)
+      if (value !== 0 && Math.abs(value) < 1)
         return compactSmallNumberFormatter(value);
       if (compact) return compactNumberFormatter(value);
       return numberFormatter(value, 0, 2);
