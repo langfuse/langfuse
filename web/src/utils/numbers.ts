@@ -47,30 +47,36 @@ export const numberFormatter = (
   }).format(number ?? 0);
 };
 
-// prepareTimeDurationFormatter switches between ms, s, hr and days intellegently.
-const prepareTimeDurationFormatter = (
+const durationDivisors = [1, 1_000, 60_000, 3_600_000, 86_400_000] as const;
+
+const durationFormatters = [
+  "millisecond",
+  "second",
+  "minute",
+  "hour",
+  "day",
+].map((unit) =>
+  Intl.NumberFormat("en-US", {
+    style: "unit",
+    unit: unit,
+    unitDisplay: "narrow",
+    notation: "compact",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }),
+);
+
+const selectDurationFormatter = (
   milliseconds: number | bigint,
 ): [Intl.NumberFormat, number] => {
   const ms = Number(milliseconds);
   const tier =
     +(ms >= 1_000) + +(ms >= 60_000) + +(ms >= 3_600_000) + +(ms >= 86_400_000);
-  const divisors = [1, 1_000, 60_000, 3_600_000, 86_400_000] as const;
-  const units = ["millisecond", "second", "minute", "hour", "day"] as const;
-  return [
-    Intl.NumberFormat("en-US", {
-      style: "unit",
-      unit: units[tier]!,
-      unitDisplay: "narrow",
-      notation: "compact",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }),
-    ms / divisors[tier]!,
-  ];
+  return [durationFormatters[tier], ms / durationDivisors[tier]!];
 };
 
 export const latencyFormatter = (milliseconds?: number): string => {
-  const [fmt, value] = prepareTimeDurationFormatter(milliseconds ?? 0);
+  const [fmt, value] = selectDurationFormatter(milliseconds ?? 0);
   return fmt.format(value ?? 0);
 };
 
