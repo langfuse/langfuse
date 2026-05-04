@@ -47,7 +47,7 @@
     "@opentelemetry/sdk-node": "^0.213.0",
     "@prisma/instrumentation": "^6.19.3",
     "backoff": "^2.5.0",
-    "bullmq": "^5.73.5",
+    "bullmq": "^5.76.3",
     "cors": "^2.8.5",
     "csv-parse": "^5.6.0",
     "dd-trace": "5.97.0",
