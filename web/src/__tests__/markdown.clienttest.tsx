@@ -81,6 +81,15 @@ describe("MarkdownView", () => {
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 
+  it("renders standalone ordered list markers inside longer text as plain text", () => {
+    render(<MarkdownView markdown={"Intro text\n\n2.\n\nMore text"} />);
+
+    expect(screen.getByText("Intro text")).toBeInTheDocument();
+    expect(screen.getByText("2.")).toBeInTheDocument();
+    expect(screen.getByText("More text")).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
   it("preserves actual ordered markdown lists", () => {
     render(<MarkdownView markdown={"1. First item\n2. Second item"} />);
 
