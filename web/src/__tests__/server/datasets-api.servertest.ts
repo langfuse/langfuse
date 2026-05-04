@@ -2339,3 +2339,113 @@ describe("GET /api/public/dataset-run-items with useEventsTable", () => {
   }
   runTestSuite(false); // with legacy table
 });
+
+describe("GET /api/public/datasets/{name}/runs/{runName} with useEventsTable", () => {
+  const runTestSuite = (useEventsTable: boolean) => {
+    const suiteName = useEventsTable
+      ? "with events table"
+      : "with legacy table";
+    const queryParam = useEventsTable ? "?useEventsTable=true" : "";
+
+    describe(suiteName, () => {
+      it("should fetch dataset run with items using correct data structure", async () => {
+        const { auth, projectId } = await createOrgProjectAndApiKey();
+
+        // Create dataset and run in Postgres
+        const datasetId = v4();
+        const datasetName = `test-dataset-${v4()}`;
+        await prisma.dataset.create({
+          data: { id: datasetId, name: datasetName, projectId },
+        });
+
+        const runId = v4();
+        const runName = `test-run-${v4()}`;
+        await prisma.datasetRuns.create({
+          data: {
+            id: runId,
+            name: runName,
+            datasetId,
+            projectId,
+            metadata: {},
+          },
+        });
+
+        // Create dataset item in Postgres
+        const itemId = v4();
+        await createDatasetItem({
+          id: itemId,
+          projectId,
+          datasetId,
+          input: { test: "input" },
+        });
+
+        const traceId = v4();
+        const spanId = v4();
+        const now = Date.now() * 1000; // microseconds for events
+
+        if (useEventsTable) {
+          // Create event with experiment fields
+          const event = createExperimentEvent({
+            project_id: projectId,
+            trace_id: traceId,
+            span_id: spanId,
+            experimentId: runId,
+            experimentName: runName,
+            datasetId: datasetId,
+            itemId: itemId,
+            experimentItemRootSpanId: spanId,
+            start_time: now,
+          });
+          await createEventsCh([event]);
+        } else {
+          // Create in legacy dataset_run_items table
+          await createDatasetRunItemsCh([
+            createDatasetRunItem({
+              dataset_item_id: itemId,
+              trace_id: traceId,
+              observation_id: spanId,
+              dataset_run_id: runId,
+              dataset_run_name: runName,
+              dataset_id: datasetId,
+              project_id: projectId,
+            }),
+          ]);
+        }
+
+        await waitForExpect(async () => {
+          const response = await makeZodVerifiedAPICall(
+            GetDatasetRunV1Response,
+            "GET",
+            `/api/public/datasets/${encodeURIComponent(datasetName)}/runs/${encodeURIComponent(runName)}${queryParam}`,
+            undefined,
+            auth,
+          );
+
+          expect(response.status).toBe(200);
+
+          // Verify run metadata
+          expect(response.body.id).toBe(runId);
+          expect(response.body.name).toBe(runName);
+          expect(response.body.datasetName).toBe(datasetName);
+          expect(response.body.datasetId).toBe(datasetId);
+
+          // Verify run items
+          expect(response.body.datasetRunItems).toHaveLength(1);
+          const item = response.body.datasetRunItems[0];
+          expect(item.datasetRunId).toBe(runId);
+          expect(item.datasetRunName).toBe(runName);
+          expect(item.datasetItemId).toBe(itemId);
+          expect(item.traceId).toBe(traceId);
+          expect(item.createdAt).toBeDefined();
+          expect(item.updatedAt).toBeDefined();
+        }, 30000);
+      }, 60000);
+    });
+  };
+
+  // Run tests with both implementations
+  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+    runTestSuite(true); // with events table
+  }
+  runTestSuite(false); // with legacy table
+});

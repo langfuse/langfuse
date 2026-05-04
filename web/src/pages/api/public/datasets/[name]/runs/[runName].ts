@@ -1,16 +1,21 @@
 import { prisma } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
 import {
   GetDatasetRunV1Query,
   GetDatasetRunV1Response,
   DeleteDatasetRunV1Query,
   DeleteDatasetRunV1Response,
   transformDbDatasetRunToAPIDatasetRun,
+  transformEventsDatasetRunItemToAPI,
 } from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { ApiError, LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { addToDeleteDatasetQueue } from "@langfuse/shared/src/server";
+import {
+  addToDeleteDatasetQueue,
+  getDatasetRunItemsFromEventsForPublicApi,
+} from "@langfuse/shared/src/server";
 import { generateDatasetRunItemsForPublicApi } from "@/src/features/public-api/server/dataset-run-items";
 
 export default withMiddlewares({
@@ -45,13 +50,28 @@ export default withMiddlewares({
 
       const { dataset, ...run } = datasetRuns[0];
 
-      const datasetRunItems = await generateDatasetRunItemsForPublicApi({
-        props: {
-          datasetId: run.datasetId,
-          runId: run.id,
-          projectId: auth.scope.projectId,
-        },
-      });
+      // Use events table if query parameter is explicitly set, otherwise use environment variable
+      const useEventsTable =
+        query.useEventsTable !== undefined && query.useEventsTable !== null
+          ? query.useEventsTable === true
+          : env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
+
+      const datasetRunItems = useEventsTable
+        ? (
+            await getDatasetRunItemsFromEventsForPublicApi({
+              projectId: auth.scope.projectId,
+              experimentId: run.id,
+              limit: 10000, // No pagination on this endpoint, fetch all items
+              offset: 0,
+            })
+          ).map(transformEventsDatasetRunItemToAPI)
+        : await generateDatasetRunItemsForPublicApi({
+            props: {
+              datasetId: run.datasetId,
+              runId: run.id,
+              projectId: auth.scope.projectId,
+            },
+          });
 
       return {
         ...transformDbDatasetRunToAPIDatasetRun({

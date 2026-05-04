@@ -1017,8 +1017,9 @@ export const getDatasetRunItemsFromEventsForPublicApi = async (
       "e.trace_id as trace_id",
       "e.start_time as start_time",
     )
+    // Return latest row per item (until repetitions are modeled, see LFE-8965)
     .orderByColumns([{ column: "e.start_time", direction: "DESC" }])
-    .limitBy("e.experiment_item_id")
+    .limitBy("e.experiment_item_id, e.experiment_id")
     .limit(limit, offset);
 
   const { query, params } = queryBuilder.buildWithParams();

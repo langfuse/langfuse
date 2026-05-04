@@ -201,6 +201,7 @@ export const GetDatasetRunsV1Response = z
 export const GetDatasetRunV1Query = z.object({
   name: queryStringZod, // dataset name from URL, name as it is v1
   runName: queryStringZod,
+  useEventsTable: useEventsTableSchema,
 });
 export const GetDatasetRunV1Response = APIDatasetRun.extend({
   datasetRunItems: z.array(APIDatasetRunItem),
