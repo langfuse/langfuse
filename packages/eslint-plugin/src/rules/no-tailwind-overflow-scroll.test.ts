@@ -1,10 +1,11 @@
 import { RuleTester } from "@typescript-eslint/rule-tester";
+import * as typescriptEslintParser from "@typescript-eslint/parser";
 import { describe, expect, it, vi } from "vitest";
 import rule from "./no-tailwind-overflow-scroll.js";
 
 const ruleTester = new RuleTester({
   languageOptions: {
-    parser: require("@typescript-eslint/parser"),
+    parser: typescriptEslintParser,
     parserOptions: {
       ecmaFeatures: {
         jsx: true,
@@ -57,6 +58,18 @@ ruleTester.run("no-tailwind-overflow-scroll", rule, {
     },
     {
       code: `<div className="!overflow-scroll" />`,
+      errors: [{ messageId: "unexpected" }],
+    },
+    {
+      code: `<div className="overflow-scroll!" />`,
+      errors: [{ messageId: "unexpected" }],
+    },
+    {
+      code: `<div className="md:!overflow-scroll" />`,
+      errors: [{ messageId: "unexpected" }],
+    },
+    {
+      code: `<div className="md:overflow-scroll!" />`,
       errors: [{ messageId: "unexpected" }],
     },
   ],

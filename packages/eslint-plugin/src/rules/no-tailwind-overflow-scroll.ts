@@ -6,18 +6,23 @@ const FORBIDDEN_TAILWIND_UTILITIES = new Set([
   "overflow-y-scroll",
 ]);
 
+// Tailwind important modifiers can wrap a utility token in either position,
+// for example `!overflow-scroll` or `overflow-scroll!`.
+function normalizeTailwindToken(token: string): string {
+  return token.replace(/^!|!$/g, "");
+}
+
+// Yield normalized utility tokens, for example `md:overflow-scroll!` ->
+// `overflow-scroll`.
 function* extractTailwindUtilityTokens(value: string): Generator<string> {
   for (const match of value.matchAll(/\S+/g)) {
-    const normalizedToken = match[0].startsWith("!")
-      ? match[0].slice(1)
-      : match[0];
-
-    yield normalizedToken;
-
+    const normalizedToken = normalizeTailwindToken(match[0]);
     const variantSeparatorIndex = normalizedToken.lastIndexOf(":");
-    if (variantSeparatorIndex !== -1) {
-      yield normalizedToken.slice(variantSeparatorIndex + 1);
-    }
+    yield variantSeparatorIndex === -1
+      ? normalizedToken
+      : normalizeTailwindToken(
+          normalizedToken.slice(variantSeparatorIndex + 1),
+        );
   }
 }
 

@@ -142,6 +142,9 @@ importers:
       '@types/node':
         specifier: ^25.6.0
         version: 25.6.0
+      '@typescript-eslint/parser':
+        specifier: ^8.59.0
+        version: 8.59.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
       '@typescript-eslint/rule-tester':
         specifier: ^8.59.0
         version: 8.59.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
@@ -15684,7 +15687,7 @@ snapshots:
   '@typescript-eslint/project-service@8.58.0(typescript@5.9.2)':
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.58.0(typescript@5.9.2)
-      '@typescript-eslint/types': 8.58.0
+      '@typescript-eslint/types': 8.59.0
       debug: 4.4.3
       typescript: 5.9.2
     transitivePeerDependencies:

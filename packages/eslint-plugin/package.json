@@ -12,6 +12,7 @@
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^25.6.0",
+    "@typescript-eslint/parser": "^8.59.0",
     "@typescript-eslint/rule-tester": "^8.59.0",
     "@typescript-eslint/utils": "^8.59.0",
     "typescript": "^5.9.2",
