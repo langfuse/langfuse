@@ -15,19 +15,27 @@ const UpdatePromptBodySchema = z.object({
     }),
 });
 
+const PromptVersionQuerySchema = z.object({
+  promptName: z
+    .union([z.string(), z.array(z.string())])
+    .transform((value) => (Array.isArray(value) ? value.join("/") : value)),
+  promptVersion: z.coerce.number().int(),
+});
+
 export const promptVersionHandler = withMiddlewares({
   PATCH: createAuthedProjectAPIRoute({
     name: "Update Prompt",
+    querySchema: PromptVersionQuerySchema,
     bodySchema: UpdatePromptBodySchema,
     responseSchema: z.any(),
-    fn: async ({ body, req, auth }) => {
+    fn: async ({ body, query, auth }) => {
       const { newLabels } = UpdatePromptBodySchema.parse(body);
-      const { promptName, promptVersion } = req.query;
+      const { promptName, promptVersion } = query;
 
       const prompt = await updatePrompt({
-        promptName: promptName as string,
+        promptName,
         projectId: auth.scope.projectId,
-        promptVersion: Number(promptVersion),
+        promptVersion,
         newLabels,
       });
 
