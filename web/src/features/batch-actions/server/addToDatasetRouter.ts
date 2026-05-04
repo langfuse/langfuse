@@ -46,6 +46,8 @@ export const addToDatasetRouter = createTRPCRouter({
         const queryOpts = {
           projectId,
           filter: query.filter ?? [],
+          searchQuery: query.searchQuery,
+          searchType: query.searchType,
           limit: 1,
           offset: 0,
         };
