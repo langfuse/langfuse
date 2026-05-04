@@ -54,9 +54,12 @@ export const Chart = ({
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
 
-  const valueFormatter =
-    valueFormatterOverride ??
-    ((v: number) => valueFormatterByUnit(v, chartConfig?.unit, true));
+  const valueFormatter = useMemo(
+    () =>
+      valueFormatterOverride ??
+      ((v: number) => valueFormatterByUnit(v, chartConfig?.unit, true)),
+    [valueFormatterOverride, chartConfig?.unit],
+  );
 
   const renderedData = useMemo(() => {
     return data.map((item) => {
