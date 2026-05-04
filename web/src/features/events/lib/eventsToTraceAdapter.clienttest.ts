@@ -1,13 +1,13 @@
 import { deepParseJson } from "@langfuse/shared";
-import { type FullEventsObservation } from "@langfuse/shared/src/server";
 
 import { adaptEventsToTraceFormat } from "./eventsToTraceAdapter";
 
 const baseDate = new Date("2024-01-01T00:00:00.000Z");
+type EventInput = Parameters<
+  typeof adaptEventsToTraceFormat
+>[0]["events"][number];
 
-const createEvent = (
-  overrides: Partial<FullEventsObservation> = {},
-): FullEventsObservation => ({
+const createEvent = (overrides: Partial<EventInput> = {}): EventInput => ({
   id: "obs-1",
   traceId: "trace-1",
   projectId: "project-1",
