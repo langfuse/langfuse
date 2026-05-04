@@ -296,9 +296,6 @@ importers:
       '@types/react':
         specifier: 19.2.14
         version: 19.2.14
-      '@types/uuid':
-        specifier: ^9.0.8
-        version: 9.0.8
       eslint:
         specifier: ^9.39.2
         version: 9.39.4(jiti@2.6.1)
@@ -789,9 +786,6 @@ importers:
       '@types/react-grid-layout':
         specifier: ^1.3.6
         version: 1.3.6
-      '@types/uuid':
-        specifier: ^9.0.8
-        version: 9.0.8
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260122.3
         version: 7.0.0-dev.20260122.3
@@ -970,9 +964,6 @@ importers:
       '@types/pg':
         specifier: ^8.11.10
         version: 8.15.6
-      '@types/uuid':
-        specifier: ^9.0.8
-        version: 9.0.8
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260122.3
         version: 7.0.0-dev.20260122.3
@@ -5143,9 +5134,6 @@ packages:
 
   '@types/use-sync-external-store@0.0.6':
     resolution: {integrity: sha512-zFDAD+tlpf2r4asuHEj0XH6pY6i0g5NeAHPn+15wk3BV6JA69eERFXC1gyGThDkVa1zCyKr5jox1+2LbV/AMLg==}
-
-  '@types/uuid@9.0.8':
-    resolution: {integrity: sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA==}
 
   '@types/yargs-parser@21.0.3':
     resolution: {integrity: sha512-I4q9QU9MQv4oEOz4tAHJtNz1cwuLxn2F3xcc2iV5WdqLPpUnj30aUuxt1mAxYTG+oe8CZMV/+6rU4S4gRDzqtQ==}
@@ -15613,8 +15601,6 @@ snapshots:
   '@types/unist@3.0.3': {}
 
   '@types/use-sync-external-store@0.0.6': {}
-
-  '@types/uuid@9.0.8': {}
 
   '@types/yargs-parser@21.0.3':
     optional: true

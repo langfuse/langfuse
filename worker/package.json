@@ -76,7 +76,6 @@
     "@types/lodash": "^4.17.24",
     "@types/node": "^24.3.0",
     "@types/pg": "^8.11.10",
-    "@types/uuid": "^9.0.8",
     "@typescript/native-preview": "7.0.0-dev.20260122.3",
     "@vitest/coverage-v8": "^4.1.4",
     "eslint": "^9.39.2",
