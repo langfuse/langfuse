@@ -249,13 +249,13 @@ export function useParsedObservation({
       if (baseObservation && eventsQuery.data) {
         return {
           ...baseObservation,
-          input: eventsQuery.data.input as string | null,
-          output: eventsQuery.data.output as string | null,
+          input: eventsQuery.data.input,
+          output: eventsQuery.data.output,
           // Stringify metadata to match ObservationReturnTypeWithMetadata format
           metadata: stringifyMetadata(eventsQuery.data.metadata),
         } satisfies ObservationWithStringifiedIO;
       }
-      // No base observation provided: return events data as-is (incomplete type)
+      // No base observation provided: return partial events data with safe stringified I/O.
       return eventsQuery.data;
     }
     // Beta OFF: return full observation from observations table
