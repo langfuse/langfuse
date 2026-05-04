@@ -119,7 +119,7 @@
     "oci-objectstorage": "^2.125.0",
     "safe-regex2": "^5.0.0",
     "undici": "^7.24.6",
-    "uuid": "^9.0.1",
+    "uuid": "^14.0.0",
     "winston": "^3.15.0",
     "zod": "^4.3.6"
   },
