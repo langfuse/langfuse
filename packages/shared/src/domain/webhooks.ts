@@ -59,13 +59,13 @@ export const GitHubDispatchPromptMetadataSchema = z.object({
 
 export const GitHubDispatchClientPayloadSchema =
   WebhookOutboundBaseSchema.extend({
-    prompt: GitHubDispatchPromptMetadataSchema,
     user: z
       .object({
         name: z.string().nullable(),
         email: z.string().nullable(),
       })
       .optional(),
+    prompt: GitHubDispatchPromptMetadataSchema,
   });
 
 export const GitHubDispatchWebhookOutboundSchema = z.object({
