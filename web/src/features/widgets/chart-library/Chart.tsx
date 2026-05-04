@@ -141,6 +141,7 @@ export const Chart = ({
         return (
           <HistogramChart
             data={renderedData}
+            valueFormatter={valueFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
