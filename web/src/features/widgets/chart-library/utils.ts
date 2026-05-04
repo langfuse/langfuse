@@ -1,10 +1,11 @@
 import { type DataPoint } from "./chart-props";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
-  numberFormatter,
-  latencyFormatter,
-  usdFormatter,
   compactNumberFormatter,
+  compactSmallNumberFormatter,
+  latencyFormatter,
+  numberFormatter,
+  usdFormatter,
 } from "@/src/utils/numbers";
 
 /**
@@ -105,9 +106,14 @@ export function getChartTypeDisplayName(
  *
  * - "millisecond" → latencyFormatter (auto-scales ms/s/min/h/d)
  * - "USD" → usdFormatter
- * - any other unit (or undefined) → compactNumberFormatter when `compact` is
- *   true, otherwise numberFormatter with up to 2 fractional digits and no
- *   trailing-zero padding.
+ * - any other unit (or undefined):
+ *   - very small magnitudes (10^-3 to 10^-15) → compactSmallNumberFormatter
+ *     regardless of `compact`, since scientific notation is the only way to
+ *     keep meaningful precision (otherwise these collapse to "0")
+ *   - else `compact` true → compactNumberFormatter (e.g. "12K") for axis
+ *     ticks
+ *   - else → numberFormatter with up to 2 fractional digits and no
+ *     trailing-zero padding
  *
  * `compact` is intended for axis ticks where space matters; tooltips and
  * tables should leave it off so values keep full precision.
@@ -124,8 +130,9 @@ export function valueFormatter(
     case "USD":
       return usdFormatter(value);
     default:
-      return compact
-        ? compactNumberFormatter(value)
-        : numberFormatter(value, 0, 2);
+      if (value !== 0 && Math.abs(value) < 1e-3)
+        return compactSmallNumberFormatter(value);
+      if (compact) return compactNumberFormatter(value);
+      return numberFormatter(value, 0, 2);
   }
 }
