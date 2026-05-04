@@ -19,10 +19,14 @@ interface HistogramDataPoint {
 const HistogramChart = ({
   data,
   subtleFill = false,
+  valueFormatter,
 }: {
   data: DataPoint[];
   subtleFill?: boolean;
+  valueFormatter?: (value: number) => string;
 }) => {
+  const formatBinEdge = valueFormatter ?? compactSmallNumberFormatter;
+
   const transformHistogramData = (data: DataPoint[]): HistogramDataPoint[] => {
     if (!data.length) return [];
 
@@ -32,7 +36,7 @@ const HistogramChart = ({
       // ClickHouse histogram format: [(lower, upper, height), ...]
       return (firstDataPoint.metric as [number, number, number][]).map(
         ([lower, upper, height]) => ({
-          binLabel: `[${compactSmallNumberFormatter(lower)}, ${compactSmallNumberFormatter(upper)}]`,
+          binLabel: `[${formatBinEdge(lower)}, ${formatBinEdge(upper)}]`,
           count: height,
           lower,
           upper,
