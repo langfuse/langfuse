@@ -58,7 +58,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
+import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -68,10 +68,7 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
-import {
-  type DataTablePeekViewProps,
-  TablePeekView,
-} from "@/src/components/table/peek";
+import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import {
   addPrefixToScoreKeys,
@@ -518,6 +515,7 @@ export default function ObservationsEventsTable({
     projectId,
     tableName: "observations",
     setSelectedRows,
+    setSelectAll,
   });
 
   const tableActions: TableAction[] = [
@@ -548,7 +546,7 @@ export default function ObservationsEventsTable({
       label: "Evaluate",
       description: "Run evaluations on selected observations.",
       customDialog: true,
-      icon: <LightbulbIcon className="mr-2 h-4 w-4" />,
+      icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
       accessCheck: {
         scope: "evalJob:CUD",
       },
@@ -1236,12 +1234,10 @@ export default function ObservationsEventsTable({
     if (hideControls) return undefined;
     return {
       itemType: "TRACE",
-      customTitlePrefix: "Observation ID:",
       detailNavigationKey: "observations",
-      children: <PeekViewObservationDetail projectId={projectId} />,
       ...peekNavigationProps,
     };
-  }, [projectId, peekNavigationProps, hideControls]);
+  }, [peekNavigationProps, hideControls]);
 
   const rows: EventsTableRow[] = useMemo(() => {
     const result =
@@ -1322,6 +1318,11 @@ export default function ObservationsEventsTable({
     return Object.keys(selectedRows).filter((id) => rowIds.has(id));
   }, [observations.rows, selectedRows]);
 
+  const selectedObservationCount =
+    selectAll && totalCount !== null
+      ? totalCount
+      : selectedObservationIds.length;
+
   const exampleObservation = useMemo(() => {
     const firstId = selectedObservationIds[0];
     const firstObs = observations.rows?.find((o) => o.id === firstId);
@@ -1393,12 +1394,17 @@ export default function ObservationsEventsTable({
                 tableName={BatchExportTableName.Events}
                 key="batchExport"
               />,
-              selectedObservationIds.length > 0 ? (
+              selectedObservationIds.length > 0 || selectAll ? (
                 <TableActionMenu
                   key="observations-multi-select-actions"
                   projectId={projectId}
                   actions={tableActions}
                   tableName={BatchExportTableName.Observations}
+                  selectedCount={selectedObservationCount}
+                  onClearSelection={() => {
+                    setSelectedRows({});
+                    setSelectAll(false);
+                  }}
                   onCustomAction={(actionType) => {
                     if (actionType === ActionId.ObservationBatchEvaluation) {
                       setShowRunEvaluationDialog(true);
@@ -1488,6 +1494,7 @@ export default function ObservationsEventsTable({
                     }
               }
               rowSelection={selectedRows}
+              highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               setOrderBy={setOrderByState}
               orderBy={orderByState}
@@ -1527,7 +1534,12 @@ export default function ObservationsEventsTable({
             />
           </div>
         </ResizableFilterLayout>
-        {peekConfig && <TablePeekView peekView={peekConfig} />}
+        {peekConfig && (
+          <TablePeekViewObservationDetail
+            {...peekConfig}
+            projectId={projectId}
+          />
+        )}
       </div>
 
       {showRunEvaluationDialog && (

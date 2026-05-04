@@ -209,7 +209,7 @@ describe("withMiddlewares error handling", () => {
       expect(jsonData["message"]).toContain(
         ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       );
-      expect(jsonData["error"]).toBe("Unprocessable Content");
+      expect(jsonData["error"]).toBe("Request timed out");
     });
   });
 

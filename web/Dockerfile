@@ -141,7 +141,7 @@ RUN npm install -g --no-package-lock --no-save prisma@6.19.3
 # Install dd-trace only if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-    npm install --no-package-lock --no-save dd-trace@5.65.0; \
+    npm install --no-package-lock --no-save dd-trace@5.97.0; \
     fi
 
 # npm is only used for the installs above; remove it from the final runtime image.

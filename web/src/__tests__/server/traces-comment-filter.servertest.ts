@@ -2,47 +2,57 @@ import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { createTrace, createTracesCh } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  createTrace,
+  createTracesCh,
+} from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
 describe("Traces Comment Filtering", () => {
-  const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  let projectId: string;
+  let caller: ReturnType<typeof appRouter.createCaller>;
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: "seed-org-id",
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: "Test Project",
-            },
-          ],
+  beforeAll(async () => {
+    const setup = await createOrgProjectAndApiKey();
+    projectId = setup.projectId;
+
+    const session: Session = {
+      expires: "1",
+      user: {
+        id: "user-1",
+        canCreateOrganizations: true,
+        name: "Demo User",
+        organizations: [
+          {
+            id: setup.orgId,
+            name: "Test Organization",
+            role: "OWNER",
+            plan: "cloud:hobby",
+            cloudConfig: undefined,
+            projects: [
+              {
+                id: projectId,
+                role: "ADMIN",
+                retentionDays: 30,
+                deletedAt: null,
+                name: "Test Project",
+              },
+            ],
+          },
+        ],
+        featureFlags: {
+          excludeClickhouseRead: false,
+          templateFlag: true,
         },
-      ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
+        admin: true,
       },
-      admin: true,
-    },
-    environment: {} as any,
-  };
+      environment: {} as any,
+    };
 
-  const ctx = createInnerTRPCContext({ session });
-  const caller = appRouter.createCaller({ ...ctx, prisma });
+    const ctx = createInnerTRPCContext({ session });
+    caller = appRouter.createCaller({ ...ctx, prisma });
+  });
 
   // Helper to create standard query params
   const createQueryParams = (filter: any[]) => ({

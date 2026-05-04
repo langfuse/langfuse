@@ -30,6 +30,31 @@ export function useDashboardFilterOptions({
     [timeRange],
   );
 
+  const traceTimestampFilter = useMemo(
+    () =>
+      absoluteTimeRange
+        ? [
+            {
+              column: "timestamp",
+              type: "datetime" as const,
+              operator: ">=" as const,
+              value: absoluteTimeRange.from,
+            },
+            ...(absoluteTimeRange.to
+              ? [
+                  {
+                    column: "timestamp",
+                    type: "datetime" as const,
+                    operator: "<=" as const,
+                    value: absoluteTimeRange.to,
+                  },
+                ]
+              : []),
+          ]
+        : undefined,
+    [absoluteTimeRange],
+  );
+
   const startTimeFilter = useMemo(
     () =>
       absoluteTimeRange
@@ -37,7 +62,7 @@ export function useDashboardFilterOptions({
             {
               column: "startTime",
               type: "datetime" as const,
-              operator: ">" as const,
+              operator: ">=" as const,
               value: absoluteTimeRange.from,
             },
             ...(absoluteTimeRange.to
@@ -45,7 +70,7 @@ export function useDashboardFilterOptions({
                   {
                     column: "startTime",
                     type: "datetime" as const,
-                    operator: "<" as const,
+                    operator: "<=" as const,
                     value: absoluteTimeRange.to,
                   },
                 ]
@@ -56,7 +81,7 @@ export function useDashboardFilterOptions({
   );
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
-    { projectId },
+    { projectId, timestampFilter: traceTimestampFilter },
     { ...commonQueryOptions, enabled: !isBetaEnabled },
   );
 

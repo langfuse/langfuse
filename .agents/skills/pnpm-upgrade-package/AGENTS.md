@@ -31,9 +31,6 @@ pnpm workspace.
      lock refresh / reinstall path before changing `package.json`.
    - If the current parent range does not cover the requested version, upgrade
      the direct parent dependency that pulls the package in.
-   - If a compatible transitive package still stays pinned after the normal
-     refresh path, you may suggest `pnpm dedupe` to the user as an optional
-     manual follow-up, but do not run it automatically and do not require it.
    - Do not add the transitive package directly unless the user explicitly asks.
 
 4. Ask before changing `minimumReleaseAgeExclude`.
@@ -53,6 +50,9 @@ pnpm workspace.
    - Use the nearest package `AGENTS.md` plus the root verification matrix.
    - Finish with `pnpm why -r <package>`.
    - If companions moved too, run `pnpm why -r <companion-package>` for them as well.
+   - After fixing or upgrading a package, strongly suggest that the user run
+     `pnpm dedupe` as an optional cleanup step, but do not run it automatically
+     and do not require it.
 
 ## Quick Commands
 
@@ -64,6 +64,8 @@ pnpm workspace.
   `npm view <parent>@<installedVersion> dependencies peerDependencies optionalDependencies --json`
 - Final graph verification:
   `pnpm why -r <package>`
+- Optional lockfile cleanup for the user to run after the fix:
+  `pnpm dedupe`
 - Bump in the root workspace:
   `pnpm -w up <package>@<version>`
 - Bump in one workspace:

@@ -100,6 +100,8 @@ jobs:
           cp .env.dev.example .env
       - name: lint web
         run: pnpm run lint
+      - name: typecheck
+        run: pnpm run typecheck
 
   prettier-check:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -217,20 +219,22 @@ jobs:
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }}, shard${{ matrix.shard }}/3)
+    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
         node-version: [24]
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
-        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -258,6 +262,7 @@ jobs:
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
           echo "LANGFUSE_CACHE_PROMPT_ENABLED=false" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
+          echo "LANGFUSE_TRACE_DELETE_DELAY_MS=1" >> .env
           echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100" >> .env
           echo "ADMIN_API_KEY=admin-api-key" >> .env
           echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test" >> .env
@@ -307,6 +312,9 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -322,9 +330,9 @@ jobs:
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
         working-directory: web
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --shard=${{ matrix.shard }}/3
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server
       - name: run test-client
-        if: matrix.deploy-mode == '' && matrix.shard == 1
+        if: matrix.deploy-mode == ''
         working-directory: web
         run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project client
 
@@ -364,7 +372,10 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -437,7 +448,10 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -531,7 +545,10 @@ jobs:
           cp .env.dev.example web/.env
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Run + migrate
@@ -555,8 +572,11 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Install playwright
-        run: pnpm --filter=web exec playwright install --with-deps
+        run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
 
@@ -588,7 +608,10 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -615,6 +638,9 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Run server
         run: (pnpm run start&)
       - name: Check worker health

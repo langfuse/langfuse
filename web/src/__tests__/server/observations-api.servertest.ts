@@ -3,6 +3,7 @@ import {
   createTrace,
   createTracesCh,
   createEvent,
+  createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
@@ -15,8 +16,6 @@ import {
 import { GetObservationsV1Response } from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
-
-const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 // Helper type for creating observation data
 type ObservationData = {
@@ -111,6 +110,15 @@ const createAndInsertObservations = async (
 };
 
 describe("/api/public/observations API Endpoint", () => {
+  let projectId: string;
+  let auth: string;
+
+  beforeAll(async () => {
+    const fixture = await createOrgProjectAndApiKey();
+    projectId = fixture.projectId;
+    auth = fixture.auth;
+  });
+
   // Test suite factory to run tests against both implementations
   const runTestSuite = (useEventsTable: boolean) => {
     const suiteName = useEventsTable
@@ -275,6 +283,8 @@ describe("/api/public/observations API Endpoint", () => {
           GetObservationsV1Response,
           "GET",
           `/api/public/observations${queryParam}`,
+          undefined,
+          auth,
         );
 
         expect(response.status).toBe(200);
@@ -459,6 +469,8 @@ describe("/api/public/observations API Endpoint", () => {
           GetObservationsV1Response,
           "GET",
           `/api/public/observations${queryParam}traceId=${traceId}&level=DEBUG`,
+          undefined,
+          auth,
         );
 
         expect(debugResponse.body.data.length).toBe(1);
@@ -471,6 +483,8 @@ describe("/api/public/observations API Endpoint", () => {
           GetObservationsV1Response,
           "GET",
           `/api/public/observations${queryParam}traceId=${traceId}&level=DEFAULT`,
+          undefined,
+          auth,
         );
 
         expect(defaultResponse.body.data.length).toBe(1);
@@ -483,6 +497,8 @@ describe("/api/public/observations API Endpoint", () => {
           GetObservationsV1Response,
           "GET",
           `/api/public/observations${queryParam}traceId=${traceId}&level=WARNING`,
+          undefined,
+          auth,
         );
 
         expect(warningResponse.body.data.length).toBe(1);
@@ -495,6 +511,8 @@ describe("/api/public/observations API Endpoint", () => {
           GetObservationsV1Response,
           "GET",
           `/api/public/observations${queryParam}traceId=${traceId}&level=ERROR`,
+          undefined,
+          auth,
         );
 
         expect(errorResponse.body.data.length).toBe(1);
@@ -543,6 +561,8 @@ describe("/api/public/observations API Endpoint", () => {
           GetObservationsV1Response,
           "GET",
           `/api/public/observations${queryParam}traceId=${traceId}&level=ERROR`,
+          undefined,
+          auth,
         );
 
         expect(errorResponse.body.data.length).toBe(0);
@@ -615,6 +635,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationsV1Response,
             "GET",
             `/api/public/observations${queryParam}&traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+            undefined,
+            auth,
           );
 
           expect(response.body.data.length).toBe(1);
@@ -667,6 +689,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationsV1Response,
             "GET",
             `/api/public/observations${queryParam}&traceId=${traceId}&type=GENERATION&filter=${encodeURIComponent(filterParam)}`,
+            undefined,
+            auth,
           );
 
           // Should match only test-generation (both filters applied)
@@ -683,6 +707,8 @@ describe("/api/public/observations API Endpoint", () => {
               GetObservationsV1Response,
               "GET",
               `/api/public/observations${queryParam}&filter=${encodeURIComponent(malformedFilter)}`,
+              undefined,
+              auth,
             );
             fail("Should have thrown an error");
           } catch (error) {
@@ -719,6 +745,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationsV1Response,
             "GET",
             `/api/public/observations${queryParam}&traceId=${traceId}&filter=`,
+            undefined,
+            auth,
           );
 
           expect(response.body.data.length).toBe(1);
@@ -764,6 +792,8 @@ describe("/api/public/observations API Endpoint", () => {
           const response = await makeAPICall(
             "GET",
             `/api/public/observations${queryParam}&traceId=${traceId}&type=GENERATION&filter=${encodeURIComponent(filterParam)}`,
+            undefined,
+            auth,
           );
 
           expect(response.status).toBe(400);
@@ -869,6 +899,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationsV1Response,
             "GET",
             `/api/public/observations${queryParam}filter=${encodeURIComponent(filterParam)}`,
+            undefined,
+            auth,
           );
 
           expect(response.status).toBe(200);
@@ -984,6 +1016,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationsV1Response,
             "GET",
             `/api/public/observations${queryParam}traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+            undefined,
+            auth,
           );
 
           expect(response.status).toBe(200);
@@ -1075,6 +1109,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationsV1Response,
             "GET",
             `/api/public/observations${queryParam}traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+            undefined,
+            auth,
           );
 
           expect(response.status).toBe(200);
@@ -1210,6 +1246,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationsV1Response,
             "GET",
             `/api/public/observations${queryParam}traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+            undefined,
+            auth,
           );
 
           expect(response.status).toBe(200);

@@ -17,12 +17,7 @@ import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
-import {
-  useState,
-  useCallback,
-  type MutableRefObject,
-  type RefObject,
-} from "react";
+import { useState, useCallback, type RefObject } from "react";
 import { LanguageSupport, StreamLanguage } from "@codemirror/language";
 import type { StringStream } from "@codemirror/language";
 import {
@@ -408,8 +403,7 @@ export function CodeMirrorEditor({
   const handleEditorRef = useCallback(
     (instance: ReactCodeMirrorRef | null) => {
       if (editorRef) {
-        (editorRef as MutableRefObject<ReactCodeMirrorRef | null>).current =
-          instance;
+        (editorRef as RefObject<ReactCodeMirrorRef | null>).current = instance;
       }
 
       if (instance) {

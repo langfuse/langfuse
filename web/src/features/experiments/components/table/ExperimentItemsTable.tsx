@@ -35,7 +35,6 @@ import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -63,6 +62,8 @@ import { ExperimentCompareTable } from "./ExperimentCompareTable";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
+import { useRouter } from "next/router";
+import { PeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
 
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
@@ -226,6 +227,7 @@ export default function ExperimentItemsTable({
   projectId,
   hideControls = false,
 }: ExperimentItemsTableProps) {
+  const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
@@ -470,6 +472,7 @@ export default function ExperimentItemsTable({
       projectId,
       tableName: "experiment-items",
       setSelectedRows,
+      setSelectAll,
     },
   );
 
@@ -899,12 +902,13 @@ export default function ExperimentItemsTable({
     if (!canUsePeek) return undefined;
     return {
       itemType: "TRACE",
-      customTitlePrefix: "Experiment Item:",
       detailNavigationKey: "experiment-items",
-      children: <PeekViewObservationDetail projectId={projectId} />,
       ...peekNavigationProps,
     };
-  }, [projectId, peekNavigationProps, canUsePeek]);
+  }, [peekNavigationProps, canUsePeek]);
+
+  const peekId =
+    typeof router.query.peek === "string" ? router.query.peek : undefined;
 
   const rows: ExperimentItemsTableRow[] = useMemo(() => {
     if (items.status === "success" && items.rows) {
@@ -995,7 +999,7 @@ export default function ExperimentItemsTable({
           type: BatchActionType.Create,
           label: "Evaluate",
           description: "Run evaluators on selected items",
-          icon: <LightbulbIcon className="mr-2 h-4 w-4" />,
+          icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
           customDialog: true,
           accessCheck: {
             scope: "evalJob:CUD",
@@ -1049,6 +1053,11 @@ export default function ExperimentItemsTable({
                       projectId={projectId}
                       actions={tableActions}
                       tableName={BatchExportTableName.Sessions}
+                      selectedCount={selectAll ? totalCount : selectedItemCount}
+                      onClearSelection={() => {
+                        setSelectedRows({});
+                        setSelectAll(false);
+                      }}
                       onCustomAction={(actionId) => {
                         if (actionId === ActionId.ObservationBatchEvaluation) {
                           setShowRunEvaluationDialog(true);
@@ -1097,6 +1106,7 @@ export default function ExperimentItemsTable({
                   }
                   rowSelection={selectedRows}
                   setRowSelection={setSelectedRows}
+                  highlightAllRows={selectAll}
                 />
               ) : (
                 <div className="flex flex-1 items-center justify-center">
@@ -1130,13 +1140,21 @@ export default function ExperimentItemsTable({
                     </span>
                   ) : undefined
                 }
+                highlightAllRows={selectAll}
               />
             )}
           </div>
         </ResizableFilterLayout>
 
         {/* Peek view panel */}
-        {peekConfig && <TablePeekView peekView={peekConfig} />}
+        {peekConfig && (
+          <TablePeekView
+            {...peekConfig}
+            title={peekId ? `Experiment Item: ${peekId}` : undefined}
+          >
+            <PeekViewExperimentItemDetail projectId={projectId} />
+          </TablePeekView>
+        )}
 
         {/* Run Evaluation Dialog */}
         {showRunEvaluationDialog && (

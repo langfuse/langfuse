@@ -2977,7 +2977,7 @@ export const getEventsForAnalyticsIntegrations = async function* (
       "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['$mixpanel_session_id'] as mixpanel_session_id",
     )
     .whereRaw(
-      "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time <= {maxTimestamp: DateTime64(3)}",
+      "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time < {maxTimestamp: DateTime64(3)}",
       {
         minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
         maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
@@ -3284,7 +3284,11 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
   ]);
 
   const builder = new EventsQueryBuilder({ projectId })
-    .selectRaw("e.scope_name", "e.scope_version", "e.telemetry_sdk_language")
+    .selectRaw(
+      "e.scope_name AS scope_name",
+      "e.scope_version AS scope_version",
+      "e.telemetry_sdk_language AS telemetry_sdk_language",
+    )
     .selectMetadataExpanded([]) // Full metadata values from events_full
     .applyFilters(filter)
     // OR condition: v4 has scope_name column, v3 has scope in metadata

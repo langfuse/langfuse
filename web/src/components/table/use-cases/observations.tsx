@@ -67,7 +67,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
+import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -78,10 +78,7 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
-import {
-  type DataTablePeekViewProps,
-  TablePeekView,
-} from "@/src/components/table/peek";
+import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
@@ -582,6 +579,7 @@ export default function ObservationsTable({
     projectId,
     tableName: "observations",
     setSelectedRows,
+    setSelectAll,
   });
 
   const handleAddToAnnotationQueue = async ({
@@ -982,7 +980,8 @@ export default function ObservationsTable({
       cell: ({ row }) => {
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
-          traceTags && (
+          traceTags &&
+          traceTags.length > 0 && (
             <div
               className={cn(
                 "flex gap-x-2 gap-y-1",
@@ -1303,12 +1302,10 @@ export default function ObservationsTable({
     if (hideControls) return undefined;
     return {
       itemType: "TRACE",
-      customTitlePrefix: "Observation ID:",
       detailNavigationKey: "observations",
-      children: <PeekViewObservationDetail projectId={projectId} />,
       ...peekNavigationProps,
     };
-  }, [projectId, peekNavigationProps, hideControls]);
+  }, [peekNavigationProps, hideControls]);
 
   const rows: ObservationsTableRow[] = useMemo(() => {
     return generations.isSuccess
@@ -1354,6 +1351,18 @@ export default function ObservationsTable({
         })
       : [];
   }, [generations]);
+
+  const selectedObservationIds = useMemo(
+    () =>
+      Object.keys(selectedRows).filter((generationId) =>
+        generations.data?.generations.map((g) => g.id).includes(generationId),
+      ),
+    [selectedRows, generations.data?.generations],
+  );
+
+  const selectedObservationCount = selectAll
+    ? totalCount
+    : selectedObservationIds.length;
 
   return (
     <DataTableControlsProvider tableName={observationsFilterConfig.tableName}>
@@ -1410,16 +1419,17 @@ export default function ObservationsTable({
                 tableName={BatchExportTableName.Observations}
                 key="batchExport"
               />,
-              Object.keys(selectedRows).filter((generationId) =>
-                generations.data?.generations
-                  .map((g) => g.id)
-                  .includes(generationId),
-              ).length > 0 ? (
+              selectedObservationIds.length > 0 || selectAll ? (
                 <TableActionMenu
                   key="observations-multi-select-actions"
                   projectId={projectId}
                   actions={tableActions}
                   tableName={BatchExportTableName.Observations}
+                  selectedCount={selectedObservationCount}
+                  onClearSelection={() => {
+                    setSelectedRows({});
+                    setSelectAll(false);
+                  }}
                   onCustomAction={(actionType) => {
                     if (actionType === ActionId.ObservationAddToDataset) {
                       setShowAddToDatasetDialog(true);
@@ -1431,11 +1441,7 @@ export default function ObservationsTable({
             multiSelect={{
               selectAll,
               setSelectAll,
-              selectedRowIds: Object.keys(selectedRows).filter((generationId) =>
-                generations.data?.generations
-                  .map((g) => g.id)
-                  .includes(generationId),
-              ),
+              selectedRowIds: selectedObservationIds,
               setRowSelection: setSelectedRows,
               totalCount,
               ...paginationState,
@@ -1477,6 +1483,7 @@ export default function ObservationsTable({
                     }
               }
               rowSelection={selectedRows}
+              highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               setOrderBy={setOrderByState}
               orderBy={orderByState}
@@ -1516,16 +1523,19 @@ export default function ObservationsTable({
             />
           </div>
         </ResizableFilterLayout>
-        {peekConfig && <TablePeekView peekView={peekConfig} />}
+        {peekConfig && (
+          <TablePeekViewObservationDetail
+            {...peekConfig}
+            projectId={projectId}
+          />
+        )}
       </div>
 
       {/* Add to Dataset Dialog */}
       {showAddToDatasetDialog && (
         <AddObservationsToDatasetDialog
           projectId={projectId}
-          selectedObservationIds={Object.keys(selectedRows).filter((id) =>
-            generations.data?.generations.map((g) => g.id).includes(id),
-          )}
+          selectedObservationIds={selectedObservationIds}
           query={{
             filter: backendFilterState,
             orderBy: orderByState,
@@ -1541,9 +1551,7 @@ export default function ObservationsTable({
           }}
           exampleObservation={(() => {
             // Get the first selected observation to use for preview
-            const selectedIds = Object.keys(selectedRows).filter((id) =>
-              generations.data?.generations.map((g) => g.id).includes(id),
-            );
+            const selectedIds = selectedObservationIds;
             const firstId = selectedIds[0];
             const firstGen = generations.data?.generations.find(
               (g) => g.id === firstId,

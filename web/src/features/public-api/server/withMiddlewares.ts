@@ -133,7 +133,7 @@ export function withMiddlewares(
 
           return res.status(422).json({
             message: CH_ERROR_ADVICE_FULL,
-            error: "Unprocessable Content",
+            error: "Request timed out",
           });
         }
 

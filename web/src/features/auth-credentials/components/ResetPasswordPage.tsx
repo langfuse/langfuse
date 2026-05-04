@@ -29,7 +29,7 @@ import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
 
 const resetPasswordSchema = z
   .object({
-    email: z.string().email(),
+    email: z.email(),
     password: passwordSchema,
     confirmPassword: passwordSchema,
   })

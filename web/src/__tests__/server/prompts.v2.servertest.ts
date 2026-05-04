@@ -25,6 +25,10 @@ import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
 
+afterAll(async () => {
+  await disconnectQueues();
+});
+
 type CreatePromptInDBParams = {
   promptId?: string;
   name: string;
@@ -124,9 +128,6 @@ const testPromptEquality = (
 };
 
 describe("/api/public/v2/prompts API Endpoint", () => {
-  afterAll(async () => {
-    await disconnectQueues();
-  });
   describe("when fetching a prompt", () => {
     it("should return a 401 if key is invalid", async () => {
       const projectId = uuidv4();
@@ -998,9 +999,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
           "angled[brac]es]",
         ];
 
-        for (const name of validNames) {
-          await testValidName(name, auth);
-        }
+        await Promise.all(validNames.map((name) => testValidName(name, auth)));
       });
     });
 
@@ -1208,7 +1207,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     let projectId: string;
     let auth: string;
 
-    beforeEach(async () => {
+    beforeAll(async () => {
       // Create a prompt in a different project
       ({ projectId: projectId, auth: auth } =
         await createOrgProjectAndApiKey());
@@ -1896,10 +1895,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
   let triggerId: string;
   let actionId: string;
-
-  afterAll(async () => {
-    await disconnectQueues();
-  });
 
   it("should update the labels of a prompt", async () => {
     const { projectId: newProjectId, auth: newAuth } =

@@ -37,8 +37,6 @@ export type DataTablePeekViewProps = {
   itemType: PeekViewItemType;
   /** Key used for detail page navigation */
   detailNavigationKey?: string;
-  /** Custom prefix for the peek view title */
-  customTitlePrefix?: string;
 
   // Navigation and URL handling
   /** Function to resolve the navigation path for a list entry */
@@ -53,12 +51,6 @@ export type DataTablePeekViewProps = {
   expandPeek?: (openInNewTab: boolean) => void;
   /** Additional peek event options */
   peekEventOptions?: PeekEventControlOptions;
-
-  // Content
-  /**
-   * The content to display in the peek view.
-   */
-  children: React.ReactNode;
 };
 
 export const createPeekEventHandler = (options?: PeekEventControlOptions) => {
@@ -76,12 +68,26 @@ export const createPeekEventHandler = (options?: PeekEventControlOptions) => {
   };
 };
 
-type TablePeekViewProps = {
-  peekView: DataTablePeekViewProps;
+type TablePeekViewProps = Pick<
+  DataTablePeekViewProps,
+  | "itemType"
+  | "detailNavigationKey"
+  | "resolveDetailNavigationPath"
+  | "closePeek"
+  | "expandPeek"
+  | "peekEventOptions"
+> & {
+  title?: string;
+  // Content
+  /**
+   * The content to display in the peek view.
+   */
+  children: React.ReactNode;
 };
 
 function TablePeekViewComponent(props: TablePeekViewProps) {
-  const { peekView } = props;
+  const peekView = props;
+  const { title, children } = props;
   const router = useRouter();
   const eventHandler = createPeekEventHandler(peekView.peekEventOptions);
   const itemId = router.query.peek as string | undefined;
@@ -113,9 +119,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
               className="truncate text-sm font-medium focus:outline-hidden"
               tabIndex={0}
             >
-              {peekView.customTitlePrefix
-                ? `${peekView.customTitlePrefix} ${itemId}`
-                : itemId}
+              {title ?? itemId}
             </span>
           </SheetTitle>
           <div
@@ -160,7 +164,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         <PeekTableStateProvider>
           <div className="flex max-h-full min-h-0 flex-1 flex-col">
             <div className="flex-1 overflow-auto" key={itemId}>
-              {peekView.children}
+              {children}
             </div>
           </div>
         </PeekTableStateProvider>

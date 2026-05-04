@@ -11,7 +11,7 @@ import {
 } from "@/src/features/public-api/types/traces";
 import { env } from "@/src/env.mjs";
 import {
-  filterAndValidateDbTraceScoreList,
+  filterAndValidateDbLegacyTraceScoreList,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -131,7 +131,7 @@ export default withMiddlewares({
       const outObservations = observationsView.map(transformDbToApiObservation);
       // As these are traces scores, we expect all scores to have a traceId set
       // For type consistency, we validate the scores against the v1 schema which requires a traceId
-      const validatedScores = filterAndValidateDbTraceScoreList({
+      const validatedScores = filterAndValidateDbLegacyTraceScoreList({
         scores,
         onParseError: traceException,
       });

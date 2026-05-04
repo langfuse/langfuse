@@ -538,6 +538,7 @@ export const PromptDetail = ({
                 <PromptReferenceProvider projectId={projectId}>
                   {prompt.type === PromptType.Chat && chatMessages ? (
                     <div className="w-full">
+                      {/* eslint-disable-next-line @typescript-eslint/no-deprecated -- Internal backwards-compatible component alias. */}
                       <OpenAiMessageView
                         messages={chatMessages}
                         shouldRenderMarkdown={true}
