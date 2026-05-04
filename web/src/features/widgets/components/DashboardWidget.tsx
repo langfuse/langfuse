@@ -22,6 +22,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
 import {
   formatMetricName,
+  formatWidgetValueByUnit,
   shouldUseWidgetSSE,
   sanitizePivotTableDefaultSort,
 } from "@/src/features/widgets/utils";
@@ -39,7 +40,7 @@ import {
   isV2BreakdownChart,
   buildWidgetOrderBy,
 } from "@/src/features/query/validateQuery";
-import { requiresV2 } from "@/src/features/query/dataModel";
+import { requiresV2, viewDeclarations } from "@/src/features/query/dataModel";
 
 export interface WidgetPlacement {
   id: string;
@@ -296,6 +297,20 @@ export function DashboardWidget({
     });
   }, [queryResult.data, widget.data]);
 
+  const valueFormatter = useMemo(() => {
+    if (!widget.data || widget.data.chartType === "PIVOT_TABLE") {
+      return undefined;
+    }
+
+    const firstMetric = widget.data.metrics[0];
+    if (!firstMetric) return undefined;
+
+    const viewDeclaration = viewDeclarations[metricsVersion][widget.data.view];
+    const unit = viewDeclaration?.measures?.[firstMetric.measure]?.unit;
+
+    return (value: number) => formatWidgetValueByUnit(value, unit);
+  }, [widget.data, metricsVersion]);
+
   const handleEdit = () => {
     router.push(
       `/project/${projectId}/widgets/${placement.widgetId}?dashboardId=${dashboardId}`,
@@ -451,6 +466,7 @@ export function DashboardWidget({
                 widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
               }
               isLoading={queryResult.isPending}
+              valueFormatter={valueFormatter}
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}

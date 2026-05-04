@@ -6,7 +6,10 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
-import { compactSmallNumberFormatter } from "@/src/utils/numbers";
+import {
+  compactNumberFormatter,
+  compactSmallNumberFormatter,
+} from "@/src/utils/numbers";
 
 interface HistogramDataPoint {
   binLabel: string;
@@ -18,9 +21,11 @@ interface HistogramDataPoint {
 
 const HistogramChart = ({
   data,
+  valueFormatter,
   subtleFill = false,
 }: {
   data: DataPoint[];
+  valueFormatter?: (value: number) => string;
   subtleFill?: boolean;
 }) => {
   const transformHistogramData = (data: DataPoint[]): HistogramDataPoint[] => {
@@ -32,7 +37,7 @@ const HistogramChart = ({
       // ClickHouse histogram format: [(lower, upper, height), ...]
       return (firstDataPoint.metric as [number, number, number][]).map(
         ([lower, upper, height]) => ({
-          binLabel: `[${compactSmallNumberFormatter(lower)}, ${compactSmallNumberFormatter(upper)}]`,
+          binLabel: `[${valueFormatter ? valueFormatter(lower) : compactSmallNumberFormatter(lower)}, ${valueFormatter ? valueFormatter(upper) : compactSmallNumberFormatter(upper)}]`,
           count: height,
           lower,
           upper,
@@ -106,7 +111,7 @@ const HistogramChart = ({
               active={active}
               payload={payload}
               label={label}
-              valueFormatter={(v) => compactSmallNumberFormatter(Number(v))}
+              valueFormatter={(v) => compactNumberFormatter(Number(v))}
               nameFormatter={(name) => (name === "count" ? "Count" : name)}
               labelFormatter={(label) => `Bin: ${label}`}
             />

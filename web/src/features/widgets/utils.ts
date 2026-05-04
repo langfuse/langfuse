@@ -1,6 +1,11 @@
 import startCase from "lodash/startCase";
 import { type FilterState } from "@langfuse/shared";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import {
+  compactNumberFormatter,
+  latencyFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 
 // Shared widget chart configuration types
 export type WidgetChartConfig = {
@@ -193,4 +198,17 @@ export function shouldUseWidgetSSE({
   version: "v1" | "v2";
 }): boolean {
   return isV4Enabled && version === "v2";
+}
+
+/**
+ * Formats chart values based on the selected measure's unit.
+ */
+export function formatWidgetValueByUnit(value: number, unit?: string): string {
+  if (!unit) return compactNumberFormatter(value);
+
+  if (unit === "USD") return usdFormatter(value);
+  if (unit === "millisecond") return latencyFormatter(value);
+  if (unit === "tokens/s") return `${compactNumberFormatter(value)} tokens/s`;
+
+  return `${compactNumberFormatter(value)} ${unit}`;
 }

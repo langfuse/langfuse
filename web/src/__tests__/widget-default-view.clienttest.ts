@@ -1,4 +1,5 @@
 import {
+  formatWidgetValueByUnit,
   getDefaultView,
   shouldUseWidgetSSE,
 } from "@/src/features/widgets/utils";
@@ -39,5 +40,19 @@ describe("shouldUseWidgetSSE", () => {
         version: "v1",
       }),
     ).toBe(false);
+  });
+});
+
+describe("formatWidgetValueByUnit", () => {
+  it("formats usd values as currency", () => {
+    expect(formatWidgetValueByUnit(12.5, "USD")).toBe("$12.50");
+  });
+
+  it("formats millisecond values as compact seconds", () => {
+    expect(formatWidgetValueByUnit(1250, "millisecond")).toBe("1.25s");
+  });
+
+  it("appends the unit for non-special units", () => {
+    expect(formatWidgetValueByUnit(1500, "tokens")).toBe("1.5K tokens");
   });
 });

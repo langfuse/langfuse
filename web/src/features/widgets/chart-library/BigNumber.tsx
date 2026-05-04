@@ -103,6 +103,7 @@ const formatBigNumber = (
 
 export const BigNumber: React.FC<ChartProps> = ({
   data,
+  valueFormatter,
   className,
 }: ChartProps & { className?: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -127,9 +128,13 @@ export const BigNumber: React.FC<ChartProps> = ({
     }, 0);
   }, [data, isLoading]);
 
-  const displayValue = !isLoading
-    ? formatBigNumber(calculatedMetric, maxCharacters)
-    : { formatted: "0", unit: "" };
+  const formattedValue = !isLoading
+    ? valueFormatter?.(calculatedMetric)
+    : undefined;
+  const displayValue =
+    !isLoading && !formattedValue
+      ? formatBigNumber(calculatedMetric, maxCharacters)
+      : { formatted: "0", unit: "" };
 
   useEffect(() => {
     const resizeObserver = new ResizeObserver(() => {
@@ -169,11 +174,12 @@ export const BigNumber: React.FC<ChartProps> = ({
 
         // Quick test with current display value
         const testDisplayValue = !isLoading
-          ? formatBigNumber(calculatedMetric, maxChars)
-          : { formatted: "0", unit: "" };
+          ? (valueFormatter?.(calculatedMetric) ??
+            formatBigNumber(calculatedMetric, maxChars).formatted +
+              formatBigNumber(calculatedMetric, maxChars).unit)
+          : "0";
 
-        const textLength = (testDisplayValue.formatted + testDisplayValue.unit)
-          .length;
+        const textLength = testDisplayValue.length;
         const estimatedWidth = textLength * charWidth;
         const estimatedHeight = px * 1.1; // Less conservative line height (was 1.2)
 
@@ -196,7 +202,7 @@ export const BigNumber: React.FC<ChartProps> = ({
     }
 
     return () => resizeObserver.disconnect();
-  }, [calculatedMetric, isLoading]);
+  }, [calculatedMetric, isLoading, valueFormatter]);
 
   if (isLoading) {
     return null;
@@ -214,11 +220,11 @@ export const BigNumber: React.FC<ChartProps> = ({
         <span
           ref={textRef}
           className={cn("text-center font-extrabold tracking-tight", fontSize)}
-          title={calculatedMetric.toString()}
+          title={formattedValue ?? calculatedMetric.toString()}
         >
-          {displayValue.formatted}
+          {formattedValue ?? displayValue.formatted}
         </span>
-        {displayValue.unit && (
+        {!formattedValue && displayValue.unit && (
           <span
             className={cn(
               "text-muted-foreground font-bold",
