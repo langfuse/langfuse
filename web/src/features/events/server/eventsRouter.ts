@@ -12,6 +12,7 @@ import {
   timeFilter,
 } from "@langfuse/shared";
 import {
+  stringifyClientJsonValue,
   toDomainWithStringifiedMetadata,
   type WithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
@@ -44,8 +45,14 @@ const GetAllEventsInput = EventsTableOptions.extend({
 });
 
 export type EventBatchIOOutput = WithStringifiedMetadata<
-  Pick<Observation, "id" | "input" | "output" | "metadata">
->;
+  Omit<
+    Pick<Observation, "id" | "input" | "output" | "metadata">,
+    "input" | "output"
+  >
+> & {
+  input: string | null;
+  output: string | null;
+};
 
 export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
@@ -186,7 +193,11 @@ export const eventsRouter = createTRPCRouter({
             truncated: input.truncated,
           });
 
-          return batchIO.map(toDomainWithStringifiedMetadata);
+          return batchIO.map((observation) => ({
+            ...toDomainWithStringifiedMetadata(observation),
+            input: stringifyClientJsonValue(observation.input),
+            output: stringifyClientJsonValue(observation.output),
+          }));
         },
       );
     }),

@@ -67,11 +67,11 @@ describe("events trpc", () => {
       vi.mocked(getEventBatchIO).mockResolvedValueOnce([
         {
           id: observationId,
-          input: { input: "value" },
-          output: null,
+          input: { prototype: "input", safeKey: "input-value" },
+          output: { prototype: "output", safeKey: "output-value" },
           metadata: {
-            prototype: "test",
-            safeKey: "safe-value",
+            prototype: "metadata",
+            safeKey: "metadata-value",
           },
         },
       ]);
@@ -85,10 +85,20 @@ describe("events trpc", () => {
       });
 
       expect(result).toHaveLength(1);
+      expect(typeof result[0]?.input).toBe("string");
+      expect(JSON.parse(result[0]?.input ?? "{}")).toEqual({
+        prototype: "input",
+        safeKey: "input-value",
+      });
+      expect(typeof result[0]?.output).toBe("string");
+      expect(JSON.parse(result[0]?.output ?? "{}")).toEqual({
+        prototype: "output",
+        safeKey: "output-value",
+      });
       expect(typeof result[0]?.metadata).toBe("string");
       expect(JSON.parse(result[0]?.metadata ?? "{}")).toEqual({
-        prototype: "test",
-        safeKey: "safe-value",
+        prototype: "metadata",
+        safeKey: "metadata-value",
       });
       expect(() => superjson.serialize(result)).not.toThrow();
     });
