@@ -1418,3 +1418,19 @@ export function getMeasureUnit(
   const view = versionViews[viewName as keyof typeof versionViews];
   return view?.measures[measureName]?.unit;
 }
+
+/**
+ * Returns the unit of the value produced by `aggregation(measure)`. Falls back
+ * to the measure's declared unit when the aggregation preserves it; returns
+ * "integer" for `count` and `uniq` since those discard the source unit and
+ * yield a dimensionless count.
+ */
+export function getResultUnit(
+  viewName: string,
+  measureName: string,
+  aggregation: string | undefined,
+  version: ViewVersion = "v1",
+): string | undefined {
+  if (aggregation === "count" || aggregation === "uniq") return "integer";
+  return getMeasureUnit(viewName, measureName, version);
+}

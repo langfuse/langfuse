@@ -12,9 +12,9 @@ import {
   getValidAggregationsForMeasureType,
   type QueryType,
   mapLegacyUiTableFilterToView,
-  getMeasureUnit,
+  getResultUnit,
 } from "@/src/features/query";
-import { latencyFormatter } from "@/src/utils/numbers";
+import { latencyFormatter, usdFormatter } from "@/src/utils/numbers";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Select,
@@ -744,10 +744,27 @@ export function WidgetForm({
     validAggregationsForMeasure.includes("histogram") &&
     selectedMeasure !== "count";
 
-  const measureUnit = useMemo(
-    () => getMeasureUnit(selectedView, selectedMeasure, viewVersion),
-    [selectedView, selectedMeasure, viewVersion],
+  const resultUnit = useMemo(
+    () =>
+      getResultUnit(
+        selectedView,
+        selectedMeasure,
+        selectedAggregation,
+        viewVersion,
+      ),
+    [selectedView, selectedMeasure, selectedAggregation, viewVersion],
   );
+
+  const valueFormatter = useMemo(() => {
+    switch (resultUnit) {
+      case "millisecond":
+        return latencyFormatter;
+      case "USD":
+        return usdFormatter;
+      default:
+        return undefined;
+    }
+  }, [resultUnit]);
 
   // Sync aggregation and chart type when selections change
   useEffect(() => {
@@ -1977,9 +1994,7 @@ export function WidgetForm({
                   }
                   onSortChange={undefined}
                   isLoading={queryResult.isPending}
-                  valueFormatter={
-                    measureUnit === "millisecond" ? latencyFormatter : undefined
-                  }
+                  valueFormatter={valueFormatter}
                 />
                 <ChartLoadingState
                   isLoading={chartLoadingState.isLoading}

@@ -5,9 +5,9 @@ import {
   type metricAggregations,
   type QueryType,
   mapLegacyUiTableFilterToView,
-  getMeasureUnit,
+  getResultUnit,
 } from "@/src/features/query";
-import { latencyFormatter } from "@/src/utils/numbers";
+import { latencyFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
@@ -229,24 +229,27 @@ export function DashboardWidget({
     setRetryCount((current) => current + 1);
   }, []);
 
-  const measureUnit = useMemo(
+  const resultUnit = useMemo(
     () =>
-      getMeasureUnit(
+      getResultUnit(
         widget.data?.view ?? "",
         widget.data?.metrics[0]?.measure ?? "",
+        widget.data?.metrics[0]?.agg,
         metricsVersion,
       ),
     [widget.data?.view, widget.data?.metrics, metricsVersion],
   );
 
   const valueFormatter = useMemo(() => {
-    switch (measureUnit) {
+    switch (resultUnit) {
       case "millisecond":
         return latencyFormatter;
+      case "USD":
+        return usdFormatter;
       default:
         return undefined;
     }
-  }, [measureUnit]);
+  }, [resultUnit]);
 
   const transformedData = useMemo(() => {
     if (!widget.data || !queryResult.data) {
