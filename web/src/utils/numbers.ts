@@ -61,7 +61,7 @@ const prepareTimeDurationFormatter = (
       unit: units[tier]!,
       unitDisplay: "narrow",
       notation: "compact",
-      minimumFractionDigits: 2,
+      minimumFractionDigits: 0,
       maximumFractionDigits: 2,
     }),
     ms / divisors[tier]!,
@@ -71,13 +71,6 @@ const prepareTimeDurationFormatter = (
 export const latencyFormatter = (milliseconds?: number): string => {
   const [fmt, value] = prepareTimeDurationFormatter(milliseconds ?? 0);
   return fmt.format(value ?? 0);
-};
-
-export const latencyFormatterParts = (
-  milliseconds?: number,
-): Intl.NumberFormatPart[] => {
-  const [fmt, value] = prepareTimeDurationFormatter(milliseconds ?? 0);
-  return fmt.formatToParts(value);
 };
 
 export const compactNumberFormatterParts = (
