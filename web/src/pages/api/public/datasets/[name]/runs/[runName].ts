@@ -15,8 +15,12 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   addToDeleteDatasetQueue,
   getDatasetRunItemsFromEventsForPublicApi,
+  getDatasetRunItemsCountFromEventsForPublicApi,
 } from "@langfuse/shared/src/server";
-import { generateDatasetRunItemsForPublicApi } from "@/src/features/public-api/server/dataset-run-items";
+import {
+  generateDatasetRunItemsForPublicApi,
+  getDatasetRunItemsCountForPublicApi,
+} from "@/src/features/public-api/server/dataset-run-items";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -56,22 +60,42 @@ export default withMiddlewares({
           ? query.useEventsTable === true
           : env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
 
-      const datasetRunItems = useEventsTable
-        ? (
-            await getDatasetRunItemsFromEventsForPublicApi({
+      // Apply pagination with defaults
+      const page = query.page ?? 1;
+      const limit = query.limit ?? 50;
+      const offset = (page - 1) * limit;
+
+      const [datasetRunItems, totalItems] = useEventsTable
+        ? await Promise.all([
+            getDatasetRunItemsFromEventsForPublicApi({
               projectId: auth.scope.projectId,
               experimentId: run.id,
-              limit: 10000, // No pagination on this endpoint, fetch all items
-              offset: 0,
-            })
-          ).map(transformEventsDatasetRunItemToAPI)
-        : await generateDatasetRunItemsForPublicApi({
-            props: {
-              datasetId: run.datasetId,
-              runId: run.id,
+              limit,
+              offset,
+            }).then((items) => items.map(transformEventsDatasetRunItemToAPI)),
+            getDatasetRunItemsCountFromEventsForPublicApi({
               projectId: auth.scope.projectId,
-            },
-          });
+              experimentId: run.id,
+            }),
+          ])
+        : await Promise.all([
+            generateDatasetRunItemsForPublicApi({
+              props: {
+                datasetId: run.datasetId,
+                runId: run.id,
+                projectId: auth.scope.projectId,
+                page,
+                limit,
+              },
+            }),
+            getDatasetRunItemsCountForPublicApi({
+              props: {
+                datasetId: run.datasetId,
+                runId: run.id,
+                projectId: auth.scope.projectId,
+              },
+            }),
+          ]);
 
       return {
         ...transformDbDatasetRunToAPIDatasetRun({
@@ -79,6 +103,12 @@ export default withMiddlewares({
           datasetName: dataset.name,
         }),
         datasetRunItems,
+        meta: {
+          page,
+          limit,
+          totalItems,
+          totalPages: Math.ceil(totalItems / limit),
+        },
       };
     },
   }),

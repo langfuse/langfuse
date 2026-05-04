@@ -35,12 +35,21 @@ service:
       response: commons.Dataset
     getRun:
       method: GET
-      docs: Get a dataset run and its items
+      docs: Get a dataset run and its items. Returns paginated results with a default limit of 50 items per page.
       path: /datasets/{datasetName}/runs/{runName}
       path-parameters:
         datasetName: string
         runName: string
-      response: commons.DatasetRunWithItems
+      request:
+        name: GetDatasetRunRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: Page number, starts at 1. Defaults to 1.
+          limit:
+            type: optional<integer>
+            docs: Limit of items per page. Defaults to 50.
+      response: PaginatedDatasetRunWithItems
     deleteRun:
       method: DELETE
       docs: Delete a dataset run and all its run items. This action is irreversible.
@@ -70,6 +79,11 @@ types:
   PaginatedDatasets:
     properties:
       data: list<commons.Dataset>
+      meta: pagination.MetaResponse
+  PaginatedDatasetRunWithItems:
+    extends: commons.DatasetRun
+    properties:
+      datasetRunItems: list<commons.DatasetRunItem>
       meta: pagination.MetaResponse
   CreateDatasetRequest:
     properties:

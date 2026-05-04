@@ -1413,7 +1413,9 @@ paths:
         - BasicAuth: []
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
-      description: Get a dataset run and its items
+      description: >-
+        Get a dataset run and its items. Returns paginated results with a
+        default limit of 50 items per page.
       operationId: datasets_getRun
       tags:
         - Datasets
@@ -1428,13 +1430,27 @@ paths:
           required: true
           schema:
             type: string
+        - name: page
+          in: query
+          description: Page number, starts at 1. Defaults to 1.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: Limit of items per page. Defaults to 50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
       responses:
         '200':
           description: ''
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DatasetRunWithItems'
+                $ref: '#/components/schemas/PaginatedDatasetRunWithItems'
         '400':
           description: ''
           content:
@@ -7243,6 +7259,7 @@ components:
       title: BlobStorageExportFrequency
       type: string
       enum:
+        - every_20_minutes
         - hourly
         - daily
         - weekly
@@ -7431,9 +7448,9 @@ components:
         Compare `lastSyncAt` against your
 
         ETL bookmark to determine if new data is available. Note that exports
-        run with a 30-minute lag buffer,
+        run with a 20-minute lag buffer,
 
-        so `lastSyncAt` will always be at least 30 minutes behind real-time.
+        so `lastSyncAt` will always be at least 20 minutes behind real-time.
     BlobStorageIntegrationStatusResponse:
       title: BlobStorageIntegrationStatusResponse
       type: object
@@ -9373,6 +9390,21 @@ components:
       required:
         - data
         - meta
+    PaginatedDatasetRunWithItems:
+      title: PaginatedDatasetRunWithItems
+      type: object
+      properties:
+        datasetRunItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetRunItem'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - datasetRunItems
+        - meta
+      allOf:
+        - $ref: '#/components/schemas/DatasetRun'
     CreateDatasetRequest:
       title: CreateDatasetRequest
       type: object

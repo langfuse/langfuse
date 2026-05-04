@@ -2161,11 +2161,13 @@ describe("GET /api/public/dataset-run-items with useEventsTable", () => {
 
         // Create dataset item in Postgres
         const itemId = v4();
-        await createDatasetItem({
-          id: itemId,
-          projectId,
-          datasetId,
-          input: { test: "input" },
+        await prisma.datasetItem.create({
+          data: {
+            id: itemId,
+            projectId,
+            datasetId,
+            input: { test: "input" },
+          },
         });
 
         const traceId = v4();
@@ -2257,11 +2259,13 @@ describe("GET /api/public/dataset-run-items with useEventsTable", () => {
           const itemId = v4();
           itemIds.push(itemId);
 
-          await createDatasetItem({
-            id: itemId,
-            projectId,
-            datasetId,
-            input: { index: i },
+          await prisma.datasetItem.create({
+            data: {
+              id: itemId,
+              projectId,
+              datasetId,
+              input: { index: i },
+            },
           });
 
           const traceId = v4();
@@ -2372,11 +2376,13 @@ describe("GET /api/public/datasets/{name}/runs/{runName} with useEventsTable", (
 
         // Create dataset item in Postgres
         const itemId = v4();
-        await createDatasetItem({
-          id: itemId,
-          projectId,
-          datasetId,
-          input: { test: "input" },
+        await prisma.datasetItem.create({
+          data: {
+            id: itemId,
+            projectId,
+            datasetId,
+            input: { test: "input" },
+          },
         });
 
         const traceId = v4();
@@ -2438,8 +2444,122 @@ describe("GET /api/public/datasets/{name}/runs/{runName} with useEventsTable", (
           expect(item.traceId).toBe(traceId);
           expect(item.createdAt).toBeDefined();
           expect(item.updatedAt).toBeDefined();
+
+          // Verify pagination meta is present
+          expect(response.body.meta).toBeDefined();
+          expect(response.body.meta.page).toBe(1);
+          expect(response.body.meta.limit).toBe(50);
+          expect(response.body.meta.totalItems).toBe(1);
+          expect(response.body.meta.totalPages).toBe(1);
         }, 30000);
       }, 60000);
+
+      it("should paginate dataset run items correctly", async () => {
+        const { auth, projectId } = await createOrgProjectAndApiKey();
+
+        // Create dataset and run
+        const datasetId = v4();
+        const datasetName = `pagination-dataset-${v4()}`;
+        await prisma.dataset.create({
+          data: { id: datasetId, name: datasetName, projectId },
+        });
+
+        const runId = v4();
+        const runName = `pagination-run-${v4()}`;
+        await prisma.datasetRuns.create({
+          data: {
+            id: runId,
+            name: runName,
+            datasetId,
+            projectId,
+            metadata: {},
+          },
+        });
+
+        // Create 5 items and run items
+        const now = Date.now() * 1000;
+        for (let i = 0; i < 5; i++) {
+          const itemId = v4();
+          await prisma.datasetItem.create({
+            data: {
+              id: itemId,
+              projectId,
+              datasetId,
+              input: { test: "input" },
+            },
+          });
+
+          const traceId = v4();
+          const spanId = v4();
+
+          if (useEventsTable) {
+            const event = createExperimentEvent({
+              project_id: projectId,
+              trace_id: traceId,
+              span_id: spanId,
+              experimentId: runId,
+              experimentName: runName,
+              datasetId: datasetId,
+              itemId: itemId,
+              experimentItemRootSpanId: spanId,
+              start_time: now + i * 1000000,
+            });
+            await createEventsCh([event]);
+          } else {
+            await createDatasetRunItemsCh([
+              createDatasetRunItem({
+                dataset_item_id: itemId,
+                trace_id: traceId,
+                observation_id: spanId,
+                dataset_run_id: runId,
+                dataset_run_name: runName,
+                dataset_id: datasetId,
+                project_id: projectId,
+              }),
+            ]);
+          }
+        }
+
+        const separator = useEventsTable ? "&" : "?";
+
+        await waitForExpect(async () => {
+          // Test page 1 with limit 2
+          const page1 = await makeZodVerifiedAPICall(
+            GetDatasetRunV1Response,
+            "GET",
+            `/api/public/datasets/${encodeURIComponent(datasetName)}/runs/${encodeURIComponent(runName)}${queryParam}${separator}limit=2&page=1`,
+            undefined,
+            auth,
+          );
+
+          expect(page1.status).toBe(200);
+          expect(page1.body.datasetRunItems).toHaveLength(2);
+          expect(page1.body.meta.totalItems).toBe(5);
+          expect(page1.body.meta.totalPages).toBe(3);
+          expect(page1.body.meta.page).toBe(1);
+          expect(page1.body.meta.limit).toBe(2);
+
+          // Test page 2
+          const page2 = await makeZodVerifiedAPICall(
+            GetDatasetRunV1Response,
+            "GET",
+            `/api/public/datasets/${encodeURIComponent(datasetName)}/runs/${encodeURIComponent(runName)}${queryParam}${separator}limit=2&page=2`,
+            undefined,
+            auth,
+          );
+
+          expect(page2.status).toBe(200);
+          expect(page2.body.datasetRunItems).toHaveLength(2);
+          expect(page2.body.meta.page).toBe(2);
+
+          // Verify no overlap between pages
+          const page1Ids = page1.body.datasetRunItems.map((i) => i.id);
+          const page2Ids = page2.body.datasetRunItems.map((i) => i.id);
+          page2Ids.forEach((id) => {
+            expect(page1Ids).not.toContain(id);
+          });
+        }, 30000);
+      }, 90000);
     });
   };
 
