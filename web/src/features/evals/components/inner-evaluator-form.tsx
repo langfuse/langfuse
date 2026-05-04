@@ -15,7 +15,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Badge } from "@/src/components/ui/badge";
 import {
-  tracesTableColsWithOptions,
   singleFilter,
   availableTraceEvalVariables,
   datasetFormFilterColsWithOptions,
@@ -24,6 +23,7 @@ import {
   type ColumnDefinition,
   type availableDatasetEvalVariables,
   JobConfigState,
+  tracesTableColsWithOptions,
 } from "@langfuse/shared";
 import { z } from "zod";
 import { useEffect, useMemo, useState, memo } from "react";
@@ -103,6 +103,7 @@ import {
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { validateFilters } from "@/src/components/table/table-view-presets/validation";
 
 /**
  * Adds propagation warnings to columns that require OTEL SDK with span propagation
@@ -142,6 +143,18 @@ const addPropagationWarnings = (
     return col;
   });
 };
+
+const isLegacyTraceScoreFilter = (
+  filter: z.infer<typeof singleFilter>,
+  columns: ColumnDefinition[],
+) =>
+  columns.some(
+    (definition) =>
+      definition.id === "scores_avg" &&
+      (definition.id === filter.column ||
+        definition.name === filter.column ||
+        definition.aliases?.includes(filter.column)),
+  );
 
 // Lazy load tables
 const TracesTable = lazy(
@@ -343,6 +356,37 @@ export const InnerEvaluatorForm = (props: {
   const defaultTarget = defaultTargetResult.success
     ? defaultTargetResult.data
     : EvalTargetObject.EVENT;
+  const existingFilter = props.existingEvaluator?.filter
+    ? z.array(singleFilter).parse(props.existingEvaluator.filter)
+    : undefined;
+  const allTraceFilterColumns = useMemo(
+    () => tracesTableColsWithOptions(traceFilterOptions),
+    [traceFilterOptions],
+  );
+  const editableTraceFilterColumns = useMemo(
+    () => allTraceFilterColumns.filter((column) => column.id !== "scores_avg"),
+    [allTraceFilterColumns],
+  );
+  const preservedLegacyTraceScoreFilters = useMemo(
+    () =>
+      defaultTarget === EvalTargetObject.TRACE
+        ? (existingFilter ?? []).filter((filter) =>
+            isLegacyTraceScoreFilter(filter, allTraceFilterColumns),
+          )
+        : [],
+    [allTraceFilterColumns, defaultTarget, existingFilter],
+  );
+  const initialFilter = existingFilter
+    ? defaultTarget === EvalTargetObject.TRACE && !props.disabled
+      ? validateFilters(existingFilter, editableTraceFilterColumns)
+      : existingFilter
+    : defaultTarget === EvalTargetObject.TRACE
+      ? // For new trace evaluators, exclude internal environments by default
+        DEFAULT_TRACE_FILTER
+      : defaultTarget === EvalTargetObject.EVENT
+        ? // For new observation evaluators, default to GENERATION type
+          DEFAULT_OBSERVATION_FILTER
+        : [];
 
   const form = useForm({
     resolver: zodResolver(evalConfigFormSchema),
@@ -351,15 +395,7 @@ export const InnerEvaluatorForm = (props: {
       scoreName:
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
       target: defaultTarget,
-      filter: props.existingEvaluator?.filter
-        ? z.array(singleFilter).parse(props.existingEvaluator.filter)
-        : defaultTarget === EvalTargetObject.TRACE
-          ? // For new trace evaluators, exclude internal environments by default
-            DEFAULT_TRACE_FILTER
-          : defaultTarget === EvalTargetObject.EVENT
-            ? // For new observation evaluators, default to GENERATION type
-              DEFAULT_OBSERVATION_FILTER
-            : [],
+      filter: initialFilter,
       mapping: props.existingEvaluator?.variableMapping
         ? isEventTarget(props.existingEvaluator.targetObject) ||
           isExperimentTarget(props.existingEvaluator.targetObject)
@@ -557,7 +593,12 @@ export const InnerEvaluatorForm = (props: {
     const delay = values.delay * 1000; // convert to ms
     const sampling = values.sampling;
     const mapping = validatedVarMapping.data;
-    const filter = validatedFilter.data;
+    const filter =
+      props.mode === "edit" && isTraceTarget(values.target)
+        ? preservedLegacyTraceScoreFilters.concat(
+            validateFilters(validatedFilter.data, editableTraceFilterColumns),
+          )
+        : validatedFilter.data;
     const scoreName = values.scoreName;
 
     // For modern targets, derive status from runOnLive
@@ -996,6 +1037,20 @@ export const InnerEvaluatorForm = (props: {
                   name="filter"
                   render={({ field }) => {
                     const target = form.watch("target");
+                    const visibleFilters = field.value ?? [];
+                    const effectiveTraceFilters =
+                      props.mode === "edit" && isTraceTarget(target)
+                        ? preservedLegacyTraceScoreFilters.concat(
+                            validateFilters(
+                              visibleFilters,
+                              editableTraceFilterColumns,
+                            ),
+                          )
+                        : visibleFilters;
+                    const hasHiddenLegacyTraceFilters =
+                      !props.disabled &&
+                      isTraceTarget(target) &&
+                      preservedLegacyTraceScoreFilters.length > 0;
 
                     // Get appropriate columns based on target type
                     const getFilterColumns = () => {
@@ -1010,7 +1065,12 @@ export const InnerEvaluatorForm = (props: {
                           allowPropagationFilters,
                         );
                       } else if (isTraceTarget(target)) {
-                        return tracesTableColsWithOptions(traceFilterOptions);
+                        if (props.disabled) {
+                          // Keep "scores_avg" column to preserve visibility of existing filters when disabled
+                          return tracesTableColsWithOptions(traceFilterOptions);
+                        }
+
+                        return editableTraceFilterColumns;
                       } else if (isExperimentTarget(target)) {
                         // Experiment evaluators - only dataset filter
                         return experimentEvalFilterColsWithOptions(
@@ -1024,7 +1084,10 @@ export const InnerEvaluatorForm = (props: {
                       }
                     };
 
-                    const hasFilters = field.value && field.value.length > 0;
+                    const hasFilters =
+                      isTraceTarget(target) && props.mode === "edit"
+                        ? effectiveTraceFilters.length > 0
+                        : visibleFilters.length > 0;
 
                     return (
                       <FormItem>
@@ -1046,7 +1109,7 @@ export const InnerEvaluatorForm = (props: {
                                     : "id"
                                 }
                                 columns={getFilterColumns()}
-                                filterState={field.value ?? []}
+                                filterState={visibleFilters}
                                 onChange={(
                                   value: z.infer<typeof singleFilter>[],
                                 ) => {
@@ -1076,6 +1139,16 @@ export const InnerEvaluatorForm = (props: {
                             )}
                           </div>
                         </FormControl>
+                        {hasHiddenLegacyTraceFilters && (
+                          <div className="align-center flex max-w-[500px] gap-1">
+                            <AlertTriangle className="text-dark-yellow h-4 w-4" />
+                            <AlertDescription className="text-dark-yellow">
+                              This evaluator still includes hidden legacy trace
+                              score filters. They are preserved on save but
+                              cannot be edited here.
+                            </AlertDescription>
+                          </div>
+                        )}
                         {!props.disabled && !hasFilters && (
                           <div className="align-center flex max-w-[500px] gap-1">
                             <AlertTriangle className="text-dark-yellow h-4 w-4" />
@@ -1097,7 +1170,16 @@ export const InnerEvaluatorForm = (props: {
                     {isTraceTarget(form.watch("target")) && (
                       <TracesPreview
                         projectId={props.projectId}
-                        filterState={form.watch("filter") ?? []}
+                        filterState={
+                          props.mode === "edit"
+                            ? preservedLegacyTraceScoreFilters.concat(
+                                validateFilters(
+                                  form.watch("filter") ?? [],
+                                  editableTraceFilterColumns,
+                                ),
+                              )
+                            : (form.watch("filter") ?? [])
+                        }
                       />
                     )}
 

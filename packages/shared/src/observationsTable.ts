@@ -279,7 +279,7 @@ export type ObservationOptions = {
   name: Array<SingleValueOption>;
   traceName: Array<SingleValueOption>;
   environment: Array<SingleValueOption>;
-  scores_avg: Array<string>;
+  scores_avg?: Array<string>;
   score_categories: Array<MultiValueOption>;
   promptName: Array<SingleValueOption>;
   tags: Array<SingleValueOption>;

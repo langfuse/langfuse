@@ -720,7 +720,7 @@ function FilterBuilderForm({
                         filter.type === "stringObject") &&
                       (column?.type === "numberObject" ||
                         column?.type === "stringObject") ? (
-                        column.keyOptions ? (
+                        column.keyOptions && column.keyOptions.length > 0 ? (
                           // Case 1: object with keyOptions - selector of the key of the object
                           <Select
                             disabled={!filter.column}

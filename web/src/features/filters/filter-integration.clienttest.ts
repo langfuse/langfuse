@@ -16,7 +16,10 @@ import {
   computeSelectedValues,
 } from "./lib/filter-query-encoding";
 import { validateFilters } from "@/src/components/table/table-view-presets/validation";
-import { traceFilterConfig } from "./config/traces-config";
+import {
+  traceFilterConfig,
+  getTraceFilterConfig,
+} from "./config/traces-config";
 import { observationFilterConfig } from "./config/observations-config";
 import { transformFiltersForBackend } from "./lib/filter-transform";
 import { sessionFilterConfig } from "./config/sessions-config";
@@ -642,9 +645,89 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
 
     expect(normalized).toEqual([]);
   });
+
+  it("should preserve startTime URL filters on the session detail events view", () => {
+    const sessionEventColumns: ColumnDefinition[] = [
+      ...observationEventsFilterConfig.columnDefinitions,
+      {
+        name: "Position in Trace",
+        id: "positionInTrace",
+        type: "positionInTrace",
+        internal: "positionInTrace",
+      },
+    ];
+    const urlFilter = encodeFiltersGeneric([
+      {
+        column: "startTime",
+        type: "datetime",
+        operator: ">=",
+        value: new Date("2024-01-01T00:00:00.000Z"),
+      },
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "last",
+      },
+    ]);
+
+    const normalized = decodeAndNormalizeFilters(
+      urlFilter,
+      sessionEventColumns,
+    );
+
+    expect(normalized).toEqual([
+      {
+        column: "startTime",
+        type: "datetime",
+        operator: ">=",
+        value: new Date("2024-01-01T00:00:00.000Z"),
+      },
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "last",
+      },
+    ]);
+  });
 });
 
 describe("Saved view validation", () => {
+  it("should discard stale numeric score filters when the facet is removed", () => {
+    const config = getTraceFilterConfig();
+    const filters: FilterState = [
+      {
+        column: "scores_avg",
+        type: "numberObject",
+        operator: ">=",
+        key: "accuracy",
+        value: 0.8,
+      },
+      {
+        column: "traceName",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["checkout"],
+      },
+      {
+        column: "legacyUnknownColumn",
+        type: "string",
+        operator: "contains",
+        value: "deprecated",
+      },
+    ];
+
+    expect(validateFilters(filters, config.columnDefinitions)).toEqual([
+      {
+        column: "traceName",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["checkout"],
+      },
+    ]);
+  });
+
   it("should discard stale positionInTrace filters on the general events table", () => {
     const filters: FilterState = [
       {

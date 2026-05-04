@@ -78,6 +78,9 @@ export function omitFilterFacets(
 
   return {
     ...config,
+    columnDefinitions: config.columnDefinitions.filter(
+      (column) => !omittedColumnSet.has(column.id),
+    ),
     defaultExpanded: config.defaultExpanded?.filter(
       (column) => !omittedColumnSet.has(column),
     ),

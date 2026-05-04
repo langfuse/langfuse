@@ -28,7 +28,9 @@ export type ObservationEventsOmittableFilterColumn = "sessionId" | "userId";
 export const observationEventsFilterConfig: FilterConfig = {
   tableName: "observations-events",
 
-  columnDefinitions: eventsTableCols,
+  columnDefinitions: eventsTableCols.filter((column) => {
+    return column.id !== "scores_avg" && column.id !== "trace_scores_avg";
+  }),
 
   defaultExpanded: ["environment", "name", "hasParentObservation", "type"],
 
@@ -223,19 +225,9 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: "Categorical Scores",
     },
     {
-      type: "numericKeyValue" as const,
-      column: "scores_avg",
-      label: "Numeric Scores",
-    },
-    {
       type: "keyValue" as const,
       column: "trace_score_categories",
       label: "Trace Categorical Scores",
-    },
-    {
-      type: "numericKeyValue" as const,
-      column: "trace_scores_avg",
-      label: "Trace Numeric Scores",
     },
     {
       type: "numeric" as const,

@@ -56,8 +56,6 @@ export function useEventsFilterOptions({
         },
         {} as Record<string, string[]>,
       ) ?? undefined;
-
-    const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
     const traceScoreCategories =
       filterOptions.data?.trace_score_categories?.reduce(
         (acc, score) => {
@@ -66,8 +64,6 @@ export function useEventsFilterOptions({
         },
         {} as Record<string, string[]>,
       ) ?? undefined;
-    const traceScoresNumeric =
-      filterOptions.data?.trace_scores_avg ?? undefined;
 
     return {
       environment: filterOptions.data?.environment ?? undefined,
@@ -101,9 +97,7 @@ export function useEventsFilterOptions({
       outputCost: [],
       totalCost: [],
       score_categories: scoreCategories,
-      scores_avg: scoresNumeric,
       trace_score_categories: traceScoreCategories,
-      trace_scores_avg: traceScoresNumeric,
     };
   }, [filterOptions.data]);
 

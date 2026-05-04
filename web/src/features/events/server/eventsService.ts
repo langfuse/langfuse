@@ -26,7 +26,6 @@ import {
   getEventsGroupedByHasParentObservation,
   getEventsGroupedByToolName,
   getEventsGroupedByCalledToolName,
-  getNumericScoresGroupedByName,
   getScoresGroupedByNameSourceType,
   getObservationsBatchIOFromEventsTable,
   getScoresForObservations,
@@ -263,7 +262,6 @@ export async function getEventFilterOptions(
       : [];
 
   const [
-    numericScoreNames,
     categoricalScoreNames,
     traceScoreColumns,
     providedModelName,
@@ -285,7 +283,6 @@ export async function getEventFilterOptions(
     toolNames,
     calledToolNames,
   ] = await Promise.all([
-    getNumericScoresGroupedByName(projectId, traceTimestampFilters),
     getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
     getScoresGroupedByNameSourceType({
       projectId,
@@ -310,16 +307,6 @@ export async function getEventFilterOptions(
     getEventsGroupedByToolName(projectId, eventsFilter),
     getEventsGroupedByCalledToolName(projectId, eventsFilter),
   ]);
-  const traceNumericScoreNames = Array.from(
-    new Set(
-      traceScoreColumns
-        .filter(
-          (score) =>
-            score.dataType === "NUMERIC" || score.dataType === "BOOLEAN",
-        )
-        .map((score) => score.name),
-    ),
-  );
   const traceCategoricalScoreNames = new Set(
     traceScoreColumns
       .filter((score) => score.dataType === "CATEGORICAL")
@@ -339,9 +326,7 @@ export async function getEventFilterOptions(
     name: name
       .filter((i) => i.name !== null)
       .map((i) => ({ value: i.name as string, count: i.count })),
-    scores_avg: numericScoreNames.map((score) => score.name),
     score_categories: categoricalScoreNames,
-    trace_scores_avg: traceNumericScoreNames,
     trace_score_categories: categoricalScoreNames.filter((score) =>
       traceCategoricalScoreNames.has(score.label),
     ),

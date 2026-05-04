@@ -19,7 +19,9 @@ export const OBSERVATION_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
 export const observationFilterConfig: FilterConfig = {
   tableName: "observations",
 
-  columnDefinitions: observationsTableCols,
+  columnDefinitions: observationsTableCols.filter(
+    (column) => column.id !== "scores_avg",
+  ),
 
   defaultExpanded: ["environment", "name"],
 
@@ -169,11 +171,6 @@ export const observationFilterConfig: FilterConfig = {
       type: "keyValue" as const,
       column: "score_categories",
       label: "Categorical Scores",
-    },
-    {
-      type: "numericKeyValue" as const,
-      column: "scores_avg",
-      label: "Numeric Scores",
     },
     {
       type: "numeric" as const,

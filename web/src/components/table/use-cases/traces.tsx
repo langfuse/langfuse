@@ -302,9 +302,6 @@ export default function TracesTable({
         {} as Record<string, string[]>,
       ) ?? undefined;
 
-    const scoresNumeric =
-      traceFilterOptionsResponse.data?.scores_avg ?? undefined;
-
     return {
       traceName:
         traceFilterOptionsResponse.data?.name?.map((n) => ({
@@ -337,7 +334,6 @@ export default function TracesTable({
       outputCost: [],
       totalCost: [],
       score_categories: scoreCategories,
-      scores_avg: scoresNumeric,
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 

@@ -382,8 +382,6 @@ export default function ObservationsTable({
         {} as Record<string, string[]>,
       ) ?? undefined;
 
-    const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
-
     return {
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) ??
@@ -444,7 +442,6 @@ export default function ObservationsTable({
       outputCost: [],
       totalCost: [],
       score_categories: scoreCategories,
-      scores_avg: scoresNumeric,
     };
   }, [environmentFilterOptions.data, filterOptions.data]);
 

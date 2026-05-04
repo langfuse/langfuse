@@ -14,7 +14,6 @@ import {
   getObservationsGroupedByPromptName,
   getObservationsGroupedByToolName,
   getObservationsGroupedByCalledToolName,
-  getNumericScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
   tracesTableUiColumnDefinitions,
@@ -66,7 +65,6 @@ export const filterOptionsQuery = protectedProjectProcedure
     };
 
     const [
-      numericScoreNames,
       categoricalScoreNames,
       model,
       name,
@@ -77,8 +75,6 @@ export const filterOptionsQuery = protectedProjectProcedure
       toolNames,
       calledToolNames,
     ] = await Promise.all([
-      // numeric scores
-      getNumericScoresGroupedByName(input.projectId, traceTimestampFilters),
       // categorical scores
       getCategoricalScoresGroupedByName(input.projectId, traceTimestampFilters),
       //model
@@ -127,7 +123,6 @@ export const filterOptionsQuery = protectedProjectProcedure
         .map((i) => ({
           value: i.traceName as string,
         })),
-      scores_avg: numericScoreNames.map((score) => score.name),
       score_categories: categoricalScoreNames,
       promptName: promptNames
         .filter((i) => i.promptName !== null)

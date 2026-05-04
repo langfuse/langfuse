@@ -455,7 +455,7 @@ describe("traces trpc", () => {
       expect(sentimentScore?.values).toHaveLength(4);
     });
 
-    it("should include observation-only score names for trace-scoped aggregates", async () => {
+    it("should omit numeric score filter options from the traces filter options contract", async () => {
       const trace = createTrace({
         project_id: projectId,
       });
@@ -490,10 +490,7 @@ describe("traces trpc", () => {
         projectId,
       });
 
-      expect(filterOptions.scores_avg).toEqual(
-        expect.arrayContaining(["observation_only_quality"]),
-      );
-      expect(filterOptions.scores_avg).not.toContain("session_only_quality");
+      expect(filterOptions).not.toHaveProperty("scores_avg");
     });
   });
 

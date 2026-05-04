@@ -713,13 +713,6 @@ export const SessionEventsPage: React.FC<{
         ) {
           return { ...column, options: scoreCategoryOptions };
         }
-
-        if (column.type === "numberObject" && column.id === "scores_avg") {
-          return filterOptions.scores_avg
-            ? { ...column, keyOptions: filterOptions.scores_avg }
-            : column;
-        }
-
         return column;
       });
   }, [filterOptions, sessionEventsFilterConfig.columnDefinitions]);

@@ -9,7 +9,9 @@ export type TraceOmittableFilterColumn = "userId" | "sessionId";
 export const traceFilterConfig: FilterConfig = {
   tableName: "traces",
 
-  columnDefinitions: tracesTableCols,
+  columnDefinitions: tracesTableCols.filter(
+    (column) => column.id !== "scores_avg",
+  ),
 
   defaultExpanded: ["environment", "traceName"],
 
@@ -140,11 +142,6 @@ export const traceFilterConfig: FilterConfig = {
       type: "keyValue" as const,
       column: "score_categories",
       label: "Categorical Scores",
-    },
-    {
-      type: "numericKeyValue" as const,
-      column: "scores_avg",
-      label: "Numeric Scores",
     },
   ],
 };
