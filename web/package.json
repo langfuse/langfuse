@@ -28,6 +28,10 @@
     "build-storybook": "dotenv -e ../.env -- storybook build"
   },
   "dependencies": {
+    "@ag-ui/claude-agent-sdk": "0.0.2",
+    "@ag-ui/client": "^0.0.52",
+    "@ag-ui/core": "^0.0.52",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.133",
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@baselime/trpc-opentelemetry-middleware": "^0.1.2",
@@ -152,6 +156,7 @@
     "recharts": "^3.8.0",
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
+    "streamdown": "^2.5.0",
     "stripe": "^18.5.0",
     "superjson": "2.2.2",
     "tailwind-merge": "^3.5.0",

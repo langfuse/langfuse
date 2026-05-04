@@ -38,6 +38,8 @@ minimumReleaseAgeExclude:
   - "@opentelemetry/otlp-transformer@0.218.0"
   - "@opentelemetry/sdk-logs@0.218.0"
   - "@opentelemetry/sdk-node@0.218.0"
+  - "mermaid@11.15.0"
+  - "@mermaid-js/parser@1.1.1"
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
