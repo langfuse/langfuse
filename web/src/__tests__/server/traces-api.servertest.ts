@@ -2007,6 +2007,90 @@ describe("/api/public/traces API Endpoint", () => {
           expect(traces.body.data.map((d) => d.id)).toEqual([traceWithScore1]);
           expect(traces.body.meta.totalItems).toBe(1);
         });
+
+        it("should filter by numeric score values without requesting scores field group", async () => {
+          const baseTimestamp = Date.now();
+          const traceWithScore1 = randomUUID();
+          const traceWithScore2 = randomUUID();
+          const scoreName = `quality-${randomUUID()}`;
+
+          const trace1 = createTrace({
+            id: traceWithScore1,
+            name: "trace-numeric-score-1",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+          });
+          const trace2 = createTrace({
+            id: traceWithScore2,
+            name: "trace-numeric-score-2",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+          });
+
+          await Promise.all([
+            createTraceWithObservations(useEventsTable, trace1, []),
+            createTraceWithObservations(useEventsTable, trace2, []),
+            createScoresCh([
+              createTraceScore({
+                trace_id: traceWithScore1,
+                project_id: projectId,
+                name: scoreName,
+                value: 0.9,
+                data_type: "NUMERIC",
+                timestamp: baseTimestamp,
+                observation_id: null,
+              }),
+              createTraceScore({
+                trace_id: traceWithScore1,
+                project_id: projectId,
+                name: scoreName,
+                value: 0.1,
+                data_type: "NUMERIC",
+                timestamp: baseTimestamp,
+                observation_id: null,
+              }),
+              createTraceScore({
+                trace_id: traceWithScore2,
+                project_id: projectId,
+                name: scoreName,
+                value: 0.1,
+                data_type: "NUMERIC",
+                timestamp: baseTimestamp,
+                observation_id: null,
+              }),
+            ]),
+          ]);
+
+          await waitForEventsTable(useEventsTable);
+
+          const filterParam = JSON.stringify([
+            {
+              type: "numberObject",
+              column: "scores_avg",
+              key: scoreName,
+              operator: "=",
+              value: 0.9,
+            },
+            {
+              type: "stringOptions",
+              column: "id",
+              operator: "any of",
+              value: [traceWithScore1, traceWithScore2],
+            },
+          ]);
+
+          const traces = await makeZodVerifiedAPICall(
+            GetTracesV1Response,
+            "GET",
+            buildUrl(`fields=core&filter=${encodeURIComponent(filterParam)}`),
+            undefined,
+            auth,
+          );
+
+          expect(traces.status).toBe(200);
+          expect(traces.body.data.map((d) => d.id)).toEqual([traceWithScore1]);
+          expect(traces.body.meta.totalItems).toBe(1);
+        });
       });
     };
 

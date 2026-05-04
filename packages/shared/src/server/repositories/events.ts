@@ -1292,7 +1292,10 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
 
   // Check if filters specifically reference score aggregation columns
   const hasScoreAggregationFilters = tracesFilter.some(
-    (f) => f.field === "s.scores_avg" || f.field === "s.score_categories",
+    (f) =>
+      f.field === "s.scores_avg" ||
+      f.field === "s.score_values" ||
+      f.field === "s.score_categories",
   );
 
   // Build traces CTE using eventsTracesAggregation WITHOUT filters
@@ -1325,6 +1328,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
           "project_id",
           "score_ids",
           "scores_avg",
+          "score_values",
           "score_categories",
         ],
       })

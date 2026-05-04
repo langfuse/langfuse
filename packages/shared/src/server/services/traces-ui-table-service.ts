@@ -311,39 +311,65 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     ),
          scores_avg AS (
            SELECT
-             project_id,
-             trace_id,
-             -- For numeric scores, use tuples of (name, avg_value)
-             groupArrayIf(
-               tuple(name, avg_value),
-               data_type IN ('NUMERIC', 'BOOLEAN')
-             ) AS scores_avg,
-             -- For categorical scores, use name:value format for improved query performance
-             groupArrayIf(
-               concat(name, ':', string_value),
-               data_type = 'CATEGORICAL' AND notEmpty(string_value)
-             ) AS score_categories
+             avg_scores.project_id,
+             avg_scores.trace_id,
+             avg_scores.scores_avg,
+             avg_scores.score_categories,
+             raw_scores.score_values
            FROM (
-                  SELECT
-                    project_id,
-                    trace_id,
-                    name,
-                    data_type,
-                    string_value,
-                    avg(value) as avg_value
-                  FROM scores s FINAL
-                  WHERE
-                    project_id = {projectId: String}
-                    ${timeStampFilter ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
-                    ${scoresFilterRes ? `AND ${scoresFilterRes.query}` : ""}
-                  GROUP BY
-                    project_id,
-                    trace_id,
-                    name,
-                    data_type,
-                    string_value
-                ) tmp
-           GROUP BY project_id, trace_id
+             SELECT
+               project_id,
+               trace_id,
+               -- For numeric scores, keep averaged tuples for trace row rendering.
+               groupArrayIf(
+                 tuple(name, avg_value),
+                 data_type IN ('NUMERIC', 'BOOLEAN')
+               ) AS scores_avg,
+               -- For categorical scores, use name:value format for improved query performance
+               groupArrayIf(
+                 concat(name, ':', string_value),
+                 data_type = 'CATEGORICAL' AND notEmpty(string_value)
+               ) AS score_categories
+             FROM (
+               SELECT
+                 project_id,
+                 trace_id,
+                 name,
+                 data_type,
+                 string_value,
+                 avg(value) as avg_value
+               FROM scores s FINAL
+               WHERE
+                 project_id = {projectId: String}
+                 ${timeStampFilter ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
+               GROUP BY
+                 project_id,
+                 trace_id,
+                 name,
+                 data_type,
+                 string_value
+             ) tmp
+             GROUP BY project_id, trace_id
+           ) avg_scores
+           LEFT JOIN (
+             SELECT
+               project_id,
+               trace_id,
+               -- Numeric filters should match if any raw score value satisfies the predicate.
+               groupArrayIf(
+                 tuple(name, value),
+                 data_type IN ('NUMERIC', 'BOOLEAN')
+               ) AS score_values
+             FROM scores s FINAL
+             WHERE
+               project_id = {projectId: String}
+               ${timeStampFilter ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
+             GROUP BY
+               project_id,
+               trace_id
+           ) raw_scores
+             ON raw_scores.project_id = avg_scores.project_id
+            AND raw_scores.trace_id = avg_scores.trace_id
          )
   `;
 

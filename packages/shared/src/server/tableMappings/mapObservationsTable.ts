@@ -207,13 +207,13 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Scores",
     uiTableId: "scores",
     clickhouseTableName: "scores",
-    clickhouseSelect: "s.scores_avg",
+    clickhouseSelect: "s.score_values",
   },
   {
     uiTableName: "Scores (numeric)",
     uiTableId: "scores_avg",
     clickhouseTableName: "scores",
-    clickhouseSelect: "s.scores_avg",
+    clickhouseSelect: "s.score_values",
   },
   {
     uiTableName: "Scores (categorical)",

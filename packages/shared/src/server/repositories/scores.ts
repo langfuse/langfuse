@@ -48,7 +48,6 @@ import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
 import {
   eventsTraceMetadata,
-  eventsExperimentTraceIds,
   eventsExperiments,
 } from "../queries/clickhouse-sql/query-fragments";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
@@ -56,9 +55,69 @@ import {
   findUiColumnMapping,
   matchesUiColumnMapping,
 } from "../../tableDefinitions";
+import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 
 const FILTER_OPTION_SCORE_NAME_LIMIT = 200;
 const FILTER_OPTION_CATEGORICAL_VALUE_LIMIT = 20;
+
+const isScoreEventFilter = (filterEntry: FilterCondition) =>
+  scoresEventsFilterMapping.some((col) =>
+    matchesUiColumnMapping(col, filterEntry.column),
+  );
+
+const getScoreEventFilterState = (filter: FilterState = []) =>
+  filter.filter(isScoreEventFilter);
+
+const getScoreTableFilterState = (filter: FilterState = []) =>
+  filter.filter((filterEntry) => !isScoreEventFilter(filterEntry));
+
+type ScoreEventJoinTarget = "trace" | "observation";
+
+const buildScoreEventsCte = (
+  projectId: string,
+  eventFilterState: FilterState,
+  joinTarget: ScoreEventJoinTarget,
+): {
+  eventsCTE: string;
+  eventsCTEParams: Record<string, unknown>;
+  eventsFilterRes?: ReturnType<FilterList["apply"]>;
+} => {
+  if (eventFilterState.length === 0) {
+    return {
+      eventsCTE: "",
+      eventsCTEParams: {},
+    };
+  }
+
+  const eventsBuilder = new EventsQueryBuilder({ projectId }).selectRaw(
+    "e.project_id",
+    "e.trace_id",
+  );
+
+  if (joinTarget === "observation") {
+    eventsBuilder.selectRaw("e.span_id").limitBy("e.project_id", "e.span_id");
+  } else {
+    eventsBuilder.limitBy("e.project_id", "e.trace_id");
+  }
+
+  const cteEventFilters = new FilterList(
+    createFilterFromFilterState(eventFilterState, scoresEventsFilterMapping),
+  );
+  const eventsFilterRes = cteEventFilters.apply();
+
+  if (eventsFilterRes.query) {
+    eventsBuilder.where(eventsFilterRes);
+  }
+
+  const { query: cteQuery, params: cteParams } =
+    eventsBuilder.buildWithParams();
+
+  return {
+    eventsCTE: `WITH experiment_events AS (${cteQuery})`,
+    eventsCTEParams: cteParams,
+    eventsFilterRes,
+  };
+};
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -727,10 +786,18 @@ export const getScoresForObservations = async <
  */
 const scoresEventsFilterMapping = [
   {
-    uiTableName: "Experiment IDs",
-    uiTableId: "experimentIds",
+    uiTableName: "Experiment ID",
+    uiTableId: "experimentId",
+    aliases: ["experimentIds"],
     clickhouseTableName: "events_proto",
     clickhouseSelect: "experiment_id",
+    queryPrefix: "e",
+  },
+  {
+    uiTableName: "Has Parent Observation",
+    uiTableId: "hasParentObservation",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "parent_span_id != ''",
     queryPrefix: "e",
   },
 ];
@@ -746,10 +813,11 @@ export const getScoresGroupedByNameSourceType = async ({
   fromTimestamp?: Date;
   toTimestamp?: Date;
 }) => {
+  const scoreTableFilterState = getScoreTableFilterState(filter);
   const scoresFilter = new FilterList();
   scoresFilter.push(
     ...createFilterFromFilterState(
-      filter,
+      scoreTableFilterState,
       scoresColumnsTableUiColumnDefinitions,
       scoresTableCols,
     ),
@@ -767,35 +835,13 @@ export const getScoresGroupedByNameSourceType = async ({
     (f) => f.clickhouseTable === "dataset_run_items_rmt",
   );
 
-  // Extract event-level filter entries from the frontend filter state
-  const eventFilterState = filter.filter((filterEntry) =>
-    scoresEventsFilterMapping.some((col) =>
-      matchesUiColumnMapping(col, filterEntry.column),
-    ),
+  const eventFilterState = getScoreEventFilterState(filter);
+  const { eventsCTE, eventsCTEParams, eventsFilterRes } = buildScoreEventsCte(
+    projectId,
+    eventFilterState,
+    "trace",
   );
-
-  let eventsCTE = "";
-  let eventsCTEParams: Record<string, unknown> = {};
   const hasEventsFilters = eventFilterState.length > 0;
-
-  let eventsFilterRes;
-  if (hasEventsFilters) {
-    const eventsBuilder = eventsExperimentTraceIds(projectId);
-
-    // Create filters from the event filter state using the proper column mappings
-    const cteEventFilters = new FilterList(
-      createFilterFromFilterState(eventFilterState, scoresEventsFilterMapping),
-    );
-    eventsFilterRes = cteEventFilters.apply();
-    if (eventsFilterRes.query) {
-      eventsBuilder.where(eventsFilterRes);
-    }
-
-    const { query: cteQuery, params: cteParams } =
-      eventsBuilder.buildWithParams();
-    eventsCTE = `WITH experiment_events AS (${cteQuery})`;
-    Object.assign(eventsCTEParams, cteParams);
-  }
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
@@ -857,26 +903,45 @@ export const getScoresGroupedByNameSourceType = async ({
 export const getNumericScoresGroupedByName = async (
   projectId: string,
   filter?: FilterState,
+  eventJoinTarget: ScoreEventJoinTarget = "trace",
 ) => {
   // Despite the historical name of some callers, this accepts any score-table
   // compatible filter. Trace tables use this to scope discovery to scores that
   // roll up into trace aggregates, not just direct trace-level scores.
+  const scoreTableFilterState = getScoreTableFilterState(filter);
   const chFilter = filter
     ? createFilterFromFilterState(
-        filter,
+        scoreTableFilterState,
         scoresColumnsTableUiColumnDefinitions,
         scoresTableCols,
       )
     : undefined;
 
-  const filterRes = chFilter ? new FilterList(chFilter).apply() : undefined;
+  const scoreFilters = chFilter ? new FilterList(chFilter) : undefined;
+  const nonEventFilters = scoreFilters?.filter(
+    (f) => !f.clickhouseTable.startsWith("events_"),
+  );
+  const filterRes = nonEventFilters?.apply();
+  const eventFilterState = getScoreEventFilterState(filter);
+  const { eventsCTE, eventsCTEParams, eventsFilterRes } = buildScoreEventsCte(
+    projectId,
+    eventFilterState,
+    eventJoinTarget,
+  );
+  const hasEventsFilters = eventFilterState.length > 0;
+  const eventsJoinClause =
+    eventJoinTarget === "observation"
+      ? "s.observation_id = e.span_id AND s.project_id = e.project_id"
+      : "s.trace_id = e.trace_id AND s.project_id = e.project_id";
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
+      ${eventsCTE}
       select
         name as name
       from scores s
+      ${hasEventsFilters ? `ANY JOIN experiment_events e ON ${eventsJoinClause}` : ""}
       WHERE s.project_id = {projectId: String}
       AND has(['NUMERIC', 'BOOLEAN'], s.data_type)
       ${filterRes?.query ? `AND ${filterRes.query}` : ""}
@@ -892,6 +957,8 @@ export const getNumericScoresGroupedByName = async (
     params: {
       projectId: projectId,
       ...(filterRes ? filterRes.params : {}),
+      ...(eventsFilterRes ? eventsFilterRes.params : {}),
+      ...eventsCTEParams,
     },
     tags: {
       feature: "tracing",
@@ -908,24 +975,43 @@ export const getNumericScoresGroupedByName = async (
 export const getCategoricalScoresGroupedByName = async (
   projectId: string,
   filter?: FilterState,
+  eventJoinTarget: ScoreEventJoinTarget = "trace",
 ) => {
   // Mirrors `getNumericScoresGroupedByName`: callers can provide any score
   // scope filters, not just timestamp predicates.
+  const scoreTableFilterState = getScoreTableFilterState(filter);
   const chFilter = filter
     ? createFilterFromFilterState(
-        filter,
+        scoreTableFilterState,
         scoresColumnsTableUiColumnDefinitions,
         scoresTableCols,
       )
     : undefined;
 
-  const filterRes = chFilter ? new FilterList(chFilter).apply() : undefined;
+  const scoreFilters = chFilter ? new FilterList(chFilter) : undefined;
+  const nonEventFilters = scoreFilters?.filter(
+    (f) => !f.clickhouseTable.startsWith("events_"),
+  );
+  const filterRes = nonEventFilters?.apply();
+  const eventFilterState = getScoreEventFilterState(filter);
+  const { eventsCTE, eventsCTEParams, eventsFilterRes } = buildScoreEventsCte(
+    projectId,
+    eventFilterState,
+    eventJoinTarget,
+  );
+  const hasEventsFilters = eventFilterState.length > 0;
+  const eventsJoinClause =
+    eventJoinTarget === "observation"
+      ? "s.observation_id = e.span_id AND s.project_id = e.project_id"
+      : "s.trace_id = e.trace_id AND s.project_id = e.project_id";
 
   const query = `
+    ${eventsCTE}
     SELECT
       name AS label,
       groupUniqArray(${FILTER_OPTION_CATEGORICAL_VALUE_LIMIT})(string_value) AS values
     FROM scores s
+    ${hasEventsFilters ? `ANY JOIN experiment_events e ON ${eventsJoinClause}` : ""}
     WHERE s.project_id = {projectId: String}
     AND s.data_type = 'CATEGORICAL'
     ${filterRes?.query ? `AND ${filterRes.query}` : ""}
@@ -942,6 +1028,8 @@ export const getCategoricalScoresGroupedByName = async (
     params: {
       projectId: projectId,
       ...(filterRes ? filterRes.params : {}),
+      ...(eventsFilterRes ? eventsFilterRes.params : {}),
+      ...eventsCTEParams,
     },
     tags: {
       feature: "tracing",

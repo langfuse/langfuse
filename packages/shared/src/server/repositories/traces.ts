@@ -27,6 +27,7 @@ import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
   TRACE_TO_OBSERVATIONS_INTERVAL,
 } from "./constants";
 import { env } from "../../env";
@@ -96,9 +97,10 @@ export const checkTraceExistsAndGetTimestamp = async ({
   const observationFilter = tracesFilter.find(
     (f) => f.clickhouseTable === "observations",
   );
+  const scoreFilter = tracesFilter.find((f) => f.clickhouseTable === "scores");
   const tracesFilterRes = tracesFilter.apply();
   const observationFilterRes = observationFilter?.apply();
-
+  const hasScoreFilter = scoreFilter !== undefined;
   const observations_cte = `
     WITH observations_agg AS (
       SELECT
@@ -123,6 +125,29 @@ export const checkTraceExistsAndGetTimestamp = async ({
         AND o.start_time >= {timestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}
       GROUP BY trace_id, project_id
     )
+    ${
+      hasScoreFilter
+        ? `,
+    scores_agg AS (
+      SELECT
+        project_id,
+        trace_id,
+        groupArrayIf(
+          tuple(name, value),
+          data_type IN ('NUMERIC', 'BOOLEAN')
+        ) AS score_values,
+        groupArrayIf(
+          concat(name, ':', string_value),
+          data_type = 'CATEGORICAL' AND notEmpty(string_value)
+        ) AS score_categories
+      FROM scores s FINAL
+      WHERE s.project_id = {projectId: String}
+        ${timeStampFilter ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
+        AND s.timestamp >= {timestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}
+      GROUP BY trace_id, project_id
+    )`
+        : ""
+    }
   `;
 
   return measureAndReturn({
@@ -161,6 +186,7 @@ export const checkTraceExistsAndGetTimestamp = async ({
           t.timestamp as timestamp
         FROM traces t FINAL
         ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
+        ${hasScoreFilter ? `INNER JOIN scores_agg s ON t.id = s.trace_id AND t.project_id = s.project_id` : ""}
         WHERE ${tracesFilterRes.query}
         AND t.project_id = {projectId: String}
         AND t.timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}

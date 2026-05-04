@@ -125,7 +125,10 @@ async function buildTracesBaseQuery(
 
   // Check if filters specifically reference score aggregation columns
   const hasScoreAggregationFilters = filter.some(
-    (f) => f.field === "s.scores_avg" || f.field === "s.score_categories",
+    (f) =>
+      f.field === "s.scores_avg" ||
+      f.field === "s.score_values" ||
+      f.field === "s.score_categories",
   );
 
   // Build CTEs conditionally based on requested fields OR filters
@@ -176,20 +179,50 @@ async function buildTracesBaseQuery(
       ctes.push(`
     score_stats AS (
       SELECT
-        trace_id,
-        project_id,
-        groupUniqArray(id) as score_ids,
-        groupArrayIf(tuple(name, avg_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
-        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories
+        avg_scores.trace_id,
+        avg_scores.project_id,
+        avg_scores.score_ids,
+        avg_scores.scores_avg,
+        raw_scores.score_values,
+        avg_scores.score_categories
       FROM (
+        SELECT
+          trace_id,
+          project_id,
+          groupUniqArray(id) as score_ids,
+          groupArrayIf(tuple(name, avg_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
+          groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories
+        FROM (
+          SELECT
+            project_id,
+            trace_id,
+            id,
+            name,
+            data_type,
+            string_value,
+            avg(value) as avg_value
+          FROM scores FINAL
+          WHERE project_id = {projectId: String}
+          AND session_id IS NULL
+          AND dataset_run_id IS NULL
+          AND data_type IN ({dataTypes: Array(String)})
+          ${fromTimeFilter ? `AND timestamp >= {cteFromTimeFilter: DateTime64(3)}` : ""}
+          ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
+          GROUP BY
+            project_id,
+            trace_id,
+            id,
+            name,
+            data_type,
+            string_value
+        ) tmp
+        GROUP BY project_id, trace_id
+      ) avg_scores
+      LEFT JOIN (
         SELECT
           project_id,
           trace_id,
-          id,
-          name,
-          data_type,
-          string_value,
-          avg(value) as avg_value
+          groupArrayIf(tuple(name, value), data_type IN ('NUMERIC', 'BOOLEAN')) AS score_values
         FROM scores FINAL
         WHERE project_id = {projectId: String}
         AND session_id IS NULL
@@ -197,15 +230,10 @@ async function buildTracesBaseQuery(
         AND data_type IN ({dataTypes: Array(String)})
         ${fromTimeFilter ? `AND timestamp >= {cteFromTimeFilter: DateTime64(3)}` : ""}
         ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
-        GROUP BY
-          project_id,
-          trace_id,
-          id,
-          name,
-          data_type,
-          string_value
-      ) tmp
-      GROUP BY project_id, trace_id
+        GROUP BY project_id, trace_id
+      ) raw_scores
+        ON raw_scores.project_id = avg_scores.project_id
+       AND raw_scores.trace_id = avg_scores.trace_id
     )`);
     } else {
       // Use flat structure when no score filters present (backward compatible, better performance)
@@ -216,6 +244,7 @@ async function buildTracesBaseQuery(
         project_id,
         groupUniqArray(id) as score_ids,
         groupArrayIf(tuple(name, value), data_type IN ('NUMERIC', 'BOOLEAN')) as scores_avg,
+        groupArrayIf(tuple(name, value), data_type IN ('NUMERIC', 'BOOLEAN')) as score_values,
         groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL') as score_categories
       FROM scores
       WHERE project_id = {projectId: String}

@@ -756,43 +756,69 @@ const getObservationsTableInternal = async <T>(
 
   const scoresCte = `WITH scores_agg AS (
     SELECT
-      trace_id,
-      observation_id,
-      -- For numeric scores, use tuples of (name, avg_value)
-      groupArrayIf(
-        tuple(name, avg_value),
-        data_type IN ('NUMERIC', 'BOOLEAN')
-      ) AS scores_avg,
-      -- For categorical scores, use name:value format for improved query performance
-      groupArrayIf(
-        concat(name, ':', string_value),
-        data_type = 'CATEGORICAL' AND notEmpty(string_value)
-      ) AS score_categories
+      avg_scores.trace_id,
+      avg_scores.observation_id,
+      avg_scores.scores_avg,
+      avg_scores.score_categories,
+      raw_scores.score_values
     FROM (
       SELECT
         trace_id,
         observation_id,
-        name,
-        avg(value) avg_value,
-        string_value,
-        data_type,
-        comment
+        -- For numeric scores, keep averaged tuples for UI rendering.
+        groupArrayIf(
+          tuple(name, avg_value),
+          data_type IN ('NUMERIC', 'BOOLEAN')
+        ) AS scores_avg,
+        -- For categorical scores, use name:value format for improved query performance
+        groupArrayIf(
+          concat(name, ':', string_value),
+          data_type = 'CATEGORICAL' AND notEmpty(string_value)
+        ) AS score_categories
+      FROM (
+        SELECT
+          trace_id,
+          observation_id,
+          name,
+          avg(value) avg_value,
+          string_value,
+          data_type,
+          comment
+        FROM
+          scores FINAL
+        WHERE ${appliedScoresFilter.query}
+        GROUP BY
+          trace_id,
+          observation_id,
+          name,
+          string_value,
+          data_type,
+          comment
+        ORDER BY
+          trace_id
+      ) tmp
+      GROUP BY
+        trace_id,
+        observation_id
+    ) avg_scores
+    LEFT JOIN (
+      SELECT
+        trace_id,
+        observation_id,
+        -- Numeric filters should match if any raw score value satisfies the predicate.
+        groupArrayIf(
+          tuple(name, value),
+          data_type IN ('NUMERIC', 'BOOLEAN')
+        ) AS score_values
       FROM
         scores FINAL
       WHERE ${appliedScoresFilter.query}
       GROUP BY
         trace_id,
-        observation_id,
-        name,
-        string_value,
-        data_type,
-        comment
-      ORDER BY
-        trace_id
-      ) tmp
-    GROUP BY
-      trace_id,
-      observation_id
+        observation_id
+    ) raw_scores
+      ON raw_scores.trace_id = avg_scores.trace_id
+     AND raw_scores.observation_id = avg_scores.observation_id
   )`;
 
   // if we have default ordering by time, we order by toDate(o.start_time) first and then by

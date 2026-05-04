@@ -1,9 +1,14 @@
 import { v4 } from "uuid";
 import {
   createObservationsCh,
+  createScoresCh,
   createTracesCh,
 } from "@langfuse/shared/src/server";
-import { createObservation, createTrace } from "@langfuse/shared/src/server";
+import {
+  createObservation,
+  createTrace,
+  createTraceScore,
+} from "@langfuse/shared/src/server";
 import {
   getTracesTable,
   type TracesTableUiReturnType,
@@ -106,6 +111,55 @@ describe("Traces table API test", () => {
     expect(tableRows[0].userId).toEqual(trace.user_id);
     expect(tableRows[0].sessionId).toEqual(trace.session_id);
     expect(tableRows[0].public).toEqual(trace.public);
+  });
+
+  it("should match trace score filters when any raw numeric score value matches", async () => {
+    const project_id = v4();
+    const trace_id = v4();
+    const trace = createTrace({ id: trace_id, project_id });
+    const firstObservation = createObservation({ trace_id, project_id });
+    const secondObservation = createObservation({ trace_id, project_id });
+
+    await createTracesCh([trace]);
+    await createObservationsCh([firstObservation, secondObservation]);
+    await createScoresCh([
+      createTraceScore({
+        project_id,
+        trace_id,
+        observation_id: firstObservation.id,
+        name: "quality",
+        data_type: "NUMERIC",
+        value: 0.9,
+      }),
+      createTraceScore({
+        project_id,
+        trace_id,
+        observation_id: secondObservation.id,
+        name: "quality",
+        data_type: "NUMERIC",
+        value: 0.1,
+      }),
+    ]);
+
+    const tableRows = await getTracesTable({
+      projectId: project_id,
+      filter: [
+        {
+          column: "scores_avg",
+          type: "numberObject",
+          key: "quality",
+          operator: "=",
+          value: 0.9,
+        },
+      ],
+      searchQuery: undefined,
+      orderBy: undefined,
+      limit: 10,
+      page: 0,
+    });
+
+    expect(tableRows).toHaveLength(1);
+    expect(tableRows[0]?.id).toEqual(trace_id);
   });
 
   type TestCase = {

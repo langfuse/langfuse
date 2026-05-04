@@ -1,10 +1,12 @@
 import {
   checkTraceExistsAndGetTimestamp,
+  createScoresCh,
   createTracesCh,
 } from "@langfuse/shared/src/server";
 import {
   getTraceById,
   getTracesBySessionId,
+  createTraceScore,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { createObservation, createTrace } from "@langfuse/shared/src/server";
@@ -495,6 +497,62 @@ describe("Clickhouse Traces Repository Test", () => {
       ],
       maxTimeStamp: undefined,
     });
+    expect(exists).toBe(true);
+  });
+
+  it("should check if trace exists when any raw numeric score value matches", async () => {
+    const traceId = v4();
+    const trace = createTrace({
+      id: traceId,
+      project_id: projectId,
+      timestamp: Date.now(),
+    });
+    const firstObservation = createObservation({
+      trace_id: traceId,
+      project_id: projectId,
+    });
+    const secondObservation = createObservation({
+      trace_id: traceId,
+      project_id: projectId,
+    });
+
+    await createTracesCh([trace]);
+    await createObservationsCh([firstObservation, secondObservation]);
+    await createScoresCh([
+      createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: firstObservation.id,
+        name: "quality",
+        data_type: "NUMERIC",
+        value: 0.9,
+      }),
+      createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: secondObservation.id,
+        name: "quality",
+        data_type: "NUMERIC",
+        value: 0.1,
+      }),
+    ]);
+
+    const { exists } = await checkTraceExistsAndGetTimestamp({
+      projectId,
+      traceId,
+      timestamp: new Date(trace.timestamp),
+      filter: [
+        {
+          type: "numberObject",
+          column: "scores_avg",
+          key: "quality",
+          operator: "=",
+          value: 0.9,
+        },
+      ],
+      maxTimeStamp: undefined,
+    });
+
     expect(exists).toBe(true);
   });
 });

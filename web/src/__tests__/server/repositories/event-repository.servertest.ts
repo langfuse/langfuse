@@ -1,6 +1,8 @@
 import {
   createEvent,
   createEventsCh,
+  createScoresCh,
+  createTraceScore,
   getObservationsWithModelDataFromEventsTable,
   getObservationsCountFromEventsTable,
   getObservationByIdFromEventsTable,
@@ -467,6 +469,118 @@ describe("Clickhouse Events Repository Test", () => {
       });
 
       expect(count).toBeGreaterThanOrEqual(0);
+    });
+
+    it("should match observation numeric score filters when any raw score value matches", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "raw-score-event",
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: spanId,
+          name: "quality",
+          source: "API",
+          data_type: "NUMERIC",
+          value: 0.9,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: spanId,
+          name: "quality",
+          source: "API",
+          data_type: "NUMERIC",
+          value: 0.1,
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [
+          {
+            type: "numberObject",
+            column: "scores_avg",
+            operator: "=",
+            key: "quality",
+            value: 0.9,
+          },
+        ],
+        limit: 100,
+        offset: 0,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.id).toBe(spanId);
+    });
+
+    it("should match trace numeric score filters when any raw trace score value matches", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "raw-trace-score-event",
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "quality",
+          source: "API",
+          data_type: "NUMERIC",
+          value: 0.9,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "quality",
+          source: "API",
+          data_type: "NUMERIC",
+          value: 0.1,
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [
+          {
+            type: "numberObject",
+            column: "trace_scores_avg",
+            operator: "=",
+            key: "quality",
+            value: 0.9,
+          },
+        ],
+        limit: 100,
+        offset: 0,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.id).toBe(spanId);
     });
   });
 

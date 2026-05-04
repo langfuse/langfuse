@@ -108,42 +108,71 @@ export const buildScoresAggregationCTE = (
   // Trace level: project_id + trace_id
   const primaryKey = isTraceLevel ? "project_id" : "observation_id";
   const additionalInnerCols = isTraceLevel ? ["id"] : ["comment"];
-  const additionalOuterCols = isTraceLevel
+  const additionalAvgOuterCols = isTraceLevel
     ? ["groupUniqArray(id) as score_ids"]
     : [];
   const observationFilter = isTraceLevel ? "AND observation_id IS NULL" : "";
   const orderBy = isTraceLevel ? "" : "ORDER BY trace_id";
+  const joinCondition = isTraceLevel
+    ? "raw_scores.project_id = avg_scores.project_id AND raw_scores.trace_id = avg_scores.trace_id"
+    : "raw_scores.observation_id = avg_scores.observation_id AND raw_scores.trace_id = avg_scores.trace_id";
 
   const query = `
       SELECT
-        trace_id,
-        ${primaryKey},
-        ${additionalOuterCols.length > 0 ? additionalOuterCols.join(",\n        ") + "," : ""}
-        groupArrayIf(tuple(name, avg_value, data_type, string_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
-        groupArrayIf(concat(name, ':', string_value), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories${params.includeTupleEncoding ? `,\n        groupArrayIf(tuple(name, string_value, data_type), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories_tuples` : ""}
+        avg_scores.trace_id,
+        avg_scores.${primaryKey},
+        ${additionalAvgOuterCols.length > 0 ? `avg_scores.${additionalAvgOuterCols.map((col) => col.split(" as ")[1]).join(",\n        avg_scores.")},\n        ` : ""}avg_scores.scores_avg,
+        avg_scores.score_categories${params.includeTupleEncoding ? ",\n        avg_scores.score_categories_tuples" : ""},
+        raw_scores.score_values
       FROM (
         SELECT
-          ${primaryKey},
           trace_id,
-          ${additionalInnerCols.join(",\n          ")},
-          name,
-          data_type,
-          string_value,
-          avg(value) as avg_value
+          ${primaryKey},
+          ${additionalAvgOuterCols.length > 0 ? additionalAvgOuterCols.join(",\n          ") + ",\n          " : ""}groupArrayIf(tuple(name, avg_value, data_type, string_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
+          groupArrayIf(concat(name, ':', string_value), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories${params.includeTupleEncoding ? `,\n          groupArrayIf(tuple(name, string_value, data_type), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories_tuples` : ""}
+        FROM (
+          SELECT
+            ${primaryKey},
+            trace_id,
+            ${additionalInnerCols.join(",\n            ")},
+            name,
+            data_type,
+            string_value,
+            avg(value) as avg_value
+          FROM scores FINAL
+          WHERE project_id = {projectId: String}
+            ${observationFilter}
+            ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
+          GROUP BY
+            ${primaryKey},
+            trace_id,
+            ${additionalInnerCols.join(",\n            ")},
+            name,
+            data_type,
+            string_value
+          ${orderBy}
+        ) tmp
+        GROUP BY
+          trace_id,
+          ${primaryKey}
+      ) avg_scores
+      LEFT JOIN (
+        SELECT
+          trace_id,
+          ${primaryKey},
+          groupArrayIf(
+            tuple(name, value),
+            data_type IN ('NUMERIC', 'BOOLEAN')
+          ) AS score_values
         FROM scores FINAL
         WHERE project_id = {projectId: String}
           ${observationFilter}
           ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
         GROUP BY
-          ${primaryKey},
           trace_id,
-          ${additionalInnerCols.join(",\n          ")},
-          name,
-          data_type,
-          string_value
-        ${orderBy}
-      ) tmp
-      GROUP BY ${primaryKey}, trace_id
+          ${primaryKey}
+      ) raw_scores
+        ON ${joinCondition}
     `.trim();
 
   return { query, params: queryParams };
