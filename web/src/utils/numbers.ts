@@ -70,8 +70,10 @@ const selectDurationFormatter = (
   milliseconds: number | bigint,
 ): [Intl.NumberFormat, number] => {
   const ms = Number(milliseconds);
-  const tier =
-    +(ms >= 1_000) + +(ms >= 60_000) + +(ms >= 3_600_000) + +(ms >= 86_400_000);
+  const tier = durationDivisors.reduce(
+    (acc, divisor, i) => (Math.abs(ms) >= divisor ? i : acc),
+    0,
+  );
   return [durationFormatters[tier], ms / durationDivisors[tier]!];
 };
 
