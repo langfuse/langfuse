@@ -450,6 +450,7 @@ export function DashboardWidget({
                       metricsVersion,
                     ),
                   ),
+                  defaultSort,
                 }),
                 ...(widget.data.chartType !== "PIVOT_TABLE" && {
                   unit: getResultUnit(
@@ -458,7 +459,6 @@ export function DashboardWidget({
                     widget.data.metrics[0]?.agg,
                     metricsVersion,
                   ),
-                  defaultSort,
                 }),
               }}
               sortState={
