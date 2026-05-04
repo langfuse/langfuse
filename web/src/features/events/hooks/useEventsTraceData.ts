@@ -80,6 +80,18 @@ export function useEventsTraceData(
     return observations.find((o) => !o.parentObservationId);
   }, [observations]);
 
+  // Prefer the root observation when present, otherwise fall back to the earliest one.
+  const primaryObservation = useMemo(() => {
+    if (!observations?.length) return null;
+    if (rootObservation) return rootObservation;
+    // Fallback to earliest observation
+    return (
+      [...observations].sort(
+        (a, b) => a.startTime.getTime() - b.startTime.getTime(),
+      )[0] ?? null
+    );
+  }, [observations, rootObservation]);
+
   const timeRange = useMemo(() => {
     if (!observations?.length) return null;
     const times = observations.map((o) => o.startTime.getTime());
@@ -89,12 +101,12 @@ export function useEventsTraceData(
     };
   }, [observations]);
 
-  // Step 3: Fetch I/O for root observation (for trace-level I/O display)
+  // Step 3: Fetch I/O for the primary trace observation.
   const rootIOQuery = api.events.batchIO.useQuery(
     {
       projectId,
-      observations: rootObservation
-        ? [{ id: rootObservation.id, traceId }]
+      observations: primaryObservation
+        ? [{ id: primaryObservation.id, traceId }]
         : [],
       minStartTime: timeRange?.min ?? new Date(),
       maxStartTime: timeRange?.max ?? new Date(),
@@ -102,7 +114,7 @@ export function useEventsTraceData(
     },
     {
       enabled:
-        enabled && !!rootObservation && !!timeRange && !!eventsQuery.data,
+        enabled && !!primaryObservation && !!timeRange && !!eventsQuery.data,
       staleTime: 60 * 1000,
     },
   );

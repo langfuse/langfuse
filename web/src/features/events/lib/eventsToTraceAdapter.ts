@@ -41,8 +41,10 @@ export function adaptEventsToTraceFormat(params: {
   );
   const earliest = sorted[0]!;
 
-  // TODO: think, how to determine root span?
+  // Prefer the explicit root observation when present; otherwise fall back to
+  // the earliest observation so the synthetic trace remains self-consistent.
   const root = events.find((e) => !e.parentObservationId);
+  const primaryObservation = root ?? earliest;
 
   const latestTaggedEvent = events.reduce<
     FullEventsObservations[number] | null
@@ -73,24 +75,26 @@ export function adaptEventsToTraceFormat(params: {
   const trace: SyntheticTrace = {
     id: traceId,
     projectId: earliest.projectId,
-    name: root?.name ?? earliest.name ?? null,
+    name: primaryObservation.name ?? null,
     timestamp: earliest.startTime,
     input: rootIO?.input ? JSON.stringify(rootIO.input) : null,
     output: rootIO?.output ? JSON.stringify(rootIO.output) : null,
-    metadata: JSON.stringify(rootIO?.metadata ?? root?.metadata ?? {}),
+    metadata: JSON.stringify(
+      rootIO?.metadata ?? primaryObservation.metadata ?? {},
+    ),
     tags: traceTags ?? [],
-    bookmarked: root?.bookmarked ?? false,
-    public: root?.public ?? false,
-    release: earliest.release ?? null,
-    version: earliest.version ?? null,
-    userId: earliest.userId ?? null,
-    sessionId: earliest.sessionId ?? null,
-    environment: earliest.environment,
+    bookmarked: primaryObservation?.bookmarked ?? false,
+    public: primaryObservation?.public ?? false,
+    release: primaryObservation.release ?? null,
+    version: primaryObservation.version ?? null,
+    userId: primaryObservation.userId ?? null,
+    sessionId: primaryObservation.sessionId ?? null,
+    environment: primaryObservation.environment,
     latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
-    createdAt: earliest.createdAt,
-    updatedAt: earliest.updatedAt,
-    rootObservationType: root?.type,
-    rootObservationId: root?.id,
+    createdAt: primaryObservation.createdAt,
+    updatedAt: primaryObservation.updatedAt,
+    rootObservationType: primaryObservation.type,
+    rootObservationId: primaryObservation.id,
   };
 
   // Map events to ObservationReturnTypeWithMetadata
