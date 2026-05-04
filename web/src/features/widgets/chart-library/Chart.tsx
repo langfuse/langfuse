@@ -36,6 +36,7 @@ export const Chart = ({
     bins?: number;
     dimensions?: string[];
     metrics?: string[];
+    units?: (string | undefined)[];
     defaultSort?: OrderByState;
     show_value_labels?: boolean;
     show_data_point_dots?: boolean;
@@ -153,6 +154,7 @@ export const Chart = ({
         const pivotConfig = {
           dimensions: chartConfig?.dimensions ?? [],
           metrics: chartConfig?.metrics ?? ["metric"], // Use metrics from chartConfig
+          units: chartConfig?.units,
           rowLimit: chartConfig?.row_limit ?? rowLimit,
           defaultSort: chartConfig?.defaultSort,
         };
@@ -163,7 +165,6 @@ export const Chart = ({
             sortState={sortState}
             onSortChange={onSortChange}
             isLoading={isLoading}
-            valueFormatter={valueFormatter}
           />
         );
       }

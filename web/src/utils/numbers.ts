@@ -37,12 +37,13 @@ export const compactSmallNumberFormatter = (
 export const numberFormatter = (
   number?: number | bigint,
   fractionDigits?: number,
+  maxFractionDigits?: number,
 ) => {
   return Intl.NumberFormat("en-US", {
     notation: "standard",
     useGrouping: true,
     minimumFractionDigits: fractionDigits ?? 2,
-    maximumFractionDigits: fractionDigits ?? 2,
+    maximumFractionDigits: maxFractionDigits ?? fractionDigits ?? 2,
   }).format(number ?? 0);
 };
 

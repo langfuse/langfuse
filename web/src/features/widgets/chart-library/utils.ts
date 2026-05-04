@@ -1,5 +1,11 @@
 import { type DataPoint } from "./chart-props";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import {
+  numberFormatter,
+  latencyFormatter,
+  usdFormatter,
+  compactNumberFormatter,
+} from "@/src/utils/numbers";
 
 /**
  * Groups data by dimension to prepare it for time series breakdowns
@@ -90,5 +96,36 @@ export function getChartTypeDisplayName(
       return "Pivot Table (Total Value)";
     default:
       return "Unknown Chart Type";
+  }
+}
+
+/**
+ * Formats a metric value for display, dispatching on the result unit returned
+ * by getResultUnit. String values pass through unchanged.
+ *
+ * - "millisecond" → latencyFormatter (auto-scales ms/s/min/h/d)
+ * - "USD" → usdFormatter
+ * - any other unit (or undefined) → compactNumberFormatter when `compact` is
+ *   true, otherwise numberFormatter with up to 2 fractional digits and no
+ *   trailing-zero padding.
+ *
+ * `compact` is intended for axis ticks where space matters; tooltips and
+ * tables should leave it off so values keep full precision.
+ */
+export function valueFormatter(
+  value: number | string,
+  unit?: string,
+  compact?: boolean,
+): string {
+  if (typeof value === "string") return value;
+  switch (unit) {
+    case "millisecond":
+      return latencyFormatter(value);
+    case "USD":
+      return usdFormatter(value);
+    default:
+      return compact
+        ? compactNumberFormatter(value)
+        : numberFormatter(value, 0, 2);
   }
 }

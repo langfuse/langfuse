@@ -448,6 +448,14 @@ export function DashboardWidget({
                   metrics: widget.data.metrics.map(
                     (metric) => `${metric.agg}_${metric.measure}`,
                   ),
+                  units: widget.data.metrics.map((metric) =>
+                    getResultUnit(
+                      widget.data.view,
+                      metric.measure,
+                      metric.agg,
+                      metricsVersion,
+                    ),
+                  ),
                 }),
               }}
               sortState={

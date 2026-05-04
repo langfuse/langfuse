@@ -1969,6 +1969,14 @@ export function WidgetForm({
                           dimensions: pivotDimensions,
                           row_limit: rowLimit,
                           metrics: selectedMetrics.map((metric) => metric.id), // Pass metric field names
+                          units: selectedMetrics.map((metric) =>
+                            getResultUnit(
+                              selectedView,
+                              metric.measure,
+                              metric.aggregation,
+                              viewVersion,
+                            ),
+                          ),
                           defaultSort:
                             defaultSortColumn && defaultSortColumn !== "none"
                               ? {
