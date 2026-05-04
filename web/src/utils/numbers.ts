@@ -74,17 +74,6 @@ export const latencyFormatter = (milliseconds?: number): string => {
   return fmt.format(value ?? 0);
 };
 
-export const compactNumberFormatterParts = (
-  number?: number | bigint,
-  maxFractionDigits?: number,
-) => {
-  return Intl.NumberFormat("en-US", {
-    notation: "compact",
-    compactDisplay: "short",
-    maximumFractionDigits: maxFractionDigits ?? 2,
-  }).formatToParts(number ?? 0);
-};
-
 export const usdFormatter = (
   number?: number | bigint | Decimal,
   minimumFractionDigits: number = 2,

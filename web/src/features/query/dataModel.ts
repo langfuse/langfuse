@@ -1409,7 +1409,7 @@ export function requiresV2(params: {
  * if the view or measure is not found. Use this to drive display formatting
  * (e.g. unit === "millisecond" → convert to seconds before rendering).
  */
-export function getMeasureUnit(
+function getMeasureUnit(
   viewName: string,
   measureName: string,
   version: ViewVersion = "v1",
