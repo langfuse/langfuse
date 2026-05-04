@@ -100,7 +100,7 @@
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
     "bcryptjs": "^2.4.3",
-    "bullmq": "^5.73.5",
+    "bullmq": "^5.76.3",
     "date-fns": "^3.6.0",
     "dd-trace": "5.97.0",
     "decimal.js": "^10.4.3",
