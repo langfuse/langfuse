@@ -1,5 +1,6 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { extractPropagatedHeaders } from "@/src/features/public-api/server/extractPropagatedHeaders";
 import {
   logger,
   OtelIngestionProcessor,
@@ -158,16 +159,10 @@ export default withMiddlewares({
         };
       }
 
-      // Extract headers to propagate for ingestion masking
-      const propagatedHeaderNames =
-        env.LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS;
-      const propagatedHeaders: Record<string, string> = {};
-      for (const headerName of propagatedHeaderNames) {
-        const value = req.headers[headerName];
-        if (typeof value === "string") {
-          propagatedHeaders[headerName] = value;
-        }
-      }
+      const propagatedHeaders = extractPropagatedHeaders(
+        req.headers,
+        env.LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS,
+      );
 
       const processor = new OtelIngestionProcessor({
         projectId: auth.scope.projectId,

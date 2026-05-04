@@ -176,6 +176,32 @@ export class OtelIngestionProcessor {
     return `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}/${String(now.getHours()).padStart(2, "0")}/${String(now.getMinutes()).padStart(2, "0")}`;
   }
 
+  buildOtelIngestionJob(fileKey: string) {
+    return {
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: QueueJobs.OtelIngestionJob as const,
+      payload: {
+        data: {
+          fileKey,
+          publicKey: this.publicKey,
+        },
+        authCheck: {
+          validKey: true as const,
+          scope: {
+            projectId: this.projectId,
+            accessLevel: "project" as const,
+            orgId: this.orgId,
+          },
+        },
+        propagatedHeaders: this.propagatedHeaders,
+        sdkName: this.sdkName,
+        sdkVersion: this.sdkVersion,
+        ingestionVersion: this.ingestionVersion,
+      },
+    };
+  }
+
   /**
    * Uploads a batch of resourceSpans to blob storage and adds a job to process them
    * into the otel-ingestion-queue.
@@ -193,29 +219,10 @@ export class OtelIngestionProcessor {
       shardingKey: `${this.projectId}-${fileKey}`,
     });
     return queue
-      ? queue.add(QueueJobs.OtelIngestionJob, {
-          id: randomUUID(),
-          timestamp: new Date(),
-          name: QueueJobs.OtelIngestionJob as const,
-          payload: {
-            data: {
-              fileKey,
-              publicKey: this.publicKey,
-            },
-            authCheck: {
-              validKey: true,
-              scope: {
-                projectId: this.projectId,
-                accessLevel: "project" as const,
-                orgId: this.orgId,
-              },
-            },
-            propagatedHeaders: this.propagatedHeaders,
-            sdkName: this.sdkName,
-            sdkVersion: this.sdkVersion,
-            ingestionVersion: this.ingestionVersion,
-          },
-        })
+      ? queue.add(
+          QueueJobs.OtelIngestionJob,
+          this.buildOtelIngestionJob(fileKey),
+        )
       : Promise.reject("Failed to instantiate otel ingestion queue");
   }
 
