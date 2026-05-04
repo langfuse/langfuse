@@ -1,9 +1,21 @@
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
 import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
+import Link from "next/link";
+import { ExperimentMetadataSection } from "./ExperimentMetadataSection";
+
+const isSafeHttpUrl = (value: string | undefined) => {
+  if (!value) return false;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
 
 type ExperimentOverviewPanelProps = {
   projectId: string;
@@ -37,8 +49,19 @@ export function ExperimentOverviewPanel({
 }: ExperimentOverviewPanelProps) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
-  const provider = experiment?.metadata?.provider;
-  const model = experiment?.metadata?.model;
+  const { provider, model, ...metadataWithoutModelConfig } =
+    experiment?.metadata ?? {};
+  const pullRequestUrl = metadataWithoutModelConfig["langfuse.pr_url"];
+  const githubJobUrl = metadataWithoutModelConfig["langfuse.github_job_url"];
+  const safePullRequestUrl = isSafeHttpUrl(pullRequestUrl)
+    ? pullRequestUrl
+    : undefined;
+  const safeGithubJobUrl = isSafeHttpUrl(githubJobUrl)
+    ? githubJobUrl
+    : undefined;
+  const additionalMetadata = { ...metadataWithoutModelConfig };
+  if (safePullRequestUrl) delete additionalMetadata["langfuse.pr_url"];
+  if (safeGithubJobUrl) delete additionalMetadata["langfuse.github_job_url"];
 
   // Get the first prompt name and version from the prompts array
   const [promptName, promptVersion] =
@@ -56,9 +79,33 @@ export function ExperimentOverviewPanel({
 
   return (
     <div className="space-y-4">
+      <div className="bg-background sticky top-0 z-10 space-y-4 border-b pb-4">
+        <div>
+          <h4 className="mb-2 text-sm font-medium">Baseline</h4>
+          <ExperimentBaselineControls
+            projectId={projectId}
+            baselineId={experiment?.id}
+            baselineName={experiment?.name}
+            onBaselineChange={onBaselineChange}
+            onBaselineClear={onBaselineClear}
+            canClearBaseline={comparisonIds.length > 0}
+          />
+        </div>
+
+        <div className="border-t pt-4">
+          <h4 className="mb-2 text-sm font-medium">Compare with</h4>
+          <ExperimentComparisonSelector
+            projectId={projectId}
+            baselineExperimentId={experiment?.id}
+            selectedIds={comparisonIds}
+            onSelectedIdsChange={onComparisonIdsChange}
+          />
+        </div>
+      </div>
+
       {hasBaseline && experiment ? (
         <>
-          <h3 className="text-lg font-semibold">Experiment Details</h3>
+          <h3 className="text-lg font-semibold">Overview</h3>
 
           <div className="space-y-3 text-sm">
             {/* Name */}
@@ -128,38 +175,46 @@ export function ExperimentOverviewPanel({
               </div>
             )}
 
+            {safePullRequestUrl && (
+              <div>
+                <div className="text-muted-foreground text-xs">
+                  Pull Request
+                </div>
+                <Link
+                  href={safePullRequestUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  {safePullRequestUrl}
+                </Link>
+              </div>
+            )}
+
+            {safeGithubJobUrl && (
+              <div>
+                <div className="text-muted-foreground text-xs">GitHub Job</div>
+                <Link
+                  href={safeGithubJobUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  {safeGithubJobUrl}
+                </Link>
+              </div>
+            )}
+
             {/* Start Time */}
             <div>
               <div className="text-muted-foreground text-xs">Start Time</div>
               <LocalIsoDate date={experiment.startTime} />
             </div>
           </div>
+
+          <ExperimentMetadataSection metadata={additionalMetadata} />
         </>
       ) : null}
-
-      {/* Baseline Controls */}
-      <div className={hasBaseline ? "border-t pt-4" : undefined}>
-        <h4 className="mb-2 text-sm font-medium">Baseline</h4>
-        <ExperimentBaselineControls
-          projectId={projectId}
-          baselineId={experiment?.id}
-          baselineName={experiment?.name}
-          onBaselineChange={onBaselineChange}
-          onBaselineClear={onBaselineClear}
-          canClearBaseline={comparisonIds.length > 0}
-        />
-      </div>
-
-      {/* Comparison Selector */}
-      <div className="border-t pt-4">
-        <h4 className="mb-2 text-sm font-medium">Compare with</h4>
-        <ExperimentComparisonSelector
-          projectId={projectId}
-          baselineExperimentId={experiment?.id}
-          selectedIds={comparisonIds}
-          onSelectedIdsChange={onComparisonIdsChange}
-        />
-      </div>
     </div>
   );
 }
