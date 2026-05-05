@@ -778,7 +778,7 @@ export const evalRouter = createTRPCRouter({
             "Evaluator filters are invalid. Remove unsupported or incomplete filters and try again.",
         );
       }
-      const validatedFilter = filterValidation.normalizedFilter;
+      const validatedFilter = filterValidation.validatedFilters;
 
       const jobId = uuidv4();
       await auditLog({
@@ -796,7 +796,7 @@ export const evalRouter = createTRPCRouter({
           evalTemplateId: input.evalTemplateId,
           scoreName: input.scoreName,
           targetObject: input.target,
-          filter: validatedFilter,
+          filter: validatedFilter ?? [],
           variableMapping: variableMappingForTarget,
           sampling: input.sampling,
           delay: input.delay,
@@ -1208,7 +1208,7 @@ export const evalRouter = createTRPCRouter({
             "Evaluator filters are invalid. Remove unsupported or incomplete filters and try again.",
         );
       }
-      const validatedFilter = filterValidation.normalizedFilter;
+      const validatedFilter = filterValidation.validatedFilters;
 
       await auditLog({
         session: ctx.session,
@@ -1242,7 +1242,7 @@ export const evalRouter = createTRPCRouter({
         ...validatedConfig,
         ...(config.filter !== undefined
           ? {
-              filter: validatedFilter,
+              filter: validatedFilter ?? [],
             }
           : {}),
         ...(validatedConfig.status !== undefined

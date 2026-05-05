@@ -16,7 +16,6 @@ describe("validateEvaluatorFiltersForTarget", () => {
           value: "checkout-trace",
         },
       ] satisfies FilterState,
-      expectedColumn: "traceName",
     },
     {
       targetObject: EvalTargetObject.DATASET,
@@ -28,7 +27,6 @@ describe("validateEvaluatorFiltersForTarget", () => {
           value: ["dataset-1"],
         },
       ] satisfies FilterState,
-      expectedColumn: "datasetId",
     },
     {
       targetObject: EvalTargetObject.EVENT,
@@ -40,7 +38,6 @@ describe("validateEvaluatorFiltersForTarget", () => {
           value: ["checkout"],
         },
       ] satisfies FilterState,
-      expectedColumn: "traceName",
     },
     {
       targetObject: EvalTargetObject.EXPERIMENT,
@@ -52,11 +49,10 @@ describe("validateEvaluatorFiltersForTarget", () => {
           value: ["dataset-1"],
         },
       ] satisfies FilterState,
-      expectedColumn: "experimentDatasetId",
     },
   ])(
-    "accepts supported filters for $targetObject and normalizes columns",
-    ({ targetObject, filter, expectedColumn }) => {
+    "accepts supported filters for $targetObject",
+    ({ targetObject, filter }) => {
       const result = validateEvaluatorFiltersForTarget({
         targetObject,
         filter,
@@ -64,7 +60,8 @@ describe("validateEvaluatorFiltersForTarget", () => {
 
       expect(result.isValid).toBe(true);
       expect(result.issues).toEqual([]);
-      expect(result.normalizedFilter[0]?.column).toBe(expectedColumn);
+      // Filter columns are passed through as-is (no normalization)
+      expect(result.validatedFilters).toEqual(filter);
     },
   );
 
@@ -105,7 +102,7 @@ describe("validateEvaluatorFiltersForTarget", () => {
     expect(result.isValid).toBe(false);
     expect(result.issues[0]).toMatchObject({
       code: "incompatible_filter_type",
-      normalizedColumn: "environment",
+      column: "environment",
       expectedColumnType: "stringOptions",
     });
   });

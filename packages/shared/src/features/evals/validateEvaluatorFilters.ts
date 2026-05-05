@@ -26,14 +26,13 @@ export type EvaluatorFilterValidationIssue = {
   message: string;
   index: number | null;
   column: string | null;
-  normalizedColumn: string | null;
   filterType: FilterCondition["type"] | null;
   expectedColumnType?: ColumnDefinition["type"];
 };
 
 export type EvaluatorFilterValidationResult = {
   isValid: boolean;
-  normalizedFilter: FilterState;
+  validatedFilters: FilterState;
   issues: EvaluatorFilterValidationIssue[];
 };
 
@@ -75,7 +74,7 @@ export function validateEvaluatorFiltersForTarget(params: {
   if (!parsedFilter.success) {
     return {
       isValid: false,
-      normalizedFilter: [],
+      validatedFilters: [],
       issues: [
         {
           code: "invalid_filter_shape",
@@ -83,7 +82,6 @@ export function validateEvaluatorFiltersForTarget(params: {
             "Evaluator filters are invalid. Remove unsupported or incomplete filters and try again.",
           index: null,
           column: null,
-          normalizedColumn: null,
           filterType: null,
         },
       ],
@@ -103,7 +101,6 @@ export function validateEvaluatorFiltersForTarget(params: {
             message: `Filter column "${filter.column}" is not supported for target "${params.targetObject}".`,
             index,
             column: filter.column,
-            normalizedColumn: null,
             filterType: filter.type,
           },
         ];
@@ -128,7 +125,6 @@ export function validateEvaluatorFiltersForTarget(params: {
           message: `Filter type "${filter.type}" is not supported for column "${column.name}".`,
           index,
           column: filter.column,
-          normalizedColumn: column.id,
           filterType: filter.type,
           expectedColumnType: column.type,
         },
@@ -138,7 +134,7 @@ export function validateEvaluatorFiltersForTarget(params: {
 
   return {
     isValid: issues.length === 0,
-    normalizedFilter: filters,
+    validatedFilters: filters,
     issues,
   };
 }
