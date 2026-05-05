@@ -6,6 +6,7 @@ import {
 } from "@/src/components/ui/collapsible";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
+import { ExperimentOverviewSectionHeading } from "./ExperimentOverviewField";
 
 export const ExperimentMetadataSection = ({
   metadata,
@@ -20,7 +21,9 @@ export const ExperimentMetadataSection = ({
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <div className="border-t pt-4">
         <CollapsibleTrigger className="flex w-full items-center justify-between text-left">
-          <h4 className="mb-2 text-sm font-medium">Metadata</h4>
+          <ExperimentOverviewSectionHeading>
+            Metadata
+          </ExperimentOverviewSectionHeading>
           {isOpen ? (
             <ChevronDown className="text-muted-foreground h-4 w-4" />
           ) : (

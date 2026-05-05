@@ -5,6 +5,10 @@ import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
 import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
 import Link from "next/link";
 import { ExperimentMetadataSection } from "./ExperimentMetadataSection";
+import {
+  ExperimentOverviewField,
+  ExperimentOverviewSectionHeading,
+} from "./ExperimentOverviewField";
 
 const isSafeHttpUrl = (value: string | undefined) => {
   if (!value) return false;
@@ -49,19 +53,22 @@ export function ExperimentOverviewPanel({
 }: ExperimentOverviewPanelProps) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
-  const {
-    provider,
-    model,
-    "langfuse.pr_url": pullRequestUrl,
-    "langfuse.github_job_url": githubJobUrl,
-    ...additionalMetadata
-  } = experiment?.metadata ?? {};
+  const metadata = experiment?.metadata ?? {};
+  const provider = metadata.provider;
+  const model = metadata.model;
+  const pullRequestUrl = metadata["langfuse.pr_url"];
+  const githubJobUrl = metadata["langfuse.github_job_url"];
   const safePullRequestUrl = isSafeHttpUrl(pullRequestUrl)
     ? pullRequestUrl
     : undefined;
   const safeGithubJobUrl = isSafeHttpUrl(githubJobUrl)
     ? githubJobUrl
     : undefined;
+  const additionalMetadata = { ...metadata };
+  if (provider) delete additionalMetadata.provider;
+  if (model) delete additionalMetadata.model;
+  if (safePullRequestUrl) delete additionalMetadata["langfuse.pr_url"];
+  if (safeGithubJobUrl) delete additionalMetadata["langfuse.github_job_url"];
 
   // Get the first prompt name and version from the prompts array
   const [promptName, promptVersion] =
@@ -79,11 +86,13 @@ export function ExperimentOverviewPanel({
 
   return (
     <div className="space-y-4">
-      <div className="bg-background sticky -top-4 z-30 -mx-4 -mt-4 space-y-4 px-4 pt-2 pb-2">
+      <div className="bg-background sticky -top-4 z-30 -mx-4 -mt-4 space-y-4 px-4 pt-4 pb-4">
         <h3 className="text-lg font-semibold">Experiment Details</h3>
 
         <div>
-          <h4 className="mb-2 text-sm font-medium">Baseline</h4>
+          <ExperimentOverviewSectionHeading>
+            Baseline
+          </ExperimentOverviewSectionHeading>
           <ExperimentBaselineControls
             projectId={projectId}
             baselineId={experiment?.id}
@@ -95,7 +104,9 @@ export function ExperimentOverviewPanel({
         </div>
 
         <div className="border-t pt-4">
-          <h4 className="mb-2 text-sm font-medium">Compare with</h4>
+          <ExperimentOverviewSectionHeading>
+            Compare with
+          </ExperimentOverviewSectionHeading>
           <ExperimentComparisonSelector
             projectId={projectId}
             baselineExperimentId={experiment?.id}
@@ -108,20 +119,16 @@ export function ExperimentOverviewPanel({
       {hasBaseline && experiment ? (
         <>
           <div className="border-t pt-4">
-            <h4 className="mb-2 text-sm font-medium">Overview</h4>
+            <ExperimentOverviewSectionHeading>
+              Overview
+            </ExperimentOverviewSectionHeading>
             <div className="space-y-3 text-sm">
-              {/* Name */}
-              <div>
-                <div className="text-muted-foreground text-xs">Name</div>
+              <ExperimentOverviewField label="Name">
                 <div className="font-medium">{experiment.name}</div>
-              </div>
+              </ExperimentOverviewField>
 
-              {/* Description */}
               {experiment.description && (
-                <div>
-                  <div className="text-muted-foreground text-xs">
-                    Description
-                  </div>
+                <ExperimentOverviewField label="Description">
                   <div className="break-words">{displayDescription}</div>
                   {isLongDescription && (
                     <Button
@@ -135,24 +142,20 @@ export function ExperimentOverviewPanel({
                       {isDescriptionExpanded ? "Show less" : "Show more"}
                     </Button>
                   )}
-                </div>
+                </ExperimentOverviewField>
               )}
 
-              {/* Dataset */}
-              <div>
-                <div className="text-muted-foreground text-xs">Dataset</div>
+              <ExperimentOverviewField label="Dataset">
                 <Link
                   href={`/project/${projectId}/datasets/${encodeURIComponent(experiment.datasetId)}`}
                   className="text-primary hover:underline"
                 >
                   {experiment.datasetName || experiment.datasetId}
                 </Link>
-              </div>
+              </ExperimentOverviewField>
 
-              {/* Prompt */}
               {promptName && (
-                <div>
-                  <div className="text-muted-foreground text-xs">Prompt</div>
+                <ExperimentOverviewField label="Prompt">
                   <Link
                     href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}${promptVersion !== null ? `?version=${promptVersion}` : ""}`}
                     className="text-primary hover:underline"
@@ -164,31 +167,25 @@ export function ExperimentOverviewPanel({
                       </span>
                     )}
                   </Link>
-                </div>
+                </ExperimentOverviewField>
               )}
 
-              {/* Model Configuration */}
               {(provider || model) && (
-                <div>
-                  <div className="text-muted-foreground text-xs">Model</div>
+                <ExperimentOverviewField label="Model">
                   <div>
                     {provider && model
                       ? `${provider}/${model}`
                       : provider || model}
                   </div>
-                </div>
+                </ExperimentOverviewField>
               )}
 
-              {/* Start Time */}
-              <div>
-                <div className="text-muted-foreground text-xs">Start Time</div>
+              <ExperimentOverviewField label="Start Time">
                 <LocalIsoDate date={experiment.startTime} />
-              </div>
+              </ExperimentOverviewField>
+
               {safePullRequestUrl && (
-                <div>
-                  <div className="text-muted-foreground text-xs">
-                    Pull Request URL
-                  </div>
+                <ExperimentOverviewField label="Pull Request URL">
                   <a
                     href={safePullRequestUrl}
                     target="_blank"
@@ -197,14 +194,11 @@ export function ExperimentOverviewPanel({
                   >
                     {safePullRequestUrl}
                   </a>
-                </div>
+                </ExperimentOverviewField>
               )}
 
               {safeGithubJobUrl && (
-                <div>
-                  <div className="text-muted-foreground text-xs">
-                    GitHub Job URL
-                  </div>
+                <ExperimentOverviewField label="GitHub Job URL">
                   <a
                     href={safeGithubJobUrl}
                     target="_blank"
@@ -213,7 +207,7 @@ export function ExperimentOverviewPanel({
                   >
                     {safeGithubJobUrl}
                   </a>
-                </div>
+                </ExperimentOverviewField>
               )}
             </div>
           </div>
