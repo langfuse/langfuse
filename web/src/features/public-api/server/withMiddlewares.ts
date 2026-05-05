@@ -55,35 +55,24 @@ export const LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE = [
   "Docs: https://langfuse.com/docs/metrics/features/metrics-api",
 ].join("\n");
 
-type ClickHouseResourceErrorMessage =
-  | string
-  | Partial<Record<HttpMethod, string>>;
-
 type MiddlewareOptions = {
   errorContract?: PublicApiErrorContract;
-  clickHouseResourceErrorMessage?: ClickHouseResourceErrorMessage;
-};
-
-const getClickHouseResourceErrorMessage = (
-  message: ClickHouseResourceErrorMessage | undefined,
-  method: string | undefined,
-) => {
-  if (typeof message === "string") return message;
-
-  if (method && httpMethods.includes(method as HttpMethod)) {
-    return (
-      message?.[method as HttpMethod] ??
-      DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE
-    );
-  }
-
-  return DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE;
 };
 
 export function withMiddlewares(
   handlers: Handlers,
-  options?: MiddlewareOptions,
+  optionsOrClickHouseResourceErrorMessage?: MiddlewareOptions | string,
+  clickHouseResourceErrorMessage?: string,
 ) {
+  const options =
+    typeof optionsOrClickHouseResourceErrorMessage === "string"
+      ? undefined
+      : optionsOrClickHouseResourceErrorMessage;
+  const clickHouseResourceErrorMessageOverride =
+    typeof optionsOrClickHouseResourceErrorMessage === "string"
+      ? optionsOrClickHouseResourceErrorMessage
+      : clickHouseResourceErrorMessage;
+
   return async (req: NextApiRequest, res: NextApiResponse) => {
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
@@ -158,10 +147,9 @@ export function withMiddlewares(
         // Handle ClickHouse resource errors
         if (error instanceof ClickHouseResourceError) {
           const resourceError = error as ClickHouseResourceError;
-          const errorMessage = getClickHouseResourceErrorMessage(
-            options?.clickHouseResourceErrorMessage,
-            req.method,
-          );
+          const errorMessage =
+            clickHouseResourceErrorMessageOverride ??
+            DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE;
 
           logger.warn("ClickHouse resource limit exceeded", {
             errorType: resourceError.errorType,

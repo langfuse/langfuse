@@ -215,7 +215,7 @@ describe("withMiddlewares error handling", () => {
       expect(jsonData["error"]).toBe("Request timed out");
     });
 
-    it("should handle ClickHouseResourceError with method-specific advice", async () => {
+    it("should handle ClickHouseResourceError with custom advice", async () => {
       const originalError = new Error("Timeout exceeded");
       const resourceError = new ClickHouseResourceError(
         "TIMEOUT",
@@ -228,11 +228,7 @@ describe("withMiddlewares error handling", () => {
             throw resourceError;
           },
         },
-        {
-          clickHouseResourceErrorMessage: {
-            GET: LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
-          },
-        },
+        LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
       );
 
       const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
@@ -250,48 +246,6 @@ describe("withMiddlewares error handling", () => {
         LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
       );
       expect(jsonData["message"]).toContain(
-        "https://langfuse.com/docs/metrics/features/metrics-api",
-      );
-    });
-
-    it("should keep default advice for methods without a custom message", async () => {
-      const originalError = new Error("Timeout exceeded");
-      const resourceError = new ClickHouseResourceError(
-        "TIMEOUT",
-        originalError,
-      );
-
-      const handler = withMiddlewares(
-        {
-          POST: async () => {
-            throw resourceError;
-          },
-        },
-        {
-          clickHouseResourceErrorMessage: {
-            GET: LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
-          },
-        },
-      );
-
-      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-        method: "POST",
-        headers: {
-          "x-langfuse-public-key": "test-key",
-        },
-      });
-
-      await handler(req, res);
-
-      expect(res._getStatusCode()).toBe(422);
-      const jsonData = JSON.parse(res._getData());
-      expect(jsonData["message"]).toContain(
-        ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
-      );
-      expect(jsonData["message"]).toContain(
-        "https://langfuse.com/docs/api-and-data-platform/features/public-api",
-      );
-      expect(jsonData["message"]).not.toContain(
         "https://langfuse.com/docs/metrics/features/metrics-api",
       );
     });
