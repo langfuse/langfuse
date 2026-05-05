@@ -65,8 +65,10 @@ export function ExperimentOverviewPanel({
     ? githubJobUrl
     : undefined;
   const additionalMetadata = { ...metadata };
-  if (provider) delete additionalMetadata.provider;
-  if (model) delete additionalMetadata.model;
+  if (provider || model) {
+    delete additionalMetadata.provider;
+    delete additionalMetadata.model;
+  }
   if (safePullRequestUrl) delete additionalMetadata["langfuse.pr_url"];
   if (safeGithubJobUrl) delete additionalMetadata["langfuse.github_job_url"];
 
