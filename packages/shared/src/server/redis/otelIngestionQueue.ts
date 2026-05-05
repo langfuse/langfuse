@@ -166,7 +166,7 @@ export class SecondaryOtelIngestionQueue {
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100_000,
-            attempts: 5,
+            attempts: 6, // Match primary OtelIngestionQueue retry count
             backoff: {
               type: "exponential",
               delay: 5000,
