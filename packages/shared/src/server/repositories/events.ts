@@ -1,5 +1,9 @@
 import { prisma } from "../../db";
-import { Observation, EventsObservation, ObservationType } from "../../domain";
+import type {
+  EventsObservation,
+  MetadataDomain,
+  ObservationType,
+} from "../../domain";
 import { env } from "../../env";
 import { InternalServerError, LangfuseNotFoundError } from "../../errors";
 import {
@@ -76,12 +80,11 @@ import { eventsTableCols } from "../../eventsTable";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
-type EventBatchIOStringOutput = Omit<
-  Pick<Observation, "id" | "input" | "output" | "metadata">,
-  "input" | "output"
-> & {
+type EventBatchIOStringOutput = {
+  id: string;
   input: string | null;
   output: string | null;
+  metadata: MetadataDomain;
 };
 
 const BATCH_IO_STRING_RENDERING_PROPS: RenderingProps = {

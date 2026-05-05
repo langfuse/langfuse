@@ -5,7 +5,6 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  type Observation,
   type OrderByState,
   normalizeOrderByForTable,
   paginationZod,
@@ -14,7 +13,7 @@ import {
 import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
-  type WithStringifiedMetadata,
+  type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
 import { EventsTableOptions } from "./types";
 import {
@@ -44,14 +43,11 @@ const GetAllEventsInput = EventsTableOptions.extend({
   ...paginationZod,
 });
 
-export type EventBatchIOOutput = WithStringifiedMetadata<
-  Omit<
-    Pick<Observation, "id" | "input" | "output" | "metadata">,
-    "input" | "output"
-  >
-> & {
+export type EventBatchIOOutput = {
+  id: string;
   input: string | null;
   output: string | null;
+  metadata: MetadataDomainClient;
 };
 
 export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
