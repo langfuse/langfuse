@@ -78,8 +78,14 @@ describe("events trpc", () => {
       vi.mocked(getEventBatchIO).mockResolvedValueOnce([
         {
           id: observationId,
-          input: { prototype: "input", safeKey: "input-value" },
-          output: { prototype: "output", safeKey: "output-value" },
+          input: JSON.stringify({
+            prototype: "input",
+            safeKey: "input-value",
+          }),
+          output: JSON.stringify({
+            prototype: "output",
+            safeKey: "output-value",
+          }),
           metadata: {
             prototype: "metadata",
             safeKey: "metadata-value",

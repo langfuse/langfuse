@@ -12,7 +12,6 @@ import {
   timeFilter,
 } from "@langfuse/shared";
 import {
-  stringifyClientJsonValue,
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
   type WithStringifiedMetadata,
@@ -194,11 +193,7 @@ export const eventsRouter = createTRPCRouter({
             truncated: input.truncated,
           });
 
-          return batchIO.map((observation) => ({
-            ...toDomainWithStringifiedMetadata(observation),
-            input: stringifyClientJsonValue(observation.input),
-            output: stringifyClientJsonValue(observation.output),
-          }));
+          return batchIO.map(toDomainWithStringifiedMetadata);
         },
       );
     }),

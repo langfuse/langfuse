@@ -32,14 +32,6 @@ export const stringifyMetadata = (
   return JSON.stringify(metadata);
 };
 
-export const stringifyClientJsonValue = (
-  value: unknown | null | undefined,
-): string | null => {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "string") return value;
-  return JSON.stringify(value);
-};
-
 /**
  * Converts domain object to client-side-safe version by stringifying metadata.
  * Use this in tRPC routes before returning data to frontend.

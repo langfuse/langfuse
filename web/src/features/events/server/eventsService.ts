@@ -1,6 +1,5 @@
 import { type z } from "zod";
 import {
-  type Observation,
   type FilterCondition,
   LISTABLE_SCORE_TYPES,
   filterAndValidateDbScoreList,
@@ -441,17 +440,10 @@ interface GetEventBatchIOParams {
   truncated?: boolean;
 }
 
-type EventBatchIODomainOutput = Pick<
-  Observation,
-  "id" | "input" | "output" | "metadata"
->;
-
 /**
  * Batch fetch input/output and metadata for multiple observations
  */
-export async function getEventBatchIO(
-  params: GetEventBatchIOParams,
-): Promise<Array<EventBatchIODomainOutput>> {
+export async function getEventBatchIO(params: GetEventBatchIOParams) {
   return getObservationsBatchIOFromEventsTable({
     projectId: params.projectId,
     observations: params.observations,

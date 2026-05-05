@@ -2,7 +2,6 @@ import { type MetadataDomain, type TraceDomain } from "@langfuse/shared";
 import { type FullEventsObservations } from "@langfuse/shared/src/server";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import {
-  stringifyClientJsonValue,
   stringifyMetadata,
   type WithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
@@ -36,8 +35,8 @@ export function adaptEventsToTraceFormat(params: {
   events: EventsTraceObservation[];
   traceId: string;
   rootIO?: {
-    input: unknown;
-    output: unknown;
+    input: string | null;
+    output: string | null;
     metadata?: MetadataDomain | string | null;
   } | null;
 }): AdaptedTraceData {
@@ -88,8 +87,8 @@ export function adaptEventsToTraceFormat(params: {
     projectId: earliest.projectId,
     name: root?.name ?? earliest.name ?? null,
     timestamp: earliest.startTime,
-    input: stringifyClientJsonValue(rootIO?.input),
-    output: stringifyClientJsonValue(rootIO?.output),
+    input: rootIO?.input ?? null,
+    output: rootIO?.output ?? null,
     metadata:
       stringifyMetadata(rootIO?.metadata ?? root?.metadata ?? {}) ?? "{}",
     tags: traceTags ?? [],
