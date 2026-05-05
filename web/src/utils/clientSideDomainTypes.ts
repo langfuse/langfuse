@@ -14,7 +14,7 @@ export type MetadataDomainClient = string | null;
  *
  * @example
  * type ScoreFrontend = WithStringifiedMetadata<ScoreDomain>;
- * // Result: ScoreDomain but with metadata: string | null | undefined
+ * // Result: ScoreDomain but with metadata: string | null
  */
 export type WithStringifiedMetadata<
   T extends { metadata?: MetadataDomain | undefined },
