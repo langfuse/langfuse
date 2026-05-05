@@ -37,6 +37,7 @@ import {
   OtelIngestionQueue,
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
+  CloudUsageMeteringQueue,
   EventPropagationQueue,
   EvalExecutionQueue,
   SecondaryEvalExecutionQueue,
@@ -89,6 +90,7 @@ import { MediaRetentionCleaner } from "./features/media-retention-cleaner";
 import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-cleaner";
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
+import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 
 const app = express();
 
@@ -253,14 +255,13 @@ if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
     );
   });
 
-  // LLM-as-Judge execution for observation-level evals (uses same env flag as trace evals)
   const llmAsJudgeShardNames = LLMAsJudgeExecutionQueue.getShardNames();
   llmAsJudgeShardNames.forEach((shardName) => {
     WorkerManager.register(
       shardName as QueueName,
       llmAsJudgeExecutionQueueProcessorBuilder(shardName),
       {
-        concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
+        concurrency: env.LANGFUSE_LLM_AS_JUDGE_EXECUTION_WORKER_CONCURRENCY,
         lockDuration: 60000,
         stalledInterval: 120000,
         maxStalledCount: 3,
@@ -357,6 +358,9 @@ if (
   env.QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED === "true" &&
   env.STRIPE_SECRET_KEY
 ) {
+  // Instantiate the queue to trigger scheduled jobs
+  CloudUsageMeteringQueue.getInstance();
+
   WorkerManager.register(
     QueueName.CloudUsageMeteringQueue,
     cloudUsageMeteringQueueProcessor,
@@ -666,6 +670,14 @@ export let batchTraceDeletionCleaner: BatchTraceDeletionCleaner | null = null;
 if (env.LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED === "true") {
   batchTraceDeletionCleaner = new BatchTraceDeletionCleaner();
   batchTraceDeletionCleaner.start();
+}
+
+// Queue metrics background reporter
+export let queueMetricsRunner: QueueMetricsRunner | null = null;
+
+if (env.LANGFUSE_QUEUE_METRICS_ENABLED === "true") {
+  queueMetricsRunner = new QueueMetricsRunner();
+  queueMetricsRunner.start();
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

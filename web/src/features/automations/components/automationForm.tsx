@@ -18,7 +18,7 @@ import {
 import { Separator } from "@/src/components/ui/separator";
 import { Switch } from "@/src/components/ui/switch";
 import { useRouter } from "next/router";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -55,7 +55,7 @@ const slackSchema = z.object({
 
 // Define GitHub Dispatch action schema
 const githubDispatchSchema = z.object({
-  url: z.string().url("Invalid URL"),
+  url: z.url("Invalid URL"),
   eventType: z.string().min(1, "Event type is required").max(100),
   githubToken: z.string(),
   displayGitHubToken: z.string().optional(),

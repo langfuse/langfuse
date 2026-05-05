@@ -13,7 +13,7 @@ import {
   QueueName,
   TraceUpsertQueue,
 } from "@langfuse/shared/src/server";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 
 export const ensureTestDatabaseExists = async () => {
   // Only create test database if we're in test environment with test database URL
@@ -143,14 +143,22 @@ export const getQueues = () => {
     );
 };
 
-export const disconnectQueues = async () => {
+export const disconnectQueues = async (disconnectTimeoutMs = 2_000) => {
   await Promise.all(
     getQueues().map(async (queue) => {
       if (queue) {
+        let timeoutId: NodeJS.Timeout | undefined;
         try {
-          queue.disconnect();
+          await Promise.race([
+            queue.disconnect(),
+            new Promise<void>((resolve) => {
+              timeoutId = setTimeout(resolve, disconnectTimeoutMs);
+            }),
+          ]);
         } catch (error) {
           logger.error(`Error disconnecting queue ${queue.name}: ${error}`);
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
         }
       }
     }),
@@ -217,7 +225,7 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   }
 }
 
-export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
+export async function makeZodVerifiedAPICall<T extends z.ZodType>(
   responseZodSchema: T,
   method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
   url: string,
@@ -241,7 +249,7 @@ export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
   return { body: resBody, status };
 }
 
-export async function makeZodVerifiedAPICallSilent<T extends z.ZodTypeAny>(
+export async function makeZodVerifiedAPICallSilent<T extends z.ZodType>(
   responseZodSchema: T,
   method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
   url: string,

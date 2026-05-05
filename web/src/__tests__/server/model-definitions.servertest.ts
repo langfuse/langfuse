@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
@@ -13,7 +11,7 @@ import {
 } from "@/src/features/public-api/types/models";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
-import type { z } from "zod/v4";
+import type { z } from "zod";
 
 describe("/models API Endpoints", () => {
   type PublicModel = z.infer<typeof GetModelsV1Response>["data"][number];

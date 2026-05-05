@@ -19,7 +19,7 @@ import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 import { getServerAuthSession } from "@/src/server/auth";
 import { prisma, Role } from "@langfuse/shared/src/db";
-import * as z from "zod/v4";
+import * as z from "zod";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
 import { getTRPCErrorCodeFromHTTPStatusCode } from "@/src/server/utils/trpc-utils";
@@ -45,7 +45,6 @@ export const createInnerTRPCContext = (opts: CreateContextOptions) => {
     session: opts.session,
     headers: opts.headers,
     prisma,
-    DB,
   };
 };
 
@@ -82,9 +81,8 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
 import { initTRPC, TRPCError } from "@trpc/server";
 import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 import superjson from "superjson";
-import { ZodError } from "zod/v4";
+import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
-import { DB } from "@/src/server/db";
 import {
   getTraceById,
   logger,
@@ -109,7 +107,16 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
       data: {
         ...shape.data,
         zodError:
-          error.cause instanceof ZodError ? error.cause.flatten() : null,
+          error.cause instanceof ZodError ? z.flattenError(error.cause) : null,
+        errorName:
+          error.cause instanceof ClickHouseResourceError
+            ? "ClickHouseResourceError"
+            : null,
+        // do not expose stack traces for CH errors as they may contain sensitive info
+        stack:
+          error.cause instanceof ClickHouseResourceError
+            ? null
+            : shape.data.stack,
       },
     };
   },
@@ -167,6 +174,8 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
       res.error = new TRPCError({
         code: "UNPROCESSABLE_CONTENT",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+        // Keep the original error, it will be removed by `errorFormatter`
+        cause: res.error.cause,
       });
     } else {
       // Throw a new TRPC error with:

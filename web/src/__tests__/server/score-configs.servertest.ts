@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
@@ -255,6 +253,34 @@ describe("/api/public/score-configs API Endpoint", () => {
       { label: "Good", value: 1 },
       { label: "Bad", value: 0 },
     ]);
+  });
+
+  it("should POST a text score config", async () => {
+    const postScoreConfig = await makeZodVerifiedAPICall(
+      PostScoreConfigResponse,
+      "POST",
+      "/api/public/score-configs",
+      {
+        name: "text-config-name",
+        dataType: "TEXT",
+      },
+      auth,
+    );
+
+    const scoreConfig = await makeZodVerifiedAPICall(
+      GetScoreConfigResponse,
+      "GET",
+      `/api/public/score-configs/${postScoreConfig.body.id}`,
+      undefined,
+      auth,
+    );
+
+    expect(postScoreConfig.status).toBe(200);
+    expect(scoreConfig.body.name).toBe("text-config-name");
+    expect(scoreConfig.body.dataType).toBe("TEXT");
+    expect(scoreConfig.body.categories).toBeFalsy();
+    expect(scoreConfig.body.maxValue).toBeFalsy();
+    expect(scoreConfig.body.minValue).toBeFalsy();
   });
 
   it("should fail POST of numeric score config with invalid range", async () => {

@@ -41,10 +41,9 @@ import {
   DEFAULT_ROW_LIMIT,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import { numberFormatter } from "@/src/utils/numbers";
+import { valueFormatter } from "@/src/features/widgets/chart-library/utils";
 import { formatMetricName } from "@/src/features/widgets/utils";
 import { type OrderByState } from "@langfuse/shared";
-import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 
 /**
  * Props interface for the PivotTable component
@@ -56,12 +55,6 @@ export interface PivotTableProps {
 
   /** Pivot table specific configuration */
   config?: PivotTableConfig;
-
-  /** Chart configuration from shadcn/ui (for consistency with other charts) */
-  chartConfig?: ChartProps["config"];
-
-  /** Accessibility layer flag */
-  accessibilityLayer?: boolean;
 
   /** Current sort state */
   sortState?: OrderByState;
@@ -152,7 +145,8 @@ const SortableHeader: React.FC<{
 const PivotTableRowComponent: React.FC<{
   row: PivotTableRow;
   metrics: string[];
-}> = ({ row, metrics }) => {
+  units?: (string | undefined)[];
+}> = ({ row, metrics, units }) => {
   return (
     <TableRow
       className={cn(
@@ -181,7 +175,7 @@ const PivotTableRowComponent: React.FC<{
       </TableCell>
 
       {/* Metric columns */}
-      {metrics.map((metric) => (
+      {metrics.map((metric, i) => (
         <TableCell
           key={metric}
           className={cn(
@@ -189,27 +183,12 @@ const PivotTableRowComponent: React.FC<{
             (row.isSubtotal || row.isTotal) && "font-semibold",
           )}
         >
-          {formatMetricValue(row.values[metric])}
+          {valueFormatter(row.values[metric], units?.[i])}
         </TableCell>
       ))}
     </TableRow>
   );
 };
-
-/**
- * Formats metric values for display in the table
- * Handles numbers and strings with appropriate formatting
- *
- * @param value - The metric value to format
- * @returns Formatted string for display
- */
-function formatMetricValue(value: number | string): string {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  return numberFormatter(value, 2).replace(/\.00$/, "");
-}
 
 /**
  * Formats metric names for column headers
@@ -239,6 +218,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   onSortChange,
   isLoading = false,
 }) => {
+  const units = config?.units;
   // Transform chart data into pivot table structure
   const pivotTableRows = useMemo(() => {
     if (!data || data.length === 0) {
@@ -356,6 +336,10 @@ export const PivotTable: React.FC<PivotTableProps> = ({
 
   // Handle empty data state
   if (!data || data.length === 0) {
+    if (isLoading) {
+      return <div className="h-full" aria-hidden="true" />;
+    }
+
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
@@ -367,6 +351,10 @@ export const PivotTable: React.FC<PivotTableProps> = ({
 
   // Handle transformation errors
   if (pivotTableRows.length === 0) {
+    if (isLoading) {
+      return <div className="h-full" aria-hidden="true" />;
+    }
+
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
@@ -379,14 +367,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   }
 
   return (
-    <div className="relative h-full overflow-auto px-5 pb-2">
-      {isLoading && (
-        <ChartLoadingState
-          isLoading={isLoading}
-          className="bg-background/80 absolute inset-0 z-10 backdrop-blur-xs"
-          hintClassName="max-w-sm px-4"
-        />
-      )}
+    <div className="h-full overflow-auto px-5 pb-2">
       <Table>
         <TableHeader className="sticky top-0 z-10">
           <TableRow>
@@ -417,7 +398,12 @@ export const PivotTable: React.FC<PivotTableProps> = ({
 
         <TableBody>
           {sortedRows.map((row) => (
-            <PivotTableRowComponent key={row.id} row={row} metrics={metrics} />
+            <PivotTableRowComponent
+              key={row.id}
+              row={row}
+              metrics={metrics}
+              units={units}
+            />
           ))}
         </TableBody>
       </Table>

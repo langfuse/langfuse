@@ -1,14 +1,43 @@
-export type UiColumnMappings = readonly UiColumnMapping[];
-
-export type UiColumnMapping = Readonly<{
+export type UiColumnMatchable = Readonly<{
   uiTableName: string;
   uiTableId: string;
-  clickhouseTableName: string;
-  clickhouseSelect: string;
-  clickhouseTypeOverwrite?: string;
-  queryPrefix?: string;
-  emptyEqualsNull?: boolean;
+  aliases?: readonly string[];
 }>;
+
+export type UiColumnMappings = readonly UiColumnMapping[];
+
+export type UiColumnMapping = UiColumnMatchable &
+  Readonly<{
+    clickhouseTableName: string;
+    clickhouseSelect: string;
+    clickhouseTypeOverwrite?: string;
+    queryPrefix?: string;
+    emptyEqualsNull?: boolean;
+  }>;
+
+export const matchesUiColumnMapping = (
+  columnDef: UiColumnMatchable,
+  column: string | undefined,
+): boolean => {
+  if (column === undefined) {
+    return false;
+  }
+
+  return (
+    columnDef.uiTableId === column ||
+    columnDef.uiTableName === column ||
+    columnDef.aliases?.includes(column) === true
+  );
+};
+
+export const findUiColumnMapping = <T extends UiColumnMatchable>(
+  columnDefs: readonly T[],
+  column: string | undefined,
+): T | undefined => {
+  return columnDefs.find((columnDef) =>
+    matchesUiColumnMapping(columnDef, column),
+  );
+};
 
 export type SingleValueOption = {
   value: string;
@@ -30,6 +59,11 @@ export type ColumnDefinition =
       type: "number" | "string" | "datetime" | "boolean" | "null";
       internal: string;
       nullable?: boolean;
+      aliases?: string[];
+      /** Step for number inputs (e.g. 1 for integers). Defaults to 0.01 in UI. */
+      step?: number;
+      /** Minimum value for number inputs. */
+      min?: number;
     }
   | {
       name: string;
@@ -37,6 +71,7 @@ export type ColumnDefinition =
       type: "positionInTrace";
       internal: string;
       nullable?: boolean;
+      aliases?: string[];
     }
   | {
       name: string;
@@ -45,6 +80,7 @@ export type ColumnDefinition =
       options: Array<SingleValueOption>;
       internal: string;
       nullable?: boolean;
+      aliases?: string[]; // Used for backward compatibility with legacy column names, e.g. "traces.name" → "traces.traceName"
     }
   | {
       name: string;
@@ -53,6 +89,7 @@ export type ColumnDefinition =
       options: Array<SingleValueOption>;
       internal: string;
       nullable?: boolean;
+      aliases?: string[];
     }
   | {
       name: string;
@@ -61,6 +98,7 @@ export type ColumnDefinition =
       internal: string;
       keyOptions?: Array<string>;
       nullable?: boolean;
+      aliases?: string[];
     }
   | {
       name: string;
@@ -69,6 +107,7 @@ export type ColumnDefinition =
       options: Array<MultiValueOption>;
       internal: string;
       nullable?: boolean;
+      aliases?: string[];
     };
 
 export const tableNames = [

@@ -1,10 +1,14 @@
-/** @jest-environment node */
-
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { EvalTargetObject, EvaluatorBlockReason } from "@langfuse/shared";
+import {
+  createBooleanEvalOutputDefinition,
+  createCategoricalEvalOutputDefinition,
+  createNumericEvalOutputDefinition,
+  EvalTargetObject,
+  EvaluatorBlockReason,
+} from "@langfuse/shared";
 import type { Session } from "next-auth";
 
 const __orgIds: string[] = [];
@@ -224,6 +228,98 @@ describe("evals trpc", () => {
     });
   });
 
+  describe("evals.templateNames", () => {
+    it("should return the latest template versions with output definitions", async () => {
+      const { project, caller } = await prepare();
+
+      await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "numeric-template",
+          version: 1,
+          prompt: "Score this response",
+          outputDefinition: createNumericEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription: "How good",
+          }),
+        },
+      });
+
+      const latestNumericTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "numeric-template",
+          version: 2,
+          prompt: "Score this response again",
+          outputDefinition: createNumericEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription: "How good",
+          }),
+        },
+      });
+
+      const categoricalTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "categorical-template",
+          version: 1,
+          prompt: "Classify this response",
+          outputDefinition: createCategoricalEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription: "Classification",
+            categories: ["correct", "incorrect"],
+          }),
+        },
+      });
+
+      const booleanTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "boolean-template",
+          version: 1,
+          prompt: "Judge whether the response satisfies the criteria",
+          outputDefinition: createBooleanEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription:
+              "Return true if the response satisfies the criteria, otherwise false",
+          }),
+        },
+      });
+
+      const response = await caller.evals.templateNames({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+      });
+
+      expect(response.templates).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            latestId: latestNumericTemplate.id,
+            name: "numeric-template",
+            outputDefinition: expect.objectContaining({
+              dataType: "NUMERIC",
+            }),
+          }),
+          expect.objectContaining({
+            latestId: categoricalTemplate.id,
+            name: "categorical-template",
+            outputDefinition: expect.objectContaining({
+              dataType: "CATEGORICAL",
+            }),
+          }),
+          expect.objectContaining({
+            latestId: booleanTemplate.id,
+            name: "boolean-template",
+            outputDefinition: expect.objectContaining({
+              dataType: "BOOLEAN",
+            }),
+          }),
+        ]),
+      );
+    });
+  });
+
   describe("evals.jobExecutionCountsByEvaluatorIds", () => {
     it("should lazily retrieve execution status counts grouped by evaluator id", async () => {
       const { project, caller } = await prepare();
@@ -305,6 +401,54 @@ describe("evals trpc", () => {
     });
   });
 
+  describe("evals.createJob", () => {
+    it("rejects observation-only variable mappings for trace evaluators", async () => {
+      const { project, caller } = await prepare();
+
+      const evalTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "trace-template",
+          version: 1,
+          prompt: "Score this response",
+          outputDefinition: createNumericEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription: "How good",
+          }),
+        },
+      });
+
+      await expect(
+        caller.evals.createJob({
+          projectId: project.id,
+          evalTemplateId: evalTemplate.id,
+          scoreName: "bad-trace-score",
+          target: EvalTargetObject.TRACE,
+          filter: [],
+          mapping: [
+            {
+              templateVariable: "input",
+              selectedColumnId: "input",
+              jsonSelector: null,
+            },
+          ],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+        }),
+      ).rejects.toThrow("Variable mapping does not match evaluator target.");
+
+      await expect(
+        prisma.jobConfiguration.findFirst({
+          where: {
+            projectId: project.id,
+            scoreName: "bad-trace-score",
+          },
+        }),
+      ).resolves.toBeNull();
+    });
+  });
+
   describe("evals.updateConfig", () => {
     it("should update an evaluator configuration", async () => {
       const { project, caller } = await prepare();
@@ -346,6 +490,59 @@ describe("evals trpc", () => {
       expect(updatedJob?.id).toEqual(evalJobConfig.id);
       expect(updatedJob?.status).toEqual("INACTIVE");
       expect(updatedJob?.timeScope).toEqual(["NEW"]);
+    });
+
+    it("rejects observation-only variable mapping updates for trace evaluators", async () => {
+      const { project, caller } = await prepare();
+
+      const traceVariableMapping = [
+        {
+          templateVariable: "input",
+          objectName: null,
+          langfuseObject: "trace",
+          selectedColumnId: "input",
+          jsonSelector: null,
+        },
+      ];
+
+      const evalJobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: traceVariableMapping,
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          timeScope: ["NEW"],
+        },
+      });
+
+      await expect(
+        caller.evals.updateEvalJob({
+          projectId: project.id,
+          evalConfigId: evalJobConfig.id,
+          config: {
+            variableMapping: [
+              {
+                templateVariable: "input",
+                selectedColumnId: "input",
+                jsonSelector: null,
+              },
+            ],
+          },
+        }),
+      ).rejects.toThrow("Variable mapping does not match evaluator target.");
+
+      const unchangedJob = await prisma.jobConfiguration.findUnique({
+        where: {
+          id: evalJobConfig.id,
+        },
+      });
+
+      expect(unchangedJob?.variableMapping).toEqual(traceVariableMapping);
     });
 
     it("when the evaluator ran on existing traces, time scope cannot be changed to NEW only", async () => {
@@ -613,7 +810,7 @@ describe("evals trpc", () => {
   //         model: "test-model",
   //         modelParams: {},
   //         vars: [],
-  //         outputSchema: {
+  //         outputDefinition: {
   //           score: "test-score",
   //           reasoning: "test-reasoning",
   //         },
@@ -649,7 +846,7 @@ describe("evals trpc", () => {
   //         model: "test-model",
   //         modelParams: {},
   //         vars: [],
-  //         outputSchema: {
+  //         outputDefinition: {
   //           score: "test-score",
   //           reasoning: "test-reasoning",
   //         },
@@ -750,7 +947,7 @@ describe("evals trpc", () => {
   //         model: "test-model",
   //         modelParams: {},
   //         vars: [],
-  //         outputSchema: {
+  //         outputDefinition: {
   //           score: "test-score",
   //           reasoning: "test-reasoning",
   //         },

@@ -4,10 +4,14 @@ This file covers package-local guidance for this package.
 Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## Purpose
-- Next.js 15 application with UI, tRPC backend, and public REST API routes.
+
+- Next.js application with UI, tRPC backend, and public REST API routes.
+- Check `web/package.json` for current Next.js, React, and tRPC versions before
+  version-sensitive work.
 - Primary package for frontend and most request/response surface changes.
 
 ## Maintenance Contract
+
 - `AGENTS.md` is a living document.
 - Update this file in the same PR when material web-local changes occur:
   - new/renamed web entry points
@@ -17,31 +21,119 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
   `AGENTS.md` too.
 
 ## High-Signal Entry Points
+
 - App shell/providers: `src/pages/_app.tsx`
 - tRPC context/procedures: `src/server/api/trpc.ts`
 - tRPC router registry: `src/server/api/root.ts`
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
 - Public REST API routes: `src/pages/api/public/*`
+- Unstable public eval APIs: `src/pages/api/public/unstable/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
 - Reusable UI components: `src/components/*`
 - Tests:
-  - Server tests: `src/__tests__/server/*.servertest.ts`
+  - Server integration tests: `src/__tests__/server/*.servertest.ts`
+  - Server unit tests: `src/__tests__/server/unit/*.servertest.ts`
   - Client tests: `src/**/*.clienttest.ts(x)`
   - E2E: `src/__e2e__/*`
 
+## Shared Package Imports
+
+- Prefer `@langfuse/shared` in frontend-safe web code for shared types, zod
+  schemas, domain contracts, table definitions, prompt/eval/model-pricing
+  helpers, and other cross-runtime utilities.
+- Use `@langfuse/shared/src/server` only from server-only web code such as
+  `src/server/**`, `src/pages/api/**`, and server tests.
+- Use `@langfuse/shared/src/db` only in backend or test code that needs direct
+  Prisma access; never route it into client bundles.
+- Use narrower subpaths such as `@langfuse/shared/src/env` or
+  `@langfuse/shared/encryption` only when that focused surface is the clearest
+  dependency.
+- See `../packages/shared/AGENTS.md` for the full shared export map and what
+  each entrypoint contains.
+- For the higher-level platform topology across web, worker, Postgres,
+  ClickHouse, Redis, and S3, also read the architecture handbook:
+  [langfuse.com/handbook/product-engineering/architecture](https://langfuse.com/handbook/product-engineering/architecture)
+  with source markdown in
+  `../langfuse-docs/content/handbook/product-engineering/architecture.mdx`
+  (GitHub mirror:
+  [architecture.mdx](https://github.com/langfuse/langfuse-docs/blob/4188c1ba453240c90a763a8067ef442d68839323/content/handbook/product-engineering/architecture.mdx#L4)).
+
+## Package-Local Skills
+
+- Shared browser-review workflow for user-visible frontend changes:
+  [`../.agents/skills/frontend-browser-review/SKILL.md`](../.agents/skills/frontend-browser-review/SKILL.md)
+- React composition and component API design:
+  [`web/.agents/skills/vercel-composition-patterns/SKILL.md`](.agents/skills/vercel-composition-patterns/SKILL.md)
+- React/Next.js performance and rendering best practices:
+  [`web/.agents/skills/vercel-react-best-practices/SKILL.md`](.agents/skills/vercel-react-best-practices/SKILL.md)
+
+Read these package-local skills before substantial frontend refactors when the
+task involves component composition, reusable component APIs, rendering
+performance, bundle size, React/Next.js performance patterns, or browser-based
+signoff of user-visible changes.
+
+## Web Conventions
+
+- Put net-new feature code under `src/features/<feature>/*`; put broadly reusable
+  components under `src/components/*`.
+- We use tRPC for full-stack web features; register routers in
+  `src/server/api/root.ts`.
+- Authentication and RBAC guidance lives in `src/features/rbac/README.md`.
+- Entitlements guidance lives in `src/features/entitlements/README.md`.
+- Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
+  must be installed, ask the user before doing so.
+- Tailwind is the default styling layer; use the shared palette and globals in
+  `src/styles/globals.css`.
+- When changing shared UI/table patterns, update sibling variants consistently,
+  including default-visible and hidden columns or states.
+- For component style variants, prefer `cva` with `VariantProps` and merge
+  caller classes through `cn`, following existing `src/components/ui/*`
+  components:
+
+  ```tsx
+  const cardVariants = cva("rounded-md border", {
+    variants: { intent: { default: "bg-background", error: "border-destructive" } },
+    defaultVariants: { intent: "default" },
+  });
+
+  type CardProps = React.HTMLAttributes<HTMLDivElement> &
+    VariantProps<typeof cardVariants>;
+
+  const className = cn(cardVariants({ intent }), props.className);
+  ```
+
+- When anchoring sticky, fixed, or absolute elements to the viewport, use
+  `top-banner-offset`, `pt-banner-offset`, `h-screen-with-banner`, or
+  `min-h-screen-with-banner` instead of raw `top-0` so banners do not overlap
+  the UI.
+- Public API routes should use
+  `src/features/public-api/server/withMiddlewares.ts`, define strict request and
+  response types in `src/features/public-api/types/*`, add server tests, and
+  update Fern sources when the contract changes.
+- Public eval endpoints should keep the split between reusable `evaluators`
+  and ingestion-scoped `evaluation-rules`; do not leak `EvalTemplate` or
+  `JobConfiguration` naming into the public contract.
+- Keep tests independent; in `src/__tests__/server/**`, prefer scoped cleanup or
+  unique test data over global reset helpers.
+- Put pure server unit tests that do not need Postgres bootstrap under
+  `src/__tests__/server/unit/**` so they skip the shared DB setup hook.
+
 ## Quick Commands
+
 - Dev: `pnpm --filter web run dev`
 - Lint: `pnpm --filter web run lint`
 - Lint fix: `pnpm --filter web run lint:fix`
 - Typecheck: `pnpm --filter web run typecheck`
-- Server tests: `pnpm --filter web run test --testPathPatterns="<pattern>"`
-- Client tests: `pnpm --filter web run test-client --testPathPatterns="<pattern>"`
+- Server tests: `pnpm --filter web run test -- <pattern>`
+- Client tests: `pnpm --filter web run test-client -- <pattern>`
 - E2E tests: `pnpm --filter web run test:e2e`
+- Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
 
 ## Playbooks
 
 ### Add/Change tRPC endpoint
+
 1. Implement router/procedure in `src/server/api/routers/*` or
    `src/features/<feature>/server/*`.
 2. Register in `src/server/api/root.ts`.
@@ -49,6 +141,7 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 4. Add/adjust server tests under `src/__tests__/server/*`.
 
 ### Add/Change public API endpoint
+
 1. Add route in `src/pages/api/public/*`.
 2. Define/update contract types in `src/features/public-api/types/*`.
 3. Add/adjust server tests in `src/__tests__/server/*`.
@@ -56,15 +149,25 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
    outputs (do not hand-edit `../generated/**`).
 
 ### Add frontend feature
+
 1. Prefer `src/features/<feature>/*` for feature-local code.
 2. Put broadly reusable components in `src/components/*`.
 3. Keep server logic near feature server folders when possible.
+4. Review the affected user flow in a real browser with the Playwright MCP
+   server before signoff. Use
+   `../.agents/skills/frontend-browser-review/SKILL.md`.
+
+### Agent browser loop
+
+1. Start the app with `pnpm run dev:web` unless an existing local server is already running.
+2. Install Chromium with `pnpm run playwright:install` if Playwright has not been set up on this machine yet.
+3. Use the workspace `playwright` MCP server from `.mcp.json`, `.cursor/mcp.json`, or `.vscode/mcp.json` for browser-driven review of user-visible frontend changes, not just debugging.
+4. Exercise the primary changed flow and check the resulting UI state for obvious visual regressions before signoff.
+5. Inspect traces and other artifacts under `../.playwright-mcp/` when a browser session fails.
 
 ## Package-Specific Rules
+
 - Router style is Pages Router-centric; follow existing routing patterns.
 - Keep tests independent; no reliance on test execution order.
-- In `src/__tests__/server`, avoid `pruneDatabase` calls.
-- Confirm the target `*.clienttest.*` or `*.servertest.*` file exists before using `--testPathPatterns`; source files do not always have a matching colocated test file.
+- Confirm the target `*.clienttest.*` or `*.servertest.*` file exists before passing a pattern to `vitest run`; source files do not always have a matching colocated test file.
 - Do not hand-edit build artifacts: `.next/*`, `.next-check/*`, `dist/*`.
-
-<!-- NEXT-AGENTS-MD-START -->[Next.js Docs Index]|root: ./.next-docs|STOP. What you remember about Next.js is WRONG for this project. Always search docs and read before any task.|If docs missing, run this command first: npx @next/codemod agents-md --output AGENTS.md|01-app:{04-glossary.mdx}|01-app/01-getting-started:{01-installation.mdx,02-project-structure.mdx,03-layouts-and-pages.mdx,04-linking-and-navigating.mdx,05-server-and-client-components.mdx,06-fetching-data.mdx,07-mutating-data.mdx,08-caching.mdx,09-revalidating.mdx,10-error-handling.mdx,11-css.mdx,12-images.mdx,13-fonts.mdx,14-metadata-and-og-images.mdx,15-route-handlers.mdx,16-proxy.mdx,17-deploying.mdx,18-upgrading.mdx}|01-app/02-guides:{ai-agents.mdx,analytics.mdx,authentication.mdx,backend-for-frontend.mdx,caching-without-cache-components.mdx,ci-build-caching.mdx,content-security-policy.mdx,css-in-js.mdx,custom-server.mdx,data-security.mdx,debugging.mdx,draft-mode.mdx,environment-variables.mdx,forms.mdx,incremental-static-regeneration.mdx,instant-navigation.mdx,instrumentation.mdx,internationalization.mdx,json-ld.mdx,lazy-loading.mdx,local-development.mdx,mcp.mdx,mdx.mdx,memory-usage.mdx,migrating-to-cache-components.mdx,multi-tenant.mdx,multi-zones.mdx,open-telemetry.mdx,package-bundling.mdx,prefetching.mdx,preserving-ui-state.mdx,production-checklist.mdx,progressive-web-apps.mdx,public-static-pages.mdx,redirecting.mdx,sass.mdx,scripts.mdx,self-hosting.mdx,single-page-applications.mdx,static-exports.mdx,streaming.mdx,tailwind-v3-css.mdx,third-party-libraries.mdx,videos.mdx}|01-app/02-guides/migrating:{app-router-migration.mdx,from-create-react-app.mdx,from-vite.mdx}|01-app/02-guides/testing:{cypress.mdx,jest.mdx,playwright.mdx,vitest.mdx}|01-app/02-guides/upgrading:{codemods.mdx,version-14.mdx,version-15.mdx,version-16.mdx}|01-app/03-api-reference:{07-edge.mdx,08-turbopack.mdx}|01-app/03-api-reference/01-directives:{use-cache-private.mdx,use-cache-remote.mdx,use-cache.mdx,use-client.mdx,use-server.mdx}|01-app/03-api-reference/02-components:{font.mdx,form.mdx,image.mdx,link.mdx,script.mdx}|01-app/03-api-reference/03-file-conventions/01-metadata:{app-icons.mdx,manifest.mdx,opengraph-image.mdx,robots.mdx,sitemap.mdx}|01-app/03-api-reference/03-file-conventions/02-route-segment-config:{dynamicParams.mdx,instant.mdx,maxDuration.mdx,preferredRegion.mdx,runtime.mdx}|01-app/03-api-reference/03-file-conventions:{default.mdx,dynamic-routes.mdx,error.mdx,forbidden.mdx,instrumentation-client.mdx,instrumentation.mdx,intercepting-routes.mdx,layout.mdx,loading.mdx,mdx-components.mdx,not-found.mdx,page.mdx,parallel-routes.mdx,proxy.mdx,public-folder.mdx,route-groups.mdx,route.mdx,src-folder.mdx,template.mdx,unauthorized.mdx}|01-app/03-api-reference/04-functions:{after.mdx,cacheLife.mdx,cacheTag.mdx,catchError.mdx,connection.mdx,cookies.mdx,draft-mode.mdx,fetch.mdx,forbidden.mdx,generate-image-metadata.mdx,generate-metadata.mdx,generate-sitemaps.mdx,generate-static-params.mdx,generate-viewport.mdx,headers.mdx,image-response.mdx,next-request.mdx,next-response.mdx,not-found.mdx,permanentRedirect.mdx,redirect.mdx,refresh.mdx,revalidatePath.mdx,revalidateTag.mdx,unauthorized.mdx,unstable_cache.mdx,unstable_noStore.mdx,unstable_rethrow.mdx,updateTag.mdx,use-link-status.mdx,use-params.mdx,use-pathname.mdx,use-report-web-vitals.mdx,use-router.mdx,use-search-params.mdx,use-selected-layout-segment.mdx,use-selected-layout-segments.mdx,userAgent.mdx}|01-app/03-api-reference/05-config/01-next-config-js:{adapterPath.mdx,allowedDevOrigins.mdx,appDir.mdx,assetPrefix.mdx,authInterrupts.mdx,basePath.mdx,cacheComponents.mdx,cacheHandlers.mdx,cacheLife.mdx,compress.mdx,crossOrigin.mdx,cssChunking.mdx,deploymentId.mdx,devIndicators.mdx,distDir.mdx,env.mdx,expireTime.mdx,exportPathMap.mdx,generateBuildId.mdx,generateEtags.mdx,headers.mdx,htmlLimitedBots.mdx,httpAgentOptions.mdx,images.mdx,incrementalCacheHandlerPath.mdx,inlineCss.mdx,logging.mdx,mdxRs.mdx,onDemandEntries.mdx,optimizePackageImports.mdx,output.mdx,pageExtensions.mdx,poweredByHeader.mdx,productionBrowserSourceMaps.mdx,proxyClientMaxBodySize.mdx,reactCompiler.mdx,reactMaxHeadersLength.mdx,reactStrictMode.mdx,redirects.mdx,rewrites.mdx,sassOptions.mdx,serverActions.mdx,serverComponentsHmrCache.mdx,serverExternalPackages.mdx,staleTimes.mdx,staticGeneration.mdx,taint.mdx,trailingSlash.mdx,transpilePackages.mdx,turbopack.mdx,turbopackFileSystemCache.mdx,turbopackIgnoreIssue.mdx,typedRoutes.mdx,typescript.mdx,urlImports.mdx,useLightningcss.mdx,viewTransition.mdx,webVitalsAttribution.mdx,webpack.mdx}|01-app/03-api-reference/05-config:{02-typescript.mdx,03-eslint.mdx}|01-app/03-api-reference/06-cli:{create-next-app.mdx,next.mdx}|02-pages/01-getting-started:{01-installation.mdx,02-project-structure.mdx,04-images.mdx,05-fonts.mdx,06-css.mdx,11-deploying.mdx}|02-pages/02-guides:{analytics.mdx,authentication.mdx,babel.mdx,ci-build-caching.mdx,content-security-policy.mdx,css-in-js.mdx,custom-server.mdx,debugging.mdx,draft-mode.mdx,environment-variables.mdx,forms.mdx,incremental-static-regeneration.mdx,instrumentation.mdx,internationalization.mdx,lazy-loading.mdx,mdx.mdx,multi-zones.mdx,open-telemetry.mdx,package-bundling.mdx,post-css.mdx,preview-mode.mdx,production-checklist.mdx,redirecting.mdx,sass.mdx,scripts.mdx,self-hosting.mdx,static-exports.mdx,tailwind-v3-css.mdx,third-party-libraries.mdx}|02-pages/02-guides/migrating:{app-router-migration.mdx,from-create-react-app.mdx,from-vite.mdx}|02-pages/02-guides/testing:{cypress.mdx,jest.mdx,playwright.mdx,vitest.mdx}|02-pages/02-guides/upgrading:{codemods.mdx,version-10.mdx,version-11.mdx,version-12.mdx,version-13.mdx,version-14.mdx,version-9.mdx}|02-pages/03-building-your-application/01-routing:{01-pages-and-layouts.mdx,02-dynamic-routes.mdx,03-linking-and-navigating.mdx,05-custom-app.mdx,06-custom-document.mdx,07-api-routes.mdx,08-custom-error.mdx}|02-pages/03-building-your-application/02-rendering:{01-server-side-rendering.mdx,02-static-site-generation.mdx,04-automatic-static-optimization.mdx,05-client-side-rendering.mdx}|02-pages/03-building-your-application/03-data-fetching:{01-get-static-props.mdx,02-get-static-paths.mdx,03-forms-and-mutations.mdx,03-get-server-side-props.mdx,05-client-side.mdx}|02-pages/03-building-your-application/06-configuring:{12-error-handling.mdx}|02-pages/04-api-reference:{06-edge.mdx,08-turbopack.mdx}|02-pages/04-api-reference/01-components:{font.mdx,form.mdx,head.mdx,image-legacy.mdx,image.mdx,link.mdx,script.mdx}|02-pages/04-api-reference/02-file-conventions:{instrumentation.mdx,proxy.mdx,public-folder.mdx,src-folder.mdx}|02-pages/04-api-reference/03-functions:{get-initial-props.mdx,get-server-side-props.mdx,get-static-paths.mdx,get-static-props.mdx,next-request.mdx,next-response.mdx,use-params.mdx,use-report-web-vitals.mdx,use-router.mdx,use-search-params.mdx,userAgent.mdx}|02-pages/04-api-reference/04-config/01-next-config-js:{adapterPath.mdx,allowedDevOrigins.mdx,assetPrefix.mdx,basePath.mdx,bundlePagesRouterDependencies.mdx,compress.mdx,crossOrigin.mdx,deploymentId.mdx,devIndicators.mdx,distDir.mdx,env.mdx,exportPathMap.mdx,generateBuildId.mdx,generateEtags.mdx,headers.mdx,httpAgentOptions.mdx,images.mdx,logging.mdx,onDemandEntries.mdx,optimizePackageImports.mdx,output.mdx,pageExtensions.mdx,poweredByHeader.mdx,productionBrowserSourceMaps.mdx,proxyClientMaxBodySize.mdx,reactStrictMode.mdx,redirects.mdx,rewrites.mdx,serverExternalPackages.mdx,trailingSlash.mdx,transpilePackages.mdx,turbopack.mdx,typescript.mdx,urlImports.mdx,useLightningcss.mdx,webVitalsAttribution.mdx,webpack.mdx}|02-pages/04-api-reference/04-config:{01-typescript.mdx,02-eslint.mdx}|02-pages/04-api-reference/05-cli:{create-next-app.mdx,next.mdx}|03-architecture:{accessibility.mdx,fast-refresh.mdx,nextjs-compiler.mdx,supported-browsers.mdx}|04-community:{01-contribution-guide.mdx,02-rspack.mdx}<!-- NEXT-AGENTS-MD-END -->

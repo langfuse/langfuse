@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { OpenAIToolSchema, extractAdditionalInput } from "@langfuse/shared";
 import type { PlaygroundTool } from "@/src/features/playground/page/types";
 

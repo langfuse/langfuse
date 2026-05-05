@@ -214,7 +214,7 @@ export default function ScoresAnalyticsV2Page() {
         )}
 
         {/* Content Section */}
-        <div className="max-h-full overflow-y-scroll p-4 pt-6">
+        <div className="max-h-full overflow-y-auto p-4 pt-6">
           {hasError ? (
             <div className="bg-destructive/10 flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
               <BarChart3 className="text-destructive h-12 w-12" />

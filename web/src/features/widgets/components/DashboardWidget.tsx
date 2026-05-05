@@ -5,8 +5,9 @@ import {
   type metricAggregations,
   type QueryType,
   mapLegacyUiTableFilterToView,
+  getResultUnit,
 } from "@/src/features/query";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
@@ -20,9 +21,16 @@ import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
-import { formatMetricName } from "@/src/features/widgets/utils";
+import {
+  formatMetricName,
+  shouldUseWidgetSSE,
+  sanitizePivotTableDefaultSort,
+} from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
-import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
+import {
+  getChartLoadingProgress,
+  getChartLoadingStateProps,
+} from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { type ViewVersion } from "@/src/features/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
@@ -32,6 +40,7 @@ import {
   isV2BreakdownChart,
   buildWidgetOrderBy,
 } from "@/src/features/query/validateQuery";
+import { requiresV2 } from "@/src/features/query/dataModel";
 
 export interface WidgetPlacement {
   id: string;
@@ -74,10 +83,19 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
+  const widgetRequiresV2 = requiresV2({
+    view: widget.data?.view ?? "traces",
+    dimensions: widget.data?.dimensions ?? [],
+    measures:
+      widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ?? [],
+    filters: widget.data?.filters ?? [],
+  });
   // If widget requires v2 features (minVersion >= 2), must use v2.
   // Otherwise follow the beta toggle.
   const metricsVersion: ViewVersion =
-    (widget.data?.minVersion ?? 1) >= 2 || isBetaEnabled ? "v2" : "v1";
+    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2 || isBetaEnabled
+      ? "v2"
+      : "v1";
   const hasCUDAccess =
     useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
     dashboardOwner !== "LANGFUSE";
@@ -85,12 +103,16 @@ export function DashboardWidget({
   // Initialize sort state for pivot tables
   const defaultSort =
     widget.data?.chartConfig.type === "PIVOT_TABLE"
-      ? widget.data?.chartConfig.defaultSort
+      ? sanitizePivotTableDefaultSort(widget.data.chartConfig.defaultSort, {
+          dimensions: widget.data.dimensions,
+          metrics: widget.data.metrics,
+        })
       : undefined;
 
   const [sortState, setSortState] = useState<OrderByState | null>(() => {
     return defaultSort || null;
   });
+  const [retryCount, setRetryCount] = useState(0);
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -149,7 +171,10 @@ export function DashboardWidget({
           aggregation: metric.agg as z.infer<typeof metricAggregations>,
         })) ?? [],
       filters: [
-        ...(widget.data?.filters ?? []),
+        ...mapLegacyUiTableFilterToView(
+          (widget.data?.view as z.infer<typeof views>) ?? "traces",
+          widget.data?.filters ?? [],
+        ),
         ...mapLegacyUiTableFilterToView(
           (widget.data?.view as z.infer<typeof views>) ?? "traces",
           filterState,
@@ -170,7 +195,6 @@ export function DashboardWidget({
         : ({ valid: true } as const),
     [widgetQuery, metricsVersion, widget.data],
   );
-
   const queryResult = useScheduledDashboardExecuteQuery(
     {
       projectId,
@@ -187,6 +211,11 @@ export function DashboardWidget({
       meta: {
         silentHttpCodes: [422],
       },
+      refreshKey: retryCount,
+      useSSE: shouldUseWidgetSSE({
+        isV4Enabled: isBetaEnabled,
+        version: metricsVersion,
+      }),
       enabled:
         !widget.isPending && Boolean(widget.data) && queryValidation.valid,
     },
@@ -195,7 +224,26 @@ export function DashboardWidget({
   const chartLoadingState = getChartLoadingStateProps({
     isPending: queryResult.isPending,
     isError: queryResult.isError,
+    errorMessage: queryResult.error,
   });
+  const usesBackendProgress = shouldUseWidgetSSE({
+    isV4Enabled: isBetaEnabled,
+    version: metricsVersion,
+  });
+  const loadingStateLayout =
+    placement.y_size <= 2
+      ? "tight"
+      : placement.x_size <= 4
+        ? "compact"
+        : "default";
+  const loadingProgress = getChartLoadingProgress({
+    isPending: queryResult.isPending,
+    progress: queryResult.progress,
+    useBackendProgress: usesBackendProgress,
+  });
+  const handleRetry = useCallback(() => {
+    setRetryCount((current) => current + 1);
+  }, []);
 
   const transformedData = useMemo(() => {
     if (!widget.data || !queryResult.data) {
@@ -362,18 +410,20 @@ export function DashboardWidget({
       >
         {widget.data.description}
       </div>
-      <div className="relative min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col">
         {!queryValidation.valid ? (
-          <ChartLoadingState
-            isLoading={true}
-            showSpinner={false}
-            showHintImmediately={true}
-            hintText={queryValidation.reason}
-            className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-            hintClassName="max-w-sm px-4"
-          />
+          <div className="relative min-h-0 flex-1">
+            <ChartLoadingState
+              isLoading={true}
+              showSpinner={false}
+              showHintImmediately={true}
+              hintText={queryValidation.reason}
+              layout={loadingStateLayout}
+              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+            />
+          </div>
         ) : (
-          <>
+          <div className="relative min-h-0 flex-1">
             <Chart
               chartType={widget.data.chartType}
               data={transformedData}
@@ -392,6 +442,23 @@ export function DashboardWidget({
                   metrics: widget.data.metrics.map(
                     (metric) => `${metric.agg}_${metric.measure}`,
                   ),
+                  units: widget.data.metrics.map((metric) =>
+                    getResultUnit(
+                      widget.data.view,
+                      metric.measure,
+                      metric.agg,
+                      metricsVersion,
+                    ),
+                  ),
+                  defaultSort,
+                }),
+                ...(widget.data.chartType !== "PIVOT_TABLE" && {
+                  unit: getResultUnit(
+                    widget.data.view,
+                    widget.data.metrics[0]?.measure ?? "",
+                    widget.data.metrics[0]?.agg,
+                    metricsVersion,
+                  ),
                 }),
               }}
               sortState={
@@ -407,10 +474,12 @@ export function DashboardWidget({
               showSpinner={chartLoadingState.showSpinner}
               showHintImmediately={chartLoadingState.showHintImmediately}
               hintText={chartLoadingState.hintText}
+              onRetry={queryResult.isError ? handleRetry : undefined}
+              progress={loadingProgress}
+              layout={loadingStateLayout}
               className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-              hintClassName="max-w-sm px-4"
             />
-          </>
+          </div>
         )}
       </div>
     </div>

@@ -45,13 +45,13 @@ export function useEvalConfigFilterOptions({
     // Normalize API response to match TraceOptions type (count should be number, not string)
     const normalized = traceFilterOptionsResponse.data
       ? {
-          name: traceFilterOptionsResponse.data.name?.map((n) => ({
+          traceName: traceFilterOptionsResponse.data.name?.map((n) => ({
             value: n.value,
             count: Number(n.count),
           })),
           scores_avg: traceFilterOptionsResponse.data.scores_avg,
           score_categories: traceFilterOptionsResponse.data.score_categories,
-          tags: traceFilterOptionsResponse.data.tags?.map((t) => ({
+          traceTags: traceFilterOptionsResponse.data.tags?.map((t) => ({
             value: t.value,
           })),
         }
@@ -106,6 +106,10 @@ export function useEvalConfigFilterOptions({
       name: observationsFilterOptionsResponse.data?.name?.map((n) => ({
         value: n.value,
       })),
+      calledToolNames:
+        observationsFilterOptionsResponse.data?.calledToolNames?.map((t) => ({
+          value: t.value,
+        })),
     };
   }, [
     traceFilterOptionsResponse.data,

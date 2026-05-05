@@ -1,4 +1,5 @@
-import { z } from "zod/v4";
+import { z } from "zod";
+import { validateAzureContainerName } from "@/src/features/blobstorage-integration/validation";
 
 /**
  * Enums
@@ -26,7 +27,7 @@ export const CreateBlobStorageIntegrationRequest = z
   .object({
     projectId: z.string(),
     type: BlobStorageIntegrationType,
-    bucketName: z.string(),
+    bucketName: z.string().min(1),
     endpoint: z.string().nullable().optional(),
     region: z.string(),
     accessKeyId: z.string().nullable().optional(),
@@ -45,6 +46,7 @@ export const CreateBlobStorageIntegrationRequest = z
     fileType: BlobStorageIntegrationFileType,
     exportMode: BlobStorageExportMode,
     exportStartDate: z.coerce.date().nullable().optional(),
+    compressed: z.boolean().optional().default(true),
   })
   .strict()
   .refine(
@@ -56,7 +58,8 @@ export const CreateBlobStorageIntegrationRequest = z
         "exportStartDate is required when exportMode is FROM_CUSTOM_DATE",
       path: ["exportStartDate"],
     },
-  );
+  )
+  .superRefine(validateAzureContainerName);
 
 export const BlobStorageIntegrationResponse = z
   .object({
@@ -74,6 +77,7 @@ export const BlobStorageIntegrationResponse = z
     fileType: BlobStorageIntegrationFileType,
     exportMode: BlobStorageExportMode,
     exportStartDate: z.coerce.date().nullable(),
+    compressed: z.boolean(),
     nextSyncAt: z.coerce.date().nullable(),
     lastSyncAt: z.coerce.date().nullable(),
     lastError: z.string().nullable(),

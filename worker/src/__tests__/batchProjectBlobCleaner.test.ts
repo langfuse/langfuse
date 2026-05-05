@@ -8,7 +8,11 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { BatchProjectBlobCleaner } from "../features/batch-project-blob-cleaner";
 
-const mockRemoveIngestionEvents = vi.fn().mockResolvedValue(undefined);
+// vi.hoisted ensures this is declared before vi.mock's hoisted factory runs.
+// Without it, the variable would be undefined when the factory executes.
+const { mockRemoveIngestionEvents } = vi.hoisted(() => ({
+  mockRemoveIngestionEvents: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");

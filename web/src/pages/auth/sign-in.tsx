@@ -30,7 +30,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/ui/password-input";
@@ -46,7 +46,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 
 const credentialAuthForm = z.object({
-  email: z.string().email(),
+  email: z.email(),
   password: z.string().min(8, {
     message: "Password must be at least 8 characters long",
   }),
@@ -657,7 +657,7 @@ export default function SignIn({
     credentialsForm.clearErrors();
 
     // Ensure email is valid before hitting the API
-    const emailSchema = z.string().email();
+    const emailSchema = z.email();
     const email = emailSchema.safeParse(credentialsForm.getValues("email"));
     if (!email.success) {
       credentialsForm.setError("email", {

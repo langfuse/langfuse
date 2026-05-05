@@ -21,8 +21,12 @@ import { prisma } from "@langfuse/shared/src/db";
 import { IngestionService } from "../../services/IngestionService";
 import * as clickhouseWriterExports from "../../services/ClickhouseWriter";
 
-// Mock ClickhouseWriter to avoid actual database writes
-const mockAddToClickhouseWriter = vi.fn();
+// Mock ClickhouseWriter to avoid actual database writes.
+// vi.hoisted ensures this is declared before vi.mock's hoisted factory runs.
+// Without it, the variable would be undefined when the factory executes.
+const { mockAddToClickhouseWriter } = vi.hoisted(() => ({
+  mockAddToClickhouseWriter: vi.fn(),
+}));
 vi.mock("../../services/ClickhouseWriter", async (importOriginal) => {
   const original = (await importOriginal()) as object;
   return {
@@ -1508,6 +1512,196 @@ describe("OTEL to ObservationForEval Schema Validation", () => {
       expect(obs.tool_definitions).toBeDefined();
       expect(obs.tool_calls).toBeDefined();
       expect(obs.tool_call_names).toBeDefined();
+
+      // tool_call_count is derived from tool_call_names
+      expect(obs.tool_call_count).toBe(obs.tool_call_names.length);
+    });
+
+    it("should set tool_call_count to 0 when no tool calls are present", async () => {
+      const noToolsSpan = {
+        resource: { attributes: [] },
+        scopeSpans: [
+          {
+            scope: { name: "langfuse-sdk", version: "3.0.0" },
+            spans: [
+              {
+                traceId: createBufferId("123456789012345678901234567890ab"),
+                spanId: createBufferId("00b001567890abcd"),
+                name: "no-tools-test",
+                kind: 1,
+                startTimeUnixNano: createNanoTimestamp(
+                  BigInt(1738242387865000000),
+                ),
+                endTimeUnixNano: createNanoTimestamp(
+                  BigInt(1738242389310000000),
+                ),
+                attributes: [
+                  {
+                    key: "langfuse.observation.type",
+                    value: { stringValue: "generation" },
+                  },
+                  {
+                    key: "langfuse.observation.input",
+                    value: { stringValue: '"Hello"' },
+                  },
+                  {
+                    key: "langfuse.observation.output",
+                    value: { stringValue: '"Hi there"' },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const observations =
+        await processOtelSpanToObservationForEval(noToolsSpan);
+
+      expect(observations).toHaveLength(1);
+      expect(observations[0].tool_call_count).toBe(0);
+    });
+  });
+
+  describe("Malformed usage_details and cost_details handling", () => {
+    function buildSpanWithRawAttributes(
+      extraAttrs: Array<{ key: string; value: Record<string, unknown> }>,
+      scopeName = "langfuse-sdk",
+    ) {
+      return {
+        resource: { attributes: [] },
+        scopeSpans: [
+          {
+            scope: { name: scopeName, version: "3.0.0" },
+            spans: [
+              {
+                traceId: createBufferId("1234567890abcdef1234567890malfor"),
+                spanId: createBufferId("malformed12345678"),
+                name: "malformed-test",
+                kind: 1,
+                startTimeUnixNano: createNanoTimestamp(
+                  BigInt(1738242287865000000),
+                ),
+                endTimeUnixNano: createNanoTimestamp(
+                  BigInt(1738242289310000000),
+                ),
+                attributes: [
+                  {
+                    key: "langfuse.observation.type",
+                    value: { stringValue: "generation" },
+                  },
+                  {
+                    key: "langfuse.observation.model.name",
+                    value: { stringValue: "gpt-4" },
+                  },
+                  ...extraAttrs,
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+    }
+
+    it.each([
+      {
+        name: "invalid JSON",
+        usage: { stringValue: "not json{{{" },
+        cost: { stringValue: "{broken" },
+        expectedUsage: {},
+        expectedCost: {},
+      },
+      {
+        name: "JSON array",
+        usage: { stringValue: "[100, 200]" },
+        cost: { stringValue: "[0.01]" },
+        expectedUsage: {},
+        expectedCost: {},
+      },
+      {
+        name: "JSON primitive",
+        usage: { stringValue: "42" },
+        cost: { stringValue: '"a string"' },
+        expectedUsage: {},
+        expectedCost: {},
+      },
+      {
+        name: "non-string attribute type",
+        usage: { intValue: 12345 },
+        cost: { doubleValue: 0.99 },
+        expectedUsage: {},
+        expectedCost: {},
+      },
+      {
+        name: "attributes omitted entirely",
+        usage: null,
+        cost: null,
+        expectedUsage: {},
+        expectedCost: {},
+      },
+      {
+        name: "valid usage but malformed cost",
+        usage: { stringValue: '{"input":100,"output":200}' },
+        cost: { stringValue: "not json" },
+        expectedUsage: { input: 100, output: 200 },
+        expectedCost: {},
+      },
+    ])(
+      "should handle $name without data corruption",
+      async ({ usage, cost, expectedUsage, expectedCost }) => {
+        const attrs: Array<{
+          key: string;
+          value: Record<string, unknown>;
+        }> = [];
+        if (usage)
+          attrs.push({
+            key: "langfuse.observation.usage_details",
+            value: usage,
+          });
+        if (cost)
+          attrs.push({
+            key: "langfuse.observation.cost_details",
+            value: cost,
+          });
+
+        const span = buildSpanWithRawAttributes(attrs);
+        const observations = await processOtelSpanToObservationForEval(span);
+
+        expect(observations).toHaveLength(1);
+        const obs = observations[0];
+        expect(observationForEvalSchema.safeParse(obs).success).toBe(true);
+        expect(obs.provided_usage_details).toEqual(expectedUsage);
+        expect(obs.provided_cost_details).toEqual(expectedCost);
+      },
+    );
+
+    it("should fall through to gen_ai.usage.* when usage_details is invalid JSON", async () => {
+      const span = buildSpanWithRawAttributes(
+        [
+          {
+            key: "langfuse.observation.usage_details",
+            value: { stringValue: "{{bad}}" },
+          },
+          {
+            key: "gen_ai.usage.input_tokens",
+            value: { intValue: { low: 50, high: 0, unsigned: false } },
+          },
+          {
+            key: "gen_ai.usage.output_tokens",
+            value: { intValue: { low: 75, high: 0, unsigned: false } },
+          },
+        ],
+        "ai", // scope name triggers gen_ai.usage.* fallback path
+      );
+
+      const observations = await processOtelSpanToObservationForEval(span);
+      expect(observations).toHaveLength(1);
+      expect(observations[0].provided_usage_details).toMatchObject({
+        input: 50,
+        output: 75,
+      });
     });
   });
 });

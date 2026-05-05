@@ -227,6 +227,22 @@ export async function notifyBlockedEvaluatorConfigs({
     return;
   }
 
+  const project = await prisma.project.findUnique({
+    where: {
+      id: projectId,
+    },
+    select: {
+      name: true,
+    },
+  });
+
+  if (!project) {
+    logger.warn(
+      `[EVALUATOR BLOCK] Project ${projectId} not found. Skipping notifications.`,
+    );
+    return;
+  }
+
   const blockedConfigs = await prisma.jobConfiguration.findMany({
     where: {
       projectId,
@@ -254,6 +270,7 @@ export async function notifyBlockedEvaluatorConfigs({
     adminEmails.map((receiverEmail) =>
       sendEvaluatorBlockedEmail({
         env: emailEnv,
+        projectName: project.name,
         evaluatorName: config.evalTemplate?.name ?? config.scoreName,
         blockReason,
         blockMessage,
