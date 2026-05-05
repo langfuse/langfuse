@@ -269,7 +269,12 @@ export const handlePostHogIntegrationProjectJob = async (
     return;
   }
 
-  // Validate PostHog hostname to prevent SSRF attacks before sending data
+  // Validate PostHog hostname to prevent SSRF attacks before sending data.
+  // The resolved IPs returned here are intentionally unused: posthog-node does
+  // not expose a custom DNS resolver or undici dispatcher, so DNS pinning would
+  // require replacing the SDK calls with raw fetch + createPinnedAgent.
+  // A small TOCTOU window between this check and the SDK's own DNS lookup
+  // remains and is a known limitation of the PostHog SDK dependency.
   try {
     await validateWebhookURLAndGetIPs(postHogIntegration.posthogHostName);
   } catch (error) {

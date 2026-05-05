@@ -23,7 +23,7 @@ vi.mock("node:dns/promises", () => ({
   lookup: lookupMock,
 }));
 
-import { validateWebhookURLAndGetIPs } from "@langfuse/shared/src/server";
+import { validateWebhookURLAndGetIPs } from "../../../packages/shared/src/server/webhooks/validation";
 
 const nonexistentDomain = "this-domain-definitely-does-not-exist-12345.com";
 

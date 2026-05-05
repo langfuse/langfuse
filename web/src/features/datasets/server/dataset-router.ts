@@ -42,6 +42,8 @@ import {
   getDatasetRunsTableRowsCh,
   getDatasetRunsTableCountCh,
   validateWebhookURLAndGetIPs,
+  fetchWithSecureRedirects,
+  whitelistFromEnv,
   getDatasetRunItemsWithoutIOByItemIds,
   getDatasetItemsWithRunDataCount,
   getDatasetItemIdsWithRunData,
@@ -1763,8 +1765,11 @@ export const datasetRouter = createTRPCRouter({
         };
       }
 
+      let resolvedIPs: string[];
       try {
-        await validateWebhookURLAndGetIPs(dataset.remoteExperimentUrl);
+        resolvedIPs = await validateWebhookURLAndGetIPs(
+          dataset.remoteExperimentUrl,
+        );
       } catch (error) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -1773,19 +1778,28 @@ export const datasetRouter = createTRPCRouter({
       }
 
       try {
-        const response = await fetch(dataset.remoteExperimentUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+        const redirectResult = await fetchWithSecureRedirects(
+          dataset.remoteExperimentUrl,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              projectId: input.projectId,
+              datasetId: input.datasetId,
+              datasetName: dataset.name,
+              payload: input.payload ?? dataset.remoteExperimentPayload,
+            }),
+            signal: AbortSignal.timeout(20000), // 20 second timeout
           },
-          body: JSON.stringify({
-            projectId: input.projectId,
-            datasetId: input.datasetId,
-            datasetName: dataset.name,
-            payload: input.payload ?? dataset.remoteExperimentPayload,
-          }),
-          signal: AbortSignal.timeout(20000), // 20 second timeout
-        });
+          {
+            maxRedirects: 5,
+            whitelist: whitelistFromEnv(),
+            initialResolvedIPs: resolvedIPs,
+          },
+        );
+        const response = redirectResult.response;
 
         if (!response.ok) {
           logger.info(`Remote server returned error (${response.status})`);
