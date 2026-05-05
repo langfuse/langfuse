@@ -103,11 +103,13 @@ export interface QueryFilter {
 interface DataTableControlsProps {
   queryFilter: QueryFilter;
   filterWithAI?: boolean;
+  topContent?: React.ReactNode;
 }
 
 export function DataTableControls({
   queryFilter,
   filterWithAI,
+  topContent,
 }: DataTableControlsProps) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
@@ -180,6 +182,7 @@ export function DataTableControls({
         </div>
       </div>
       <div className="pb-10">
+        {topContent ? <div>{topContent}</div> : null}
         <Accordion
           type="multiple"
           className="w-full"
