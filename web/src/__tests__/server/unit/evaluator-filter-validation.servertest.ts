@@ -92,7 +92,7 @@ describe("validateEvaluatorFiltersForTarget", () => {
       filter: [
         {
           type: "number",
-          column: "Environment",
+          column: "environment",
           operator: ">",
           value: 1,
         },
