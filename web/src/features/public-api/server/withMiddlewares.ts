@@ -57,22 +57,13 @@ export const LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE = [
 
 type MiddlewareOptions = {
   errorContract?: PublicApiErrorContract;
+  clickHouseResourceErrorMessage?: string;
 };
 
 export function withMiddlewares(
   handlers: Handlers,
-  optionsOrClickHouseResourceErrorMessage?: MiddlewareOptions | string,
-  clickHouseResourceErrorMessage?: string,
+  options?: MiddlewareOptions,
 ) {
-  const options =
-    typeof optionsOrClickHouseResourceErrorMessage === "string"
-      ? undefined
-      : optionsOrClickHouseResourceErrorMessage;
-  const clickHouseResourceErrorMessageOverride =
-    typeof optionsOrClickHouseResourceErrorMessage === "string"
-      ? optionsOrClickHouseResourceErrorMessage
-      : clickHouseResourceErrorMessage;
-
   return async (req: NextApiRequest, res: NextApiResponse) => {
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
@@ -148,7 +139,7 @@ export function withMiddlewares(
         if (error instanceof ClickHouseResourceError) {
           const resourceError = error as ClickHouseResourceError;
           const errorMessage =
-            clickHouseResourceErrorMessageOverride ??
+            options?.clickHouseResourceErrorMessage ??
             DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE;
 
           logger.warn("ClickHouse resource limit exceeded", {

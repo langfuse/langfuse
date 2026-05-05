@@ -124,4 +124,7 @@ export default withMiddlewares({
       };
     },
   }),
-}, LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE);
+}, {
+  clickHouseResourceErrorMessage:
+    LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
+});

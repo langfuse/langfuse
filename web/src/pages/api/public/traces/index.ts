@@ -210,4 +210,7 @@ export default withMiddlewares({
       return { message: "Traces deleted successfully" };
     },
   }),
-}, LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE);
+}, {
+  clickHouseResourceErrorMessage:
+    LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
+});

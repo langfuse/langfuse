@@ -228,7 +228,10 @@ describe("withMiddlewares error handling", () => {
             throw resourceError;
           },
         },
-        LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
+        {
+          clickHouseResourceErrorMessage:
+            LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
+        },
       );
 
       const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
