@@ -37,13 +37,47 @@ const defaultHandler = () => {
   throw new MethodNotAllowedError();
 };
 
-const CH_ERROR_ADVICE_FULL = [
+const DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE = [
   ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
   "See https://langfuse.com/docs/api-and-data-platform/features/public-api for more details.",
 ].join("\n");
 
+export const LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE =
+  [
+    ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+    "This legacy endpoint can be slow for large exports. Please migrate to the high-performance Observations API v2 at /api/public/v2/observations.",
+    "Docs: https://langfuse.com/docs/api-and-data-platform/features/observations-api",
+  ].join("\n");
+
+export const LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE = [
+  ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+  "This legacy endpoint can be slow for large exports. Please migrate to the high-performance Metrics API v2 at /api/public/v2/metrics.",
+  "Docs: https://langfuse.com/docs/metrics/features/metrics-api",
+].join("\n");
+
+type ClickHouseResourceErrorMessage =
+  | string
+  | Partial<Record<HttpMethod, string>>;
+
 type MiddlewareOptions = {
   errorContract?: PublicApiErrorContract;
+  clickHouseResourceErrorMessage?: ClickHouseResourceErrorMessage;
+};
+
+const getClickHouseResourceErrorMessage = (
+  message: ClickHouseResourceErrorMessage | undefined,
+  method: string | undefined,
+) => {
+  if (typeof message === "string") return message;
+
+  if (method && httpMethods.includes(method as HttpMethod)) {
+    return (
+      message?.[method as HttpMethod] ??
+      DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE
+    );
+  }
+
+  return DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE;
 };
 
 export function withMiddlewares(
@@ -124,15 +158,19 @@ export function withMiddlewares(
         // Handle ClickHouse resource errors
         if (error instanceof ClickHouseResourceError) {
           const resourceError = error as ClickHouseResourceError;
+          const errorMessage = getClickHouseResourceErrorMessage(
+            options?.clickHouseResourceErrorMessage,
+            req.method,
+          );
 
           logger.warn("ClickHouse resource limit exceeded", {
             errorType: resourceError.errorType,
             message: resourceError.message,
-            suggestion: CH_ERROR_ADVICE_FULL,
+            suggestion: errorMessage,
           });
 
           return res.status(422).json({
-            message: CH_ERROR_ADVICE_FULL,
+            message: errorMessage,
             error: "Request timed out",
           });
         }
