@@ -193,7 +193,7 @@ export function ExperimentOverviewPanel({
                     href={safePullRequestUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary hover:underline"
+                    className="text-primary break-all hover:underline"
                   >
                     {safePullRequestUrl}
                   </a>
@@ -209,7 +209,7 @@ export function ExperimentOverviewPanel({
                     href={safeGithubJobUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary hover:underline"
+                    className="text-primary break-all hover:underline"
                   >
                     {safeGithubJobUrl}
                   </a>
