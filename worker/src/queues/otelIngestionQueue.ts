@@ -5,8 +5,11 @@ import {
   getClickhouseEntityType,
   getCurrentSpan,
   getS3EventStorageClient,
+  hasS3SlowdownFlag,
   type IngestionEventType,
+  isS3SlowDownError,
   logger,
+  markProjectS3Slowdown,
   OtelIngestionProcessor,
   processEventBatch,
   QueueName,
@@ -18,6 +21,7 @@ import {
   traceException,
   compareVersions,
   ResourceSpan,
+  SecondaryOtelIngestionQueue,
 } from "@langfuse/shared/src/server";
 import {
   applyIngestionMasking,
@@ -189,9 +193,19 @@ export function checkSdkVersionRequirements(
   }
 }
 
-export const otelIngestionQueueProcessor: Processor = async (
-  job: Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>,
+type OtelIngestionQueueJob =
+  | TQueueJobTypes[QueueName.OtelIngestionQueue]
+  | TQueueJobTypes[QueueName.OtelIngestionSecondaryQueue];
+
+const processOtelIngestionQueueJob = async (
+  job: Job<OtelIngestionQueueJob>,
+  enableRedirectToSecondaryQueue: boolean,
 ): Promise<void> => {
+  const projectIdsToRedirectToSecondaryQueue =
+    env.LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS?.split(
+      ",",
+    ) ?? [];
+
   try {
     const projectId = job.data.payload.authCheck.scope.projectId;
     const publicKey = job.data.payload.data.publicKey;
@@ -211,6 +225,32 @@ export const otelIngestionQueueProcessor: Processor = async (
       );
     }
     logger.debug(`Processing ${fileKey} for project ${projectId}`);
+
+    const shouldRedirectEnv =
+      projectIdsToRedirectToSecondaryQueue.includes(projectId);
+    const shouldRedirectSlowdown = await hasS3SlowdownFlag(projectId);
+
+    if (
+      enableRedirectToSecondaryQueue &&
+      (shouldRedirectEnv || shouldRedirectSlowdown)
+    ) {
+      logger.debug(
+        `Redirecting otel ingestion event to secondary queue for project ${projectId}`,
+        {
+          reason: shouldRedirectSlowdown ? "s3_slowdown_flag" : "env_config",
+        },
+      );
+      const secondaryQueue = SecondaryOtelIngestionQueue.getInstance({
+        shardingKey: `${projectId}-${fileKey}`,
+      });
+      if (secondaryQueue) {
+        await secondaryQueue.add(
+          QueueName.OtelIngestionSecondaryQueue,
+          job.data,
+        );
+        return;
+      }
+    }
 
     // TODO: Do we need to add these files into the blob_storage_file_log?
     // We could recommend lifecycle rules due to the immutability properties.
@@ -495,6 +535,16 @@ export const otelIngestionQueueProcessor: Processor = async (
     );
   } catch (e) {
     const fileKey = job.data.payload.data.fileKey;
+    const projectId = job.data.payload.authCheck.scope.projectId;
+
+    if (isS3SlowDownError(e)) {
+      logger.warn(
+        "S3 SlowDown error during otel ingestion processing, marking project for secondary queue",
+        { projectId, error: e },
+      );
+      await markProjectS3Slowdown(projectId);
+    }
+
     if (e instanceof ForbiddenError) {
       traceException(e);
       logger.warn(`Failed to parse otel observation: ${e.message}`, {
@@ -512,3 +562,11 @@ export const otelIngestionQueueProcessor: Processor = async (
     throw e;
   }
 };
+
+export const otelIngestionQueueProcessorBuilder =
+  (enableRedirectToSecondaryQueue: boolean): Processor =>
+  (job: Job<OtelIngestionQueueJob>) =>
+    processOtelIngestionQueueJob(job, enableRedirectToSecondaryQueue);
+
+export const otelIngestionQueueProcessor =
+  otelIngestionQueueProcessorBuilder(true);

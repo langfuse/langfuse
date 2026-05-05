@@ -5,6 +5,7 @@ import {
   LLMAsJudgeExecutionQueue,
   SecondaryEvalExecutionQueue,
   SecondaryIngestionQueue,
+  SecondaryOtelIngestionQueue,
   logger,
   QueueName,
   getQueue,
@@ -76,6 +77,7 @@ export default async function handler(
           ...LLMAsJudgeExecutionQueue.getShardNames(),
           ...TraceUpsertQueue.getShardNames(),
           ...OtelIngestionQueue.getShardNames(),
+          ...SecondaryOtelIngestionQueue.getShardNames(),
         ]),
       );
       const queueCounts = await Promise.all(
@@ -106,6 +108,12 @@ export default async function handler(
               queue = TraceUpsertQueue.getInstance({ shardName: queueName });
             } else if (queueName.startsWith(QueueName.OtelIngestionQueue)) {
               queue = OtelIngestionQueue.getInstance({ shardName: queueName });
+            } else if (
+              queueName.startsWith(QueueName.OtelIngestionSecondaryQueue)
+            ) {
+              queue = SecondaryOtelIngestionQueue.getInstance({
+                shardName: queueName,
+              });
             } else {
               queue = getQueue(
                 queueName as Exclude<
@@ -117,6 +125,7 @@ export default async function handler(
                   | QueueName.LLMAsJudgeExecution
                   | QueueName.TraceUpsert
                   | QueueName.OtelIngestionQueue
+                  | QueueName.OtelIngestionSecondaryQueue
                 >,
               );
             }
@@ -165,6 +174,12 @@ export default async function handler(
           queue = TraceUpsertQueue.getInstance({ shardName: queueName });
         } else if (queueName.startsWith(QueueName.OtelIngestionQueue)) {
           queue = OtelIngestionQueue.getInstance({ shardName: queueName });
+        } else if (
+          queueName.startsWith(QueueName.OtelIngestionSecondaryQueue)
+        ) {
+          queue = SecondaryOtelIngestionQueue.getInstance({
+            shardName: queueName,
+          });
         } else {
           queue = getQueue(
             queueName as Exclude<
@@ -176,6 +191,7 @@ export default async function handler(
               | QueueName.LLMAsJudgeExecution
               | QueueName.TraceUpsert
               | QueueName.OtelIngestionQueue
+              | QueueName.OtelIngestionSecondaryQueue
             >,
           );
         }
@@ -234,6 +250,12 @@ export default async function handler(
           queue = TraceUpsertQueue.getInstance({ shardName: queueName });
         } else if (queueName.startsWith(QueueName.OtelIngestionQueue)) {
           queue = OtelIngestionQueue.getInstance({ shardName: queueName });
+        } else if (
+          queueName.startsWith(QueueName.OtelIngestionSecondaryQueue)
+        ) {
+          queue = SecondaryOtelIngestionQueue.getInstance({
+            shardName: queueName,
+          });
         } else {
           queue = getQueue(
             queueName as Exclude<
@@ -245,6 +267,7 @@ export default async function handler(
               | QueueName.LLMAsJudgeExecution
               | QueueName.TraceUpsert
               | QueueName.OtelIngestionQueue
+              | QueueName.OtelIngestionSecondaryQueue
             >,
           );
         }

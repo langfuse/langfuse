@@ -35,6 +35,7 @@ import {
   IngestionQueue,
   SecondaryIngestionQueue,
   OtelIngestionQueue,
+  SecondaryOtelIngestionQueue,
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
   CloudUsageMeteringQueue,
@@ -75,7 +76,7 @@ import { DlqRetryService } from "./services/dlq/dlqRetryService";
 import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
 import { webhookProcessor } from "./queues/webhooks";
 import { datasetDeleteProcessor } from "./queues/datasetDelete";
-import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
+import { otelIngestionQueueProcessorBuilder } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
 import { notificationQueueProcessor } from "./queues/notificationQueue";
 import {
@@ -313,14 +314,28 @@ if (env.QUEUE_CONSUMER_BATCH_ACTION_QUEUE_IS_ENABLED === "true") {
 }
 
 if (env.QUEUE_CONSUMER_OTEL_INGESTION_QUEUE_IS_ENABLED === "true") {
-  // Register workers for all ingestion queue shards
+  // Register workers for all otel ingestion queue shards
   const shardNames = OtelIngestionQueue.getShardNames();
   shardNames.forEach((shardName) => {
     WorkerManager.register(
       shardName as QueueName,
-      otelIngestionQueueProcessor,
+      otelIngestionQueueProcessorBuilder(true),
       {
         concurrency: env.LANGFUSE_OTEL_INGESTION_QUEUE_PROCESSING_CONCURRENCY,
+      },
+    );
+  });
+}
+
+if (env.QUEUE_CONSUMER_OTEL_INGESTION_SECONDARY_QUEUE_IS_ENABLED === "true") {
+  const shardNames = SecondaryOtelIngestionQueue.getShardNames();
+  shardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      otelIngestionQueueProcessorBuilder(false),
+      {
+        concurrency:
+          env.LANGFUSE_OTEL_INGESTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY,
       },
     );
   });

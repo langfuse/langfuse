@@ -5,6 +5,7 @@ import {
   LLMAsJudgeExecutionQueue,
   SecondaryEvalExecutionQueue,
   SecondaryIngestionQueue,
+  SecondaryOtelIngestionQueue,
   createBasicAuthHeader,
   getQueue,
   IngestionQueue,
@@ -94,6 +95,7 @@ export const getQueues = () => {
     ...SecondaryEvalExecutionQueue.getShardNames(),
     ...LLMAsJudgeExecutionQueue.getShardNames(),
     ...OtelIngestionQueue.getShardNames(),
+    ...SecondaryOtelIngestionQueue.getShardNames(),
     ...TraceUpsertQueue.getShardNames(),
   );
 
@@ -128,18 +130,25 @@ export const getQueues = () => {
                   ? TraceUpsertQueue.getInstance({ shardName: queueName })
                   : queueName.startsWith(QueueName.OtelIngestionQueue)
                     ? OtelIngestionQueue.getInstance({ shardName: queueName })
-                    : getQueue(
-                        queueName as Exclude<
-                          QueueName,
-                          | QueueName.IngestionQueue
-                          | QueueName.IngestionSecondaryQueue
-                          | QueueName.EvaluationExecution
-                          | QueueName.EvaluationExecutionSecondaryQueue
-                          | QueueName.LLMAsJudgeExecution
-                          | QueueName.TraceUpsert
-                          | QueueName.OtelIngestionQueue
-                        >,
-                      ),
+                    : queueName.startsWith(
+                          QueueName.OtelIngestionSecondaryQueue,
+                        )
+                      ? SecondaryOtelIngestionQueue.getInstance({
+                          shardName: queueName,
+                        })
+                      : getQueue(
+                          queueName as Exclude<
+                            QueueName,
+                            | QueueName.IngestionQueue
+                            | QueueName.IngestionSecondaryQueue
+                            | QueueName.EvaluationExecution
+                            | QueueName.EvaluationExecutionSecondaryQueue
+                            | QueueName.LLMAsJudgeExecution
+                            | QueueName.TraceUpsert
+                            | QueueName.OtelIngestionQueue
+                            | QueueName.OtelIngestionSecondaryQueue
+                          >,
+                        ),
     );
 };
 
