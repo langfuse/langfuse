@@ -40,44 +40,6 @@ export const stringifyClientJsonValue = (
   return JSON.stringify(value);
 };
 
-const SUPERJSON_PROTECTED_KEYS = new Set([
-  "__proto__",
-  "constructor",
-  "prototype",
-]);
-
-const isPlainObject = (value: unknown): value is Record<string, unknown> => {
-  if (typeof value !== "object" || value === null) return false;
-
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-};
-
-/**
- * Removes keys that SuperJSON refuses to serialize from plain JSON-like objects.
- *
- * Use after explicit stringification for fields where protected keys must be
- * preserved, e.g. metadata/input/output payload strings.
- */
-export const sanitizeSuperJsonPayload = <T>(value: T): T => {
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeSuperJsonPayload(item)) as T;
-  }
-
-  if (!isPlainObject(value)) {
-    return value;
-  }
-
-  const sanitized: Record<string, unknown> = {};
-
-  for (const [key, nestedValue] of Object.entries(value)) {
-    if (SUPERJSON_PROTECTED_KEYS.has(key)) continue;
-    sanitized[key] = sanitizeSuperJsonPayload(nestedValue);
-  }
-
-  return sanitized as T;
-};
-
 /**
  * Converts domain object to client-side-safe version by stringifying metadata.
  * Use this in tRPC routes before returning data to frontend.
