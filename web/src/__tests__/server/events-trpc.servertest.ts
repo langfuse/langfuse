@@ -127,6 +127,26 @@ describe("events trpc", () => {
             id: observationId,
             traceId,
             startTime,
+            modelParameters: {
+              prototype: "model-parameters",
+              temperature: 0.7,
+            },
+            usageDetails: {
+              prototype: 1,
+              input: 7,
+            },
+            costDetails: {
+              prototype: 1,
+              input: 0.001,
+            },
+            providedCostDetails: {
+              prototype: 1,
+              input: 0.001,
+            },
+            toolDefinitions: {
+              prototype: "tool-definition",
+              safeTool: "tool-definition-value",
+            },
             metadata: {
               prototype: "metadata",
               safeKey: "metadata-value",
@@ -146,6 +166,21 @@ describe("events trpc", () => {
       expect(JSON.parse(result.observations[0]?.metadata ?? "{}")).toEqual({
         prototype: "metadata",
         safeKey: "metadata-value",
+      });
+      expect(result.observations[0]?.modelParameters).toEqual({
+        temperature: 0.7,
+      });
+      expect(result.observations[0]?.usageDetails).toEqual({
+        input: 7,
+      });
+      expect(result.observations[0]?.costDetails).toEqual({
+        input: 0.001,
+      });
+      expect(result.observations[0]?.providedCostDetails).toEqual({
+        input: 0.001,
+      });
+      expect(result.observations[0]?.toolDefinitions).toEqual({
+        safeTool: "tool-definition-value",
       });
       expect(result.cutoffObservationsAfterMaxCount).toBe(false);
       expect(() => superjson.serialize(result)).not.toThrow();

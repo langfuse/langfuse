@@ -12,6 +12,7 @@ import {
   timeFilter,
 } from "@langfuse/shared";
 import {
+  sanitizeSuperJsonPayload,
   stringifyClientJsonValue,
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
@@ -257,7 +258,9 @@ export const eventsRouter = createTRPCRouter({
             });
 
           return {
-            observations: toDomainArrayWithStringifiedMetadata(observations),
+            observations: sanitizeSuperJsonPayload(
+              toDomainArrayWithStringifiedMetadata(observations),
+            ),
             cutoffObservationsAfterMaxCount:
               totalCount > MAX_OBSERVATIONS_PER_TRACE,
           };
