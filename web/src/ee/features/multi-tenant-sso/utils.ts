@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { type Provider } from "next-auth/providers/index";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
@@ -246,14 +247,60 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       clientSecret: decrypt(provider.authConfig.clientSecret),
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "azure-ad")
-    return AzureADProvider({
+  else if (provider.authProvider === "azure-ad") {
+    const ssoDomain = provider.domain.toLowerCase();
+    const azureProvider = AzureADProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "cognito")
+
+    // Some Entra tenants emit an external/personal address in the `email`
+    // claim while the actual tenant UPN sits in `preferred_username` / `upn`.
+    // When the email's domain doesn't match the configured SSO domain, fall
+    // back to whichever of those is a valid email matching `ssoDomain` so the
+    // reverse-domain check in src/server/auth.ts doesn't reject the user.
+    // If nothing matches, leave `user.email` untouched and let the existing
+    // check throw — we don't want to log in a user with no claim tying them
+    // to the configured tenant domain.
+    const baseProfile = azureProvider.profile;
+    azureProvider.profile = async (rawProfile, tokens) => {
+      const user = await baseProfile(rawProfile, tokens);
+
+      const emailDomain = user.email?.toLowerCase().split("@")[1];
+      if (emailDomain === ssoDomain) {
+        return user;
+      }
+
+      const candidates = [
+        (rawProfile as Record<string, unknown>).preferred_username,
+        (rawProfile as Record<string, unknown>).upn,
+      ]
+        .filter((v): v is string => typeof v === "string")
+        .map((v) => v.toLowerCase())
+        .filter((v) => z.email().safeParse(v).success);
+
+      const fallback = candidates.find((c) => c.split("@")[1] === ssoDomain);
+
+      if (fallback) {
+        logger.info(
+          "Multi-tenant SSO (azure-ad): email claim domain did not match configured SSO domain; falling back to preferred_username/upn",
+          {
+            providerId: getAuthProviderIdForSsoConfig(provider),
+            ssoDomain,
+            originalEmailDomain: emailDomain ?? null,
+            // do NOT log raw email values — PII
+          },
+        );
+        user.email = fallback;
+      }
+
+      return user;
+    };
+
+    return azureProvider;
+  } else if (provider.authProvider === "cognito")
     return CognitoProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
