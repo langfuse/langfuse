@@ -53,8 +53,8 @@ import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
+  usePersistentPanelSize,
 } from "@/src/components/ui/resizable";
-import useSessionStorage from "@/src/components/useSessionStorage";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import {
   scoreFilters,
@@ -78,6 +78,8 @@ export type DatasetRunRowData = {
   description: string;
   metadata: Prisma.JsonValue;
 };
+
+const DATASET_CHARTS_PANEL_ID = "dataset-charts";
 
 const DatasetRunTableMultiSelectAction = ({
   selectedRunIds,
@@ -201,11 +203,12 @@ export function DatasetRunsTable(props: {
     "s",
   );
 
-  // Add panel size state with default size of 30%
-  const [chartsPanelSize, setChartsPanelSize] = useSessionStorage<number>(
-    "dataset-runs-charts-panel-size",
-    30,
-  );
+  const { panelSize: chartsPanelSize, onLayoutChanged } =
+    usePersistentPanelSize({
+      storageKey: "dataset-runs-charts-panel-size",
+      panelId: DATASET_CHARTS_PANEL_ID,
+      defaultSize: 30,
+    });
 
   const { setScoreOptions } = props;
 
@@ -603,13 +606,10 @@ export function DatasetRunsTable(props: {
         <ResizablePanelGroup
           orientation="vertical"
           className="h-full"
-          onLayoutChanged={(layout) => {
-            const charts = layout["dataset-charts"];
-            if (charts != null) setChartsPanelSize(charts);
-          }}
+          onLayoutChanged={onLayoutChanged}
         >
           <ResizablePanel
-            id="dataset-charts"
+            id={DATASET_CHARTS_PANEL_ID}
             defaultSize={`${chartsPanelSize}%`}
             minSize="20%"
             className="overflow-hidden"

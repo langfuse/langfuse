@@ -3,9 +3,9 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  usePersistentPanelSize,
 } from "@/src/components/ui/resizable";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import useSessionStorage from "@/src/components/useSessionStorage";
 import { CommentsSection } from "@/src/features/annotation-queues/components/shared/CommentsSection";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
@@ -14,14 +14,17 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 
+const ANNOTATION_TOP_PANEL_ID = "annotation-top";
+
 export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
   const [hasCommentDraft, setHasCommentDraft] = useState(false);
   const { activeCell, clearActiveCell } = useActiveCell();
 
-  const [verticalSize, setVerticalSize] = useSessionStorage(
-    `annotationQueueDrawerVertical-compare-${projectId}`,
-    60,
-  );
+  const { panelSize: verticalSize, onLayoutChanged } = usePersistentPanelSize({
+    storageKey: `annotationQueueDrawerVertical-compare-${projectId}`,
+    panelId: ANNOTATION_TOP_PANEL_ID,
+    defaultSize: 60,
+  });
 
   if (!activeCell) {
     return <Skeleton className="h-full w-full" />;
@@ -38,13 +41,10 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
     <ResizablePanelGroup
       orientation="vertical"
       className="h-full"
-      onLayoutChanged={(layout) => {
-        const top = layout["annotation-top"];
-        if (top != null) setVerticalSize(top);
-      }}
+      onLayoutChanged={onLayoutChanged}
     >
       <ResizablePanel
-        id="annotation-top"
+        id={ANNOTATION_TOP_PANEL_ID}
         className="w-full overflow-y-auto p-2"
         minSize="30%"
         defaultSize={`${verticalSize}%`}
