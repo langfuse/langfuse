@@ -20,7 +20,7 @@ export const ExperimentMetadataSection = ({
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <div className="border-t pt-4">
         <CollapsibleTrigger className="flex w-full items-center justify-between text-left">
-          <h4 className="text-sm font-medium">Metadata</h4>
+          <h4 className="mb-2 text-sm font-medium">Metadata</h4>
           {isOpen ? (
             <ChevronDown className="text-muted-foreground h-4 w-4" />
           ) : (
@@ -32,7 +32,6 @@ export const ExperimentMetadataSection = ({
             json={metadata}
             currentView="pretty"
             className="w-full"
-            codeClassName="max-h-96 overflow-y-auto"
           />
         </CollapsibleContent>
       </div>

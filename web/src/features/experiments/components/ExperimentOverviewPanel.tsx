@@ -49,19 +49,19 @@ export function ExperimentOverviewPanel({
 }: ExperimentOverviewPanelProps) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
-  const { provider, model, ...metadataWithoutModelConfig } =
-    experiment?.metadata ?? {};
-  const pullRequestUrl = metadataWithoutModelConfig["langfuse.pr_url"];
-  const githubJobUrl = metadataWithoutModelConfig["langfuse.github_job_url"];
+  const {
+    provider,
+    model,
+    "langfuse.pr_url": pullRequestUrl,
+    "langfuse.github_job_url": githubJobUrl,
+    ...additionalMetadata
+  } = experiment?.metadata ?? {};
   const safePullRequestUrl = isSafeHttpUrl(pullRequestUrl)
     ? pullRequestUrl
     : undefined;
   const safeGithubJobUrl = isSafeHttpUrl(githubJobUrl)
     ? githubJobUrl
     : undefined;
-  const additionalMetadata = { ...metadataWithoutModelConfig };
-  if (safePullRequestUrl) delete additionalMetadata["langfuse.pr_url"];
-  if (safeGithubJobUrl) delete additionalMetadata["langfuse.github_job_url"];
 
   // Get the first prompt name and version from the prompts array
   const [promptName, promptVersion] =
@@ -79,7 +79,9 @@ export function ExperimentOverviewPanel({
 
   return (
     <div className="space-y-4">
-      <div className="bg-background sticky top-0 z-10 space-y-4 border-b pb-4">
+      <div className="bg-background sticky -top-4 z-30 -mx-4 -mt-4 space-y-4 px-4 pt-2 pb-2">
+        <h3 className="text-lg font-semibold">Experiment Details</h3>
+
         <div>
           <h4 className="mb-2 text-sm font-medium">Baseline</h4>
           <ExperimentBaselineControls
@@ -105,110 +107,114 @@ export function ExperimentOverviewPanel({
 
       {hasBaseline && experiment ? (
         <>
-          <h3 className="text-lg font-semibold">Overview</h3>
-
-          <div className="space-y-3 text-sm">
-            {/* Name */}
-            <div>
-              <div className="text-muted-foreground text-xs">Name</div>
-              <div className="font-medium">{experiment.name}</div>
-            </div>
-
-            {/* Description */}
-            {experiment.description && (
+          <div className="border-t pt-4">
+            <h4 className="mb-2 text-sm font-medium">Overview</h4>
+            <div className="space-y-3 text-sm">
+              {/* Name */}
               <div>
-                <div className="text-muted-foreground text-xs">Description</div>
-                <div className="break-words">{displayDescription}</div>
-                {isLongDescription && (
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="h-auto p-0 text-xs"
-                    onClick={() =>
-                      setIsDescriptionExpanded(!isDescriptionExpanded)
-                    }
-                  >
-                    {isDescriptionExpanded ? "Show less" : "Show more"}
-                  </Button>
-                )}
+                <div className="text-muted-foreground text-xs">Name</div>
+                <div className="font-medium">{experiment.name}</div>
               </div>
-            )}
 
-            {/* Dataset */}
-            <div>
-              <div className="text-muted-foreground text-xs">Dataset</div>
-              <Link
-                href={`/project/${projectId}/datasets/${encodeURIComponent(experiment.datasetId)}`}
-                className="text-primary hover:underline"
-              >
-                {experiment.datasetName || experiment.datasetId}
-              </Link>
-            </div>
-
-            {/* Prompt */}
-            {promptName && (
-              <div>
-                <div className="text-muted-foreground text-xs">Prompt</div>
-                <Link
-                  href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}${promptVersion !== null ? `?version=${promptVersion}` : ""}`}
-                  className="text-primary hover:underline"
-                >
-                  {promptName}
-                  {promptVersion !== null && (
-                    <span className="text-muted-foreground ml-1">
-                      (v{promptVersion})
-                    </span>
-                  )}
-                </Link>
-              </div>
-            )}
-
-            {/* Model Configuration */}
-            {(provider || model) && (
-              <div>
-                <div className="text-muted-foreground text-xs">Model</div>
+              {/* Description */}
+              {experiment.description && (
                 <div>
-                  {provider && model
-                    ? `${provider}/${model}`
-                    : provider || model}
+                  <div className="text-muted-foreground text-xs">
+                    Description
+                  </div>
+                  <div className="break-words">{displayDescription}</div>
+                  {isLongDescription && (
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs"
+                      onClick={() =>
+                        setIsDescriptionExpanded(!isDescriptionExpanded)
+                      }
+                    >
+                      {isDescriptionExpanded ? "Show less" : "Show more"}
+                    </Button>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {safePullRequestUrl && (
+              {/* Dataset */}
               <div>
-                <div className="text-muted-foreground text-xs">
-                  Pull Request
-                </div>
+                <div className="text-muted-foreground text-xs">Dataset</div>
                 <Link
-                  href={safePullRequestUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href={`/project/${projectId}/datasets/${encodeURIComponent(experiment.datasetId)}`}
                   className="text-primary hover:underline"
                 >
-                  {safePullRequestUrl}
+                  {experiment.datasetName || experiment.datasetId}
                 </Link>
               </div>
-            )}
 
-            {safeGithubJobUrl && (
+              {/* Prompt */}
+              {promptName && (
+                <div>
+                  <div className="text-muted-foreground text-xs">Prompt</div>
+                  <Link
+                    href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}${promptVersion !== null ? `?version=${promptVersion}` : ""}`}
+                    className="text-primary hover:underline"
+                  >
+                    {promptName}
+                    {promptVersion !== null && (
+                      <span className="text-muted-foreground ml-1">
+                        (v{promptVersion})
+                      </span>
+                    )}
+                  </Link>
+                </div>
+              )}
+
+              {/* Model Configuration */}
+              {(provider || model) && (
+                <div>
+                  <div className="text-muted-foreground text-xs">Model</div>
+                  <div>
+                    {provider && model
+                      ? `${provider}/${model}`
+                      : provider || model}
+                  </div>
+                </div>
+              )}
+
+              {/* Start Time */}
               <div>
-                <div className="text-muted-foreground text-xs">GitHub Job</div>
-                <Link
-                  href={safeGithubJobUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  {safeGithubJobUrl}
-                </Link>
+                <div className="text-muted-foreground text-xs">Start Time</div>
+                <LocalIsoDate date={experiment.startTime} />
               </div>
-            )}
+              {safePullRequestUrl && (
+                <div>
+                  <div className="text-muted-foreground text-xs">
+                    Pull Request URL
+                  </div>
+                  <a
+                    href={safePullRequestUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    {safePullRequestUrl}
+                  </a>
+                </div>
+              )}
 
-            {/* Start Time */}
-            <div>
-              <div className="text-muted-foreground text-xs">Start Time</div>
-              <LocalIsoDate date={experiment.startTime} />
+              {safeGithubJobUrl && (
+                <div>
+                  <div className="text-muted-foreground text-xs">
+                    GitHub Job URL
+                  </div>
+                  <a
+                    href={safeGithubJobUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    {safeGithubJobUrl}
+                  </a>
+                </div>
+              )}
             </div>
           </div>
 
