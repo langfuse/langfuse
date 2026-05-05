@@ -5,6 +5,7 @@ import {
   ChatMessageType,
   isOpenAITextContentPart,
   isOpenAIImageContentPart,
+  extractTextFromAnthropicContent,
   type ChatMessage,
   type PlaceholderMessage,
 } from "@langfuse/shared";
@@ -20,9 +21,30 @@ function contentToString(content: unknown): string {
     return "";
   }
 
-  // Handle OpenAI/Vercel AI SDK content parts array: [{type: "text", text: "..."}, ...]
-  // Extract text for playground display; stringify other structures (tool results, etc.)
+  // Handle Anthropic content array: [{type: "thinking", thinking: "..."}, {type: "text", text: "..."}, ...]
+  // Check if this is an Anthropic content array by looking for thinking or Anthropic text blocks
   if (Array.isArray(content)) {
+    const hasAnthropicFormat = content.some(
+      (item) =>
+        item &&
+        typeof item === "object" &&
+        "type" in item &&
+        (item.type === "thinking" ||
+          (item.type === "text" &&
+            "text" in item &&
+            !("text" in item && "image_url" in item))),
+    );
+
+    if (hasAnthropicFormat) {
+      // Use the utility function to extract text (skips thinking, concatenates text blocks)
+      const extractedText = extractTextFromAnthropicContent(content);
+      if (extractedText) {
+        return extractedText;
+      }
+    }
+
+    // Handle OpenAI/Vercel AI SDK content parts array: [{type: "text", text: "..."}, ...]
+    // Extract text for playground display; stringify other structures (tool results, etc.)
     const textParts: string[] = [];
 
     for (const item of content) {
