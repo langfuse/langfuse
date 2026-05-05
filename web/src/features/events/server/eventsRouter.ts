@@ -13,6 +13,7 @@ import {
 } from "@langfuse/shared";
 import {
   stringifyClientJsonValue,
+  toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
   type WithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
@@ -256,7 +257,7 @@ export const eventsRouter = createTRPCRouter({
             });
 
           return {
-            observations,
+            observations: toDomainArrayWithStringifiedMetadata(observations),
             cutoffObservationsAfterMaxCount:
               totalCount > MAX_OBSERVATIONS_PER_TRACE,
           };

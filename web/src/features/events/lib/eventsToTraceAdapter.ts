@@ -22,6 +22,10 @@ export interface AdaptedTraceData {
   observations: ObservationReturnTypeWithMetadata[];
 }
 
+export type EventsTraceObservation = WithStringifiedMetadata<
+  FullEventsObservations[number]
+>;
+
 /**
  * Adapts events (observations from events table) to the trace format expected by the Trace component.
  *
@@ -29,7 +33,7 @@ export interface AdaptedTraceData {
  * The root observation (no parentObservationId) provides trace-level properties like name.
  */
 export function adaptEventsToTraceFormat(params: {
-  events: FullEventsObservations;
+  events: EventsTraceObservation[];
   traceId: string;
   rootIO?: {
     input: unknown;
@@ -52,19 +56,20 @@ export function adaptEventsToTraceFormat(params: {
   // TODO: think, how to determine root span?
   const root = events.find((e) => !e.parentObservationId);
 
-  const latestTaggedEvent = events.reduce<
-    FullEventsObservations[number] | null
-  >((latest, event) => {
-    if (event.traceTags.length === 0) return latest;
-    if (!latest) return event;
+  const latestTaggedEvent = events.reduce<EventsTraceObservation | null>(
+    (latest, event) => {
+      if (event.traceTags.length === 0) return latest;
+      if (!latest) return event;
 
-    if (event.updatedAt.getTime() > latest.updatedAt.getTime()) return event;
-    if (event.updatedAt.getTime() < latest.updatedAt.getTime()) return latest;
+      if (event.updatedAt.getTime() > latest.updatedAt.getTime()) return event;
+      if (event.updatedAt.getTime() < latest.updatedAt.getTime()) return latest;
 
-    return event.createdAt.getTime() > latest.createdAt.getTime()
-      ? event
-      : latest;
-  }, null);
+      return event.createdAt.getTime() > latest.createdAt.getTime()
+        ? event
+        : latest;
+    },
+    null,
+  );
 
   const traceTags = latestTaggedEvent?.traceTags;
 

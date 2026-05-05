@@ -16,7 +16,7 @@ const createEvent = (overrides: Partial<EventInput> = {}): EventInput => ({
   startTime: baseDate,
   endTime: null,
   name: "Root span",
-  metadata: {},
+  metadata: "{}",
   parentObservationId: null,
   level: "DEFAULT",
   statusMessage: null,
