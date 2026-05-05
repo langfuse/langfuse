@@ -45,13 +45,13 @@ const DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE = [
 export const LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE =
   [
     ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
-    "This legacy endpoint can be slow for large exports. Please migrate to the high-performance Observations API v2 at /api/public/v2/observations.",
+    "This legacy endpoint can be slow. Please migrate to the high-performance Observations API v2 at /api/public/v2/observations.",
     "Docs: https://langfuse.com/docs/api-and-data-platform/features/observations-api",
   ].join("\n");
 
 export const LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE = [
   ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
-  "This legacy endpoint can be slow for large exports. Please migrate to the high-performance Metrics API v2 at /api/public/v2/metrics.",
+  "This legacy endpoint can be slow. Please migrate to the high-performance Metrics API v2 at /api/public/v2/metrics.",
   "Docs: https://langfuse.com/docs/metrics/features/metrics-api",
 ].join("\n");
 
