@@ -26,10 +26,10 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
-import { Loader2 } from "lucide-react";
 import { type Prisma } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 const RemoteExperimentSetupSchema = z.object({
   url: z.url(),
@@ -180,7 +180,7 @@ export const RemoteExperimentUpsertForm = ({
             {dataset.isSuccess ? (
               <>&quot;{dataset.data?.name}&quot;</>
             ) : (
-              <Loader2 className="inline h-4 w-4 animate-spin" />
+              <Spinner size="sm" display="inline" />
             )}
           </strong>
           . Configure a webhook URL to trigger remote custom dataset runs from
@@ -271,7 +271,9 @@ export const RemoteExperimentUpsertForm = ({
                   disabled={deleteRemoteExperimentMutation.isPending}
                 >
                   {deleteRemoteExperimentMutation.isPending && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <div className="mr-2">
+                      <Spinner size="sm" />
+                    </div>
                   )}
                   Delete
                 </Button>
@@ -281,7 +283,9 @@ export const RemoteExperimentUpsertForm = ({
                 disabled={upsertRemoteExperimentMutation.isPending}
               >
                 {upsertRemoteExperimentMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <div className="mr-2">
+                    <Spinner size="sm" />
+                  </div>
                 ) : null}
                 {existingRemoteExperiment ? "Update" : "Set up"}
               </Button>

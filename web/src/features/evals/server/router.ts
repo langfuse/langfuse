@@ -27,6 +27,8 @@ import {
   jsonSchema,
   EvalTargetObject,
   EvalTargetObjectSchema,
+  validateEvaluatorFiltersForTarget,
+  InvalidRequestError,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -766,6 +768,17 @@ export const evalRouter = createTRPCRouter({
         targetObject: input.target,
         mapping: input.mapping,
       });
+      const filterValidation = validateEvaluatorFiltersForTarget({
+        targetObject: input.target,
+        filter: input.filter ?? [],
+      });
+      if (!filterValidation.isValid) {
+        throw new InvalidRequestError(
+          filterValidation.issues[0]?.message ??
+            "Evaluator filters are invalid. Remove unsupported or incomplete filters and try again.",
+        );
+      }
+      const validatedFilter = filterValidation.validatedFilters;
 
       const jobId = uuidv4();
       await auditLog({
@@ -783,7 +796,7 @@ export const evalRouter = createTRPCRouter({
           evalTemplateId: input.evalTemplateId,
           scoreName: input.scoreName,
           targetObject: input.target,
-          filter: input.filter ?? [],
+          filter: validatedFilter ?? [],
           variableMapping: variableMappingForTarget,
           sampling: input.sampling,
           delay: input.delay,
@@ -825,7 +838,7 @@ export const evalRouter = createTRPCRouter({
               cutoffCreatedAt: new Date(),
               targetObject: input.target,
               query: {
-                filter: input.filter ?? [],
+                filter: validatedFilter,
                 orderBy: {
                   column: "timestamp",
                   order: "DESC",
@@ -1185,6 +1198,17 @@ export const evalRouter = createTRPCRouter({
             }
           : {}),
       };
+      const filterValidation = validateEvaluatorFiltersForTarget({
+        targetObject: existingJob.targetObject as EvalTargetObject,
+        filter: config.filter ?? existingJob.filter ?? [],
+      });
+      if (!filterValidation.isValid) {
+        throw new InvalidRequestError(
+          filterValidation.issues[0]?.message ??
+            "Evaluator filters are invalid. Remove unsupported or incomplete filters and try again.",
+        );
+      }
+      const validatedFilter = filterValidation.validatedFilters;
 
       await auditLog({
         session: ctx.session,
@@ -1216,6 +1240,11 @@ export const evalRouter = createTRPCRouter({
 
       const updatedConfig = {
         ...validatedConfig,
+        ...(config.filter !== undefined
+          ? {
+              filter: validatedFilter ?? [],
+            }
+          : {}),
         ...(validatedConfig.status !== undefined
           ? resetEvalConfigBlockFields
           : {}),

@@ -1,5 +1,9 @@
 import { prisma } from "../../db";
-import { Observation, EventsObservation, ObservationType } from "../../domain";
+import type {
+  EventsObservation,
+  MetadataDomain,
+  ObservationType,
+} from "../../domain";
 import { env } from "../../env";
 import { InternalServerError, LangfuseNotFoundError } from "../../errors";
 import {
@@ -75,6 +79,27 @@ import { UiColumnMappings } from "../../tableDefinitions";
 import { eventsTableCols } from "../../eventsTable";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+
+type EventBatchIOStringOutput = {
+  id: string;
+  input: string | null;
+  output: string | null;
+  metadata: MetadataDomain;
+};
+
+const BATCH_IO_STRING_RENDERING_PROPS: RenderingProps = {
+  // Batch I/O truncation is handled in SQL via leftUTF8 for performance.
+  truncated: false,
+  shouldJsonParse: false,
+};
+
+const applyBatchIOStringRendering = (
+  io: string | null | undefined,
+): string | null => {
+  return applyInputOutputRendering(io, BATCH_IO_STRING_RENDERING_PROPS) as
+    | string
+    | null;
+};
 
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
@@ -2601,9 +2626,7 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
   minStartTime: Date;
   maxStartTime: Date;
   truncated?: boolean; // Default true for performance, false for full data
-}): Promise<
-  Array<Pick<Observation, "id" | "input" | "output" | "metadata">>
-> => {
+}): Promise<Array<EventBatchIOStringOutput>> => {
   if (opts.observations.length === 0) {
     return [];
   }
@@ -2666,14 +2689,8 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
 
   return results.map((r) => ({
     id: r.id,
-    input:
-      r.input !== undefined
-        ? applyInputOutputRendering(r.input, DEFAULT_RENDERING_PROPS)
-        : null,
-    output:
-      r.output !== undefined
-        ? applyInputOutputRendering(r.output, DEFAULT_RENDERING_PROPS)
-        : null,
+    input: applyBatchIOStringRendering(r.input),
+    output: applyBatchIOStringRendering(r.output),
     metadata:
       r.metadata !== undefined ? parseMetadataCHRecordToDomain(r.metadata) : {},
   }));

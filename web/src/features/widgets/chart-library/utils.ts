@@ -1,5 +1,12 @@
 import { type DataPoint } from "./chart-props";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import {
+  compactNumberFormatter,
+  compactSmallNumberFormatter,
+  latencyFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 
 /**
  * Groups data by dimension to prepare it for time series breakdowns
@@ -90,5 +97,42 @@ export function getChartTypeDisplayName(
       return "Pivot Table (Total Value)";
     default:
       return "Unknown Chart Type";
+  }
+}
+
+/**
+ * Formats a metric value for display, dispatching on the result unit returned
+ * by getResultUnit. String values pass through unchanged.
+ *
+ * - "millisecond" → latencyFormatter (auto-scales ms/s/min/h/d)
+ * - "USD" → usdFormatter
+ * - any other unit (or undefined):
+ *   - sub-unit magnitudes (|value| < 1, non-zero) → compactSmallNumberFormatter
+ *     regardless of `compact`, since the regular formatters round small
+ *     values toward "0" and lose precision
+ *   - else `compact` true → compactNumberFormatter (e.g. "12K") for axis
+ *     ticks
+ *   - else → numberFormatter with up to 2 fractional digits and no
+ *     trailing-zero padding
+ *
+ * `compact` is intended for axis ticks where space matters; tooltips and
+ * tables should leave it off so values keep full precision.
+ */
+export function valueFormatter(
+  value: number | string,
+  unit?: string,
+  compact?: boolean,
+): string {
+  if (typeof value === "string") return value;
+  switch (unit) {
+    case "millisecond":
+      return latencyFormatter(value);
+    case "USD":
+      return usdFormatter(value);
+    default:
+      if (value !== 0 && Math.abs(value) < 1)
+        return compactSmallNumberFormatter(value);
+      if (compact) return compactNumberFormatter(value);
+      return numberFormatter(value, 0, 2);
   }
 }
