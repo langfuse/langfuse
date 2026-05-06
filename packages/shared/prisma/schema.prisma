@@ -1137,9 +1137,9 @@ model BlobStorageIntegration {
   fileType        BlobStorageIntegrationFileType   @default(CSV) @map("file_type")
   exportMode      BlobStorageExportMode            @default(FULL_HISTORY) @map("export_mode")
   exportStartDate DateTime?                        @map("export_start_date")
-  exportSource      AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
-  exportFieldGroups String[]                         @default(["core", "basic", "time", "io", "metadata", "model", "usage", "prompt", "metrics", "tools", "trace_context"]) @map("export_field_groups")
-  compressed        Boolean                          @default(true) @map("compressed")
+  exportSource    AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
+  exportFieldGroups String[]                       @default(["core", "basic", "time", "io", "metadata", "model", "usage", "prompt", "metrics", "tools", "trace_context"]) @map("export_field_groups")
+  compressed      Boolean                          @default(true) @map("compressed")
 
   // Error tracking
   lastError   String?   @map("last_error")
