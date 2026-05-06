@@ -17,9 +17,10 @@
     "analyze": "dotenv -e ../.env -- next experimental-analyze",
     "clean": "rm -rf node_modules",
     "start": "dotenv -e ../.env -- sh -c 'NEXT_MANUAL_SIG_HANDLE=true next start'",
-    "test": "dotenv -e ../.env.test -e ../.env -- vitest run --project server",
+    "test": "dotenv -e ../.env.test -e ../.env -- vitest run --project server --project in-source",
+    "test:in-source": "dotenv -e ../.env.test -e ../.env -- vitest run --project in-source",
     "test-client": "dotenv -e ../.env.test -e ../.env -- vitest run --project client",
-    "test:watch": "dotenv -e ../.env.test -e ../.env -- vitest --project client --project server",
+    "test:watch": "dotenv -e ../.env.test -e ../.env -- vitest --project client --project server --project in-source",
     "test:e2e": "dotenv -e ../.env.test -e ../.env -- playwright test --reporter=line",
     "test:e2e:server": "dotenv -e ../.env.test -e ../.env -- vitest run --project e2e-server",
     "build-trace": "dotenv -e ../.env -- next internal trace .next/trace-turbopack"
