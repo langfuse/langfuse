@@ -81,6 +81,11 @@ describe("IP Blocking Module", () => {
           isIPBlocked("2001:0000:4136:e378:8000:63bf:3fff:fdd2", [], []),
         ).toBe(true);
       });
+
+      it("should block NAT64 and 6to4 transition addresses", () => {
+        expect(isIPBlocked("64:ff9b::7f00:1", [], [])).toBe(true); // NAT64 for 127.0.0.1
+        expect(isIPBlocked("2002:7f00:1::", [], [])).toBe(true); // 6to4 for 127.0.0.1
+      });
     });
 
     describe("allowed public addresses", () => {
