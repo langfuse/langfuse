@@ -2,6 +2,13 @@ import { validateWebhookURL } from "./validation";
 import type { WebhookValidationWhitelist } from "./validation";
 import { logger } from "../logger";
 
+const SENSITIVE_REDIRECT_HEADERS = new Set([
+  "authorization",
+  "cookie",
+  "proxy-authorization",
+  "x-langfuse-signature",
+]);
+
 /**
  * Custom error for redirect validation failures
  */
@@ -99,8 +106,8 @@ export async function fetchWithSecureRedirects(
   let currentUrl = url;
   let redirectDepth = 0;
 
-  // Force manual redirect handling to prevent automatic following
-  const fetchOptions: RequestInit = {
+  // Force manual redirect handling to prevent automatic following.
+  let fetchOptions: RequestInit = {
     ...options,
     redirect: "manual",
   };
@@ -199,6 +206,30 @@ export async function fetchWithSecureRedirects(
       }
     }
 
+    const currentOrigin = new URL(currentUrl).origin;
+    const redirectOrigin = new URL(redirectUrl).origin;
+    if (currentOrigin !== redirectOrigin) {
+      const { headers, strippedHeaderNames } = stripSensitiveRedirectHeaders(
+        fetchOptions.headers,
+      );
+
+      if (strippedHeaderNames.length > 0) {
+        logger.warn("Stripping sensitive headers for cross-origin redirect", {
+          from: currentOrigin,
+          to: redirectOrigin,
+          redirectDepth,
+          strippedHeaderNames,
+        });
+
+        fetchOptions = {
+          ...fetchOptions,
+          // Sensitive credentials are origin-scoped. Keep them on same-origin
+          // redirects, but strip them before a cross-origin follow-up request.
+          headers,
+        };
+      }
+    }
+
     // Follow the redirect
     currentUrl = redirectUrl;
     redirectDepth++;
@@ -210,4 +241,27 @@ export async function fetchWithSecureRedirects(
     ...redirectChain,
     currentUrl,
   ]);
+}
+
+function stripSensitiveRedirectHeaders(headers: RequestInit["headers"]): {
+  headers: RequestInit["headers"];
+  strippedHeaderNames: string[];
+} {
+  const strippedHeaderNames: string[] = [];
+
+  const headerEntries = Array.from(new Headers(headers).entries()).filter(
+    ([headerName]) => {
+      if (SENSITIVE_REDIRECT_HEADERS.has(headerName)) {
+        strippedHeaderNames.push(headerName);
+        return false;
+      }
+
+      return true;
+    },
+  );
+
+  return {
+    headers: new Headers(headerEntries),
+    strippedHeaderNames,
+  };
 }
