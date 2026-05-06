@@ -6,10 +6,10 @@
  */
 
 import { memo, useMemo } from "react";
-import { Loader2 } from "lucide-react";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type TreeNode } from "@/src/components/trace2/lib/types";
 import { useLogViewObservationIO } from "./useLogViewObservationIO";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export interface LogViewExpandedContentProps {
   node: TreeNode;
@@ -69,7 +69,7 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
     <div className="w-full">
       {isLoading && (
         <div className="flex items-center justify-center py-4">
-          <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+          <Spinner size="sm" variant="muted" />
           <span className="text-muted-foreground ml-2 text-xs">Loading...</span>
         </div>
       )}
