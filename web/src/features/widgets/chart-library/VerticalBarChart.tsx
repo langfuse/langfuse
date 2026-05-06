@@ -49,6 +49,7 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          tickFormatter={(value) => valueFormatter(Number(value))}
         />
         <Bar
           dataKey="metric"
