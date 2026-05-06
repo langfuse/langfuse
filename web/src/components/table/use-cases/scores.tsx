@@ -212,6 +212,17 @@ export default function ScoresTable({
       void utils.scores.all.invalidate();
       void utils.scores.allFromEvents.invalidate();
       void utils.scores.countAllFromEvents.invalidate();
+
+      if (traceId) {
+        void utils.traces.byIdWithObservationsAndScores.invalidate({
+          projectId,
+          traceId,
+        });
+        void utils.events.scoresForTrace.invalidate({
+          projectId,
+          traceId,
+        });
+      }
     },
   });
 

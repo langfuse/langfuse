@@ -1,7 +1,10 @@
-import { type TraceDomain } from "@langfuse/shared";
+import { type MetadataDomain, type TraceDomain } from "@langfuse/shared";
 import { type FullEventsObservations } from "@langfuse/shared/src/server";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import {
+  stringifyMetadata,
+  type WithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 
 export type SyntheticTrace = WithStringifiedMetadata<
   Omit<TraceDomain, "input" | "output">
@@ -18,6 +21,10 @@ export interface AdaptedTraceData {
   observations: ObservationReturnTypeWithMetadata[];
 }
 
+export type EventsTraceObservation = WithStringifiedMetadata<
+  FullEventsObservations[number]
+>;
+
 /**
  * Adapts events (observations from events table) to the trace format expected by the Trace component.
  *
@@ -25,9 +32,13 @@ export interface AdaptedTraceData {
  * The root observation (no parentObservationId) provides trace-level properties like name.
  */
 export function adaptEventsToTraceFormat(params: {
-  events: FullEventsObservations;
+  events: EventsTraceObservation[];
   traceId: string;
-  rootIO?: { input: unknown; output: unknown; metadata?: unknown } | null;
+  rootIO?: {
+    input: string | null;
+    output: string | null;
+    metadata?: MetadataDomain | string | null;
+  } | null;
 }): AdaptedTraceData {
   const { events, traceId, rootIO } = params;
 
@@ -44,19 +55,20 @@ export function adaptEventsToTraceFormat(params: {
   // TODO: think, how to determine root span?
   const root = events.find((e) => !e.parentObservationId);
 
-  const latestTaggedEvent = events.reduce<
-    FullEventsObservations[number] | null
-  >((latest, event) => {
-    if (event.traceTags.length === 0) return latest;
-    if (!latest) return event;
+  const latestTaggedEvent = events.reduce<EventsTraceObservation | null>(
+    (latest, event) => {
+      if (event.traceTags.length === 0) return latest;
+      if (!latest) return event;
 
-    if (event.updatedAt.getTime() > latest.updatedAt.getTime()) return event;
-    if (event.updatedAt.getTime() < latest.updatedAt.getTime()) return latest;
+      if (event.updatedAt.getTime() > latest.updatedAt.getTime()) return event;
+      if (event.updatedAt.getTime() < latest.updatedAt.getTime()) return latest;
 
-    return event.createdAt.getTime() > latest.createdAt.getTime()
-      ? event
-      : latest;
-  }, null);
+      return event.createdAt.getTime() > latest.createdAt.getTime()
+        ? event
+        : latest;
+    },
+    null,
+  );
 
   const traceTags = latestTaggedEvent?.traceTags;
 
@@ -75,9 +87,10 @@ export function adaptEventsToTraceFormat(params: {
     projectId: earliest.projectId,
     name: root?.name ?? earliest.name ?? null,
     timestamp: earliest.startTime,
-    input: rootIO?.input ? JSON.stringify(rootIO.input) : null,
-    output: rootIO?.output ? JSON.stringify(rootIO.output) : null,
-    metadata: JSON.stringify(rootIO?.metadata ?? root?.metadata ?? {}),
+    input: rootIO?.input ?? null,
+    output: rootIO?.output ?? null,
+    metadata:
+      stringifyMetadata(rootIO?.metadata ?? root?.metadata ?? {}) ?? "{}",
     tags: traceTags ?? [],
     bookmarked: root?.bookmarked ?? false,
     public: root?.public ?? false,
@@ -98,8 +111,7 @@ export function adaptEventsToTraceFormat(params: {
   const observations: ObservationReturnTypeWithMetadata[] = events.map((e) => ({
     ...e,
     traceId: traceId,
-    metadata:
-      typeof e.metadata === "string" ? e.metadata : JSON.stringify(e.metadata),
+    metadata: stringifyMetadata(e.metadata) ?? null,
     input: undefined,
     output: undefined,
   }));
