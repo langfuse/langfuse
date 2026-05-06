@@ -329,6 +329,7 @@ export enum QueueName {
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
   OtelIngestionQueue = "otel-ingestion-queue",
+  OtelIngestionSecondaryQueue = "secondary-otel-ingestion-queue", // Separates high priority + high throughput projects from other projects.
   IngestionQueue = "ingestion-queue", // Process single events with S3-merge
   IngestionSecondaryQueue = "secondary-ingestion-queue", // Separates high priority + high throughput projects from other projects.
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",
@@ -368,6 +369,7 @@ export enum QueueJobs {
   CloudSpendAlertJob = "cloud-spend-alert-job",
   CloudFreeTierUsageThresholdJob = "cloud-free-tier-usage-threshold-job",
   OtelIngestionJob = "otel-ingestion-job",
+  OtelIngestionSecondaryJob = "secondary-otel-ingestion-job",
   IngestionJob = "ingestion-job",
   IngestionSecondaryJob = "secondary-ingestion-job",
   ExperimentCreateJob = "experiment-create-job",
@@ -458,6 +460,12 @@ export type TQueueJobTypes = {
     name: QueueJobs.BatchExportJob;
   };
   [QueueName.OtelIngestionQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: OtelIngestionEventQueueType;
+    name: QueueJobs.OtelIngestionJob;
+  };
+  [QueueName.OtelIngestionSecondaryQueue]: {
     timestamp: Date;
     id: string;
     payload: OtelIngestionEventQueueType;
