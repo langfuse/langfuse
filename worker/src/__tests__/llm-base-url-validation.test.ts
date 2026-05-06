@@ -29,6 +29,26 @@ describe("LLM base URL validation", () => {
     ).rejects.toThrow("Blocked hostname detected");
   });
 
+  it("should reject encoded delimiter userinfo SSRF bypass attempts", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+    await expect(
+      validateLlmConnectionBaseURL("https://example.com%2F@127.0.0.1/v1"),
+    ).rejects.toThrow(
+      "URL credentials are not allowed. Use authentication headers instead.",
+    );
+  });
+
+  it("should reject URLs with embedded credentials", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+    await expect(
+      validateLlmConnectionBaseURL("https://user:pass@example.com/v1"),
+    ).rejects.toThrow(
+      "URL credentials are not allowed. Use authentication headers instead.",
+    );
+  });
+
   it("should allow explicitly allowlisted localhost hosts for self-hosted instances", async () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
 

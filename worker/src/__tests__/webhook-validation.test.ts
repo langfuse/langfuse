@@ -165,7 +165,7 @@ describe("Webhook URL Validation", () => {
         await expect(
           validateWebhookURL(`http://example.com${delimiter}@127.0.0.1/hook`),
         ).rejects.toThrow(
-          "URL credentials are not allowed. Use webhook headers for authentication instead.",
+          "URL credentials are not allowed. Use authentication headers instead.",
         );
       }
     });
@@ -174,7 +174,7 @@ describe("Webhook URL Validation", () => {
       await expect(
         validateWebhookURL("https://user:pass@example.com/hook"),
       ).rejects.toThrow(
-        "URL credentials are not allowed. Use webhook headers for authentication instead.",
+        "URL credentials are not allowed. Use authentication headers instead.",
       );
     });
 
