@@ -15,7 +15,7 @@ import {
   getVisibleCellRows,
 } from "@/src/features/experiments/components/table/types";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { usdFormatter, millisecondFormatter } from "@/src/utils/numbers";
+import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import {
   HoverCard,
   HoverCardContent,
@@ -471,7 +471,7 @@ export const ExperimentGridCell = ({
               data.latencyMs != null ? (
                 <MetadataItem label="Latency">
                   <span className="text-xs">
-                    {millisecondFormatter(data.latencyMs)}
+                    {latencyFormatter(data.latencyMs)}
                   </span>
                 </MetadataItem>
               ) : undefined,

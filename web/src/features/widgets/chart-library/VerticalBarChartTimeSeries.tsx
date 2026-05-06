@@ -58,11 +58,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           tickLine={false}
           axisLine={false}
           niceTicks="auto"
-          tickFormatter={(value) =>
-            valueFormatter
-              ? valueFormatter(Number(value))
-              : compactNumberFormatter(Number(value))
-          }
+          tickFormatter={(value) => valueFormatter(Number(value))}
         />
         {dimensions.map((dimension, index) => (
           <Bar

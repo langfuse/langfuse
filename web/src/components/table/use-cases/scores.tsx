@@ -212,6 +212,17 @@ export default function ScoresTable({
       void utils.scores.all.invalidate();
       void utils.scores.allFromEvents.invalidate();
       void utils.scores.countAllFromEvents.invalidate();
+
+      if (traceId) {
+        void utils.traces.byIdWithObservationsAndScores.invalidate({
+          projectId,
+          traceId,
+        });
+        void utils.events.scoresForTrace.invalidate({
+          projectId,
+          traceId,
+        });
+      }
     },
   });
 
@@ -742,7 +753,8 @@ export default function ScoresTable({
           return <TableTextLoadingCell />;
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
-          traceTags && (
+          traceTags &&
+          traceTags.length > 0 && (
             <div
               className={cn(
                 "flex gap-x-2 gap-y-1",

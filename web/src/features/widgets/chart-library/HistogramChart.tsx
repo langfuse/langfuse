@@ -25,16 +25,15 @@ const HistogramChart = ({
       color: "hsl(var(--chart-1))",
     },
   },
-  valueFormatter,
   subtleFill = false,
+  valueFormatter,
 }: {
   data: DataPoint[];
   config?: ChartConfig;
-  valueFormatter?: (value: number) => string;
   subtleFill?: boolean;
+  valueFormatter?: (value: number) => string;
 }) => {
-  const formatValue = (value: number) =>
-    valueFormatter?.(value) ?? compactSmallNumberFormatter(value);
+  const formatBinEdge = valueFormatter ?? compactSmallNumberFormatter;
 
   const transformHistogramData = (data: DataPoint[]): HistogramDataPoint[] => {
     if (!data.length) return [];
@@ -45,7 +44,7 @@ const HistogramChart = ({
       // ClickHouse histogram format: [(lower, upper, height), ...]
       return (firstDataPoint.metric as [number, number, number][]).map(
         ([lower, upper, height]) => ({
-          binLabel: `[${formatValue(lower)}, ${formatValue(upper)}]`,
+          binLabel: `[${formatBinEdge(lower)}, ${formatBinEdge(upper)}]`,
           count: height,
           lower,
           upper,

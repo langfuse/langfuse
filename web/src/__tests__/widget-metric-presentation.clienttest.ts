@@ -20,7 +20,7 @@ describe("getWidgetMetricPresentation", () => {
     });
 
     expect(presentation.label).toBe("Seconds");
-    expect(presentation.valueFormatter?.(1500)).toBe("1.50s");
+    expect(presentation.valueFormatter?.(1500)).toBe("1.5s");
   });
 
   it("returns unit labels for token widgets", () => {

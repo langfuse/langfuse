@@ -2028,54 +2028,28 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>,
     domain: "trace" | "observation",
   ): Record<string, unknown> {
-    let topLevelMetadata: Record<string, unknown> = {};
-
     const metadataKeyPrefix =
       domain === "observation"
         ? LangfuseOtelSpanAttributes.OBSERVATION_METADATA
         : LangfuseOtelSpanAttributes.TRACE_METADATA;
 
-    const langfuseMetadataAttribute =
-      attributes[metadataKeyPrefix] || attributes["langfuse.metadata"];
-
-    if (langfuseMetadataAttribute) {
-      try {
-        if (typeof langfuseMetadataAttribute === "string") {
-          topLevelMetadata = JSON.parse(langfuseMetadataAttribute as string);
-        } else if (typeof langfuseMetadataAttribute === "object") {
-          topLevelMetadata = langfuseMetadataAttribute as Record<
-            string,
-            unknown
-          >;
-        }
-      } catch {
-        // Continue with nested metadata extraction
-      }
-    }
-
-    const langfuseMetadata: Record<string, unknown> = {};
-
-    for (const [key, value] of Object.entries(attributes)) {
-      for (const prefix of [
+    const topLevelMetadata = this.parseMetadataAttribute(
+      attributes[metadataKeyPrefix] || attributes["langfuse.metadata"],
+    );
+    const langfuseMetadata = this.extractPrefixedMetadataAttributes({
+      attributes,
+      prefixes: [
         metadataKeyPrefix,
         "langfuse.metadata",
         "ai.telemetry.metadata",
-      ]) {
-        if (
-          key.startsWith(`${prefix}.`) &&
-          // Filter out the Vercel AI SDK trace attribute keys
-          ![
-            "ai.telemetry.metadata.userId",
-            "ai.telemetry.metadata.sessionId",
-            "ai.telemetry.metadata.tags",
-            "ai.telemetry.metadata.langfusePrompt",
-          ].includes(key)
-        ) {
-          const newKey = key.replace(`${prefix}.`, "");
-          langfuseMetadata[newKey] = value;
-        }
-      }
-    }
+      ],
+      excludedKeys: new Set([
+        "ai.telemetry.metadata.userId",
+        "ai.telemetry.metadata.sessionId",
+        "ai.telemetry.metadata.tags",
+        "ai.telemetry.metadata.langfusePrompt",
+      ]),
+    });
 
     // Vercel AI SDK
     const tools =
@@ -2697,6 +2671,68 @@ export class OtelIngestionProcessor {
     return [];
   }
 
+  private parseMetadataAttribute(value: unknown): Record<string, unknown> {
+    if (!value) {
+      return {};
+    }
+
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === "object"
+          ? (parsed as Record<string, unknown>)
+          : {};
+      } catch {
+        return {};
+      }
+    }
+
+    if (typeof value === "object") {
+      return value as Record<string, unknown>;
+    }
+
+    return {};
+  }
+
+  private extractPrefixedMetadataAttributes(params: {
+    attributes: Record<string, unknown>;
+    prefixes: string[];
+    excludedKeys?: Set<string>;
+  }): Record<string, unknown> {
+    const { attributes, prefixes, excludedKeys = new Set<string>() } = params;
+    const metadata: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(attributes)) {
+      for (const prefix of prefixes) {
+        if (!key.startsWith(`${prefix}.`) || excludedKeys.has(key)) {
+          continue;
+        }
+
+        const metadataKey = key.slice(prefix.length + 1);
+        if (!metadataKey) {
+          continue;
+        }
+
+        metadata[metadataKey] = value;
+      }
+    }
+
+    return metadata;
+  }
+
+  private extractMetadataFromPrefix(params: {
+    attributes: Record<string, unknown>;
+    prefix: string;
+  }): Record<string, unknown> {
+    const { attributes, prefix } = params;
+    return {
+      ...this.parseMetadataAttribute(attributes[prefix]),
+      ...this.extractPrefixedMetadataAttributes({
+        attributes,
+        prefixes: [prefix],
+      }),
+    };
+  }
+
   /**
    * Extracts experiment-related fields from span attributes.
    * Returns undefined for fields that are not present.
@@ -2734,35 +2770,19 @@ export class OtelIngestionProcessor {
       attributes[LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_VERSION];
 
     // Extract experiment metadata
-    const experimentMetadataStr =
-      attributes[LangfuseOtelSpanAttributes.EXPERIMENT_METADATA];
-    let experimentMetadata: Record<string, unknown> = {};
-    if (experimentMetadataStr && typeof experimentMetadataStr === "string") {
-      try {
-        experimentMetadata = JSON.parse(experimentMetadataStr);
-      } catch {
-        // If parsing fails, treat as empty
-      }
-    }
-    const experimentMetadataFlattened =
-      flattenJsonToPathArrays(experimentMetadata);
+    const experimentMetadataFlattened = flattenJsonToPathArrays(
+      this.extractMetadataFromPrefix({
+        attributes,
+        prefix: LangfuseOtelSpanAttributes.EXPERIMENT_METADATA,
+      }),
+    );
 
     // Extract experiment item metadata
-    const experimentItemMetadataStr =
-      attributes[LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_METADATA];
-    let experimentItemMetadata: Record<string, unknown> = {};
-    if (
-      experimentItemMetadataStr &&
-      typeof experimentItemMetadataStr === "string"
-    ) {
-      try {
-        experimentItemMetadata = JSON.parse(experimentItemMetadataStr);
-      } catch {
-        // If parsing fails, treat as empty
-      }
-    }
     const experimentItemMetadataFlattened = flattenJsonToPathArrays(
-      experimentItemMetadata,
+      this.extractMetadataFromPrefix({
+        attributes,
+        prefix: LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_METADATA,
+      }),
     );
 
     return {

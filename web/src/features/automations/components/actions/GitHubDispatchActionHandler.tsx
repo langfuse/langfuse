@@ -12,7 +12,7 @@ import { z } from "zod";
 // Define the form schema for GitHub dispatch actions
 export const GitHubDispatchActionFormSchema = z.object({
   githubDispatch: z.object({
-    url: z.string().url("Invalid URL"),
+    url: z.url("Invalid URL"),
     eventType: z.string().min(1, "Event type is required").max(100),
     githubToken: z.string(),
     displayGitHubToken: z.string().optional(), // Display value for existing token

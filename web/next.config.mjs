@@ -49,6 +49,12 @@ const reportToHeader = {
 const nextConfig = {
   // Allow building to alternate directory for parallel build checks while dev server runs
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  typescript: {
+    // CI test jobs run `pnpm run typecheck` separately and skip duplicate
+    // Next.js type checks to keep test builds fast. Production/Docker builds
+    // do not set this flag and still fail on TypeScript errors.
+    ignoreBuildErrors: process.env.NEXT_IGNORE_BUILD_ERRORS === "true",
+  },
   // Agent/browser tooling often targets 127.0.0.1 instead of localhost in dev.
   allowedDevOrigins: ["127.0.0.1"],
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd

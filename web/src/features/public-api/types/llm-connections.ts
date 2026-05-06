@@ -49,9 +49,9 @@ export const GetLlmConnectionsV1Response = z
 // Base request schema (before adapter-specific validation)
 const PutLlmConnectionV1BodyBase = z.object({
   provider: z.string().min(1),
-  adapter: z.nativeEnum(LLMAdapter),
+  adapter: z.enum(LLMAdapter),
   secretKey: z.string().min(1),
-  baseURL: z.string().url().nullable().optional(),
+  baseURL: z.url().nullable().optional(),
   customModels: z.array(z.string().min(1)).optional(),
   withDefaultModels: z.boolean().optional().default(true),
   extraHeaders: z.record(z.string(), z.string()).optional(),

@@ -4,7 +4,7 @@ import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type ViewVersion, views } from "@/src/features/query";
 import { getViewDeclaration } from "@/src/features/query";
 import { costFormatter } from "@/src/features/dashboard/lib/dashboard-utils";
-import { millisecondFormatter } from "@/src/utils/numbers";
+import { latencyFormatter } from "@/src/utils/numbers";
 
 // Shared widget chart configuration types
 export type WidgetChartConfig = {
@@ -236,7 +236,7 @@ export function getWidgetMetricPresentation(params: {
   if (!usesCountStyleAggregation && measureDefinition?.unit === "millisecond") {
     return {
       label: widgetUnitLabels.millisecond,
-      valueFormatter: millisecondFormatter,
+      valueFormatter: latencyFormatter,
     };
   }
 
