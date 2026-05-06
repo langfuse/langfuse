@@ -5,6 +5,7 @@ import {
   type metricAggregations,
   type QueryType,
   mapLegacyUiTableFilterToView,
+  getResultUnit,
 } from "@/src/features/query";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
@@ -441,7 +442,23 @@ export function DashboardWidget({
                   metrics: widget.data.metrics.map(
                     (metric) => `${metric.agg}_${metric.measure}`,
                   ),
+                  units: widget.data.metrics.map((metric) =>
+                    getResultUnit(
+                      widget.data.view,
+                      metric.measure,
+                      metric.agg,
+                      metricsVersion,
+                    ),
+                  ),
                   defaultSort,
+                }),
+                ...(widget.data.chartType !== "PIVOT_TABLE" && {
+                  unit: getResultUnit(
+                    widget.data.view,
+                    widget.data.metrics[0]?.measure ?? "",
+                    widget.data.metrics[0]?.agg,
+                    metricsVersion,
+                  ),
                 }),
               }}
               sortState={

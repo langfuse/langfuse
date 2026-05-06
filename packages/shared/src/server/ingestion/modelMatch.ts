@@ -1,7 +1,6 @@
 import { Model, Prisma } from "../../";
 import {
   instrumentAsync,
-  instrumentSync,
   logger,
   recordIncrement,
   redis,
@@ -205,17 +204,7 @@ const getModelWithPricesFromRedis = async (
       return { model: null, pricingTiers: [] };
     }
 
-    const parsed = instrumentSync(
-      {
-        name: "parse-redis-model",
-        traceScope: "model-match",
-      },
-      (span) => {
-        span.setAttribute("model-cache-value-length", redisValue.length);
-
-        return JSON.parse(redisValue);
-      },
-    );
+    const parsed = JSON.parse(redisValue);
 
     if (parsed.model !== undefined && parsed.pricingTiers !== undefined) {
       const model = redisModelToPrismaModel(parsed.model);

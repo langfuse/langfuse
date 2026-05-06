@@ -322,7 +322,7 @@ export const OrganizationProjectOverview = () => {
         .map((org) => (
           <Fragment key={org.id}>
             {!queryOrgId && org.id === env.NEXT_PUBLIC_DEMO_ORG_ID && (
-              <Separator />
+              <Separator className="my-4" />
             )}
             <SingleOrganizationProjectOverviewTile
               orgId={org.id}

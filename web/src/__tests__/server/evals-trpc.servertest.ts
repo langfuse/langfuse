@@ -447,6 +447,47 @@ describe("evals trpc", () => {
         }),
       ).resolves.toBeNull();
     });
+
+    it("rejects unsupported trace filters", async () => {
+      const { project, caller } = await prepare();
+
+      const evalTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "trace-template",
+          version: 1,
+          prompt: "Score this response",
+          outputDefinition: createNumericEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription: "How good",
+          }),
+        },
+      });
+
+      await expect(
+        caller.evals.createJob({
+          projectId: project.id,
+          evalTemplateId: evalTemplate.id,
+          scoreName: "bad-trace-filter",
+          target: EvalTargetObject.TRACE,
+          filter: [
+            {
+              type: "numberObject",
+              column: "Scores (numeric)",
+              key: "accuracy",
+              operator: ">",
+              value: 0.8,
+            },
+          ],
+          mapping: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+        }),
+      ).rejects.toThrow(
+        'Filter column "Scores (numeric)" is not supported for target "trace".',
+      );
+    });
   });
 
   describe("evals.updateConfig", () => {
@@ -543,6 +584,84 @@ describe("evals trpc", () => {
       });
 
       expect(unchangedJob?.variableMapping).toEqual(traceVariableMapping);
+    });
+
+    it("rejects updates when an evaluator still has unsupported filters", async () => {
+      const { project, caller } = await prepare();
+
+      const evalJobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [
+            {
+              type: "numberObject",
+              column: "Scores (numeric)",
+              key: "accuracy",
+              operator: ">",
+              value: 0.8,
+            },
+          ],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          timeScope: ["NEW"],
+        },
+      });
+
+      await expect(
+        caller.evals.updateEvalJob({
+          projectId: project.id,
+          evalConfigId: evalJobConfig.id,
+          config: {
+            status: "INACTIVE",
+          },
+        }),
+      ).rejects.toThrow(
+        'Filter column "Scores (numeric)" is not supported for target "trace".',
+      );
+    });
+
+    it("allows updates once unsupported filters are removed", async () => {
+      const { project, caller } = await prepare();
+
+      const evalJobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [
+            {
+              type: "numberObject",
+              column: "Scores (numeric)",
+              key: "accuracy",
+              operator: ">",
+              value: 0.8,
+            },
+          ],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          timeScope: ["NEW"],
+        },
+      });
+
+      const response = await caller.evals.updateEvalJob({
+        projectId: project.id,
+        evalConfigId: evalJobConfig.id,
+        config: {
+          filter: [],
+          status: "INACTIVE",
+        },
+      });
+
+      expect(response.status).toBe("INACTIVE");
+      expect(response.filter).toEqual([]);
     });
 
     it("when the evaluator ran on existing traces, time scope cannot be changed to NEW only", async () => {
