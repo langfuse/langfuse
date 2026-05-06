@@ -584,6 +584,27 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await createEventsCh([obs]);
     });
 
+    // Known fixture values — used to assert exact values, not just presence.
+    // toBeDefined() passes for null; for fields the fixture explicitly sets we
+    // assert the stored value so a null regression is caught.
+    const knownValues: Record<string, unknown> = {
+      name: "field-group-contract-obs",
+      level: "DEFAULT",
+      statusMessage: "ok",
+      version: "1.0",
+      environment: "production",
+      bookmarked: true,
+      public: true,
+      userId: "test-user",
+      sessionId: "test-session",
+      model: "gpt-4",
+      modelParameters: { temperature: 0.5 },
+      promptName: "contract-prompt",
+      promptVersion: 2,
+      input: "contract input",
+      output: "contract output",
+    };
+
     const fieldsForGroup: Record<string, readonly string[]> = {
       basic: [
         "name",
@@ -625,12 +646,20 @@ describe("/api/public/v2/observations API Endpoint", () => {
           expect(obs[field]).toBeDefined();
         }
 
-        // Requested group fields present
+        // Requested group fields present — assert exact value when the fixture
+        // set one, toBeDefined() otherwise (e.g. dates, generated IDs).
         for (const field of expectedFields) {
-          expect(
-            obs[field],
-            `expected field "${field}" to be defined for group "${group}"`,
-          ).toBeDefined();
+          if (field in knownValues) {
+            expect(
+              obs[field],
+              `expected field "${field}" to equal fixture value for group "${group}"`,
+            ).toStrictEqual(knownValues[field]);
+          } else {
+            expect(
+              obs[field],
+              `expected field "${field}" to be defined for group "${group}"`,
+            ).toBeDefined();
+          }
         }
 
         // Fields from other groups absent (null or undefined — API may serialize
