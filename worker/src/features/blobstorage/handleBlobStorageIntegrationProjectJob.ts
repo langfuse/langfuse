@@ -13,6 +13,8 @@ import {
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
   getEventsForBlobStorageExport,
+  OBSERVATION_FIELD_GROUPS,
+  type ObservationFieldGroup,
   getCurrentSpan,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
@@ -201,6 +203,7 @@ const processBlobStorageExport = async (config: {
   fileType: BlobStorageIntegrationFileType;
   compressed: boolean;
   convertV4LatencyToSeconds: boolean;
+  exportFieldGroups?: ObservationFieldGroup[];
 }) => {
   logger.info(
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
@@ -272,6 +275,9 @@ const processBlobStorageExport = async (config: {
             config.projectId,
             config.minTimestamp,
             config.maxTimestamp,
+            config.exportFieldGroups && config.exportFieldGroups.length > 0
+              ? config.exportFieldGroups
+              : [...OBSERVATION_FIELD_GROUPS],
           ),
           config.projectId,
           "model_id",
@@ -424,6 +430,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       fileType: blobStorageIntegration.fileType,
       compressed: blobStorageIntegration.compressed,
       convertV4LatencyToSeconds,
+      exportFieldGroups:
+        blobStorageIntegration.exportFieldGroups as ObservationFieldGroup[],
     };
 
     // Check if this project should only export traces (legacy behavior via env var)

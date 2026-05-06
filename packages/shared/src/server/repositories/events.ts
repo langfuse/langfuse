@@ -72,6 +72,7 @@ import {
   buildEventsFullTableSplitQuery,
   type QueryWithParams,
   type SessionEventsMetricsRow,
+  type FieldSetName,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
@@ -872,6 +873,8 @@ export const OBSERVATION_FIELD_GROUPS = [
   "usage", // usageDetails, costDetails, totalCost
   "prompt", // promptId, promptName, promptVersion
   "metrics", // latency, timeToFirstToken
+  "tools", // toolDefinitions, toolCalls, toolCallNames
+  "trace_context", // tags, release, traceName, usagePricingTierName
 ] as const;
 
 export type ObservationFieldGroup = (typeof OBSERVATION_FIELD_GROUPS)[number];
@@ -2981,11 +2984,21 @@ export const getEventsForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroup[] = [...OBSERVATION_FIELD_GROUPS],
 ) {
-  const queryBuilder = new EventsQueryBuilder({ projectId })
-    .selectFieldSet("export")
-    .selectIO(false) // Full I/O, no truncation
-    .selectFieldSet("metadata")
+  const queryBuilder = new EventsQueryBuilder({ projectId });
+
+  for (const group of fieldGroups) {
+    if (group === "io") {
+      queryBuilder.selectIO(false); // Full I/O, no truncation
+    } else if (group === "model") {
+      queryBuilder.selectFieldSet("model_export"); // model_id alias for blob export
+    } else {
+      queryBuilder.selectFieldSet(group as FieldSetName);
+    }
+  }
+
+  queryBuilder
     .whereRaw(
       "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time <= {maxTimestamp: DateTime64(3)}",
       {

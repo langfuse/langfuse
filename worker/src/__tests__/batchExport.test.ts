@@ -4277,4 +4277,135 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     // --- total_cost: ALIAS for cost_details['total'] → 0.03 (set in fixture) ---
     expect(row.total_cost).toBeCloseTo(0.03);
   });
+
+  it("should return all columns when all field groups are selected", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = Date.now();
+    const traceId = randomUUID();
+
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      type: "GENERATION",
+      name: "all-groups-event",
+      start_time: now * 1000,
+    });
+
+    await createEventsCh([event]);
+
+    const stream = getEventsForBlobStorageExport(
+      projectId,
+      new Date(now - 60 * 60 * 1000),
+      new Date(now + 60 * 60 * 1000),
+      [
+        "core",
+        "basic",
+        "time",
+        "io",
+        "metadata",
+        "model",
+        "usage",
+        "prompt",
+        "metrics",
+        "tools",
+        "trace_context",
+      ],
+    );
+
+    const rows: Record<string, unknown>[] = [];
+    for await (const row of stream) {
+      rows.push(row);
+    }
+
+    expect(rows).toHaveLength(1);
+    const expectedColumns = [
+      "id",
+      "trace_id",
+      "project_id",
+      "start_time",
+      "end_time",
+      "name",
+      "type",
+      "environment",
+      "version",
+      "user_id",
+      "session_id",
+      "level",
+      "status_message",
+      "prompt_name",
+      "prompt_id",
+      "prompt_version",
+      "model_id",
+      "provided_model_name",
+      "model_parameters",
+      "usage_details",
+      "cost_details",
+      "total_cost",
+      "completion_start_time",
+      "latency",
+      "time_to_first_token",
+      "tags",
+      "release",
+      "trace_name",
+      "parent_observation_id",
+      "bookmarked",
+      "public",
+      "created_at",
+      "updated_at",
+      "tool_definitions",
+      "tool_calls",
+      "tool_call_names",
+      "usage_pricing_tier_name",
+      "input",
+      "output",
+      "metadata",
+    ].sort();
+    expect(Object.keys(rows[0]).sort()).toEqual(expectedColumns);
+  });
+
+  it("should return only columns for the requested field groups subset", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = Date.now();
+    const traceId = randomUUID();
+
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      type: "SPAN",
+      name: "subset-groups-event",
+      start_time: now * 1000,
+      input: "hello",
+      output: "world",
+    });
+
+    await createEventsCh([event]);
+
+    const stream = getEventsForBlobStorageExport(
+      projectId,
+      new Date(now - 60 * 60 * 1000),
+      new Date(now + 60 * 60 * 1000),
+      ["core", "io"],
+    );
+
+    const rows: Record<string, unknown>[] = [];
+    for await (const row of stream) {
+      rows.push(row);
+    }
+
+    expect(rows).toHaveLength(1);
+    const expectedColumns = [
+      "id",
+      "trace_id",
+      "start_time",
+      "end_time",
+      "project_id",
+      "parent_observation_id",
+      "type",
+      "input",
+      "output",
+    ].sort();
+    expect(Object.keys(rows[0]).sort()).toEqual(expectedColumns);
+    expect(rows[0].input).toBe("hello");
+    expect(rows[0].output).toBe("world");
+  });
 });
