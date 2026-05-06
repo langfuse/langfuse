@@ -8,10 +8,10 @@
  */
 
 import { memo, useEffect } from "react";
-import { Loader2 } from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { type FlatLogItem } from "./log-view-types";
 import { useLogViewAllObservationsIO } from "./useLogViewAllObservationsIO";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export interface LogViewJsonModeProps {
   items: FlatLogItem[];
@@ -53,7 +53,7 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
       {/* Loading state */}
       {isLoading && (
         <div className="flex flex-1 items-center justify-center">
-          <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
+          <Spinner size="md" variant="muted" />
           <span className="text-muted-foreground ml-2 text-sm">
             Loading observations (0/{totalCount})...
           </span>

@@ -12,11 +12,12 @@ import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperim
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { FlaskConical, Sparkles, Loader2 } from "lucide-react";
+import { FlaskConical, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { Switch } from "@/src/components/ui/switch";
 import { Label } from "@/src/components/ui/label";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export default function Experiments() {
   const router = useRouter();
@@ -184,7 +185,7 @@ export default function Experiments() {
         <ExperimentsTable projectId={projectId} />
       ) : (
         <div className="flex h-full items-center justify-center">
-          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+          <Spinner size="xl" variant="muted" />
         </div>
       )}
     </Page>
