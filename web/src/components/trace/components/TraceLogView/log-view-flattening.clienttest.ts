@@ -6,7 +6,7 @@ import {
   flattenTreeOrder,
   filterBySearch,
 } from "./log-view-flattening";
-import { type TreeNode } from "@/src/components/trace2/lib/types";
+import { type TreeNode } from "@/src/components/trace/lib/types";
 
 // Helper to create a minimal TreeNode for testing
 function createNode(

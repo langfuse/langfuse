@@ -9,7 +9,7 @@ import {
 import { AggUsageBadge } from "@/src/components/token-usage-badge";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
+import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
@@ -29,7 +29,7 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { BreakdownTooltip } from "@/src/components/trace2/components/_shared/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
 import { ExternalLinkIcon, InfoIcon } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -38,13 +38,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Switch } from "@/src/components/ui/switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useRouter } from "next/router";
-import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
-import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
-import { TraceLogView } from "@/src/components/trace2/components/TraceLogView/TraceLogView";
+import { CopyIdsPopover } from "@/src/components/trace/components/_shared/CopyIdsPopover";
+import { useJsonExpansion } from "@/src/components/trace/contexts/JsonExpansionContext";
+import { TraceLogView } from "@/src/components/trace/components/TraceLogView/TraceLogView";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
-import { useJsonBetaToggle } from "@/src/components/trace2/hooks/useJsonBetaToggle";
-import { TraceDataProvider } from "@/src/components/trace2/contexts/TraceDataContext";
-import { ViewPreferencesProvider } from "@/src/components/trace2/contexts/ViewPreferencesContext";
+import { useJsonBetaToggle } from "@/src/components/trace/hooks/useJsonBetaToggle";
+import { TraceDataProvider } from "@/src/components/trace/contexts/TraceDataContext";
+import { ViewPreferencesProvider } from "@/src/components/trace/contexts/ViewPreferencesContext";
 import {
   Tooltip,
   TooltipContent,
@@ -64,7 +64,7 @@ import {
   AlertDialogTitle,
 } from "@/src/components/ui/alert-dialog";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { resolveEvalExecutionMetadata } from "@/src/components/trace2/lib/resolve-metadata";
+import { resolveEvalExecutionMetadata } from "@/src/components/trace/lib/resolve-metadata";
 
 const LOG_VIEW_CONFIRMATION_THRESHOLD = 150;
 const LOG_VIEW_DISABLED_THRESHOLD = 350;

@@ -41,15 +41,15 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import ScoresTable from "@/src/components/table/use-cases/scores";
-import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
+import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
-import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
-import { useMedia } from "@/src/components/trace2/api/useMedia";
-import { useSelection } from "@/src/components/trace2/contexts/SelectionContext";
-import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
+import { useJsonExpansion } from "@/src/components/trace/contexts/JsonExpansionContext";
+import { useMedia } from "@/src/components/trace/api/useMedia";
+import { useSelection } from "@/src/components/trace/contexts/SelectionContext";
+import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
 
 // Contexts and hooks
-import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
+import { useTraceData } from "@/src/components/trace/contexts/TraceDataContext";
 import { useParsedObservation } from "@/src/hooks/useParsedObservation";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { api } from "@/src/utils/api";
@@ -57,12 +57,12 @@ import { api } from "@/src/utils/api";
 // Extracted components
 import { ObservationDetailViewHeader } from "./ObservationDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
-import { TRACE_VIEW_CONFIG } from "@/src/components/trace2/config/trace-view-config";
+import { TRACE_VIEW_CONFIG } from "@/src/components/trace/config/trace-view-config";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import {
   aggregateTraceMetrics,
   getDescendantIds,
-} from "@/src/components/trace2/lib/trace-aggregation";
+} from "@/src/components/trace/lib/trace-aggregation";
 import TagList from "@/src/features/tag/components/TagList";
 
 export interface ObservationDetailViewProps {

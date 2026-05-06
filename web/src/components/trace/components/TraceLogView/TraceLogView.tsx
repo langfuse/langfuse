@@ -32,11 +32,11 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
-import { TRACE_VIEW_CONFIG } from "@/src/components/trace2/config/trace-view-config";
-import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
-import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
-import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
-import { JSONTableView } from "@/src/components/trace2/components/_shared/JSONTableView";
+import { TRACE_VIEW_CONFIG } from "@/src/components/trace/config/trace-view-config";
+import { useTraceData } from "@/src/components/trace/contexts/TraceDataContext";
+import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
+import { useJsonExpansion } from "@/src/components/trace/contexts/JsonExpansionContext";
+import { JSONTableView } from "@/src/components/trace/components/_shared/JSONTableView";
 import {
   flattenChronological,
   flattenTreeOrder,

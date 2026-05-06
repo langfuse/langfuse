@@ -7,7 +7,7 @@
 
 import { memo, useMemo } from "react";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { type TreeNode } from "@/src/components/trace2/lib/types";
+import { type TreeNode } from "@/src/components/trace/lib/types";
 import { useLogViewObservationIO } from "./useLogViewObservationIO";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 

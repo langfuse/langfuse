@@ -21,7 +21,7 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
+import { CopyIdsPopover } from "@/src/components/trace/components/_shared/CopyIdsPopover";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
@@ -39,8 +39,8 @@ import {
   CostBadge,
   UsageBadge,
 } from "../ObservationDetailView/ObservationMetadataBadgesTooltip";
-import { aggregateTraceMetrics } from "@/src/components/trace2/lib/trace-aggregation";
-import { resolveEvalExecutionMetadata } from "@/src/components/trace2/lib/resolve-metadata";
+import { aggregateTraceMetrics } from "@/src/components/trace/lib/trace-aggregation";
+import { resolveEvalExecutionMetadata } from "@/src/components/trace/lib/resolve-metadata";
 
 export interface TraceDetailViewHeaderProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {

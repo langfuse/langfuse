@@ -29,23 +29,23 @@ import {
 } from "@/src/components/ui/hover-card";
 
 // Preview tab components
-import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
+import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
 import TagList from "@/src/features/tag/components/TagList";
-import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
-import { useMedia } from "@/src/components/trace2/api/useMedia";
+import { useJsonExpansion } from "@/src/components/trace/contexts/JsonExpansionContext";
+import { useMedia } from "@/src/components/trace/api/useMedia";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 
 // Contexts and hooks
-import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
-import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
-import { useSelection } from "@/src/components/trace2/contexts/SelectionContext";
+import { useTraceData } from "@/src/components/trace/contexts/TraceDataContext";
+import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
+import { useSelection } from "@/src/components/trace/contexts/SelectionContext";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 
 // Extracted components
 import { TraceDetailViewHeader } from "./TraceDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
-import { TRACE_VIEW_CONFIG } from "@/src/components/trace2/config/trace-view-config";
+import { TRACE_VIEW_CONFIG } from "@/src/components/trace/config/trace-view-config";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 

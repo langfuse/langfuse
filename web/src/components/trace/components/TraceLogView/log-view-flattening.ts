@@ -8,7 +8,7 @@
  * Also provides search filtering functionality.
  */
 
-import { type TreeNode } from "@/src/components/trace2/lib/types";
+import { type TreeNode } from "@/src/components/trace/lib/types";
 import { type FlatLogItem } from "./log-view-types";
 
 /**

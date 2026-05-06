@@ -24,7 +24,7 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
-import { PromptBadge } from "@/src/components/trace2/components/_shared/PromptBadge";
+import { PromptBadge } from "@/src/components/trace/components/_shared/PromptBadge";
 import {
   LatencyBadge,
   TimeToFirstTokenBadge,
@@ -45,9 +45,9 @@ import {
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
 import { type ScoreDomain } from "@langfuse/shared";
-import { type AggregatedTraceMetrics } from "@/src/components/trace2/lib/trace-aggregation";
+import { type AggregatedTraceMetrics } from "@/src/components/trace/lib/trace-aggregation";
 import type Decimal from "decimal.js";
-import { DetailHeaderActionsMenu } from "@/src/components/trace2/components/_shared/DetailHeaderActionsMenu";
+import { DetailHeaderActionsMenu } from "@/src/components/trace/components/_shared/DetailHeaderActionsMenu";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;

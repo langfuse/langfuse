@@ -1,6 +1,6 @@
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Switch } from "@/src/components/ui/switch";
-import { useJsonBetaToggle } from "@/src/components/trace2/hooks/useJsonBetaToggle";
+import { useJsonBetaToggle } from "@/src/components/trace/hooks/useJsonBetaToggle";
 
 export type ViewMode = "pretty" | "json" | "json-beta";
 

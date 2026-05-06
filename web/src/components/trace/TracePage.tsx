@@ -6,7 +6,7 @@ import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import { ErrorPage } from "@/src/components/error-page";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import Page from "@/src/components/layouts/page";
-import { Trace } from "@/src/components/trace2/Trace";
+import { Trace } from "@/src/components/trace/Trace";
 import { useSession } from "next-auth/react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { Button } from "@/src/components/ui/button";

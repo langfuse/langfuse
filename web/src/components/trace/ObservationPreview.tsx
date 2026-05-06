@@ -7,7 +7,7 @@ import {
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
-import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
+import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import Link from "next/link";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
@@ -20,7 +20,7 @@ import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton
 import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { calculateDisplayTotalCost } from "@/src/components/trace2/lib/helpers";
+import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { Fragment, useState } from "react";
 import type Decimal from "decimal.js";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
@@ -33,7 +33,7 @@ import {
 import {
   BreakdownTooltip,
   calculateAggregatedUsage,
-} from "@/src/components/trace2/components/_shared/BreakdownToolTip";
+} from "@/src/components/trace/components/_shared/BreakdownToolTip";
 import { ExternalLinkIcon, InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -42,12 +42,12 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Switch } from "@/src/components/ui/switch";
 import { useRouter } from "next/router";
-import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
-import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
+import { CopyIdsPopover } from "@/src/components/trace/components/_shared/CopyIdsPopover";
+import { useJsonExpansion } from "@/src/components/trace/contexts/JsonExpansionContext";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { useParsedObservation } from "@/src/hooks/useParsedObservation";
-import { PromptBadge } from "@/src/components/trace2/components/_shared/PromptBadge";
-import { useJsonBetaToggle } from "@/src/components/trace2/hooks/useJsonBetaToggle";
+import { PromptBadge } from "@/src/components/trace/components/_shared/PromptBadge";
+import { useJsonBetaToggle } from "@/src/components/trace/hooks/useJsonBetaToggle";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 
 export const ObservationPreview = ({

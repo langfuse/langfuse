@@ -54,7 +54,7 @@ import { type ScoreAggregate } from "@langfuse/shared";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BreakdownTooltip } from "@/src/components/trace2/components/_shared/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
 import { InfoIcon, MoreVertical } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import React from "react";

@@ -7,8 +7,8 @@
 
 import { memo, useRef, useEffect } from "react";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { usePrefetchObservation } from "@/src/components/trace2/api/usePrefetchObservation";
-import { TRACE_VIEW_CONFIG } from "@/src/components/trace2/config/trace-view-config";
+import { usePrefetchObservation } from "@/src/components/trace/api/usePrefetchObservation";
+import { TRACE_VIEW_CONFIG } from "@/src/components/trace/config/trace-view-config";
 import { type FlatLogItem } from "./log-view-types";
 import { formatDisplayName } from "./log-view-formatters";
 
