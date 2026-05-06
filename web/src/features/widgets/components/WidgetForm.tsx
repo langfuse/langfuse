@@ -315,9 +315,12 @@ export function WidgetForm({
     })) ?? [{ measure: initialValues.measure }],
     filters: initialValues.filters ?? [],
   });
+  const [widgetMinVersion, setWidgetMinVersion] = useState<number>(
+    initialWidgetRequiresV2 ? 2 : (initialValues.minVersion ?? 1),
+  );
   const viewVersion: ViewVersion =
     (isBetaEnabled && selectedView !== "traces") ||
-    (initialValues.minVersion ?? 1) >= 2 ||
+    widgetMinVersion >= 2 ||
     initialWidgetRequiresV2
       ? "v2"
       : "v1";
@@ -1225,6 +1228,7 @@ export function WidgetForm({
           : result.importedWidget.dimensions.slice(0, 1);
 
       setAutoLocked(true);
+      setWidgetMinVersion(result.importedWidget.minVersion ?? 1);
       setWidgetName(result.importedWidget.name);
       setWidgetDescription(result.importedWidget.description);
       setSelectedView(result.importedWidget.view);
