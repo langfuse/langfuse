@@ -17,6 +17,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   views,
+  metricAggregations,
   getValidAggregationsForMeasureType,
 } from "@/src/features/query";
 import { getViewDeclaration } from "@/src/features/query/dataModel";
@@ -73,12 +74,19 @@ const viewMapping: Record<string, DashboardWidgetViews> = {
 };
 
 // Reverse mapping for client-side use
-const reverseViewMapping: Record<DashboardWidgetViews, string> = {
+const reverseViewMapping: Record<
+  DashboardWidgetViews,
+  z.infer<typeof views>
+> = {
   [DashboardWidgetViews.TRACES]: "traces",
   [DashboardWidgetViews.OBSERVATIONS]: "observations",
   [DashboardWidgetViews.SCORES_NUMERIC]: "scores-numeric",
   [DashboardWidgetViews.SCORES_CATEGORICAL]: "scores-categorical",
 };
+
+const clientMetricSchema = MetricSchema.extend({
+  agg: metricAggregations,
+});
 
 function validateMetricAggregations(params: {
   view: string;
@@ -208,6 +216,9 @@ export const dashboardWidgetRouter = createTRPCRouter({
       return {
         ...widget,
         view: reverseViewMapping[widget.view],
+        metrics: widget.metrics.map((metric) =>
+          clientMetricSchema.parse(metric),
+        ),
         owner: widget.owner,
       };
     }),
