@@ -559,6 +559,65 @@ describe("Blob Storage Integrations API", () => {
       });
       expect(savedIntegration?.compressed).toBe(false);
     });
+
+    it("should store all exportFieldGroups by default when creating via REST", async () => {
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+      };
+
+      await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportFieldGroups).toHaveLength(11);
+    });
+
+    it("should preserve exportFieldGroups in DB when updating via REST", async () => {
+      // Seed a row with a custom subset
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "initial-bucket",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportFieldGroups: ["core", "io"],
+        },
+      });
+
+      // Update via REST — exportFieldGroups is not part of the REST API schema
+      await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...validBlobStorageConfig,
+          projectId: testProject1Id,
+          bucketName: "updated-bucket",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
+    });
   });
 
   describe("DELETE /api/public/integrations/blob-storage/{id}", () => {
