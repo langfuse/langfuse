@@ -1202,8 +1202,17 @@ export function WidgetForm({
         importedWidget.chartType === "PIVOT_TABLE"
           ? true
           : importedWidget.dimensions.length <= 1;
+      const pivotTableShapeIsValid =
+        importedWidget.chartType !== "PIVOT_TABLE" ||
+        (importedWidget.dimensions.length <= MAX_PIVOT_TABLE_DIMENSIONS &&
+          importedWidget.metrics.length <= MAX_PIVOT_TABLE_METRICS);
 
-      if (!dimensionsAreValid || !metricsAreValid || !dimensionsFitChartType) {
+      if (
+        !dimensionsAreValid ||
+        !metricsAreValid ||
+        !dimensionsFitChartType ||
+        !pivotTableShapeIsValid
+      ) {
         throw new Error("malformed");
       }
 
