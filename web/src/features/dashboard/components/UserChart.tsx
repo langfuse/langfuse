@@ -5,7 +5,7 @@ import { TabComponent } from "@/src/features/dashboard/components/TabsComponent"
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
-import { costFormatter } from "@/src/features/dashboard/lib/dashboard-utils";
+import { costFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
@@ -165,8 +165,6 @@ export const UserChart = ({
   const BAR_ROW_HEIGHT = 36;
   const CHART_AXIS_PADDING = 32;
 
-  const localUsdFormatter = (value: number) => costFormatter(value);
-
   const data = [
     {
       tabTitle: "Token cost",
@@ -176,7 +174,7 @@ export const UserChart = ({
       totalMetric: costFormatter(totalCost),
       metricDescription: "Total cost",
       chartMetricLabel: "USD",
-      formatter: localUsdFormatter,
+      chartUnit: "USD",
     },
     {
       tabTitle: "Count of Traces",
@@ -188,8 +186,9 @@ export const UserChart = ({
         : compactNumberFormatter(0),
       metricDescription: "Total traces",
       chartMetricLabel: "Traces",
+      chartUnit: "traces",
     },
-  ];
+  ] as const;
 
   return (
     <DashboardCard
@@ -232,10 +231,10 @@ export const UserChart = ({
                         chartConfig={{
                           type: "HORIZONTAL_BAR",
                           row_limit: maxNumberOfEntries.expanded,
+                          unit: item.chartUnit,
                           show_value_labels: true,
                           subtle_fill: true,
                         }}
-                        valueFormatter={item.formatter}
                       />
                     </div>
                   </div>

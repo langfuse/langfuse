@@ -9,7 +9,32 @@ describe("getWidgetMetricPresentation", () => {
     });
 
     expect(presentation.label).toBe("USD");
-    expect(presentation.valueFormatter?.(1.234567)).toBe("$1.234567");
+    expect(
+      presentation.metricFormatter?.(1.234567, {
+        style: "compact",
+      }),
+    ).toEqual({
+      prefix: "$",
+      main: "1.234567",
+    });
+    expect(
+      presentation.metricFormatter?.(-1.234567, {
+        style: "compact",
+      }),
+    ).toEqual({
+      negative: true,
+      prefix: "$",
+      main: "1.234567",
+    });
+    expect(
+      presentation.metricFormatter?.(-10.123456, {
+        style: "compact",
+      }),
+    ).toEqual({
+      negative: true,
+      prefix: "$",
+      main: "10.12",
+    });
   });
 
   it("returns latency presentation for millisecond widgets", () => {
@@ -19,8 +44,24 @@ describe("getWidgetMetricPresentation", () => {
       version: "v1",
     });
 
-    expect(presentation.label).toBe("Seconds");
-    expect(presentation.valueFormatter?.(1500)).toBe("1.5s");
+    expect(presentation.label).toBe("Duration");
+    expect(
+      presentation.metricFormatter?.(1500, {
+        style: "compact",
+      }),
+    ).toEqual({
+      main: "1.5",
+      suffix: "s",
+    });
+    expect(
+      presentation.metricFormatter?.(-1500, {
+        style: "compact",
+      }),
+    ).toEqual({
+      negative: true,
+      main: "1.5",
+      suffix: "s",
+    });
   });
 
   it("returns unit labels for token widgets", () => {
@@ -31,7 +72,7 @@ describe("getWidgetMetricPresentation", () => {
     });
 
     expect(presentation.label).toBe("Tokens");
-    expect(presentation.valueFormatter).toBeUndefined();
+    expect(presentation.metricFormatter).toBeUndefined();
   });
 
   it("falls back to the default presentation for count aggregations", () => {
@@ -42,7 +83,7 @@ describe("getWidgetMetricPresentation", () => {
     });
 
     expect(presentation.label).toBe("Count Latency");
-    expect(presentation.valueFormatter).toBeUndefined();
+    expect(presentation.metricFormatter).toBeUndefined();
   });
 
   it("falls back to the default presentation for uniq aggregations", () => {
@@ -53,7 +94,7 @@ describe("getWidgetMetricPresentation", () => {
     });
 
     expect(presentation.label).toBe("Uniq Total Cost");
-    expect(presentation.valueFormatter).toBeUndefined();
+    expect(presentation.metricFormatter).toBeUndefined();
   });
 
   it("uses the default metric label for count_count", () => {

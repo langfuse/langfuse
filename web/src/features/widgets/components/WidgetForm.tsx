@@ -2052,7 +2052,7 @@ export function WidgetForm({
                   }
                   onSortChange={undefined}
                   isLoading={queryResult.isPending}
-                  valueFormatter={chartPresentation?.valueFormatter}
+                  metricFormatter={chartPresentation?.metricFormatter}
                 />
                 <ChartLoadingState
                   isLoading={chartLoadingState.isLoading}

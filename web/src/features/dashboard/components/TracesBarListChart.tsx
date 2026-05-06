@@ -3,10 +3,11 @@ import { ExpandListButton } from "@/src/features/dashboard/components/cards/Chev
 import { useState } from "react";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { type QueryType, type ViewVersion } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
@@ -146,6 +147,9 @@ export const TracesBarListChart = ({
             <Chart
               chartType="HORIZONTAL_BAR"
               data={barListToDataPoints(adjustedData)}
+              metricFormatter={(value) =>
+                formatMetric(value, { style: "full" })
+              }
               config={{
                 metric: {
                   label: "Traces",
@@ -155,10 +159,10 @@ export const TracesBarListChart = ({
               chartConfig={{
                 type: "HORIZONTAL_BAR",
                 row_limit: maxNumberOfEntries.expanded,
+                unit: "traces",
                 subtle_fill: true,
                 show_value_labels: true,
               }}
-              valueFormatter={(n) => numberFormatter(n, 0)}
             />
           </div>
         ) : (

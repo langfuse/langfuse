@@ -301,7 +301,11 @@ export function DashboardWidget({
   }, [queryResult.data, widget.data]);
 
   const chartPresentation = useMemo(() => {
-    if (!widget.data || widget.data.chartType === "PIVOT_TABLE") {
+    if (!widget.data) {
+      return undefined;
+    }
+
+    if (widget.data.chartType === "PIVOT_TABLE") {
       return undefined;
     }
 
@@ -497,7 +501,7 @@ export function DashboardWidget({
                 widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
               }
               isLoading={queryResult.isPending}
-              valueFormatter={chartPresentation?.valueFormatter}
+              metricFormatter={chartPresentation?.metricFormatter}
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}

@@ -1,10 +1,13 @@
 import startCase from "lodash/startCase";
 import { type FilterState } from "@langfuse/shared";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { type ViewVersion, views } from "@/src/features/query";
-import { getViewDeclaration } from "@/src/features/query";
-import { costFormatter } from "@/src/features/dashboard/lib/dashboard-utils";
-import { latencyFormatter } from "@/src/utils/numbers";
+import {
+  type ViewVersion,
+  views,
+  getViewDeclaration,
+} from "@/src/features/query";
+import { formatMetric } from "@/src/features/widgets/chart-library/utils";
+import { type MetricFormatterFunction } from "@/src/features/widgets/chart-library/chart-props";
 
 // Shared widget chart configuration types
 export type WidgetChartConfig = {
@@ -201,7 +204,7 @@ export function shouldUseWidgetSSE({
 
 const widgetUnitLabels: Record<string, string> = {
   USD: "USD",
-  millisecond: "Seconds",
+  millisecond: "Duration",
   tokens: "Tokens",
   "tokens/s": "Tokens/s",
   traces: "Traces",
@@ -217,26 +220,29 @@ export function getWidgetMetricPresentation(params: {
   metric: { measure: string; agg: string };
   view: string;
   version: ViewVersion;
-}) {
+}): {
+  label: string;
+  metricFormatter?: MetricFormatterFunction;
+} {
   const viewDeclaration = getViewDeclaration(
     views.parse(params.view),
     params.version,
   );
+
   const measureDefinition = viewDeclaration.measures[params.metric.measure];
+
   const usesCountStyleAggregation =
     params.metric.agg === "count" || params.metric.agg === "uniq";
 
-  if (!usesCountStyleAggregation && measureDefinition?.unit === "USD") {
+  if (
+    !usesCountStyleAggregation &&
+    (measureDefinition?.unit === "USD" ||
+      measureDefinition?.unit === "millisecond")
+  ) {
     return {
-      label: "USD",
-      valueFormatter: costFormatter,
-    };
-  }
-
-  if (!usesCountStyleAggregation && measureDefinition?.unit === "millisecond") {
-    return {
-      label: widgetUnitLabels.millisecond,
-      valueFormatter: latencyFormatter,
+      label: widgetUnitLabels[measureDefinition.unit],
+      metricFormatter: (value, options) =>
+        formatMetric(value, { ...options, unit: measureDefinition.unit }),
     };
   }
 

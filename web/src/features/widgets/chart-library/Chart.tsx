@@ -1,6 +1,10 @@
 import React, { useState, useMemo } from "react";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
-import { valueFormatter as valueFormatterByUnit } from "@/src/features/widgets/chart-library/utils";
+import {
+  type FormatMetricOptions,
+  type MetricFormatterFunction,
+  type DataPoint,
+} from "@/src/features/widgets/chart-library/chart-props";
+import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { CardContent } from "@/src/components/ui/card";
 import LineChartTimeSeries from "@/src/features/widgets/chart-library/LineChartTimeSeries";
 import AreaChartTimeSeries from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
@@ -33,7 +37,7 @@ export const Chart = ({
   isLoading = false,
   legendPosition,
   overrideWarning = false,
-  valueFormatter: valueFormatterOverride,
+  metricFormatter: metricFormatterOverride,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -57,16 +61,17 @@ export const Chart = ({
   isLoading?: boolean;
   legendPosition?: "above" | "none";
   overrideWarning?: boolean;
-  valueFormatter?: (value: number) => string;
+  metricFormatter?: MetricFormatterFunction;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
 
-  const valueFormatter = useMemo(
+  const metricFormatter = useMemo(
     () =>
-      valueFormatterOverride ??
-      ((v: number) => valueFormatterByUnit(v, chartConfig?.unit, true)),
-    [valueFormatterOverride, chartConfig?.unit],
+      metricFormatterOverride ??
+      ((value: number, options: FormatMetricOptions) =>
+        formatMetric(value, { ...options, unit: chartConfig?.unit })),
+    [metricFormatterOverride, chartConfig?.unit],
   );
 
   const renderedData = useMemo(() => {
@@ -129,7 +134,7 @@ export const Chart = ({
           <LineChartTimeSeries
             data={renderedData}
             config={resolvedConfig}
-            valueFormatter={valueFormatter}
+            metricFormatter={metricFormatter}
             legendPosition={legendPosition}
             showDataPointDots={chartConfig?.show_data_point_dots ?? true}
           />
@@ -139,7 +144,7 @@ export const Chart = ({
           <AreaChartTimeSeries
             data={renderedData}
             config={resolvedConfig}
-            valueFormatter={valueFormatter}
+            metricFormatter={metricFormatter}
             legendPosition={legendPosition}
             subtleFill={chartConfig?.subtle_fill}
           />
@@ -149,7 +154,7 @@ export const Chart = ({
           <VerticalBarChartTimeSeries
             data={renderedData}
             config={resolvedConfig}
-            valueFormatter={valueFormatter}
+            metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
@@ -159,7 +164,7 @@ export const Chart = ({
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
             showValueLabels={chartConfig?.show_value_labels}
-            valueFormatter={valueFormatter}
+            metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
@@ -168,7 +173,7 @@ export const Chart = ({
           <VerticalBarChart
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
-            valueFormatter={valueFormatter}
+            metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
@@ -177,7 +182,7 @@ export const Chart = ({
           <PieChart
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
-            valueFormatter={valueFormatter}
+            metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
@@ -186,7 +191,7 @@ export const Chart = ({
           <HistogramChart
             data={renderedData}
             config={resolvedConfig}
-            valueFormatter={valueFormatter}
+            metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
@@ -195,7 +200,7 @@ export const Chart = ({
           <BigNumber
             data={renderedData}
             config={resolvedConfig}
-            valueFormatter={valueFormatter}
+            metricFormatter={metricFormatter}
           />
         );
       }
@@ -223,7 +228,7 @@ export const Chart = ({
           <HorizontalBarChart
             data={renderedData.slice(0, rowLimit)}
             showValueLabels={chartConfig?.show_value_labels}
-            valueFormatter={valueFormatter}
+            metricFormatter={metricFormatter}
           />
         );
     }

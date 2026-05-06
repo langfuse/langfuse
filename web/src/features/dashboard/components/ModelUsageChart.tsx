@@ -7,7 +7,7 @@ import {
 } from "@/src/features/dashboard/components/hooks";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { costFormatter } from "@/src/features/dashboard/lib/dashboard-utils";
+import { costFormatter } from "@/src/utils/numbers";
 import { api } from "@/src/utils/api";
 import {
   type DashboardDateRangeAggregationOption,
@@ -305,7 +305,7 @@ export const ModelUsageChart = ({
       totalMetric: costFormatter(totalCost),
       metricDescription: `Cost`,
       chartMetricLabel: "USD",
-      formatter: costFormatter,
+      chartUnit: "USD",
     },
     {
       tabTitle: "Cost by type",
@@ -313,7 +313,7 @@ export const ModelUsageChart = ({
       totalMetric: costFormatter(totalCost),
       metricDescription: `Cost`,
       chartMetricLabel: "USD",
-      formatter: costFormatter,
+      chartUnit: "USD",
     },
     {
       tabTitle: "Usage by model",
@@ -323,6 +323,7 @@ export const ModelUsageChart = ({
         : compactNumberFormatter(0),
       metricDescription: `Units`,
       chartMetricLabel: "Tokens",
+      chartUnit: "tokens",
     },
     {
       tabTitle: "Usage by type",
@@ -332,6 +333,7 @@ export const ModelUsageChart = ({
         : compactNumberFormatter(0),
       metricDescription: `Units`,
       chartMetricLabel: "Tokens",
+      chartUnit: "tokens",
     },
   ];
 
@@ -385,9 +387,9 @@ export const ModelUsageChart = ({
                       rowLimit={100}
                       chartConfig={{
                         type: "LINE_TIME_SERIES",
+                        unit: item.chartUnit,
                         show_data_point_dots: false,
                       }}
-                      valueFormatter={item.formatter}
                       legendPosition="above"
                     />
                   </div>
