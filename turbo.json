@@ -52,6 +52,7 @@
       "dependsOn": ["^db:generate"]
     },
     "lint": {
+      "dependsOn": ["@repo/eslint-plugin#build"],
       "cache": true,
       "outputs": []
     },
@@ -67,6 +68,11 @@
     },
     "test": {
       "dependsOn": ["^test", "db:generate"],
+      "cache": true
+    },
+    "@repo/eslint-plugin#build": {
+      "dependsOn": [],
+      "outputs": ["dist/**"],
       "cache": true
     },
     "worker#dev": {
