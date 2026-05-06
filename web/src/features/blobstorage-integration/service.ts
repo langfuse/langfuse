@@ -24,6 +24,7 @@ type UpsertBlobStorageIntegrationInput = {
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
   exportSource?: AnalyticsIntegrationExportSource;
+  exportFieldGroups?: string[];
   compressed?: boolean;
 };
 
@@ -82,6 +83,7 @@ export async function upsertBlobStorageIntegration(params: {
     exportMode: data.exportMode,
     exportStartDate: resolvedExportStartDate,
     exportSource: data.exportSource,
+    exportFieldGroups: data.exportFieldGroups,
     compressed: data.compressed ?? true,
   };
 
