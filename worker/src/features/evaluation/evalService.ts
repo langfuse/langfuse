@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import { z } from "zod";
 import {
   JobConfigState,
@@ -32,8 +31,16 @@ import {
   setNoEvalConfigsCache,
   DatasetRunItemUpsertEventType,
   isLLMCompletionError,
-  blockEvaluatorConfigs,
   EvaluatorBlockSource,
+  createDatasetEvaluatorExecutionIdentity,
+  createEvaluatorExecutionId,
+  createEvaluatorScoreId,
+  createTraceEvaluatorExecutionIdentity,
+  EvaluatorExecutionEventStatus,
+  EvaluatorExecutionTriggerSource,
+  EvaluatorType,
+  shouldSampleEvaluatorExecution,
+  type EvaluatorExecutionQueueMetadata,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -79,6 +86,11 @@ import {
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
+import {
+  buildEvaluatorExecutionQueueMetadata,
+  writeEvaluatorExecutionEvent,
+  writeScheduledEvaluatorExecutionEvent,
+} from "./evaluatorExecutionEventWriter";
 
 /**
  * Determines which eval jobs to create for a given event (traces or dataset run items).
@@ -171,12 +183,26 @@ type CreateEvalJobsParams = {
     }
 );
 
+const getLegacyEvalTriggerSource = (
+  sourceEventType: CreateEvalJobsParams["sourceEventType"],
+) => {
+  switch (sourceEventType) {
+    case "trace-upsert":
+      return EvaluatorExecutionTriggerSource.TRACE_INGESTED;
+    case "dataset-run-item-upsert":
+      return EvaluatorExecutionTriggerSource.DATASET_RUN_ITEM_UPSERTED;
+    case "ui-create-eval":
+      return EvaluatorExecutionTriggerSource.HISTORIC_TRACE_DATASET_EVALUATION_REQUESTED;
+  }
+};
+
 export const createEvalJobs = async ({
   event,
   sourceEventType,
   jobTimestamp,
   enforcedJobTimeScope,
 }: CreateEvalJobsParams) => {
+  const triggerSource = getLegacyEvalTriggerSource(sourceEventType);
   const span = getCurrentSpan();
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.projectId", event.projectId);
@@ -292,7 +318,14 @@ export const createEvalJobs = async ({
   const datasetConfigs = configs.filter(
     (c) => c.targetObject === EvalTargetObject.DATASET,
   );
-  let cachedDatasetItemIds: { id: string; datasetId: string }[] | null = null;
+  let cachedDatasetItemIds:
+    | {
+        id: string;
+        datasetId: string;
+        observationId: string | null;
+        validFrom: Date | null;
+      }[]
+    | null = null;
   if (datasetConfigs.length > 1) {
     try {
       cachedDatasetItemIds = await getDatasetItemIdsByTraceIdCh({
@@ -337,8 +370,9 @@ export const createEvalJobs = async ({
       ? await prisma.jobExecution.findMany({
           select: {
             id: true,
+            createdAt: true,
+            startTime: true,
             jobConfigurationId: true,
-            jobInputDatasetItemId: true,
             jobInputObservationId: true,
           },
           where: {
@@ -354,15 +388,10 @@ export const createEvalJobs = async ({
   );
 
   // Helper function to find matching job for a config
-  const findMatchingJob = (
-    configId: string,
-    datasetItemId: string | null,
-    observationId: string | null,
-  ) => {
+  const findMatchingJob = (configId: string, observationId: string | null) => {
     return allExistingJobs.find(
       (job) =>
         job.jobConfigurationId === configId &&
-        job.jobInputDatasetItemId === datasetItemId &&
         job.jobInputObservationId === observationId,
     );
   };
@@ -479,8 +508,7 @@ export const createEvalJobs = async ({
 
     const isDatasetConfig = config.targetObject === EvalTargetObject.DATASET;
     let datasetItem:
-      | { id: string }
-      | { id: string; observationId: string | null; validFrom?: Date }
+      | { id: string; observationId?: string | null; validFrom?: Date | null }
       | undefined;
     if (isDatasetConfig) {
       const condition = tableColumnsToSqlFilterAndPrefix(
@@ -590,17 +618,25 @@ export const createEvalJobs = async ({
 
     // Find the existing job for the given configuration from the batched results.
     // We either use it for deduplication or we cancel it in case it became "deselected".
-    const matchingJob = findMatchingJob(
-      config.id,
-      datasetItem?.id ?? null,
-      observationId ?? null,
-    );
+    const matchingJob = findMatchingJob(config.id, observationId ?? null);
     const existingJob = matchingJob ? [matchingJob] : [];
 
     // If we matched a trace for a trace event, we create a job or
     // if we have both trace and datasetItem.
     if (traceExists && (!isDatasetConfig || Boolean(datasetItem))) {
-      const jobExecutionId = randomUUID();
+      const identity = isDatasetConfig
+        ? createDatasetEvaluatorExecutionIdentity({
+            projectId: event.projectId,
+            evaluationRuleId: config.id,
+            targetTraceId: event.traceId,
+            targetObservationId: observationId ?? null,
+          })
+        : createTraceEvaluatorExecutionIdentity({
+            projectId: event.projectId,
+            evaluationRuleId: config.id,
+            targetTraceId: event.traceId,
+          });
+      const jobExecutionId = createEvaluatorExecutionId(identity);
 
       // deduplication: if a job exists already for a trace event, we do not create a new one.
       if (existingJob.length > 0) {
@@ -612,19 +648,36 @@ export const createEvalJobs = async ({
 
       // apply sampling. Only if the job is sampled, we create a job
       // user supplies a number between 0 and 1, which is the probability of sampling
-      if (Number(config.sampling) !== 1) {
-        const random = Math.random();
-        if (random > Number(config.sampling)) {
-          logger.debug(
-            `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`,
-          );
-          continue;
-        }
+      if (
+        !shouldSampleEvaluatorExecution({
+          evaluatorExecutionId: jobExecutionId,
+          samplingRate: Number(config.sampling),
+        })
+      ) {
+        logger.debug(
+          `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`,
+        );
+        continue;
       }
 
       logger.debug(
         `Creating eval job execution for config ${config.id} and trace ${event.traceId}`,
       );
+
+      const scheduledAt = new Date();
+      const queueMetadata: EvaluatorExecutionQueueMetadata = {
+        evaluationRuleId: config.id,
+        evaluatorId: config.evalTemplateId,
+        evaluatorType: EvaluatorType.LLM_AS_JUDGE,
+        triggerSource,
+        scoreName: config.scoreName,
+        targetObject:
+          config.targetObject as EvaluatorExecutionQueueMetadata["targetObject"],
+        targetTraceId: event.traceId,
+        targetObservationId: observationId ?? null,
+        scheduledAt,
+        scheduleDelayMs: config.delay,
+      };
 
       await prisma.jobExecution.create({
         data: {
@@ -635,17 +688,24 @@ export const createEvalJobs = async ({
           jobInputTraceTimestamp: traceTimestamp,
           jobTemplateId: config.evalTemplateId,
           status: "PENDING",
-          startTime: new Date(),
+          startTime: scheduledAt,
           ...(datasetItem
             ? {
                 jobInputDatasetItemId: datasetItem.id,
                 ...("validFrom" in datasetItem && {
-                  jobInputDatasetItemValidFrom: datasetItem.validFrom,
+                  jobInputDatasetItemValidFrom:
+                    datasetItem.validFrom ?? undefined,
                 }),
                 jobInputObservationId: observationId || null,
               }
             : {}),
         },
+      });
+
+      writeScheduledEvaluatorExecutionEvent({
+        projectId: event.projectId,
+        evaluatorExecutionId: jobExecutionId,
+        metadata: queueMetadata,
       });
 
       // add the job to the next queue so that eval can be executed
@@ -654,20 +714,22 @@ export const createEvalJobs = async ({
         QueueName.EvaluationExecution,
         {
           name: QueueJobs.EvaluationExecution,
-          id: randomUUID(),
-          timestamp: new Date(),
+          id: jobExecutionId,
+          timestamp: scheduledAt,
           payload: {
             projectId: event.projectId,
             jobExecutionId: jobExecutionId,
             delay: config.delay,
+            ...queueMetadata,
           },
           retryBaggage: {
-            originalJobTimestamp: new Date(),
+            originalJobTimestamp: scheduledAt,
             attempt: 0,
           },
         },
         {
           delay: config.delay, // milliseconds
+          jobId: jobExecutionId,
         },
       );
     } else {
@@ -680,7 +742,8 @@ export const createEvalJobs = async ({
         );
 
         // Note: we use updateMany to gracefully handle case where execution is already completed; we silently skip the update.
-        await prisma.jobExecution.updateMany({
+        const cancelledAt = new Date();
+        const updateResult = await prisma.jobExecution.updateMany({
           where: {
             id: existingJob[0].id,
             projectId: event.projectId,
@@ -690,9 +753,33 @@ export const createEvalJobs = async ({
           },
           data: {
             status: JobExecutionStatus.CANCELLED,
-            endTime: new Date(),
+            endTime: cancelledAt,
           },
         });
+
+        if (updateResult.count > 0) {
+          writeEvaluatorExecutionEvent({
+            projectId: event.projectId,
+            evaluatorExecutionId: existingJob[0].id,
+            metadata: {
+              evaluationRuleId: config.id,
+              evaluatorId: config.evalTemplateId,
+              evaluatorType: EvaluatorType.LLM_AS_JUDGE,
+              triggerSource,
+              scoreName: config.scoreName,
+              targetObject:
+                config.targetObject as EvaluatorExecutionQueueMetadata["targetObject"],
+              targetTraceId: event.traceId,
+              targetObservationId: observationId ?? null,
+              scheduledAt: existingJob[0].startTime ?? existingJob[0].createdAt,
+              scheduleDelayMs: config.delay,
+            },
+            statusAfter: EvaluatorExecutionEventStatus.CANCELLED,
+            transitionKey: "target-deselected",
+            eventTs: cancelledAt,
+            cancellationReason: "TARGET_DESELECTED",
+          });
+        }
       }
     }
 
@@ -734,6 +821,7 @@ export async function executeLLMAsJudgeEvaluation({
   template,
   extractedVariables,
   environment,
+  evaluatorExecutionEventMetadata,
   deps = createProductionEvalExecutionDeps(),
 }: {
   projectId: string;
@@ -743,6 +831,7 @@ export async function executeLLMAsJudgeEvaluation({
   template: EvalTemplate;
   extractedVariables: ExtractedVariable[];
   environment: string;
+  evaluatorExecutionEventMetadata?: EvaluatorExecutionQueueMetadata | null;
   deps?: EvalExecutionDeps;
 }): Promise<void> {
   return instrumentAsync(
@@ -829,7 +918,7 @@ export async function executeLLMAsJudgeEvaluation({
           error: modelConfig.error,
         });
 
-        await blockEvaluatorConfigs({
+        await deps.blockEvaluatorConfigs({
           projectId,
           where: { id: config.id },
           blockReason,
@@ -851,7 +940,10 @@ export async function executeLLMAsJudgeEvaluation({
       // Prepare LLM call
       const messages = buildEvalMessages(prompt);
 
-      const primaryScoreId = randomUUID();
+      const primaryScoreId = createEvaluatorScoreId({
+        evaluatorExecutionId: jobExecutionId,
+        scoreIndex: 0,
+      });
       span.setAttribute("eval.score.id", primaryScoreId);
       const executionTraceId = createW3CTraceId(jobExecutionId);
 
@@ -904,6 +996,10 @@ export async function executeLLMAsJudgeEvaluation({
             });
           } catch (e) {
             if (isLLMCompletionError(e)) {
+              e.modelProvider ??= modelConfig.config.provider;
+              e.modelName ??= modelConfig.config.model;
+              e.modelAdapter ??= modelConfig.config.adapter;
+
               llmSpan.setAttribute(
                 "http.response.status_code",
                 e.responseStatusCode,
@@ -914,7 +1010,7 @@ export async function executeLLMAsJudgeEvaluation({
                   e.getEvaluatorBlockReason() ??
                   EvaluatorBlockReason.EVAL_MODEL_CONFIG_INVALID;
 
-                await blockEvaluatorConfigs({
+                await deps.blockEvaluatorConfigs({
                   projectId,
                   where: { id: config.id },
                   blockReason,
@@ -951,6 +1047,7 @@ export async function executeLLMAsJudgeEvaluation({
 
       const scoreWritePayloads = buildEvalScoreWritePayloads({
         outputResult: parsedLLMOutput.data,
+        evaluatorExecutionId: jobExecutionId,
         primaryScoreId,
         traceId: job.jobInputTraceId,
         observationId: job.jobInputObservationId,
@@ -992,16 +1089,58 @@ export async function executeLLMAsJudgeEvaluation({
         `Persisted ${scoreWritePayloads.length} score(s) for job ${jobExecutionId}`,
       );
 
+      const completedAt = new Date();
       // Update job execution status
       await deps.updateJobExecution({
         id: jobExecutionId,
         projectId,
         data: {
           status: JobExecutionStatus.COMPLETED,
-          endTime: new Date(),
+          endTime: completedAt,
           jobOutputScoreId: primaryScoreId,
           executionTraceId,
         },
+      });
+
+      const metadata =
+        evaluatorExecutionEventMetadata ??
+        buildEvaluatorExecutionQueueMetadata({
+          config,
+          job,
+        });
+
+      deps.writeEvaluatorExecutionEvent({
+        projectId,
+        evaluatorExecutionId: jobExecutionId,
+        metadata,
+        statusAfter: EvaluatorExecutionEventStatus.COMPLETED,
+        transitionKey: "final",
+        eventTs: completedAt,
+        completedAt,
+        executionTraceId,
+        modelProvider: modelConfig.config.provider,
+        modelName: modelConfig.config.model,
+        modelAdapter: modelConfig.config.adapter,
+        scoreIds: scoreWritePayloads.map((payload) => payload.scoreId),
+        scoreCount: scoreWritePayloads.length,
+        scoreDataType: parsedLLMOutput.data.dataType,
+        scoreValue:
+          parsedLLMOutput.data.dataType === ScoreDataTypeEnum.NUMERIC
+            ? parsedLLMOutput.data.score
+            : parsedLLMOutput.data.dataType === ScoreDataTypeEnum.BOOLEAN
+              ? parsedLLMOutput.data.score
+                ? 1
+                : 0
+              : null,
+        scoreStringValue:
+          parsedLLMOutput.data.dataType === ScoreDataTypeEnum.CATEGORICAL
+            ? parsedLLMOutput.data.matches[0]
+            : null,
+        scoreStringValues:
+          parsedLLMOutput.data.dataType === ScoreDataTypeEnum.CATEGORICAL
+            ? parsedLLMOutput.data.matches
+            : [],
+        scoreComment: parsedLLMOutput.data.reasoning,
       });
 
       logger.debug(
@@ -1074,6 +1213,7 @@ export const evaluate = async ({
     logger.debug(
       `Skipping non-executable config ${config.id} for job ${job.id}`,
     );
+    const cancelledAt = new Date();
     await prisma.jobExecution.update({
       where: {
         id: job.id,
@@ -1081,8 +1221,17 @@ export const evaluate = async ({
       },
       data: {
         status: JobExecutionStatus.CANCELLED,
-        endTime: new Date(),
+        endTime: cancelledAt,
       },
+    });
+    writeEvaluatorExecutionEvent({
+      projectId: event.projectId,
+      evaluatorExecutionId: event.jobExecutionId,
+      metadata: event,
+      statusAfter: EvaluatorExecutionEventStatus.CANCELLED,
+      transitionKey: "config-not-executable",
+      eventTs: cancelledAt,
+      cancellationReason: "CONFIG_NOT_EXECUTABLE",
     });
     return;
   }
@@ -1131,6 +1280,7 @@ export const evaluate = async ({
     environment:
       getEnvironmentFromVariables(extractedVariables) ??
       DEFAULT_TRACE_ENVIRONMENT,
+    evaluatorExecutionEventMetadata: event,
   });
 };
 

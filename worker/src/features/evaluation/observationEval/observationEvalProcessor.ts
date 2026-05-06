@@ -16,6 +16,8 @@ import { extractObservationVariables } from "./extractObservationVariables";
 import { executeLLMAsJudgeEvaluation } from "../evalService";
 import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationForEval } from "./types";
+import { writeEvaluatorExecutionEvent } from "../evaluatorExecutionEventWriter";
+import { EvaluatorExecutionEventStatus } from "@langfuse/shared/src/server";
 
 /**
  * Dependencies for processing observation evals.
@@ -107,6 +109,7 @@ export async function processObservationEval({
       `Job execution ${event.jobExecutionId} is not executable because the evaluator is blocked or inactive.`,
     );
 
+    const cancelledAt = new Date();
     await prisma.jobExecution.update({
       where: {
         id: job.id,
@@ -114,8 +117,18 @@ export async function processObservationEval({
       },
       data: {
         status: JobExecutionStatus.CANCELLED,
-        endTime: new Date(),
+        endTime: cancelledAt,
       },
+    });
+
+    writeEvaluatorExecutionEvent({
+      projectId: event.projectId,
+      evaluatorExecutionId: event.jobExecutionId,
+      metadata: event,
+      statusAfter: EvaluatorExecutionEventStatus.CANCELLED,
+      transitionKey: "config-not-executable",
+      eventTs: cancelledAt,
+      cancellationReason: "CONFIG_NOT_EXECUTABLE",
     });
 
     return;
@@ -174,5 +187,6 @@ export async function processObservationEval({
     template: evalJobConfig.evalTemplate,
     extractedVariables,
     environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
+    evaluatorExecutionEventMetadata: event,
   });
 }

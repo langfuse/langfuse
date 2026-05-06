@@ -12,6 +12,7 @@ import {
   QueueJobs,
   getCurrentSpan,
   isLLMCompletionError,
+  EvaluatorExecutionEventStatus,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { processObservationEval } from "../features/evaluation/observationEval";
@@ -21,6 +22,78 @@ import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
 import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";
 import { env } from "../env";
+import { writeEvaluatorExecutionEvent } from "../features/evaluation/evaluatorExecutionEventWriter";
+
+const getEvalExecutionErrorKind = (error: unknown) => {
+  if (isLLMCompletionError(error)) {
+    return error.responseStatusCode === 429
+      ? "LLM_RATE_LIMIT"
+      : "LLM_COMPLETION";
+  }
+
+  return isUnrecoverableError(error) ? "UNRECOVERABLE" : "INTERNAL";
+};
+
+const getLLMCompletionModelMetadata = (error: unknown) => {
+  if (!isLLMCompletionError(error)) {
+    return {};
+  }
+
+  return {
+    modelProvider: error.modelProvider,
+    modelName: error.modelName,
+    modelAdapter: error.modelAdapter,
+  };
+};
+
+const getBullMQBackoffDelayMs = (
+  job: Pick<Job, "opts">,
+  retryAttempt: number,
+): number | null => {
+  const backoff = job.opts?.backoff;
+
+  if (typeof backoff === "number") {
+    return backoff;
+  }
+
+  if (
+    typeof backoff !== "object" ||
+    backoff === null ||
+    typeof backoff.delay !== "number"
+  ) {
+    return null;
+  }
+
+  if (typeof backoff.jitter === "number" && backoff.jitter > 0) {
+    return null;
+  }
+
+  if (backoff.type === "fixed") {
+    return backoff.delay;
+  }
+
+  if (backoff.type === "exponential") {
+    return Math.round(Math.pow(2, retryAttempt - 1) * backoff.delay);
+  }
+
+  return null;
+};
+
+const getBullMQNativeRetryMetadata = (
+  job: Pick<Job, "attemptsMade" | "opts">,
+) => {
+  const maxAttempts =
+    typeof job.opts?.attempts === "number" ? job.opts.attempts : null;
+  const retryAttempt = (job.attemptsMade ?? 0) + 1;
+  const retryDelayMs = getBullMQBackoffDelayMs(job, retryAttempt);
+
+  return {
+    retryAttempt,
+    maxAttempts,
+    retryDelayMs,
+    hasAttemptsRemaining: maxAttempts !== null && retryAttempt < maxAttempts,
+  };
+};
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
@@ -151,6 +224,9 @@ export const evalJobExecutorQueueProcessorBuilder = (
           await secondaryQueue.add(
             QueueName.EvaluationExecutionSecondaryQueue,
             job.data,
+            {
+              jobId: job.data.payload.jobExecutionId,
+            },
           );
           return;
         }
@@ -203,8 +279,10 @@ export const evalJobExecutorQueueProcessorBuilder = (
       const executionTraceId = createW3CTraceId(
         job.data.payload.jobExecutionId,
       );
+      const isLLMError = isLLMCompletionError(e);
+      const isUnrecoverable = isUnrecoverableError(e);
 
-      if (isLLMCompletionError(e) && e.isRetryable) {
+      if (isLLMError && e.isRetryable) {
         const queue = queueName.startsWith(
           QueueName.EvaluationExecutionSecondaryQueue,
         )
@@ -221,6 +299,8 @@ export const evalJobExecutorQueueProcessorBuilder = (
         });
 
         if (retryResult.outcome === "scheduled") {
+          const retryEventTs = new Date();
+
           // Use the deterministic execution trace ID to update the job execution
           await prisma.jobExecution.update({
             where: {
@@ -233,12 +313,81 @@ export const evalJobExecutorQueueProcessorBuilder = (
             },
           });
 
+          writeEvaluatorExecutionEvent({
+            projectId: job.data.payload.projectId,
+            evaluatorExecutionId: job.data.payload.jobExecutionId,
+            metadata: job.data.payload,
+            statusAfter: EvaluatorExecutionEventStatus.RETRYING,
+            transitionKey: `attempt-${retryResult.retryBaggage.attempt}`,
+            eventTs: retryEventTs,
+            nextRetryAt: new Date(retryEventTs.getTime() + retryResult.delay),
+            retryAttempt: retryResult.retryBaggage.attempt,
+            retryDelayMs: retryResult.delay,
+            httpResponseStatusCode: e.responseStatusCode,
+            errorKind: getEvalExecutionErrorKind(e),
+            errorMessage: e.message,
+            executionTraceId,
+            ...getLLMCompletionModelMetadata(e),
+          });
+
           // Return early as we have already scheduled a delayed retry
           return;
         }
       }
 
+      const nativeRetryMetadata = getBullMQNativeRetryMetadata(job);
+      const shouldUseNativeBullMQRetry = !isLLMError && !isUnrecoverable;
+
+      if (
+        shouldUseNativeBullMQRetry &&
+        nativeRetryMetadata.hasAttemptsRemaining
+      ) {
+        const retryEventTs = new Date();
+
+        await prisma.jobExecution.update({
+          where: {
+            id: job.data.payload.jobExecutionId,
+            projectId: job.data.payload.projectId,
+          },
+          data: {
+            status: JobExecutionStatus.DELAYED,
+            executionTraceId,
+          },
+        });
+
+        writeEvaluatorExecutionEvent({
+          projectId: job.data.payload.projectId,
+          evaluatorExecutionId: job.data.payload.jobExecutionId,
+          metadata: job.data.payload,
+          statusAfter: EvaluatorExecutionEventStatus.RETRYING,
+          transitionKey: `bullmq-attempt-${nativeRetryMetadata.retryAttempt}`,
+          eventTs: retryEventTs,
+          nextRetryAt:
+            nativeRetryMetadata.retryDelayMs !== null
+              ? new Date(
+                  retryEventTs.getTime() + nativeRetryMetadata.retryDelayMs,
+                )
+              : undefined,
+          retryAttempt: nativeRetryMetadata.retryAttempt,
+          maxAttempts: nativeRetryMetadata.maxAttempts,
+          retryDelayMs: nativeRetryMetadata.retryDelayMs,
+          errorKind: getEvalExecutionErrorKind(e),
+          errorMessage: "An internal error occurred",
+          executionTraceId,
+        });
+
+        traceException(e);
+        logger.error(
+          `Failed ${queueName} job for id ${job.data.payload.jobExecutionId}`,
+          e,
+        );
+
+        throw e;
+      }
+
       // At this point there will be only 4xx LLMCompletionErrors that are not retryable and application errors
+      const failedAt = new Date();
+
       await prisma.jobExecution.update({
         where: {
           id: job.data.payload.jobExecutionId,
@@ -246,17 +395,41 @@ export const evalJobExecutorQueueProcessorBuilder = (
         },
         data: {
           status: JobExecutionStatus.ERROR,
-          endTime: new Date(),
+          endTime: failedAt,
           // Show user-facing error messages (LLM and config errors)
           error:
-            isLLMCompletionError(e) || isUnrecoverableError(e)
+            isLLMError || isUnrecoverable
               ? e.message
               : "An internal error occurred",
           executionTraceId,
         },
       });
 
-      if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
+      writeEvaluatorExecutionEvent({
+        projectId: job.data.payload.projectId,
+        evaluatorExecutionId: job.data.payload.jobExecutionId,
+        metadata: job.data.payload,
+        statusAfter: EvaluatorExecutionEventStatus.ERROR,
+        transitionKey: "final",
+        eventTs: failedAt,
+        failedAt,
+        httpResponseStatusCode: isLLMError ? e.responseStatusCode : undefined,
+        errorKind: getEvalExecutionErrorKind(e),
+        errorMessage:
+          isLLMError || isUnrecoverable
+            ? e.message
+            : "An internal error occurred",
+        retryAttempt: shouldUseNativeBullMQRetry
+          ? nativeRetryMetadata.retryAttempt
+          : (job.data.retryBaggage?.attempt ?? 0),
+        maxAttempts: shouldUseNativeBullMQRetry
+          ? nativeRetryMetadata.maxAttempts
+          : null,
+        executionTraceId,
+        ...getLLMCompletionModelMetadata(e),
+      });
+
+      if (isLLMError || isUnrecoverable) return;
 
       traceException(e);
       logger.error(
@@ -302,8 +475,10 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
       const executionTraceId = createW3CTraceId(
         job.data.payload.jobExecutionId,
       );
+      const isLLMError = isLLMCompletionError(e);
+      const isUnrecoverable = isUnrecoverableError(e);
 
-      if (isLLMCompletionError(e) && e.isRetryable) {
+      if (isLLMError && e.isRetryable) {
         const queue = LLMAsJudgeExecutionQueue.getInstance({
           shardName: queueName,
         });
@@ -317,6 +492,8 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         });
 
         if (retryResult.outcome === "scheduled") {
+          const retryEventTs = new Date();
+
           await prisma.jobExecution.update({
             where: {
               id: job.data.payload.jobExecutionId,
@@ -328,9 +505,78 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
             },
           });
 
+          writeEvaluatorExecutionEvent({
+            projectId: job.data.payload.projectId,
+            evaluatorExecutionId: job.data.payload.jobExecutionId,
+            metadata: job.data.payload,
+            statusAfter: EvaluatorExecutionEventStatus.RETRYING,
+            transitionKey: `attempt-${retryResult.retryBaggage.attempt}`,
+            eventTs: retryEventTs,
+            nextRetryAt: new Date(retryEventTs.getTime() + retryResult.delay),
+            retryAttempt: retryResult.retryBaggage.attempt,
+            retryDelayMs: retryResult.delay,
+            httpResponseStatusCode: e.responseStatusCode,
+            errorKind: getEvalExecutionErrorKind(e),
+            errorMessage: e.message,
+            executionTraceId,
+            ...getLLMCompletionModelMetadata(e),
+          });
+
           return;
         }
       }
+
+      const nativeRetryMetadata = getBullMQNativeRetryMetadata(job);
+      const shouldUseNativeBullMQRetry = !isLLMError && !isUnrecoverable;
+
+      if (
+        shouldUseNativeBullMQRetry &&
+        nativeRetryMetadata.hasAttemptsRemaining
+      ) {
+        const retryEventTs = new Date();
+
+        await prisma.jobExecution.update({
+          where: {
+            id: job.data.payload.jobExecutionId,
+            projectId: job.data.payload.projectId,
+          },
+          data: {
+            status: JobExecutionStatus.DELAYED,
+            executionTraceId,
+          },
+        });
+
+        writeEvaluatorExecutionEvent({
+          projectId: job.data.payload.projectId,
+          evaluatorExecutionId: job.data.payload.jobExecutionId,
+          metadata: job.data.payload,
+          statusAfter: EvaluatorExecutionEventStatus.RETRYING,
+          transitionKey: `bullmq-attempt-${nativeRetryMetadata.retryAttempt}`,
+          eventTs: retryEventTs,
+          nextRetryAt:
+            nativeRetryMetadata.retryDelayMs !== null
+              ? new Date(
+                  retryEventTs.getTime() + nativeRetryMetadata.retryDelayMs,
+                )
+              : undefined,
+          retryAttempt: nativeRetryMetadata.retryAttempt,
+          maxAttempts: nativeRetryMetadata.maxAttempts,
+          retryDelayMs: nativeRetryMetadata.retryDelayMs,
+          errorKind: getEvalExecutionErrorKind(e),
+          errorMessage: "An internal error occurred",
+          executionTraceId,
+        });
+
+        traceException(e);
+        logger.error(
+          `Failed LLM-as-Judge execution job for id ${job.data.payload.jobExecutionId}`,
+          e,
+        );
+
+        throw e;
+      }
+
+      const failedAt = new Date();
 
       await prisma.jobExecution.update({
         where: {
@@ -339,16 +585,40 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         },
         data: {
           status: JobExecutionStatus.ERROR,
-          endTime: new Date(),
+          endTime: failedAt,
           error:
-            isLLMCompletionError(e) || isUnrecoverableError(e)
+            isLLMError || isUnrecoverable
               ? e.message
               : "An internal error occurred",
           executionTraceId,
         },
       });
 
-      if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
+      writeEvaluatorExecutionEvent({
+        projectId: job.data.payload.projectId,
+        evaluatorExecutionId: job.data.payload.jobExecutionId,
+        metadata: job.data.payload,
+        statusAfter: EvaluatorExecutionEventStatus.ERROR,
+        transitionKey: "final",
+        eventTs: failedAt,
+        failedAt,
+        httpResponseStatusCode: isLLMError ? e.responseStatusCode : undefined,
+        errorKind: getEvalExecutionErrorKind(e),
+        errorMessage:
+          isLLMError || isUnrecoverable
+            ? e.message
+            : "An internal error occurred",
+        retryAttempt: shouldUseNativeBullMQRetry
+          ? nativeRetryMetadata.retryAttempt
+          : (job.data.retryBaggage?.attempt ?? 0),
+        maxAttempts: shouldUseNativeBullMQRetry
+          ? nativeRetryMetadata.maxAttempts
+          : null,
+        executionTraceId,
+        ...getLLMCompletionModelMetadata(e),
+      });
+
+      if (isLLMError || isUnrecoverable) return;
 
       traceException(e);
       logger.error(

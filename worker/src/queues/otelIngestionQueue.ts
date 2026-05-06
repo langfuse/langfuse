@@ -17,6 +17,7 @@ import {
   TQueueJobTypes,
   traceException,
   compareVersions,
+  EvaluatorExecutionTriggerSource,
   ResourceSpan,
 } from "@langfuse/shared/src/server";
 import {
@@ -468,6 +469,8 @@ export const otelIngestionQueueProcessor: Processor = async (
               observation,
               configs: evalConfigs,
               schedulerDeps: evalSchedulerDeps,
+              triggerSource:
+                EvaluatorExecutionTriggerSource.OBSERVATION_INGESTED,
             });
           } catch (error) {
             traceException(error);

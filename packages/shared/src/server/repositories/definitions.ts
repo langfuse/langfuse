@@ -329,6 +329,51 @@ export type BlobStorageFileLogInsertType = z.infer<
   typeof blobStorageFileLogRecordInsertSchema
 >;
 
+export const evaluatorExecutionEventRecordInsertSchema = z.object({
+  event_id: z.string(),
+  event_ts: z.number(),
+  project_id: z.string(),
+  evaluator_execution_id: z.string(),
+  evaluation_rule_id: z.string(),
+  evaluator_id: z.string(),
+  evaluator_type: z.string(),
+  trigger_source: z.string(),
+  model_provider: z.string(),
+  model_name: z.string(),
+  model_adapter: z.string(),
+  target_object: z.string(),
+  target_trace_id: z.string(),
+  target_observation_id: z.string(),
+  status_after: z.string(),
+  state_transition_order: z.number(),
+  scheduled_at: z.number(),
+  schedule_delay_ms: z.number(),
+  completed_at: z.number().nullish(),
+  failed_at: z.number().nullish(),
+  next_retry_at: z.number().nullish(),
+  retry_attempt: z.number(),
+  max_attempts: z.number().nullish(),
+  retry_delay_ms: z.number(),
+  http_response_status_code: z.number().nullish(),
+  error_kind: z.string(),
+  error_message: z.string(),
+  cancellation_reason: z.string(),
+  execution_trace_id: z.string(),
+  primary_score_id: z.string(),
+  score_ids: z.array(z.string()),
+  score_count: z.number(),
+  score_name: z.string(),
+  score_data_type: z.string(),
+  score_value: z.number().nullish(),
+  score_string_value: z.string(),
+  score_string_values: z.array(z.string()),
+  score_comment: z.string(),
+  created_at: z.number(),
+});
+export type EvaluatorExecutionEventRecordInsertType = z.infer<
+  typeof evaluatorExecutionEventRecordInsertSchema
+>;
+
 export const convertTraceReadToInsert = (
   record: TraceRecordReadType,
 ): TraceRecordInsertType => {

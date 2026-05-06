@@ -458,6 +458,69 @@ SELECT
     is_deleted
 FROM events_full;
 
+-- Development-only shadow table for evaluator job execution lifecycle events.
+-- Keep this out of prod migrations while the data model is still being iterated.
+CREATE TABLE IF NOT EXISTS evaluator_execution_events
+(
+    event_id String,
+    event_ts DateTime64(3),
+
+    project_id String,
+    evaluator_execution_id String,
+    evaluation_rule_id String,
+    evaluator_id String,
+    evaluator_type LowCardinality(String),
+    trigger_source LowCardinality(String) DEFAULT '',
+    model_provider LowCardinality(String) DEFAULT '',
+    model_name LowCardinality(String) DEFAULT '',
+    model_adapter LowCardinality(String) DEFAULT '',
+
+    target_object LowCardinality(String),
+    target_trace_id String,
+    target_observation_id String,
+
+    status_after LowCardinality(String),
+    state_transition_order UInt8,
+    scheduled_at DateTime64(3),
+    schedule_delay_ms UInt32 DEFAULT 0,
+    completed_at Nullable(DateTime64(3)),
+    failed_at Nullable(DateTime64(3)),
+    next_retry_at Nullable(DateTime64(3)),
+    retry_attempt UInt16 DEFAULT 0,
+    max_attempts Nullable(UInt16),
+    retry_delay_ms UInt32 DEFAULT 0,
+    http_response_status_code Nullable(UInt16),
+
+    error_kind LowCardinality(String) DEFAULT '',
+    error_message String DEFAULT '',
+    cancellation_reason LowCardinality(String) DEFAULT '',
+    execution_trace_id String DEFAULT '',
+
+    primary_score_id String DEFAULT '',
+    score_ids Array(String) DEFAULT [],
+    score_count UInt16 DEFAULT 0,
+    score_name String DEFAULT '',
+    score_data_type LowCardinality(String) DEFAULT '',
+    score_value Nullable(Float64),
+    score_string_value String DEFAULT '',
+    score_string_values Array(String) DEFAULT [],
+    score_comment String DEFAULT '',
+
+    created_at DateTime64(3) DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(event_ts)
+PARTITION BY toYYYYMM(scheduled_at)
+PRIMARY KEY (project_id, evaluation_rule_id, toDate(scheduled_at))
+ORDER BY (
+    project_id,
+    evaluation_rule_id,
+    toDate(scheduled_at),
+    scheduled_at,
+    evaluator_execution_id,
+    state_transition_order,
+    event_id
+);
+
 -- Diagnostic table to track event size distributions across projects.
 -- Every insert (including updates) produces a row — no deduplication.
 -- See LFE-9402 for context.
@@ -555,6 +618,7 @@ clickhouse client \
   SET type_json_skip_duplicated_paths = 1;
   TRUNCATE events_core;
   TRUNCATE events_full;
+  TRUNCATE evaluator_execution_events;
 
   -- Insert observations into events_full (experiment metadata included when dataset_run_items match)
   INSERT INTO events_full (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,

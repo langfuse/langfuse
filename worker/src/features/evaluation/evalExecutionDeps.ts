@@ -3,16 +3,19 @@ import { JobExecutionStatus } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   DefaultEvalModelService,
+  blockEvaluatorConfigs as blockEvaluatorConfigsService,
   fetchLLMCompletion,
   IngestionQueue,
   LLMAdapter,
   QueueJobs,
   ScoreEventType,
+  type BuildEvaluatorExecutionEventRecordParams,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { buildEvalMessages } from "./evalRuntime";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
+import { writeEvaluatorExecutionEvent } from "./evaluatorExecutionEventWriter";
 
 type StructuredOutputSchema = NonNullable<
   Parameters<typeof fetchLLMCompletion>[0]["structuredOutputSchema"]
@@ -122,6 +125,12 @@ export interface EvalExecutionDeps {
 
   // Queue operations
   enqueueScoreIngestion: (params: EnqueueScoreIngestionParams) => Promise<void>;
+  writeEvaluatorExecutionEvent: (
+    params: BuildEvaluatorExecutionEventRecordParams,
+  ) => void;
+  blockEvaluatorConfigs: (
+    params: Parameters<typeof blockEvaluatorConfigsService>[0],
+  ) => Promise<Awaited<ReturnType<typeof blockEvaluatorConfigsService>>>;
 
   // LLM operations
   callLLM: (params: LLMCallParams) => Promise<unknown>;
@@ -177,6 +186,8 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         },
       });
     },
+    writeEvaluatorExecutionEvent,
+    blockEvaluatorConfigs: blockEvaluatorConfigsService,
 
     callLLM: async (params) => {
       // Type assertion needed because the deps interface uses a simplified apiKey type for testability
@@ -239,6 +250,8 @@ export function createMockEvalExecutionDeps(
     updateJobExecution: async () => {},
     uploadScore: async () => {},
     enqueueScoreIngestion: async () => {},
+    writeEvaluatorExecutionEvent: () => {},
+    blockEvaluatorConfigs: async () => ({ blockedJobConfigIds: [] }),
     callLLM: async () => ({ score: 0.5, reasoning: "Mock response" }),
     fetchModelConfig: async () => ({
       valid: false,

@@ -115,6 +115,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
     provider: "openai",
     model: "gpt-4",
     apiKey: { adapter: "openai", secretKey: "test-key" },
+    adapter: "openai",
     modelParams: {},
   };
 
@@ -138,6 +139,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
       uploadScore?: Mock;
       enqueueScoreIngestion?: Mock;
       updateJobExecution?: Mock;
+      writeEvaluatorExecutionEvent?: Mock;
     } = {},
   ) =>
     createMockEvalExecutionDeps({
@@ -146,6 +148,8 @@ describe("executeLLMAsJudgeEvaluation", () => {
       uploadScore: overrides.uploadScore ?? vi.fn(),
       enqueueScoreIngestion: overrides.enqueueScoreIngestion ?? vi.fn(),
       updateJobExecution: overrides.updateJobExecution ?? vi.fn(),
+      writeEvaluatorExecutionEvent:
+        overrides.writeEvaluatorExecutionEvent ?? vi.fn(),
     });
 
   /** Standard execution params for most tests */
@@ -174,12 +178,14 @@ describe("executeLLMAsJudgeEvaluation", () => {
       const uploadScore = vi.fn();
       const enqueueScoreIngestion = vi.fn();
       const updateJobExecution = vi.fn();
+      const writeEvaluatorExecutionEvent = vi.fn();
 
       const deps = createSuccessfulDeps({
         callLLM,
         uploadScore,
         enqueueScoreIngestion,
         updateJobExecution,
+        writeEvaluatorExecutionEvent,
       });
 
       await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
@@ -209,6 +215,13 @@ describe("executeLLMAsJudgeEvaluation", () => {
             jobOutputScoreId: expect.any(String),
             executionTraceId: expect.any(String),
           }),
+        }),
+      );
+      expect(writeEvaluatorExecutionEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelProvider: "openai",
+          modelName: "gpt-4",
+          modelAdapter: "openai",
         }),
       );
     });
@@ -618,6 +631,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
         provider: "anthropic",
         model: "claude-3-opus",
         apiKey: { adapter: "anthropic", secretKey: "anthropic-key" },
+        adapter: "anthropic",
         modelParams: { temperature: 0.5 },
       };
 

@@ -1,7 +1,15 @@
 import pLimit from "p-limit";
 import { prisma } from "@langfuse/shared/src/db";
-import { BatchActionStatus, observationForEvalSchema } from "@langfuse/shared";
-import { logger, traceException } from "@langfuse/shared/src/server";
+import {
+  BatchActionStatus,
+  EvalTargetObject,
+  observationForEvalSchema,
+} from "@langfuse/shared";
+import {
+  EvaluatorExecutionTriggerSource,
+  logger,
+  traceException,
+} from "@langfuse/shared/src/server";
 import {
   createObservationEvalSchedulerDeps,
   scheduleObservationEvals,
@@ -21,6 +29,11 @@ export async function processBatchedObservationEval(params: {
   const { projectId, batchActionId, evaluators, observationStream } = params;
   const limit = pLimit(CONCURRENCY_LIMIT);
   const schedulerDeps = createObservationEvalSchedulerDeps();
+  const triggerSource = evaluators.every(
+    (evaluator) => evaluator.targetObject === EvalTargetObject.EXPERIMENT,
+  )
+    ? EvaluatorExecutionTriggerSource.HISTORIC_EXPERIMENT_EVALUATION_REQUESTED
+    : EvaluatorExecutionTriggerSource.HISTORIC_OBSERVATION_EVALUATION_REQUESTED;
 
   await prisma.batchAction.update({
     where: { id: batchActionId, projectId },
@@ -55,6 +68,7 @@ export async function processBatchedObservationEval(params: {
             observation,
             configs: evaluators,
             schedulerDeps,
+            triggerSource,
           });
         }),
       ),

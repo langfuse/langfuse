@@ -23,6 +23,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
         jobInputObservationId,
         jobTemplateId,
         status,
+        scheduledAt,
       } = params;
 
       const jobExecution = await prisma.jobExecution.upsert({
@@ -38,14 +39,17 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
           jobInputObservationId,
           jobTemplateId,
           status,
-          startTime: new Date(),
+          startTime: scheduledAt,
         },
         update: {
           status,
         },
       });
 
-      return { id: jobExecution.id };
+      return {
+        id: jobExecution.id,
+        scheduledAt: jobExecution.startTime ?? jobExecution.createdAt,
+      };
     },
 
     uploadObservationToS3: async (params) => {
@@ -74,10 +78,12 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
             projectId: params.projectId,
             jobExecutionId: params.jobExecutionId,
             observationS3Path: params.observationS3Path,
+            ...params.metadata,
           },
         },
         {
           delay: params.delay,
+          jobId: params.jobExecutionId,
         },
       );
     },

@@ -132,6 +132,9 @@ const EnvSchema = z.object({
   LANGFUSE_SECONDARY_EVAL_EXECUTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
+  LANGFUSE_EVALUATOR_EXECUTION_EVENT_WRITE_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_EXPERIMENT_CREATOR_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()

@@ -3,7 +3,6 @@ import {
   type ObservationEvalConfig,
   type ObservationEvalSchedulerDeps,
 } from "./types";
-import { shouldSampleObservation } from "./shouldSampleObservation";
 import { InMemoryFilterService, logger } from "@langfuse/shared/src/server";
 import {
   EvalTargetObject,
@@ -12,12 +11,22 @@ import {
   isJobConfigExecutable,
   mapEventEvalFilterColumnIdToField,
 } from "@langfuse/shared";
-import { createW3CTraceId } from "../../utils";
+import {
+  createEventEvaluatorExecutionIdentity,
+  createEvaluatorExecutionId,
+  createExperimentEvaluatorExecutionIdentity,
+  EvaluatorType,
+  shouldSampleEvaluatorExecution,
+  type EvaluatorExecutionTriggerSource,
+  type EvaluatorExecutionQueueMetadata,
+} from "@langfuse/shared/src/server";
+import { writeScheduledEvaluatorExecutionEvent } from "../evaluatorExecutionEventWriter";
 
 interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
   configs: ObservationEvalConfig[];
   schedulerDeps: ObservationEvalSchedulerDeps;
+  triggerSource?: EvaluatorExecutionTriggerSource;
 }
 
 /**
@@ -65,9 +74,19 @@ export async function scheduleObservationEvals(
       return false;
     }
 
-    // Check sampling
+    const jobExecutionId = createEvaluatorExecutionId(
+      buildObservationEvalJobExecutionIdentity({
+        observation,
+        matchingConfig: config,
+      }),
+    );
     const samplingRate = config.sampling.toNumber();
-    if (!shouldSampleObservation({ samplingRate })) {
+    if (
+      !shouldSampleEvaluatorExecution({
+        evaluatorExecutionId: jobExecutionId,
+        samplingRate,
+      })
+    ) {
       logger.debug("Observation sampled out for eval config", {
         configId: config.id,
         observationId: observation.span_id,
@@ -98,6 +117,7 @@ export async function scheduleObservationEvals(
         matchingConfig,
         observationS3Path,
         schedulerDeps,
+        triggerSource: params.triggerSource,
       }).catch((error) => {
         logger.error("Failed to process observation eval config", {
           configId: matchingConfig.id,
@@ -115,6 +135,7 @@ interface ProcessConfigParams {
   matchingConfig: ObservationEvalConfig;
   observationS3Path: string;
   schedulerDeps: ObservationEvalSchedulerDeps;
+  triggerSource?: EvaluatorExecutionTriggerSource;
 }
 
 async function processMatchingConfig(
@@ -123,12 +144,16 @@ async function processMatchingConfig(
   const { observation, matchingConfig, observationS3Path, schedulerDeps } =
     params;
 
-  const jobExecutionId = createW3CTraceId(
-    `${matchingConfig.id}:${observation.span_id}`,
+  const jobExecutionId = createEvaluatorExecutionId(
+    buildObservationEvalJobExecutionIdentity({
+      observation,
+      matchingConfig,
+    }),
   );
 
   // Create job execution
-  await schedulerDeps.upsertJobExecution({
+  const scheduledAt = new Date();
+  const jobExecution = await schedulerDeps.upsertJobExecution({
     id: jobExecutionId,
     projectId: observation.project_id,
     jobConfigurationId: matchingConfig.id,
@@ -136,6 +161,27 @@ async function processMatchingConfig(
     jobInputObservationId: observation.span_id,
     jobTemplateId: matchingConfig.evalTemplateId,
     status: JobExecutionStatus.PENDING,
+    scheduledAt,
+  });
+
+  const metadata: EvaluatorExecutionQueueMetadata = {
+    evaluationRuleId: matchingConfig.id,
+    evaluatorId: matchingConfig.evalTemplateId,
+    evaluatorType: EvaluatorType.LLM_AS_JUDGE,
+    triggerSource: params.triggerSource ?? "",
+    scoreName: matchingConfig.scoreName,
+    targetObject:
+      matchingConfig.targetObject as EvaluatorExecutionQueueMetadata["targetObject"],
+    targetTraceId: observation.trace_id,
+    targetObservationId: observation.span_id,
+    scheduledAt: jobExecution.scheduledAt,
+    scheduleDelayMs: 0,
+  };
+
+  writeScheduledEvaluatorExecutionEvent({
+    projectId: observation.project_id,
+    evaluatorExecutionId: jobExecutionId,
+    metadata,
   });
 
   // Enqueue eval job
@@ -144,6 +190,7 @@ async function processMatchingConfig(
     projectId: observation.project_id,
     observationS3Path,
     delay: 0,
+    metadata,
   });
 
   logger.debug("Scheduled observation eval job", {
@@ -188,4 +235,25 @@ function evaluateFilter(
 
   // For experiment configs, must also match experiment root span
   return isExperimentConfig ? isFilterMatch && isExperimentRoot : isFilterMatch;
+}
+
+function buildObservationEvalJobExecutionIdentity(params: {
+  observation: ObservationForEval;
+  matchingConfig: ObservationEvalConfig;
+}) {
+  const { observation, matchingConfig } = params;
+
+  return matchingConfig.targetObject === EvalTargetObject.EXPERIMENT
+    ? createExperimentEvaluatorExecutionIdentity({
+        projectId: observation.project_id,
+        evaluationRuleId: matchingConfig.id,
+        targetTraceId: observation.trace_id,
+        targetObservationId: observation.span_id,
+      })
+    : createEventEvaluatorExecutionIdentity({
+        projectId: observation.project_id,
+        evaluationRuleId: matchingConfig.id,
+        targetTraceId: observation.trace_id,
+        targetObservationId: observation.span_id,
+      });
 }

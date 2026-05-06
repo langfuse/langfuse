@@ -4,7 +4,11 @@ import {
   ScoreDataTypeEnum,
   ScoreSourceEnum,
 } from "@langfuse/shared";
-import { eventTypes, ScoreEventType } from "@langfuse/shared/src/server";
+import {
+  createEvaluatorScoreId,
+  eventTypes,
+  ScoreEventType,
+} from "@langfuse/shared/src/server";
 
 type BuildScoreEventBase = {
   eventId: string;
@@ -165,6 +169,7 @@ function buildScoreWritePayload(
 
 export function buildEvalScoreWritePayloads(params: {
   outputResult: EvalOutputResult;
+  evaluatorExecutionId: string;
   primaryScoreId: string;
   traceId: string | null;
   observationId: string | null;
@@ -208,7 +213,13 @@ export function buildEvalScoreWritePayloads(params: {
   return params.outputResult.matches.map((scoreValue, index) =>
     buildScoreWritePayload({
       ...commonParams,
-      scoreId: index === 0 ? params.primaryScoreId : randomUUID(),
+      scoreId:
+        index === 0
+          ? params.primaryScoreId
+          : createEvaluatorScoreId({
+              evaluatorExecutionId: params.evaluatorExecutionId,
+              scoreIndex: index,
+            }),
       scoreValue,
       dataType: ScoreDataTypeEnum.CATEGORICAL,
     }),
