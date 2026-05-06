@@ -2,90 +2,42 @@ import { z } from "zod";
 import { views, metricAggregations } from "@/src/features/query/types";
 import {
   getWidgetImportFilterConfig,
+  getValidAggregationsForMeasureType,
   mapLegacyUiTableFilterToView,
+  normalizeStoredWidgetFiltersForEditor,
+  type ViewVersion,
 } from "@/src/features/query";
+import { viewDeclarations } from "@/src/features/query/dataModel";
+import startCase from "lodash/startCase";
 import {
+  ChartConfigSchema,
   DashboardWidgetChartType,
+  DimensionSchema,
+  MetricSchema,
   singleFilter,
   type FilterState,
 } from "@langfuse/shared";
+import {
+  MAX_PIVOT_TABLE_DIMENSIONS,
+  MAX_PIVOT_TABLE_METRICS,
+} from "@/src/features/widgets/utils/pivot-table-utils";
 export { observationLevelOptions } from "@/src/features/widgets/utils/filter-config";
 
 const dashboardWidgetChartTypeSchema = z.enum(DashboardWidgetChartType);
-
-const widgetDimensionSchema = z.object({
-  field: z.string(),
-});
-
-const widgetMetricSchema = z.object({
-  measure: z.string(),
+const widgetMetricSchema = MetricSchema.extend({
   agg: metricAggregations,
 });
-
-const baseTimeSeriesChartConfig = z.object({});
-const baseTotalValueChartConfig = z.object({
-  row_limit: z.number().int().positive().lte(1000).optional(),
-});
-
-const lineChartTimeSeriesConfig = baseTimeSeriesChartConfig.extend({
-  type: z.literal("LINE_TIME_SERIES"),
-});
-const barChartTimeSeriesConfig = baseTimeSeriesChartConfig.extend({
-  type: z.literal("BAR_TIME_SERIES"),
-});
-const areaChartTimeSeriesConfig = baseTimeSeriesChartConfig.extend({
-  type: z.literal("AREA_TIME_SERIES"),
-});
-
-const horizontalBarChartConfig = baseTotalValueChartConfig.extend({
-  type: z.literal("HORIZONTAL_BAR"),
-  show_value_labels: z.boolean().optional(),
-});
-const verticalBarChartConfig = baseTotalValueChartConfig.extend({
-  type: z.literal("VERTICAL_BAR"),
-});
-const pieChartConfig = baseTotalValueChartConfig.extend({
-  type: z.literal("PIE"),
-});
-const bigNumberChartConfig = baseTotalValueChartConfig.extend({
-  type: z.literal("NUMBER"),
-});
-const histogramChartConfig = baseTotalValueChartConfig.extend({
-  type: z.literal("HISTOGRAM"),
-  bins: z.number().int().min(1).max(100).optional().default(10),
-});
-const pivotTableChartConfig = baseTotalValueChartConfig.extend({
-  type: z.literal("PIVOT_TABLE"),
-  defaultSort: z
-    .object({
-      column: z.string(),
-      order: z.enum(["ASC", "DESC"]),
-    })
-    .optional(),
-});
-
-const chartConfigSchema = z.discriminatedUnion("type", [
-  lineChartTimeSeriesConfig,
-  barChartTimeSeriesConfig,
-  areaChartTimeSeriesConfig,
-  horizontalBarChartConfig,
-  verticalBarChartConfig,
-  pieChartConfig,
-  bigNumberChartConfig,
-  histogramChartConfig,
-  pivotTableChartConfig,
-]);
 
 const widgetImportBaseSchema = z
   .object({
     name: z.string(),
     description: z.string(),
     view: views,
-    dimensions: z.array(widgetDimensionSchema),
+    dimensions: z.array(DimensionSchema),
     metrics: z.array(widgetMetricSchema),
     filters: z.array(singleFilter),
     chartType: dashboardWidgetChartTypeSchema,
-    chartConfig: chartConfigSchema,
+    chartConfig: ChartConfigSchema,
     minVersion: z.number().int().optional(),
   })
   .loose();
@@ -104,17 +56,112 @@ export const widgetImportSchema = widgetImportBaseSchema.superRefine(
 
 type WidgetImport = z.infer<typeof widgetImportSchema>;
 
-export function downloadWidgetJson(widget: {
-  name: string;
-  description: string;
-  view: string;
-  dimensions: { field: string }[];
-  metrics: { measure: string; agg: string }[];
-  filters: z.infer<typeof singleFilter>[];
-  chartType: string;
-  chartConfig: unknown;
-  minVersion?: number;
-}) {
+export type WidgetImportOptionSets = {
+  environmentValues?: string[];
+  traceNames?: string[];
+  tags?: string[];
+  toolNames?: string[];
+  calledToolNames?: string[];
+  modelNames?: string[];
+  observationLevels: string[];
+};
+
+export type ImportedWidgetFormSnapshot = {
+  widgetMinVersion: number;
+  widgetName: string;
+  widgetDescription: string;
+  selectedView: WidgetImport["view"];
+  selectedChartType: WidgetImport["chartType"];
+  selectedMeasure: string;
+  selectedAggregation: z.infer<typeof metricAggregations>;
+  selectedMetrics: {
+    id: string;
+    measure: string;
+    aggregation: z.infer<typeof metricAggregations>;
+    label: string;
+  }[];
+  selectedDimension: string;
+  pivotDimensions: string[];
+  userFilterState: FilterState;
+  rowLimit: number;
+  histogramBins: number;
+  defaultSortColumn: string;
+  defaultSortOrder: "ASC" | "DESC";
+};
+
+export type ImportedWidgetResult = {
+  snapshot: ImportedWidgetFormSnapshot;
+  removedValues: boolean;
+  removedFilters: boolean;
+};
+
+export function buildWidgetImportAllowedValues(
+  options: WidgetImportOptionSets,
+  parsedJson: unknown,
+): Map<string, Set<string>> {
+  const allowedValuesByColumn = new Map<string, Set<string>>();
+
+  if (options.environmentValues) {
+    allowedValuesByColumn.set(
+      "environment",
+      new Set(options.environmentValues),
+    );
+  }
+
+  if (options.traceNames) {
+    const traceNameValues = new Set(options.traceNames);
+    allowedValuesByColumn.set("traceName", traceNameValues);
+    allowedValuesByColumn.set("name", traceNameValues);
+  }
+
+  if (options.tags) {
+    allowedValuesByColumn.set("tags", new Set(options.tags));
+  }
+
+  if (options.toolNames) {
+    allowedValuesByColumn.set("toolNames", new Set(options.toolNames));
+  }
+
+  if (
+    typeof parsedJson === "object" &&
+    parsedJson !== null &&
+    "view" in parsedJson &&
+    parsedJson.view === "observations"
+  ) {
+    if (options.calledToolNames) {
+      allowedValuesByColumn.set(
+        "calledToolNames",
+        new Set(options.calledToolNames),
+      );
+    }
+
+    if (options.modelNames) {
+      allowedValuesByColumn.set(
+        "providedModelName",
+        new Set(options.modelNames),
+      );
+    }
+
+    allowedValuesByColumn.set("level", new Set(options.observationLevels));
+  }
+
+  return allowedValuesByColumn;
+}
+
+export function downloadWidgetJson(
+  widget: Pick<
+    WidgetImport,
+    | "name"
+    | "description"
+    | "view"
+    | "dimensions"
+    | "metrics"
+    | "filters"
+    | "chartType"
+    | "chartConfig"
+    | "minVersion"
+  >,
+) {
   const exportWidget = {
     name: widget.name,
     description: widget.description,
@@ -250,4 +297,139 @@ export function parseAndNormalizeImportedWidget(params: {
   });
 
   return normalized;
+}
+
+export function validateImportedWidget(params: {
+  widget: WidgetImport;
+  importedViewVersion: ViewVersion;
+}): void {
+  const viewDeclaration =
+    viewDeclarations[params.importedViewVersion][params.widget.view];
+
+  const dimensionsAreValid = params.widget.dimensions.every(
+    (dimension) =>
+      Boolean(viewDeclaration.dimensions[dimension.field]) &&
+      !viewDeclaration.dimensions[dimension.field]?.uiHidden,
+  );
+
+  const metricsAreValid = params.widget.metrics.every((metric) => {
+    const measureDefinition = viewDeclaration.measures[metric.measure];
+    if (!measureDefinition) {
+      return false;
+    }
+
+    return getValidAggregationsForMeasureType(measureDefinition.type).some(
+      (aggregation) => aggregation === metric.agg,
+    );
+  });
+
+  const dimensionsFitChartType =
+    params.widget.chartType === "PIVOT_TABLE"
+      ? true
+      : params.widget.dimensions.length <= 1;
+  const pivotTableShapeIsValid =
+    params.widget.chartType !== "PIVOT_TABLE" ||
+    (params.widget.dimensions.length <= MAX_PIVOT_TABLE_DIMENSIONS &&
+      params.widget.metrics.length <= MAX_PIVOT_TABLE_METRICS);
+
+  if (
+    !dimensionsAreValid ||
+    !metricsAreValid ||
+    !dimensionsFitChartType ||
+    !pivotTableShapeIsValid
+  ) {
+    throw new Error("malformed");
+  }
+}
+
+export function toImportedWidgetFormSnapshot(
+  widget: WidgetImport,
+): ImportedWidgetFormSnapshot {
+  const importedMetrics =
+    widget.metrics.length > 0
+      ? widget.metrics
+      : [{ measure: "count", agg: "count" as const }];
+  const importedDimensions =
+    widget.chartType === "PIVOT_TABLE"
+      ? widget.dimensions
+      : widget.dimensions.slice(0, 1);
+  const importedChartConfig = widget.chartConfig;
+
+  return {
+    widgetMinVersion: widget.minVersion ?? 1,
+    widgetName: widget.name,
+    widgetDescription: widget.description,
+    selectedView: widget.view,
+    selectedChartType: widget.chartType,
+    selectedMeasure: importedMetrics[0]?.measure ?? "count",
+    selectedAggregation: importedMetrics[0]?.agg ?? "count",
+    selectedMetrics: importedMetrics.map((metric) => ({
+      id: `${metric.agg}_${metric.measure}`,
+      measure: metric.measure,
+      aggregation: metric.agg,
+      label: `${startCase(metric.agg)} ${startCase(metric.measure)}`,
+    })),
+    selectedDimension: importedDimensions[0]?.field ?? "none",
+    pivotDimensions: importedDimensions.map((dimension) => dimension.field),
+    userFilterState: normalizeStoredWidgetFiltersForEditor(
+      widget.view,
+      widget.filters,
+    ).editorFilters,
+    rowLimit:
+      "row_limit" in importedChartConfig
+        ? (importedChartConfig.row_limit ?? 100)
+        : 100,
+    histogramBins:
+      importedChartConfig.type === "HISTOGRAM"
+        ? (importedChartConfig.bins ?? 10)
+        : 10,
+    defaultSortColumn:
+      importedChartConfig.type === "PIVOT_TABLE"
+        ? (importedChartConfig.defaultSort?.column ?? "none")
+        : "none",
+    defaultSortOrder:
+      importedChartConfig.type === "PIVOT_TABLE"
+        ? (importedChartConfig.defaultSort?.order ?? "DESC")
+        : "DESC",
+  };
+}
+
+export async function importWidgetFile(params: {
+  file: File;
+  optionSets: WidgetImportOptionSets;
+  isBetaEnabled: boolean;
+}): Promise<ImportedWidgetResult> {
+  const rawContent = await params.file.text();
+  const parsedJson: unknown = JSON.parse(rawContent);
+  const allowedValuesByColumn = buildWidgetImportAllowedValues(
+    params.optionSets,
+    parsedJson,
+  );
+
+  const {
+    widget: importedWidget,
+    removedValues,
+    removedFilters,
+  } = parseAndNormalizeImportedWidget({
+    parsedJson,
+    allowedValuesByColumn,
+  });
+
+  const importedMinVersion = importedWidget.minVersion ?? 1;
+  const importedViewVersion: ViewVersion =
+    (params.isBetaEnabled && importedWidget.view !== "traces") ||
+    importedMinVersion >= 2
+      ? "v2"
+      : "v1";
+
+  validateImportedWidget({
+    widget: importedWidget,
+    importedViewVersion,
+  });
+
+  return {
+    snapshot: toImportedWidgetFormSnapshot(importedWidget),
+    removedValues,
+    removedFilters,
+  };
 }

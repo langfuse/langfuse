@@ -8,8 +8,8 @@ import {
 } from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
 import {
+  importWidgetFile,
   observationLevelOptions,
-  parseAndNormalizeImportedWidget,
 } from "@/src/features/widgets/utils/import-export-utils";
 import {
   type metricAggregations,
@@ -1090,199 +1090,39 @@ export function WidgetForm({
         "WARNING",
       );
 
-    const importWidgetFile = async (file: File) => {
-      const rawContent = await file.text();
-      const parsedJson: unknown = JSON.parse(rawContent);
-      const allowedValuesByColumn = new Map<string, Set<string>>();
-
-      if (environmentFilterOptions.data !== undefined) {
-        allowedValuesByColumn.set(
-          "environment",
-          new Set(
-            environmentFilterOptions.data.map((option) => option.environment),
-          ),
-        );
-      }
-
-      if (traceFilterOptions.data?.name !== undefined) {
-        const traceNameValues = new Set(
-          normalizeSingleValueOptions(traceFilterOptions.data.name).map(
+    try {
+      const result = await importWidgetFile({
+        file,
+        optionSets: {
+          environmentValues: environmentOptions.map((option) => option.value),
+          traceNames: nameOptions.map((option) => option.value),
+          tags: tagsOptions.map((option) => option.value),
+          toolNames: toolNamesOptions.map((option) => option.value),
+          calledToolNames: calledToolNamesOptions.map((option) => option.value),
+          modelNames: modelOptions.map((option) => option.value),
+          observationLevels: observationLevelOptions.map(
             (option) => option.value,
           ),
-        );
-        allowedValuesByColumn.set("traceName", traceNameValues);
-        allowedValuesByColumn.set("name", traceNameValues);
-      }
-
-      if (traceFilterOptions.data?.tags !== undefined) {
-        allowedValuesByColumn.set(
-          "tags",
-          new Set(traceFilterOptions.data.tags.map((option) => option.value)),
-        );
-      }
-
-      if (generationsFilterOptions.data?.toolNames !== undefined) {
-        allowedValuesByColumn.set(
-          "toolNames",
-          new Set(
-            generationsFilterOptions.data.toolNames.map(
-              (option) => option.value,
-            ),
-          ),
-        );
-      }
-
-      if (
-        typeof parsedJson === "object" &&
-        parsedJson !== null &&
-        "view" in parsedJson &&
-        parsedJson.view === "observations"
-      ) {
-        if (generationsFilterOptions.data?.calledToolNames !== undefined) {
-          allowedValuesByColumn.set(
-            "calledToolNames",
-            new Set(
-              generationsFilterOptions.data.calledToolNames.map(
-                (option) => option.value,
-              ),
-            ),
-          );
-        }
-        if (generationsFilterOptions.data?.model !== undefined) {
-          allowedValuesByColumn.set(
-            "providedModelName",
-            new Set(
-              generationsFilterOptions.data.model.map((option) => option.value),
-            ),
-          );
-        }
-        allowedValuesByColumn.set(
-          "level",
-          new Set(observationLevelOptions.map((option) => option.value)),
-        );
-      }
-
-      const {
-        widget: importedWidget,
-        removedValues,
-        removedFilters,
-      } = parseAndNormalizeImportedWidget({
-        parsedJson,
-        allowedValuesByColumn,
+        },
+        isBetaEnabled,
       });
-
-      const importedMinVersion = importedWidget.minVersion ?? 1;
-      const importedViewVersion: ViewVersion =
-        (isBetaEnabled && importedWidget.view !== "traces") ||
-        importedMinVersion >= 2
-          ? "v2"
-          : "v1";
-
-      const viewDeclaration =
-        viewDeclarations[importedViewVersion][importedWidget.view];
-
-      const dimensionsAreValid = importedWidget.dimensions.every(
-        (dimension) =>
-          Boolean(viewDeclaration.dimensions[dimension.field]) &&
-          !viewDeclaration.dimensions[dimension.field]?.uiHidden,
-      );
-
-      const metricsAreValid = importedWidget.metrics.every((metric) => {
-        const measureDefinition = viewDeclaration.measures[metric.measure];
-        if (!measureDefinition) {
-          return false;
-        }
-
-        return getValidAggregationsForMeasureType(measureDefinition.type).some(
-          (aggregation) => aggregation === metric.agg,
-        );
-      });
-
-      const dimensionsFitChartType =
-        importedWidget.chartType === "PIVOT_TABLE"
-          ? true
-          : importedWidget.dimensions.length <= 1;
-      const pivotTableShapeIsValid =
-        importedWidget.chartType !== "PIVOT_TABLE" ||
-        (importedWidget.dimensions.length <= MAX_PIVOT_TABLE_DIMENSIONS &&
-          importedWidget.metrics.length <= MAX_PIVOT_TABLE_METRICS);
-
-      if (
-        !dimensionsAreValid ||
-        !metricsAreValid ||
-        !dimensionsFitChartType ||
-        !pivotTableShapeIsValid
-      ) {
-        throw new Error("malformed");
-      }
-
-      return {
-        importedWidget,
-        filters: importedWidget.filters,
-        removedValues,
-        removedFilters,
-      };
-    };
-
-    try {
-      const result = await importWidgetFile(file);
-
-      const importedMetrics =
-        result.importedWidget.metrics.length > 0
-          ? result.importedWidget.metrics
-          : [{ measure: "count", agg: "count" as const }];
-      const importedDimensions =
-        result.importedWidget.chartType === "PIVOT_TABLE"
-          ? result.importedWidget.dimensions
-          : result.importedWidget.dimensions.slice(0, 1);
 
       setAutoLocked(true);
-      setWidgetMinVersion(result.importedWidget.minVersion ?? 1);
-      setWidgetName(result.importedWidget.name);
-      setWidgetDescription(result.importedWidget.description);
-      setSelectedView(result.importedWidget.view);
-      setSelectedChartType(result.importedWidget.chartType);
-      setSelectedMeasure(importedMetrics[0]?.measure ?? "count");
-      setSelectedAggregation(importedMetrics[0]?.agg ?? "count");
-      setSelectedMetrics(
-        importedMetrics.map((metric) => ({
-          id: `${metric.agg}_${metric.measure}`,
-          measure: metric.measure,
-          aggregation: metric.agg,
-          label: `${startCase(metric.agg)} ${startCase(metric.measure)}`,
-        })),
-      );
-      setSelectedDimension(importedDimensions[0]?.field ?? "none");
-      setPivotDimensions(
-        importedDimensions.map((dimension) => dimension.field),
-      );
-      setUserFilterState(
-        normalizeStoredWidgetFiltersForEditor(
-          result.importedWidget.view,
-          result.filters,
-        ).editorFilters,
-      );
-      const importedChartConfig = result.importedWidget.chartConfig;
-      setRowLimit(
-        "row_limit" in importedChartConfig
-          ? (importedChartConfig.row_limit ?? 100)
-          : 100,
-      );
-      setHistogramBins(
-        importedChartConfig.type === "HISTOGRAM"
-          ? (importedChartConfig.bins ?? 10)
-          : 10,
-      );
-      setDefaultSortColumn(
-        importedChartConfig.type === "PIVOT_TABLE"
-          ? (importedChartConfig.defaultSort?.column ?? "none")
-          : "none",
-      );
-      setDefaultSortOrder(
-        importedChartConfig.type === "PIVOT_TABLE"
-          ? (importedChartConfig.defaultSort?.order ?? "DESC")
-          : "DESC",
-      );
+      setWidgetMinVersion(result.snapshot.widgetMinVersion);
+      setWidgetName(result.snapshot.widgetName);
+      setWidgetDescription(result.snapshot.widgetDescription);
+      setSelectedView(result.snapshot.selectedView);
+      setSelectedChartType(result.snapshot.selectedChartType);
+      setSelectedMeasure(result.snapshot.selectedMeasure);
+      setSelectedAggregation(result.snapshot.selectedAggregation);
+      setSelectedMetrics(result.snapshot.selectedMetrics);
+      setSelectedDimension(result.snapshot.selectedDimension);
+      setPivotDimensions(result.snapshot.pivotDimensions);
+      setUserFilterState(result.snapshot.userFilterState);
+      setRowLimit(result.snapshot.rowLimit);
+      setHistogramBins(result.snapshot.histogramBins);
+      setDefaultSortColumn(result.snapshot.defaultSortColumn);
+      setDefaultSortOrder(result.snapshot.defaultSortOrder);
 
       showSuccessToast({
         title: "Widget uploaded successfully",
@@ -1480,7 +1320,7 @@ export function WidgetForm({
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <CardTitle>Widget Configuration</CardTitle>
-              {!widgetId && (
+              {!widgetId && isBetaEnabled && (
                 <>
                   <input
                     ref={importInputRef}

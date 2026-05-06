@@ -98,3 +98,8 @@ export * from "./utils/IORepresentation";
 
 // analytics integrations (client-safe)
 export * from "./features/analytics-integrations";
+export {
+  ChartConfigSchema,
+  DimensionSchema,
+  MetricSchema,
+} from "./server/services/DashboardService/types";

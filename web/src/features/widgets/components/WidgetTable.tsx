@@ -15,6 +15,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { Download, Trash } from "lucide-react";
 import { useState } from "react";
 import { downloadWidgetJson } from "@/src/features/widgets/utils/import-export-utils";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import {
   Popover,
   PopoverContent,
@@ -161,6 +162,7 @@ function ShareWidgetButton({ widgetId }: { widgetId: string }) {
 
 export function DashboardWidgetTable() {
   const projectId = useProjectIdFromURL();
+  const { isBetaEnabled } = useV4Beta();
   const { setDetailPageList } = useDetailPageLists();
   const router = useRouter();
 
@@ -273,7 +275,7 @@ export function DashboardWidgetTable() {
             className="flex items-center gap-1"
             onClick={(e) => e.stopPropagation()}
           >
-            <ShareWidgetButton widgetId={id} />
+            {isBetaEnabled && <ShareWidgetButton widgetId={id} />}
             <DeleteWidget widgetId={id} owner={row.row.original.owner} />
           </div>
         );
