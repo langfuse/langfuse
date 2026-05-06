@@ -34,7 +34,6 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { type timeFilter, type FilterState } from "@langfuse/shared";
-import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 type TimeFilter = z.infer<typeof timeFilter>;
@@ -444,9 +443,7 @@ interface GetEventBatchIOParams {
 /**
  * Batch fetch input/output and metadata for multiple observations
  */
-export async function getEventBatchIO(
-  params: GetEventBatchIOParams,
-): Promise<Array<EventBatchIOOutput>> {
+export async function getEventBatchIO(params: GetEventBatchIOParams) {
   return getObservationsBatchIOFromEventsTable({
     projectId: params.projectId,
     observations: params.observations,

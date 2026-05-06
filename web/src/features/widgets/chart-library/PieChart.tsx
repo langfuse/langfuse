@@ -12,7 +12,7 @@ import {
   type PieSectorShapeProps,
 } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 
 /**
  * PieChart component
@@ -109,7 +109,7 @@ export const PieChart: React.FC<ChartProps> = ({
                         y={viewBox.cy}
                         className="fill-foreground text-3xl font-bold"
                       >
-                        {numberFormatter(totalValue, 0)}
+                        {valueFormatter(totalValue)}
                       </tspan>
                       <tspan
                         x={viewBox.cx}
