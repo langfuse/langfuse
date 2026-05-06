@@ -55,11 +55,15 @@ export async function validateWebhookURL(
   whitelist: WebhookValidationWhitelist = whitelistFromEnv(),
 ): Promise<void> {
   // Step 1: Basic URL parsing and normalization
+  const trimmedUrl = urlString.trim();
+  assertValidUrlEncoding(trimmedUrl);
+
   let url: URL;
   try {
-    // Normalize the URL string first to handle encoding issues
-    const normalizedUrl = normalizeURL(urlString);
-    url = new URL(normalizedUrl);
+    // Parse the original URL string so validation uses the same WHATWG URL
+    // semantics as fetch. Decoding the whole URL first can turn encoded data
+    // into delimiters and make validation inspect a different hostname.
+    url = new URL(trimmedUrl);
   } catch {
     throw new Error("Invalid URL syntax");
   }
@@ -68,13 +72,20 @@ export async function validateWebhookURL(
     throw new Error("Only HTTP and HTTPS protocols are allowed");
   }
 
+  if (url.username !== "" || url.password !== "") {
+    throw new Error(
+      "URL credentials are not allowed. Use webhook headers for authentication instead.",
+    );
+  }
+
   // Step 2: Port validation
   if (url.port && !["443", "80"].includes(url.port)) {
     throw new Error("Only ports 80 and 443 are allowed");
   }
 
-  // Step 3: Hostname normalization and validation
-  const hostname = normalizeHostname(url.hostname);
+  // Step 3: Hostname validation. WHATWG URL parsing already lowercases and
+  // punycodes HTTP(S) hostnames, so keep this tied to the parsed URL component.
+  const hostname = url.hostname;
 
   if (whitelist.hosts.includes(hostname)) {
     // skip further checks if hostname is whitelisted
@@ -112,44 +123,13 @@ export async function validateWebhookURL(
   }
 }
 
-/**
- * Normalize URL to prevent encoding/unicode bypass attempts
- */
-function normalizeURL(urlString: string): string {
-  // Remove leading/trailing whitespace
-  let normalized = urlString.trim();
-
-  // Decode URL encoding to prevent bypass attempts like %6C%6F%63%61%6C%68%6F%73%74 (localhost)
+function assertValidUrlEncoding(urlString: string): void {
+  // This intentionally checks encoding validity only. Do not parse or validate
+  // the decoded result: decoding the whole URL can turn encoded data into URL
+  // delimiters and make validation inspect a different hostname than fetch.
   try {
-    normalized = decodeURIComponent(normalized);
+    decodeURIComponent(urlString);
   } catch {
     throw new Error("Invalid URL encoding");
   }
-
-  // Normalize unicode to prevent IDN bypass attempts
-  try {
-    normalized = normalized.normalize("NFC");
-  } catch {
-    throw new Error("Invalid unicode in URL");
-  }
-
-  return normalized;
-}
-
-/**
- * Normalize hostname to handle IDN and case sensitivity
- */
-function normalizeHostname(hostname: string): string {
-  let normalized = hostname.toLowerCase();
-
-  // Convert internationalized domain names to ASCII (Punycode)
-  try {
-    // This will convert unicode domain names to their ASCII representation
-    const url = new URL(`http://${normalized}`);
-    normalized = url.hostname;
-  } catch {
-    // If hostname is invalid, keep the original for later validation failure
-  }
-
-  return normalized;
 }

@@ -155,6 +155,38 @@ describe("Webhook URL Validation", () => {
       ).rejects.toThrow("Blocked hostname detected");
     });
 
+    it("should reject encoded delimiter userinfo SSRF bypass attempts", async () => {
+      // Percent-encoded delimiters are data to the WHATWG URL parser before
+      // parsing, but become syntax if the whole URL is decoded first.
+      // Validation must parse the same URL string that fetch will execute.
+      const encodedDelimiters = ["%2F", "%23", "%3F", "%5C"];
+
+      for (const delimiter of encodedDelimiters) {
+        await expect(
+          validateWebhookURL(`http://example.com${delimiter}@127.0.0.1/hook`),
+        ).rejects.toThrow(
+          "URL credentials are not allowed. Use webhook headers for authentication instead.",
+        );
+      }
+    });
+
+    it("should reject URLs with embedded credentials", async () => {
+      await expect(
+        validateWebhookURL("https://user:pass@example.com/hook"),
+      ).rejects.toThrow(
+        "URL credentials are not allowed. Use webhook headers for authentication instead.",
+      );
+    });
+
+    it("should validate IDN hostnames using their punycoded hostname", async () => {
+      await expect(
+        validateWebhookURL("http://тест.example.com/hook"),
+      ).resolves.not.toThrow();
+
+      expect(resolve4Mock).toHaveBeenCalledWith("xn--e1aybc.example.com");
+      expect(resolve6Mock).toHaveBeenCalledWith("xn--e1aybc.example.com");
+    });
+
     it("should reject internal/intranet hostnames", async () => {
       // Note: "internal.company.com" would require DNS resolution which can timeout
       // Using domains that match blocked patterns directly for faster tests
