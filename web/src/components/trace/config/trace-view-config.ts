@@ -1,5 +1,5 @@
 /**
- * Configuration constants for trace2 views.
+ * Configuration constants for trace views.
  *
  * Centralizes thresholds, dimensions, and behavior settings
  * for easier tuning and maintenance.

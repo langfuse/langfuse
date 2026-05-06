@@ -1,5 +1,5 @@
 /**
- * TraceGraphView wrapper for trace2
+ * TraceGraphView wrapper
  *
  * This component wraps the TraceGraphView from features/trace-graph-view/
  * and uses data from GraphDataContext.
