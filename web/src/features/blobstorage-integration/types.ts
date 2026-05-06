@@ -36,7 +36,7 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
     .enum(AnalyticsIntegrationExportSource)
     .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
   exportFieldGroups: z
-    .array(z.enum([...BLOB_EXPORT_FIELD_GROUPS] as [string, ...string[]]))
+    .array(z.enum(BLOB_EXPORT_FIELD_GROUPS))
     .min(1, { message: "At least one field group must be selected" })
     .default([...BLOB_EXPORT_FIELD_GROUPS]),
   compressed: z.boolean().default(true),
