@@ -66,6 +66,7 @@ export interface RedirectOptions {
   maxRedirects: number;
   skipValidation?: boolean;
   whitelist?: WebhookValidationWhitelist;
+  additionalSensitiveHeaders?: string[];
 }
 
 /**
@@ -99,7 +100,16 @@ export async function fetchWithSecureRedirects(
   options: RequestInit,
   redirectOptions: RedirectOptions,
 ): Promise<RedirectResult> {
-  const { maxRedirects, skipValidation = false, whitelist } = redirectOptions;
+  const {
+    maxRedirects,
+    skipValidation = false,
+    whitelist,
+    additionalSensitiveHeaders = [],
+  } = redirectOptions;
+  const sensitiveRedirectHeaders = new Set([
+    ...SENSITIVE_REDIRECT_HEADERS,
+    ...additionalSensitiveHeaders.map((headerName) => headerName.toLowerCase()),
+  ]);
 
   // Track redirect chain for loop detection and logging
   const redirectChain: string[] = [];
@@ -211,6 +221,7 @@ export async function fetchWithSecureRedirects(
     if (currentOrigin !== redirectOrigin) {
       const { headers, strippedHeaderNames } = stripSensitiveRedirectHeaders(
         fetchOptions.headers,
+        sensitiveRedirectHeaders,
       );
 
       if (strippedHeaderNames.length > 0) {
@@ -243,7 +254,10 @@ export async function fetchWithSecureRedirects(
   ]);
 }
 
-function stripSensitiveRedirectHeaders(headers: RequestInit["headers"]): {
+function stripSensitiveRedirectHeaders(
+  headers: RequestInit["headers"],
+  sensitiveHeaderNames: Set<string>,
+): {
   headers: RequestInit["headers"];
   strippedHeaderNames: string[];
 } {
@@ -251,7 +265,7 @@ function stripSensitiveRedirectHeaders(headers: RequestInit["headers"]): {
 
   const headerEntries = Array.from(new Headers(headers).entries()).filter(
     ([headerName]) => {
-      if (SENSITIVE_REDIRECT_HEADERS.has(headerName)) {
+      if (sensitiveHeaderNames.has(headerName)) {
         strippedHeaderNames.push(headerName);
         return false;
       }
