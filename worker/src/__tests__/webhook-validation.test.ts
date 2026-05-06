@@ -1,17 +1,26 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 
-const { resolve4Mock, resolve6Mock } = vi.hoisted(() => ({
+const { resolve4Mock, resolve6Mock, lookupMock } = vi.hoisted(() => ({
   resolve4Mock: vi.fn<(hostname: string) => Promise<string[]>>(),
   resolve6Mock: vi.fn<(hostname: string) => Promise<string[]>>(),
+  lookupMock:
+    vi.fn<
+      (
+        hostname: string,
+        options: { all: true },
+      ) => Promise<Array<{ address: string; family: 4 | 6 }>>
+    >(),
 }));
 
 vi.mock("node:dns/promises", () => ({
   default: {
     resolve4: resolve4Mock,
     resolve6: resolve6Mock,
+    lookup: lookupMock,
   },
   resolve4: resolve4Mock,
   resolve6: resolve6Mock,
+  lookup: lookupMock,
 }));
 
 import { validateWebhookURL } from "../../../packages/shared/src/server/webhooks/validation";
@@ -32,6 +41,13 @@ beforeEach(() => {
     return ["93.184.216.34"];
   });
   resolve6Mock.mockRejectedValue(dnsError("ENODATA", "mocked-hostname"));
+  lookupMock.mockImplementation(async (hostname: string) => {
+    if (hostname === nonexistentDomain) {
+      throw dnsError("ENOTFOUND", hostname);
+    }
+
+    return [{ address: "93.184.216.34", family: 4 }];
+  });
 });
 
 describe("Webhook URL Validation", () => {
@@ -146,6 +162,9 @@ describe("Webhook URL Validation", () => {
       ).rejects.toThrow("DNS lookup failed");
       expect(resolve4Mock).toHaveBeenCalledWith(nonexistentDomain);
       expect(resolve6Mock).toHaveBeenCalledWith(nonexistentDomain);
+      expect(lookupMock).toHaveBeenCalledWith(nonexistentDomain, {
+        all: true,
+      });
     });
 
     it("should reject URL-encoded localhost bypass attempts", async () => {
@@ -185,6 +204,9 @@ describe("Webhook URL Validation", () => {
 
       expect(resolve4Mock).toHaveBeenCalledWith("xn--e1aybc.example.com");
       expect(resolve6Mock).toHaveBeenCalledWith("xn--e1aybc.example.com");
+      expect(lookupMock).toHaveBeenCalledWith("xn--e1aybc.example.com", {
+        all: true,
+      });
     });
 
     it("should reject internal/intranet hostnames", async () => {

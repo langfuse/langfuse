@@ -15,22 +15,33 @@ export interface OutboundUrlValidationWhitelist {
 
 export async function resolveHost(hostname: string): Promise<string[]> {
   // Returns every A + AAAA address.
-  const [v4, v6] = await Promise.allSettled([
+  const [v4, v6, lookup] = await Promise.allSettled([
     dns.resolve4(hostname),
     dns.resolve6(hostname),
+    // fetch resolves through getaddrinfo, which can include hosts file/NSS
+    // entries that resolve4/resolve6 do not see. Include them so validation
+    // checks the same local resolution sources that runtime requests can use.
+    dns.lookup(hostname, { all: true }),
   ]);
 
-  const ips: string[] = [];
+  const ips = new Set<string>();
   if (v4.status === "fulfilled") {
     const validV4Ips = v4.value.filter((ip) => ip && typeof ip === "string");
-    ips.push(...validV4Ips);
+    validV4Ips.forEach((ip) => ips.add(ip));
   }
   if (v6.status === "fulfilled") {
     const validV6Ips = v6.value.filter((ip) => ip && typeof ip === "string");
-    ips.push(...validV6Ips);
+    validV6Ips.forEach((ip) => ips.add(ip));
   }
-  if (!ips.length) throw new Error(`DNS lookup failed for ${hostname}`);
-  return ips;
+  if (lookup.status === "fulfilled") {
+    lookup.value
+      .map(({ address }) => address)
+      .filter((ip) => ip && typeof ip === "string")
+      .forEach((ip) => ips.add(ip));
+  }
+
+  if (!ips.size) throw new Error(`DNS lookup failed for ${hostname}`);
+  return [...ips];
 }
 
 export function parseOutboundUrl(urlString: string): URL {

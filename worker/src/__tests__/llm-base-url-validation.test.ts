@@ -1,4 +1,28 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { resolve4Mock, resolve6Mock, lookupMock } = vi.hoisted(() => ({
+  resolve4Mock: vi.fn<(hostname: string) => Promise<string[]>>(),
+  resolve6Mock: vi.fn<(hostname: string) => Promise<string[]>>(),
+  lookupMock:
+    vi.fn<
+      (
+        hostname: string,
+        options: { all: true },
+      ) => Promise<Array<{ address: string; family: 4 | 6 }>>
+    >(),
+}));
+
+vi.mock("node:dns/promises", () => ({
+  default: {
+    resolve4: resolve4Mock,
+    resolve6: resolve6Mock,
+    lookup: lookupMock,
+  },
+  resolve4: resolve4Mock,
+  resolve6: resolve6Mock,
+  lookup: lookupMock,
+}));
+
 import {
   validateLlmConnectionBaseURL,
   type LlmBaseUrlValidationWhitelist,
@@ -12,6 +36,14 @@ const originalAllowedIpSegments =
   env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS;
 
 describe("LLM base URL validation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    resolve4Mock.mockRejectedValue(new Error("ENOTFOUND"));
+    resolve6Mock.mockRejectedValue(new Error("ENODATA"));
+    lookupMock.mockRejectedValue(new Error("ENOTFOUND"));
+  });
+
   afterEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     (env as any).LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST =
@@ -47,6 +79,19 @@ describe("LLM base URL validation", () => {
     ).rejects.toThrow(
       "URL credentials are not allowed. Use authentication headers instead.",
     );
+  });
+
+  it("should reject hostnames that resolve to blocked IPs through local lookup", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    lookupMock.mockResolvedValue([{ address: "127.0.0.1", family: 4 }]);
+
+    await expect(validateLlmConnectionBaseURL("http://vm/v1")).rejects.toThrow(
+      "Blocked IP address detected",
+    );
+
+    expect(resolve4Mock).toHaveBeenCalledWith("vm");
+    expect(resolve6Mock).toHaveBeenCalledWith("vm");
+    expect(lookupMock).toHaveBeenCalledWith("vm", { all: true });
   });
 
   it("should allow explicitly allowlisted localhost hosts for self-hosted instances", async () => {
