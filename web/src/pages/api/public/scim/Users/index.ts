@@ -7,6 +7,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { hashPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { z } from "zod";
 import { type Role } from "@langfuse/shared";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default async function handler(
   req: NextApiRequest,
@@ -215,12 +216,20 @@ export default async function handler(
         },
         update: {},
       });
-      await prisma.organizationMembership.create({
+      const orgMembership = await prisma.organizationMembership.create({
         data: {
           userId: user.id,
           orgId: authCheck.scope.orgId,
           role,
         },
+      });
+      await auditLog({
+        resourceType: "orgMembership",
+        resourceId: orgMembership.id,
+        action: "create",
+        after: orgMembership,
+        apiKeyId: authCheck.scope.apiKeyId,
+        orgId: authCheck.scope.orgId,
       });
       logger.info(
         `[SCIM] Assigned user ${user.id} to org ${authCheck.scope.orgId} with role ${role}`,
