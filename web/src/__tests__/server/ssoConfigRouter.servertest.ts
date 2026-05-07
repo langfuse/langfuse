@@ -539,6 +539,22 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
 
+  it("rejects when the discovery endpoint redirects (SSRF defense)", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-redirect-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+
+    // `redirect: "error"` means a 3xx surfaces as a fetch rejection. Real
+    // IdPs serve `.well-known/openid-configuration` with a 200 directly per
+    // OIDC Discovery §4; a redirect is a sign that the configured issuer is
+    // either misconfigured or trying to bounce us at an internal endpoint.
+    fetchMock.mockRejectedValueOnce(new TypeError("redirect not allowed"));
+
+    await expect(
+      caller.ssoConfig.save({ orgId: org.id, payload: samplePayload(domain) }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
   it("rejects when the discovery body is not valid JSON", async () => {
     const { org, caller } = await prepare();
     const domain = `discovery-bad-json-${uuidv4().slice(0, 8)}.com`;

@@ -66,9 +66,17 @@ export async function validateSsoConfig(
 
   let resp: Response;
   try {
+    // SSRF defense: refuse to follow redirects. An admin can configure any
+    // issuer host, and a malicious one could 302 us at internal endpoints
+    // (cloud metadata services, kube API, localhost). Per OIDC Discovery §4
+    // the discovery doc is served directly at the issuer URL with no
+    // redirects, so legitimate IdPs (Auth0, Okta, Google, Azure AD,
+    // JumpCloud, etc.) all return 200 directly. `redirect: "error"` makes
+    // fetch throw on any 3xx, which we catch as the same "Could not reach"
+    // error the admin sees for any other connection failure.
     resp = await fetch(discoveryUrl, {
       signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS),
-      redirect: "follow",
+      redirect: "error",
     });
   } catch {
     throw new TRPCError({
