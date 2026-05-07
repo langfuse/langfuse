@@ -111,6 +111,25 @@ const s3UrlSchema = z.object({
   }),
 });
 
+const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp|svg|bmp|ico|avif|tiff?|heic)$/i;
+
+export const hasImageExtension = (url: string): boolean => {
+  try {
+    const pathname = new URL(url).pathname;
+    return IMAGE_EXTENSIONS.test(pathname);
+  } catch {
+    return false;
+  }
+};
+
+export const isOctetStream = (response: Response): boolean => {
+  const contentType = response.headers.get("content-type");
+  return (
+    contentType?.trim().toLowerCase().startsWith("application/octet-stream") ??
+    false
+  );
+};
+
 const isImageContent = (response: Response): boolean => {
   const contentType = response.headers.get("content-type");
   return !!contentType && contentType.startsWith("image/");
@@ -144,7 +163,11 @@ const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
     });
 
     // Status 200 indicates the URL is valid
-    if (response.ok && isImageContent(response)) {
+    if (
+      response.ok &&
+      (isImageContent(response) ||
+        (isOctetStream(response) && hasImageExtension(url)))
+    ) {
       return true;
     }
 
@@ -160,7 +183,11 @@ const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
         headers: { Range: "bytes=0-1" }, // Fetch only the first byte, expected server response for valid pre-signed URLs is 206 Partial Content
       });
 
-      return getResponse.ok && isImageContent(getResponse); // 200 or 206 Partial Content indicates success
+      return (
+        getResponse.ok &&
+        (isImageContent(getResponse) ||
+          (isOctetStream(getResponse) && hasImageExtension(url)))
+      ); // 200 or 206 Partial Content indicates success
     }
 
     return false;
@@ -176,7 +203,7 @@ const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
   }
 };
 
-const isValidImageUrl = async (url: string): Promise<boolean> => {
+export const isValidImageUrl = async (url: string): Promise<boolean> => {
   try {
     // Pre-signed URLs (AWS S3) often have restricted access methods. Some only allow GET requests, others only HEAD. We need to try both.
     if (await isValidPresignedS3Url(url)) {
@@ -192,7 +219,10 @@ const isValidImageUrl = async (url: string): Promise<boolean> => {
       return false;
     }
 
-    return isImageContent(response);
+    return (
+      isImageContent(response) ||
+      (isOctetStream(response) && hasImageExtension(url))
+    );
   } catch (error) {
     logger.info("Invalid image error:", error);
     return false;
