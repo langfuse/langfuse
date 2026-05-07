@@ -262,6 +262,28 @@ describe("Projects API", () => {
       },
     );
 
+    it("should allow create without metadata and return empty object", async () => {
+      const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
+      const response = await makeZodVerifiedAPICall(
+        ProjectCreationResponseSchema,
+        "POST",
+        "/api/public/projects",
+        {
+          name: uniqueProjectName,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        201,
+      );
+
+      expect(response.status).toBe(201);
+      expect(response.body.metadata).toEqual({});
+
+      const project = await prisma.project.findUnique({
+        where: { id: response.body.id },
+      });
+      expect(project?.metadata).toBeNull();
+    });
+
     it("should reject create when metadata is a literal null", async () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
       const result = await makeAPICall(
@@ -573,6 +595,34 @@ describe("Projects API", () => {
         expect(project?.metadata).toEqual(seedMetadata);
       },
     );
+
+    it("should allow update without metadata and preserve existing metadata", async () => {
+      const seedMetadata = { plan: "pro", features: ["all"] };
+      await prisma.project.update({
+        where: { id: testProjectId },
+        data: { metadata: seedMetadata },
+      });
+
+      const response = await makeZodVerifiedAPICall(
+        ProjectUpdateResponseSchema,
+        "PUT",
+        `/api/public/projects/${testProjectId}`,
+        {
+          name: "Renamed Project",
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        200,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.name).toBe("Renamed Project");
+      expect(response.body.metadata).toEqual(seedMetadata);
+
+      const project = await prisma.project.findUnique({
+        where: { id: testProjectId },
+      });
+      expect(project?.metadata).toEqual(seedMetadata);
+    });
 
     it("should reject update when metadata is a literal null and preserve existing metadata", async () => {
       const seedMetadata = { plan: "pro", features: ["all"] };
