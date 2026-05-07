@@ -737,8 +737,9 @@ const BlobStorageIntegrationSettingsForm = ({
                   <FormLabel>Export Field Groups</FormLabel>
                   <FormDescription>
                     Choose which field groups to include in enriched observation
-                    exports. Deselect sensitive groups (e.g. Input / Output,
-                    Metadata) to reduce export size.
+                    exports. Deselect large groups (e.g. Input / Output) to
+                    reduce export size, or privacy-sensitive groups (e.g.
+                    Metadata) to avoid storing user data.
                   </FormDescription>
                   <div className="mt-2 space-y-2">
                     {EXPORT_FIELD_GROUP_OPTIONS.map((option) => (
