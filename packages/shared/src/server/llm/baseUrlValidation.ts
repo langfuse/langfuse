@@ -3,7 +3,7 @@ import {
   type OutboundUrlValidationWhitelist,
   parseOutboundUrl,
   validateOutboundUrlHost,
-} from "../outboundUrlValidation";
+} from "../outbound-url";
 
 export type LlmBaseUrlValidationWhitelist = OutboundUrlValidationWhitelist;
 

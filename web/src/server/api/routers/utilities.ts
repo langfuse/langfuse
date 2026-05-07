@@ -3,88 +3,36 @@ import {
   authenticatedProcedure,
 } from "@/src/server/api/trpc";
 import { z } from "zod";
-import { promises as dns } from "dns";
-import { Address4, Address6 } from "ip-address";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  fetchWithSecureRedirects,
+  logger,
+  parseOutboundUrl,
+  validateOutboundUrlHost,
+  type ValidateOutboundUrlHostOptions,
+} from "@langfuse/shared/src/server";
 
-const IP_4_LOOPBACK_SUBNET = "127.0.0.0/8";
-const IP_4_LINK_LOCAL_SUBNET = "169.254.0.0/16";
-const IP_4_PRIVATE_A_SUBNET = "10.0.0.0/8";
-const IP_4_PRIVATE_B_SUBNET = "172.16.0.0/12";
-const IP_4_PRIVATE_C_SUBNET = "192.168.0.0/16";
+const MAX_IMAGE_URL_REDIRECTS = 5;
+const IMAGE_URL_VALIDATION_OPTIONS = {
+  whitelist: { hosts: [], ips: [], ip_ranges: [] },
+  shouldThrowIfDnsResolutionFails: true,
+  logContext: "Image URL",
+  shouldSkipDnsCheckForLiteralIps: true,
+} satisfies Omit<ValidateOutboundUrlHostOptions, "url">;
 
-/**
- * Check if the ipAddress is a private IP address
- * This function is used to protect against Server Side Request Forgery (SSRF) attacks.
- * SSRF attacks can cause the server to make requests to internal resources that should not be accessible.
- * By checking if a ipAddress resolves to a private IP address, we can prevent such attacks.
- *
- * @param ipAddress - The ipAddress to check
- * @returns True if the ipAddress is a private IP address, false otherwise
- */
-const isPrivateIp = (ipAddress: string): boolean => {
+export const isValidAndSecureUrl = async (
+  urlString: string,
+): Promise<boolean> => {
   try {
-    if (Address6.isValid(ipAddress)) {
-      const address = new Address6(ipAddress);
-      const isValidAddress6 = address.isLinkLocal() || address.isLoopback();
-      if (isValidAddress6) return true;
-    }
-    if (Address4.isValid(ipAddress)) {
-      const address = new Address4(ipAddress);
-      const isValidAddress4 = [
-        IP_4_LOOPBACK_SUBNET,
-        IP_4_LINK_LOCAL_SUBNET,
-        IP_4_PRIVATE_A_SUBNET,
-        IP_4_PRIVATE_B_SUBNET,
-        IP_4_PRIVATE_C_SUBNET,
-      ].some((subnet) => address.isInSubnet(new Address4(subnet)));
-      if (isValidAddress4) return true;
-    }
-    return false;
-  } catch (error) {
-    logger.info("IP parsing error:", error);
-    return false;
-  }
-};
-
-const resolveHostname = async (
-  hostname: string,
-): Promise<{ addresses4: string[]; addresses6: string[] }> => {
-  let addresses4: string[] = [];
-  let addresses6: string[] = [];
-
-  try {
-    addresses4 = await dns.resolve4(hostname);
-  } catch (error) {
-    logger.info("IPv4 DNS resolution error:", error);
-  }
-
-  try {
-    addresses6 = await dns.resolve6(hostname);
-  } catch (error) {
-    logger.info("IPv6 DNS resolution error:", error);
-  }
-
-  return { addresses4, addresses6 };
-};
-
-const isValidAndSecureUrl = async (urlString: string): Promise<boolean> => {
-  try {
-    const url = new URL(urlString);
+    const url = parseOutboundUrl(urlString);
     if (url.protocol !== "https:") {
       return false;
     }
-    const hostname = new URL(url).hostname;
-    const ipAddresses = await resolveHostname(hostname);
 
-    // Consider unresolvable or private hostnames as invalid/unsafe
-    return (
-      (ipAddresses.addresses4.length === 0 ||
-        ipAddresses.addresses4.every((ip) => !isPrivateIp(ip))) &&
-      (ipAddresses.addresses6.length === 0 ||
-        ipAddresses.addresses6.every((ip) => !isPrivateIp(ip))) &&
-      (ipAddresses.addresses4.length > 0 || ipAddresses.addresses6.length > 0)
-    );
+    await validateOutboundUrlHost({
+      url,
+      ...IMAGE_URL_VALIDATION_OPTIONS,
+    });
+    return true;
   } catch (error) {
     logger.info("Invalid URL:", error);
     return false;
@@ -111,9 +59,37 @@ const s3UrlSchema = z.object({
   }),
 });
 
+type PresignedS3UrlValidationResult = "not-s3-url" | "valid" | "invalid";
+
 const isImageContent = (response: Response): boolean => {
   const contentType = response.headers.get("content-type");
   return !!contentType && contentType.startsWith("image/");
+};
+
+const fetchImageUrlWithSecureRedirects = async (
+  url: string,
+  options: RequestInit,
+): Promise<Response> => {
+  // fetchWithSecureRedirects validates redirect targets. Validate the initial
+  // image URL here so the first network request cannot target a blocked host.
+  if (!(await isValidAndSecureUrl(url))) {
+    throw new Error("Image URL failed security validation");
+  }
+
+  const { response } = await fetchWithSecureRedirects(url, options, {
+    maxRedirects: MAX_IMAGE_URL_REDIRECTS,
+    redirectValidation: {
+      validateUrl: async (redirectUrl) => {
+        if (!(await isValidAndSecureUrl(redirectUrl))) {
+          throw new Error(
+            "Image URL redirect target failed security validation",
+          );
+        }
+      },
+    },
+  });
+
+  return response;
 };
 
 /**
@@ -121,7 +97,9 @@ const isImageContent = (response: Response): boolean => {
  * @param url The pre-signed S3 URL to validate
  * @returns True if the URL is valid and reachable, false otherwise
  */
-const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
+const validatePresignedS3Url = async (
+  url: string,
+): Promise<PresignedS3UrlValidationResult> => {
   try {
     const parsedUrl = new URL(url);
 
@@ -134,18 +112,18 @@ const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
 
     if (!result.success) {
       logger.info("Invalid pre-signed S3 URL:", result.error.message);
-      return false;
+      return "not-s3-url";
     }
 
     // Perform a HEAD request to check reachability
-    const response = await fetch(url, {
+    const response = await fetchImageUrlWithSecureRedirects(url, {
       method: "HEAD",
       signal: AbortSignal.timeout(5000),
     });
 
     // Status 200 indicates the URL is valid
     if (response.ok && isImageContent(response)) {
-      return true;
+      return "valid";
     }
 
     // Attempt a GET request, as most pre-signed URLs are restricted to GET requests only
@@ -154,16 +132,18 @@ const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
         "HEAD request returned 403, attempting GET for validation...",
       );
 
-      const getResponse = await fetch(url, {
+      const getResponse = await fetchImageUrlWithSecureRedirects(url, {
         method: "GET",
         signal: AbortSignal.timeout(5000),
         headers: { Range: "bytes=0-1" }, // Fetch only the first byte, expected server response for valid pre-signed URLs is 206 Partial Content
       });
 
-      return getResponse.ok && isImageContent(getResponse); // 200 or 206 Partial Content indicates success
+      return getResponse.ok && isImageContent(getResponse)
+        ? "valid"
+        : "invalid"; // 200 or 206 Partial Content indicates success
     }
 
-    return false;
+    return "invalid";
   } catch (error) {
     if (error instanceof z.ZodError) {
       logger.info("URL Validation Error:", error.message);
@@ -172,18 +152,25 @@ const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
     } else {
       logger.info("Unknown error:", error);
     }
-    return false;
+    return "invalid";
   }
 };
 
-const isValidImageUrl = async (url: string): Promise<boolean> => {
+export const isValidImageUrl = async (url: string): Promise<boolean> => {
   try {
     // Pre-signed URLs (AWS S3) often have restricted access methods. Some only allow GET requests, others only HEAD. We need to try both.
-    if (await isValidPresignedS3Url(url)) {
+    const presignedS3UrlValidationResult = await validatePresignedS3Url(url);
+    if (presignedS3UrlValidationResult === "valid") {
       return true;
     }
+    // If the URL looks like a pre-signed S3 URL but validation failed, do not
+    // retry it through the generic image path; that would repeat the same
+    // secure fetch and DNS checks for the same URL.
+    if (presignedS3UrlValidationResult === "invalid") {
+      return false;
+    }
 
-    const response = await fetch(url, {
+    const response = await fetchImageUrlWithSecureRedirects(url, {
       method: "HEAD",
       signal: AbortSignal.timeout(5000),
     });
@@ -203,11 +190,6 @@ export const utilsRouter = createTRPCRouter({
   validateImgUrl: authenticatedProcedure
     .input(z.string().max(2048))
     .query(async ({ input: url }) => {
-      const isValidUrl = await isValidAndSecureUrl(url);
-      if (!isValidUrl) {
-        return { isValid: false };
-      }
-
       const isValidImg = await isValidImageUrl(url);
       return { isValid: isValidImg };
     }),

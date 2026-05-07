@@ -1,5 +1,4 @@
-import { validateWebhookURL } from "./validation";
-import type { WebhookValidationWhitelist } from "./validation";
+import type { OutboundUrlValidationWhitelist } from "./validation";
 import { logger } from "../logger";
 
 const SENSITIVE_REDIRECT_HEADERS = new Set([
@@ -59,26 +58,44 @@ export interface RedirectResult {
   finalUrl: string;
 }
 
+export type RedirectUrlValidator = (
+  url: string,
+  whitelist?: OutboundUrlValidationWhitelist,
+) => Promise<void>;
+
+interface BaseRedirectOptions {
+  maxRedirects: number;
+  additionalSensitiveHeaders?: string[];
+}
+
+interface RedirectValidationOptions {
+  validateUrl: RedirectUrlValidator;
+  whitelist?: OutboundUrlValidationWhitelist;
+}
+
 /**
  * Options for secure redirect handling
  */
-export interface RedirectOptions {
-  maxRedirects: number;
-  skipValidation?: boolean;
-  whitelist?: WebhookValidationWhitelist;
-  additionalSensitiveHeaders?: string[];
-}
+export type RedirectOptions =
+  | (BaseRedirectOptions & {
+      skipValidation: true;
+      redirectValidation?: never;
+    })
+  | (BaseRedirectOptions & {
+      skipValidation?: false;
+      redirectValidation: RedirectValidationOptions;
+    });
 
 /**
  * Fetches a URL with manual redirect handling and validation at each step.
  *
  * This function prevents SSRF attacks via redirects by validating each redirect
- * target before following it. It uses the same validation logic as the initial
- * URL validation, checking for blocked hostnames, private IPs, and other SSRF vectors.
+ * target before following it. Callers provide validation so each outbound flow
+ * can enforce its own protocol, port, and whitelist rules.
  *
  * @param url - The initial URL to fetch
  * @param options - Fetch options (method, body, headers, signal, etc.)
- * @param redirectOptions - Configuration for redirect handling (maxRedirects, skipValidation, whitelist)
+ * @param redirectOptions - Configuration for redirect handling (maxRedirects, validation, whitelist)
  * @returns Promise resolving to the final response, redirect chain, and final URL
  * @throws RedirectValidationError if a redirect target fails validation
  * @throws MaxRedirectsExceededError if redirect depth exceeds maxRedirects
@@ -89,7 +106,10 @@ export interface RedirectOptions {
  * const result = await fetchWithSecureRedirects(
  *   "https://example.com/webhook",
  *   { method: "POST", body: payload, headers, signal },
- *   { maxRedirects: 10, skipValidation: false }
+ *   {
+ *     maxRedirects: 10,
+ *     redirectValidation: { validateUrl: validateWebhookURL },
+ *   }
  * );
  * console.log(`Final URL: ${result.finalUrl}`);
  * console.log(`Redirects: ${result.redirectChain.length}`);
@@ -100,12 +120,7 @@ export async function fetchWithSecureRedirects(
   options: RequestInit,
   redirectOptions: RedirectOptions,
 ): Promise<RedirectResult> {
-  const {
-    maxRedirects,
-    skipValidation = false,
-    whitelist,
-    additionalSensitiveHeaders = [],
-  } = redirectOptions;
+  const { maxRedirects, additionalSensitiveHeaders = [] } = redirectOptions;
   const sensitiveRedirectHeaders = new Set([
     ...SENSITIVE_REDIRECT_HEADERS,
     ...additionalSensitiveHeaders.map((headerName) => headerName.toLowerCase()),
@@ -196,10 +211,15 @@ export async function fetchWithSecureRedirects(
       ]);
     }
 
-    // Validate the redirect target URL before following
-    if (!skipValidation) {
+    if (redirectOptions.skipValidation !== true) {
       try {
-        await validateWebhookURL(redirectUrl, whitelist);
+        // Redirect safety is domain-specific: webhooks allow HTTP(S) on 80/443,
+        // while image URLs require HTTPS. Keep the fetch helper generic and
+        // require callers to pass the validator that matches their flow.
+        await redirectOptions.redirectValidation.validateUrl(
+          redirectUrl,
+          redirectOptions.redirectValidation.whitelist,
+        );
       } catch (error) {
         logger.warn("Redirect validation failed", {
           from: currentUrl,

@@ -1,16 +1,24 @@
 import dns from "node:dns/promises";
 import { URL } from "node:url";
-import { logger } from "./logger";
+import { logger } from "../logger";
 import {
   isHostnameBlocked,
   isIPBlocked,
   isIPAddress,
-} from "./webhooks/ipBlocking";
+} from "../webhooks/ipBlocking";
 
 export interface OutboundUrlValidationWhitelist {
   hosts: string[];
   ips: string[];
   ip_ranges: string[];
+}
+
+export interface ValidateOutboundUrlHostOptions {
+  url: URL;
+  whitelist: OutboundUrlValidationWhitelist;
+  shouldThrowIfDnsResolutionFails: boolean;
+  logContext: string;
+  shouldSkipDnsCheckForLiteralIps: boolean;
 }
 
 export async function resolveHost(hostname: string): Promise<string[]> {
@@ -73,13 +81,7 @@ export async function validateOutboundUrlHost({
   shouldThrowIfDnsResolutionFails,
   logContext,
   shouldSkipDnsCheckForLiteralIps,
-}: {
-  url: URL;
-  whitelist: OutboundUrlValidationWhitelist;
-  shouldThrowIfDnsResolutionFails: boolean;
-  logContext: string;
-  shouldSkipDnsCheckForLiteralIps: boolean;
-}): Promise<void> {
+}: ValidateOutboundUrlHostOptions): Promise<void> {
   // WHATWG URL parsing already lowercases and punycodes HTTP(S) hostnames, so
   // host safety checks stay tied to the parsed URL component.
   const hostname = url.hostname;

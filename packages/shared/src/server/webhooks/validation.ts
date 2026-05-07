@@ -4,7 +4,7 @@ import {
   parseOutboundUrl,
   resolveHost,
   validateOutboundUrlHost,
-} from "../outboundUrlValidation";
+} from "../outbound-url";
 
 export type WebhookValidationWhitelist = OutboundUrlValidationWhitelist;
 export { resolveHost };
