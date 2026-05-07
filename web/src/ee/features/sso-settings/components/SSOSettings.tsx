@@ -64,7 +64,7 @@ import { z } from "zod";
 const SSO_PROVIDERS: ReadonlyArray<{
   id: SsoProviderSchema["authProvider"];
   label: string;
-  fields: ReadonlyArray<"issuer" | "tenantId" | "baseUrl">;
+  fields: ReadonlyArray<"issuer" | "tenantId" | "baseUrl" | "name">;
 }> = [
   { id: "google", label: "Google", fields: [] },
   { id: "github", label: "GitHub", fields: [] },
@@ -78,7 +78,8 @@ const SSO_PROVIDERS: ReadonlyArray<{
   { id: "cognito", label: "AWS Cognito", fields: ["issuer"] },
   { id: "keycloak", label: "Keycloak", fields: ["issuer"] },
   { id: "jumpcloud", label: "JumpCloud", fields: ["issuer"] },
-  { id: "custom", label: "Custom OIDC", fields: ["issuer"] },
+  // Custom OIDC requires a display name on the schema; surface it in the form.
+  { id: "custom", label: "Custom OIDC", fields: ["name", "issuer"] },
 ];
 
 const providerLabel = (id: string) =>
@@ -95,6 +96,10 @@ const formSchema = z.object({
     issuer: z.string().optional(),
     tenantId: z.string().optional(),
     baseUrl: z.string().optional(),
+    // Required by CustomProviderSchema; optional in the form so other
+    // providers don't carry a stray field. The strict provider schema
+    // enforces presence at submit for `custom`.
+    name: z.string().optional(),
   }),
 });
 
@@ -287,6 +292,7 @@ function SsoConfigDialog({
         issuer: typeof cfg.issuer === "string" ? cfg.issuer : "",
         tenantId: typeof cfg.tenantId === "string" ? cfg.tenantId : "",
         baseUrl: enterprise?.baseUrl ?? "",
+        name: typeof cfg.name === "string" ? cfg.name : "",
       },
     };
   }, [existing]);
@@ -347,7 +353,7 @@ function SsoConfigDialog({
       const path = firstIssue.path.join(".");
       form.setError(
         path.startsWith("authConfig.")
-          ? (path as `authConfig.${"clientId" | "clientSecret" | "issuer" | "tenantId" | "baseUrl"}`)
+          ? (path as `authConfig.${"clientId" | "clientSecret" | "issuer" | "tenantId" | "baseUrl" | "name"}`)
           : "authProvider",
         { message: firstIssue.message },
       );
@@ -405,6 +411,22 @@ function SsoConfigDialog({
                 />
 
                 <CallbackUrlPanel callbackUrl={callbackUrl} />
+
+                {providerSpec.fields.includes("name") ? (
+                  <FormField
+                    control={form.control}
+                    name="authConfig.name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Display Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Acme SSO" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
 
                 <FormField
                   control={form.control}
@@ -679,11 +701,20 @@ function buildSsoPayload(domain: string, values: FormValues) {
     case "cognito":
     case "keycloak":
     case "jumpcloud":
-    case "custom":
       return {
         domain,
         authProvider,
         authConfig: { ...base, issuer: authConfig.issuer ?? "" },
+      };
+    case "custom":
+      return {
+        domain,
+        authProvider,
+        authConfig: {
+          ...base,
+          issuer: authConfig.issuer ?? "",
+          name: authConfig.name ?? "",
+        },
       };
     default:
       return { domain, authProvider, authConfig: base };
