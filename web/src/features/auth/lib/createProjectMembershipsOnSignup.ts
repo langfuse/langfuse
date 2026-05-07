@@ -1,12 +1,27 @@
 import { env } from "@/src/env.mjs";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
+import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 
-export async function createProjectMembershipsOnSignup(user: {
-  id: string;
-  email: string | null;
-}) {
+export async function createProjectMembershipsOnSignup(
+  user: {
+    id: string;
+    email: string | null;
+  },
+  options?: { userWasJustCreated?: boolean },
+) {
   try {
+    const isCloudDeployment = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+    // in no case do we want to send duplicate sign up events to posthog
+    const isNewUser = !(await prisma.organizationMembership.findFirst({
+      where: { userId: user.id },
+      select: { id: true },
+    }));
+
     // Langfuse Cloud: provide view-only access to the demo project, none access to the demo org
     const demoProject =
       env.NEXT_PUBLIC_DEMO_ORG_ID && env.NEXT_PUBLIC_DEMO_PROJECT_ID
@@ -18,8 +33,12 @@ export async function createProjectMembershipsOnSignup(user: {
           })) ?? undefined)
         : undefined;
     if (demoProject !== undefined) {
-      await prisma.organizationMembership.create({
-        data: {
+      await prisma.organizationMembership.upsert({
+        where: {
+          orgId_userId: { orgId: demoProject.orgId, userId: user.id },
+        },
+        update: {}, // No-op: preserve existing role
+        create: {
           userId: user.id,
           orgId: demoProject.orgId,
           role: Role.VIEWER,
@@ -27,60 +46,193 @@ export async function createProjectMembershipsOnSignup(user: {
       });
     }
 
-    // self-hosted: LANGFUSE_DEFAULT_ORG_ID
-    const defaultOrg = env.LANGFUSE_DEFAULT_ORG_ID
-      ? ((await prisma.organization.findUnique({
-          where: {
-            id: env.LANGFUSE_DEFAULT_ORG_ID,
-          },
-        })) ?? undefined)
-      : undefined;
-    const defaultOrgMembership =
-      defaultOrg !== undefined
-        ? await prisma.organizationMembership.create({
-            data: {
-              orgId: defaultOrg.id,
-              userId: user.id,
-              role: env.LANGFUSE_DEFAULT_ORG_ROLE ?? "VIEWER",
+    // self-hosted: LANGFUSE_DEFAULT_ORG_ID (supports comma-separated list of org IDs)
+    const defaultOrgIds = env.LANGFUSE_DEFAULT_ORG_ID ?? [];
+    const defaultOrgs =
+      defaultOrgIds.length > 0
+        ? await prisma.organization.findMany({
+            where: {
+              id: { in: defaultOrgIds },
             },
           })
-        : undefined;
+        : [];
 
-    // self-hosted: LANGFUSE_DEFAULT_PROJECT_ID
-    const defaultProject = env.LANGFUSE_DEFAULT_PROJECT_ID
-      ? ((await prisma.project.findUnique({
-          where: {
-            id: env.LANGFUSE_DEFAULT_PROJECT_ID,
-          },
-        })) ?? undefined)
-      : undefined;
-    if (defaultProject !== undefined) {
-      if (defaultOrgMembership) {
-        // (1) used together with LANGFUSE_DEFAULT_ORG_ID -> create project role for the project within the org, do nothing if the project is not in the org
-        if (defaultProject.orgId === defaultOrgMembership.orgId) {
-          await prisma.projectMembership.create({
-            data: {
+    // Create org memberships for all default orgs, store mapping of orgId -> membership
+    const orgMembershipMap = new Map<
+      string,
+      { id: string; orgId: string; userId: string }
+    >();
+    for (const org of defaultOrgs) {
+      const membership = await prisma.organizationMembership.upsert({
+        where: {
+          orgId_userId: { orgId: org.id, userId: user.id },
+        },
+        update: {}, // No-op: preserve existing role
+        create: {
+          orgId: org.id,
+          userId: user.id,
+          role: env.LANGFUSE_DEFAULT_ORG_ROLE ?? "VIEWER",
+        },
+      });
+      orgMembershipMap.set(org.id, membership);
+    }
+
+    // self-hosted: LANGFUSE_DEFAULT_PROJECT_ID (supports comma-separated list of project IDs)
+    const defaultProjectIds = env.LANGFUSE_DEFAULT_PROJECT_ID ?? [];
+    const defaultProjects =
+      defaultProjectIds.length > 0
+        ? await prisma.project.findMany({
+            where: {
+              id: { in: defaultProjectIds },
+            },
+          })
+        : [];
+
+    // Project-level role assignments require the rbac-project-roles entitlement.
+    // Without it, users inherit their org role for all projects, so we only need
+    // to ensure org membership exists (handled above and in path 2 below).
+    const hasProjectRolesEntitlement = hasEntitlementBasedOnPlan({
+      plan: getOrganizationPlanServerSide(),
+      entitlement: "rbac-project-roles",
+    });
+
+    for (const project of defaultProjects) {
+      const existingOrgMembership = orgMembershipMap.get(project.orgId);
+      if (existingOrgMembership) {
+        // (1) project's org is in the default org list -> create project membership if entitled
+        if (hasProjectRolesEntitlement) {
+          await prisma.projectMembership.upsert({
+            where: {
+              projectId_userId: {
+                projectId: project.id,
+                userId: user.id,
+              },
+            },
+            update: {}, // No-op: preserve existing role
+            create: {
               userId: user.id,
-              orgMembershipId: defaultOrgMembership.id,
-              projectId: defaultProject.id,
+              orgMembershipId: existingOrgMembership.id,
+              projectId: project.id,
               role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
             },
           });
         }
       } else {
-        // (2) used without LANGFUSE_DEFAULT_ORG_ID (legacy) -> create org membership for the project's org
-        await prisma.organizationMembership.create({
-          data: {
-            orgId: defaultProject.orgId,
+        // (2) project's org is NOT in the default org list (legacy behavior) -> create org membership for the project's org first
+        const orgMembership = await prisma.organizationMembership.upsert({
+          where: {
+            orgId_userId: { orgId: project.orgId, userId: user.id },
+          },
+          update: {}, // No-op: preserve existing role
+          create: {
+            orgId: project.orgId,
             userId: user.id,
             role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
           },
         });
+        // Add to map in case multiple projects belong to the same org
+        orgMembershipMap.set(project.orgId, orgMembership);
+
+        if (hasProjectRolesEntitlement) {
+          await prisma.projectMembership.upsert({
+            where: {
+              projectId_userId: {
+                projectId: project.id,
+                userId: user.id,
+              },
+            },
+            update: {}, // No-op: preserve existing role
+            create: {
+              userId: user.id,
+              orgMembershipId: orgMembership.id,
+              projectId: project.id,
+              role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
+            },
+          });
+        }
       }
     }
 
     // Invites do not work for users without emails (some future SSO users)
     if (user.email) await processMembershipInvitations(user.email, user.id);
+
+    if (isCloudDeployment && (options?.userWasJustCreated || isNewUser)) {
+      const userRolloutState = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: {
+          createdAt: true,
+          v4BetaEnabled: true,
+          organizationMemberships: {
+            select: {
+              organization: {
+                select: {
+                  id: true,
+                  createdAt: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (userRolloutState) {
+        const shouldAutoEnableV4ForUser = shouldAutoEnableV4({
+          userCreatedAt: userRolloutState.createdAt,
+          organizations: userRolloutState.organizationMemberships.map(
+            (membership) => ({
+              id: membership.organization.id,
+              createdAt: membership.organization.createdAt,
+            }),
+          ),
+          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+            : [],
+        });
+        const shouldInitializeForNewUser =
+          options?.userWasJustCreated &&
+          !userRolloutState.v4BetaEnabled &&
+          shouldAutoEnableV4ForUser;
+        const shouldInitializeForFirstOrganization =
+          !options?.userWasJustCreated &&
+          isNewUser &&
+          !userRolloutState.v4BetaEnabled &&
+          shouldAutoEnableV4ForUser;
+
+        if (
+          shouldInitializeForNewUser ||
+          shouldInitializeForFirstOrganization
+        ) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { v4BetaEnabled: true },
+          });
+        }
+      }
+    }
+
+    // for conversion metric tracking in posthog: did a new user sign up?
+    if (
+      isNewUser &&
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+      ["EU", "US"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
+    ) {
+      try {
+        const posthog = new ServerPosthog();
+        posthog.capture({
+          distinctId: user.id,
+          event: "cloud_signup_complete",
+          properties: {
+            cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+            hasDemoAccess: demoProject !== undefined,
+            hasDefaultOrg: defaultOrgs.length > 0,
+            hasDefaultProject: defaultProjects.length > 0,
+          },
+        });
+        await posthog.shutdown();
+      } catch {
+        // analytics tracking failure is not critical, just fail
+      }
+    }
   } catch (e) {
     logger.error("Error assigning project access to new user", e);
   }

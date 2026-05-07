@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { GetScoreResponseDataV2 } from "./endpoints";
 
 /**
@@ -9,7 +9,7 @@ import { GetScoreResponseDataV2 } from "./endpoints";
  */
 export const filterAndValidateV2GetScoreList = (
   scores: unknown[],
-  // eslint-disable-next-line no-unused-vars
+
   onParseError?: (error: z.ZodError) => void,
 ): z.infer<typeof GetScoreResponseDataV2>[] =>
   scores.reduce(

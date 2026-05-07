@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
 const EnvSchema = z.object({
@@ -6,7 +6,10 @@ const EnvSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
-  NEXTAUTH_URL: z.string().url().optional(),
+  NEXTAUTH_URL: z.url().optional(),
+  EMAIL_FROM_ADDRESS: z.string().optional(),
+  SMTP_CONNECTION_URL: z.string().optional(),
+  CLOUD_CRM_EMAIL: z.string().optional(),
   REDIS_HOST: z.string().nullish(),
   REDIS_PORT: z.coerce
     .number() // .env files convert numbers to strings, therefore we have to enforce them to be numbers
@@ -17,6 +20,8 @@ const EnvSchema = z.object({
   REDIS_AUTH: z.string().nullish(),
   REDIS_USERNAME: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
+  // Optional prefix for Redis keys. Used by BullMQ queues via their native prefix option
+  // and by the singleton cache instance via ioredis keyPrefix. Useful for multi-tenant Redis.
   REDIS_KEY_PREFIX: z.string().nullish(),
   REDIS_TLS_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_TLS_CA_PATH: z.string().optional(),
@@ -33,6 +38,11 @@ const EnvSchema = z.object({
   // Redis Cluster Configuration
   REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_CLUSTER_NODES: z.string().optional(),
+  REDIS_CLUSTER_SLOTS_REFRESH_TIMEOUT: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5000),
   REDIS_SENTINEL_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_SENTINEL_NODES: z.string().optional(),
   REDIS_SENTINEL_MASTER_NAME: z.string().optional(),
@@ -47,10 +57,23 @@ const EnvSchema = z.object({
     .optional(),
   LANGFUSE_CACHE_MODEL_MATCH_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS: z.coerce.number().default(86400), // 24 hours
+  LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_LOCAL_CACHE_MODEL_MATCH_TTL_MS: z.coerce
+    .number()
+    .positive()
+    .default(10_000),
+  LANGFUSE_LOCAL_CACHE_MODEL_MATCH_MAX: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20_000),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("true"),
-  LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(300), // 5 minutes
-  CLICKHOUSE_URL: z.string().url(),
-  CLICKHOUSE_READ_ONLY_URL: z.string().url().optional(),
+  LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(3600), // 1h
+  CLICKHOUSE_URL: z.url(),
+  CLICKHOUSE_READ_ONLY_URL: z.url().optional(),
+  CLICKHOUSE_EVENTS_READ_ONLY_URL: z.url().optional(),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_USER: z.string(),
@@ -60,9 +83,15 @@ const EnvSchema = z.object({
   // Optional to allow for server-setting fallbacks
   CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: z.string().optional(),
   CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: z.coerce.number().int().optional(),
+  CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS: z.coerce
+    .number()
+    .int()
+    .min(50)
+    .optional(),
   CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: z
     .enum(["alter_update", "lightweight_update", "lightweight_update_force"])
     .default("alter_update"),
+  CLICKHOUSE_USE_LIGHTWEIGHT_UPDATE: z.enum(["true", "false"]).default("false"),
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])
     .default("auto"),
@@ -72,7 +101,28 @@ const EnvSchema = z.object({
     .nonnegative()
     .default(15_000),
   LANGFUSE_INGESTION_QUEUE_SHARD_COUNT: z.coerce.number().positive().default(1),
+  LANGFUSE_INGESTION_SECONDARY_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
   LANGFUSE_OTEL_INGESTION_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_OTEL_INGESTION_SECONDARY_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_OTEL_MAX_SPAN_BYTES: z.coerce.number().positive().default(9_500_000), // 9.5MB — just under ClickHouse's 10MB min_chunk_bytes_for_parallel_parsing default
+  LANGFUSE_EVAL_EXECUTION_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_EVAL_EXECUTION_SECONDARY_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_LLM_AS_JUDGE_EXECUTION_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()
     .default(1),
@@ -85,7 +135,7 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .default(5_000),
-  LANGFUSE_TRACE_DELETE_SKIP_PROJECT_IDS: z
+  LANGFUSE_DELETE_SKIP_PROJECT_IDS: z
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
@@ -104,6 +154,19 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_S3_CONCURRENT_WRITES: z.coerce.number().positive().default(50),
+  LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_S3_UPLOAD_MAX_PART_ATTEMPTS: z.coerce
+    .number()
+    .min(1)
+    .max(10)
+    .default(3),
+  LANGFUSE_S3_UPLOAD_MAX_CONCURRENT_PARTS: z.coerce
+    .number()
+    .min(1)
+    .max(10)
+    .default(3),
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string(), // Langfuse requires a bucket name for S3 Event Uploads.
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
@@ -132,6 +195,21 @@ const EnvSchema = z.object({
     .default("true"),
   LANGFUSE_USE_GOOGLE_CLOUD_STORAGE: z.enum(["true", "false"]).default("false"),
   LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS: z.string().optional(),
+  LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_OCI_AUTH_TYPE: z
+    .enum([
+      "workload_identity",
+      "instance_principal",
+      "resource_principal",
+      "oci_profile",
+      "session_token",
+    ])
+    .optional(),
+  LANGFUSE_OCI_CONFIG_FILE: z.string().optional(),
+  LANGFUSE_OCI_CONFIG_PROFILE: z.string().optional(),
+  NODE_EXTRA_CA_CERTS: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
 
   LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: z
@@ -192,7 +270,7 @@ const EnvSchema = z.object({
         }
 
         return map;
-      } catch (err) {
+      } catch {
         return new Map<string, number>();
       }
     }),
@@ -214,6 +292,24 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
@@ -225,6 +321,14 @@ const EnvSchema = z.object({
     .describe(
       "How many records should be fetched from Slack, before we give up",
     ),
+  SLACK_PAGE_SIZE: z.coerce
+    .number()
+    .positive()
+    .int()
+    .max(1000)
+    .optional()
+    .default(1000) // Use high default to minimize number of API calls and hence avoid rate limits
+    .describe("Number of channels to fetch per Slack API page"),
   HTTPS_PROXY: z.string().optional(),
 
   LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce
@@ -277,9 +381,34 @@ const EnvSchema = z.object({
   LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION: z
     .enum(["true", "false"])
     .default("true"),
+
+  // EE License
+  LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
+
+  // Ingestion Masking (EE feature)
+  LANGFUSE_INGESTION_MASKING_CALLBACK_URL: z.url().optional(),
+  LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS: z.coerce
+    .number()
+    .positive()
+    .default(500),
+  LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_INGESTION_MASKING_MAX_RETRIES: z.coerce
+    .number()
+    .nonnegative()
+    .default(1),
+  LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((h) => h.toLowerCase().trim()) : [],
+    ),
 });
 
-export const env: z.infer<typeof EnvSchema> =
+export type SharedEnv = z.infer<typeof EnvSchema>;
+
+export const env: SharedEnv =
   process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
     : EnvSchema.parse(removeEmptyEnvVariables(process.env));

@@ -22,6 +22,28 @@ import type {
   ParseResponse,
 } from "@/src/workers/json-parser.worker";
 
+/**
+ * Threshold for using Web Worker vs sync parsing (in characters).
+ * Below this: sync parse (faster, no message-passing overhead)
+ * Above this: Web Worker (non-blocking, prevents UI freeze)
+ */
+const PARSE_IN_WEBWORKER_THRESHOLD = 100_000; // 100KB
+
+/**
+ * Estimate the size of a value in characters (for threshold check)
+ */
+function estimateSize(value: unknown): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === "string") return value.length;
+  // For objects/arrays, estimate via JSON stringification length
+  // This is approximate but good enough for threshold decisions
+  try {
+    return JSON.stringify(value).length;
+  } catch {
+    return 0;
+  }
+}
+
 // Singleton worker instance shared across all hook calls
 let workerInstance: Worker | null = null;
 const pendingCallbacks = new Map<
@@ -76,7 +98,35 @@ interface ParsedData {
 }
 
 /**
- * Parse trace data in Web Worker (or fallback to sync)
+ * Sync parse helper - used for small payloads or when Web Worker unavailable
+ */
+async function syncParseTraceData(
+  input: unknown,
+  output: unknown,
+  metadata: unknown,
+): Promise<ParsedData> {
+  const { deepParseJsonIterative } = await import("@langfuse/shared");
+  const startTime = performance.now();
+
+  return {
+    input: deepParseJsonIterative(input, {
+      maxDepth: 50,
+      maxSize: 500_000,
+    }),
+    output: deepParseJsonIterative(output, {
+      maxDepth: 50,
+      maxSize: 500_000,
+    }),
+    metadata: deepParseJsonIterative(metadata, {
+      maxDepth: 50,
+      maxSize: 500_000,
+    }),
+    parseTime: performance.now() - startTime,
+  };
+}
+
+/**
+ * Parse trace data in Web Worker (or sync for small payloads)
  * Returns a promise that resolves with parsed data
  */
 async function parseTraceData(
@@ -84,35 +134,23 @@ async function parseTraceData(
   output: unknown,
   metadata: unknown,
 ): Promise<ParsedData> {
+  // Estimate total size to decide sync vs worker
+  const totalSize =
+    estimateSize(input) + estimateSize(output) + estimateSize(metadata);
+
+  // Small payloads: sync parse (faster, no message-passing overhead)
+  if (totalSize < PARSE_IN_WEBWORKER_THRESHOLD) {
+    return syncParseTraceData(input, output, metadata);
+  }
+
   const worker = getOrCreateWorker();
 
   // Fallback to sync parsing if no worker support
   if (!worker) {
-    console.log(
-      "[useParsedTrace] Web Worker not available, using sync parsing",
-    );
-
-    const { deepParseJsonIterative } = await import("@langfuse/shared");
-    const startTime = performance.now();
-
-    return {
-      input: deepParseJsonIterative(input, {
-        maxDepth: 50,
-        maxSize: 500_000,
-      }),
-      output: deepParseJsonIterative(output, {
-        maxDepth: 50,
-        maxSize: 500_000,
-      }),
-      metadata: deepParseJsonIterative(metadata, {
-        maxDepth: 50,
-        maxSize: 500_000,
-      }),
-      parseTime: performance.now() - startTime,
-    };
+    return syncParseTraceData(input, output, metadata);
   }
 
-  // Parse in Web Worker (non-blocking)
+  // Large payloads: parse in Web Worker (non-blocking)
   return new Promise<ParsedData>((resolve, reject) => {
     const parseId = `${Date.now()}-${Math.random()}`;
 

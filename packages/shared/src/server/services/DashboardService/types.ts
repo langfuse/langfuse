@@ -1,5 +1,5 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { singleFilter } from "../../../";
 
 export const BaseTimeSeriesChartConfig = z.object({});
@@ -13,9 +13,13 @@ export const LineChartTimeSeriesConfig = BaseTimeSeriesChartConfig.extend({
 export const BarChartTimeSeriesConfig = BaseTimeSeriesChartConfig.extend({
   type: z.literal("BAR_TIME_SERIES"),
 });
+export const AreaChartTimeSeriesConfig = BaseTimeSeriesChartConfig.extend({
+  type: z.literal("AREA_TIME_SERIES"),
+});
 
 export const HorizontalBarChartConfig = BaseTotalValueChartConfig.extend({
   type: z.literal("HORIZONTAL_BAR"),
+  show_value_labels: z.boolean().optional(),
 });
 export const VerticalBarChartConfig = BaseTotalValueChartConfig.extend({
   type: z.literal("VERTICAL_BAR"),
@@ -58,6 +62,7 @@ export const MetricSchema = z.object({
 export const ChartConfigSchema = z.discriminatedUnion("type", [
   LineChartTimeSeriesConfig,
   BarChartTimeSeriesConfig,
+  AreaChartTimeSeriesConfig,
   HorizontalBarChartConfig,
   VerticalBarChartConfig,
   PieChartConfig,
@@ -123,6 +128,7 @@ export const WidgetDomainSchema = z.object({
   filters: z.array(singleFilter),
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
+  minVersion: z.number().int().default(1),
   owner: OwnerEnum,
 });
 
@@ -136,6 +142,7 @@ export const CreateWidgetInputSchema = z.object({
   filters: z.array(singleFilter),
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
+  minVersion: z.number().int().optional(),
 });
 
 // Define the widget list response

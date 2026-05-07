@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { ScoreConfig as ScoreConfigDbType } from "@prisma/client";
 import {
   ScoreConfigDomain,
@@ -13,7 +13,7 @@ import {
  */
 export const filterAndValidateDbScoreConfigList = (
   scoreConfigs: ScoreConfigDbType[],
-  onParseError?: (error: z.ZodError) => void, // eslint-disable-line no-unused-vars
+  onParseError?: (error: z.ZodError) => void,
 ): ScoreConfigDomain[] =>
   scoreConfigs.reduce((acc, ts) => {
     const result = ScoreConfigSchema.safeParse(ts);

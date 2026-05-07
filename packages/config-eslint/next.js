@@ -1,79 +1,121 @@
-const { resolve } = require("node:path");
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
+import turboConfig from "eslint-config-turbo/flat";
+import "eslint-plugin-only-warn";
+import langfusePlugin from "@repo/eslint-plugin";
 
-const project = resolve(process.cwd(), "tsconfig.json");
-
-const turboConfig = require("eslint-config-turbo");
-const turboConfigToUse = turboConfig.default || turboConfig;
-
-/*
- * This is a custom ESLint configuration for use with
- * Next.js apps.
- *
- * This config extends the Vercel Engineering Style Guide.
- * For more information, see https://github.com/vercel/style-guide
- *
- */
-
-module.exports = {
-  parser: "@typescript-eslint/parser", // Set the parser to @typescript-eslint/parser
-  extends: [
-    "plugin:@typescript-eslint/recommended",
-    "plugin:@typescript-eslint/strict-type-checked",
-  ],
-  rules: {
-    "@typescript-eslint/no-non-null-assertion": "off",
-    "@typescript-eslint/no-confusing-void-expression": "off",
+export default [
+  // Global ignores - include config files
+  {
+    name: "langfuse/ignores",
+    ignores: [
+      "**/node_modules/",
+      "**/dist/",
+      "**/.next/",
+      "**/.next-check/",
+      "**/coverage/",
+      "eslint.config.mjs",
+    ],
   },
-  parser: "@typescript-eslint/parser",
 
-  parserOptions: {
-    project,
-  },
-  globals: {
-    React: true,
-    JSX: true,
-  },
-  plugins: ["@typescript-eslint"],
-  extends: ["next/core-web-vitals"],
-  env: {
-    es6: true,
-    jest: true,
-  },
-  settings: {
-    "import/resolver": {
-      typescript: {
-        project,
-      },
+  // Next 16 ships native flat configs, so loading it through FlatCompat breaks.
+  ...nextCoreWebVitals,
+
+  // Keep the pre-React-Compiler hooks baseline used by this repo.
+  {
+    name: "langfuse/next/react-hooks-overrides",
+    rules: {
+      "react-hooks/component-hook-factories": "off",
+      "react-hooks/config": "off",
+      "react-hooks/error-boundaries": "off",
+      "react-hooks/gating": "off",
+      "react-hooks/globals": "off",
+      "react-hooks/immutability": "off",
+      "react-hooks/incompatible-library": "off",
+      "react-hooks/preserve-manual-memoization": "off",
+      "react-hooks/purity": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/set-state-in-render": "off",
+      "react-hooks/static-components": "off",
+      "react-hooks/unsupported-syntax": "off",
+      "react-hooks/use-memo": "off",
     },
   },
-  ignorePatterns: ["node_modules/", "dist/"],
-  // add rules configurations here
-  rules: {
-    ...(turboConfigToUse.rules || {}),
-    "@typescript-eslint/consistent-type-imports": [
-      "warn",
-      {
-        prefer: "type-imports",
-        fixStyle: "inline-type-imports",
-      },
-    ],
-    "@typescript-eslint/no-unused-vars": [
-      // see: https://typescript-eslint.io/rules/no-unused-vars/#why-does-this-rule-report-variables-used-only-for-types
-      // since v8, vars only used for types are unused at runtime and therefore throw a warning.
-      // we fix those with workarounds (mostly just export the variables, as they are used as part of an API anyways)
-      // see: https://github.com/typescript-eslint/typescript-eslint/issues/10266
-      "warn",
-      {
-        argsIgnorePattern: "^_",
-        varsIgnorePattern: "^_",
-        caughtErrorsIgnorePattern: "^_",
-      },
-    ],
-    "react/jsx-key": [
-      "error",
-      {
-        warnOnDuplicates: true,
-      },
-    ],
+
+  // Turbo rules
+  ...turboConfig,
+
+  // Disable noisy turbo env var rule - project has many env vars not in turbo.json
+  {
+    name: "langfuse/next/turbo-overrides",
+    rules: {
+      "turbo/no-undeclared-env-vars": "off",
+    },
   },
-};
+
+  // Prettier (last)
+  eslintPluginPrettierRecommended,
+
+  // Layer repo-specific TS rules on top of Next's built-in flat TS config.
+  // Next already provides the parser and @typescript-eslint plugin here.
+  {
+    name: "langfuse/next/typescript",
+    files: ["**/*.ts", "**/*.tsx"],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+      },
+      globals: {
+        React: "readonly",
+        JSX: "readonly",
+      },
+    },
+    settings: {
+      "import/resolver": {
+        typescript: {
+          project: "./tsconfig.json",
+        },
+      },
+    },
+    plugins: {
+      "@repo": langfusePlugin,
+    },
+    rules: {
+      "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
+      "@repo/no-tailwind-overflow-scroll": "warn",
+      // Custom rules from old config
+      "@typescript-eslint/consistent-type-imports": [
+        "warn",
+        {
+          prefer: "type-imports",
+          fixStyle: "inline-type-imports",
+        },
+      ],
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
+      ],
+      "@typescript-eslint/no-deprecated": "warn",
+      "react/jsx-key": ["error", { warnOnDuplicates: true }],
+      "react/no-unused-prop-types": "warn",
+    },
+  },
+
+  // Vitest in-source testing should only be used while developing, not in committed code.
+  {
+    name: "langfuse/no-in-source-vitest",
+    plugins: {
+      "@repo": langfusePlugin,
+    },
+    rules: {
+      "@repo/no-in-source-vitest": "warn",
+    },
+  },
+];

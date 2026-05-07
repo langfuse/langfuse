@@ -6,10 +6,10 @@
  */
 
 import { memo, useMemo } from "react";
-import { Loader2 } from "lucide-react";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type TreeNode } from "@/src/components/trace2/lib/types";
 import { useLogViewObservationIO } from "./useLogViewObservationIO";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export interface LogViewExpandedContentProps {
   node: TreeNode;
@@ -69,13 +69,13 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
     <div className="w-full">
       {isLoading && (
         <div className="flex items-center justify-center py-4">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-xs text-muted-foreground">Loading...</span>
+          <Spinner size="sm" variant="muted" />
+          <span className="text-muted-foreground ml-2 text-xs">Loading...</span>
         </div>
       )}
 
       {isError && (
-        <div className="flex h-full w-full items-center bg-destructive/10 px-6 py-2 text-xs text-destructive">
+        <div className="bg-destructive/10 text-destructive flex h-full w-full items-center px-6 py-2 text-xs">
           Failed to load data
         </div>
       )}
@@ -92,12 +92,12 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
           scrollable={true}
           externalExpansionState={externalExpansionState}
           onExternalExpansionChange={onExternalExpansionChange}
-          className="w-full [&_.border]:border-0 [&_.io-message-content]:p-0 [&_.rounded-sm]:rounded-none [&_td:first-child]:pl-6 [&_th:first-child]:pl-6 [&_th]:h-6 [&_th]:text-xs"
+          className="w-full [&_.border]:border-0 [&_.io-message-content]:p-0 [&_.rounded-sm]:rounded-none [&_td:first-child]:pl-6 [&_th]:h-6 [&_th]:text-xs [&_th:first-child]:pl-6"
         />
       )}
 
       {!jsonData && !isLoading && !isError && (
-        <div className="py-2 pl-6 text-xs text-muted-foreground">
+        <div className="text-muted-foreground py-2 pl-6 text-xs">
           No input/output/metadata
         </div>
       )}

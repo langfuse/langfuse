@@ -6,22 +6,30 @@ import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import Page from "@/src/components/layouts/page";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
+import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
+import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
 import {
-  type JobExecutionState,
-  generateJobExecutionCounts,
-} from "@/src/features/evals/utils/job-execution-utils";
+  type EvalTargetObject,
+  type EvaluatorExecutionStatusCount,
+  validateEvaluatorFiltersForTarget,
+} from "@langfuse/shared";
+import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 
 const JobExecutionCounts = ({
-  jobExecutionsByState,
+  isLoading,
+  jobExecutionCounts,
 }: {
-  jobExecutionsByState?: JobExecutionState[];
+  isLoading?: boolean;
+  jobExecutionCounts?: EvaluatorExecutionStatusCount[];
 }) => {
-  if (!jobExecutionsByState || jobExecutionsByState.length === 0) {
+  if (!isLoading && (!jobExecutionCounts || jobExecutionCounts.length === 0)) {
     return null;
   }
 
-  const counts = generateJobExecutionCounts(jobExecutionsByState);
-  return <LevelCountsDisplay counts={counts} />;
+  const counts = generateJobExecutionCounts(jobExecutionCounts);
+  return <LevelCountsDisplay counts={counts} isLoading={isLoading} />;
 };
 
 export const EvaluatorDetail = () => {
@@ -34,6 +42,22 @@ export const EvaluatorDetail = () => {
     projectId: projectId,
     id: evaluatorId,
   });
+
+  const lazyExecutionCounts = useLazyEvaluatorExecutionCounts({
+    projectId,
+    evaluatorId,
+    evaluator: evaluator.data,
+  });
+  const filterValidation = React.useMemo(() => {
+    if (!evaluator.data) {
+      return null;
+    }
+
+    return validateEvaluatorFiltersForTarget({
+      targetObject: evaluator.data.targetObject as EvalTargetObject,
+      filter: evaluator.data.filter,
+    });
+  }, [evaluator.data]);
 
   // get all templates for the current template name
   const allTemplates = api.evals.allTemplatesForName.useQuery(
@@ -66,6 +90,11 @@ export const EvaluatorDetail = () => {
           evalTemplate: evaluator.data.evalTemplate,
         }
       : undefined;
+  const displayStatus =
+    lazyExecutionCounts.displayStatus ?? evaluator.data.displayStatus;
+  const shouldRenderExecutionCounts =
+    lazyExecutionCounts.isLoading ||
+    Boolean(lazyExecutionCounts.jobExecutionCounts?.length);
 
   return (
     <Page
@@ -83,15 +112,16 @@ export const EvaluatorDetail = () => {
 
         actionButtonsRight: (
           <>
-            {evaluator.data?.jobExecutionsByState && (
-              <div className="flex flex-col items-center justify-center rounded-md bg-muted-gray px-2">
+            {shouldRenderExecutionCounts && (
+              <div className="bg-muted-gray flex min-h-6 min-w-24 flex-col items-center justify-center rounded-md px-2">
                 <JobExecutionCounts
-                  jobExecutionsByState={evaluator.data.jobExecutionsByState}
+                  isLoading={lazyExecutionCounts.isLoading}
+                  jobExecutionCounts={lazyExecutionCounts.jobExecutionCounts}
                 />
               </div>
             )}
             <StatusBadge
-              type={evaluator.data?.finalStatus.toLowerCase()}
+              type={displayStatus.toLowerCase()}
               isLive
               className="max-h-8"
             />
@@ -112,6 +142,27 @@ export const EvaluatorDetail = () => {
     >
       {existingEvaluator && (
         <div className="flex h-full flex-col overflow-hidden">
+          {filterValidation && !filterValidation.isValid && (
+            <div className="mx-3 mt-3">
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Unsupported filters</AlertTitle>
+                <AlertDescription>
+                  This evaluator contains deprecated or unsupported filters. The
+                  filters must be removed. Until the filters are removed, the
+                  evaluator is paused and will not be run.{" "}
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+          {existingEvaluator.blockedAt && (
+            <div className="mx-3 mt-3">
+              <EvaluatorPausedCallout
+                projectId={projectId}
+                evalConfig={existingEvaluator}
+              />
+            </div>
+          )}
           <EvalLogTable
             projectId={projectId}
             jobConfigurationId={existingEvaluator.id}

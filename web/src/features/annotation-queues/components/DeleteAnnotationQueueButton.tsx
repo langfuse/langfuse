@@ -38,9 +38,9 @@ export const DeleteAnnotationQueueButton = ({
     <Button variant="ghost" disabled={!hasAccess}>
       <div className="flex w-full flex-row items-center gap-1">
         {hasAccess ? (
-          <Trash className="-ml-0.5 mr-1.5 h-4 w-4" />
+          <Trash className="mr-1.5 -ml-0.5 h-4 w-4" />
         ) : (
-          <LockIcon className="-ml-0.5 mr-1.5 h-4 w-4" aria-hidden="true" />
+          <LockIcon className="mr-1.5 -ml-0.5 h-4 w-4" aria-hidden="true" />
         )}
         <span className="text-sm font-normal">Delete</span>
       </div>

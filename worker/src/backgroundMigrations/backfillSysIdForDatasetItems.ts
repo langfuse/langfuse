@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import { logger } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
@@ -14,18 +13,16 @@ import { parseArgs } from "node:util";
  * - This migration is no longer needed as we have migrated to the new versioning/temporal table support
  *
  */
-export default class BackfillSysIdForDatasetItems
-  implements IBackgroundMigration
-{
+export default class BackfillSysIdForDatasetItems implements IBackgroundMigration {
   private isAborted = false;
 
   async validate(
-    args: Record<string, unknown>,
+    _args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
     return { valid: true, invalidReason: undefined };
   }
 
-  async run(args: Record<string, unknown>): Promise<void> {
+  async run(_args: Record<string, unknown>): Promise<void> {
     logger.info(
       `Migration will be skipped as we no longer need to backfill sys_id for dataset_items`,
     );

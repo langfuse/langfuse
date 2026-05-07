@@ -9,7 +9,7 @@ export function transformStreamToJson(): Transform {
 
     transform(
       row: any,
-      encoding: BufferEncoding, // eslint-disable-line no-unused-vars
+      encoding: BufferEncoding,
       callback: TransformCallback,
     ): void {
       if (isFirstElement) {

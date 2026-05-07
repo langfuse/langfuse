@@ -68,6 +68,9 @@ components:
           nullable: true
         name:
           type: string
+          description: >-
+            The name of the score. Always overrides "output" for correction
+            scores.
           example: novelty
         value:
           $ref: '#/components/schemas/CreateScoreValue'
@@ -95,9 +98,28 @@ components:
             and data type. For categorical scores, the value must map to a
             config category. Numeric scores might be constrained by the score
             config's max and min values
+        source:
+          $ref: '#/components/schemas/CreateScoreSource'
+          nullable: true
+          description: >-
+            The source of the score. Defaults to API. Set to ANNOTATION to
+            prefill scores (e.g. from an LLM) for a human reviewer to verify in
+            an annotation queue. When source is ANNOTATION, a configId is
+            required unless dataType is CORRECTION. EVAL is reserved for
+            internal evaluator outputs and is not accepted on this endpoint.
       required:
         - name
         - value
+    CreateScoreSource:
+      title: CreateScoreSource
+      type: string
+      enum:
+        - API
+        - ANNOTATION
+      description: |-
+        Source values accepted when creating a score via the public API.
+        EVAL is reserved for internal evaluator outputs and is intentionally not
+        exposed here.
     ScoreDataType:
       title: ScoreDataType
       type: string
@@ -105,6 +127,7 @@ components:
         - NUMERIC
         - CATEGORICAL
         - BOOLEAN
+        - CORRECTION
     CreateScoreValue:
       title: CreateScoreValue
       oneOf:
@@ -113,7 +136,8 @@ components:
         - type: string
       description: >-
         The value of the score. Must be passed as string for categorical scores,
-        and numeric for boolean and numeric scores
+        and numeric for boolean and numeric scores. For corrections pass value
+        as string and set data type to CORRECTION
   securitySchemes:
     BearerAuth:
       type: http

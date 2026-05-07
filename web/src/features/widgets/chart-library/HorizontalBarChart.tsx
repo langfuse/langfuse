@@ -1,8 +1,23 @@
-import React from "react";
-import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import React, { useMemo } from "react";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/src/components/ui/chart";
+import {
+  Bar,
+  BarChart,
+  LabelList,
+  type RenderableText,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { formatAxisLabel } from "@/src/features/widgets/chart-library/utils";
+import { compactNumberFormatter } from "@/src/utils/numbers";
+
+const CHAR_WIDTH_PX = 7;
+const LABEL_PADDING_PX = 16;
 
 /**
  * HorizontalBarChart component
@@ -21,13 +36,42 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
     },
   },
   accessibilityLayer = true,
+  showValueLabels = false,
+  valueFormatter = compactNumberFormatter,
+  subtleFill = false,
 }) => {
+  const rightMargin = useMemo(() => {
+    if (!showValueLabels || !data?.length) return 8;
+    const maxLabelLength = Math.max(
+      ...data.map((d) => {
+        const value =
+          typeof d.metric === "number" ? d.metric : Number(d.metric ?? 0);
+        return valueFormatter(value).length;
+      }),
+    );
+    return Math.min(
+      120,
+      Math.max(20, maxLabelLength * CHAR_WIDTH_PX + LABEL_PADDING_PX),
+    );
+  }, [showValueLabels, data, valueFormatter]);
+
   return (
-    <ChartContainer config={config}>
+    <ChartContainer
+      config={config}
+      className="min-h-0 w-full [&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
+    >
       <BarChart
         accessibilityLayer={accessibilityLayer}
         data={data}
         layout="vertical"
+        margin={{
+          top: 4,
+          right: rightMargin,
+          bottom: 4,
+          left: 0,
+        }}
+        barCategoryGap="12%"
+        barGap={4}
       >
         <XAxis
           type="number"
@@ -35,6 +79,8 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          niceTicks="auto"
+          tickFormatter={(value) => valueFormatter(Number(value))}
         />
         <YAxis
           type="category"
@@ -43,17 +89,59 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
-          tickFormatter={formatAxisLabel}
-          width={90}
+          width={120}
+          tick={({ x, y, payload }) => {
+            const fullLabel =
+              typeof payload === "string"
+                ? payload
+                : ((payload as { value?: string })?.value ?? String(payload));
+            return (
+              <g transform={`translate(${x},${y})`}>
+                <title>{fullLabel}</title>
+                <text
+                  textAnchor="end"
+                  x={0}
+                  y={0}
+                  dy={4}
+                  fill="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                >
+                  {formatAxisLabel(fullLabel)}
+                </text>
+              </g>
+            );
+          }}
         />
         <Bar
           dataKey="metric"
           radius={[0, 4, 4, 0]}
-          className="fill-[--color-metric]"
-        />
+          maxBarSize={28}
+          className="fill-(--color-metric)"
+          fillOpacity={subtleFill ? 0.3 : 1}
+        >
+          {showValueLabels ? (
+            <LabelList
+              dataKey="metric"
+              position="right"
+              formatter={(value: RenderableText) =>
+                valueFormatter(Number(value ?? 0))
+              }
+              className="fill-muted-foreground"
+              style={{ fontSize: 12 }}
+            />
+          ) : null}
+        </Bar>
         <ChartTooltip
+          cursor={false}
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          itemStyle={{ color: "hsl(var(--foreground))" }}
+          content={({ active, payload, label }) => (
+            <ChartTooltipContent
+              active={active}
+              payload={payload}
+              label={label}
+              valueFormatter={(v) => valueFormatter(Number(v))}
+            />
+          )}
         />
       </BarChart>
     </ChartContainer>

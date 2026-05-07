@@ -41,10 +41,9 @@ import {
   DEFAULT_ROW_LIMIT,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import { numberFormatter } from "@/src/utils/numbers";
+import { valueFormatter } from "@/src/features/widgets/chart-library/utils";
 import { formatMetricName } from "@/src/features/widgets/utils";
 import { type OrderByState } from "@langfuse/shared";
-import { Loader2 } from "lucide-react";
 
 /**
  * Props interface for the PivotTable component
@@ -56,12 +55,6 @@ export interface PivotTableProps {
 
   /** Pivot table specific configuration */
   config?: PivotTableConfig;
-
-  /** Chart configuration from shadcn/ui (for consistency with other charts) */
-  chartConfig?: ChartProps["config"];
-
-  /** Accessibility layer flag */
-  accessibilityLayer?: boolean;
 
   /** Current sort state */
   sortState?: OrderByState;
@@ -83,7 +76,7 @@ const StaticHeader: React.FC<{
 }> = ({ label, className }) => {
   return (
     <TableHead className={cn("p-1", className)}>
-      <div className="flex select-none items-center">
+      <div className="flex items-center select-none">
         <span className="truncate">{label}</span>
       </div>
     </TableHead>
@@ -115,12 +108,12 @@ const SortableHeader: React.FC<{
 
   return (
     <TableHead
-      className={cn("group/header cursor-pointer select-none p-1", className)}
+      className={cn("group/header cursor-pointer p-1 select-none", className)}
       onClick={handleClick}
     >
       <div
         className={cn(
-          "flex select-none items-center",
+          "flex items-center select-none",
           rightAlign ? "justify-end" : "justify-start",
         )}
       >
@@ -139,7 +132,7 @@ const SortableHeader: React.FC<{
         )}
 
         {/* Visual indicator that appears on hover - matches traces table behavior */}
-        <div className="pointer-events-none absolute right-0 top-0 h-full w-1.5 touch-none select-none bg-secondary opacity-0 group-hover/header:opacity-100" />
+        <div className="bg-secondary pointer-events-none absolute top-0 right-0 h-full w-1.5 touch-none opacity-0 select-none group-hover/header:opacity-100" />
       </div>
     </TableHead>
   );
@@ -152,11 +145,12 @@ const SortableHeader: React.FC<{
 const PivotTableRowComponent: React.FC<{
   row: PivotTableRow;
   metrics: string[];
-}> = ({ row, metrics }) => {
+  units?: (string | undefined)[];
+}> = ({ row, metrics, units }) => {
   return (
     <TableRow
       className={cn(
-        "border-b transition-colors hover:bg-muted/30",
+        "hover:bg-muted/30 border-b transition-colors",
         row.isSubtotal && "bg-muted/30",
         row.isTotal && "bg-muted/50",
       )}
@@ -181,7 +175,7 @@ const PivotTableRowComponent: React.FC<{
       </TableCell>
 
       {/* Metric columns */}
-      {metrics.map((metric) => (
+      {metrics.map((metric, i) => (
         <TableCell
           key={metric}
           className={cn(
@@ -189,27 +183,12 @@ const PivotTableRowComponent: React.FC<{
             (row.isSubtotal || row.isTotal) && "font-semibold",
           )}
         >
-          {formatMetricValue(row.values[metric])}
+          {valueFormatter(row.values[metric], units?.[i])}
         </TableCell>
       ))}
     </TableRow>
   );
 };
-
-/**
- * Formats metric values for display in the table
- * Handles numbers and strings with appropriate formatting
- *
- * @param value - The metric value to format
- * @returns Formatted string for display
- */
-function formatMetricValue(value: number | string): string {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  return numberFormatter(value, 2).replace(/\.00$/, "");
-}
 
 /**
  * Formats metric names for column headers
@@ -239,6 +218,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   onSortChange,
   isLoading = false,
 }) => {
+  const units = config?.units;
   // Transform chart data into pivot table structure
   const pivotTableRows = useMemo(() => {
     if (!data || data.length === 0) {
@@ -356,10 +336,14 @@ export const PivotTable: React.FC<PivotTableProps> = ({
 
   // Handle empty data state
   if (!data || data.length === 0) {
+    if (isLoading) {
+      return <div className="h-full" aria-hidden="true" />;
+    }
+
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <p className="text-sm text-muted-foreground">No data available</p>
+          <p className="text-muted-foreground text-sm">No data available</p>
         </div>
       </div>
     );
@@ -367,10 +351,14 @@ export const PivotTable: React.FC<PivotTableProps> = ({
 
   // Handle transformation errors
   if (pivotTableRows.length === 0) {
+    if (isLoading) {
+      return <div className="h-full" aria-hidden="true" />;
+    }
+
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Unable to process data for pivot table
           </p>
         </div>
@@ -379,15 +367,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   }
 
   return (
-    <div className="relative h-full overflow-auto px-5 pb-2">
-      {isLoading && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Refreshing data...</span>
-          </div>
-        </div>
-      )}
+    <div className="h-full overflow-auto px-5 pb-2">
       <Table>
         <TableHeader className="sticky top-0 z-10">
           <TableRow>
@@ -418,7 +398,12 @@ export const PivotTable: React.FC<PivotTableProps> = ({
 
         <TableBody>
           {sortedRows.map((row) => (
-            <PivotTableRowComponent key={row.id} row={row} metrics={metrics} />
+            <PivotTableRowComponent
+              key={row.id}
+              row={row}
+              metrics={metrics}
+              units={units}
+            />
           ))}
         </TableBody>
       </Table>

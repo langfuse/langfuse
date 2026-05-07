@@ -9,7 +9,7 @@ import {
   encoding_for_model,
 } from "tiktoken";
 
-import { z } from "zod/v4";
+import { z } from "zod";
 import { logger } from "@langfuse/shared/src/server";
 
 const OpenAiTokenConfig = z.object({
@@ -162,7 +162,7 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
       cachedTokenizerByModel[model] || encoding_for_model(model);
 
     encoding = cachedTokenizerByModel[model];
-  } catch (KeyError) {
+  } catch {
     logger.warn("Model not found. Using cl100k_base encoding.");
 
     encoding = get_encoding("cl100k_base");

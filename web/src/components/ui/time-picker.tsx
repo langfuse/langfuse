@@ -30,13 +30,18 @@ export function TimePicker({ date, setDate, className }: TimePickerProps) {
   const secondRef = React.useRef<HTMLInputElement>(null);
   const periodRef = React.useRef<HTMLButtonElement>(null);
 
+  // Sync period state when date prop changes externally (e.g., preset selection)
+  React.useEffect(() => {
+    setPeriod(getInitialPeriod(date));
+  }, [date]);
+
   const shortTimezone = React.useMemo(() => getShortLocalTimezone(), []);
   const timezoneDetails = React.useMemo(() => getTimezoneDetails(), []);
 
   return (
     <div
       className={cn(
-        "flex w-full flex-1 items-center gap-1 rounded-b-md border-t-2 bg-transparent px-3 py-2 text-sm ring-offset-background",
+        "ring-offset-background flex w-full flex-1 items-center gap-1 rounded-b-md border-t-2 bg-transparent px-3 py-2 text-sm",
         className,
       )}
     >

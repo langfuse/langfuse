@@ -1,4 +1,3 @@
-/*eslint-disable block-scoped-var, id-length, no-control-regex, no-magic-numbers, no-prototype-builtins, no-redeclare, no-shadow, no-var, sort-vars*/
 // @ts-nocheck
 const $protobuf = require("protobufjs/minimal");
 // Common aliases

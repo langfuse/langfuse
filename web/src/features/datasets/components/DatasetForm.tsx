@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -101,7 +101,7 @@ export const jsonSchemaStringValidator = z.string().refine(
       const parsed = JSON.parse(value);
 
       return isValidJSONSchema(parsed);
-    } catch (_error) {
+    } catch {
       return false;
     }
   },
@@ -120,7 +120,7 @@ const formSchema = z.object({
         JSON.parse(value);
 
         return true;
-      } catch (_error) {
+      } catch {
         return false;
       }
     },
@@ -333,7 +333,7 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
       }
     }
 
-    const handleDelete = (e: React.FormEvent) => {
+    const handleDelete = (e: React.SyntheticEvent) => {
       e.preventDefault();
 
       // helps with type safety
@@ -429,7 +429,6 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
                           onChange={(v) => {
                             field.onChange(v);
                           }}
-                          minHeight="none"
                         />
                       </FormControl>
                       <FormMessage />

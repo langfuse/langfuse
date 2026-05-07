@@ -62,11 +62,9 @@ export const convertDatasetRunItemDomainToClickhouse = (
 
 // Function overloads for clean type discrimination
 export function convertDatasetRunItemClickhouseToDomain(
-  // eslint-disable-next-line no-unused-vars
   row: DatasetRunItemRecord<true>,
 ): DatasetRunItemDomain<true>;
 export function convertDatasetRunItemClickhouseToDomain(
-  // eslint-disable-next-line no-unused-vars
   row: DatasetRunItemRecord<false>,
 ): DatasetRunItemDomain<false>;
 export function convertDatasetRunItemClickhouseToDomain<
@@ -84,6 +82,9 @@ export function convertDatasetRunItemClickhouseToDomain<
       row.dataset_run_created_at,
     ),
     datasetItemId: row.dataset_item_id,
+    datasetItemVersion: row.dataset_item_version
+      ? parseClickhouseUTCDateTimeFormat(row.dataset_item_version)
+      : null,
     createdAt: parseClickhouseUTCDateTimeFormat(row.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(row.updated_at),
     datasetId: row.dataset_id,

@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 import { type Router } from "next/router";
 import type { UrlObject } from "url";
 import { type LocationMock } from "@jedmao/location";
@@ -21,7 +19,6 @@ export class TestRouter implements PartialRouter {
   constructor(private locationMock: LocationMock) {}
 
   replace = (url: string | UrlObject) => {
-    // eslint-disable-next-line @typescript-eslint/no-base-to-string, @typescript-eslint/restrict-template-expressions
     this.locationMock.assign(`${BASE_URL}${url}`);
     this.currentUrl = TestRouter.getURLString(url);
     this.locationMock.assign(`${BASE_URL}${this.currentUrl}`);

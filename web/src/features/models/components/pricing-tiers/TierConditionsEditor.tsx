@@ -60,7 +60,7 @@ export function TierConditionsEditor({
       </div>
 
       {fields.length === 0 && (
-        <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+        <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">
           <strong>Warning:</strong> Non-default tiers require at least one
           condition. This tier will fail validation.
         </div>
@@ -161,7 +161,7 @@ export function TierConditionsEditor({
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
-                <FormLabel className="!mt-0">Case sensitive</FormLabel>
+                <FormLabel className="mt-0!">Case sensitive</FormLabel>
               </FormItem>
             )}
           />

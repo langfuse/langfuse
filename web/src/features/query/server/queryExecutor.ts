@@ -1,234 +1,138 @@
 import {
   queryClickhouse,
   measureAndReturn,
-  logger,
+  type ClickhouseQueryOpts,
+  type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import { type QueryType, type ViewVersion } from "@/src/features/query/types";
+import { getViewDeclaration } from "@/src/features/query/dataModel";
 import { env } from "@/src/env.mjs";
 
-/**
- * Compares two query results for equivalence.
- * Returns true if results match, false otherwise.
- * Optimized for performance - avoids expensive JSON.stringify on large result sets.
- */
-function compareQueryResults(
-  result1: Array<Record<string, unknown>>,
-  result2: Array<Record<string, unknown>>,
-): boolean {
-  if (result1.length !== result2.length) {
-    return false;
-  }
+// Re-export validation logic (shared between server and client)
+export {
+  validateQuery,
+  type QueryValidationResult,
+} from "@/src/features/query/validateQuery";
 
-  if (result1.length === 0) {
-    return true;
-  }
+export type PreparedQuery = {
+  compiledQuery: string;
+  parameters: Record<string, unknown>;
+  preferredClickhouseService: PreferredClickhouseService | undefined;
+  tags: Record<string, string>;
+  clickhouseSettings: Record<string, string>;
+  usesTraceTable: boolean;
+  fromTimestamp: string;
+};
 
-  // Get all keys from first row of each result
-  const keys1 = Object.keys(result1[0]);
-  const keys2 = Object.keys(result2[0]);
+export async function prepareExecuteQuery(opts: {
+  projectId: string;
+  query: QueryType;
+  version?: ViewVersion;
+  enableSingleLevelOptimization?: boolean;
+}): Promise<PreparedQuery> {
+  const {
+    projectId,
+    query,
+    version = "v1",
+    enableSingleLevelOptimization = false,
+  } = opts;
 
-  // Quick check: same number of columns
-  if (keys1.length !== keys2.length) {
-    return false;
-  }
+  const chartConfig =
+    (query as unknown as { config?: QueryType["chartConfig"] }).config ??
+    query.chartConfig;
+  const queryBuilder = new QueryBuilder(chartConfig, version);
 
-  // Sort keys once for performance (avoid sorting on every row)
-  const sortedKeys = keys1.sort();
+  const { query: compiledQuery, parameters } = await queryBuilder.build(
+    query,
+    projectId,
+    enableSingleLevelOptimization ||
+      env.LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION === "true",
+  );
 
-  // Create a simple hash for each row to enable fast comparison
-  const createRowHash = (row: Record<string, unknown>): string => {
-    // Use a simple concatenation of key-value pairs (sorted by key for consistency)
-    return sortedKeys.map((k) => `${k}:${row[k]}`).join("|");
+  const view = getViewDeclaration(query.view, version);
+  const preferredClickhouseService = view.baseCte.includes("events_")
+    ? ("EventsReadOnly" as const)
+    : undefined;
+
+  const tags = {
+    feature: "custom-queries",
+    type: query.view,
+    kind: "analytic",
+    projectId,
   };
 
-  // Build sets of row hashes
-  const hashes1 = new Set(result1.map(createRowHash));
-  const hashes2 = new Set(result2.map(createRowHash));
+  const clickhouseSettings: Record<string, string> = {
+    date_time_output_format: "iso",
+    ...(env.CLICKHOUSE_USE_QUERY_CONDITION_CACHE === "true"
+      ? { use_query_condition_cache: "true" }
+      : {}),
+    max_bytes_before_external_group_by: String(
+      env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
+    ),
+  };
 
-  // Compare sets
-  if (hashes1.size !== hashes2.size) {
-    return false;
-  }
-
-  // Check if all hashes from result1 exist in result2
-  for (const hash of hashes1) {
-    if (!hashes2.has(hash)) {
-      return false;
-    }
-  }
-
-  return true;
+  return {
+    compiledQuery,
+    parameters,
+    preferredClickhouseService,
+    tags,
+    clickhouseSettings,
+    usesTraceTable: compiledQuery.includes("traces"),
+    fromTimestamp: query.fromTimestamp,
+  };
 }
 
-/**
- * Execute a query using the QueryBuilder.
- *
- * @param projectId - The project ID
- * @param query - The query configuration as defined in QueryType
- * @param version - The view version to use (v1 or v2), defaults to v1
- * @param enableSingleLevelOptimization - Enable single-level SELECT optimization (default: false)
- * @returns The query result data
- */
+export function toClickhouseQueryOpts(
+  prepared: PreparedQuery,
+): Omit<ClickhouseQueryOpts, "allowLegacyEventsRead"> {
+  return {
+    query: prepared.compiledQuery,
+    params: prepared.parameters,
+    clickhouseSettings: prepared.clickhouseSettings,
+    tags: prepared.tags,
+    preferredClickhouseService: prepared.preferredClickhouseService,
+  };
+}
+
 export async function executeQuery(
   projectId: string,
   query: QueryType,
   version: ViewVersion = "v1",
   enableSingleLevelOptimization: boolean = false,
 ): Promise<Array<Record<string, unknown>>> {
-  // Remap config to chartConfig for public API compatibility
-  // Public API uses "config" while internal QueryType uses "chartConfig"
-  const chartConfig =
-    (query as unknown as { config?: QueryType["chartConfig"] }).config ??
-    query.chartConfig;
-  const queryBuilder = new QueryBuilder(chartConfig, version);
-
-  // Build the primary query (with or without optimization based on flag)
-  const { query: compiledQuery, parameters } = await queryBuilder.build(
-    query,
+  const prepared = await prepareExecuteQuery({
     projectId,
+    query,
+    version,
     enableSingleLevelOptimization,
-  );
+  });
 
-  // Shadow testing: Build list of queries to execute in parallel
-  const queriesToExecute: Array<{
-    type: "regular" | "shadow";
-    query: string;
-    params: Record<string, unknown>;
-  }> = [
-    {
-      type: "regular",
-      query: compiledQuery,
-      params: parameters,
-    },
-  ];
+  const chOpts = toClickhouseQueryOpts(prepared);
 
-  // Add shadow test query if optimization is OFF and shadow testing is enabled
-  const shadowTestEnabled =
-    env.LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST === "true";
-
-  if (!enableSingleLevelOptimization && shadowTestEnabled) {
-    const { query: optimizedQuery, parameters: optimizedParams } =
-      await queryBuilder.build(query, projectId, true);
-
-    // Only run shadow test if optimization actually changed the query
-    if (optimizedQuery !== compiledQuery) {
-      queriesToExecute.push({
-        type: "shadow",
-        query: optimizedQuery,
-        params: optimizedParams,
-      });
-    }
+  if (!prepared.usesTraceTable) {
+    return queryClickhouse<Record<string, unknown>>(chOpts);
   }
 
-  // Check if the query contains trace table references
-  const usesTraceTable = compiledQuery.includes("traces");
-
-  // Execute all queries in parallel
-  const results = await Promise.all(
-    queriesToExecute.map(
-      async (
-        queryToExecute,
-      ): Promise<Array<Record<string, unknown>> | null> => {
-        try {
-          if (!usesTraceTable) {
-            // No trace table placeholders, execute normally
-            return await queryClickhouse<Record<string, unknown>>({
-              query: queryToExecute.query,
-              params: queryToExecute.params,
-              clickhouseConfigs: {
-                clickhouse_settings: {
-                  date_time_output_format: "iso",
-                },
-              },
-              tags: {
-                feature:
-                  queryToExecute.type === "shadow"
-                    ? "custom-queries-shadow-test"
-                    : "custom-queries",
-                type: query.view,
-                kind: "analytic",
-                projectId,
-              },
-            });
-          } else {
-            // Use measureAndReturn for trace table queries
-            return await measureAndReturn({
-              operationName: "executeQuery",
-              projectId,
-              input: {
-                query: queryToExecute.query,
-                params: queryToExecute.params,
-                fromTimestamp: query.fromTimestamp,
-                tags: {
-                  feature:
-                    queryToExecute.type === "shadow"
-                      ? "custom-queries-shadow-test"
-                      : "custom-queries",
-                  type: query.view,
-                  kind: "analytic",
-                  projectId,
-                  operation_name: "executeQuery",
-                },
-              },
-              fn: async (input) => {
-                return queryClickhouse<Record<string, unknown>>({
-                  query: input.query,
-                  params: input.params,
-                  clickhouseConfigs: {
-                    clickhouse_settings: {
-                      date_time_output_format: "iso",
-                    },
-                  },
-                  tags: input.tags,
-                });
-              },
-            });
-          }
-        } catch (error) {
-          // Only log shadow test errors
-          if (queryToExecute.type === "shadow") {
-            logger.warn("Shadow test query failed", {
-              view: query.view,
-              error: error instanceof Error ? error.message : String(error),
-            });
-            return null;
-          }
-          // Re-throw errors from regular query
-          throw error;
-        }
+  return measureAndReturn({
+    operationName: "executeQuery",
+    projectId,
+    input: {
+      query: prepared.compiledQuery,
+      params: prepared.parameters,
+      fromTimestamp: prepared.fromTimestamp,
+      tags: {
+        ...prepared.tags,
+        operation_name: "executeQuery",
       },
-    ),
-  );
-
-  // Extract results - regularResult should never be null (would have thrown)
-  const regularResult = results[0]!;
-  const shadowResult = results[1] ?? null;
-
-  // Compare shadow test results if available
-  if (shadowResult !== null) {
-    const resultsMatch = compareQueryResults(regularResult, shadowResult);
-
-    if (resultsMatch) {
-      // Log success (can be aggregated to track optimization coverage)
-      logger.info("Shadow test: Optimization query matches", {
-        view: query.view,
-        version,
+    },
+    fn: async (input) => {
+      return queryClickhouse<Record<string, unknown>>({
+        ...chOpts,
+        query: input.query,
+        params: input.params,
+        tags: input.tags,
       });
-    } else {
-      // Log discrepancy with full details
-      logger.error("Shadow test: Optimization query MISMATCH", {
-        view: query.view,
-        version,
-        projectId,
-        query: query,
-        regularResultCount: regularResult.length,
-        optimizedResultCount: shadowResult.length,
-        regularResult: regularResult,
-        optimizedResult: shadowResult,
-      });
-    }
-  }
-
-  return regularResult;
+    },
+  });
 }

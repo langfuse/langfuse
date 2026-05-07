@@ -1,10 +1,14 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import {
   SlackService,
+  SLACK_BOT_SCOPES,
   parseSlackInstallationMetadata,
 } from "@langfuse/shared/src/server";
 import { logger } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { getServerAuthSession } from "@/src/server/auth";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { prisma } from "@langfuse/shared/src/db";
 
 /**
  * SlackOAuthHandlers
@@ -27,7 +31,7 @@ export async function handleInstallPath(
     // 2. Set session cookies for state validation
     // 3. Render the installation page with "Add to Slack" button
     const installOptions = {
-      scopes: ["channels:read", "chat:write", "chat:write.public"],
+      scopes: [...SLACK_BOT_SCOPES],
       metadata: JSON.stringify({ projectId: projectId }),
       redirectUri: `${env.NEXTAUTH_URL}/api/public/slack/oauth`,
     };
@@ -70,6 +74,44 @@ export async function handleCallback(
             teamId: installation.team?.id,
             teamName: installation.team?.name,
           });
+
+          // Create audit log for the Slack integration
+          // The session should still be valid from when the user initiated the install
+          try {
+            const session = await getServerAuthSession({ req, res });
+            if (session?.user?.id) {
+              // Find the integration that was just created
+              const integration = await prisma.slackIntegration.findUnique({
+                where: { projectId },
+                select: {
+                  id: true,
+                  projectId: true,
+                  project: { select: { orgId: true } },
+                },
+              });
+
+              if (integration) {
+                await auditLog({
+                  userId: session.user.id,
+                  orgId: integration.project.orgId,
+                  projectId,
+                  resourceType: "slackIntegration",
+                  resourceId: integration.id,
+                  action: "create",
+                  after: {
+                    teamId: installation.team?.id,
+                    teamName: installation.team?.name,
+                  },
+                });
+              }
+            }
+          } catch (auditError) {
+            // Don't fail the callback if audit logging fails
+            logger.warn("Failed to create audit log for Slack installation", {
+              error: auditError,
+              projectId,
+            });
+          }
 
           // Redirect to project-specific Slack settings page
           const redirectUrl = `/project/${projectId}/settings/integrations/slack?success=true&team_name=${encodeURIComponent(installation.team?.name || "")}`;

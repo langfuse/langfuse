@@ -5,20 +5,15 @@ import {
 } from "@/src/utils/date-range-utils";
 import { formatChartTooltipTimestamp } from "./chart-formatters";
 import { useChart } from "@/src/components/ui/chart";
+import type { TooltipContentProps, TooltipValueType } from "recharts";
 
 /**
  * Props for the ScoreChartTooltip component.
  * Compatible with Recharts tooltip API.
  */
 export interface ScoreChartTooltipProps {
-  active?: boolean;
-  payload?: Array<{
-    name?: string;
-    value?: number | string;
-    color?: string;
-    dataKey?: string;
-    payload?: any;
-  }>;
+  active?: TooltipContentProps<TooltipValueType, string | number>["active"];
+  payload?: TooltipContentProps<TooltipValueType, string | number>["payload"];
   label?: string | number;
   interval?: IntervalConfig;
   timeRange?: TimeRange;
@@ -67,7 +62,9 @@ export function ScoreChartTooltip({
 
   // Filter out duplicates
   const uniquePayload = Array.from(
-    new Map(payload.map((item) => [item.name ?? item.dataKey, item])).values(),
+    new Map(
+      payload.map((item) => [String(item.name ?? item.dataKey ?? ""), item]),
+    ).values(),
   );
 
   // Sort payload by config key order for stable tooltip across columns
@@ -76,8 +73,8 @@ export function ScoreChartTooltip({
   // Falls back to value-based sorting if config keys not available
   const configKeys = Object.keys(config);
   const sortedPayload = uniquePayload.sort((a, b) => {
-    const keyA = a.name ?? a.dataKey ?? "";
-    const keyB = b.name ?? b.dataKey ?? "";
+    const keyA = String(a.name ?? a.dataKey ?? "");
+    const keyB = String(b.name ?? b.dataKey ?? "");
 
     // If both keys exist in config, sort by config order (reversed)
     const indexA = configKeys.indexOf(keyA);
@@ -115,10 +112,10 @@ export function ScoreChartTooltip({
   }
 
   return (
-    <div className="rounded-md border border-border bg-background opacity-100 shadow-lg">
+    <div className="border-border bg-background rounded-md border opacity-100 shadow-lg">
       {/* Header with timestamp/label */}
-      <div className={cn("border-b border-border px-3 py-1.5")}>
-        <p className={cn("text-sm font-medium text-muted-foreground")}>
+      <div className={cn("border-border border-b px-3 py-1.5")}>
+        <p className={cn("text-muted-foreground text-sm font-medium")}>
           {formattedLabel}
         </p>
       </div>
@@ -127,7 +124,7 @@ export function ScoreChartTooltip({
       <div className={cn("space-y-1 px-3 py-1.5")}>
         {sortedPayload.map((entry, index) => {
           // Get series label from config using the Bar's dataKey
-          const seriesKey = entry.name || entry.dataKey || "";
+          const seriesKey = String(entry.name ?? entry.dataKey ?? "");
           const seriesLabel = config[seriesKey]?.label || seriesKey;
 
           return (
@@ -137,18 +134,18 @@ export function ScoreChartTooltip({
             >
               {/* Color indicator */}
               <div
-                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                className="h-3 w-3 shrink-0 rounded-sm"
                 style={{
                   backgroundColor: entry.color ?? "hsl(var(--primary))",
                 }}
               />
 
               {/* Series label from config */}
-              <span className="flex-1 text-sm text-muted-foreground">
+              <span className="text-muted-foreground flex-1 text-sm">
                 {seriesLabel?.toString() ?? ""}
               </span>
               {/* Formatted value */}
-              <span className="text-sm font-medium text-foreground">
+              <span className="text-foreground text-sm font-medium">
                 {valueFormatter(Number(entry.value ?? 0))}
               </span>
             </div>

@@ -1,3 +1,4 @@
+import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { queryClickhouse } from "./clickhouse";
 
 export type EnvironmentFilterProps = {
@@ -25,21 +26,27 @@ export const getEnvironmentsForProject = async (
       SELECT distinct environment
       FROM scores
       WHERE project_id = {projectId: String}
+      AND data_type IN ({dataTypes: Array(String)})
       ${fromTimestamp ? "AND timestamp >= {fromTimestamp: DateTime64(3)}" : ""}
-    )  
+    )
   `;
 
   const results = await queryClickhouse<{
     environment: string;
   }>({
     query,
-    params: { projectId, fromTimestamp },
+    params: {
+      projectId,
+      fromTimestamp,
+      dataTypes: LISTABLE_SCORE_TYPES,
+    },
     tags: {
       feature: "tracing",
       type: "environment",
       kind: "byId",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
   // Always add default environment to list
   results.push({ environment: "default" });

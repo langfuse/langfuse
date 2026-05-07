@@ -164,7 +164,7 @@ export function JSONTableView<T>({
     >
       {/* Sticky header showing topmost visible item */}
       {hasItems && stickyHeaderContent && (
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           {stickyHeaderContent(topmostItem, topmostIndex)}
         </div>
       )}
@@ -176,7 +176,7 @@ export function JSONTableView<T>({
 
       {/* Virtualized list */}
       {hasItems && virtualized && (
-        <div ref={parentRef} className="flex-1 overflow-y-scroll">
+        <div ref={parentRef} className="flex-1 overflow-y-auto">
           <div
             style={{
               height: `${rowVirtualizer.getTotalSize()}px`,
@@ -251,7 +251,7 @@ export function JSONTableView<T>({
       {/* Empty state */}
       {!hasItems && (
         <div className="flex flex-1 items-center justify-center">
-          <div className="text-sm text-muted-foreground">No items</div>
+          <div className="text-muted-foreground text-sm">No items</div>
         </div>
       )}
     </div>

@@ -7,14 +7,15 @@ export type PromptResult = Prompt & {
 export type PromptParams = {
   projectId: string;
   promptName: string;
+  resolve?: boolean;
 } & (
   | { version: number; label: undefined }
   | { version: null | undefined; label: string }
 );
 
 export enum PromptServiceMetrics {
-  PromptCacheHit = "prompt_cache_hit", // eslint-disable-line no-unused-vars
-  PromptCacheMiss = "prompt_cache_miss", // eslint-disable-line no-unused-vars
+  PromptCacheHit = "prompt_cache_hit",
+  PromptCacheMiss = "prompt_cache_miss",
 }
 
 export type PartialPrompt = Pick<

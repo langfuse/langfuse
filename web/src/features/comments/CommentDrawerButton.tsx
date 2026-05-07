@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
   Drawer,
   DrawerContent,
@@ -13,6 +13,7 @@ import { type CommentObjectType } from "@langfuse/shared";
 import { MessageCircleIcon, MessageCircleOff } from "lucide-react";
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
+import { type SelectionData } from "./contexts/InlineCommentSelectionContext";
 
 export function CommentDrawerButton({
   projectId,
@@ -22,19 +23,30 @@ export function CommentDrawerButton({
   variant = "secondary",
   className,
   size = "default",
+  pendingSelection,
+  onSelectionUsed,
+  isOpen: controlledIsOpen,
+  onOpenChange: controlledOnOpenChange,
 }: {
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
   count?: number;
-  variant?: "secondary" | "outline";
+  variant?: ButtonProps["variant"];
   className?: string;
-  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+  size?: ButtonProps["size"];
+  pendingSelection?: SelectionData | null;
+  onSelectionUsed?: () => void;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const router = useRouter();
   const [isMentionDropdownOpen, setIsMentionDropdownOpen] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false); // Note: We manually control to keep the drawer open on ESC press when the mention dropdown is open
+  const [internalIsDrawerOpen, setInternalIsDrawerOpen] = useState(false);
   const hasAutoOpenedRef = useRef(false); // Track if we've already auto-opened for current deep link
+
+  const isDrawerOpen = controlledIsOpen ?? internalIsDrawerOpen;
+  const setIsDrawerOpen = controlledOnOpenChange ?? setInternalIsDrawerOpen;
   const hasFocusedRef = useRef(false); // Track if we've already focused the drawer
 
   const hasReadAccess = useHasProjectAccess({
@@ -87,6 +99,7 @@ export function CommentDrawerButton({
     objectType,
     objectId,
     isDrawerOpen,
+    setIsDrawerOpen,
   ]);
 
   if (!hasReadAccess || (!hasWriteAccess && !count))
@@ -101,8 +114,8 @@ export function CommentDrawerButton({
         <MessageCircleOff
           className={
             size === "sm"
-              ? "h-3.5 w-3.5 text-muted-foreground"
-              : "h-4 w-4 text-muted-foreground"
+              ? "text-muted-foreground h-3.5 w-3.5"
+              : "text-muted-foreground h-4 w-4"
           }
         />
       </Button>
@@ -126,7 +139,6 @@ export function CommentDrawerButton({
 
         // Clear URL parameters and hash when drawer is closed
         if (!open && router.query.comments === "open") {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { comments, commentObjectType, commentObjectId, ...rest } =
             router.query;
           router.replace(
@@ -154,7 +166,7 @@ export function CommentDrawerButton({
                 className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
               />
               <span>Add comment</span>
-              <span className="flex h-3.5 w-fit items-center justify-center rounded-sm bg-primary/50 px-1 text-xs text-primary-foreground shadow-sm">
+              <span className="bg-primary/50 text-primary-foreground flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                 {count > 99 ? "99+" : count}
               </span>
             </div>
@@ -170,7 +182,7 @@ export function CommentDrawerButton({
       </DrawerTrigger>
       <DrawerContent overlayClassName="bg-primary/10">
         <div
-          className="mx-auto flex h-full w-full flex-col overflow-hidden focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 md:max-h-full"
+          className="mx-auto flex h-full w-full flex-col overflow-hidden focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:outline-hidden md:max-h-full"
           tabIndex={-1}
           ref={(el) => {
             // Auto-focus drawer content when it opens (only once)
@@ -180,7 +192,7 @@ export function CommentDrawerButton({
             }
           }}
         >
-          <DrawerHeader className="sr-only flex-shrink-0 rounded-sm bg-background">
+          <DrawerHeader className="bg-background sr-only shrink-0 rounded-sm">
             <DrawerTitle>
               <Header title="Comments"></Header>
             </DrawerTitle>
@@ -192,6 +204,8 @@ export function CommentDrawerButton({
               objectType={objectType}
               onMentionDropdownChange={setIsMentionDropdownOpen}
               isDrawerOpen={isDrawerOpen}
+              pendingSelection={pendingSelection}
+              onSelectionUsed={onSelectionUsed}
             />
           </div>
         </div>

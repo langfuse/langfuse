@@ -8,7 +8,7 @@ import {
   PostDatasetRunItemsV1Body,
   PostDatasetRunItemsV1Response,
 } from "@/src/features/public-api/types/datasets";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { type JSONValue, LangfuseNotFoundError } from "@langfuse/shared";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
 import {
   eventTypes,
@@ -23,6 +23,16 @@ import {
   generateDatasetRunItemsForPublicApi,
   getDatasetRunItemsCountForPublicApi,
 } from "@/src/features/public-api/server/dataset-run-items";
+
+const resolveMetadata = (metadata: JSONValue): Record<string, unknown> => {
+  if (Array.isArray(metadata)) {
+    return { metadata: metadata };
+  }
+  if (typeof metadata === "object" && metadata !== null) {
+    return metadata as Record<string, unknown>;
+  }
+  return { metadata: metadata };
+};
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -40,6 +50,7 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         datasetItemId: datasetItemId,
         status: "ACTIVE",
+        version: body.datasetVersion ?? undefined,
       });
 
       if (!datasetItem) {
@@ -69,12 +80,24 @@ export default withMiddlewares({
        *   RUN CREATION    *
        ********************/
 
+      const metadata = {
+        ...(body.metadata ? resolveMetadata(body.metadata) : {}),
+        ...(body.datasetVersion
+          ? {
+              dataset_version: body.datasetVersion.toISOString(),
+            }
+          : {}),
+      };
+
+      const createdAt = body.createdAt ? new Date(body.createdAt) : new Date();
+
       const run = await createOrFetchDatasetRun({
         name: body.runName,
         description: body.runDescription ?? undefined,
-        metadata: body.metadata ?? undefined,
+        metadata: metadata,
         projectId: auth.scope.projectId,
         datasetId: datasetItem.datasetId,
+        createdAt,
       });
 
       const runItemId = v4();
@@ -82,8 +105,6 @@ export default withMiddlewares({
       /********************
        * RUN ITEM CREATION *
        ********************/
-
-      const createdAt = new Date();
 
       const event = {
         id: runItemId,
@@ -98,6 +119,7 @@ export default withMiddlewares({
           datasetId: datasetItem.datasetId,
           runId: run.id,
           datasetItemId: datasetItem.id,
+          datasetVersion: datasetItem.validFrom.toISOString(),
         },
       };
       // note: currently we do not accept user defined ids for dataset run items
@@ -125,6 +147,7 @@ export default withMiddlewares({
       await addDatasetRunItemsToEvalQueue({
         projectId: auth.scope.projectId,
         datasetItemId: datasetItem.id,
+        datasetItemValidFrom: datasetItem.validFrom,
         traceId: finalTraceId,
         observationId: observationId ?? undefined,
       });

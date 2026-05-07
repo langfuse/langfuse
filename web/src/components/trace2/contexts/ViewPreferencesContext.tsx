@@ -50,6 +50,9 @@ interface ViewPreferencesContextValue {
   /** JSON view preference (pretty/formatted or raw JSON) */
   jsonViewPreference: JsonViewPreference;
   setJsonViewPreference: (value: JsonViewPreference) => void;
+  /** Whether JSON Beta (advanced viewer) is enabled */
+  jsonBetaEnabled: boolean;
+  setJsonBetaEnabled: (value: boolean) => void;
 }
 
 const ViewPreferencesContext =
@@ -107,6 +110,13 @@ export function ViewPreferencesProvider({
     useLocalStorage<LogViewTreeStyle>("logViewTreeStyle", "flat");
   const [jsonViewPreference, setJsonViewPreference] =
     useLocalStorage<JsonViewPreference>("jsonViewPreference", "pretty");
+  // Migration: default to true if user had json-beta selected previously
+  // TODO: Remove migration logic after 2025-01-26 (2 weeks) when user settings are migrated
+  const [jsonBetaEnabled, setJsonBetaEnabled] = useLocalStorage<boolean>(
+    "jsonBetaEnabled",
+    typeof window !== "undefined" &&
+      localStorage.getItem("jsonViewPreference") === '"json-beta"',
+  );
 
   const value = useMemo<ViewPreferencesContextValue>(
     () => ({
@@ -131,6 +141,8 @@ export function ViewPreferencesProvider({
       setLogViewTreeStyle,
       jsonViewPreference,
       setJsonViewPreference,
+      jsonBetaEnabled,
+      setJsonBetaEnabled,
     }),
     [
       showDuration,
@@ -154,6 +166,8 @@ export function ViewPreferencesProvider({
       setLogViewTreeStyle,
       jsonViewPreference,
       setJsonViewPreference,
+      jsonBetaEnabled,
+      setJsonBetaEnabled,
     ],
   );
 

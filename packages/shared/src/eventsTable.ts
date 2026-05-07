@@ -74,6 +74,14 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Trace Name",
+    id: "traceName",
+    type: "stringOptions",
+    internal: "e.trace_name",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
     name: "Level",
     id: "level",
     type: "stringOptions",
@@ -96,6 +104,13 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Prompt Version",
+    id: "promptVersion",
+    type: "number",
+    internal: "e.prompt_version",
+    nullable: true,
+  },
+  {
     name: "Model ID",
     id: "modelId",
     type: "stringOptions",
@@ -112,7 +127,7 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Total Cost ($)",
+    name: "Cost ($)",
     id: "totalCost",
     type: "number",
     internal:
@@ -206,7 +221,7 @@ export const eventsTableCols: ColumnDefinition[] = [
     name: "Trace Tags",
     id: "traceTags",
     type: "arrayOptions",
-    internal: "t.tags",
+    internal: "e.tags",
     options: [], // to be added at runtime
   },
   {
@@ -224,6 +239,20 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Trace Scores (numeric)",
+    id: "trace_scores_avg",
+    type: "numberObject",
+    internal: "trace_scores_avg",
+  },
+  {
+    name: "Trace Scores (categorical)",
+    id: "trace_score_categories",
+    type: "categoryOptions",
+    internal: "trace_score_categories",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
     name: "Comment Count",
     id: "commentCount",
     type: "number",
@@ -234,5 +263,71 @@ export const eventsTableCols: ColumnDefinition[] = [
     id: "commentContent",
     type: "string",
     internal: "", // handled by comment filter helpers
+  },
+  {
+    name: "Has Parent Observation",
+    id: "hasParentObservation",
+    type: "boolean",
+    internal: "e.parent_span_id != ''",
+  },
+  {
+    name: "Experiment Dataset ID",
+    id: "experimentDatasetId",
+    type: "stringOptions",
+    internal: "e.experiment_dataset_id",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Experiment ID",
+    id: "experimentId",
+    type: "stringOptions",
+    internal: "e.experiment_id",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Experiment Name",
+    id: "experimentName",
+    type: "stringOptions",
+    internal: "e.experiment_name",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Available Tool Names",
+    id: "toolNames",
+    type: "arrayOptions",
+    internal: "mapKeys(e.tool_definitions)",
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "Called Tool Names",
+    id: "calledToolNames",
+    type: "arrayOptions",
+    internal: "e.tool_call_names",
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "Available Tools",
+    id: "toolDefinitions",
+    type: "number",
+    internal: "length(mapKeys(e.tool_definitions))",
+    nullable: true,
+  },
+  {
+    name: "Tool Calls",
+    id: "toolCalls",
+    type: "number",
+    internal: "length(e.tool_calls)",
+    nullable: true,
+  },
+  {
+    name: "Is Experiment Item Root Span",
+    id: "isExperimentItemRootSpan",
+    type: "boolean",
+    internal: "e.experiment_item_root_span_id = e.span_id",
   },
 ];

@@ -1,3 +1,4 @@
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import {
   Card,
   CardHeader,
@@ -6,7 +7,6 @@ import {
   CardContent,
 } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
-import { Loader } from "lucide-react";
 import { type ReactNode } from "react";
 
 export type DashboardCardProps = {
@@ -46,8 +46,8 @@ export const DashboardCard = ({
         </div>
         {headerChildren}
         {isLoading ? (
-          <div className="absolute right-5 top-5">
-            <Loader className="h-5 w-5 animate-spin" />
+          <div className="absolute top-5 right-5">
+            <Spinner size="md" />
           </div>
         ) : null}
       </CardHeader>

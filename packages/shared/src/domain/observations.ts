@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { jsonSchema } from "../utils/zod";
 import { MetadataDomain } from "./traces";
 
@@ -93,18 +93,33 @@ export const ObservationSchema = z.object({
   // pricing tier information
   usagePricingTierId: z.string().nullable(),
   usagePricingTierName: z.string().nullable(),
+  // tool data
+  toolDefinitions: z.record(z.string(), z.string()).nullable(),
+  toolCalls: z.array(z.string()).nullable(),
+  toolCallNames: z.array(z.string()).nullable(),
 });
 
 export type Observation = z.infer<typeof ObservationSchema>;
 
 export type ObservationCoreFields = Pick<
   Observation,
-  "id" | "traceId" | "startTime" | "projectId" | "parentObservationId"
+  | "id"
+  | "traceId"
+  | "startTime"
+  | "endTime"
+  | "projectId"
+  | "parentObservationId"
+  | "type"
 >;
 
 export const EventsObservationSchema = ObservationSchema.extend({
   userId: z.string().nullable(),
   sessionId: z.string().nullable(),
+  traceName: z.string().nullable(),
+  release: z.string().nullable().optional(),
+  tags: z.array(z.string()).optional(),
+  bookmarked: z.boolean().optional(),
+  public: z.boolean().optional(),
 });
 
 export type EventsObservation = z.infer<typeof EventsObservationSchema>;

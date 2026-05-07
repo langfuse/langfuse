@@ -28,6 +28,7 @@ interface UseJsonViewerLayoutParams {
   totalLineCount?: number;
   stringWrapMode: StringWrapMode;
   truncateStringsAt: number | null;
+  charWidth?: number; // Measured character width for accurate height estimation
 }
 
 export function useJsonViewerLayout({
@@ -38,6 +39,7 @@ export function useJsonViewerLayout({
   totalLineCount,
   stringWrapMode,
   truncateStringsAt,
+  charWidth,
 }: UseJsonViewerLayoutParams) {
   // Calculate visible row count from tree
   const visibleRowCount = tree ? 1 + tree.rootNode.visibleDescendantCount : 0;
@@ -134,6 +136,27 @@ export function useJsonViewerLayout({
         const threshold = truncateStringsAt ?? 100;
 
         if (str.length > threshold) {
+          // Use measured character width for accurate line calculation
+          if (charWidth && scrollableMaxWidth) {
+            const indentWidth = node.depth * theme.indentSize;
+            const keyWidth = String(row.key).length * charWidth;
+            const colonWidth = 2 * charWidth; // ": "
+            // For wrapped strings with white-space: pre-wrap, ALL lines (including continuations)
+            // start at the same position - after the opening quote of the value
+            const leftIndent = indentWidth + keyWidth + colonWidth + charWidth; // +charWidth for opening quote position
+            const availableWidth = scrollableMaxWidth - leftIndent;
+
+            if (availableWidth > 0) {
+              const charsPerLine = Math.max(
+                40,
+                Math.floor(availableWidth / charWidth),
+              );
+              const lines = Math.ceil(str.length / charsPerLine);
+              return theme.lineHeight * Math.min(lines, 10);
+            }
+          }
+
+          // Fallback to original estimate if charWidth not available or calc fails
           const lines = Math.ceil(str.length / 80);
           return theme.lineHeight * Math.min(lines, 10);
         }
@@ -141,7 +164,15 @@ export function useJsonViewerLayout({
 
       return theme.lineHeight;
     },
-    [tree, theme.lineHeight, stringWrapMode, truncateStringsAt],
+    [
+      tree,
+      theme.lineHeight,
+      theme.indentSize,
+      stringWrapMode,
+      truncateStringsAt,
+      charWidth,
+      scrollableMaxWidth,
+    ],
   );
 
   return {

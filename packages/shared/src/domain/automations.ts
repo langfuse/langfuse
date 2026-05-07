@@ -1,9 +1,8 @@
 import { Action, Trigger } from "@prisma/client";
 import { FilterState } from "../types";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export enum TriggerEventSource {
-  // eslint-disable-next-line no-unused-vars
   Prompt = "prompt",
 }
 
@@ -107,7 +106,7 @@ export type SafeGitHubDispatchActionConfig = z.infer<
 
 export const GitHubDispatchActionCreateSchema = z.object({
   type: z.literal("GITHUB_DISPATCH"),
-  url: z.string().url().optional(), // Optional for updates, validated in helper
+  url: z.url().optional(), // Optional for updates, validated in helper
   eventType: z.string().min(1).max(100).optional(), // Optional for updates, validated in helper
   githubToken: z.string().optional(), // Optional for updates, validated in helper
 });

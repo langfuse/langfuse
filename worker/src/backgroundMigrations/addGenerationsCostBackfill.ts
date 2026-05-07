@@ -47,14 +47,11 @@ async function addTemporaryColumnIfNotExists() {
   }
 }
 
-export default class AddGenerationsCostBackfill
-  implements IBackgroundMigration
-{
+export default class AddGenerationsCostBackfill implements IBackgroundMigration {
   private isAborted = false;
 
   async validate(
-    // eslint-disable-next-line no-unused-vars
-    args: Record<string, unknown>,
+    _args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
     // No validation to be done
     return { valid: true, invalidReason: undefined };

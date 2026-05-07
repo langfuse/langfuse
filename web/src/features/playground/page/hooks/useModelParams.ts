@@ -104,10 +104,24 @@ export const useModelParams = (windowId?: string) => {
     key,
     enabled,
   ) => {
-    setModelParams((prev) => ({
-      ...prev,
-      [key]: { ...prev[key], enabled },
-    }));
+    setModelParams((prev) => {
+      const updated = {
+        ...prev,
+        [key]: { ...prev[key], enabled },
+      };
+
+      // For Anthropic models, temperature and top_p are mutually exclusive
+      // When enabling one, disable the other
+      if (updated.adapter.value === LLMAdapter.Anthropic && enabled) {
+        if (key === "temperature" && prev.top_p.enabled) {
+          updated.top_p = { ...prev.top_p, enabled: false };
+        } else if (key === "top_p" && prev.temperature.enabled) {
+          updated.temperature = { ...prev.temperature, enabled: false };
+        }
+      }
+
+      return updated;
+    });
   };
 
   // Set default provider and model
@@ -218,6 +232,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 2, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        maxReasoningTokens: { value: 0, enabled: false },
         providerOptions: { value: {}, enabled: false },
       };
 
@@ -231,6 +246,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 2, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        maxReasoningTokens: { value: 0, enabled: false },
         providerOptions: { value: {}, enabled: false },
       };
 
@@ -245,6 +261,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 1, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        maxReasoningTokens: { value: 0, enabled: false },
         providerOptions: { value: {}, enabled: false },
       };
 
@@ -258,6 +275,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 1, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        maxReasoningTokens: { value: 0, enabled: false },
         providerOptions: { value: {}, enabled: false },
       };
 
@@ -271,6 +289,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 2, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        maxReasoningTokens: { value: 0, enabled: false },
         providerOptions: { value: {}, enabled: false },
       };
 
@@ -284,6 +303,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 2, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        maxReasoningTokens: { value: 0, enabled: false },
         providerOptions: { value: {}, enabled: false },
       };
   }

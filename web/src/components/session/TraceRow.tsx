@@ -16,6 +16,8 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { NewDatasetItemFromTraceId } from "@/src/components/session/NewDatasetItemFromTrace";
+import { AnnotationQueueObjectType } from "@langfuse/shared";
+import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 
 // Skeleton placeholder for trace cards
 const TraceSkeleton = () => {
@@ -35,28 +37,31 @@ const TraceRow = React.memo(
     projectId,
     openPeek,
     traceCommentCounts,
+    showCorrections,
   }: {
     trace: RouterOutputs["sessions"]["byIdWithScores"]["traces"][number];
     projectId: string;
     openPeek: (id: string, row: any) => void;
     traceCommentCounts: Map<string, number> | undefined;
+    showCorrections: boolean;
   }) => {
     return (
       <Card className="border-border shadow-none">
-        <div className="grid md:grid-cols-[1fr_1px_358px] lg:grid-cols-[1fr_1px_28rem]">
-          <div className="overflow-hidden py-4 pl-4 pr-4">
+        <div className="grid md:grid-cols-[1fr_1px_358px] lg:grid-cols-[1fr_1px_30rem]">
+          <div className="overflow-hidden py-4 pr-4 pl-4">
             <SessionIO
               traceId={trace.id}
               projectId={projectId}
               timestamp={new Date(trace.timestamp)}
+              showCorrections={showCorrections}
             />
           </div>
-          <div className="hidden bg-border md:block"></div>
-          <div className="flex flex-col border-t py-4 pl-4 pr-4 md:border-0">
+          <div className="bg-border hidden md:block"></div>
+          <div className="flex flex-col border-t py-4 pr-4 pl-4 md:border-0">
             <div className="mb-4 flex flex-col gap-2">
               <Link
                 href={`/project/${projectId}/traces/${trace.id}`}
-                className="flex items-start gap-2 rounded-lg border p-2 transition-colors hover:bg-accent"
+                className="hover:bg-accent flex items-start gap-2 rounded-lg border p-2 transition-colors"
                 onClick={(e) => {
                   if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
                     e.preventDefault();
@@ -69,7 +74,7 @@ const TraceRow = React.memo(
                   <span className="text-xs font-medium">
                     {trace.name} ({trace.id})&nbsp;↗
                   </span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-muted-foreground text-xs">
                     {trace.timestamp.toLocaleString()}
                   </span>
                 </div>
@@ -81,24 +86,32 @@ const TraceRow = React.memo(
                   timestamp={new Date(trace.timestamp)}
                   buttonVariant="outline"
                 />
-                <AnnotateDrawer
-                  key={"annotation-drawer" + trace.id}
-                  projectId={projectId}
-                  scoreTarget={{
-                    type: "trace",
-                    traceId: trace.id,
-                  }}
-                  scores={trace.scores}
-                  buttonVariant="outline"
-                  analyticsData={{
-                    type: "trace",
-                    source: "SessionDetail",
-                  }}
-                  scoreMetadata={{
-                    projectId: projectId,
-                    environment: trace.environment,
-                  }}
-                />
+                <div className="flex items-start">
+                  <AnnotateDrawer
+                    key={"annotation-drawer" + trace.id}
+                    projectId={projectId}
+                    scoreTarget={{
+                      type: "trace",
+                      traceId: trace.id,
+                    }}
+                    scores={trace.scores}
+                    buttonVariant="outline"
+                    analyticsData={{
+                      type: "trace",
+                      source: "SessionDetail",
+                    }}
+                    scoreMetadata={{
+                      projectId: projectId,
+                      environment: trace.environment,
+                    }}
+                  />
+                  <CreateNewAnnotationQueueItem
+                    projectId={projectId}
+                    objectId={trace.id}
+                    objectType={AnnotationQueueObjectType.TRACE}
+                    variant="outline"
+                  />
+                </div>
                 <CommentDrawerButton
                   projectId={projectId}
                   variant="outline"
@@ -165,10 +178,11 @@ export const LazyTraceRow = React.forwardRef<
     openPeek: (id: string, row: any) => void;
     index: number;
     traceCommentCounts: Map<string, number> | undefined;
+    showCorrections: boolean;
     onLoad?: (index: number) => void;
   }
 >((props, measureRef) => {
-  const { index, onLoad: onLoad, ...cardProps } = props;
+  const { index, onLoad: onLoad, showCorrections, ...cardProps } = props;
   const [shouldLoad, setShouldLoad] = useState(false);
   const internalRef = useRef<HTMLDivElement>(null);
 
@@ -196,7 +210,11 @@ export const LazyTraceRow = React.forwardRef<
 
   return (
     <div ref={combinedRef} className="pb-3">
-      {shouldLoad ? <TraceRow {...cardProps} /> : <TraceSkeleton />}
+      {shouldLoad ? (
+        <TraceRow showCorrections={showCorrections} {...cardProps} />
+      ) : (
+        <TraceSkeleton />
+      )}
     </div>
   );
 });

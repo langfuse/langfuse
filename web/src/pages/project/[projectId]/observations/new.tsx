@@ -8,12 +8,15 @@ import {
   getTracingTabs,
   TRACING_TABS,
 } from "@/src/features/navigation/utils/tracing-tabs";
+import { useQueryProject } from "@/src/features/projects/hooks";
 
 export default function Events() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { project } = useQueryProject();
 
   // Check if the user has tracing configured
+  // Skip polling entirely if the project flag is already set in the session
   const { data: hasTracingConfigured, isLoading } =
     api.traces.hasTracingConfigured.useQuery(
       { projectId },
@@ -24,7 +27,9 @@ export default function Events() {
             skipBatch: true,
           },
         },
-        refetchInterval: 10_000,
+        refetchInterval: project?.hasTraces ? false : 10_000,
+        initialData: project?.hasTraces ? true : undefined,
+        staleTime: project?.hasTraces ? Infinity : 0,
       },
     );
 

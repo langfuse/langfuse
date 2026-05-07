@@ -46,7 +46,7 @@ export function isValidJSONSchema(schema: unknown): boolean {
     ajv.compile(schema as AnySchema);
 
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 }

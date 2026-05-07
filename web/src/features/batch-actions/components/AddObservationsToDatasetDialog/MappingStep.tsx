@@ -112,12 +112,12 @@ export function MappingStep({
   };
 
   return (
-    <div className="grid h-[62vh] grid-cols-[minmax(0,1fr),minmax(0,1fr)] gap-6 overflow-auto p-6">
+    <div className="grid h-[62vh] grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6 overflow-auto p-6">
       {/* Left: Configuration */}
       <div className="min-w-0 space-y-6">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="flex-grow text-lg font-semibold">
+            <h3 className="grow text-lg font-semibold">
               Dataset Item {fieldLabel}
             </h3>
             {hasSchema && (
@@ -130,7 +130,7 @@ export function MappingStep({
               />
             )}
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Configure how observation data maps to the Dataset Item {fieldLabel}
             .
           </p>

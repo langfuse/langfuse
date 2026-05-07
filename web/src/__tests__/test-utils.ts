@@ -1,7 +1,11 @@
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  clickhouseClient,
+  EvalExecutionQueue,
+  LLMAsJudgeExecutionQueue,
+  SecondaryEvalExecutionQueue,
+  SecondaryIngestionQueue,
+  SecondaryOtelIngestionQueue,
   createBasicAuthHeader,
   getQueue,
   IngestionQueue,
@@ -10,7 +14,7 @@ import {
   QueueName,
   TraceUpsertQueue,
 } from "@langfuse/shared/src/server";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 
 export const ensureTestDatabaseExists = async () => {
   // Only create test database if we're in test environment with test database URL
@@ -36,7 +40,7 @@ export const ensureTestDatabaseExists = async () => {
       stdio: "inherit",
     });
     console.log("Test database schema verified/updated");
-  } catch (_error) {
+  } catch {
     console.log("Test database not accessible, creating...");
 
     const url = new URL(env.DATABASE_URL);
@@ -82,29 +86,16 @@ export const ensureTestDatabaseExists = async () => {
   // ClickHouse uses default database (no setup needed)
 };
 
-export const pruneDatabase = async () => {
-  if (!env.DATABASE_URL.includes("localhost:5432")) {
-    throw new Error("You cannot prune database unless running on localhost.");
-  }
-
-  await prisma.scoreConfig.deleteMany();
-  await prisma.traceSession.deleteMany();
-  await prisma.datasetItem.deleteMany();
-  await prisma.dataset.deleteMany();
-  await prisma.datasetRuns.deleteMany();
-  await prisma.prompt.deleteMany();
-  await prisma.promptDependency.deleteMany();
-  await prisma.model.deleteMany();
-  await prisma.llmApiKeys.deleteMany();
-  await prisma.comment.deleteMany();
-  await prisma.media.deleteMany();
-
-  await truncateClickhouseTables();
-};
 export const getQueues = () => {
   const queues: string[] = Object.values(QueueName);
   queues.push(
     ...IngestionQueue.getShardNames(),
+    ...SecondaryIngestionQueue.getShardNames(),
+    ...EvalExecutionQueue.getShardNames(),
+    ...SecondaryEvalExecutionQueue.getShardNames(),
+    ...LLMAsJudgeExecutionQueue.getShardNames(),
+    ...OtelIngestionQueue.getShardNames(),
+    ...SecondaryOtelIngestionQueue.getShardNames(),
     ...TraceUpsertQueue.getShardNames(),
   );
 
@@ -123,62 +114,64 @@ export const getQueues = () => {
     .map((queueName) =>
       queueName.startsWith(QueueName.IngestionQueue)
         ? IngestionQueue.getInstance({ shardName: queueName })
-        : queueName.startsWith(QueueName.TraceUpsert)
-          ? TraceUpsertQueue.getInstance({ shardName: queueName })
-          : queueName.startsWith(QueueName.OtelIngestionQueue)
-            ? OtelIngestionQueue.getInstance({ shardName: queueName })
-            : getQueue(
-                queueName as Exclude<
-                  QueueName,
-                  | QueueName.IngestionQueue
-                  | QueueName.TraceUpsert
-                  | QueueName.OtelIngestionQueue
-                >,
-              ),
+        : queueName.startsWith(QueueName.IngestionSecondaryQueue)
+          ? SecondaryIngestionQueue.getInstance({ shardName: queueName })
+          : queueName.startsWith(QueueName.EvaluationExecution)
+            ? EvalExecutionQueue.getInstance({ shardName: queueName })
+            : queueName.startsWith(QueueName.EvaluationExecutionSecondaryQueue)
+              ? SecondaryEvalExecutionQueue.getInstance({
+                  shardName: queueName,
+                })
+              : queueName.startsWith(QueueName.LLMAsJudgeExecution)
+                ? LLMAsJudgeExecutionQueue.getInstance({
+                    shardName: queueName,
+                  })
+                : queueName.startsWith(QueueName.TraceUpsert)
+                  ? TraceUpsertQueue.getInstance({ shardName: queueName })
+                  : queueName.startsWith(QueueName.OtelIngestionSecondaryQueue)
+                    ? SecondaryOtelIngestionQueue.getInstance({
+                        shardName: queueName,
+                      })
+                    : queueName.startsWith(QueueName.OtelIngestionQueue)
+                      ? OtelIngestionQueue.getInstance({
+                          shardName: queueName,
+                        })
+                      : getQueue(
+                          queueName as Exclude<
+                            QueueName,
+                            | QueueName.IngestionQueue
+                            | QueueName.IngestionSecondaryQueue
+                            | QueueName.EvaluationExecution
+                            | QueueName.EvaluationExecutionSecondaryQueue
+                            | QueueName.LLMAsJudgeExecution
+                            | QueueName.TraceUpsert
+                            | QueueName.OtelIngestionQueue
+                            | QueueName.OtelIngestionSecondaryQueue
+                          >,
+                        ),
     );
 };
 
-export const disconnectQueues = async () => {
+export const disconnectQueues = async (disconnectTimeoutMs = 2_000) => {
   await Promise.all(
     getQueues().map(async (queue) => {
       if (queue) {
+        let timeoutId: NodeJS.Timeout | undefined;
         try {
-          queue.disconnect();
+          await Promise.race([
+            queue.disconnect(),
+            new Promise<void>((resolve) => {
+              timeoutId = setTimeout(resolve, disconnectTimeoutMs);
+            }),
+          ]);
         } catch (error) {
           logger.error(`Error disconnecting queue ${queue.name}: ${error}`);
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
         }
       }
     }),
   );
-};
-
-export const truncateClickhouseTables = async () => {
-  if (!env.CLICKHOUSE_URL?.includes("localhost:8123")) {
-    throw new Error("You cannot prune clickhouse unless running on localhost.");
-  }
-
-  // Additional safety check for test database
-  if (env.CLICKHOUSE_DB === "test") {
-    console.log(
-      "Running tests against test ClickHouse database:",
-      env.CLICKHOUSE_DB,
-    );
-  } else if (env.CLICKHOUSE_DB !== "default") {
-    console.log(
-      "Running tests against ClickHouse database:",
-      env.CLICKHOUSE_DB,
-    );
-  }
-
-  await clickhouseClient().command({
-    query: "TRUNCATE TABLE IF EXISTS observations",
-  });
-  await clickhouseClient().command({
-    query: "TRUNCATE TABLE IF EXISTS scores",
-  });
-  await clickhouseClient().command({
-    query: "TRUNCATE TABLE IF EXISTS traces",
-  });
 };
 
 export type IngestionAPIResponse = {
@@ -241,7 +234,7 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   }
 }
 
-export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
+export async function makeZodVerifiedAPICall<T extends z.ZodType>(
   responseZodSchema: T,
   method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
   url: string,
@@ -265,7 +258,7 @@ export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
   return { body: resBody, status };
 }
 
-export async function makeZodVerifiedAPICallSilent<T extends z.ZodTypeAny>(
+export async function makeZodVerifiedAPICallSilent<T extends z.ZodType>(
   responseZodSchema: T,
   method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
   url: string,

@@ -35,14 +35,14 @@ export function SamplingDetailsHoverCard({
         <button
           className={
             showLabel
-              ? "inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-              : "inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-muted-foreground/10"
+              ? "text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+              : "hover:bg-muted-foreground/10 inline-flex h-4 w-4 items-center justify-center rounded-full"
           }
           aria-label="View sampling details"
         >
           {showLabel && <span>Sampled Data</span>}
           <Info
-            className={showLabel ? "h-3 w-3" : "h-3 w-3 text-muted-foreground"}
+            className={showLabel ? "h-3 w-3" : "text-muted-foreground h-3 w-3"}
           />
         </button>
       </HoverCardTrigger>
@@ -114,7 +114,7 @@ export function SamplingDetailsHoverCard({
             </dl>
           </div>
 
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             Hash-based sampling ensures consistent, repeatable results while
             maintaining statistical accuracy.
           </p>

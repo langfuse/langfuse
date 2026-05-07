@@ -5,6 +5,7 @@ export {
   type ObservationPriceFields,
 } from "./createGenerationsQuery";
 export {
+  type Filter,
   FilterList,
   StringFilter,
   DateTimeFilter,
@@ -18,9 +19,13 @@ export {
   NullFilter,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
-export { orderByToClickhouseSql } from "./clickhouse-sql/orderby-factory";
+export {
+  orderByToClickhouseSql,
+  orderByToEntries,
+} from "./clickhouse-sql/orderby-factory";
 export { createFilterFromFilterState } from "./clickhouse-sql/factory";
 export { clickhouseSearchCondition } from "./clickhouse-sql/search";
+export { postgresSearchCondition } from "./postgres-sql/search";
 export {
   convertApiProvidedFilterToClickhouseFilter,
   createPublicApiObservationsColumnMapping,
@@ -32,6 +37,21 @@ export {
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   EventsAggregationQueryBuilder,
+  EventsSessionAggregationQueryBuilder,
+  EventsQueryBuilder,
+  ExperimentsAggregationQueryBuilder,
+  buildEventsFullTableSplitQuery,
   type CTESchema,
   type CTEWithSchema,
+  type ExperimentsAggregationFieldSetName,
+  type SessionEventsMetricsRow,
+  type SplitQueryBuilder,
 } from "./clickhouse-sql/event-query-builder";
+export {
+  eventsScoresAggregation,
+  eventsSessionsAggregation,
+  eventsSessionScoresAggregation,
+  eventsTraceMetadata,
+  eventsTracesAggregation,
+  eventsTracesScoresAggregation,
+} from "./clickhouse-sql/query-fragments";

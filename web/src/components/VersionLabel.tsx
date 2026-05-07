@@ -1,12 +1,12 @@
 import {
   ArrowUp10,
   BadgeCheck,
-  Github,
   HardDriveDownload,
   Info,
   Map,
   Newspaper,
 } from "lucide-react";
+import { SiGithub } from "react-icons/si";
 import { VERSION } from "@/src/constants";
 import Link from "next/link";
 import {
@@ -132,7 +132,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             href="https://github.com/langfuse/langfuse/releases"
             target="_blank"
           >
-            <Github size={16} className="mr-2" />
+            <SiGithub size={16} className="mr-2" />
             Releases
           </Link>
         </DropdownMenuItem>

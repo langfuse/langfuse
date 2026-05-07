@@ -20,14 +20,11 @@ const stripeClient = env.STRIPE_SECRET_KEY
  *
  * This migration is idempotent and can be safely re-run if interrupted.
  */
-export default class BackfillBillingCycleAnchors
-  implements IBackgroundMigration
-{
+export default class BackfillBillingCycleAnchors implements IBackgroundMigration {
   private isAborted = false;
 
   async validate(
-    // eslint-disable-next-line no-unused-vars
-    args: Record<string, unknown>,
+    _args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
     // If not in cloud environment, validation passes (will skip in run())
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {

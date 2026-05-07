@@ -9,7 +9,7 @@ import {
   convertObservation,
   shouldSkipObservationsFinal,
 } from "@langfuse/shared/src/server";
-import type { FilterState } from "@langfuse/shared";
+import { type FilterState, observationsTableCols } from "@langfuse/shared";
 
 type QueryType = {
   page: number;
@@ -40,6 +40,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
     with clickhouse_keys as (
       SELECT DISTINCT
         id,
+        trace_id,
         project_id,
         type,
         toDate(start_time)
@@ -84,7 +85,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
       event_ts
     FROM observations o ${disableObservationsFinal ? "" : "FINAL"}
     WHERE o.project_id = {projectId: String}
-      AND (id, project_id, type, toDate(start_time)) in (select * from clickhouse_keys)
+      AND (id, trace_id, project_id, type, toDate(start_time)) in (select * from clickhouse_keys)
     ORDER BY start_time DESC
   `;
 
@@ -172,6 +173,7 @@ const generateFilter = (query: QueryType) => {
     observationsTableUiColumnDefinitions.filter(
       (c) => c.clickhouseTableName !== "scores",
     ),
+    observationsTableCols,
   );
 
   // Remove score filters since observations don't support scores in response

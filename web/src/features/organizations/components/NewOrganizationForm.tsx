@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { useEffect } from "react";
-import type * as z from "zod/v4";
+import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -30,7 +30,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 export const NewOrganizationForm = ({
   onSuccess,
 }: {
-  onSuccess: (orgId: string) => void;
+  onSuccess: (orgId: string) => void | Promise<void>;
 }) => {
   const { update: updateSession } = useSession();
 
@@ -78,8 +78,11 @@ export const NewOrganizationForm = ({
           }
         }
 
-        void updateSession();
-        onSuccess(org.id);
+        // the setup (next step) resolves the current org from session state,
+        // so we refresh it, so that the UI doesn't render stale state.
+        // for example, it could otherwise show the v4 enable toggle.
+        await updateSession();
+        await onSuccess(org.id);
         form.reset();
       })
       .catch((error) => {
@@ -97,7 +100,6 @@ export const NewOrganizationForm = ({
   return (
     <Form {...form}>
       <form
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-3"
         data-testid="new-org-form"

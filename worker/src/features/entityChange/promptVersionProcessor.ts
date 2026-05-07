@@ -1,5 +1,6 @@
 import {
   type TriggerEventAction,
+  type FilterState,
   jsonSchemaNullable,
   InternalServerError,
 } from "@langfuse/shared";
@@ -27,10 +28,12 @@ export const promptVersionProcessor = async (
   event: EntityChangeEventType,
 ): Promise<void> => {
   try {
-    logger.info(
-      `Processing prompt version change event for prompt ${event.promptId} for project ${event.projectId}`,
-      { event: JSON.stringify(event, null, 2) },
-    );
+    if (logger.isLevelEnabled("debug")) {
+      logger.debug(
+        `Processing prompt version change event for prompt ${event.promptId} for project ${event.projectId}`,
+        { event: JSON.stringify(event, null, 2) },
+      );
+    }
 
     // Get active prompt triggers
     const triggers = await getTriggerConfigurations({
@@ -66,10 +69,27 @@ export const promptVersionProcessor = async (
           }
         };
 
+        // Merge eventActions into the filter so InMemoryFilterService handles
+        // everything in one place. Done here rather than in convertTriggerToDomain
+        // because that function also serves the UI — injecting a synthetic condition
+        // there would corrupt the edit form and write it back to the DB on save.
+        const mergedFilter: FilterState =
+          trigger.eventActions.length > 0
+            ? [
+                ...trigger.filter,
+                {
+                  column: "action",
+                  operator: "any of",
+                  type: "stringOptions",
+                  value: trigger.eventActions,
+                },
+              ]
+            : trigger.filter;
+
         // Use InMemoryFilterService for all filtering including actions
         const eventMatches = InMemoryFilterService.evaluateFilter(
           eventData,
-          trigger.filter,
+          mergedFilter,
           fieldMapper,
         );
 
@@ -118,6 +138,7 @@ export const promptVersionProcessor = async (
               triggerId: trigger.id,
               actionId,
               projectId: event.projectId,
+              user: event.user,
             });
           }),
         );
@@ -146,12 +167,14 @@ async function enqueueAutomationAction({
   triggerId,
   actionId,
   projectId,
+  user,
 }: {
   promptData: PromptResult;
   action: string;
   triggerId: string;
   actionId: string;
   projectId: string;
+  user?: { id: string; name: string | null; email: string | null };
 }): Promise<void> {
   // Get automations for this action
   const automations = await getAutomations({
@@ -207,6 +230,7 @@ async function enqueueAutomationAction({
           prompt: jsonSchemaNullable.parse(promptData.prompt),
           config: jsonSchemaNullable.parse(promptData.config),
         },
+        ...(user ? { user } : {}),
       },
     },
     name: QueueJobs.WebhookJob,

@@ -6,18 +6,13 @@ import {
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
 
-type MatchedModelCardProps = {
-  projectId: string;
+export type MatchedModelCardProps = {
   model: {
-    id: string;
     modelName: string;
     matchPattern: string;
     projectId: string | null;
   };
-  pricingTierId: string;
 };
-
-export type { MatchedModelCardProps };
 
 export function MatchedModelCard({ model }: MatchedModelCardProps) {
   const isLangfuseModel = !model.projectId;
@@ -25,7 +20,7 @@ export function MatchedModelCard({ model }: MatchedModelCardProps) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <CardTitle className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
           Matched Model
         </CardTitle>
       </CardHeader>
@@ -41,10 +36,10 @@ export function MatchedModelCard({ model }: MatchedModelCardProps) {
           )}
         </div>
         <div className="space-y-1">
-          <div className="text-xs font-medium text-muted-foreground">
+          <div className="text-muted-foreground text-xs font-medium">
             Pattern:
           </div>
-          <code className="block break-all rounded bg-muted/50 p-2 text-xs">
+          <code className="bg-muted/50 block rounded p-2 text-xs break-all">
             {model.matchPattern}
           </code>
         </div>

@@ -5,7 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import * as z from "zod/v4";
+import * as z from "zod";
 import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
@@ -20,6 +20,7 @@ import {
 import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { throwIfExceedsLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
@@ -112,7 +113,7 @@ export const membersRouter = createTRPCRouter({
     .input(
       z.object({
         orgId: z.string(),
-        email: z.string().email(),
+        email: z.email(),
         orgRole: z.enum(Role),
         // in case a projectRole should be set for a specific project
         projectId: z.string().optional(),
@@ -219,6 +220,16 @@ export const membersRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Org not found" });
       }
 
+      // Count current members + pending invitations for limit check
+      const [currentMemberCount, pendingInviteCount] = await Promise.all([
+        ctx.prisma.organizationMembership.count({
+          where: { orgId: input.orgId },
+        }),
+        ctx.prisma.membershipInvitation.count({
+          where: { orgId: input.orgId },
+        }),
+      ]);
+
       if (user) {
         const existingOrgMembership =
           await ctx.prisma.organizationMembership.findFirst({
@@ -265,6 +276,14 @@ export const membersRouter = createTRPCRouter({
           }
         }
 
+        // Check member limit before creating new membership
+        throwIfExceedsLimit({
+          entitlementLimit: "organization-member-count",
+          sessionUser: ctx.session.user,
+          orgId: input.orgId,
+          currentUsage: currentMemberCount + pendingInviteCount,
+        });
+
         // create org membership as user is not a member yet
         const orgMembership = await ctx.prisma.organizationMembership.create({
           data: {
@@ -308,6 +327,14 @@ export const membersRouter = createTRPCRouter({
           env: env,
         });
       } else {
+        // Check member limit before creating invitation
+        throwIfExceedsLimit({
+          entitlementLimit: "organization-member-count",
+          sessionUser: ctx.session.user,
+          orgId: input.orgId,
+          currentUsage: currentMemberCount + pendingInviteCount,
+        });
+
         try {
           const invitation = await ctx.prisma.membershipInvitation.create({
             data: {
@@ -545,15 +572,7 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "orgMembership",
-        resourceId: membership.id,
-        action: "update",
-        before: membership,
-      });
-
-      return await ctx.prisma.organizationMembership.update({
+      const updatedMembership = await ctx.prisma.organizationMembership.update({
         where: {
           id: membership.id,
           orgId: input.orgId,
@@ -562,6 +581,17 @@ export const membersRouter = createTRPCRouter({
           role: input.role,
         },
       });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "orgMembership",
+        resourceId: membership.id,
+        action: "update",
+        before: membership,
+        after: updatedMembership,
+      });
+
+      return updatedMembership;
     }),
   updateProjectRole: protectedOrganizationProcedure
     .input(
@@ -648,7 +678,7 @@ export const membersRouter = createTRPCRouter({
           await auditLog({
             session: ctx.session,
             resourceType: "projectMembership",
-            resourceId: `${input.orgMembershipId}--${input.projectId}`,
+            resourceId: `${input.projectId}--${input.userId}`,
             action: "delete",
             before: projectMembership,
           });
@@ -689,9 +719,10 @@ export const membersRouter = createTRPCRouter({
       await auditLog({
         session: ctx.session,
         resourceType: "projectMembership",
-        resourceId: input.projectId + "--" + input.userId,
-        action: "update",
+        resourceId: `${input.projectId}--${input.userId}`,
+        action: projectMembership ? "update" : "create",
         before: projectMembership,
+        after: updatedProjectMembership,
       });
 
       return updatedProjectMembership;

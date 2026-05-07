@@ -1,4 +1,3 @@
-import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
@@ -14,6 +13,10 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useEffect } from "react";
 
 export function TracePage({
   traceId,
@@ -25,14 +28,17 @@ export function TracePage({
   const router = useRouter();
   const session = useSession();
   const routeProjectId = (router.query.projectId as string) ?? "";
+  const { isBetaEnabled } = useV4Beta();
 
-  const trace = api.traces.byIdWithObservationsAndScores.useQuery(
+  // Old path: fetch from traces table (beta OFF)
+  const tracesQuery = api.traces.byIdWithObservationsAndScores.useQuery(
     {
       traceId,
       timestamp,
       projectId: routeProjectId,
     },
     {
+      enabled: !isBetaEnabled,
       retry(failureCount, error) {
         if (
           error.data?.code === "UNAUTHORIZED" ||
@@ -44,24 +50,60 @@ export function TracePage({
     },
   );
 
+  // New path: fetch from events table (beta ON)
+  const eventsData = useEventsTraceData({
+    projectId: routeProjectId,
+    traceId,
+    timestamp,
+    enabled: isBetaEnabled,
+  });
+
+  // Use the appropriate data source based on beta toggle
+  const trace = isBetaEnabled
+    ? {
+        data: eventsData.data,
+        isLoading: eventsData.isLoading,
+        error: eventsData.error as typeof tracesQuery.error,
+      }
+    : tracesQuery;
+
   const projectIdForAccessCheck = trace.data?.projectId ?? routeProjectId;
   const hasProjectAccess = useIsAuthenticatedAndProjectMember(
     projectIdForAccessCheck,
   );
 
-  const [selectedTab, setSelectedTab] = useQueryParam(
-    "display",
-    withDefault(StringParam, "details"),
-  );
+  useEffect(() => {
+    if (isBetaEnabled && eventsData.cutoffObservationsAfterMaxCount) {
+      showErrorToast(
+        "Trace truncated",
+        "This trace has too many observations for the detail view. Only a subset is shown.",
+        "WARNING",
+      );
+    }
+  }, [isBetaEnabled, eventsData.cutoffObservationsAfterMaxCount]);
 
-  if (trace.error?.data?.code === "UNAUTHORIZED")
+  // Handle errors - for events path, we check if there's no data after loading
+  if (!isBetaEnabled && tracesQuery.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this trace." />;
 
-  if (trace.error?.data?.code === "NOT_FOUND")
+  if (!isBetaEnabled && tracesQuery.error?.data?.code === "NOT_FOUND")
     return (
       <ErrorPage
         title="Trace not found"
         message="The trace is either still being processed or has been deleted."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => void window.location.reload(),
+        }}
+      />
+    );
+
+  // For events path: show not found if no observations found after loading
+  if (isBetaEnabled && !eventsData.isLoading && !eventsData.data)
+    return (
+      <ErrorPage
+        title="Trace not found"
+        message="No observations found for this trace. The trace may still be processing or has been deleted."
         additionalButton={{
           label: "Retry",
           onClick: () => void window.location.reload(),
@@ -135,6 +177,7 @@ export function TracePage({
               <PublishTraceSwitch
                 traceId={trace.data.id}
                 projectId={trace.data.projectId}
+                timestamp={timestamp}
                 isPublic={trace.data.public}
                 size="icon-xs"
               />
@@ -183,10 +226,9 @@ export function TracePage({
         <Trace
           trace={trace.data}
           scores={trace.data.scores}
+          corrections={trace.data.corrections}
           projectId={trace.data.projectId}
           observations={trace.data.observations}
-          selectedTab={selectedTab}
-          setSelectedTab={setSelectedTab}
           context={router.query.peek !== undefined ? "peek" : "fullscreen"}
         />
       </div>

@@ -21,22 +21,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/src/components/ui/tooltip";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   mixpanelIntegrationFormSchema,
   MIXPANEL_REGIONS,
   type MixpanelRegion,
 } from "@/src/features/mixpanel-integration/types";
+import {
+  AnalyticsIntegrationExportSource,
+  EXPORT_SOURCE_OPTIONS,
+} from "@langfuse/shared";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Card } from "@tremor/react";
+import { Card } from "@/src/components/ui/card";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { type z } from "zod/v4";
+import { type z } from "zod";
+import { Info, ExternalLink } from "lucide-react";
 
 export default function MixpanelIntegrationSettings() {
   const router = useRouter();
@@ -54,7 +65,7 @@ export default function MixpanelIntegrationSettings() {
   );
 
   const status =
-    state.isInitialLoading || !hasAccess
+    state.isLoading || !hasAccess
       ? undefined
       : state.data?.enabled
         ? "active"
@@ -77,7 +88,7 @@ export default function MixpanelIntegrationSettings() {
         ),
       }}
     >
-      <p className="mb-4 text-sm text-primary">
+      <p className="text-primary mb-4 text-sm">
         Integrate with{" "}
         <Link href="https://mixpanel.com" className="underline">
           Mixpanel
@@ -98,7 +109,7 @@ export default function MixpanelIntegrationSettings() {
         <>
           <Header title="Configuration" />
           <Card className="p-3">
-            <MixpanelLogo className="mb-4 w-20 text-foreground" />
+            <MixpanelLogo className="text-foreground mb-4 w-20" />
             <MixpanelIntegrationSettingsForm
               state={state.data}
               projectId={projectId}
@@ -110,7 +121,7 @@ export default function MixpanelIntegrationSettings() {
       {state.data?.enabled && (
         <>
           <Header title="Status" className="mt-8" />
-          <p className="text-sm text-primary">
+          <p className="text-primary text-sm">
             Data synced until:{" "}
             {state.data?.lastSyncAt
               ? new Date(state.data.lastSyncAt).toLocaleString()
@@ -132,6 +143,7 @@ const MixpanelIntegrationSettingsForm = ({
   isLoading: boolean;
 }) => {
   const capture = usePostHogClientCapture();
+  const { isBetaEnabled } = useV4Beta();
   const mixpanelForm = useForm({
     resolver: zodResolver(mixpanelIntegrationFormSchema),
     defaultValues: {
@@ -140,6 +152,11 @@ const MixpanelIntegrationSettingsForm = ({
         MIXPANEL_REGIONS[0].subdomain,
       mixpanelProjectToken: state?.mixpanelProjectToken ?? "",
       enabled: state?.enabled ?? false,
+      exportSource:
+        state?.exportSource ??
+        (isBetaEnabled
+          ? AnalyticsIntegrationExportSource.EVENTS
+          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
     },
     disabled: isLoading,
   });
@@ -151,6 +168,11 @@ const MixpanelIntegrationSettingsForm = ({
         MIXPANEL_REGIONS[0].subdomain,
       mixpanelProjectToken: state?.mixpanelProjectToken ?? "",
       enabled: state?.enabled ?? false,
+      exportSource:
+        state?.exportSource ??
+        (isBetaEnabled
+          ? AnalyticsIntegrationExportSource.EVENTS
+          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -181,7 +203,6 @@ const MixpanelIntegrationSettingsForm = ({
     <Form {...mixpanelForm}>
       <form
         className="space-y-3"
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={mixpanelForm.handleSubmit(onSubmit)}
       >
         <FormField
@@ -228,6 +249,67 @@ const MixpanelIntegrationSettingsForm = ({
             </FormItem>
           )}
         />
+        {isBetaEnabled && (
+          <FormField
+            control={mixpanelForm.control}
+            name="exportSource"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="flex items-center gap-1.5 pt-2">
+                  Export Source
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Info className="text-muted-foreground h-3.5 w-3.5" />
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="bottom"
+                      className="max-w-[350px] space-y-2 p-3"
+                    >
+                      {EXPORT_SOURCE_OPTIONS.map((option) => (
+                        <div key={option.value} className="space-y-0.5">
+                          <div className="font-medium">{option.label}</div>
+                          <div className="text-muted-foreground text-xs">
+                            {option.description}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="border-t pt-2">
+                        <a
+                          href="https://langfuse.com/docs/integrations/export-sources"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
+                        >
+                          For further information see
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select data to export" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {EXPORT_SOURCE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  Choose which data sources to export to Mixpanel. Scores are
+                  always included.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <FormField
           control={mixpanelForm.control}
           name="enabled"
@@ -241,7 +323,7 @@ const MixpanelIntegrationSettingsForm = ({
                   onCheckedChange={() => {
                     field.onChange(!field.value);
                   }}
-                  className="ml-4 mt-1"
+                  className="mt-1 ml-4"
                 />
               </FormControl>
               <FormMessage />

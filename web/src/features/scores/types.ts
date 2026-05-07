@@ -1,14 +1,16 @@
 import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
 import { type AnnotateFormSchema } from "@/src/features/scores/schema";
+import { type ButtonProps } from "@/src/components/ui/button";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
   type ScoreSourceType,
-  type ScoreDataType,
+  type ScoreDataTypeType,
   type ScoreAggregate,
   type ScoreConfigDomain,
   type ScoreDomain,
+  ScoreConfigDataType,
 } from "@langfuse/shared";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 
 export type HistogramBin = { binLabel: string; count: number };
 export type CategoryCounts = Record<string, number>;
@@ -31,7 +33,7 @@ export type ChartData = {
 export type ScoreData = {
   key: string;
   name: string;
-  dataType: ScoreDataType;
+  dataType: ScoreDataTypeType;
   source: string;
 };
 
@@ -56,7 +58,7 @@ export type ScoreTarget = SessionScoreTarget | TraceScoreTarget;
 export type AnnotationScore = {
   id: string | null;
   name: string;
-  dataType: ScoreDataType;
+  dataType: AnnotationScoreDataType;
   source: ScoreSourceType;
   value?: number | null;
   stringValue?: string | null;
@@ -87,7 +89,7 @@ export type AnnotateDrawerProps<Target extends ScoreTarget> = {
     queueId?: string;
     environment?: string;
   };
-  buttonVariant?: "secondary" | "outline";
+  buttonVariant?: ButtonProps["variant"];
 };
 
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
@@ -95,11 +97,15 @@ export type AnnotationScoreSchemaType = z.infer<
   typeof AnnotationScoreDataSchema
 >;
 
+export type AnnotationScoreDataType = ScoreConfigDataType;
+export const ANNOTATION_SCORE_DATA_TYPES_ARRAY =
+  Object.values(ScoreConfigDataType);
+
 export type ScoreColumn = {
   key: string;
   name: string;
   source: ScoreSourceType;
-  dataType: ScoreDataType;
+  dataType: AnnotationScoreDataType;
 };
 
 export type ScoreConfigSelection =
@@ -123,7 +129,7 @@ export type AnnotationScoreFormData = {
   id: string | null;
   configId: string;
   name: string;
-  dataType: ScoreDataType;
+  dataType: AnnotationScoreDataType;
   value?: number | null;
   stringValue?: string | null;
   comment?: string | null;

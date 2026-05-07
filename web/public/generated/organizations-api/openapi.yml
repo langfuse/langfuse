@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
   title: langfuse-organizations
-  version: ''
+  version: ""
   description: >-
     ## General Notes
 
@@ -28,9 +28,6 @@ info:
     - OpenAPI spec:
     https://cloud.langfuse.com/generated/organizations-api/openapi.yml
 
-    - Postman collection:
-    https://cloud.langfuse.com/generated/organizations-postman/collection.json
-
 
     ## Looking for the Langfuse API?
 
@@ -47,32 +44,32 @@ paths:
         - Organizations
       parameters: []
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organizations'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '401':
-          description: ''
+                $ref: "#/components/schemas/Organizations"
+        "400":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '403':
-          description: ''
+        "401":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '405':
-          description: ''
+        "403":
+          description: ""
+          content:
+            application/json:
+              schema:
+                type: string
+        "405":
+          description: ""
           content:
             application/json:
               schema:
@@ -86,32 +83,32 @@ paths:
         - Organizations
       parameters: []
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '401':
-          description: ''
+                $ref: "#/components/schemas/Organization"
+        "400":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '403':
-          description: ''
+        "401":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '405':
-          description: ''
+        "403":
+          description: ""
+          content:
+            application/json:
+              schema:
+                type: string
+        "405":
+          description: ""
           content:
             application/json:
               schema:
@@ -146,32 +143,32 @@ paths:
           schema:
             type: string
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '401':
-          description: ''
+                $ref: "#/components/schemas/Organization"
+        "400":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '403':
-          description: ''
+        "401":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '405':
-          description: ''
+        "403":
+          description: ""
+          content:
+            application/json:
+              schema:
+                type: string
+        "405":
+          description: ""
           content:
             application/json:
               schema:
@@ -189,32 +186,32 @@ paths:
           schema:
             type: string
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '401':
-          description: ''
+                $ref: "#/components/schemas/Organization"
+        "400":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '403':
-          description: ''
+        "401":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '405':
-          description: ''
+        "403":
+          description: ""
+          content:
+            application/json:
+              schema:
+                type: string
+        "405":
+          description: ""
           content:
             application/json:
               schema:
@@ -248,32 +245,32 @@ paths:
           schema:
             type: string
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeleteOrganizationResponse'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '401':
-          description: ''
+                $ref: "#/components/schemas/DeleteOrganizationResponse"
+        "400":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '403':
-          description: ''
+        "401":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '405':
-          description: ''
+        "403":
+          description: ""
+          content:
+            application/json:
+              schema:
+                type: string
+        "405":
+          description: ""
           content:
             application/json:
               schema:
@@ -292,32 +289,32 @@ paths:
           schema:
             type: string
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiKeyList'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '401':
-          description: ''
+                $ref: "#/components/schemas/ApiKeyList"
+        "400":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '403':
-          description: ''
+        "401":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '405':
-          description: ''
+        "403":
+          description: ""
+          content:
+            application/json:
+              schema:
+                type: string
+        "405":
+          description: ""
           content:
             application/json:
               schema:
@@ -335,32 +332,32 @@ paths:
           schema:
             type: string
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiKeyResponse'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '401':
-          description: ''
+                $ref: "#/components/schemas/ApiKeyResponse"
+        "400":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '403':
-          description: ''
+        "401":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '405':
-          description: ''
+        "403":
+          description: ""
+          content:
+            application/json:
+              schema:
+                type: string
+        "405":
+          description: ""
           content:
             application/json:
               schema:
@@ -395,32 +392,32 @@ paths:
           schema:
             type: string
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeleteOrganizationResponse'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema:
-                type: string
-        '401':
-          description: ''
+                $ref: "#/components/schemas/DeleteOrganizationResponse"
+        "400":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '403':
-          description: ''
+        "401":
+          description: ""
           content:
             application/json:
               schema:
                 type: string
-        '405':
-          description: ''
+        "403":
+          description: ""
+          content:
+            application/json:
+              schema:
+                type: string
+        "405":
+          description: ""
           content:
             application/json:
               schema:
@@ -436,7 +433,7 @@ components:
         organizations:
           type: array
           items:
-            $ref: '#/components/schemas/Organization'
+            $ref: "#/components/schemas/Organization"
       required:
         - organizations
     Organization:
@@ -458,7 +455,7 @@ components:
         projects:
           type: array
           items:
-            $ref: '#/components/schemas/OrganizationProject'
+            $ref: "#/components/schemas/OrganizationProject"
       required:
         - id
         - name
@@ -507,7 +504,7 @@ components:
         apiKeys:
           type: array
           items:
-            $ref: '#/components/schemas/ApiKeySummary'
+            $ref: "#/components/schemas/ApiKeySummary"
       required:
         - apiKeys
     ApiKeySummary:

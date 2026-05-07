@@ -1,24 +1,25 @@
 import {
+  BatchExportFileFormat,
   FilterCondition,
-  ScoreDataType,
+  type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
+  observationsTableCols,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
   queryClickhouseStream,
-  logger,
   ObservationRecordReadType,
   StringFilter,
   FilterList,
   createFilterFromFilterState,
   observationsTableUiColumnDefinitions,
   enrichObservationWithModelData,
+  createModelCache,
   clickhouseSearchCondition,
   convertObservation,
   shouldSkipObservationsFinal,
 } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
 import { Readable } from "stream";
 import { env } from "../../env";
 import {
@@ -26,52 +27,9 @@ import {
   prepareScoresForOutput,
 } from "./getDatabaseReadStream";
 import { fetchCommentsForExport } from "./fetchCommentsForExport";
-import type { Model, Price } from "@prisma/client";
 
-const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
-
-type ModelWithPrice = Model & { Price: Price[] };
-
-/**
- * Creates a model cache that fetches models from the database on demand and stores them in memory.
- * Only queries the database if a model ID is not already in the cache.
- *
- * @param projectId - The project ID to filter models by
- * @returns Object with getModel function to retrieve models by ID
- */
-const createModelCache = (projectId: string) => {
-  const modelCache = new Map<string, ModelWithPrice | null>();
-
-  const getModel = async (
-    internalModelId: string | null | undefined,
-  ): Promise<ModelWithPrice | null> => {
-    if (!internalModelId) return null;
-
-    // Check if model is already in cache
-    if (modelCache.has(internalModelId)) {
-      return modelCache.get(internalModelId) ?? null;
-    }
-
-    // Fetch model from database
-    const model = await prisma.model.findFirst({
-      where: {
-        id: internalModelId,
-        OR: [{ projectId }, { projectId: null }],
-      },
-      include: {
-        Price: true,
-      },
-    });
-
-    // Store in cache (even if null to avoid repeated queries)
-    modelCache.set(internalModelId, model);
-
-    logger.debug(`Model ${internalModelId} fetched from database`);
-    return model;
-  };
-
-  return { getModel };
-};
+const DEFAULT_BATCH_SIZE = 1000;
+const REDUCED_BATCH_SIZE = 200; // Smaller batch for JSON/JSONL which hold parsed objects in memory
 
 export const getObservationStream = async (props: {
   projectId: string;
@@ -80,6 +38,7 @@ export const getObservationStream = async (props: {
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
+  fileFormat?: BatchExportFileFormat;
 }): Promise<Readable> => {
   const {
     projectId,
@@ -89,6 +48,9 @@ export const getObservationStream = async (props: {
     searchType,
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
+
+  const isCsv = props.fileFormat === BatchExportFileFormat.CSV;
+  const batchSize = isCsv ? DEFAULT_BATCH_SIZE : REDUCED_BATCH_SIZE;
 
   // Check if we should skip deduplication for OTEL projects
   const skipDedup = await shouldSkipObservationsFinal(projectId);
@@ -157,6 +119,7 @@ export const getObservationStream = async (props: {
         },
       ],
       observationsTableUiColumnDefinitions,
+      observationsTableCols,
     ),
   );
 
@@ -175,11 +138,16 @@ export const getObservationStream = async (props: {
             tuple(name, avg_value, data_type, string_value),
             data_type IN ('NUMERIC', 'BOOLEAN')
           ) AS scores_avg,
-          -- For categorical scores, use name:value format for improved query performance
+          -- concat encoding for hasAny filter compatibility
           groupArrayIf(
             concat(name, ':', string_value),
-            data_type = 'CATEGORICAL' AND notEmpty(string_value)
-          ) AS score_categories
+            data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
+          ) AS score_categories,
+          -- tuple encoding for accurate output parsing (names may contain colons)
+          groupArrayIf(
+            tuple(name, string_value, data_type),
+            data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
+          ) AS score_categories_tuples
         FROM (
           SELECT
             trace_id,
@@ -244,7 +212,8 @@ export const getObservationStream = async (props: {
         t.timestamp as traceTimestamp,
         t.user_id as userId,
         s.scores_avg as scores_avg,
-        s.score_categories as score_categories
+        s.score_categories as score_categories,
+        s.score_categories_tuples as score_categories_tuples
       FROM observations o
         LEFT JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
         LEFT JOIN scores_agg s ON s.trace_id = o.trace_id AND s.observation_id = o.id
@@ -260,11 +229,12 @@ export const getObservationStream = async (props: {
         | {
             name: string;
             value: number;
-            dataType: ScoreDataType;
+            dataType: ScoreDataTypeType;
             stringValue: string;
           }[]
         | undefined;
       score_categories: string[] | undefined;
+      score_categories_tuples: [string, string | null, string][] | undefined;
     } & {
       traceName: string;
       traceTags: string[];
@@ -301,11 +271,12 @@ export const getObservationStream = async (props: {
       | {
           name: string;
           value: number;
-          dataType: ScoreDataType;
+          dataType: ScoreDataTypeType;
           stringValue: string;
         }[]
       | undefined;
     score_categories: string[] | undefined;
+    score_categories_tuples: [string, string | null, string][] | undefined;
   } & {
     traceName: string;
     traceTags: string[];
@@ -329,17 +300,14 @@ export const getObservationStream = async (props: {
       stringValue: score[3],
     }));
 
-    // Process categorical scores (format: "name:value")
-    const categoricalScores = (bufferedRow.score_categories ?? []).map(
-      (cat: string) => {
-        const [name, ...valueParts] = cat.split(":");
-        return {
-          name,
-          value: null,
-          dataType: "CATEGORICAL" as ScoreDataType,
-          stringValue: valueParts.join(":"),
-        };
-      },
+    // Process categorical scores (tuples from ClickHouse)
+    const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
+      (cat) => ({
+        name: cat[0],
+        value: null,
+        dataType: cat[2],
+        stringValue: cat[1],
+      }),
     );
 
     const outputScores: Record<string, string[] | number[]> =
@@ -353,12 +321,14 @@ export const getObservationStream = async (props: {
         {
           ...convertObservation(bufferedRow, {
             truncated: false,
-            shouldJsonParse: true,
+            shouldJsonParse: props.fileFormat !== BatchExportFileFormat.CSV,
           }),
           traceName: bufferedRow.traceName,
           traceTags: bufferedRow.traceTags,
           traceTimestamp: bufferedRow.traceTimestamp,
           userId: bufferedRow.userId,
+          toolDefinitionsCount: null,
+          toolCallsCount: null,
           ...modelData,
           scores: outputScores,
           comments: observationComments,
@@ -369,7 +339,8 @@ export const getObservationStream = async (props: {
   };
 
   // Convert async generator to Node.js Readable stream
-  // eslint-disable-next-line no-unused-vars
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Counter for potential future instrumentation
   let recordsProcessed = 0;
 
   return Readable.from(
@@ -382,7 +353,7 @@ export const getObservationStream = async (props: {
         observationIds.push(row.id);
 
         // Process in batches
-        if (rowBuffer.length >= BATCH_SIZE) {
+        if (rowBuffer.length >= batchSize) {
           // Fetch comments for this batch
           const commentsByObservation = await fetchCommentsForExport(
             projectId,

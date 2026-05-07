@@ -3,10 +3,11 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
-import { Loader2 } from "lucide-react";
+
+import { default as SpinnerLib } from "@/src/components/design-system/Spinner/Spinner";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       variant: {
@@ -16,6 +17,8 @@ const buttonVariants = cva(
         "destructive-secondary":
           "bg-secondary text-secondary-foreground border border-destructive disabled:hover:bg-secondary disabled:hover:text-secondary-foreground hover:bg-destructive/90 hover:text-destructive-foreground",
         outline:
+          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        "outline-solid":
           "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
@@ -44,7 +47,8 @@ const buttonVariants = cva(
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   loading?: boolean;
@@ -87,7 +91,7 @@ export { Button, buttonVariants };
 function Spinner() {
   return (
     <div className="flex h-1/2 items-center justify-center">
-      <Loader2 className="h-full w-full animate-spin" />
+      <SpinnerLib size="full" />
     </div>
   );
 }

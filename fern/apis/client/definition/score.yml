@@ -18,7 +18,9 @@ types:
       sessionId: optional<string>
       observationId: optional<string>
       datasetRunId: optional<string>
-      name: string
+      name:
+        type: string
+        docs: The name of the score. Always overrides "output" for correction scores.
       value:
         type: CreateScoreValue
         docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. Boolean score values must equal either 1 or 0 (true or false)
@@ -30,6 +32,9 @@ types:
       configId:
         type: optional<string>
         docs: Reference a score config on a score. When set, the score name must equal the config name and scores must comply with the config's range and data type. For categorical scores, the value must map to a config category. Numeric scores might be constrained by the score config's max and min values
+      source:
+        type: optional<CreateScoreSource>
+        docs: The source of the score. Defaults to API. Set to ANNOTATION to prefill scores (e.g. from an LLM) for a human reviewer to verify in an annotation queue. When source is ANNOTATION, a configId is required unless dataType is CORRECTION. EVAL is reserved for internal evaluator outputs and is not accepted on this endpoint.
     examples:
       - value:
           name: "novelty"
@@ -75,16 +80,33 @@ types:
           name: "hallucination"
           value: 0
           datasetRunId: "7891-5678-90ab-hijk"
+      - value:
+          name: "accuracy"
+          value: 0.9
+          dataType: "NUMERIC"
+          configId: "9203-4567-89ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+          source: "ANNOTATION"
+
+  CreateScoreSource:
+    docs: |
+      Source values accepted when creating a score via the public API.
+      EVAL is reserved for internal evaluator outputs and is intentionally not
+      exposed here.
+    enum:
+      - API
+      - ANNOTATION
 
   ScoreDataType:
     enum:
       - NUMERIC
       - CATEGORICAL
       - BOOLEAN
+      - CORRECTION
 
   CreateScoreValue:
     discriminated: false
     union:
       - double
       - string
-    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores
+    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. For corrections pass value as string and set data type to CORRECTION

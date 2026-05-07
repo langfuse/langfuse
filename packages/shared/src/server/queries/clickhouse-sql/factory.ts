@@ -1,9 +1,15 @@
-import z from "zod/v4";
+import z from "zod";
 import { singleFilter } from "../../../interfaces/filters";
 import { FilterCondition } from "../../../types";
+import { InvalidRequestError } from "../../../errors";
 import { isValidTableName } from "../../clickhouse/schemaUtils";
 import { logger } from "../../logger";
-import { UiColumnMappings } from "../../../tableDefinitions";
+import {
+  findUiColumnMapping,
+  type ColumnDefinition,
+  type UiColumnMappings,
+} from "../../../tableDefinitions";
+import { COMPATIBLE_FILTER_TYPES } from "./filterTypeCompatibility";
 import {
   StringFilter,
   DateTimeFilter,
@@ -31,10 +37,27 @@ export class QueryBuilderError extends Error {
 export const createFilterFromFilterState = (
   filter: FilterCondition[],
   columnMapping: UiColumnMappings,
+  columnDefinitions?: ColumnDefinition[],
 ) => {
-  return filter.map((frontEndFilter) => {
+  const applicableFilters = filter.filter(
+    (frontEndFilter) => frontEndFilter.type !== "positionInTrace",
+  );
+
+  return applicableFilters.map((frontEndFilter) => {
     // checks if the column exists in the clickhouse schema
     const column = matchAndVerifyTracesUiColumn(frontEndFilter, columnMapping);
+
+    if (columnDefinitions && frontEndFilter.type !== "null") {
+      const colDef = columnDefinitions.find((c) => c.id === column.uiTableId);
+      if (colDef) {
+        const compatible = COMPATIBLE_FILTER_TYPES[colDef.type];
+        if (compatible && !compatible.includes(frontEndFilter.type)) {
+          throw new InvalidRequestError(
+            `Invalid filter type '${frontEndFilter.type}' for column '${frontEndFilter.column}'. Expected filter type '${colDef.type}'.`,
+          );
+        }
+      }
+    }
 
     switch (frontEndFilter.type) {
       case "string":
@@ -44,6 +67,7 @@ export const createFilterFromFilterState = (
           operator: frontEndFilter.operator,
           value: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
+          emptyEqualsNull: column.emptyEqualsNull,
         });
       case "datetime":
         return new DateTimeFilter({
@@ -60,6 +84,7 @@ export const createFilterFromFilterState = (
           operator: frontEndFilter.operator,
           values: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
+          emptyEqualsNull: column.emptyEqualsNull,
         });
       case "categoryOptions":
         return new CategoryOptionsFilter({
@@ -119,6 +144,7 @@ export const createFilterFromFilterState = (
           field: column.clickhouseSelect,
           operator: frontEndFilter.operator,
           tablePrefix: column.queryPrefix,
+          emptyEqualsNull: column.emptyEqualsNull,
         });
       default:
         // eslint-disable-next-line no-case-declarations
@@ -134,16 +160,18 @@ const matchAndVerifyTracesUiColumn = (
   uiTableDefinitions: UiColumnMappings,
 ) => {
   // tries to match the column name to the clickhouse table name
-  logger.debug(`Filter to match: ${JSON.stringify(filter)}`);
-  const uiTable = uiTableDefinitions.find(
-    (col) =>
-      col.uiTableName === filter.column || col.uiTableId === filter.column, // matches on the NAME of the column in the UI.
-  );
+  const uiTable = findUiColumnMapping(uiTableDefinitions, filter.column);
 
   if (!uiTable) {
-    throw new QueryBuilderError(
-      `Column ${filter.column} does not match a UI / CH table mapping.`,
-    );
+    const errorMessage = `Column ${filter.column} does not match a UI / CH table mapping.`;
+    logger.error(errorMessage, {
+      filterColumn: filter.column,
+      filterType: filter.type,
+      availableColumns: uiTableDefinitions.map(
+        (col) => col.uiTableId ?? col.uiTableName,
+      ),
+    });
+    throw new InvalidRequestError(errorMessage);
   }
 
   if (!isValidTableName(uiTable.clickhouseTableName)) {

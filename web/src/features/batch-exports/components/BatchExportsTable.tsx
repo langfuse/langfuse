@@ -70,7 +70,7 @@ export function BatchExportsTable(props: { projectId: string }) {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
-                  <InfoIcon className="size-3 text-muted-foreground" />
+                  <InfoIcon className="text-muted-foreground size-3" />
                 </TooltipTrigger>
                 <TooltipContent>
                   <div className="space-y-1">
@@ -164,7 +164,7 @@ export function BatchExportsTable(props: { projectId: string }) {
       header: "Actions",
       size: 100,
       cell: ({ row }) => {
-        const id = row.getValue("id") as string;
+        const id = row.original.id;
         const status = row.getValue("status") as string;
 
         // Only show cancel button for queued or processing exports

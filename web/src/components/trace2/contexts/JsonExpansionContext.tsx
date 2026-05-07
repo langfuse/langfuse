@@ -1,120 +1,175 @@
 /**
- * JsonExpansionContext - Persists JSON expand/collapse state across observations
+ * JsonExpansionContext - Persists JSON expand/collapse state per view type
  *
  * Purpose:
- * - Store which JSON paths are expanded/collapsed (e.g., "response.data.items": true)
+ * - Store which JSON paths are expanded/collapsed
  * - Persist state in sessionStorage (per-tab, clears on tab close)
- * - Share expansion state between observations with similar JSON structure
+ * - Separate storage per view type (formatted, json, advanced-json)
  *
- * Usage:
- * - Components receive externalExpansionState and onExternalExpansionChange props
- * - When user expands a path, it persists across observation switches
- * - Separate from TraceDataContext to avoid unnecessary re-renders
+ * Storage keys:
+ * - trace2-expansion:formatted - For formatted (pretty) view, per-field expansion
+ * - trace2-expansion:json - For legacy JSON view, boolean per field
+ * - trace2-expansion:advanced-json - For advanced JSON view, prefixed paths
  */
 
 import { createContext, useContext, useCallback, type ReactNode } from "react";
 import useSessionStorage from "@/src/components/useSessionStorage";
 
-type ExpandedState = Record<string, boolean> | boolean;
+// Storage keys per view type
+const STORAGE_KEYS = {
+  formatted: "trace2-expansion:formatted",
+  json: "trace2-expansion:json",
+  advancedJson: "trace2-expansion:advanced-json",
+} as const;
 
-type JsonExpansionState = {
-  input: ExpandedState;
-  output: ExpandedState;
-  metadata: ExpandedState;
-  log: ExpandedState;
-  // Dynamic keys for per-observation log view expansion (e.g., "log:observationId")
-  [key: string]: ExpandedState;
+// Types for each view's expansion state
+type FormattedExpansionState = {
+  input: Record<string, boolean>;
+  output: Record<string, boolean>;
+  metadata: Record<string, boolean>;
+  [key: string]: Record<string, boolean>; // Dynamic keys for log view
 };
 
+type JsonExpansionState = {
+  input: boolean;
+  output: boolean;
+  metadata: boolean;
+};
+
+type AdvancedJsonExpansionState = Record<string, boolean>; // Prefixed paths like "input.messages.0"
+
 interface JsonExpansionContextValue {
-  expansionState: JsonExpansionState;
-  setFieldExpansion: (field: string, expansion: ExpandedState) => void;
+  // Formatted view state (per-field, path-based expansion)
+  formattedExpansion: FormattedExpansionState;
+  setFormattedFieldExpansion: (
+    field: string,
+    expansion: Record<string, boolean>,
+  ) => void;
+
+  // JSON view state (boolean per field - collapsed/expanded)
+  jsonExpansion: JsonExpansionState;
+  setJsonFieldExpansion: (
+    field: "input" | "output" | "metadata",
+    expanded: boolean,
+  ) => void;
+
+  // Advanced JSON view state (prefixed paths)
+  advancedJsonExpansion: AdvancedJsonExpansionState;
+  setAdvancedJsonExpansion: (expansion: AdvancedJsonExpansionState) => void;
 }
 
 const JsonExpansionContext = createContext<JsonExpansionContextValue>({
-  expansionState: { input: {}, output: {}, metadata: {}, log: {} },
-  setFieldExpansion: () => {},
+  formattedExpansion: { input: {}, output: {}, metadata: {} },
+  setFormattedFieldExpansion: () => {},
+  jsonExpansion: { input: true, output: true, metadata: true },
+  setJsonFieldExpansion: () => {},
+  advancedJsonExpansion: {},
+  setAdvancedJsonExpansion: () => {},
 });
 
-export const useJsonExpansion = () => useContext(JsonExpansionContext);
+export const useJsonExpansion = () => {
+  return useContext(JsonExpansionContext);
+};
 
 /**
- * Storage key for JSON expansion state in sessionStorage
+ * Read formatted expansion state directly from sessionStorage
  */
-const STORAGE_KEY = "trace2-jsonExpansionState";
-
-/**
- * Read expansion state for a specific field directly from sessionStorage
- * without subscribing to React context (avoids re-renders).
- *
- * @param field - Field name (e.g., "input", "output", "metadata")
- * @returns Expansion state for the field, or {} if not found
- */
-export function readExpansionFromStorage(field: string): ExpandedState {
+export function readFormattedExpansion(field: string): Record<string, boolean> {
   if (typeof window === "undefined") return {};
 
   try {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
+    const stored = sessionStorage.getItem(STORAGE_KEYS.formatted);
     if (!stored) return {};
 
-    const parsed = JSON.parse(stored) as JsonExpansionState;
+    const parsed = JSON.parse(stored) as FormattedExpansionState;
     return parsed[field] ?? {};
-  } catch (error) {
-    console.error("Failed to read expansion state from storage", error);
+  } catch {
     return {};
   }
 }
 
 /**
- * Write expansion state for a specific field directly to sessionStorage
- * without going through React context (avoids triggering re-renders).
- *
- * @param field - Field name (e.g., "input", "output", "metadata")
- * @param state - Expansion state to save
+ * Write formatted expansion state directly to sessionStorage
  */
-export function writeExpansionToStorage(
+export function writeFormattedExpansion(
   field: string,
-  state: ExpandedState,
+  state: Record<string, boolean>,
 ): void {
   if (typeof window === "undefined") return;
 
   try {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
-    const parsed: JsonExpansionState = stored
-      ? (JSON.parse(stored) as JsonExpansionState)
-      : { input: {}, output: {}, metadata: {}, log: {} };
+    const stored = sessionStorage.getItem(STORAGE_KEYS.formatted);
+    const parsed: FormattedExpansionState = stored
+      ? (JSON.parse(stored) as FormattedExpansionState)
+      : { input: {}, output: {}, metadata: {} };
 
-    (parsed as Record<string, ExpandedState>)[field] = state;
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-  } catch (error) {
-    console.error("Failed to write expansion state to storage", error);
+    parsed[field] = state;
+    sessionStorage.setItem(STORAGE_KEYS.formatted, JSON.stringify(parsed));
+  } catch {
+    // Silently fail
   }
 }
 
 export function JsonExpansionProvider({ children }: { children: ReactNode }) {
-  const [expansionState, setExpansionState] =
-    useSessionStorage<JsonExpansionState>(STORAGE_KEY, {
+  // Formatted view state (per-field, path-based)
+  const [formattedExpansion, setFormattedExpansion] =
+    useSessionStorage<FormattedExpansionState>(STORAGE_KEYS.formatted, {
       input: {},
       output: {},
       metadata: {},
-      log: {},
     });
 
-  const setFieldExpansion = useCallback(
-    (field: string, expansion: ExpandedState) => {
-      setExpansionState((prev) => ({
+  // JSON view state (boolean per field)
+  const [jsonExpansion, setJsonExpansion] =
+    useSessionStorage<JsonExpansionState>(STORAGE_KEYS.json, {
+      input: true, // Default expanded
+      output: true,
+      metadata: true,
+    });
+
+  // Advanced JSON view state (prefixed paths)
+  const [advancedJsonExpansion, setAdvancedJsonExpansion] =
+    useSessionStorage<AdvancedJsonExpansionState>(
+      STORAGE_KEYS.advancedJson,
+      {},
+    );
+
+  const setFormattedFieldExpansion = useCallback(
+    (field: string, expansion: Record<string, boolean>) => {
+      setFormattedExpansion((prev) => ({
         ...prev,
         [field]: expansion,
       }));
     },
-    [setExpansionState],
+    [setFormattedExpansion],
+  );
+
+  const setJsonFieldExpansion = useCallback(
+    (field: "input" | "output" | "metadata", expanded: boolean) => {
+      setJsonExpansion((prev) => ({
+        ...prev,
+        [field]: expanded,
+      }));
+    },
+    [setJsonExpansion],
+  );
+
+  const handleSetAdvancedJsonExpansion = useCallback(
+    (expansion: AdvancedJsonExpansionState) => {
+      setAdvancedJsonExpansion(expansion);
+    },
+    [setAdvancedJsonExpansion],
   );
 
   return (
     <JsonExpansionContext.Provider
       value={{
-        expansionState,
-        setFieldExpansion,
+        formattedExpansion,
+        setFormattedFieldExpansion,
+        jsonExpansion,
+        setJsonFieldExpansion,
+        advancedJsonExpansion,
+        setAdvancedJsonExpansion: handleSetAdvancedJsonExpansion,
       }}
     >
       {children}

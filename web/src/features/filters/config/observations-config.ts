@@ -1,6 +1,12 @@
 import { observationsTableCols } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import {
+  omitFilterFacets,
+  type FilterConfig,
+} from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
+import { renderFilterIcon } from "@/src/components/ItemBadge";
+
+export type ObservationsOmittableFilterColumn = "model" | "promptName";
 
 /**
  * Maps frontend column IDs to backend-expected column IDs
@@ -27,6 +33,7 @@ export const observationFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "type",
       label: "Type",
+      renderIcon: renderFilterIcon,
     },
     {
       type: "categorical" as const,
@@ -135,6 +142,30 @@ export const observationFilterConfig: FilterConfig = {
       unit: "$",
     },
     {
+      type: "categorical" as const,
+      column: "toolNames",
+      label: "Tool Names (Available)",
+    },
+    {
+      type: "categorical" as const,
+      column: "calledToolNames",
+      label: "Tool Names (Called)",
+    },
+    {
+      type: "numeric" as const,
+      column: "toolDefinitions",
+      label: "Available Tools",
+      min: 0,
+      max: 25,
+    },
+    {
+      type: "numeric" as const,
+      column: "toolCalls",
+      label: "Tool Calls",
+      min: 0,
+      max: 25,
+    },
+    {
       type: "keyValue" as const,
       column: "score_categories",
       label: "Categorical Scores",
@@ -158,3 +189,9 @@ export const observationFilterConfig: FilterConfig = {
     },
   ],
 };
+
+export function getObservationsFilterConfig(
+  omittedFilter: ObservationsOmittableFilterColumn[] = [],
+): FilterConfig {
+  return omitFilterFacets(observationFilterConfig, omittedFilter);
+}

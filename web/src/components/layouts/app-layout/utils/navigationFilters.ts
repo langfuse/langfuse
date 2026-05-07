@@ -72,6 +72,18 @@ export const filters = {
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
 
+    if (route.featureFlag === "experimentsV4Enabled") {
+      return ctx.isLangfuseCloud && ctx.session?.user?.v4BetaEnabled === true
+        ? route
+        : null;
+    }
+
+    if (route.featureFlag === "v4BetaToggleVisible") {
+      const isDev = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV";
+      const canToggleV4 = isDev || ctx.session?.user?.canToggleV4 === true;
+      return canToggleV4 && ctx.isLangfuseCloud ? route : null;
+    }
+
     const hasFlag =
       ctx.enableExperimentalFeatures ||
       ctx.cloudAdmin ||

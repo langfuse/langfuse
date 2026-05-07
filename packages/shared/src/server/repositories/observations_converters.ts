@@ -19,9 +19,64 @@ import {
   applyInputOutputRendering,
 } from "../utils/rendering";
 import { logger } from "../logger";
+import { prisma } from "../../db";
 import type { Model, Price } from "@prisma/client";
 
-type ModelWithPrice = Model & { Price: Price[] };
+export type ModelWithPrice = Model & { Price: Price[] };
+
+/**
+ * Creates a model cache that fetches models from the database on demand and stores them in memory.
+ * Only queries the database if a model ID is not already in the cache.
+ */
+export const createModelCache = (projectId: string) => {
+  const modelCache = new Map<string, ModelWithPrice | null>();
+
+  const getModel = async (
+    internalModelId: string | null | undefined,
+  ): Promise<ModelWithPrice | null> => {
+    if (!internalModelId) return null;
+
+    if (modelCache.has(internalModelId)) {
+      return modelCache.get(internalModelId) ?? null;
+    }
+
+    const model = await prisma.model.findFirst({
+      where: {
+        id: internalModelId,
+        OR: [{ projectId }, { projectId: null }],
+      },
+      include: {
+        Price: true,
+      },
+    });
+
+    modelCache.set(internalModelId, model);
+
+    logger.debug(`Model ${internalModelId} fetched from database`);
+    return model;
+  };
+
+  return { getModel };
+};
+
+/**
+ * Converts a Record<string, number> to ensure all values are numbers.
+ * Avoids Object.entries/fromEntries chain for better performance.
+ * @param record - The record to convert (can be null/undefined)
+ * @returns A new object with all values converted to numbers, or empty object if input is null/undefined
+ */
+function convertNumericRecord(
+  record: Record<string, number> | null | undefined,
+): Record<string, number> {
+  if (!record) return {};
+  const result: Record<string, number> = {};
+  for (const key in record) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) {
+      result[key] = Number(record[key]);
+    }
+  }
+  return result;
+}
 
 /**
  * Validates that all ObservationCoreFields are present and not undefined in a ClickHouse record.
@@ -40,6 +95,7 @@ function ensureObservationCoreFields(
   if (record.trace_id === undefined) missingFields.push("trace_id");
   if (record.start_time === undefined) missingFields.push("start_time");
   if (record.project_id === undefined) missingFields.push("project_id");
+  if (record.type === undefined) missingFields.push("type");
 
   if (missingFields.length > 0) {
     const errorMessage = `Missing required ObservationCoreFields: ${missingFields.join(", ")}${record.id ? ` (record: ${record.id})` : ""}`;
@@ -51,8 +107,12 @@ function ensureObservationCoreFields(
     id: record.id!,
     traceId: record.trace_id ?? null,
     startTime: parseClickhouseUTCDateTimeFormat(record.start_time!),
+    endTime: record.end_time
+      ? parseClickhouseUTCDateTimeFormat(record.end_time)
+      : null,
     projectId: record.project_id!,
     parentObservationId: record.parent_observation_id ?? null,
+    type: record.type! as ObservationType,
   };
 }
 
@@ -88,16 +148,14 @@ export const enrichObservationWithModelData = (
  * - convertObservation(record, props) → Partial<Observation>
  */
 export function convertObservationPartial(
-  // eslint-disable-next-line no-unused-vars
   record: ObservationRecordReadType,
-  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
-  complete: true, // eslint-disable-line no-unused-vars
+  renderingProps: RenderingProps,
+  complete: true,
 ): Observation;
 export function convertObservationPartial(
-  // eslint-disable-next-line no-unused-vars
   record: Partial<ObservationRecordReadType>,
-  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
-  complete: false, // eslint-disable-line no-unused-vars
+  renderingProps: RenderingProps,
+  complete: false,
 ): PartialObservation;
 export function convertObservationPartial(
   record: Partial<ObservationRecordReadType>,
@@ -195,33 +253,19 @@ export function convertObservationPartial(
 
     // Usage fields
     ...(record.usage_details !== undefined && {
-      usageDetails: Object.fromEntries(
-        Object.entries(record.usage_details ?? {}).map(([key, value]) => [
-          key,
-          Number(value),
-        ]),
-      ),
+      usageDetails: convertNumericRecord(record.usage_details),
       inputUsage: reducedUsageDetails.input ?? 0,
       outputUsage: reducedUsageDetails.output ?? 0,
       totalUsage: reducedUsageDetails.total ?? 0,
     }),
     ...(record.cost_details !== undefined && {
-      costDetails: Object.fromEntries(
-        Object.entries(record.cost_details ?? {}).map(([key, value]) => [
-          key,
-          Number(value),
-        ]),
-      ),
+      costDetails: convertNumericRecord(record.cost_details),
       inputCost: reducedCostDetails.input,
       outputCost: reducedCostDetails.output,
       totalCost: reducedCostDetails.total,
     }),
     ...(record.provided_cost_details !== undefined && {
-      providedCostDetails: Object.fromEntries(
-        Object.entries(record.provided_cost_details ?? {}).map(
-          ([key, value]) => [key, Number(value)],
-        ),
-      ),
+      providedCostDetails: convertNumericRecord(record.provided_cost_details),
     }),
 
     // Prompt fields
@@ -243,6 +287,17 @@ export function convertObservationPartial(
     }),
     ...(record.usage_pricing_tier_name !== undefined && {
       usagePricingTierName: record.usage_pricing_tier_name ?? null,
+    }),
+
+    // Tool fields
+    ...(record.tool_definitions !== undefined && {
+      toolDefinitions: record.tool_definitions ?? null,
+    }),
+    ...(record.tool_calls !== undefined && {
+      toolCalls: record.tool_calls ?? null,
+    }),
+    ...(record.tool_call_names !== undefined && {
+      toolCallNames: record.tool_call_names ?? null,
     }),
 
     // Metrics (calculated fields)
@@ -310,6 +365,9 @@ export function convertObservationPartial(
     totalUsage: partial.totalUsage ?? 0,
     usagePricingTierId: partial.usagePricingTierId ?? null,
     usagePricingTierName: partial.usagePricingTierName ?? null,
+    toolDefinitions: partial.toolDefinitions ?? null,
+    toolCalls: partial.toolCalls ?? null,
+    toolCallNames: partial.toolCallNames ?? null,
   };
 }
 
@@ -325,16 +383,14 @@ export function convertObservation(
  * Use this for observations from the events table which contain user context.
  */
 export function convertEventsObservation(
-  // eslint-disable-next-line no-unused-vars
   record: EventsObservationRecordReadType,
-  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
-  complete: true, // eslint-disable-line no-unused-vars
+  renderingProps: RenderingProps,
+  complete: true,
 ): EventsObservation;
 export function convertEventsObservation(
-  // eslint-disable-next-line no-unused-vars
   record: Partial<EventsObservationRecordReadType>,
-  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
-  complete: false, // eslint-disable-line no-unused-vars
+  renderingProps: RenderingProps,
+  complete: false,
 ): PartialEventsObservation;
 export function convertEventsObservation(
   record: Partial<EventsObservationRecordReadType>,
@@ -354,6 +410,11 @@ export function convertEventsObservation(
     ...baseObservation,
     userId: record.user_id ?? null,
     sessionId: record.session_id ?? null,
+    traceName: record.trace_name ?? null,
+    release: record.release ?? null,
+    tags: record.tags ?? [],
+    bookmarked: record.bookmarked,
+    public: record.public,
   };
 }
 

@@ -13,7 +13,7 @@ export class InMemoryFilterService {
   static evaluateFilter<T>(
     data: T,
     filter: FilterState,
-    fieldMapper: (data: T, column: string) => unknown, // eslint-disable-line no-unused-vars
+    fieldMapper: (data: T, column: string) => unknown,
   ): boolean {
     try {
       // If no filters, data matches
@@ -45,7 +45,7 @@ export class InMemoryFilterService {
   private static evaluateFilterCondition<T>(
     data: T,
     condition: FilterCondition,
-    fieldMapper: (data: T, column: string) => unknown, // eslint-disable-line no-unused-vars
+    fieldMapper: (data: T, column: string) => unknown,
   ): boolean {
     const { column, type, operator } = condition;
 
@@ -104,6 +104,10 @@ export class InMemoryFilterService {
         );
       case "null":
         return this.evaluateNullFilter(fieldValue, operator);
+      case "positionInTrace":
+        // Position filters are applied after all other filters in DB queries.
+        // Ignore them in in-memory filtering.
+        return true;
       default:
         logger.error("Unsupported filter type for in-memory evaluation", {
           type,
@@ -370,7 +374,9 @@ export class InMemoryFilterService {
   ): boolean {
     switch (operator) {
       case "is null":
-        return fieldValue === null || fieldValue === undefined;
+        return (
+          fieldValue === null || fieldValue === undefined || fieldValue === ""
+        );
       case "is not null":
         return fieldValue !== null && fieldValue !== undefined;
       default:

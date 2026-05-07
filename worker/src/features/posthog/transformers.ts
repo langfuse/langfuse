@@ -3,6 +3,7 @@ import type {
   AnalyticsTraceEvent,
   AnalyticsGenerationEvent,
   AnalyticsScoreEvent,
+  AnalyticsObservationEvent,
 } from "@langfuse/shared/src/server";
 
 // UUID v5 namespace for PostHog
@@ -23,7 +24,7 @@ export const transformTraceForPostHog = (
   const uuid = v5(`${projectId}-${trace.langfuse_id}`, POSTHOG_UUID_NAMESPACE);
 
   // Extract posthog_session_id and map to $session_id
-  // eslint-disable-next-line no-unused-vars
+
   const { posthog_session_id, mixpanel_session_id, ...otherProps } = trace;
 
   return {
@@ -60,7 +61,7 @@ export const transformGenerationForPostHog = (
   );
 
   // Extract posthog_session_id and map to $session_id
-  // eslint-disable-next-line no-unused-vars
+
   const { posthog_session_id, mixpanel_session_id, ...otherProps } = generation;
 
   return {
@@ -94,7 +95,7 @@ export const transformScoreForPostHog = (
   const uuid = v5(`${projectId}-${score.langfuse_id}`, POSTHOG_UUID_NAMESPACE);
 
   // Extract posthog_session_id and map to $session_id
-  // eslint-disable-next-line no-unused-vars
+
   const { posthog_session_id, mixpanel_session_id, ...otherProps } = score;
 
   return {
@@ -117,6 +118,40 @@ export const transformScoreForPostHog = (
           { $process_person_profile: false }),
     },
     timestamp: score.timestamp as Date,
+    uuid,
+  };
+};
+
+export const transformEventForPostHog = (
+  event: AnalyticsObservationEvent,
+  projectId: string,
+): PostHogEvent => {
+  const uuid = v5(`${projectId}-${event.langfuse_id}`, POSTHOG_UUID_NAMESPACE);
+
+  // Extract posthog_session_id and map to $session_id
+
+  const { posthog_session_id, mixpanel_session_id, ...otherProps } = event;
+
+  return {
+    distinctId: event.langfuse_user_id
+      ? (event.langfuse_user_id as string)
+      : uuid,
+    event: "langfuse observation",
+    properties: {
+      ...otherProps,
+      $session_id: posthog_session_id ?? null,
+      // PostHog-specific: add user profile enrichment or mark as anonymous
+      ...(event.langfuse_user_id && event.langfuse_user_url
+        ? {
+            $set: {
+              langfuse_user_url: event.langfuse_user_url,
+            },
+          }
+        : // Capture as anonymous PostHog event (cheaper/faster)
+          // https://posthog.com/docs/data/anonymous-vs-identified-events?tab=Backend
+          { $process_person_profile: false }),
+    },
+    timestamp: event.timestamp as Date,
     uuid,
   };
 };

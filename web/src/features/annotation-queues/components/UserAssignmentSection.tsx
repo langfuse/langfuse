@@ -6,6 +6,7 @@ import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { useUserSearch } from "@/src/hooks/useUserSearch";
 import { useSelectedUsers } from "@/src/features/annotation-queues/hooks/useSelectedUsers";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useRef } from "react";
 
 interface UserAssignmentSectionProps {
   projectId: string;
@@ -20,6 +21,7 @@ export const UserAssignmentSection = ({
   onChange,
   queueId,
 }: UserAssignmentSectionProps) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const hasQueueAssignmentsReadAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "annotationQueueAssignments:read",
@@ -87,7 +89,7 @@ export const UserAssignmentSection = ({
       queueAssignmentsQuery.data.assignments.length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" ref={containerRef}>
       {/* User Selection Combobox */}
       <MultiSelectCombobox
         selectedItems={selectedUsers}
@@ -100,13 +102,23 @@ export const UserAssignmentSection = ({
         placeholder="Search users to add..."
         hasMoreResults={userSearch.hasMoreResults}
         getItemKey={(user) => user.id}
+        onOpenChange={(open) => {
+          if (open) {
+            setTimeout(() => {
+              containerRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            }, 100);
+          }
+        }}
         renderSelectedItem={(user, onRemove) => (
-          <div className="flex flex-shrink-0 items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
+          <div className="bg-muted flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs">
             <span className="max-w-32 truncate">{user.name || user.email}</span>
             <Button
               variant="ghost"
               size="sm"
-              className="h-4 w-4 p-0 hover:bg-muted-foreground/20"
+              className="hover:bg-muted-foreground/20 h-4 w-4 p-0"
               onClick={onRemove}
             >
               <X className="h-3 w-3" />
@@ -115,7 +127,7 @@ export const UserAssignmentSection = ({
         )}
         renderItem={(user, isSelected, onToggle) => (
           <div
-            className="flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-muted/50"
+            className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors"
             onClick={onToggle}
           >
             <div className="min-w-0 flex-1">
@@ -123,13 +135,13 @@ export const UserAssignmentSection = ({
                 <p className="truncate text-xs font-medium">
                   {user.name || "Unnamed User"}
                 </p>
-                <p className="truncate text-xs text-muted-foreground">
+                <p className="text-muted-foreground truncate text-xs">
                   {user.email}
                 </p>
               </div>
             </div>
             {isSelected && (
-              <div className="text-xs text-muted-foreground">✓</div>
+              <div className="text-muted-foreground text-xs">✓</div>
             )}
           </div>
         )}
@@ -139,10 +151,10 @@ export const UserAssignmentSection = ({
       {queueAssignmentsQuery.data &&
         queueAssignmentsQuery.data?.totalCount > 0 && (
           <div className="space-y-2">
-            <h4 className="text-sm text-muted-foreground">
+            <h4 className="text-muted-foreground text-sm">
               Assigned to ({queueAssignmentsQuery.data?.totalCount})
             </h4>
-            <div className="max-h-32 overflow-y-auto rounded-md border bg-background">
+            <div className="bg-background max-h-32 overflow-y-auto rounded-md border">
               {queueAssignmentsQuery.data?.assignments.map(
                 (user: any, index: number) => (
                   <div key={user.id}>
@@ -152,7 +164,7 @@ export const UserAssignmentSection = ({
                           <p className="truncate text-xs font-medium">
                             {user.name || "Unnamed User"}
                           </p>
-                          <p className="truncate text-xs text-muted-foreground">
+                          <p className="text-muted-foreground truncate text-xs">
                             {user.email}
                           </p>
                         </div>
@@ -172,13 +184,13 @@ export const UserAssignmentSection = ({
                     {(index <
                       queueAssignmentsQuery.data?.assignments.length - 1 ||
                       hasMoreAssignedUsers) && (
-                      <div className="border-b border-border/50" />
+                      <div className="border-border/50 border-b" />
                     )}
                   </div>
                 ),
               )}
               {hasMoreAssignedUsers && (
-                <div className="flex items-center gap-3 px-3 py-2 text-muted-foreground">
+                <div className="text-muted-foreground flex items-center gap-3 px-3 py-2">
                   <MoreHorizontal className="h-4 w-4" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs italic">

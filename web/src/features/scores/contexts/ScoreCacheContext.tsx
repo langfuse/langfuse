@@ -6,7 +6,10 @@ import {
   useContext,
   useState,
 } from "react";
-import { type ScoreColumn } from "@/src/features/scores/types";
+import {
+  type AnnotationScoreDataType,
+  type ScoreColumn,
+} from "@/src/features/scores/types";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 
 /**
@@ -21,7 +24,6 @@ export type CachedScore = Pick<
   | "environment"
   // Score identity
   | "name"
-  | "dataType"
   // Score values
   | "value"
   | "stringValue"
@@ -35,6 +37,7 @@ export type CachedScore = Pick<
   // Score identity - non-nullable
   configId: string;
   source: "ANNOTATION";
+  dataType: AnnotationScoreDataType;
 };
 
 type ScoreCacheContextValue = {

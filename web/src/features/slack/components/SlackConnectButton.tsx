@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Button } from "@/src/components/ui/button";
-import { Slack } from "lucide-react";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
+import { SiSlack } from "react-icons/si";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -14,9 +14,9 @@ interface SlackConnectButtonProps {
   /** Whether the button should be disabled */
   disabled?: boolean;
   /** Button variant */
-  variant?: "default" | "outline" | "ghost" | "secondary";
+  variant?: ButtonProps["variant"];
   /** Button size */
-  size?: "default" | "sm" | "lg";
+  size?: ButtonProps["size"];
   /** Custom button text */
   buttonText?: string;
   /** Callback when connection is successful */
@@ -183,7 +183,7 @@ export const SlackConnectButton: React.FC<SlackConnectButtonProps> = ({
       size={size}
       className="flex items-center gap-2"
     >
-      <Slack className="h-4 w-4" />
+      <SiSlack className="h-4 w-4" />
       {showText && <span>{isConnecting ? "Connecting..." : buttonText}</span>}
     </Button>
   );

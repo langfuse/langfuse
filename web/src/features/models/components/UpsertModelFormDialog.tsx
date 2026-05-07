@@ -310,7 +310,6 @@ export const UpsertModelFormDialog = (({
         </DialogHeader>
         <Form {...form}>
           <form
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-1 flex-col overflow-hidden"
           >
@@ -419,7 +418,6 @@ export const UpsertModelFormDialog = (({
                         mode="json"
                         value={field.value ?? "{}"}
                         onChange={field.onChange}
-                        minHeight="none"
                       />
                       <FormDescription>
                         The config for the tokenizer. Required for openai. See
@@ -455,7 +453,7 @@ export const UpsertModelFormDialog = (({
             </DialogFooter>
           </form>
           {formError ? (
-            <p className="my-2 text-center text-sm font-medium text-destructive">
+            <p className="text-destructive my-2 text-center text-sm font-medium">
               <span className="font-semibold">Error:</span> {formError}
             </p>
           ) : null}

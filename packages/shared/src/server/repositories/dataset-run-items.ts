@@ -2,6 +2,8 @@ import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { datasetRunItemsTableUiColumnDefinitions } from "../tableMappings";
 import { datasetRunsTableUiColumnDefinitions } from "../../tableDefinitions/mapDatasetRunsTable";
+import { datasetRunItemsTableCols } from "../../tableDefinitions/datasetRunItemsTable";
+import { datasetRunsTableCols } from "../../tableDefinitions/datasetRunsTable";
 import { FilterState } from "../../types";
 import {
   createFilterFromFilterState,
@@ -136,6 +138,7 @@ export type EnrichedDatasetRunItem = {
   id: string;
   createdAt: Date;
   datasetItemId: string;
+  datasetItemVersion: Date | undefined;
   datasetRunId: string;
   datasetRunName: string;
   observation:
@@ -300,6 +303,7 @@ const getDatasetRunsTableInternal = async <T>(
   const userFilters = createFilterFromFilterState(
     filter,
     datasetRunsTableUiColumnDefinitions,
+    datasetRunsTableCols,
   );
   datasetRunItemsFilter.push(...userFilters);
 
@@ -581,6 +585,7 @@ const getQualifyingDatasetItems = async <T>(opts: {
     const userFilters = createFilterFromFilterState(
       filterState,
       datasetRunItemsTableUiColumnDefinitions,
+      datasetRunItemsTableCols,
     );
 
     // Combine run condition with user filters using AND and apply immediately
@@ -749,6 +754,7 @@ const getDatasetRunItemsTableInternal = async <
       dri.dataset_run_name as dataset_run_name,
       dri.dataset_run_description as dataset_run_description,
       dri.dataset_run_created_at as dataset_run_created_at,
+      dri.dataset_item_version as dataset_item_version,
       ${includeIO ? "dri.dataset_run_metadata as dataset_run_metadata, " : ""}
       ${includeIO ? "dri.dataset_item_input as dataset_item_input, " : ""}
       ${includeIO ? "dri.dataset_item_expected_output as dataset_item_expected_output, " : ""}
@@ -769,6 +775,7 @@ const getDatasetRunItemsTableInternal = async <
     ...createFilterFromFilterState(
       filter,
       datasetRunItemsTableUiColumnDefinitions,
+      datasetRunItemsTableCols,
     ),
   );
   const appliedFilter = datasetRunItemsFilter.apply();
@@ -1010,6 +1017,7 @@ export const getDatasetItemIdsByTraceIdCh = async (
     ...createFilterFromFilterState(
       filter,
       datasetRunItemsTableUiColumnDefinitions,
+      datasetRunItemsTableCols,
     ),
   );
   const appliedFilter = datasetRunItemsFilter.apply();
@@ -1073,20 +1081,45 @@ export const getDatasetRunItemsCountByDatasetIdCh = async (
   return Number(rows[0]?.count);
 };
 
-export const deleteDatasetRunItemsByProjectId = async ({
-  projectId,
-}: {
-  projectId: string;
-}) => {
+export const hasAnyDatasetRunItem = async (
+  projectId: string,
+): Promise<boolean> => {
   const query = `
-      DELETE FROM dataset_run_items_rmt
-      WHERE project_id = {projectId: String};
-    `;
-  await commandClickhouse({
-    query: query,
-    params: {
+    SELECT 1
+    FROM dataset_run_items_rmt
+    WHERE project_id = {projectId: String}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: { projectId },
+    tags: {
+      feature: "datasets",
+      type: "dataset-run-items",
+      kind: "hasAny",
       projectId,
     },
+  });
+
+  return rows.length > 0;
+};
+
+export const deleteDatasetRunItemsByProjectId = async (
+  projectId: string,
+): Promise<boolean> => {
+  const hasData = await hasAnyDatasetRunItem(projectId);
+  if (!hasData) {
+    return false;
+  }
+
+  const query = `
+    DELETE FROM dataset_run_items_rmt
+    WHERE project_id = {projectId: String};
+  `;
+  await commandClickhouse({
+    query,
+    params: { projectId },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
@@ -1097,6 +1130,8 @@ export const deleteDatasetRunItemsByProjectId = async ({
       projectId,
     },
   });
+
+  return true;
 };
 
 export const deleteDatasetRunItemsByDatasetId = async ({

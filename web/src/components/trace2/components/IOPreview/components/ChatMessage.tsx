@@ -18,7 +18,10 @@ import {
   isPlaceholderMessage,
   isOnlyJsonMessage,
   parseToolCallsFromMessage,
+  hasThinkingContent,
+  hasRedactedThinkingContent,
 } from "./chat-message-utils";
+import { ThinkingBlock, RedactedThinkingBlock } from "./ThinkingBlock";
 
 // View mode for pretty/json toggle
 export type ViewMode = "pretty" | "json";
@@ -29,7 +32,6 @@ export interface ChatMessageProps {
   shouldRenderMarkdown: boolean;
   currentView: ViewMode;
   toolCallNumbers?: number[];
-  projectIdForPromptButtons?: string;
   isOutputMessage?: boolean;
 }
 
@@ -47,7 +49,6 @@ export function ChatMessage({
   shouldRenderMarkdown,
   currentView,
   toolCallNumbers,
-  projectIdForPromptButtons,
   isOutputMessage,
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
@@ -65,10 +66,10 @@ export function ChatMessage({
       title={
         showTableView ? "Show formatted view" : "Show passthrough JSON data"
       }
-      className="-mr-2 hover:bg-border"
+      className="hover:bg-border -mr-2"
     >
       {showTableView ? (
-        <ListChevronsDownUp className="h-3 w-3 text-primary" />
+        <ListChevronsDownUp className="text-primary h-3 w-3" />
       ) : (
         <ListChevronsUpDown className="h-3 w-3" />
       )}
@@ -78,7 +79,7 @@ export function ChatMessage({
   // Placeholder message
   if (isPlaceholderMessage(message)) {
     return (
-      <div className={cn("transition-colors hover:bg-muted")}>
+      <div className={cn("hover:bg-muted transition-colors")}>
         <div style={{ display: shouldRenderMarkdown ? "block" : "none" }}>
           <MarkdownJsonView
             title="Placeholder"
@@ -90,7 +91,6 @@ export function ChatMessage({
           <PrettyJsonView
             title="Placeholder"
             json={message.name || "Unnamed placeholder"}
-            projectIdForPromptButtons={projectIdForPromptButtons}
             currentView={currentView}
           />
         </div>
@@ -101,11 +101,10 @@ export function ChatMessage({
   // JSON-only message (non-ChatML object)
   if (isOnlyJsonMessage(message)) {
     return (
-      <div className={cn("transition-colors hover:bg-muted")}>
+      <div className={cn("hover:bg-muted transition-colors")}>
         <PrettyJsonView
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={message.json}
-          projectIdForPromptButtons={projectIdForPromptButtons}
           currentView={currentView}
         />
       </div>
@@ -115,11 +114,10 @@ export function ChatMessage({
   // User toggled to show passthrough JSON
   if (showTableView) {
     return (
-      <div className={cn("transition-colors hover:bg-muted")}>
+      <div className={cn("hover:bg-muted transition-colors")}>
         <PrettyJsonView
           title={title}
           json={message.json}
-          projectIdForPromptButtons={projectIdForPromptButtons}
           currentView="pretty"
           controlButtons={passthroughToggleButton}
         />
@@ -127,10 +125,15 @@ export function ChatMessage({
     );
   }
 
-  // Tool-call-only message (no content)
-  if (!hasContent && toolCalls.length > 0) {
+  // Tool-call-only message (no content, no thinking)
+  if (
+    !hasContent &&
+    !hasThinkingContent(message) &&
+    !hasRedactedThinkingContent(message) &&
+    toolCalls.length > 0
+  ) {
     return (
-      <div className={cn("transition-colors hover:bg-muted")}>
+      <div className={cn("hover:bg-muted transition-colors")}>
         <MarkdownJsonViewHeader
           title={title}
           handleOnValueChange={() => {}}
@@ -148,21 +151,44 @@ export function ChatMessage({
     );
   }
 
-  // Content message (with optional tool calls)
-  if (hasContent) {
+  // Content message (with optional tool calls and thinking)
+  if (
+    hasContent ||
+    hasThinkingContent(message) ||
+    hasRedactedThinkingContent(message)
+  ) {
+    // Thinking blocks to render after header
+    const thinkingBlocks = (
+      <>
+        {hasThinkingContent(message) &&
+          message.thinking?.map((t, i) => (
+            <ThinkingBlock
+              key={`thinking-${i}`}
+              content={t.content}
+              summary={t.summary}
+            />
+          ))}
+        {hasRedactedThinkingContent(message) &&
+          message.redacted_thinking?.map((t, i) => (
+            <RedactedThinkingBlock key={`redacted-${i}`} data={t.data} />
+          ))}
+      </>
+    );
+
     return (
-      <div className={cn("transition-colors hover:bg-muted")}>
+      <div className={cn("hover:bg-muted transition-colors")}>
         {/* Markdown view */}
         <div style={{ display: shouldRenderMarkdown ? "block" : "none" }}>
           <MarkdownJsonView
             title={title}
-            content={message.content || '""'}
+            content={message.content || ""}
             customCodeHeaderClassName={cn(
               message.role === "assistant" && "bg-secondary",
               message.role === "system" && "bg-primary-foreground",
             )}
             audio={message.audio}
             controlButtons={passthroughToggleButton}
+            afterHeader={thinkingBlocks}
           />
           {toolCalls.length > 0 && (
             <div className="mt-2">
@@ -179,9 +205,9 @@ export function ChatMessage({
           <PrettyJsonView
             title={title}
             json={message.content}
-            projectIdForPromptButtons={projectIdForPromptButtons}
             currentView={currentView}
             controlButtons={passthroughToggleButton}
+            afterHeader={thinkingBlocks}
           />
           {toolCalls.length > 0 && (
             <div className="mt-2">
@@ -199,11 +225,10 @@ export function ChatMessage({
   // Fallback: message with additional data but no content
   if (hasAdditionalData(message)) {
     return (
-      <div className={cn("transition-colors hover:bg-muted")}>
+      <div className={cn("hover:bg-muted transition-colors")}>
         <PrettyJsonView
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={message}
-          projectIdForPromptButtons={projectIdForPromptButtons}
           currentView={currentView}
         />
       </div>

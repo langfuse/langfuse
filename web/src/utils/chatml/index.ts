@@ -1,11 +1,14 @@
+// Re-export from shared (core functions moved to enable worker testing)
 export {
   mapToChatMl,
   mapOutputToChatMl,
   cleanLegacyOutput,
   extractAdditionalInput,
   combineInputOutputMessages,
-} from "./core";
-
-export { normalizeInput, normalizeOutput } from "./adapters";
-
-export type { NormalizerContext, ProviderAdapter, ToolEvent } from "./types";
+  normalizeInput,
+  normalizeOutput,
+  selectAdapter,
+  type NormalizerContext,
+  type ProviderAdapter,
+  type ToolEvent,
+} from "@langfuse/shared";

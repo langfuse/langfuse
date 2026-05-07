@@ -2,7 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge, type BadgeProps } from "@/src/components/ui/badge";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { Download, ExternalLink } from "lucide-react";
@@ -133,13 +133,13 @@ export function BillingInvoiceTable() {
       cell: ({ row }) => {
         const status = (row.getValue("status") as string | null)?.toLowerCase();
         if (!status) return null;
-        const variant =
+        const variant: NonNullable<BadgeProps["variant"]> =
           status === "paid"
             ? "secondary"
             : status === "open"
-              ? "outline"
+              ? "outline-solid"
               : "default";
-        return <Badge variant={variant as any}>{status}</Badge>;
+        return <Badge variant={variant}>{status}</Badge>;
       },
     },
     {

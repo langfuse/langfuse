@@ -54,9 +54,7 @@ interface MigrationArgs {
 // Migration Class
 // ============================================================================
 
-export default class BackfillExperimentsHistoric
-  implements IBackgroundMigration
-{
+export default class BackfillExperimentsHistoric implements IBackgroundMigration {
   private isAborted = false;
 
   // --------------------------------------------------------------------------
@@ -234,6 +232,9 @@ export default class BackfillExperimentsHistoric
         o.provided_cost_details,
         o.cost_details,
         coalesce(o.total_cost, 0) AS total_cost,
+        o.tool_definitions,
+        o.tool_calls,
+        o.tool_call_names,
         o.usage_pricing_tier_id,
         o.usage_pricing_tier_name,
         o.metadata,
@@ -247,6 +248,8 @@ export default class BackfillExperimentsHistoric
       FROM observations o
       WHERE o.project_id IN {projectIds: Array(String)}
         AND o.trace_id IN {traceIds: Array(String)}
+      ORDER BY o.event_ts DESC
+      LIMIT 1 BY o.project_id, o.trace_id, o.id
     `;
 
     return queryClickhouse<SpanRecord>({
@@ -296,6 +299,9 @@ export default class BackfillExperimentsHistoric
         map() AS provided_cost_details,
         map() AS cost_details,
         0 AS total_cost,
+        map() AS tool_definitions,
+        [] AS tool_calls,
+        [] AS tool_call_names,
         t.metadata,
         multiIf(mapContains(t.metadata, 'resourceAttributes'), 'otel-backfill-experiments', 'ingestion-api-backfill-experiments') AS source,
         t.tags,
@@ -307,6 +313,8 @@ export default class BackfillExperimentsHistoric
       FROM traces t
       WHERE t.project_id IN {projectIds: Array(String)}
         AND t.id IN {traceIds: Array(String)}
+      ORDER BY t.event_ts DESC
+      LIMIT 1 BY t.project_id, t.id
     `;
 
     return queryClickhouse<SpanRecord>({
@@ -357,7 +365,7 @@ export default class BackfillExperimentsHistoric
     const tables = await clickhouseClient().query({ query: "SHOW TABLES" });
     const tableNames = (await tables.json()).data as { name: string }[];
 
-    const requiredTables = ["events", "dataset_run_items_rmt"];
+    const requiredTables = ["events_full", "dataset_run_items_rmt"];
 
     for (const tableName of requiredTables) {
       if (!tableNames.some((r) => r.name === tableName)) {
@@ -508,11 +516,11 @@ export default class BackfillExperimentsHistoric
         );
       }
 
-      // Write enriched spans to events table
+      // Write enriched spans to events_full table
       if (allEnrichedSpans.length > 0) {
         await writeEnrichedSpans(allEnrichedSpans);
         logger.info(
-          `[Backfill Experiments] Wrote ${allEnrichedSpans.length} enriched spans to events table`,
+          `[Backfill Experiments] Wrote ${allEnrichedSpans.length} enriched spans to events_full table`,
         );
       }
 

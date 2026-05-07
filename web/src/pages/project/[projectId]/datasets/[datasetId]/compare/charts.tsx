@@ -2,7 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import {
   Dialog,
@@ -12,10 +12,15 @@ import {
 import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
-import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
-import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
-import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
+import {
+  RESOURCE_METRICS,
+  isEmptyChart,
+} from "@/src/features/dashboard/lib/score-analytics-utils";
+import { compareViewChartDataToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
@@ -34,6 +39,11 @@ import {
   DATASET_RUN_COMPARE_TABS,
   getDatasetRunCompareTabs,
 } from "@/src/features/navigation/utils/dataset-run-compare-tabs";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
+import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -43,6 +53,12 @@ export default function DatasetCompare() {
 
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
+  const {
+    canUseExperimentsBetaToggle,
+    isExperimentsBetaEnabled,
+    setExperimentsBetaEnabled,
+    isExperimentsBetaActive,
+  } = useExperimentAccess();
 
   const [selectedMetrics, setSelectedMetrics] = useLocalStorage<string[]>(
     `${projectId}-dataset-compare-metrics`,
@@ -76,6 +92,57 @@ export default function DatasetCompare() {
     await handleExperimentSettledBase(data);
   };
 
+  const handleBetaSwitchChange = (enabled: boolean) => {
+    setExperimentsBetaEnabled(enabled);
+
+    if (enabled && runIds && runIds.length > 0) {
+      void router.push(toExperimentsResultsUrl(projectId, runIds));
+    }
+  };
+
+  // Auto-redirect when experiments beta is active (e.g., user arrives via bookmark/back button)
+  useEffect(() => {
+    if (isExperimentsBetaActive && projectId && runIds && runIds.length > 0) {
+      void router.push(toExperimentsResultsUrl(projectId, runIds));
+    }
+  }, [isExperimentsBetaActive, projectId, runIds, router]);
+
+  const betaSwitch = canUseExperimentsBetaToggle ? (
+    <ExperimentsBetaSwitch
+      enabled={isExperimentsBetaEnabled}
+      onEnabledChange={handleBetaSwitchChange}
+    />
+  ) : null;
+
+  if (isExperimentsBetaActive) {
+    return (
+      <Page
+        headerProps={{
+          title: `Compare runs: ${dataset.data?.name ?? datasetId}`,
+          tabsProps: {
+            tabs: getDatasetRunCompareTabs(projectId, datasetId),
+            activeTab: DATASET_RUN_COMPARE_TABS.CHARTS,
+          },
+          breadcrumb: [
+            {
+              name: "Datasets",
+              href: `/project/${projectId}/datasets`,
+            },
+            {
+              name: dataset.data?.name ?? datasetId,
+              href: `/project/${projectId}/datasets/${datasetId}`,
+            },
+          ],
+          actionButtonsLeft: betaSwitch,
+        }}
+      >
+        <div className="flex h-full items-center justify-center">
+          <Spinner size="xl" variant="muted" />
+        </div>
+      </Page>
+    );
+  }
+
   return (
     <Page
       headerProps={{
@@ -99,6 +166,7 @@ export default function DatasetCompare() {
         },
         actionButtonsRight: (
           <>
+            {betaSwitch}
             <Dialog
               key="create-experiment-dialog"
               open={isCreateExperimentDialogOpen}
@@ -129,7 +197,7 @@ export default function DatasetCompare() {
             </Dialog>
             <MultiSelectKeyValues
               key="select-runs"
-              title="Runs"
+              title="Experiments"
               showSelectedValueStrings={false}
               placeholder="Select runs to compare"
               className="w-fit"
@@ -165,12 +233,11 @@ export default function DatasetCompare() {
         ),
       }}
     >
-      <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+      <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden">
         <div className="flex h-full flex-col gap-2 overflow-hidden px-3 py-2">
           <div className="flex w-full justify-end">
             <DatasetAnalytics
               key="dataset-analytics"
-              projectId={projectId}
               scoreOptions={scoreAnalyticsOptions}
               selectedMetrics={selectedMetrics}
               setSelectedMetrics={setSelectedMetrics}
@@ -188,47 +255,77 @@ export default function DatasetCompare() {
                   const { chartData, chartLabels } = adapter.toChartData();
 
                   const scoreData = scoreKeyToData.get(key);
-                  if (!scoreData)
+                  const title = scoreData
+                    ? `${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`
+                    : (RESOURCE_METRICS.find((metric) => metric.key === key)
+                        ?.label ?? key);
+
+                  // TODO: remove when revamping the datasets api for it to directly return ms
+                  const valueFormatter =
+                    key === "latency"
+                      ? formatIntervalSeconds
+                      : key === "cost"
+                        ? usdFormatter
+                        : (v: number) =>
+                            compactNumberFormatter(
+                              v,
+                              RESOURCE_METRICS.find((m) => m.key === key)
+                                ?.maxFractionDigits,
+                            );
+
+                  if (isEmptyChart({ data: chartData })) {
                     return (
                       <div
                         key={key}
-                        className="max-h-52 min-h-0 min-w-0 max-w-full"
+                        className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
                       >
-                        <TimeseriesChart
-                          key={key}
-                          chartData={chartData}
-                          chartLabels={chartLabels}
-                          title={
-                            RESOURCE_METRICS.find(
-                              (metric) => metric.key === key,
-                            )?.label ?? key
-                          }
-                          type="numeric"
-                          maxFractionDigits={
-                            RESOURCE_METRICS.find(
-                              (metric) => metric.key === key,
-                            )?.maxFractionDigits
-                          }
+                        <span className="shrink-0 text-sm font-medium">
+                          {title}
+                        </span>
+                        <NoDataOrLoading
+                          isLoading={false}
+                          className="min-h-32 flex-1"
                         />
                       </div>
                     );
+                  }
+
+                  const dataPoints =
+                    chartLabels.length === 1
+                      ? chartData.map((d) => ({
+                          time_dimension: d.binLabel,
+                          dimension: chartLabels[0]!,
+                          metric: (d[chartLabels[0]!] as number) ?? 0,
+                        }))
+                      : compareViewChartDataToDataPoints(
+                          chartData,
+                          chartLabels,
+                        );
+                  const chartType =
+                    chartLabels.length === 1
+                      ? "LINE_TIME_SERIES"
+                      : "BAR_TIME_SERIES";
 
                   return (
                     <div
                       key={key}
-                      className="max-h-52 min-h-0 min-w-0 max-w-full"
+                      className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
                     >
-                      <TimeseriesChart
-                        key={key}
-                        chartData={chartData}
-                        chartLabels={chartLabels}
-                        title={`${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`}
-                        type={
-                          isNumericDataType(scoreData.dataType)
-                            ? "numeric"
-                            : "categorical"
-                        }
-                      />
+                      <span className="shrink-0 text-sm font-medium">
+                        {title}
+                      </span>
+                      <div className="min-h-[200px] min-w-0 flex-1">
+                        <Chart
+                          chartType={chartType}
+                          data={dataPoints}
+                          rowLimit={Math.max(dataPoints.length, 1)}
+                          chartConfig={{ type: chartType }}
+                          valueFormatter={valueFormatter}
+                          legendPosition={
+                            chartLabels.length > 1 ? "above" : "none"
+                          }
+                        />
+                      </div>
                     </div>
                   );
                 })}
@@ -236,7 +333,7 @@ export default function DatasetCompare() {
             ) : isLoading ? (
               <Skeleton className="h-52 w-full" />
             ) : (
-              <span className="-mt-2 text-sm text-muted-foreground">
+              <span className="text-muted-foreground -mt-2 text-sm">
                 {Boolean(chartDataMap?.size)
                   ? "All charts hidden. Enable them in the Charts dropdown."
                   : "Select more than one run to generate charts."}
@@ -256,7 +353,7 @@ export default function DatasetCompare() {
             <div className="w-full space-y-4">
               <div>
                 <SubHeaderLabel title="Description" />
-                <span className="text-sm text-muted-foreground">
+                <span className="text-muted-foreground text-sm">
                   {dataset.data?.description ?? "No description"}
                 </span>
               </div>

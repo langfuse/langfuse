@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import type * as z from "zod/v4";
+import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -60,7 +60,6 @@ export const NewProjectForm = ({
   return (
     <Form {...form}>
       <form
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-3"
         data-testid="new-project-form"

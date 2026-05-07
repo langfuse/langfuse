@@ -5,11 +5,13 @@ import { type FilterState, type TimeFilter } from "@langfuse/shared";
 type UseEventsFilterOptionsParams = {
   projectId: string;
   oldFilterState: FilterState;
+  hasParentObservation?: boolean;
 };
 
 export function useEventsFilterOptions({
   projectId,
   oldFilterState,
+  hasParentObservation,
 }: UseEventsFilterOptionsParams) {
   // Extract start time filters for filter options query
   const startTimeFilters = useMemo(() => {
@@ -26,6 +28,7 @@ export function useEventsFilterOptions({
       projectId,
       startTimeFilter:
         startTimeFilters.length > 0 ? startTimeFilters : undefined,
+      hasParentObservation,
     },
     {
       trpc: {
@@ -37,6 +40,9 @@ export function useEventsFilterOptions({
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: Infinity,
+      // Keep showing previous options while fetching new ones to avoid sidebar flicker
+      // TODO: maybe remove b/c unnecessary?
+      placeholderData: (prev) => prev,
     },
   );
 
@@ -52,6 +58,16 @@ export function useEventsFilterOptions({
       ) ?? undefined;
 
     const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
+    const traceScoreCategories =
+      filterOptions.data?.trace_score_categories?.reduce(
+        (acc, score) => {
+          acc[score.label] = score.values;
+          return acc;
+        },
+        {} as Record<string, string[]>,
+      ) ?? undefined;
+    const traceScoresNumeric =
+      filterOptions.data?.trace_scores_avg ?? undefined;
 
     return {
       environment: filterOptions.data?.environment ?? undefined,
@@ -62,9 +78,19 @@ export function useEventsFilterOptions({
       modelId: filterOptions.data?.modelId ?? undefined,
       promptName: filterOptions.data?.promptName ?? undefined,
       traceTags: filterOptions.data?.traceTags ?? undefined,
+      traceName: filterOptions.data?.traceName ?? undefined,
       userId: filterOptions.data?.userId ?? undefined,
       sessionId: filterOptions.data?.sessionId ?? undefined,
       version: filterOptions.data?.version ?? undefined,
+      experimentDatasetId: filterOptions.data?.experimentDatasetId ?? undefined,
+      experimentId: filterOptions.data?.experimentId ?? undefined,
+      experimentName: filterOptions.data?.experimentName ?? undefined,
+      hasParentObservation:
+        filterOptions.data?.hasParentObservation ?? undefined,
+      toolNames: filterOptions.data?.toolNames ?? undefined,
+      calledToolNames: filterOptions.data?.calledToolNames ?? undefined,
+      toolDefinitions: [],
+      toolCalls: [],
       latency: [],
       timeToFirstToken: [],
       tokensPerSecond: [],
@@ -76,6 +102,8 @@ export function useEventsFilterOptions({
       totalCost: [],
       score_categories: scoreCategories,
       scores_avg: scoresNumeric,
+      trace_score_categories: traceScoreCategories,
+      trace_scores_avg: traceScoresNumeric,
     };
   }, [filterOptions.data]);
 

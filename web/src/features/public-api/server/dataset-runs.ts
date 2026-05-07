@@ -1,7 +1,7 @@
 import { type jsonSchema } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
-import type z from "zod/v4";
+import type z from "zod";
 
 type Json = z.infer<typeof jsonSchema>;
 
@@ -9,7 +9,7 @@ const isUniqueConstraintError = (error: any): boolean => {
   return (
     error.code === "P2002" || // Prisma unique constraint
     error.message?.includes("duplicate key") ||
-    error.message?.includes("UNIQUE constraint") ||
+    error.message?.toLowerCase().includes("unique constraint") ||
     error.message?.includes("violates unique constraint")
   );
 };
@@ -33,12 +33,14 @@ export const createOrFetchDatasetRun = async ({
   name,
   description,
   metadata,
+  createdAt,
 }: {
   projectId: string;
   datasetId: string;
   name: string;
   description?: string;
   metadata?: Json | null;
+  createdAt?: Date;
 }) => {
   try {
     // Attempt to fetch existing run
@@ -64,8 +66,8 @@ export const createOrFetchDatasetRun = async ({
         name,
         description: description ?? null,
         metadata: metadata ?? {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: createdAt ?? new Date(),
+        updatedAt: createdAt ?? new Date(),
       },
     });
     return datasetRun;

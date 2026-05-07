@@ -8,12 +8,18 @@ import {
   getTracingTabs,
   TRACING_TABS,
 } from "@/src/features/navigation/utils/tracing-tabs";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
+import { useQueryProject } from "@/src/features/projects/hooks";
 
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { isBetaEnabled, isInitializing } = useV4Beta();
+  const { project } = useQueryProject();
 
   // Check if the user has tracing configured
+  // Skip polling entirely if the project flag is already set in the session
   const { data: hasTracingConfigured, isLoading } =
     api.traces.hasTracingConfigured.useQuery(
       { projectId },
@@ -24,7 +30,9 @@ export default function Traces() {
             skipBatch: true,
           },
         },
-        refetchInterval: 10_000,
+        refetchInterval: project?.hasTraces ? false : 10_000,
+        initialData: project?.hasTraces ? true : undefined,
+        staleTime: project?.hasTraces ? Infinity : 0,
       },
     );
 
@@ -37,7 +45,7 @@ export default function Traces() {
           title: "Tracing",
           help: {
             description:
-              "A trace represents a single function/api invocation. Traces contain observations. See docs to learn more.",
+              "A trace represents a single function/api invocation. Traces contain observations. See [docs](https://langfuse.com/docs/observability/data-model) to learn more.",
             href: "https://langfuse.com/docs/observability/data-model",
           },
         }}
@@ -53,17 +61,45 @@ export default function Traces() {
       headerProps={{
         title: "Tracing",
         help: {
-          description:
-            "A trace represents a single function/api invocation. Traces contain observations. See docs to learn more.",
+          description: (
+            <>
+              A trace represents a single function/api invocation. Traces
+              contain observations. See{" "}
+              <a
+                href="https://langfuse.com/docs/observability/data-model"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="decoration-primary/30 hover:decoration-primary underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                docs
+              </a>{" "}
+              to learn more.
+            </>
+          ),
           href: "https://langfuse.com/docs/observability/data-model",
         },
-        tabsProps: {
-          tabs: getTracingTabs(projectId),
-          activeTab: TRACING_TABS.TRACES,
-        },
+        tabsProps:
+          isBetaEnabled || isInitializing
+            ? undefined
+            : {
+                tabs: getTracingTabs(projectId),
+                activeTab: TRACING_TABS.TRACES,
+              },
       }}
     >
-      <TracesTable projectId={projectId} />
+      {isInitializing ? (
+        <>
+          {/* Wait for the beta flag before mounting either table. Otherwise the
+              legacy table can briefly mount, restore a v3 saved view, and
+              promote its viewId into the URL before the correct mode
+              resolves. */}
+        </>
+      ) : isBetaEnabled ? (
+        <ObservationsEventsTable projectId={projectId} />
+      ) : (
+        <TracesTable projectId={projectId} />
+      )}
     </Page>
   );
 }

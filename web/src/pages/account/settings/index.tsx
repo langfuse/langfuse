@@ -4,7 +4,7 @@ import { Card } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -74,25 +74,21 @@ function UpdateDisplayName() {
       <Header title="Display Name" />
       <Card className="p-3">
         {form.getValues().name !== "" ? (
-          <p className="mb-4 text-sm text-primary">
+          <p className="text-primary mb-4 text-sm">
             Your display name will be updated from &quot;
             {session?.user?.name ?? ""}
             &quot; to &quot;
             <b>{form.watch().name}</b>&quot;.
           </p>
         ) : (
-          <p className="mb-4 text-sm text-primary">
+          <p className="text-primary mb-4 text-sm">
             Your display name is currently &quot;
             <b>{session?.user?.name ?? ""}</b>
             &quot;.
           </p>
         )}
         <Form {...form}>
-          <form
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex-1"
-          >
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1">
             <FormField
               control={form.control}
               name="name"
@@ -189,7 +185,7 @@ function DeleteAccountButton() {
                     <li key={org.id}>
                       <Link
                         href={`/organization/${org.id}/settings`}
-                        className="font-semibold text-primary underline hover:text-primary/80"
+                        className="text-primary hover:text-primary/80 font-semibold underline"
                       >
                         {org.name}
                       </Link>
@@ -207,11 +203,7 @@ function DeleteAccountButton() {
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="space-y-8"
-          >
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             {canDelete && (
               <DialogBody>
                 <FormField
@@ -280,7 +272,7 @@ const getAccountSettingsPages = (userEmail: string): AccountSettingsPage[] => [
         <div>
           <Header title="Email" />
           <Card className="p-3">
-            <p className="text-sm text-primary">
+            <p className="text-primary text-sm">
               Your email address: <b>{userEmail}</b>
             </p>
           </Card>
@@ -289,7 +281,7 @@ const getAccountSettingsPages = (userEmail: string): AccountSettingsPage[] => [
         <div>
           <Header title="Password" />
           <Card className="p-3">
-            <p className="mb-4 text-sm text-primary">
+            <p className="text-primary mb-4 text-sm">
               To change your password, we will send you a secure link to your
               email address. Click the button below to start the password reset
               process.

@@ -94,8 +94,6 @@ The diagram below may not show all relationships if the foreign key is not defin
 
 Full database schema: [packages/shared/prisma/schema.prisma](packages/shared/prisma/schema.prisma)
 
-<img src="./packages/shared/prisma/database.svg">
-
 ## Repository Structure
 
 We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https://turbo.build/repo/docs) to manage the dependencies and build process. The monorepo contains the following packages:
@@ -113,17 +111,91 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- Pnpm v.9.5.0
+- Pnpm v.10.33.0
 - Docker to run the database locally
 - Clickhouse client
 
 **Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
 
+### Codex Cloud Setup
+
+You can also attach this repository to an OpenAI Codex cloud environment. The
+cloud environment itself is configured in the Codex UI, while the repo-owned
+bootstrap is versioned in:
+
+- `scripts/codex/setup.sh`
+- `scripts/codex/maintenance.sh`
+
+Recommended Codex UI configuration:
+
+1. Create a new cloud environment for this repository in the Codex UI.
+2. Choose a base environment with Node.js 24 support.
+3. Set the setup script to:
+
+   ```bash
+   bash scripts/codex/setup.sh
+   ```
+
+4. Set the maintenance script to:
+
+   ```bash
+   bash scripts/codex/maintenance.sh
+   ```
+
+5. Keep internet access disabled by default, or only allow the minimum domains
+   needed for your task.
+6. Add secrets and environment variables in the Codex UI instead of committing
+   them to the repository.
+
+Notes:
+
+- This Codex setup is intended for repository tasks such as code changes,
+  linting, typechecking, and targeted tests.
+- It does **not** start the full Langfuse stack. Local development still uses
+  Docker and `pnpm run dx` / `pnpm run dev`.
+- Running the full application inside Codex requires external services for
+  PostgreSQL, Redis, ClickHouse, and object storage, plus matching environment
+  variables in the Codex UI.
+
+### Shared Agent Setup
+
+This repository keeps the shared agent setup in source control so developers
+using different tools can work against the same instructions, bootstrap, and
+MCP server catalog.
+
+- Canonical shared docs:
+  - `.agents/AGENTS.md`
+- Root discovery symlinks:
+  - `AGENTS.md`
+  - `CLAUDE.md`
+- Shared agent setup overview: `.agents/README.md`
+- Shared skills: `.agents/skills/`
+- Shared tool/bootstrap/MCP config: `.agents/config.json`
+- Tool-specific MCP configs generated locally from that catalog and not committed:
+  - `.mcp.json`
+  - `.cursor/mcp.json`
+  - `.vscode/mcp.json`
+  - `.codex/config.toml`
+- Tool-specific runtime shims generated locally from the shared config and not committed:
+  - `.claude/settings.json`
+  - `.codex/environments/environment.toml`
+  - `.cursor/environment.json`
+- Tool-specific skill projections generated locally and not committed:
+  - `.claude/skills/*`
+- Shared bootstrap for agent environments: `bash scripts/codex/setup.sh`
+
+When you change the shared MCP setup:
+
+1. Edit `.agents/config.json`
+2. Run `pnpm run agents:sync`
+3. Run `pnpm run agents:check`
+4. Do not commit the generated MCP config files or runtime shims
+
 **Steps**
 
 1. Install development dependencies:
-	- [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
-	- [clickhouse binary](https://clickhouse.com/docs/install) on macOS with brew: `brew install --cask clickhouse`
+   - [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
+   - [clickhouse binary](https://clickhouse.com/docs/install) on macOS with brew: `curl https://clickhouse.com/ | sh`
 
 2. Fork the repository and clone it locally
 
@@ -182,6 +254,8 @@ pnpm run db:seed:examples
   pnpm install
   pnpm run dev
   pnpm --filter=web run dev # execute command only in one package
+  pnpm tc                   # fast typecheck all packages
+  pnpm build:check          # Full Next.js build to alternate dir (can run parallel with dev server)
   ```
 
   In the root `package.json`, you can find scripts which are executed with turbo e.g. `turbo run dev`. These scripts are executed with the help of Turbo. Turbo executes the commands in all packages taking care of the correct order of execution. Task definitions can be found in the `turbo.config.js` file.
@@ -242,21 +316,16 @@ Tests automatically create the PostgreSQL test database if it doesn't exist and 
 
 ### Tests in the `web` package (public API)
 
-We're using Jest with in the `web` package. Therefore, if you want to provide an argument to the test runner, do it directly without an intermittent `--`.
+We're using Vitest in the `web` package. There are two types of unit tests:
 
-There are three types of unit tests:
-
-- `test-sync`
-- `test` (for async folder tests)
+- `test` (server tests)
 - `test-client`
 
-To run a specific test, for example the test: `"should handle special characters in prompt names"` in `prompts.v2.servertest.ts`, run:
+To run a specific test by name within a file, run:
 
 ```sh
 cd web  # or with --filter=web
-pnpm test-sync --testPathPattern="prompts\.v2\.servertest" --testNamePattern="should handle special characters in prompt names"
-# for async folder tests:
-pnpm test -- --testPathPattern="observations-api" --testNamePattern="should fetch all observations"
+pnpm test -- prompts.v2.servertest -t "should handle special characters in prompt names"
 ```
 
 To run all tests:
@@ -273,7 +342,7 @@ pnpm run test:watch
 
 ### Tests in the `worker` package
 
-For the `worker` package, we're using `vitest` to run unit tests.
+For the `worker` package, we're also using Vitest to run unit tests.
 
 ```sh
 pnpm run test --filter=worker -- FILE_YOU_WANT_TO_TEST.ts -t "test name"
@@ -286,7 +355,7 @@ We use GitHub Actions for CI/CD, the configuration is in [`.github/workflows/pip
 CI on `main` and `pull_request`
 
 - Check Linting
-- E2E test of API using Jest
+- E2E test of API using Vitest
 - E2E tests of UI using Playwright
 
 CD on `main`
@@ -306,10 +375,25 @@ You can use the staging environment end-to-end with the Langfuse integrations or
 
 ## Production environment
 
-When a new release is tagged on the `main` branch (excluding prereleases), it triggers a production deployment. The deployment process consists of two steps:
+We run two separate release/deployment processes:
 
-1. The Docker image is published to GitHub Packages with the version number and `latest` tag.
-2. The deployment is carried out on Langfuse Cloud. This is done by force pushing the `main` branch to the `production` branch during every release, using the [`release.yml`](.github/workflows/release.yml) GitHub Action.
+1. **Langfuse Cloud deployment (frequent):**
+   - Every commit on the `production` branch triggers an ECS deployment to Langfuse Cloud.
+   - To deploy current `main` to Langfuse Cloud, promote `main` to `production` via [`promote-main-to-production.yml`](.github/workflows/promote-main-to-production.yml) (instead of force pushing from a local machine).
+2. **Open-source release (less frequent):**
+   - The open-source Docker release process is handled via [`release.yml`](.github/workflows/release.yml) for self-hosted production users.
+
+You can trigger the Langfuse Cloud promotion in either way:
+
+1. Preferred local command:
+
+```bash
+pnpm run release:cloud
+```
+
+This wraps the GitHub CLI trigger and performs preflight checks (main branch/sync checks and migration diff checks against `production`) before dispatching the workflow.
+
+2. GitHub UI: open **Actions** -> **Promote Main to Production** -> **Run workflow**, then set `confirm=promote`.
 
 ## Theming
 
@@ -332,45 +416,48 @@ The background color of the following component will be `hsl(var(--primary))` an
 
 ### Color Variables
 
-| Variable                 | Description                                                        | Examples                         |
-| ------------------------ | ------------------------------------------------------------------ | -------------------------------- |
-| --background             | Background color                                                   | Default background color of body |
-| --foreground             | Foreground color                                                   | Default text color of body       |
-| --muted                  | Muted background color                                             | TabsList, Skeleton and Switch    |
-| --muted-foreground       | Muted foreground color                                             |                                  |
-| --popover                | Popover background color                                           | DropdownMenu, HoverCard, Popover |
-| --popover-foreground     | Popover foreground color                                           |                                  |
-| --card                   | Card background color                                              | Card                             |
-| --card-foreground        | Card foreground color                                              |                                  |
-| --border                 | Border color                                                       | Default border color             |
-| --input                  | Input field border color                                           | Input, Select, Textarea          |
-| --primary                | Primary button background colors                                   | Button variant="primary"         |
-| --primary-foreground     | Primary button foreground color                                    |                                  |
-| --secondary              | Secondary button background color                                  | Button variant="secondary"       |
-| --secondary-foreground   | Secondary button foreground color                                  |                                  |
-| --accent                 | Used for accents such as hover effects                             | DropdownMenuItem, SelectItem     |
-| --accent-foreground      | Used for texts on hover effects                                    | DropdownMenuItem, SelectItem     |
-| --destructive            | Destructive action color for background                            | Button variant="destructive"     |
-| --destructive-foreground | Destructive action color for text                                  |                                  |
-| --ring                   | Focus ring color                                                   | MultiSelect                      |
-| --primary-accent         | Primary accent color used for branding                             | Layout                           |
-| --hover-primary-accent   | Primary accent color used for hover effects for links              | SignIn and AuthCloudRegionSwitch |
-| --muted-green            | Muted green for Event label                                        | ObservationTree                  |
-| --muted-magenta          | Muted magenta for Generation label                                 | ObservationTree                  |
-| --muted-blue             | Muted blue for Span label                                          | ObservationTree                  |
-| --muted-gray             | Muted gray for disabled status badges                              | StatusBadge                      |
-| --accent-light-green     | Light green accent for background of output and assistant messages | IOPreview, Generations, Traces   |
-| --accent-dark-green      | Dark green accent for border of output and assistant messages      | CodeJsonViewer and IOPReview     |
-| --light-red              | Light red for error background                                     | level-color and StatusBadge      |
-| --dark-red               | Dark red for error text and error badge dot color                  | level-color and ErrorPage        |
-| --light-yellow           | Light yellow for warning background                                | LevelColor                       |
-| --dark-yellow            | Dark yellow for warning text                                       | LevelColor                       |
-| --light-green            | Light green for success status badge background                    | StatusBadge                      |
-| --dark-green             | Dark green for success status badge text and dot                   | StatusBadge                      |
-| --light-blue             | Light blue for background of Staging label                         | LangfuseLogo                     |
-| --dark-blue              | Dark blue for text and border of Staging label                     | LangfuseLogo                     |
-| --accent-light-blue      | Light blue accent for table link hover effect                      | TableLink                        |
-| --accent-dark-blue       | Dark blue accent for table link text                               | TableLink                        |
+| Variable                         | Description                                                        | Examples                         |
+| -------------------------------- | ------------------------------------------------------------------ | -------------------------------- |
+| --background                     | Background color                                                   | Default background color of body |
+| --foreground                     | Foreground color                                                   | Default text color of body       |
+| --muted                          | Muted background color                                             | TabsList, Skeleton and Switch    |
+| --muted-foreground               | Muted foreground color                                             |                                  |
+| --popover                        | Popover background color                                           | DropdownMenu, HoverCard, Popover |
+| --popover-foreground             | Popover foreground color                                           |                                  |
+| --card                           | Card background color                                              | Card                             |
+| --card-foreground                | Card foreground color                                              |                                  |
+| --border                         | Border color                                                       | Default border color             |
+| --input                          | Input field border color                                           | Input, Select, Textarea          |
+| --primary                        | Primary button background colors                                   | Button variant="primary"         |
+| --primary-foreground             | Primary button foreground color                                    |                                  |
+| --secondary                      | Secondary button background color                                  | Button variant="secondary"       |
+| --secondary-foreground           | Secondary button foreground color                                  |                                  |
+| --accent                         | Used for accents such as hover effects                             | DropdownMenuItem, SelectItem     |
+| --accent-foreground              | Used for texts on hover effects                                    | DropdownMenuItem, SelectItem     |
+| --destructive                    | Destructive action color for background                            | Button variant="destructive"     |
+| --destructive-foreground         | Destructive action color for text                                  |                                  |
+| --ring                           | Focus ring color                                                   | MultiSelect                      |
+| --primary-accent                 | Primary accent color used for branding                             | Layout                           |
+| --hover-primary-accent           | Primary accent color used for hover effects for links              | SignIn and AuthCloudRegionSwitch |
+| --muted-green                    | Muted green for Event label                                        | ObservationTree                  |
+| --muted-magenta                  | Muted magenta for Generation label                                 | ObservationTree                  |
+| --muted-blue                     | Muted blue for Span label                                          | ObservationTree                  |
+| --muted-gray                     | Muted gray for disabled status badges                              | StatusBadge                      |
+| --accent-light-green             | Light green accent for background of output and assistant messages | IOPreview, Generations, Traces   |
+| --accent-dark-green              | Dark green accent for border of output and assistant messages      | CodeJsonViewer and IOPReview     |
+| --light-red                      | Light red for error background                                     | level-color and StatusBadge      |
+| --dark-red                       | Dark red for error text and error badge dot color                  | level-color and ErrorPage        |
+| --light-yellow                   | Light yellow for warning background                                | LevelColor                       |
+| --dark-yellow                    | Dark yellow for warning text                                       | LevelColor                       |
+| --light-green                    | Light green for success status badge background                    | StatusBadge                      |
+| --dark-green                     | Dark green for success status badge text and dot                   | StatusBadge                      |
+| --light-blue                     | Light blue for background of Staging label                         | LangfuseLogo                     |
+| --dark-blue                      | Dark blue for text and border of Staging label                     | LangfuseLogo                     |
+| --accent-light-blue              | Light blue accent for table link hover effect                      | TableLink                        |
+| --accent-dark-blue               | Dark blue accent for table link text                               | TableLink                        |
+| --find-match-selected-background | Background color for selected search matches                       | CodeMirrorEditor                 |
+| --find-match-selected-foreground | Foreground color for selected search matches                       | CodeMirrorEditor                 |
+| --find-match-background          | Background color for search matches                                | CodeMirrorEditor                 |
 
 ### Adding New Colors
 
@@ -425,3 +512,4 @@ Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [d
 
 When contributing to the Langfuse codebase, you need to agree to the [Contributor License Agreement](https://cla-assistant.io/langfuse/langfuse). You only need to do this once and the CLA bot will remind you if you haven't signed it yet.
 
+If the CLA check gets stuck after signing (a [known cla-assistant bug](https://github.com/cla-assistant/cla-assistant/issues/520)), comment `/check-cla` on your PR to retrigger it.

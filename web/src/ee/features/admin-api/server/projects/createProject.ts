@@ -17,27 +17,38 @@ export async function handleCreateProject(
     // Validate project name
     try {
       projectNameSchema.parse({ name });
-    } catch (_error) {
+    } catch {
       return res.status(400).json({
         message: "Invalid project name. Should be between 3 and 60 characters.",
       });
     }
 
+    let parsedMetadata = metadata;
     if (metadata !== undefined && typeof metadata !== "object") {
       try {
-        JSON.parse(metadata);
+        parsedMetadata = JSON.parse(metadata);
       } catch (error) {
         return res.status(400).json({
           message: `Invalid metadata. Should be a valid JSON object: ${error}`,
         });
       }
     }
+    if (
+      parsedMetadata !== undefined &&
+      (typeof parsedMetadata !== "object" ||
+        parsedMetadata === null ||
+        Array.isArray(parsedMetadata))
+    ) {
+      return res.status(400).json({
+        message: "Invalid metadata. Should be a valid JSON object.",
+      });
+    }
 
     // Validate retention days if provided
     if (retention !== undefined) {
       try {
         projectRetentionSchema.parse({ retention });
-      } catch (_error) {
+      } catch {
         return res.status(400).json({
           message: "Invalid retention value. Must be 0 or at least 3 days.",
         });
@@ -80,7 +91,7 @@ export async function handleCreateProject(
         name,
         orgId: scope.orgId,
         retentionDays: retention,
-        metadata,
+        metadata: parsedMetadata,
       },
     });
 

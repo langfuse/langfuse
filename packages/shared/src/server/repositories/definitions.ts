@@ -1,11 +1,12 @@
-import z from "zod/v4";
+import z from "zod";
+import { DEFAULT_TRACE_ENVIRONMENT } from "../ingestion/types";
 
 export const clickhouseStringDateSchema = z
   .string()
   // clickhouse stores UTC like '2024-05-23 18:33:41.602000'
   // we need to convert it to '2024-05-23T18:33:41.602000Z'
   .transform((str) => str.replace(" ", "T") + "Z")
-  .pipe(z.string().datetime());
+  .pipe(z.iso.datetime());
 
 //https://clickhouse.com/docs/en/integrations/javascript#integral-types-int64-int128-int256-uint64-uint128-uint256
 // clickhouse returns int64 as string
@@ -18,7 +19,7 @@ export const UsageCostSchema = z
         const parsed = Number(val[key]);
         if (isNaN(parsed)) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             message: `Key ${key} is not a number`,
           });
         } else {
@@ -53,6 +54,9 @@ export const observationRecordBaseSchema = z.object({
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
   prompt_version: z.number().nullish(),
+  tool_definitions: z.record(z.string(), z.string()).optional(),
+  tool_calls: z.array(z.string()).optional(),
+  tool_call_names: z.array(z.string()).optional(),
   is_deleted: z.number(),
 });
 
@@ -110,6 +114,11 @@ export const eventsObservationRecordReadSchema =
   observationRecordReadSchema.extend({
     user_id: z.string().nullish(),
     session_id: z.string().nullish(),
+    trace_name: z.string().nullish(),
+    release: z.string().nullish(),
+    tags: z.array(z.string()).optional(),
+    bookmarked: z.boolean().optional(),
+    public: z.boolean().optional(),
   });
 export type EventsObservationRecordReadType = z.infer<
   typeof eventsObservationRecordReadSchema
@@ -215,6 +224,7 @@ export const scoreRecordBaseSchema = z.object({
   config_id: z.string().nullish(),
   data_type: z.string(),
   string_value: z.string().nullish(),
+  long_string_value: z.string(),
   queue_id: z.string().nullish(),
   execution_trace_id: z.string().nullish(),
   is_deleted: z.number(),
@@ -254,7 +264,7 @@ const datasetRunItemRecordBaseSchema = z.object({
   error: z.string().nullish(),
 });
 
-const datasetRunItemRecordReadSchema = datasetRunItemRecordBaseSchema.extend({
+const _datasetRunItemRecordReadSchema = datasetRunItemRecordBaseSchema.extend({
   dataset_run_created_at: clickhouseStringDateSchema,
   dataset_item_version: clickhouseStringDateSchema.nullish(),
   created_at: clickhouseStringDateSchema,
@@ -262,7 +272,7 @@ const datasetRunItemRecordReadSchema = datasetRunItemRecordBaseSchema.extend({
   event_ts: clickhouseStringDateSchema,
 });
 export type DatasetRunItemRecordReadType = z.infer<
-  typeof datasetRunItemRecordReadSchema
+  typeof _datasetRunItemRecordReadSchema
 >;
 // Conditional type for dataset run item records with optional IO
 export type DatasetRunItemRecord<WithIO extends boolean = true> =
@@ -415,6 +425,11 @@ export const convertTraceToStagingObservation = (
     prompt_id: undefined,
     prompt_name: undefined,
     prompt_version: undefined,
+
+    // Tool fields - traces don't have tools
+    tool_definitions: undefined,
+    tool_calls: undefined,
+    tool_call_names: undefined,
 
     // System fields
     created_at: traceRecord.created_at,
@@ -570,6 +585,10 @@ export const convertPostgresObservationToInsert = (
     prompt_id: observation.prompt_id,
     prompt_name: observation.prompt_name,
     prompt_version: observation.prompt_version,
+    // Tool fields - Postgres observations don't have persisted tools
+    tool_definitions: undefined,
+    tool_calls: undefined,
+    tool_call_names: undefined,
     created_at: observation.created_at?.getTime(),
     updated_at: observation.updated_at?.getTime(),
     event_ts: observation.start_time?.getTime(),
@@ -602,6 +621,7 @@ export const convertPostgresScoreToInsert = (
     config_id: score.config_id,
     data_type: score.data_type,
     string_value: score.string_value,
+    long_string_value: "",
     queue_id: score.queue_id,
     execution_trace_id: null, // Postgres scores do not have eval execution traces
     created_at: score.created_at?.getTime(),
@@ -624,7 +644,7 @@ export const eventRecordBaseSchema = z.object({
   // Core properties
   name: z.string(),
   type: z.string(),
-  environment: z.string().default("default"),
+  environment: z.string().default(DEFAULT_TRACE_ENVIRONMENT),
   version: z.string().nullish(),
   release: z.string().nullish(),
 
@@ -643,7 +663,7 @@ export const eventRecordBaseSchema = z.object({
   // Prompt
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
-  prompt_version: z.string().nullish(),
+  prompt_version: z.number().nullish(),
 
   // Model
   model_id: z.string().nullish(),
@@ -659,13 +679,18 @@ export const eventRecordBaseSchema = z.object({
   usage_pricing_tier_id: z.string().nullish(),
   usage_pricing_tier_name: z.string().nullish(),
 
+  // Tool calls
+  tool_definitions: z.record(z.string(), z.string()).default({}),
+  tool_calls: z.array(z.string()).default([]),
+  tool_call_names: z.array(z.string()).default([]),
+
   // I/O
   input: z.string().nullish(),
   output: z.string().nullish(),
 
   // Metadata
-  metadata: z.record(z.string(), z.string()),
   metadata_names: z.array(z.string()).default([]),
+  metadata_values: z.array(z.string()).default([]),
 
   // Experiment properties
   experiment_id: z.string().nullish(),
@@ -697,10 +722,10 @@ export const eventRecordBaseSchema = z.object({
   is_deleted: z.number(),
 });
 
+// Base type for event records - used by converters that work with both Insert and Read types
+export type EventRecordBaseType = z.infer<typeof eventRecordBaseSchema>;
+
 export const eventRecordReadSchema = eventRecordBaseSchema.extend({
-  metadata_prefixes: z.array(z.string()).default([]),
-  metadata_hashes: z.array(z.number().int()).default([]),
-  metadata_long_values: z.record(z.number().int(), z.string()).default({}),
   total_cost: z.number().nullish(),
 
   start_time: clickhouseStringDateSchema,
@@ -713,7 +738,6 @@ export const eventRecordReadSchema = eventRecordBaseSchema.extend({
 export type EventRecordReadType = z.infer<typeof eventRecordReadSchema>;
 
 export const eventRecordInsertSchema = eventRecordBaseSchema.extend({
-  metadata_raw_values: z.array(z.string().nullish()).default([]),
   start_time: z.number(),
   end_time: z.number().nullish(),
   completion_start_time: z.number().nullish(),

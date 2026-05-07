@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useEffect, useState, useMemo } from "react";
@@ -16,7 +16,10 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
 import type { DatasetItemDomain } from "@langfuse/shared";
-import { DatasetItemFields } from "./DatasetItemFields";
+import {
+  DatasetItemFields,
+  type DatasetItemFormValues,
+} from "./DatasetItemFields";
 import {
   stringifyDatasetItemData,
   type DatasetSchema,
@@ -29,7 +32,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch (_error) {
+      } catch {
         return false;
       }
     },
@@ -44,7 +47,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch (_error) {
+      } catch {
         return false;
       }
     },
@@ -59,7 +62,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch (_error) {
+      } catch {
         return false;
       }
     },
@@ -92,7 +95,7 @@ export const EditDatasetItemDialog = ({
   });
   const utils = api.useUtils();
 
-  const form = useForm({
+  const form = useForm<DatasetItemFormValues, unknown, DatasetItemFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       input: "",
@@ -157,13 +160,12 @@ export const EditDatasetItemDialog = ({
         </DialogHeader>
         <Form {...form}>
           <form
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex h-full flex-col"
           >
             <DialogBody>
               {formError ? (
-                <p className="mb-4 text-destructive">
+                <p className="text-destructive mb-4">
                   <span className="font-bold">Error:</span> {formError}
                 </p>
               ) : null}

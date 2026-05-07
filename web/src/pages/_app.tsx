@@ -76,6 +76,8 @@ import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownConte
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
+import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -99,6 +101,7 @@ if (
     },
     autocapture: false,
     enable_heatmaps: false,
+    persistence: "cookie",
   });
 }
 
@@ -124,7 +127,10 @@ const MyApp: AppType<{ session: Session | null }> = ({
   }, []);
 
   return (
-    <QueryParamProvider adapter={NextAdapterPages}>
+    <QueryParamProvider
+      adapter={NextAdapterPages}
+      options={{ enableBatching: true }}
+    >
       <TooltipProvider>
         <CommandMenuProvider>
           <PostHogProvider client={posthog}>
@@ -142,13 +148,14 @@ const MyApp: AppType<{ session: Session | null }> = ({
                     disableTransitionOnChange
                   >
                     <ScoreCacheProvider>
-                      <SupportDrawerProvider defaultOpen={false}>
-                        <AppLayout>
-                          <Component {...pageProps} />
-                          <UserTracking />
-                        </AppLayout>
-                      </SupportDrawerProvider>
-                      <BetterStackUptimeStatusMessage />
+                      <CorrectionCacheProvider>
+                        <SupportDrawerProvider defaultOpen={false}>
+                          <AppLayout>
+                            <Component {...pageProps} />
+                            <UserTracking />
+                          </AppLayout>
+                        </SupportDrawerProvider>
+                      </CorrectionCacheProvider>
                     </ScoreCacheProvider>
                   </ThemeProvider>
                 </MarkdownContextProvider>
@@ -178,7 +185,7 @@ function UserTracking() {
     ) {
       lastIdentifiedUser.current = JSON.stringify(sessionUser);
       // PostHog
-      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST)
+      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
         posthog.identify(sessionUser.id ?? undefined, {
           environment: process.env.NODE_ENV,
           email: sessionUser.email ?? undefined,
@@ -192,7 +199,14 @@ function UserTracking() {
               })),
             ) ?? undefined,
           LANGFUSE_CLOUD_REGION: region,
+          [V4_BETA_ENABLED_POSTHOG_PROPERTY]:
+            sessionUser.v4BetaEnabled ?? false,
         });
+        posthog.register({
+          [V4_BETA_ENABLED_POSTHOG_PROPERTY]:
+            sessionUser.v4BetaEnabled ?? false,
+        });
+      }
 
       // Sentry
       setUser({
@@ -201,10 +215,7 @@ function UserTracking() {
       });
     } else if (session.status === "unauthenticated") {
       lastIdentifiedUser.current = null;
-      // PostHog
-      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
-        posthog.reset();
-      }
+      posthog.unregister(V4_BETA_ENABLED_POSTHOG_PROPERTY);
       // Sentry
       setUser(null);
     }
@@ -236,17 +247,4 @@ if (
     console.log("Signal: ", signal);
     return await shutdown(signal);
   });
-}
-
-function BetterStackUptimeStatusMessage() {
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
-  if (!isLangfuseCloud) return null;
-  return (
-    <script
-      src="https://uptime.betterstack.com/widgets/announcement.js"
-      data-id="189328"
-      async={true}
-      type="text/javascript"
-    ></script>
-  );
 }

@@ -15,7 +15,7 @@ import {
   OBSERVATION_FIELD_GROUPS,
   type ObservationFieldGroup,
 } from "@langfuse/shared/src/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { useEventsTableSchema } from "../../query/types";
 
 // Re-export for convenience
@@ -50,6 +50,7 @@ export const APIObservation = z
     startTime: z.coerce.date(),
     endTime: z.coerce.date().nullable(),
     version: z.string().nullable(),
+    release: z.string().nullable().optional(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
     input: z.any(),
@@ -126,29 +127,56 @@ export const transformDbToApiObservation = (
   const totalTokens = reducedUsageDetails.total ?? 0;
 
   const {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     providedCostDetails,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     internalModelId,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     inputCost,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     outputCost,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     totalCost,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     inputUsage,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     outputUsage,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     totalUsage,
     // Exclude userId and sessionId from public API (security/privacy)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     userId,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     sessionId,
+
+    // exclude trace name, this will only be available on events api
+    traceName,
+
+    // Exclude tags
+    tags,
+    traceTags,
+
+    // Exclude tool data from public API (not yet released)
+
+    toolDefinitions,
+
+    toolCalls,
+
+    toolCallNames,
+
+    // Exclude publish/bookmark flags from V1 public observations API.
+    // V2 observations already exposes these on the events-based contract.
+    bookmarked,
+
+    public: _public,
     ...rest
-  } = observation as EventsObservation & ObservationPriceFields;
+  } = observation as EventsObservation &
+    ObservationPriceFields & {
+      // The `tags` field is sometimes renamed to `traceTags` depending on context.
+      // Since `transformDbToApiObservation` is called from multiple sources,
+      // either `tags` or `traceTags` may exist on the input observation.
+      // This is not part of the standard `EventsObservation` type.
+      traceTags?: string[];
+    };
 
   return {
     ...rest,
@@ -278,6 +306,7 @@ export const encodeCursor = (
 // GET /v2/observations
 export const GetObservationsV2Query = z.object({
   // Field groups parameter (optional - defaults to all groups)
+  // Comma-separated list of field groups: fields=basic,metadata,io
   fields: z
     .string()
     .nullish()
@@ -286,19 +315,36 @@ export const GetObservationsV2Query = z.object({
       return v
         .split(",")
         .map((f) => f.trim())
-        .filter((f) =>
+        .filter((f): f is ObservationFieldGroup =>
           OBSERVATION_FIELD_GROUPS.includes(f as ObservationFieldGroup),
         );
     })
     .pipe(z.array(z.enum(OBSERVATION_FIELD_GROUPS)).nullable()),
+  // Metadata expansion keys (optional)
+  // Comma-separated list of metadata keys to return non-truncated: expandMetadata=transcript,steps
+  expandMetadata: z
+    .string()
+    .nullish()
+    .transform((v) => {
+      if (!v) return null;
+      const keys = v
+        .split(",")
+        .map((k) => k.trim())
+        .filter((k) => k.length > 0);
+      return keys.length > 0 ? keys : null;
+    })
+    .pipe(z.array(z.string()).nullable()),
   // Pagination
   limit: z.coerce.number().nonnegative().lte(1000).default(50),
   cursor: EncodedObservationsCursorV2.optional(),
-  // Parsing behavior
+  // Parsing behavior - parseIoAsJson=true is retired, IO is always returned as raw strings
   parseIoAsJson: z
     .union([z.literal("true"), z.literal("false")])
-    .transform((val) => val === "true")
-    .default(false),
+    .refine((val) => val !== "true", {
+      message:
+        "parseIoAsJson=true is no longer supported on the v2 observations endpoint. Input/output fields are always returned as raw strings. Remove the parseIoAsJson parameter or set it to false.",
+    })
+    .optional(),
   // Filters
   type: ObservationType.nullish(),
   name: z.string().nullish(),
@@ -326,9 +372,72 @@ export const GetObservationsV2Query = z.object({
     .pipe(z.array(singleFilter).optional()),
 });
 
+/**
+ * Typed observation schema for v2 API responses.
+ * Core fields are always present; other fields are optional depending on requested field groups.
+ * Uses .loose() to allow server enrichment fields not explicitly listed.
+ */
+const APIObservationV2 = z
+  .object({
+    // Core fields (always present)
+    id: z.string(),
+    traceId: z.string().nullable(),
+    startTime: z.coerce.date(),
+    endTime: z.coerce.date().nullable(),
+    projectId: z.string(),
+    parentObservationId: z.string().nullable(),
+    type: z.string(),
+
+    // Basic fields (field group: basic)
+    name: z.string().nullable().optional(),
+    level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]).optional(),
+    statusMessage: z.string().nullable().optional(),
+    version: z.string().nullable().optional(),
+    environment: z.string().nullable().optional(),
+    bookmarked: z.boolean().optional(),
+    public: z.boolean().optional(),
+    userId: z.string().nullable().optional(),
+    sessionId: z.string().nullable().optional(),
+
+    // Time fields (field group: time)
+    completionStartTime: z.coerce.date().nullable().optional(),
+    createdAt: z.coerce.date().optional(),
+    updatedAt: z.coerce.date().optional(),
+
+    // IO fields (field group: io)
+    input: z.any().optional(),
+    output: z.any().optional(),
+
+    // Metadata fields (field group: metadata)
+    metadata: z.any().optional(),
+
+    // Model fields (field group: model)
+    providedModelName: z.string().nullable().optional(),
+    internalModelId: z.string().nullable().optional(),
+    modelParameters: z.any().optional(),
+
+    // Usage fields (field group: usage)
+    usageDetails: z.record(z.string(), z.number().nonnegative()).optional(),
+    costDetails: z.record(z.string(), z.number().nonnegative()).optional(),
+    totalCost: z.number().nullable().optional(),
+
+    // Prompt fields (field group: prompt)
+    promptId: z.string().nullable().optional(),
+    promptName: z.string().nullable().optional(),
+    promptVersion: z.number().int().positive().nullable().optional(),
+
+    // Metrics fields (field group: metrics)
+    latency: z.number().nullable().optional(),
+    timeToFirstToken: z.number().nullable().optional(),
+
+    // Enrichment fields
+    modelId: z.string().nullable().optional(),
+  })
+  .loose();
+
 export const GetObservationsV2Response = z
   .object({
-    data: z.array(z.record(z.string(), z.any())), // Field-group-filtered observations
+    data: z.array(APIObservationV2),
     meta: z.object({
       cursor: EncodedObservationsCursorV2String.optional(),
     }),

@@ -38,7 +38,7 @@ function NavItemContent({ item }: { item: NavMainItem }) {
         (typeof item.label === "string" ? (
           <span
             className={cn(
-              "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs leading-none",
+              "-my-0.5 self-center rounded-sm border px-1 py-0.5 text-xs leading-none break-keep whitespace-nowrap",
             )}
           >
             {item.label}

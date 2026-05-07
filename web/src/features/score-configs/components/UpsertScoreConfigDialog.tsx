@@ -22,7 +22,6 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { ScoreDataType, ScoreDataTypeArray } from "@langfuse/shared";
 import {
   Select,
   SelectContent,
@@ -35,6 +34,7 @@ import { Textarea } from "@/src/components/ui/textarea";
 import {
   isBooleanDataType,
   isCategoricalDataType,
+  isTextDataType,
   isNumericDataType,
 } from "@/src/features/scores/lib/helpers";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -46,6 +46,7 @@ import {
   type UpdateConfig,
 } from "@/src/features/score-configs/lib/upsertFormTypes";
 import { validateScoreConfigUpsertFormInput } from "@/src/features/score-configs/lib/validateScoreConfigUpsertFormInput";
+import { ScoreConfigDataType } from "@langfuse/shared";
 
 export function UpsertScoreConfigDialog({
   projectId,
@@ -84,7 +85,7 @@ export function UpsertScoreConfigDialog({
   const form = useForm({
     resolver: zodResolver(id ? updateConfigSchema : createConfigSchema),
     defaultValues: defaultValues ?? {
-      dataType: ScoreDataType.NUMERIC,
+      dataType: ScoreConfigDataType.NUMERIC,
       minValue: undefined,
       maxValue: undefined,
       name: "",
@@ -150,7 +151,7 @@ export function UpsertScoreConfigDialog({
       >
         <DialogTrigger asChild>
           <Button variant="secondary" loading={createScoreConfig.isPending}>
-            <PlusIcon className="-ml-0.5 mr-1.5 h-4 w-4" aria-hidden="true" />
+            <PlusIcon className="mr-1.5 -ml-0.5 h-4 w-4" aria-hidden="true" />
             {id ? "Update score config" : "Add new score config"}
           </Button>
         </DialogTrigger>
@@ -161,11 +162,7 @@ export function UpsertScoreConfigDialog({
             </DialogTitle>
           </DialogHeader>
           <Form {...form}>
-            <form
-              className="space-y-6"
-              // eslint-disable-next-line @typescript-eslint/no-misused-promises
-              onSubmit={form.handleSubmit(onSubmit)}
-            >
+            <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
               <DialogBody>
                 <FormField
                   control={form.control}
@@ -196,16 +193,19 @@ export function UpsertScoreConfigDialog({
                         disabled={!!id}
                         defaultValue={field.value}
                         onValueChange={(value) => {
-                          field.onChange(
-                            value as (typeof ScoreDataTypeArray)[number],
-                          );
+                          const dt = value as ScoreConfigDataType;
+                          field.onChange(dt);
                           form.clearErrors();
-                          if (isNumericDataType(value as ScoreDataType)) {
+                          if (isNumericDataType(dt)) {
                             form.setValue("categories", undefined);
+                          } else if (isTextDataType(dt)) {
+                            form.setValue("categories", undefined);
+                            form.setValue("minValue", undefined);
+                            form.setValue("maxValue", undefined);
                           } else {
                             form.setValue("minValue", undefined);
                             form.setValue("maxValue", undefined);
-                            if (isBooleanDataType(value as ScoreDataType)) {
+                            if (isBooleanDataType(dt)) {
                               replace([
                                 { label: "True", value: 1 },
                                 { label: "False", value: 0 },
@@ -222,11 +222,13 @@ export function UpsertScoreConfigDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {ScoreDataTypeArray.map((role) => (
-                            <SelectItem value={role} key={role}>
-                              {role}
-                            </SelectItem>
-                          ))}
+                          {Object.values(ScoreConfigDataType).map(
+                            (dataType) => (
+                              <SelectItem value={dataType} key={dataType}>
+                                {dataType}
+                              </SelectItem>
+                            ),
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -284,7 +286,7 @@ export function UpsertScoreConfigDialog({
                       )}
                     />
                   </>
-                ) : (
+                ) : isTextDataType(form.getValues("dataType")) ? null : (
                   <div className="grid grid-flow-row gap-2">
                     <FormField
                       control={form.control}
@@ -292,7 +294,7 @@ export function UpsertScoreConfigDialog({
                       render={() => (
                         <>
                           {fields.length > 0 && (
-                            <div className="mb-2 grid grid-cols-[1fr,3fr] items-center gap-2 text-left sm:grid-cols-[1fr,7fr]">
+                            <div className="mb-2 grid grid-cols-[1fr_3fr] items-center gap-2 text-left sm:grid-cols-[1fr_7fr]">
                               <FormLabel className="grid grid-flow-col">
                                 Value
                                 <DocPopup
@@ -311,7 +313,7 @@ export function UpsertScoreConfigDialog({
                           {fields.map((category, index) => (
                             <div
                               key={`${category.id}-langfuseObject`}
-                              className="items-top mb-2 grid grid-cols-[1fr,3fr] gap-2 text-left sm:grid-cols-[1fr,7fr]"
+                              className="items-top mb-2 grid grid-cols-[1fr_3fr] gap-2 text-left sm:grid-cols-[1fr_7fr]"
                             >
                               <FormField
                                 control={form.control}
@@ -331,7 +333,7 @@ export function UpsertScoreConfigDialog({
                                   </FormItem>
                                 )}
                               />
-                              <div className="grid grid-cols-[1fr,auto] gap-2">
+                              <div className="grid grid-cols-[1fr_auto] gap-2">
                                 <FormField
                                   control={form.control}
                                   name={`categories.${index}.label`}
@@ -385,7 +387,16 @@ export function UpsertScoreConfigDialog({
                                   ) && fields.length === 2
                                 }
                                 onClick={() =>
-                                  append({ label: "", value: fields.length })
+                                  append({
+                                    label: "",
+                                    value:
+                                      fields.length > 0
+                                        ? fields.reduce(
+                                            (max, f) => Math.max(max, f.value),
+                                            0,
+                                          ) + 1
+                                        : 0,
+                                  })
                                 }
                               >
                                 Add category
