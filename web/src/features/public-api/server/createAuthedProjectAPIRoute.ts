@@ -23,6 +23,7 @@ import {
   unstablePublicEvalsErrorContract,
   type PublicApiErrorContract,
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { isPrismaException } from "@/src/utils/exceptions";
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
@@ -287,6 +288,10 @@ export const createAuthedProjectAPIRoute = <
         routeConfig.allowedAccessLevels || ["project"],
       );
     } catch (error: any) {
+      if (isPrismaException(error)) {
+        res.status(503).json({ message: "Service Unavailable" });
+        return;
+      }
       const statusCode = error.status || 401;
       const message = error.message || "Authentication failed";
 
