@@ -288,8 +288,16 @@ export const createAuthedProjectAPIRoute = <
         routeConfig.allowedAccessLevels || ["project"],
       );
     } catch (error: any) {
-      if (isPrismaException(error)) {
+      if (
+        error instanceof Prisma.PrismaClientInitializationError ||
+        error instanceof Prisma.PrismaClientUnknownRequestError ||
+        error instanceof Prisma.PrismaClientRustPanicError
+      ) {
         res.status(503).json({ message: "Service Unavailable" });
+        return;
+      }
+      if (isPrismaException(error)) {
+        res.status(500).json({ message: "Internal Server Error" });
         return;
       }
       const statusCode = error.status || 401;
