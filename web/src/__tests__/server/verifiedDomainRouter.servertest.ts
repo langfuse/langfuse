@@ -1,7 +1,7 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { resolveTxtFresh } from "@/src/ee/features/verified-domains/server/dnsLookup";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { Role } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import type { Session } from "next-auth";
@@ -152,6 +152,26 @@ describe("verifiedDomainRouter.create", () => {
     await expect(
       caller.verifiedDomain.create({ orgId: org.id, domain }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("returns CONFLICT when the create races a concurrent insert (P2002)", async () => {
+    const { org, caller } = await prepare();
+    const domain = `race-${uuidv4().slice(0, 8)}.com`;
+
+    // Simulate the TOCTOU race: the pre-read returns null, but the create
+    // hits the unique index. The handler must translate P2002 to CONFLICT.
+    const spy = vi.spyOn(prisma.verifiedDomain, "create").mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "test",
+      }),
+    );
+
+    await expect(
+      caller.verifiedDomain.create({ orgId: org.id, domain }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+
+    spy.mockRestore();
   });
 
   it("emits an audit log on create", async () => {

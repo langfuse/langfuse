@@ -5,6 +5,7 @@ import {
   protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
 import { resolveTxtFresh } from "@/src/ee/features/verified-domains/server/dnsLookup";
+import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
 
@@ -87,13 +88,31 @@ export const verifiedDomainRouter = createTRPCRouter({
         };
       }
 
-      const row = await ctx.prisma.verifiedDomain.create({
-        data: {
-          organizationId: input.orgId,
-          domain: input.domain,
-          createdByUserId: ctx.session.user.id,
-        },
-      });
+      // The check-then-create pattern above is not atomic; two concurrent
+      // requests for the same new domain (across orgs) can both pass and the
+      // second hits the unique index on `domain`. Translate Prisma's P2002
+      // into a clean CONFLICT instead of bubbling up as a 500.
+      let row;
+      try {
+        row = await ctx.prisma.verifiedDomain.create({
+          data: {
+            organizationId: input.orgId,
+            domain: input.domain,
+            createdByUserId: ctx.session.user.id,
+          },
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Domain "${input.domain}" is already claimed by another organization. Contact support if this is your domain.`,
+          });
+        }
+        throw error;
+      }
 
       await auditLog({
         session: ctx.session,
