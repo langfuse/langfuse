@@ -35,11 +35,12 @@ import { env } from "../../env";
 
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
 
-async function* enrichObservationStream(
+export async function* enrichObservationStream(
   stream: AsyncGenerator<Record<string, unknown>>,
   projectId: string,
   modelIdField: string,
   convertLatencyToSeconds: boolean,
+  fieldGroups?: ObservationFieldGroup[],
 ): AsyncGenerator<Record<string, unknown>> {
   const { getModel } = createModelCache(projectId);
 
@@ -56,7 +57,16 @@ async function* enrichObservationStream(
       total_price: pricing.totalPrice,
     };
 
-    if (convertLatencyToSeconds) {
+    // ClickHouse returns {} for Map columns even when not SELECTed — drop it
+    // when the metadata group was not requested.
+    if (fieldGroups && !fieldGroups.includes("metadata")) {
+      delete enriched.metadata;
+    }
+
+    // Only convert latency fields when ClickHouse actually returned them.
+    // If the metrics group was not selected, latency is absent from the row
+    // (undefined), so we skip the conversion and leave the field out entirely.
+    if (convertLatencyToSeconds && row.latency !== undefined) {
       const latency = row.latency as number | null;
       const ttft = row.time_to_first_token as number | null;
       enriched.latency = latency != null ? latency / 1000 : null;
@@ -282,6 +292,7 @@ const processBlobStorageExport = async (config: {
           config.projectId,
           "model_id",
           config.convertV4LatencyToSeconds,
+          config.exportFieldGroups,
         );
         break;
       default:
