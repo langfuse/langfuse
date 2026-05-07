@@ -9,7 +9,7 @@ export const getDatasetTabs = (projectId: string, datasetId: string) => {
   return [
     {
       value: DATASET_TABS.RUNS,
-      label: "Runs",
+      label: "Experiments",
       href: `/project/${projectId}/datasets/${datasetId}`,
     },
     {

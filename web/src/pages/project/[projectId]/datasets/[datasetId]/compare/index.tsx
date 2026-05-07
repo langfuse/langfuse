@@ -24,6 +24,10 @@ import {
 } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 import { AnnotationPanel } from "@/src/features/datasets/components/AnnotationPanel";
+import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 function DatasetCompareInternal() {
   const router = useRouter();
@@ -34,6 +38,12 @@ function DatasetCompareInternal() {
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
   const [isAnnotationPanelOpen, setIsAnnotationPanelOpen] = useState(false);
+  const {
+    canUseExperimentsBetaToggle,
+    isExperimentsBetaEnabled,
+    setExperimentsBetaEnabled,
+    isExperimentsBetaActive,
+  } = useExperimentAccess();
 
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
@@ -45,7 +55,6 @@ function DatasetCompareInternal() {
     runs,
     dataset,
     runsData,
-    localRuns,
     handleExperimentSettled: handleExperimentSettledBase,
     setRunState,
     setLocalRuns,
@@ -73,6 +82,13 @@ function DatasetCompareInternal() {
     setIsAnnotationPanelOpen(!!activeCell);
   }, [activeCell]);
 
+  // Auto-redirect when experiments beta is active (e.g., user arrives via bookmark/back button)
+  useEffect(() => {
+    if (isExperimentsBetaActive && projectId && runIds && runIds.length > 0) {
+      void router.push(toExperimentsResultsUrl(projectId, runIds));
+    }
+  }, [isExperimentsBetaActive, projectId, runIds, router]);
+
   // Clear active cell when panel manually closed
   const handlePanelOpenChange = (open: boolean) => {
     if (!open) {
@@ -82,7 +98,55 @@ function DatasetCompareInternal() {
   };
 
   if (!runsData.data || runs.length === 0) {
-    return <span>Loading...</span>;
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Spinner size="xl" variant="muted" />
+      </div>
+    );
+  }
+
+  const handleBetaSwitchChange = (enabled: boolean) => {
+    setExperimentsBetaEnabled(enabled);
+
+    if (enabled && runIds && runIds.length > 0) {
+      void router.push(toExperimentsResultsUrl(projectId, runIds));
+    }
+  };
+
+  const betaSwitch = canUseExperimentsBetaToggle ? (
+    <ExperimentsBetaSwitch
+      enabled={isExperimentsBetaEnabled}
+      onEnabledChange={handleBetaSwitchChange}
+    />
+  ) : null;
+
+  if (isExperimentsBetaActive) {
+    return (
+      <Page
+        headerProps={{
+          title: `Compare runs: ${dataset.data?.name ?? datasetId}`,
+          breadcrumb: [
+            {
+              name: "Datasets",
+              href: `/project/${projectId}/datasets`,
+            },
+            {
+              name: dataset.data?.name ?? datasetId,
+              href: `/project/${projectId}/datasets/${datasetId}`,
+            },
+          ],
+          tabsProps: {
+            tabs: getDatasetRunCompareTabs(projectId, datasetId),
+            activeTab: DATASET_RUN_COMPARE_TABS.COMPARE,
+          },
+          actionButtonsLeft: betaSwitch,
+        }}
+      >
+        <div className="flex h-full items-center justify-center">
+          <Spinner size="xl" variant="muted" />
+        </div>
+      </Page>
+    );
   }
 
   return (
@@ -108,6 +172,7 @@ function DatasetCompareInternal() {
         },
         actionButtonsRight: (
           <>
+            {betaSwitch}
             <Dialog
               key="create-experiment-dialog"
               open={isCreateExperimentDialogOpen}
@@ -138,7 +203,7 @@ function DatasetCompareInternal() {
             </Dialog>
             <MultiSelectKeyValues
               key="select-runs"
-              title="Runs"
+              title="Experiments"
               showSelectedValueStrings={false}
               placeholder="Select runs to compare"
               className="w-fit"
@@ -194,7 +259,6 @@ function DatasetCompareInternal() {
             projectId={projectId}
             datasetId={datasetId}
             runIds={runIds ?? []}
-            localExperiments={localRuns}
           />
         </div>
         <SidePanel

@@ -176,7 +176,7 @@ export function JSONTableView<T>({
 
       {/* Virtualized list */}
       {hasItems && virtualized && (
-        <div ref={parentRef} className="flex-1 overflow-y-scroll">
+        <div ref={parentRef} className="flex-1 overflow-y-auto">
           <div
             style={{
               height: `${rowVirtualizer.getTotalSize()}px`,

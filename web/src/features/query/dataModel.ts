@@ -1,4 +1,4 @@
-import type z from "zod/v4";
+import type z from "zod";
 import type {
   ViewVersion,
   ViewDeclarationType,
@@ -912,10 +912,11 @@ function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
     segments: [
       {
         column: "data_type",
-        // We consider NUMERIC and BOOLEAN scores as numeric.
-        operator: "does not contain" as const,
-        value: "CATEGORICAL",
-        type: "string" as const,
+        // Positive allow-list: only NUMERIC and BOOLEAN count as numeric scores.
+        // CATEGORICAL, TEXT, and CORRECTION are excluded.
+        operator: "any of" as const,
+        value: ["NUMERIC", "BOOLEAN"],
+        type: "stringOptions" as const,
       },
     ], // Numeric
     timeDimension: "timestamp",
@@ -1384,6 +1385,7 @@ export function requiresV2(params: {
   view: string;
   dimensions: { field: string }[];
   measures: { measure: string }[];
+  filters?: { column: string }[];
 }): boolean {
   const v1View =
     viewDeclarations.v1[params.view as keyof (typeof viewDeclarations)["v1"]];
@@ -1400,6 +1402,38 @@ export function requiresV2(params: {
 
   return (
     params.dimensions.some((d) => v2OnlyDims.includes(d.field)) ||
-    params.measures.some((m) => v2OnlyMeasures.includes(m.measure))
+    params.measures.some((m) => v2OnlyMeasures.includes(m.measure)) ||
+    (params.filters ?? []).some((f) => v2OnlyDims.includes(f.column))
   );
+}
+
+/**
+ * Returns the declared unit for a measure in a given view/version, or undefined
+ * if the view or measure is not found. Use this to drive display formatting
+ * (e.g. unit === "millisecond" → convert to seconds before rendering).
+ */
+function getMeasureUnit(
+  viewName: string,
+  measureName: string,
+  version: ViewVersion = "v1",
+): string | undefined {
+  const versionViews = viewDeclarations[version];
+  const view = versionViews[viewName as keyof typeof versionViews];
+  return view?.measures[measureName]?.unit;
+}
+
+/**
+ * Returns the unit of the value produced by `aggregation(measure)`. Falls back
+ * to the measure's declared unit when the aggregation preserves it; returns
+ * "integer" for `count` and `uniq` since those discard the source unit and
+ * yield a dimensionless count.
+ */
+export function getResultUnit(
+  viewName: string,
+  measureName: string,
+  aggregation: string | undefined,
+  version: ViewVersion = "v1",
+): string | undefined {
+  if (aggregation === "count" || aggregation === "uniq") return "integer";
+  return getMeasureUnit(viewName, measureName, version);
 }

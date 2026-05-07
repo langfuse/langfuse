@@ -38,6 +38,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
           jobInputObservationId,
           jobTemplateId,
           status,
+          startTime: new Date(),
         },
         update: {
           status,

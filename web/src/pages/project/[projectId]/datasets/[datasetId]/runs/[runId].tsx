@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DatasetRunItemsByRunTable } from "@/src/features/datasets/components/DatasetRunItemsByRunTable";
@@ -22,6 +23,10 @@ import {
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
+import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export default function Dataset() {
   const router = useRouter();
@@ -38,6 +43,61 @@ export default function Dataset() {
     projectId,
     runId,
   });
+  const {
+    canUseExperimentsBetaToggle,
+    isExperimentsBetaEnabled,
+    setExperimentsBetaEnabled,
+    isExperimentsBetaActive,
+  } = useExperimentAccess();
+
+  const handleBetaSwitchChange = (enabled: boolean) => {
+    setExperimentsBetaEnabled(enabled);
+
+    if (enabled) {
+      void router.push(singleRunToExperimentsUrl(projectId, runId));
+    }
+  };
+
+  // Auto-redirect when beta is ON (via direct URL or back navigation)
+  useEffect(() => {
+    if (isExperimentsBetaActive && projectId && runId) {
+      void router.push(singleRunToExperimentsUrl(projectId, runId));
+    }
+  }, [isExperimentsBetaActive, projectId, runId, router]);
+
+  const betaSwitch = canUseExperimentsBetaToggle ? (
+    <ExperimentsBetaSwitch
+      enabled={isExperimentsBetaEnabled}
+      onEnabledChange={handleBetaSwitchChange}
+    />
+  ) : null;
+
+  if (isExperimentsBetaActive) {
+    return (
+      <Page
+        headerProps={{
+          title: run.data?.name ?? runId,
+          itemType: "DATASET_RUN",
+          breadcrumb: [
+            { name: "Datasets", href: `/project/${projectId}/datasets` },
+            {
+              name: dataset.data?.name ?? datasetId,
+              href: `/project/${projectId}/datasets/${datasetId}`,
+            },
+            {
+              name: "Experiments",
+              href: `/project/${projectId}/datasets/${datasetId}`,
+            },
+          ],
+          actionButtonsLeft: betaSwitch,
+        }}
+      >
+        <div className="flex h-full items-center justify-center">
+          <Spinner size="xl" variant="muted" />
+        </div>
+      </Page>
+    );
+  }
 
   return (
     <Page
@@ -50,8 +110,12 @@ export default function Dataset() {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
-          { name: "Runs", href: `/project/${projectId}/datasets/${datasetId}` },
+          {
+            name: "Experiments",
+            href: `/project/${projectId}/datasets/${datasetId}`,
+          },
         ],
+        actionButtonsLeft: betaSwitch,
         actionButtonsRight: (
           <>
             <Link

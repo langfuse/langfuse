@@ -41,9 +41,10 @@ import {
   DropzoneContent,
   DropzoneEmptyState,
 } from "@/src/components/ui/shadcn-io/dropzone";
-import { Paperclip, Loader2, Trash2 } from "lucide-react";
+import { Paperclip, Trash2 } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { PLAIN_MAX_FILE_SIZE_BYTES } from "./plain/plainConstants";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 /** Make RHF generics match the resolver (Zod defaults => input can be undefined) */
 type SupportFormInput = z.input<typeof SupportFormSchema>;
@@ -188,7 +189,7 @@ export function SupportFormSection({
   );
 
   const createSupportThread = api.plainRouter.createSupportThread.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       form.reset({
         messageType: "Question",
         severity: "Question or feature request",
@@ -197,7 +198,14 @@ export function SupportFormSection({
       });
       setWarnedShortOnce(false);
       setFiles(undefined);
-      onSuccess();
+      if (data.pylonIssueFailed) {
+        showErrorToast(
+          "Support request was not sent",
+          "Please contact support@langfuse.com",
+        );
+      } else {
+        onSuccess();
+      }
     },
     onSettled: () => setIsSubmittingLocal(false),
   });
@@ -228,6 +236,38 @@ export function SupportFormSection({
         `Attachment upload failed (${res.status} ${res.statusText}) ${text}`,
       );
     }
+  }
+
+  async function uploadFilesToPylon(filesToUpload: File[]): Promise<string[]> {
+    const filePayloads = await Promise.all(
+      filesToUpload.map(async (file) => {
+        const arrayBuffer = await file.arrayBuffer();
+        const base64 = btoa(
+          new Uint8Array(arrayBuffer).reduce(
+            (data, byte) => data + String.fromCharCode(byte),
+            "",
+          ),
+        );
+        return { fileName: file.name, fileBase64: base64 };
+      }),
+    );
+
+    const res = await fetch("/api/support/upload-attachments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ files: filePayloads }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { error?: string }).error ??
+          "Failed to upload attachments to Pylon.",
+      );
+    }
+
+    const body = (await res.json()) as { attachment_urls: string[] };
+    return body.attachment_urls;
   }
 
   const onSubmit = async (values: SupportFormInput) => {
@@ -262,9 +302,10 @@ export function SupportFormSection({
               customerId: undefined as string | undefined,
             };
 
-      // 2) Upload blobs
+      // 2) Upload blobs to Plain S3 and Pylon in parallel
+      let pylonAttachmentUrls: string[] = [];
       if (files && files.length) {
-        await Promise.all(
+        const plainUploadPromise = Promise.all(
           files.map(async (file, idx) => {
             const plan = uploadPlans.uploads[idx];
             if (!plan) throw new Error("Missing upload plan for a file.");
@@ -275,9 +316,20 @@ export function SupportFormSection({
             );
           }),
         );
+
+        const pylonUploadPromise = uploadFilesToPylon(files).catch((err) => {
+          console.warn("Pylon attachment upload failed (best-effort):", err);
+          return [] as string[];
+        });
+
+        const [, pylonUrls] = await Promise.all([
+          plainUploadPromise,
+          pylonUploadPromise,
+        ]);
+        pylonAttachmentUrls = pylonUrls;
       }
 
-      // 3) Create thread with attachmentIds
+      // 3) Create thread with attachmentIds (Plain) and pylonAttachmentUrls (Pylon)
       const attachmentIds =
         uploadPlans.uploads?.map((u: any) => u.attachmentId) ?? [];
 
@@ -292,11 +344,17 @@ export function SupportFormSection({
         projectId: project?.id,
         browserMetadata: {
           userAgent: navigator.userAgent,
-          platform: navigator.platform,
+          platform:
+            (
+              navigator as Navigator & {
+                userAgentData?: { platform?: string };
+              }
+            ).userAgentData?.platform ?? undefined,
           language: navigator.language,
           viewport: { w: window.innerWidth, h: window.innerHeight },
         },
         attachmentIds,
+        pylonAttachmentUrls,
       });
     } catch (err: any) {
       console.error(err);
@@ -507,7 +565,14 @@ export function SupportFormSection({
                   className="mt-1 border-none p-0 text-left"
                   maxFiles={FILE_UPLOAD_CONSTRAINTS.maxFiles}
                   maxSize={FILE_UPLOAD_CONSTRAINTS.maxFileSizeBytes}
-                  onDrop={(accepted) => setFiles(accepted)}
+                  onDrop={(accepted) =>
+                    setFiles((prev) => {
+                      const existing = prev ?? [];
+                      const merged = [...existing, ...accepted];
+                      const maxFiles = FILE_UPLOAD_CONSTRAINTS.maxFiles;
+                      return merged.slice(0, maxFiles);
+                    })
+                  }
                   onError={(error) => {
                     const userMessage = formatFileError(error);
                     showErrorToast("File Upload Error", userMessage, "WARNING");
@@ -587,7 +652,7 @@ export function SupportFormSection({
             >
               {isSubmittingLocal ? (
                 <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size="sm" />
                   Submitting…
                 </span>
               ) : messageIsShortAfterWarning ? (

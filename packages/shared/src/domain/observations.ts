@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { jsonSchema } from "../utils/zod";
 import { MetadataDomain } from "./traces";
 
@@ -116,6 +116,8 @@ export const EventsObservationSchema = ObservationSchema.extend({
   userId: z.string().nullable(),
   sessionId: z.string().nullable(),
   traceName: z.string().nullable(),
+  release: z.string().nullable().optional(),
+  tags: z.array(z.string()).optional(),
   bookmarked: z.boolean().optional(),
   public: z.boolean().optional(),
 });

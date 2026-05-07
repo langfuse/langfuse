@@ -75,7 +75,7 @@ export default function BlobStorageIntegrationSettings() {
   );
 
   const syncStatus =
-    state.isInitialLoading || !hasAccess || !state.data
+    state.isLoading || !hasAccess || !state.data
       ? undefined
       : deriveSyncStatus({
           enabled: state.data.enabled,
@@ -246,6 +246,7 @@ const BlobStorageIntegrationSettingsForm = ({
       secretAccessKey: state?.secretAccessKey || null,
       prefix: state?.prefix || "",
       exportFrequency: (state?.exportFrequency || "daily") as
+        | "every_20_minutes"
         | "daily"
         | "weekly"
         | "hourly",
@@ -259,6 +260,7 @@ const BlobStorageIntegrationSettingsForm = ({
         (isBetaEnabled
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      compressed: state?.compressed ?? true,
     },
     disabled: isLoading,
   });
@@ -274,6 +276,7 @@ const BlobStorageIntegrationSettingsForm = ({
       secretAccessKey: state?.secretAccessKey || null,
       prefix: state?.prefix || "",
       exportFrequency: (state?.exportFrequency || "daily") as
+        | "every_20_minutes"
         | "daily"
         | "weekly"
         | "hourly",
@@ -287,6 +290,7 @@ const BlobStorageIntegrationSettingsForm = ({
         (isBetaEnabled
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      compressed: state?.compressed ?? true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -390,7 +394,7 @@ const BlobStorageIntegrationSettingsForm = ({
               </FormControl>
               <FormDescription>
                 {integrationType === "AZURE_BLOB_STORAGE"
-                  ? "The Azure storage container name"
+                  ? "Azure container name (3-63 chars, lowercase letters, numbers, and hyphens only)"
                   : "The S3 bucket name"}
               </FormDescription>
               <FormMessage />
@@ -569,6 +573,9 @@ const BlobStorageIntegrationSettingsForm = ({
                     <SelectValue placeholder="Select frequency" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="every_20_minutes">
+                      Every 20 Minutes
+                    </SelectItem>
                     <SelectItem value="hourly">Hourly</SelectItem>
                     <SelectItem value="daily">Daily</SelectItem>
                     <SelectItem value="weekly">Weekly</SelectItem>
@@ -739,6 +746,27 @@ const BlobStorageIntegrationSettingsForm = ({
             )}
           />
         )}
+
+        <FormField
+          control={blobStorageForm.control}
+          name="compressed"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Gzip Compression</FormLabel>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  className="mt-1 ml-4"
+                />
+              </FormControl>
+              <FormDescription>
+                Compress exported files with gzip (.csv.gz, .json.gz, .jsonl.gz)
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={blobStorageForm.control}

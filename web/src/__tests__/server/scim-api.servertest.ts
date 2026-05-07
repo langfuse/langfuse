@@ -1,10 +1,8 @@
-/** @jest-environment node */
-
 import {
   makeZodVerifiedAPICall,
   makeAPICall,
 } from "@/src/__tests__/test-utils";
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
@@ -574,6 +572,43 @@ describe("SCIM API", () => {
         });
         expect(orgMemberships.length).toBe(1);
         expect(orgMemberships[0].role).toBe("ADMIN");
+      });
+
+      it("should write an audit log entry when creating a user", async () => {
+        const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
+        const response = await makeAPICall(
+          "POST",
+          "/api/public/scim/Users",
+          {
+            userName: uniqueEmail,
+            name: {
+              formatted: "Audited User",
+            },
+            roles: ["MEMBER"],
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+
+        expect(response.status).toBe(201);
+        testUserId = response.body.id;
+
+        const orgMembership = await prisma.organizationMembership.findFirst({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(orgMembership).not.toBeNull();
+
+        const auditLogs = await prisma.auditLog.findMany({
+          where: {
+            resourceType: "orgMembership",
+            resourceId: orgMembership!.id,
+            action: "create",
+            orgId: orgId,
+          },
+        });
+        expect(auditLogs.length).toBe(1);
+        expect(auditLogs[0].apiKeyId).not.toBeNull();
+        expect(auditLogs[0].userId).toBeNull();
+        expect(auditLogs[0].after).toContain(orgMembership!.id);
       });
 
       it("should return 409 when user with the same userName already exists", async () => {

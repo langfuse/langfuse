@@ -10,8 +10,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { cn } from "@/src/utils/tailwind";
 
-export interface TimePickerInputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface TimePickerInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   picker: TimePickerType;
   date: Date | undefined;
   setDate: (date: Date | undefined) => void;

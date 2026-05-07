@@ -4,3 +4,26 @@ packages:
   - "worker"
   - "packages/**"
   - "ee"
+# 5 day delay for new dep upgrades to reduce supply chain attack risk
+minimumReleaseAge: 7200
+# TODO: remove exclusions below!
+# the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
+# this list is version-specific
+minimumReleaseAgeExclude:
+  - "@ungap/structured-clone@1.3.1"
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  "@sentry/cli": true
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+  "@datadog/native-appsec": false
+  "@datadog/native-iast-taint-tracking": false
+  "@datadog/native-metrics": false
+  core-js: false
+  dd-trace: false
+  msgpackr-extract: false
+  msw: false
+  prisma: false
+  protobufjs: false

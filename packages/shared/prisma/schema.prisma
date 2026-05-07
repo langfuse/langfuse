@@ -13,17 +13,6 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-generator kysely {
-  provider = "prisma-kysely"
-
-  // Optionally provide a destination directory for the generated file
-  // and a filename of your choice
-  // output = "../src/db"
-  // fileName = "types.ts"
-  // Optionally generate runtime enums to a separate file
-  // enumFileName = "enums.ts"
-}
-
 // Necessary for Next auth
 model Account {
   id                       String  @id @default(cuid())
@@ -506,6 +495,7 @@ enum ScoreConfigDataType {
   CATEGORICAL
   NUMERIC
   BOOLEAN
+  TEXT
 }
 
 model AnnotationQueue {
@@ -595,6 +585,7 @@ model Dataset {
   metadata                Json?
   remoteExperimentUrl     String?       @map("remote_experiment_url")
   remoteExperimentPayload Json?         @map("remote_experiment_payload")
+  remoteExperimentEnabled Boolean       @default(true) @map("remote_experiment_enabled")
   inputSchema             Json?         @map("input_schema") @db.Json
   expectedOutputSchema    Json?         @map("expected_output_schema") @db.Json
   project                 Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -925,9 +916,9 @@ model EvalTemplate {
   projectId String?  @map("project_id")
   project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  name    String
-  version Int
-  prompt  String
+  name        String
+  version     Int
+  prompt      String
 
   partner String? // e.g. "ragas", describes the partner that created the template
 
@@ -935,7 +926,7 @@ model EvalTemplate {
   provider         String?
   modelParams      Json?              @map("model_params")
   vars             String[]           @default([])
-  outputSchema     Json               @map("output_schema")
+  outputDefinition Json               @map("output_schema")
   JobConfiguration JobConfiguration[]
   JobExecution     JobExecution[]
 
@@ -1035,9 +1026,8 @@ model JobExecution {
   executionTraceId String? @map("execution_trace_id")
 
   @@index([projectId, jobConfigurationId, jobInputTraceId])
-  @@index([projectId, status])
-  @@index([projectId, id])
   @@index([projectId, jobOutputScoreId])
+  @@index([jobConfigurationId])
   @@map("job_executions")
 }
 
@@ -1125,6 +1115,7 @@ model BlobStorageIntegration {
   exportMode      BlobStorageExportMode            @default(FULL_HISTORY) @map("export_mode")
   exportStartDate DateTime?                        @map("export_start_date")
   exportSource    AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
+  compressed      Boolean                          @default(true) @map("compressed")
 
   // Error tracking
   lastError   String?   @map("last_error")

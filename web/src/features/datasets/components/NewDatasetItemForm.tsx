@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -179,36 +179,40 @@ export const NewDatasetItemForm = (props: {
     const dataset = selectedDatasets[0];
     if (!dataset) return;
 
+    let cancelled = false;
+
     // Generate input placeholder if schema exists and field is empty
-    if (dataset.inputSchema && !inputValue) {
-      const placeholder = generateSchemaExample(dataset.inputSchema);
-      if (placeholder) {
-        form.setValue("input", placeholder, {
-          shouldValidate: false,
-          shouldDirty: false,
-          shouldTouch: false,
-        });
-      }
+    if (dataset.inputSchema && !form.getValues("input")) {
+      void generateSchemaExample(dataset.inputSchema).then((placeholder) => {
+        if (!cancelled && placeholder && !form.getValues("input")) {
+          form.setValue("input", placeholder, {
+            shouldValidate: false,
+            shouldDirty: false,
+            shouldTouch: false,
+          });
+        }
+      });
     }
 
     // Generate expectedOutput placeholder if schema exists and field is empty
-    if (dataset.expectedOutputSchema && !expectedOutputValue) {
-      const placeholder = generateSchemaExample(dataset.expectedOutputSchema);
-      if (placeholder) {
-        form.setValue("expectedOutput", placeholder, {
-          shouldValidate: false,
-          shouldDirty: false,
-          shouldTouch: false,
-        });
-      }
+    if (dataset.expectedOutputSchema && !form.getValues("expectedOutput")) {
+      void generateSchemaExample(dataset.expectedOutputSchema).then(
+        (placeholder) => {
+          if (!cancelled && placeholder && !form.getValues("expectedOutput")) {
+            form.setValue("expectedOutput", placeholder, {
+              shouldValidate: false,
+              shouldDirty: false,
+              shouldTouch: false,
+            });
+          }
+        },
+      );
     }
-  }, [
-    selectedDatasets,
-    hasInitialValues,
-    inputValue,
-    expectedOutputValue,
-    form,
-  ]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDatasets, hasInitialValues, form]);
 
   const utils = api.useUtils();
   const createManyDatasetItemsMutation =

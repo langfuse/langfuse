@@ -13,7 +13,7 @@ import {
   stringDateTime,
 } from "@langfuse/shared";
 import { DatasetJSONSchema } from "@langfuse/shared/src/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Objects
@@ -112,7 +112,11 @@ export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
 export const transformDbDatasetToAPIDataset = (
   dataset: DbDataset,
 ): z.infer<typeof APIDataset> =>
-  removeObjectKeys(dataset, ["remoteExperimentUrl", "remoteExperimentPayload"]);
+  removeObjectKeys(dataset, [
+    "remoteExperimentUrl",
+    "remoteExperimentPayload",
+    "remoteExperimentEnabled",
+  ]);
 
 /**
  * Endpoints

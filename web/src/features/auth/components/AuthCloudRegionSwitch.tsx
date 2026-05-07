@@ -17,64 +17,7 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-
-const regions =
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
-    ? [
-        {
-          name: "STAGING",
-          hostname: "staging.langfuse.com",
-          flag: "🇪🇺",
-        },
-      ]
-    : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV"
-      ? [
-          {
-            name: "DEV",
-            hostname: null,
-            flag: "🚧",
-          },
-        ]
-      : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "JP"
-        ? [
-            {
-              name: "JP",
-              hostname: "jp.cloud.langfuse.com",
-              flag: "️🇯🇵",
-            },
-            {
-              name: "US",
-              hostname: "us.cloud.langfuse.com",
-              flag: "🇺🇸",
-            },
-            {
-              name: "EU",
-              hostname: "cloud.langfuse.com",
-              flag: "🇪🇺",
-            },
-            {
-              name: "HIPAA",
-              hostname: "hipaa.cloud.langfuse.com",
-              flag: "⚕️",
-            },
-          ]
-        : [
-            {
-              name: "US",
-              hostname: "us.cloud.langfuse.com",
-              flag: "🇺🇸",
-            },
-            {
-              name: "EU",
-              hostname: "cloud.langfuse.com",
-              flag: "🇪🇺",
-            },
-            {
-              name: "HIPAA",
-              hostname: "hipaa.cloud.langfuse.com",
-              flag: "⚕️",
-            },
-          ];
+import { getAvailableCloudRegionOptions } from "@/src/features/organizations/cloudRegions";
 
 export function CloudRegionSwitch({
   isSignUpPage,
@@ -83,6 +26,9 @@ export function CloudRegionSwitch({
 }) {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud, region: cloudRegion } = useLangfuseCloudRegion();
+  const regions = getAvailableCloudRegionOptions(
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? cloudRegion,
+  );
 
   if (!isLangfuseCloud) return null;
 
@@ -173,10 +119,11 @@ const DataRegionInfo = () => (
       </DialogHeader>
       <DialogBody>
         <DialogDescription className="flex flex-col gap-2">
-          <p>Langfuse Cloud is available in three data regions:</p>
+          <p>Langfuse Cloud is available in four data regions:</p>
           <ul className="list-disc pl-5">
             <li>US: Oregon (AWS us-west-2)</li>
             <li>EU: Ireland (AWS eu-west-1)</li>
+            <li>JP: Tokyo (AWS ap-northeast-1)</li>
             <li>
               HIPAA: Oregon (AWS us-west-2) - HIPAA-compliant region (available
               with Pro and Teams plans)

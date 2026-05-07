@@ -31,8 +31,12 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
   disabled,
   projectId,
 }) => {
+  const initialChannelId = form.getValues("slack.channelId") as string;
+  const initialChannelName = form.getValues("slack.channelName") as string;
   const [selectedChannel, setSelectedChannel] = useState<SlackChannel | null>(
-    null,
+    initialChannelId && initialChannelName
+      ? { id: initialChannelId, name: initialChannelName }
+      : null,
   );
 
   // Get Slack integration status
@@ -88,6 +92,7 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
                     <ChannelSelector
                       projectId={projectId}
                       selectedChannelId={field.value}
+                      selectedChannel={selectedChannel}
                       onChannelSelect={handleChannelSelect}
                       disabled={disabled}
                       placeholder="Select a channel"
@@ -96,7 +101,12 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
                   </div>
                 </FormControl>
                 <FormDescription>
-                  Select the Slack channel where notifications will be sent.
+                  Select the Slack channel where notifications will be sent. For
+                  private channels, invite the app first with{" "}
+                  <code className="bg-muted rounded px-1 py-0.5">
+                    /invite @Langfuse
+                  </code>{" "}
+                  in that channel.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -120,6 +130,23 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
                 disabled={disabled}
                 size="sm"
                 buttonText="Test Channel"
+                onSuccess={(channelInfo) => {
+                  form.setValue("slack.channelId", channelInfo.id);
+                  form.setValue(
+                    "slack.channelName",
+                    channelInfo.name ?? selectedChannel?.name ?? "",
+                  );
+                  setSelectedChannel((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          id: channelInfo.id,
+                          name: channelInfo.name ?? prev.name,
+                          isPrivate: channelInfo.isPrivate ?? prev.isPrivate,
+                        }
+                      : prev,
+                  );
+                }}
               />
               <p className="text-muted-foreground text-sm">
                 Test this channel to verify the bot can send messages.

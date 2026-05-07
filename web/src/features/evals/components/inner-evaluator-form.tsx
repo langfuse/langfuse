@@ -1,5 +1,5 @@
 import { type UseFormReturn, useForm } from "react-hook-form";
-import { AlertDescription } from "@/src/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -24,8 +24,10 @@ import {
   type ColumnDefinition,
   type availableDatasetEvalVariables,
   JobConfigState,
+  validateEvaluatorFiltersForTarget,
+  evalTraceTableCols,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { useEffect, useMemo, useState, memo } from "react";
 import { api } from "@/src/utils/api";
 import {
@@ -38,6 +40,7 @@ import {
   observationVariableMapping,
 } from "@langfuse/shared";
 import { useRouter } from "next/router";
+import { toast } from "sonner";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -52,7 +55,7 @@ import {
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { validateAndTransformVariableMapping } from "@/src/features/evals/utils/variable-mapping-validation";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
-import { EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject, EvalTargetObjectSchema } from "@langfuse/shared";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
 import { Suspense, lazy } from "react";
 import {
@@ -204,9 +207,13 @@ const ObservationsPreview = memo(
   ({
     projectId,
     filterState,
+    isNewCompatible,
+    compatibilityCheckWasPerformed,
   }: {
     projectId: string;
     filterState: z.infer<typeof singleFilter>[];
+    isNewCompatible: boolean;
+    compatibilityCheckWasPerformed: boolean;
   }) => {
     const { isBetaEnabled } = useV4Beta();
 
@@ -219,6 +226,10 @@ const ObservationsPreview = memo(
       } as TableDateRange;
     }, []);
 
+    // Show upgrade message only when SDK check was performed and user is not on OTEL SDK
+    const showSdkUpgradeMessage =
+      compatibilityCheckWasPerformed && !isNewCompatible;
+
     return (
       <>
         <div className="flex flex-col items-start gap-1">
@@ -228,7 +239,32 @@ const ObservationsPreview = memo(
         </div>
         <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-            {isBetaEnabled ? (
+            {showSdkUpgradeMessage ? (
+              <div className="flex h-[30dvh] flex-col items-center justify-center gap-2 border-t p-4 text-center">
+                <AlertTriangle className="text-dark-yellow h-8 w-8" />
+                <div className="flex flex-col gap-1">
+                  <span className="text-foreground font-medium">
+                    Please verify your SDK version
+                  </span>
+                  <span className="text-muted-foreground max-w-md text-sm">
+                    We did not find any data ingested with langfuse
+                    OTEL-compatible SDKs in the last 7 days. Observation-level
+                    evaluators require JS SDK v4+ or Python SDK v3+. You can
+                    still configure this evaluator now—it will start running
+                    once you upgrade.{" "}
+                    <a
+                      href="https://langfuse.com/docs/observability/sdk/upgrade-path"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-dark-blue font-medium hover:opacity-80"
+                    >
+                      Learn more
+                    </a>
+                    .
+                  </span>
+                </div>
+              </div>
+            ) : isBetaEnabled ? (
               <EventsTable
                 projectId={projectId}
                 hideControls
@@ -271,6 +307,7 @@ export const InnerEvaluatorForm = (props: {
   hidePreviewTable?: boolean;
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
+  defaultTarget?: EvalTargetObject;
   renderFooter?: (params: {
     isLoading: boolean;
     formError: string | null;
@@ -302,21 +339,43 @@ export const InnerEvaluatorForm = (props: {
 
   const targetState = useEvaluatorTargetState();
 
+  // Check if existing trace evaluator has invalid filters (e.g., score filters added by bug ff4b03c0b)
+  const hasInvalidTraceFilters = useMemo(() => {
+    if (
+      !props.existingEvaluator?.filter ||
+      props.existingEvaluator.targetObject !== EvalTargetObject.TRACE
+    ) {
+      return false;
+    }
+    const validation = validateEvaluatorFiltersForTarget({
+      targetObject: EvalTargetObject.TRACE,
+      filter: props.existingEvaluator.filter,
+    });
+    return !validation.isValid;
+  }, [props.existingEvaluator?.filter, props.existingEvaluator?.targetObject]);
+
+  const defaultTargetResult = EvalTargetObjectSchema.safeParse(
+    props.existingEvaluator?.targetObject ??
+      props.defaultTarget ??
+      EvalTargetObject.EVENT,
+  );
+  const defaultTarget = defaultTargetResult.success
+    ? defaultTargetResult.data
+    : EvalTargetObject.EVENT;
+
   const form = useForm({
     resolver: zodResolver(evalConfigFormSchema),
     disabled: props.disabled,
     defaultValues: {
       scoreName:
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
-      target: props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT,
+      target: defaultTarget,
       filter: props.existingEvaluator?.filter
         ? z.array(singleFilter).parse(props.existingEvaluator.filter)
-        : (props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT) ===
-            EvalTargetObject.TRACE
+        : defaultTarget === EvalTargetObject.TRACE
           ? // For new trace evaluators, exclude internal environments by default
             DEFAULT_TRACE_FILTER
-          : (props.existingEvaluator?.targetObject ??
-                EvalTargetObject.EVENT) === EvalTargetObject.EVENT
+          : defaultTarget === EvalTargetObject.EVENT
             ? // For new observation evaluators, default to GENERATION type
               DEFAULT_OBSERVATION_FILTER
             : [],
@@ -367,8 +426,8 @@ export const InnerEvaluatorForm = (props: {
 
     const mapping = form.getValues("mapping");
 
-    if (mapping.length === 0) {
-      // Initialize mapping for new evaluators
+    if (mapping.length === 0 && props.evalTemplate.vars.length > 0) {
+      // Initialize mapping for new evaluators (only if there are vars to map)
       const target = form.getValues("target");
       form.setValue(
         "mapping",
@@ -417,11 +476,17 @@ export const InnerEvaluatorForm = (props: {
   const utils = api.useUtils();
   const createJobMutation = api.evals.createJob.useMutation({
     onSuccess: () => utils.models.invalidate(),
-    onError: (error) => setFormError(error.message),
+    onError: (error) => {
+      setFormError(error.message);
+      toast.error(error.message);
+    },
   });
   const updateJobMutation = api.evals.updateEvalJob.useMutation({
     onSuccess: () => utils.evals.invalidate(),
-    onError: (error) => setFormError(error.message),
+    onError: (error) => {
+      setFormError(error.message);
+      toast.error(error.message);
+    },
   });
   const [availableVariables, setAvailableVariables] = useState<
     typeof availableTraceEvalVariables | typeof availableDatasetEvalVariables
@@ -651,6 +716,17 @@ export const InnerEvaluatorForm = (props: {
       />
       {!props.hideTargetSection && (
         <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
+          {hasInvalidTraceFilters && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Unsupported filter detected</AlertTitle>
+              <AlertDescription>
+                This evaluator has a filter that is not supported for
+                trace-level evaluators. It is effectively paused. Please remove
+                all filters and re-add them from scratch to resume execution.
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="flex flex-col gap-4">
             {!props.hideTargetSelection && (
               <FormField
@@ -970,7 +1046,10 @@ export const InnerEvaluatorForm = (props: {
                           allowPropagationFilters,
                         );
                       } else if (isTraceTarget(target)) {
-                        return tracesTableColsWithOptions(traceFilterOptions);
+                        return tracesTableColsWithOptions(
+                          traceFilterOptions,
+                          evalTraceTableCols,
+                        );
                       } else if (isExperimentTarget(target)) {
                         // Experiment evaluators - only dataset filter
                         return experimentEvalFilterColsWithOptions(
@@ -1026,9 +1105,11 @@ export const InnerEvaluatorForm = (props: {
                                 }}
                                 disabled={props.disabled}
                                 columnsWithCustomSelect={
-                                  isEventTarget(target) || isTraceTarget(target)
-                                    ? ["tags", "name"]
-                                    : undefined
+                                  isTraceTarget(target)
+                                    ? ["traceTags", "traceName"]
+                                    : isEventTarget(target)
+                                      ? ["tags", "name", "calledToolNames"]
+                                      : undefined
                                 }
                               />
                             )}
@@ -1063,6 +1144,10 @@ export const InnerEvaluatorForm = (props: {
                       <ObservationsPreview
                         projectId={props.projectId}
                         filterState={form.watch("filter") ?? []}
+                        isNewCompatible={props.evalCapabilities.isNewCompatible}
+                        compatibilityCheckWasPerformed={
+                          props.evalCapabilities.compatibilityCheckWasPerformed
+                        }
                       />
                     )}
                   </>
@@ -1132,6 +1217,10 @@ export const InnerEvaluatorForm = (props: {
         shouldWrapVariables={props.shouldWrapVariables}
         hideAdvancedSettings={props.hideAdvancedSettings}
         oldConfigId={props.oldConfigId}
+        isNewCompatible={props.evalCapabilities.isNewCompatible}
+        compatibilityCheckWasPerformed={
+          props.evalCapabilities.compatibilityCheckWasPerformed
+        }
       />
     </div>
   );

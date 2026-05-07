@@ -70,6 +70,7 @@ export function TraceDetailView({
 }: TraceDetailViewProps) {
   // Tab and view state from URL (via SelectionContext)
   const { selectedTab, setSelectedTab } = useSelection();
+  const utils = api.useUtils();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
   const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false);
 
@@ -93,6 +94,7 @@ export function TraceDetailView({
     setJsonViewPreference,
     jsonBetaEnabled,
     setJsonBetaEnabled,
+    isPeekMode,
   } = useViewPreferences();
 
   // Map jsonViewPreference to currentView format expected by child components
@@ -181,8 +183,22 @@ export function TraceDetailView({
     useIsAuthenticatedAndProjectMember(projectId);
   const showScoresTab = isAuthenticatedAndProjectMember;
 
+  const refreshTraceScores = useCallback(() => {
+    void utils.traces.byIdWithObservationsAndScores.invalidate({
+      projectId,
+      traceId: trace.id,
+    });
+    void utils.events.scoresForTrace.invalidate({
+      projectId,
+      traceId: trace.id,
+    });
+  }, [projectId, trace.id, utils]);
+
   // Handle tab change
   const handleTabChange = (value: string) => {
+    if (value === "scores") {
+      refreshTraceScores();
+    }
     setSelectedTab(value as "preview" | "log" | "scores");
   };
 
@@ -417,11 +433,16 @@ export function TraceDetailView({
             <div className="flex h-full min-h-0 w-full flex-col overflow-hidden pr-3">
               <ScoresTable
                 projectId={projectId}
-                omittedFilter={["Trace ID"]}
                 traceId={trace.id}
-                hiddenColumns={["traceName", "jobConfigurationId", "userId"]}
+                hiddenColumns={[
+                  "traceId",
+                  "traceName",
+                  "traceTags",
+                  "jobConfigurationId",
+                  "userId",
+                ]}
                 localStorageSuffix="TracePreview"
-                disableUrlPersistence
+                disableUrlPersistence={isPeekMode}
               />
             </div>
           </TabsBarContent>

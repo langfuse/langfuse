@@ -22,8 +22,12 @@ interface SlackTestMessageButtonProps {
   size?: ButtonProps["size"];
   /** Custom button text */
   buttonText?: string;
-  /** Callback when test message is sent successfully */
-  onSuccess?: () => void;
+  /** Callback when test message is sent successfully, receives the resolved channel info */
+  onSuccess?: (channelInfo: {
+    id: string;
+    name?: string;
+    isPrivate?: boolean;
+  }) => void;
   /** Callback when test message fails */
   onError?: (error: Error) => void;
   /** Whether to show the button text */
@@ -52,12 +56,12 @@ export const SlackTestMessageButton: React.FC<SlackTestMessageButtonProps> = ({
 }) => {
   // Test message mutation
   const testMessageMutation = api.slack.sendTestMessage.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       showSuccessToast({
         title: "Test Message Sent",
         description: "Test message sent successfully to the selected channel.",
       });
-      onSuccess?.();
+      onSuccess?.(data.channelInfo);
     },
     onError: (error) => {
       showErrorToast("Failed to Send Test Message", error.message);
@@ -73,7 +77,7 @@ export const SlackTestMessageButton: React.FC<SlackTestMessageButtonProps> = ({
       await testMessageMutation.mutateAsync({
         projectId,
         channelId: selectedChannel.id,
-        channelName: selectedChannel.name,
+        channelName: selectedChannel.name ?? undefined,
       });
     } catch {
       // Error handling is done in the mutation

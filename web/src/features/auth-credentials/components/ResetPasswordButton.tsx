@@ -2,7 +2,7 @@ import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { useEffect, useState } from "react";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { env } from "@/src/env.mjs";
 
@@ -24,7 +24,7 @@ export function RequestResetPasswordEmailButton({
   const capture = usePostHogClientCapture();
 
   useEffect(() => {
-    const isValidEmail = z.string().email().safeParse(email).success;
+    const isValidEmail = z.email().safeParse(email).success;
     setIsValidEmail(isValidEmail);
   }, [email]);
 

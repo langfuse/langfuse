@@ -1,5 +1,5 @@
 import { type Redis, type Cluster } from "ioredis";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { env } from "@/src/env.mjs";
 import {
@@ -17,6 +17,14 @@ import {
 } from "@langfuse/shared/src/server";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { type NextApiResponse } from "next";
+import {
+  createUnstablePublicApiRateLimitError,
+  sendUnstablePublicApiErrorResponse,
+  unstablePublicEvalsErrorContract,
+  type PublicApiErrorContract,
+} from "@/src/features/public-api/server/unstable-public-api-error-contract";
+
+export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
 
 // Business Logic
 // - rate limit strategy is based on org-id, org plan, and resources. Rate limits are applied in buckets of minutes.
@@ -151,7 +159,7 @@ export class RateLimitService {
   }
 
   rateLimitPrefix(resource: string) {
-    return `rate-limit:${resource}`;
+    return `${RATE_LIMIT_REDIS_KEY_PREFIX}:${resource}`;
   }
 }
 
@@ -166,25 +174,36 @@ export class RateLimitHelper {
     return this.res ? this.res.remainingPoints < 1 : false;
   }
 
-  sendRestResponseIfLimited(nextResponse: NextApiResponse) {
+  sendRestResponseIfLimited(
+    nextResponse: NextApiResponse,
+    errorContract?: PublicApiErrorContract,
+  ) {
     if (!this.res || !this.isRateLimited()) {
       logger.error("Trying to send rate limit response without being limited.");
       throw new Error(
         "Trying to send rate limit response without being limited.",
       );
     }
-    return sendRateLimitResponse(nextResponse, this.res);
+    return sendRateLimitResponse(nextResponse, this.res, errorContract);
   }
 }
 
 export const sendRateLimitResponse = (
   res: NextApiResponse,
   rateLimitRes: RateLimitResult,
+  errorContract?: PublicApiErrorContract,
 ) => {
   const httpHeader = createHttpHeaderFromRateLimit(rateLimitRes);
 
   for (const [header, value] of Object.entries(httpHeader)) {
     res.setHeader(header, value);
+  }
+
+  if (errorContract === unstablePublicEvalsErrorContract) {
+    return sendUnstablePublicApiErrorResponse(
+      res,
+      createUnstablePublicApiRateLimitError(rateLimitRes),
+    );
   }
 
   res.status(429).end("429 - rate limit exceeded");
@@ -274,6 +293,12 @@ const getPlanBasedRateLimitConfig = (
             points: 50,
             durationInSec: 86400, // 50 requests per day
           };
+        case "score-delete":
+          return {
+            resource: "score-delete",
+            points: 50,
+            durationInSec: 86400, // 50 requests per day
+          };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -336,6 +361,12 @@ const getPlanBasedRateLimitConfig = (
             points: 200,
             durationInSec: 86400, // 200 requests per day
           };
+        case "score-delete":
+          return {
+            resource: "score-delete",
+            points: 200,
+            durationInSec: 86400, // 200 requests per day
+          };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -389,6 +420,12 @@ const getPlanBasedRateLimitConfig = (
         case "trace-delete":
           return {
             resource: "trace-delete",
+            points: 1000,
+            durationInSec: 86400, // 1000 requests per day
+          };
+        case "score-delete":
+          return {
+            resource: "score-delete",
             points: 1000,
             durationInSec: 86400, // 1000 requests per day
           };

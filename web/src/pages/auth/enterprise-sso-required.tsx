@@ -4,7 +4,7 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import { signIn } from "next-auth/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { Button } from "@/src/components/ui/button";
@@ -21,7 +21,7 @@ import { env } from "@/src/env.mjs";
 import { captureException } from "@sentry/nextjs";
 
 const enterpriseSsoFormSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
 });
 
 const PROVIDER_LABELS: Record<string, string> = {

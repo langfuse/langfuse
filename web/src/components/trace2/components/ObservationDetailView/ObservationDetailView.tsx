@@ -63,6 +63,7 @@ import {
   aggregateTraceMetrics,
   getDescendantIds,
 } from "@/src/components/trace2/lib/trace-aggregation";
+import TagList from "@/src/features/tag/components/TagList";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -80,11 +81,12 @@ export function ObservationDetailView({
     selectedTab: globalSelectedTab,
     setSelectedTab: setGlobalSelectedTab,
   } = useSelection();
+  const utils = api.useUtils();
 
   // V4 beta mode and observations for log tab
-  const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
+  const { isBetaEnabled: isV4Enabled } = useV4Beta();
   const { observations, roots, nodeMap } = useTraceData();
-  const showLogViewTab = isV4BetaEnabled && observations.length > 0;
+  const showLogViewTab = isV4Enabled && observations.length > 0;
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
 
@@ -119,7 +121,21 @@ export function ObservationDetailView({
     return "preview" as const;
   }, [globalSelectedTab, showLogViewTab]);
 
+  const refreshTraceScores = useCallback(() => {
+    void utils.traces.byIdWithObservationsAndScores.invalidate({
+      projectId,
+      traceId,
+    });
+    void utils.events.scoresForTrace.invalidate({
+      projectId,
+      traceId,
+    });
+  }, [projectId, traceId, utils]);
+
   const setSelectedTab = (tab: "preview" | "log" | "scores") => {
+    if (tab === "scores") {
+      refreshTraceScores();
+    }
     setGlobalSelectedTab(tab);
   };
 
@@ -129,6 +145,7 @@ export function ObservationDetailView({
     setJsonViewPreference,
     jsonBetaEnabled,
     setJsonBetaEnabled,
+    isPeekMode,
   } = useViewPreferences();
 
   // Map jsonViewPreference to currentView format expected by child components
@@ -396,6 +413,25 @@ export function ObservationDetailView({
                 : "overflow-auto pb-4"
             }`}
           >
+            {isRoot &&
+              observation.traceTags &&
+              observation.traceTags.length > 0 && (
+                <>
+                  <div
+                    className={`px-2 pt-2 text-sm font-medium ${currentView !== "pretty" ? "shrink-0" : ""}`}
+                  >
+                    Tags
+                  </div>
+                  <div
+                    className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView !== "pretty" ? "shrink-0" : ""}`}
+                  >
+                    <TagList
+                      selectedTags={observation.traceTags}
+                      isLoading={false}
+                    />
+                  </div>
+                </>
+              )}
             <IOPreview
               key={observation.id}
               observationName={observation.name ?? undefined}
@@ -476,11 +512,12 @@ export function ObservationDetailView({
                 "traceId",
                 "observationId",
                 "traceName",
+                "traceTags",
                 "jobConfigurationId",
                 "userId",
               ]}
               localStorageSuffix="ObservationPreview"
-              disableUrlPersistence
+              disableUrlPersistence={isPeekMode}
             />
           </div>
         </TabsBarContent>

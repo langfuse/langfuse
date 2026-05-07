@@ -39,8 +39,7 @@ import {
   TableViewPresetTableName,
 } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { TablePeekView } from "@/src/components/table/peek";
-import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { LazyTraceRow } from "@/src/components/session/TraceRow";
@@ -50,6 +49,7 @@ import { Switch } from "@/src/components/ui/switch";
 import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { normalizeLegacySessionPositionInTraceFilters } from "@/src/components/session/session-position-in-trace";
 import {
   decodeAndNormalizeFilters,
   useSidebarFilterState,
@@ -61,55 +61,21 @@ import {
 import { StringParam, useQueryParam } from "use-query-params";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import {
-  TableViewPresetsDrawer,
-  type SystemFilterPreset,
-  SYSTEM_PRESET_ID_PREFIX,
-} from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { Separator } from "@/src/components/ui/separator";
 import {
   type VisibilityState,
   type ColumnOrderState,
 } from "@tanstack/react-table";
+import {
+  SESSION_DETAIL_SYSTEM_PRESETS,
+  type SessionDetailSystemPreset,
+  getSessionDetailPresetToApply,
+} from "@/src/components/session/session-detail-presets";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
 const INITIAL_USERS_DISPLAY_COUNT = 10;
 const USERS_PER_PAGE_IN_POPOVER = 50;
-
-const SESSION_DETAIL_SYSTEM_PRESETS: SystemFilterPreset[] = [
-  {
-    id: `${SYSTEM_PRESET_ID_PREFIX}last_generation__`,
-    name: "Last Generation in Trace",
-    description: "Shows only the last generation in each trace",
-    filters: [
-      {
-        column: "type",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["GENERATION"],
-      },
-      {
-        column: "positionInTrace",
-        type: "positionInTrace",
-        operator: "=",
-        key: "last",
-      },
-    ] satisfies FilterState,
-  },
-  {
-    id: `${SYSTEM_PRESET_ID_PREFIX}root_observation__`,
-    name: "Root Observation",
-    description: "Shows only the root observation of each trace",
-    filters: [
-      {
-        column: "positionInTrace",
-        type: "positionInTrace",
-        operator: "=",
-        key: "root",
-      },
-    ] satisfies FilterState,
-  },
-];
 
 const areDetailPageListsEqual = (
   left: ListEntry[] | undefined,
@@ -536,16 +502,13 @@ export const SessionPage: React.FC<{
           </div>
         </div>
       </div>
-      <TablePeekView
-        peekView={{
-          itemType: "TRACE",
-          detailNavigationKey: "traces",
-          openPeek,
-          closePeek,
-          expandPeek,
-          resolveDetailNavigationPath,
-          children: <PeekViewTraceDetail projectId={projectId} />,
-        }}
+      <TablePeekViewTraceDetail
+        itemType="TRACE"
+        detailNavigationKey="traces"
+        closePeek={closePeek}
+        expandPeek={expandPeek}
+        resolveDetailNavigationPath={resolveDetailNavigationPath}
+        projectId={projectId}
       />
     </Page>
   );
@@ -561,7 +524,6 @@ export const SessionEventsPage: React.FC<{
   const parentRef = useRef<HTMLDivElement>(null);
   const defaultPresetAppliedRef = useRef(false);
 
-  // TODO: introduce saved default views
   // Reset default preset flag when session changes (e.g., navigating between sessions)
   useEffect(() => {
     defaultPresetAppliedRef.current = false;
@@ -653,6 +615,29 @@ export const SessionEventsPage: React.FC<{
     tableName: sessionEventsTableName,
     contextId: projectId,
   });
+  const positionInTraceColumn: ColumnDefinition = React.useMemo(
+    () => ({
+      name: "Position in Trace",
+      id: "positionInTrace",
+      type: "positionInTrace",
+      internal: "positionInTrace",
+    }),
+    [],
+  );
+  const sessionEventsFilterConfig = React.useMemo(() => {
+    return {
+      ...observationEventsFilterConfig,
+      tableName: sessionEventsTableName,
+      columnDefinitions: [
+        ...observationEventsFilterConfig.columnDefinitions,
+        positionInTraceColumn,
+      ],
+      facets: observationEventsFilterConfig.facets.filter(
+        (facet) =>
+          facet.column !== "sessionId" && facet.column !== "environment",
+      ),
+    };
+  }, [positionInTraceColumn, sessionEventsTableName]);
   const [urlFiltersQuery] = useQueryParam("filter", StringParam);
   const filtersQuery = React.useMemo(
     () =>
@@ -668,38 +653,19 @@ export const SessionEventsPage: React.FC<{
   const timeFiltersForOptions = React.useMemo(() => {
     const allFilters = decodeAndNormalizeFilters(
       filtersQuery,
-      observationEventsFilterConfig.columnDefinitions,
+      sessionEventsFilterConfig.columnDefinitions,
     );
     return allFilters.filter(
       (f) =>
         (f.column === "Start Time" || f.column === "startTime") &&
         f.type === "datetime",
     );
-  }, [filtersQuery]);
+  }, [filtersQuery, sessionEventsFilterConfig.columnDefinitions]);
 
   const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
     projectId,
     oldFilterState: timeFiltersForOptions,
   });
-
-  const sessionEventsFilterConfig = React.useMemo(() => {
-    return {
-      ...observationEventsFilterConfig,
-      tableName: sessionEventsTableName,
-      columnDefinitions: observationEventsFilterConfig.columnDefinitions,
-      facets: observationEventsFilterConfig.facets
-        .filter(
-          (facet) =>
-            facet.column !== "sessionId" && facet.column !== "environment",
-        )
-        .map((facet) => ({
-          ...facet,
-          // Session detail uses a different query path and should not inherit
-          // events-table mutual exclusion behavior.
-          mutuallyExclusiveWith: undefined,
-        })),
-    };
-  }, [sessionEventsTableName]);
 
   const filterColumns = React.useMemo<ColumnDefinition[]>(() => {
     const scoreCategoryOptions = filterOptions.score_categories
@@ -774,6 +740,7 @@ export const SessionEventsPage: React.FC<{
     filterOptions,
     {
       loading: isFilterOptionsPending,
+      stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
     },
   );
@@ -800,7 +767,10 @@ export const SessionEventsPage: React.FC<{
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilter.setFilterState(filters),
+    (filters: FilterState) =>
+      queryFilter.setFilterState(
+        normalizeLegacySessionPositionInTraceFilters(filters),
+      ),
     [queryFilter],
   );
 
@@ -811,16 +781,21 @@ export const SessionEventsPage: React.FC<{
       setColumnOrder,
       setColumnVisibility,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
     },
     validationContext: {
       columns: [],
       filterColumnDefinition: sessionEventsFilterConfig.columnDefinitions,
+      expandableFilterColumns: sessionEventsFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
   });
 
   const applySystemPreset = useCallback(
-    (preset: SystemFilterPreset) => {
+    (preset: SessionDetailSystemPreset) => {
       viewControllers.handleSetViewId(preset.id);
       queryFilter.setFilterState(preset.filters);
     },
@@ -831,21 +806,15 @@ export const SessionEventsPage: React.FC<{
     if (defaultPresetAppliedRef.current) return;
     if (isViewLoading) return; // Wait for view manager to initialize
 
-    // Check if selectedViewId is a system preset
-    const systemPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
-      (p) => p.id === viewControllers.selectedViewId,
-    );
-
-    // If it's a non-system saved view, let the view manager handle it
-    if (viewControllers.selectedViewId && !systemPreset) return;
-
-    // If filters already match a system preset, we're done
-    if (queryFilter.filterState.length > 0) return;
+    const presetToApply = getSessionDetailPresetToApply({
+      selectedViewId: viewControllers.selectedViewId,
+      hasFilters: queryFilter.filterState.length > 0,
+    });
+    if (!presetToApply) return;
 
     defaultPresetAppliedRef.current = true;
-
-    // Apply the stored system preset or default to first one
-    const presetToApply = systemPreset ?? SESSION_DETAIL_SYSTEM_PRESETS[0];
+    // Sessions intentionally default to the first generation in each trace
+    // when opened without explicit filters or a saved view.
     applySystemPreset(presetToApply);
   }, [
     applySystemPreset,
@@ -1061,16 +1030,13 @@ export const SessionEventsPage: React.FC<{
           </div>
         </div>
       </div>
-      <TablePeekView
-        peekView={{
-          itemType: "TRACE",
-          detailNavigationKey: "traces",
-          openPeek,
-          closePeek,
-          expandPeek,
-          resolveDetailNavigationPath,
-          children: <PeekViewTraceDetail projectId={projectId} />,
-        }}
+      <TablePeekViewTraceDetail
+        itemType="TRACE"
+        detailNavigationKey="traces"
+        closePeek={closePeek}
+        expandPeek={expandPeek}
+        resolveDetailNavigationPath={resolveDetailNavigationPath}
+        projectId={projectId}
       />
     </Page>
   );

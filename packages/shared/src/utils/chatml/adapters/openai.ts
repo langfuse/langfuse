@@ -5,7 +5,7 @@ import {
   parseMetadata,
   isRichToolResult,
 } from "../helpers";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Detection schemas for OpenAI formats

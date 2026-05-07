@@ -1,7 +1,7 @@
 import { createTransport } from "nodemailer";
 import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { sanitizeEmailSubject } from "../../../../utils/zod";
 import { logger } from "../../../logger";
 import { BlobStorageExportFailedEmailTemplate } from "./BlobStorageExportFailedEmailTemplate";
@@ -61,7 +61,7 @@ export const sendBlobStorageExportFailedEmail = async ({
     };
 
     if (env.CLOUD_CRM_EMAIL) {
-      const emailSchema = z.string().email();
+      const emailSchema = z.email();
       const validationResult = emailSchema.safeParse(env.CLOUD_CRM_EMAIL);
 
       if (validationResult.success) {

@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import {
   GetCommentsV1Response,
@@ -7,7 +5,7 @@ import {
   PostCommentsV1Response,
 } from "@/src/features/public-api/types/comments";
 import { prisma } from "@langfuse/shared/src/db";
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   createObservationsCh,
   createTracesCh,
@@ -152,7 +150,9 @@ describe("GET /api/public/comments API Endpoint", () => {
 
     await createObservationsCh([observation]);
 
-    await prisma.comment.deleteMany();
+    await prisma.comment.deleteMany({
+      where: { projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
+    });
     await prisma.comment.createMany({
       data: [
         {

@@ -28,7 +28,7 @@ import {
   isOpenAITextContentPart,
   isOpenAIImageContentPart,
 } from "@langfuse/shared";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media/validation";
@@ -47,6 +47,11 @@ import {
   PromptReferenceButton,
   usePromptReferenceProjectId,
 } from "@/src/components/ui/PromptReferences";
+import {
+  filterAlreadyRenderedMedia,
+  getRenderedInlineMediaIds,
+  getStandaloneMediaReferenceStrings,
+} from "@/src/components/ui/markdown-media.utils";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -489,6 +494,15 @@ export function MarkdownView({
     });
   };
 
+  const inlineMediaReferenceStrings =
+    typeof markdown === "string"
+      ? getStandaloneMediaReferenceStrings(markdown)
+      : [];
+  const remainingMedia = filterAlreadyRenderedMedia(
+    media,
+    getRenderedInlineMediaIds({ markdown, audio }),
+  );
+
   return (
     <div className={cn("overflow-hidden")} key={theme}>
       {title ? (
@@ -518,27 +532,38 @@ export function MarkdownView({
       >
         {typeof markdown === "string" ? (
           // plain string
-          <>
-            <MarkdownRenderer
-              markdown={
-                shouldBeCollapsible && isCollapsed ? truncatedContent : markdown
-              }
-              theme={theme}
-              customCodeHeaderClassName={customCodeHeaderClassName}
-            />
-            {shouldBeCollapsible && (
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={toggleCollapsed}
-                className="w-fit text-xs underline"
-              >
-                {isCollapsed
-                  ? "Expand system prompt"
-                  : "Collapse system prompt"}
-              </Button>
-            )}
-          </>
+          inlineMediaReferenceStrings.length > 0 ? (
+            inlineMediaReferenceStrings.map((referenceString, index) => (
+              <LangfuseMediaView
+                key={`${referenceString}-${index}`}
+                mediaReferenceString={referenceString}
+              />
+            ))
+          ) : (
+            <>
+              <MarkdownRenderer
+                markdown={
+                  shouldBeCollapsible && isCollapsed
+                    ? truncatedContent
+                    : markdown
+                }
+                theme={theme}
+                customCodeHeaderClassName={customCodeHeaderClassName}
+              />
+              {shouldBeCollapsible && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={toggleCollapsed}
+                  className="w-fit text-xs underline"
+                >
+                  {isCollapsed
+                    ? "Expand system prompt"
+                    : "Collapse system prompt"}
+                </Button>
+              )}
+            </>
+          )
         ) : (
           // content parts (multi-modal)
           (markdown ?? []).map((content, index) =>
@@ -589,13 +614,13 @@ export function MarkdownView({
           </>
         ) : null}
       </div>
-      {media && media.length > 0 && (
+      {remainingMedia.length > 0 && (
         <>
           <div className="text-muted-foreground mx-3 border-t px-2 py-1 text-xs">
             Media
           </div>
           <div className="flex flex-wrap gap-2 p-4 pt-1">
-            {media.map((m) => (
+            {remainingMedia.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
                 asFileIcon={true}

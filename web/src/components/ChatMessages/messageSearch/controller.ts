@@ -3,11 +3,14 @@
 import capitalize from "lodash/capitalize";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { ChatMessageType, type ChatMessageWithId } from "@langfuse/shared";
+import { EditorState } from "@codemirror/state";
+import { SearchQuery } from "@codemirror/search";
 import { type RefObject } from "react";
 
 import {
   applyCodeMirrorSearchQuery,
-  selectCodeMirrorRange,
+  unsetActiveSearchMarkCodeMirrorRange,
+  setActiveSearchMarkCodeMirrorRange,
 } from "@/src/components/editor";
 
 export type MessageSearchMatch = {
@@ -57,6 +60,20 @@ type MessageSearchMessageTarget = {
   editorRef: RefObject<ReactCodeMirrorRef | null>;
 };
 
+type RefreshSearchOptions = {
+  syncEditors?: boolean;
+  scrollToActiveMatch?: boolean;
+};
+
+type SearchMatchRange = {
+  from: number;
+  to: number;
+};
+
+type SyncActiveMatchTargetOptions = {
+  scrollIntoView?: boolean;
+};
+
 export type MessageSearchController = {
   subscribe: (listener: () => void) => () => void;
   getSnapshot: () => MessageSearchSnapshot;
@@ -64,6 +81,7 @@ export type MessageSearchController = {
   openSearch: () => void;
   closeSearch: () => void;
   setQueryInput: (value: string) => void;
+  blurQueryInput: () => void;
   nextMatch: () => void;
   previousMatch: () => void;
   setPageIds: (pageIds: string[]) => void;
@@ -136,7 +154,11 @@ function buildMatches(state: MessageSearchState) {
     return [];
   }
 
-  const lowerQuery = searchQuery.toLocaleLowerCase();
+  const codeMirrorSearchQuery = new SearchQuery({
+    search: searchQuery,
+    caseSensitive: false,
+    literal: true,
+  });
   const allMatches: MessageSearchMatch[] = [];
 
   for (const [pageIndex, pageId] of state.pageIds.entries()) {
@@ -151,10 +173,13 @@ function buildMatches(state: MessageSearchState) {
         continue;
       }
 
-      const lowerText = text.toLocaleLowerCase();
-      let from = lowerText.indexOf(lowerQuery);
+      const cursor = codeMirrorSearchQuery.getCursor(
+        EditorState.create({ doc: text }),
+      );
+      let match = cursor.next();
 
-      while (from !== -1) {
+      while (!match.done) {
+        const { from, to } = match.value;
         const label = getMessageSearchLabel(message, messageIndex);
         const pageLabel = state.getPageLabel?.(pageId, pageIndex);
         const matchWithoutKey = {
@@ -163,7 +188,7 @@ function buildMatches(state: MessageSearchState) {
           label,
           locationLabel: pageLabel ? `${pageLabel} · ${label}` : label,
           from,
-          to: from + searchQuery.length,
+          to,
           text,
         };
 
@@ -172,10 +197,7 @@ function buildMatches(state: MessageSearchState) {
           ...matchWithoutKey,
         });
 
-        from = lowerText.indexOf(
-          lowerQuery,
-          from + Math.max(1, lowerQuery.length),
-        );
+        match = cursor.next();
       }
     }
   }
@@ -249,40 +271,91 @@ export function createMessageSearchController(
     pendingQueryTimeout = null;
   };
 
+  const getMatchRangesForMessageTarget = (pageId: string, messageId: string) =>
+    state.matches
+      .filter(
+        (match) => match.pageId === pageId && match.messageId === messageId,
+      )
+      .map((match) => ({ from: match.from, to: match.to }));
+
   const syncEditorsToQuery = () => {
     const query = getCommittedQuery(state);
+    const matchRangesByTargetKey = new Map<string, SearchMatchRange[]>();
 
-    for (const target of messageTargets.values()) {
-      applyCodeMirrorSearchQuery(target.editorRef, query);
+    for (const match of state.matches) {
+      const targetKey = getMessageTargetKey(match.pageId, match.messageId);
+      const ranges = matchRangesByTargetKey.get(targetKey);
+
+      if (ranges) {
+        ranges.push({ from: match.from, to: match.to });
+      } else {
+        matchRangesByTargetKey.set(targetKey, [
+          { from: match.from, to: match.to },
+        ]);
+      }
+    }
+
+    for (const [targetKey, target] of messageTargets.entries()) {
+      applyCodeMirrorSearchQuery(
+        target.editorRef,
+        query,
+        matchRangesByTargetKey.get(targetKey) ?? [],
+      );
     }
   };
 
-  const syncActiveMatchTarget = () => {
+  const syncActiveMatchTarget = ({
+    scrollIntoView = true,
+  }: SyncActiveMatchTargetOptions = {}) => {
     const activeMatch = getActiveMatch(state);
     if (!activeMatch) {
       return;
     }
 
-    pageTargets.get(activeMatch.pageId)?.pageRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-      inline: "center",
-    });
+    if (scrollIntoView) {
+      pageTargets.get(activeMatch.pageId)?.pageRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }
 
-    const messageTarget = messageTargets.get(
-      getMessageTargetKey(activeMatch.pageId, activeMatch.messageId),
+    let activeMessageTarget: MessageSearchMessageTarget | null = null;
+    const inactiveMessageTargets: MessageSearchMessageTarget[] = [];
+
+    const activeMessageTargetKey = getMessageTargetKey(
+      activeMatch.pageId,
+      activeMatch.messageId,
     );
 
-    messageTarget?.rowRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-      inline: "nearest",
-    });
+    for (const [key, target] of messageTargets.entries()) {
+      if (key === activeMessageTargetKey) {
+        activeMessageTarget = target;
+      } else {
+        inactiveMessageTargets.push(target);
+      }
+    }
 
-    selectCodeMirrorRange(messageTarget?.editorRef, {
-      from: activeMatch.from,
-      to: activeMatch.to,
-    });
+    for (const target of inactiveMessageTargets) {
+      unsetActiveSearchMarkCodeMirrorRange(target?.editorRef);
+    }
+
+    if (scrollIntoView) {
+      activeMessageTarget?.rowRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "nearest",
+      });
+    }
+
+    setActiveSearchMarkCodeMirrorRange(
+      activeMessageTarget?.editorRef,
+      {
+        from: activeMatch.from,
+        to: activeMatch.to,
+      },
+      { scrollIntoView },
+    );
   };
 
   const recomputeMatches = () => {
@@ -315,24 +388,31 @@ export function createMessageSearchController(
     return previousActiveMatchKey !== state.activeMatchKey;
   };
 
-  const refreshSearchResults = (shouldSyncEditors: boolean) => {
+  const refreshSearchResults = ({
+    syncEditors = false,
+    scrollToActiveMatch = false,
+  }: RefreshSearchOptions) => {
     const activeMatchChanged = recomputeMatches();
+    const shouldSyncEditors = syncEditors || activeMatchChanged;
+    const shouldScrollToActiveMatch = scrollToActiveMatch || activeMatchChanged;
 
     if (shouldSyncEditors) {
       syncEditorsToQuery();
     }
 
-    if (shouldSyncEditors || activeMatchChanged) {
-      syncActiveMatchTarget();
+    // Redrawing the editor search marks clears the selected active-match mark,
+    // so the active match must always be re-applied after syncing editors.
+    if (shouldSyncEditors || shouldScrollToActiveMatch) {
+      syncActiveMatchTarget({ scrollIntoView: shouldScrollToActiveMatch });
     }
   };
 
-  const refreshSearchResultsIfSearching = (shouldSyncEditors: boolean) => {
+  const refreshSearchResultsIfSearching = (options: RefreshSearchOptions) => {
     if (!getCommittedQuery(state)) {
       return;
     }
 
-    refreshSearchResults(shouldSyncEditors);
+    refreshSearchResults(options);
     emit();
   };
 
@@ -342,7 +422,7 @@ export function createMessageSearchController(
     }
 
     state.searchQuery = nextSearchQuery;
-    refreshSearchResults(true);
+    refreshSearchResults({ syncEditors: true, scrollToActiveMatch: true });
     return true;
   };
 
@@ -353,7 +433,7 @@ export function createMessageSearchController(
 
     clearPendingQueryTimeout();
 
-    const queryChanged = commitSearchQuery(state.queryInput.trim());
+    const queryChanged = commitSearchQuery(state.queryInput);
     if (queryChanged) {
       emit();
     }
@@ -442,8 +522,7 @@ export function createMessageSearchController(
       state.queryInput = value;
       clearPendingQueryTimeout();
 
-      const nextSearchQuery = value.trim();
-      if (nextSearchQuery === "") {
+      if (value === "") {
         commitSearchQuery("");
         emit();
         return;
@@ -451,18 +530,36 @@ export function createMessageSearchController(
 
       emit();
 
-      if (nextSearchQuery === state.searchQuery) {
+      if (value === state.searchQuery) {
         return;
       }
 
       pendingQueryTimeout = window.setTimeout(() => {
         pendingQueryTimeout = null;
 
-        const queryChanged = commitSearchQuery(nextSearchQuery);
+        const queryChanged = commitSearchQuery(value);
         if (queryChanged) {
           emit();
         }
       }, SEARCH_INPUT_DEBOUNCE_MS);
+    },
+
+    blurQueryInput() {
+      if (state.queryInput.trim() !== "") {
+        return;
+      }
+
+      clearPendingQueryTimeout();
+
+      const queryChanged = commitSearchQuery("");
+      const inputChanged = state.queryInput !== "";
+      if (inputChanged) {
+        state.queryInput = "";
+      }
+
+      if (queryChanged || inputChanged) {
+        emit();
+      }
     },
 
     nextMatch() {
@@ -479,7 +576,9 @@ export function createMessageSearchController(
       }
 
       state.pageIds = pageIds;
-      refreshSearchResultsIfSearching(false);
+      refreshSearchResultsIfSearching({
+        syncEditors: true,
+      });
     },
 
     setPageLabelResolver(getPageLabel) {
@@ -488,12 +587,14 @@ export function createMessageSearchController(
       }
 
       state.getPageLabel = getPageLabel;
-      refreshSearchResultsIfSearching(false);
+      refreshSearchResultsIfSearching({});
     },
 
     registerPageMessages(pageId, messages) {
       state.pageMessagesById[pageId] = messages;
-      refreshSearchResultsIfSearching(false);
+      refreshSearchResultsIfSearching({
+        syncEditors: true,
+      });
     },
 
     unregisterPageMessages(pageId) {
@@ -502,7 +603,9 @@ export function createMessageSearchController(
       }
 
       delete state.pageMessagesById[pageId];
-      refreshSearchResultsIfSearching(false);
+      refreshSearchResultsIfSearching({
+        syncEditors: true,
+      });
     },
 
     registerPageTarget(pageId, target) {
@@ -518,9 +621,14 @@ export function createMessageSearchController(
     },
 
     registerMessageTarget(pageId, messageId, target) {
-      messageTargets.set(getMessageTargetKey(pageId, messageId), target);
+      const targetKey = getMessageTargetKey(pageId, messageId);
+      messageTargets.set(targetKey, target);
 
-      applyCodeMirrorSearchQuery(target.editorRef, getCommittedQuery(state));
+      applyCodeMirrorSearchQuery(
+        target.editorRef,
+        getCommittedQuery(state),
+        getMatchRangesForMessageTarget(pageId, messageId),
+      );
 
       const activeMatch = getActiveMatch(state);
       if (
