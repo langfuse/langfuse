@@ -597,11 +597,14 @@ export function CategoricalFacet({
   );
 
   const MAX_VISIBLE_OPTIONS = 12;
-  const hasMoreOptions = options.length > MAX_VISIBLE_OPTIONS;
+  const visibleOptionValues = Array.from(
+    new Set([...options, ...value.filter((option) => option.length > 0)]),
+  );
+  const hasMoreOptions = visibleOptionValues.length > MAX_VISIBLE_OPTIONS;
 
   // Filter options by search query (check both raw value and display label)
   const filteredOptions = searchQuery
-    ? options.filter((option) => {
+    ? visibleOptionValues.filter((option) => {
         const search = searchQuery.toLowerCase();
         const displayLabel = displayByValue?.get(option) ?? option;
         return (
@@ -609,7 +612,7 @@ export function CategoricalFacet({
           displayLabel.toLowerCase().includes(search)
         );
       })
-    : options;
+    : visibleOptionValues;
 
   const hasMoreFilteredOptions = filteredOptions.length > MAX_VISIBLE_OPTIONS;
   const visibleOptions = showAll
@@ -715,7 +718,7 @@ export function CategoricalFacet({
                   </div>
                 ))}
               </>
-            ) : options.length === 0 ? (
+            ) : visibleOptionValues.length === 0 ? (
               <div className="text-muted-foreground py-1 text-xs">
                 {filterKey === "sessionId" ? (
                   <span>
@@ -816,8 +819,8 @@ export function CategoricalFacet({
                   </>
                 )}
                 {filterKey === "environment" &&
-                options.length === 1 &&
-                options[0]?.toLowerCase() === "default" ? (
+                visibleOptionValues.length === 1 &&
+                visibleOptionValues[0]?.toLowerCase() === "default" ? (
                   <div className="text-muted-foreground mt-2 px-2 text-xs">
                     <a
                       href="https://langfuse.com/docs/observability/features/environments"

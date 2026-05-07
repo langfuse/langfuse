@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { FlaskConical, List, Loader2 } from "lucide-react";
+import { FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
@@ -43,6 +43,7 @@ import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -136,7 +137,7 @@ export default function DatasetCompare() {
         }}
       >
         <div className="flex h-full items-center justify-center">
-          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+          <Spinner size="xl" variant="muted" />
         </div>
       </Page>
     );

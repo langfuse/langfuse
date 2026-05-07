@@ -10,8 +10,7 @@ minimumReleaseAge: 7200
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
 minimumReleaseAgeExclude:
-  - "follow-redirects@1.16.0"
-  - "protobufjs@7.5.5"
+  - "@ungap/structured-clone@1.3.1"
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true

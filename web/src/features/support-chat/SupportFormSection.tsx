@@ -41,9 +41,10 @@ import {
   DropzoneContent,
   DropzoneEmptyState,
 } from "@/src/components/ui/shadcn-io/dropzone";
-import { Paperclip, Loader2, Trash2 } from "lucide-react";
+import { Paperclip, Trash2 } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { PLAIN_MAX_FILE_SIZE_BYTES } from "./plain/plainConstants";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 /** Make RHF generics match the resolver (Zod defaults => input can be undefined) */
 type SupportFormInput = z.input<typeof SupportFormSchema>;
@@ -651,7 +652,7 @@ export function SupportFormSection({
             >
               {isSubmittingLocal ? (
                 <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size="sm" />
                   Submitting…
                 </span>
               ) : messageIsShortAfterWarning ? (

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Unlink, AlertTriangle, Loader2 } from "lucide-react";
+import { Unlink, AlertTriangle } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -13,6 +13,7 @@ import {
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * Props for the SlackDisconnectButton component
@@ -133,11 +134,9 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
   const buttonContent = (
     <>
       {isDisconnecting ? (
-        <Loader2
-          className={
-            showText ? "mr-2 h-4 w-4 animate-spin" : "h-4 w-4 animate-spin"
-          }
-        />
+        <div className={showText ? "mr-2" : ""}>
+          <Spinner size="sm" />
+        </div>
       ) : (
         <Unlink className={showText ? "mr-2 h-4 w-4" : "h-4 w-4"} />
       )}
@@ -199,7 +198,9 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
             >
               {isDisconnecting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <div className="mr-2">
+                    <Spinner size="sm" />
+                  </div>
                   Disconnecting...
                 </>
               ) : (
