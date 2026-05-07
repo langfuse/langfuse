@@ -22,9 +22,8 @@ import { useSession } from "next-auth/react";
 export const AnnotationQueueItemPage: React.FC<{
   annotationQueueId: string;
   projectId: string;
-  view: "showTree" | "hideTree";
   queryItemId?: string;
-}> = ({ annotationQueueId, projectId, view, queryItemId }) => {
+}> = ({ annotationQueueId, projectId, queryItemId }) => {
   const router = useRouter();
   const { status: sessionStatus } = useSession();
   const sessionLoaded = sessionStatus !== "loading";
@@ -217,7 +216,6 @@ export const AnnotationQueueItemPage: React.FC<{
           <TraceAnnotationProcessor
             item={relevantItem}
             data={objectData.data}
-            view={view}
             configs={configs}
             projectId={projectId}
           />
@@ -237,9 +235,9 @@ export const AnnotationQueueItemPage: React.FC<{
   };
 
   return (
-    <div className="grid h-full grid-rows-[1fr_auto] gap-4 overflow-hidden">
+    <div className="grid h-full grid-rows-[1fr_auto] gap-2 overflow-hidden">
       {renderContent()}
-      <div className="grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto_min-content]">
+      <div className="mb-2 grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto_min-content]">
         {!isSingleItem && (
           <div className="flex max-h-10 flex-row gap-2">
             <span className="bg-muted grid h-9 min-w-16 items-center rounded-md p-1 text-center text-sm">

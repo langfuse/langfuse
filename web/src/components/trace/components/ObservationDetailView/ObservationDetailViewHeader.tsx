@@ -48,6 +48,7 @@ import { type ScoreDomain } from "@langfuse/shared";
 import { type AggregatedTraceMetrics } from "@/src/components/trace/lib/trace-aggregation";
 import type Decimal from "decimal.js";
 import { DetailHeaderActionsMenu } from "@/src/components/trace/components/_shared/DetailHeaderActionsMenu";
+import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -89,6 +90,8 @@ export const ObservationDetailViewHeader = memo(
     subtreeMetrics,
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
+    const { isAnnotationMode } = useViewPreferences();
+
     // Format cost and usage values
     const totalCost = observation.totalCost;
     const totalUsage = observation.totalUsage;
@@ -130,29 +133,32 @@ export const ObservationDetailViewHeader = memo(
                 size="sm"
               />
             )}
-            <div className="flex items-start">
-              <AnnotateDrawer
-                key={"annotation-drawer-" + observation.id}
-                projectId={projectId}
-                scoreTarget={{
-                  type: "trace",
-                  traceId: traceId,
-                  observationId: observation.id,
-                }}
-                scores={observationScores}
-                scoreMetadata={{
-                  projectId: projectId,
-                  environment: observation.environment,
-                }}
-                size="sm"
-              />
-              <CreateNewAnnotationQueueItem
-                projectId={projectId}
-                objectId={observation.id}
-                objectType={AnnotationQueueObjectType.OBSERVATION}
-                size="sm"
-              />
-            </div>
+            {/* Hide annotation buttons in annotation mode (panel shown separately) */}
+            {!isAnnotationMode && (
+              <div className="flex items-start">
+                <AnnotateDrawer
+                  key={"annotation-drawer-" + observation.id}
+                  projectId={projectId}
+                  scoreTarget={{
+                    type: "trace",
+                    traceId: traceId,
+                    observationId: observation.id,
+                  }}
+                  scores={observationScores}
+                  scoreMetadata={{
+                    projectId: projectId,
+                    environment: observation.environment,
+                  }}
+                  size="sm"
+                />
+                <CreateNewAnnotationQueueItem
+                  projectId={projectId}
+                  objectId={observation.id}
+                  objectType={AnnotationQueueObjectType.OBSERVATION}
+                  size="sm"
+                />
+              </div>
+            )}
             {observationWithIO && isGenerationLike(observationWithIO.type) && (
               <JumpToPlaygroundButton
                 source="generation"

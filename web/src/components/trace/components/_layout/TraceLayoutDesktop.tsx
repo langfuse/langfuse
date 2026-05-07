@@ -14,6 +14,7 @@ import {
   useContext,
   type ReactNode,
 } from "react";
+import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
 
 const RESIZABLE_PANEL_GROUP_ID = "trace-layout";
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
@@ -51,11 +52,28 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
   const [viewMode] = useQueryParam("view", StringParam);
   const isTimelineView = viewMode === "timeline";
 
+  // Get annotation mode from context to determine initial collapse state
+  const { isAnnotationMode } = useViewPreferences();
+
   const [isNavigationPanelCollapsed, setIsNavigationPanelCollapsed] =
-    useState(false);
+    useState(isAnnotationMode);
 
   // Ref to programmatically control the panel
   const panelRef = usePanelRef();
+
+  // Collapse panel on mount if in annotation mode
+  // todo - do we really need this?
+  // useEffect(() => {
+  //   if (
+  //     isAnnotationMode &&
+  //     panelRef.current &&
+  //     !panelRef.current.isCollapsed()
+  //   ) {
+  //     panelRef.current.collapse();
+  //   }
+  //   // Only run on mount
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, []);
 
   // v4 has built-in collapse()/expand() that remembers last size
   const handleTogglePanel = () => {

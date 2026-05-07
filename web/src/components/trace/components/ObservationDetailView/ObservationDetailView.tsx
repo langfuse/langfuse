@@ -86,9 +86,26 @@ export function ObservationDetailView({
   // V4 beta mode and observations for log tab
   const { isBetaEnabled: isV4Enabled } = useV4Beta();
   const { observations, roots, nodeMap } = useTraceData();
-  const showLogViewTab = isV4Enabled && observations.length > 0;
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
+
+  // Get jsonViewPreference directly from ViewPreferencesContext for "json-beta" support
+  const {
+    jsonViewPreference,
+    setJsonViewPreference,
+    jsonBetaEnabled,
+    setJsonBetaEnabled,
+    isPeekMode,
+    isAnnotationMode,
+  } = useViewPreferences();
+
+  // Tab visibility: hide Log View and Scores tabs in annotation mode
+  const showLogViewTab =
+    isV4Enabled && observations.length > 0 && !isAnnotationMode;
+  const showScoresTab = !isAnnotationMode;
+
+  // Hide entire tabs bar when only Preview tab remains (cleaner annotation mode UI)
+  const showTabsBar = showLogViewTab || showScoresTab;
 
   // for v4:
   // is this observation topmost in tree? we don't check for root observation here as this is not necessarily given.
@@ -138,15 +155,6 @@ export function ObservationDetailView({
     }
     setGlobalSelectedTab(tab);
   };
-
-  // Get jsonViewPreference directly from ViewPreferencesContext for "json-beta" support
-  const {
-    jsonViewPreference,
-    setJsonViewPreference,
-    jsonBetaEnabled,
-    setJsonBetaEnabled,
-    isPeekMode,
-  } = useViewPreferences();
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
@@ -302,104 +310,118 @@ export function ObservationDetailView({
           setSelectedTab(value as "preview" | "log" | "scores")
         }
       >
-        <TooltipProvider>
-          <TabsBarList>
-            <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-            <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
-            {showLogViewTab && (
-              <TabsBarTrigger value="log">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>Log View</span>
-                  </TooltipTrigger>
-                  <TooltipContent className="text-xs">
-                    {isLogViewVirtualized
-                      ? `Shows all ${observations.length} observations with virtualization enabled.`
-                      : "Shows all observations concatenated. Great for quickly scanning through them."}
-                  </TooltipContent>
-                </Tooltip>
-              </TabsBarTrigger>
-            )}
+        {/* Hide entire tabs bar when only Preview tab remains (annotation mode) */}
+        {showTabsBar && (
+          <TooltipProvider>
+            <TabsBarList>
+              <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+              {showScoresTab && (
+                <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+              )}
+              {showLogViewTab && (
+                <TabsBarTrigger value="log">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>Log View</span>
+                    </TooltipTrigger>
+                    <TooltipContent className="text-xs">
+                      {isLogViewVirtualized
+                        ? `Shows all ${observations.length} observations with virtualization enabled.`
+                        : "Shows all observations concatenated. Great for quickly scanning through them."}
+                    </TooltipContent>
+                  </Tooltip>
+                </TabsBarTrigger>
+              )}
 
-            {/* View toggle (Formatted/JSON) - show for preview and log tabs when pretty view available */}
-            {/* JSON views are disabled for virtualized log view (large traces) */}
-            {(selectedTab === "log" ||
-              (selectedTab === "preview" && isPrettyViewAvailable)) && (
-              <>
-                <Tabs
-                  className="ml-auto h-fit px-2 py-0.5"
-                  value={
-                    selectedTab === "log" && isLogViewVirtualized
-                      ? "pretty"
-                      : selectedViewTab
-                  }
-                  onValueChange={(value) => {
-                    // Don't allow JSON views for virtualized log view
-                    if (
-                      selectedTab === "log" &&
-                      isLogViewVirtualized &&
-                      value === "json"
-                    ) {
-                      return;
+              {/* View toggle (Formatted/JSON) - show for preview and log tabs when pretty view available */}
+              {/* JSON views are disabled for virtualized log view (large traces) */}
+              {(selectedTab === "log" ||
+                (selectedTab === "preview" && isPrettyViewAvailable)) && (
+                <>
+                  <Tabs
+                    className="ml-auto h-fit px-2 py-0.5"
+                    value={
+                      selectedTab === "log" && isLogViewVirtualized
+                        ? "pretty"
+                        : selectedViewTab
                     }
-                    handleViewTabChange(value);
-                  }}
-                >
-                  <TabsList className="h-fit py-0.5">
-                    <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
-                      Formatted
-                    </TabsTrigger>
-                    {selectedTab === "log" && isLogViewVirtualized ? (
-                      <HoverCard openDelay={200}>
-                        <HoverCardTrigger asChild>
-                          <span>
-                            <TabsTrigger
-                              value="json"
-                              className="h-fit px-1 text-xs"
-                              disabled
-                            >
-                              JSON
-                            </TabsTrigger>
-                          </span>
-                        </HoverCardTrigger>
-                        <HoverCardContent
-                          align="end"
-                          className="w-64 text-sm"
-                          sideOffset={8}
-                        >
-                          <p className="font-medium">JSON view unavailable</p>
-                          <p className="text-muted-foreground mt-1">
-                            Disabled for traces with{" "}
-                            {TRACE_VIEW_CONFIG.logView.virtualizationThreshold}+
-                            observations to maintain performance.
-                          </p>
-                        </HoverCardContent>
-                      </HoverCard>
-                    ) : (
-                      <TabsTrigger value="json" className="h-fit px-1 text-xs">
-                        JSON
+                    onValueChange={(value) => {
+                      // Don't allow JSON views for virtualized log view
+                      if (
+                        selectedTab === "log" &&
+                        isLogViewVirtualized &&
+                        value === "json"
+                      ) {
+                        return;
+                      }
+                      handleViewTabChange(value);
+                    }}
+                  >
+                    <TabsList className="h-fit py-0.5">
+                      <TabsTrigger
+                        value="pretty"
+                        className="h-fit px-1 text-xs"
+                      >
+                        Formatted
                       </TabsTrigger>
+                      {selectedTab === "log" && isLogViewVirtualized ? (
+                        <HoverCard openDelay={200}>
+                          <HoverCardTrigger asChild>
+                            <span>
+                              <TabsTrigger
+                                value="json"
+                                className="h-fit px-1 text-xs"
+                                disabled
+                              >
+                                JSON
+                              </TabsTrigger>
+                            </span>
+                          </HoverCardTrigger>
+                          <HoverCardContent
+                            align="end"
+                            className="w-64 text-sm"
+                            sideOffset={8}
+                          >
+                            <p className="font-medium">JSON view unavailable</p>
+                            <p className="text-muted-foreground mt-1">
+                              Disabled for traces with{" "}
+                              {
+                                TRACE_VIEW_CONFIG.logView
+                                  .virtualizationThreshold
+                              }
+                              + observations to maintain performance.
+                            </p>
+                          </HoverCardContent>
+                        </HoverCard>
+                      ) : (
+                        <TabsTrigger
+                          value="json"
+                          className="h-fit px-1 text-xs"
+                        >
+                          JSON
+                        </TabsTrigger>
+                      )}
+                    </TabsList>
+                  </Tabs>
+                  {/* Beta toggle - only show when JSON is selected and not in virtualized log view */}
+                  {selectedViewTab === "json" &&
+                    !(selectedTab === "log" && isLogViewVirtualized) && (
+                      <div className="mr-1 flex items-center gap-1.5">
+                        <Switch
+                          size="sm"
+                          checked={jsonBetaEnabled}
+                          onCheckedChange={handleBetaToggle}
+                        />
+                        <span className="text-muted-foreground text-xs">
+                          Beta
+                        </span>
+                      </div>
                     )}
-                  </TabsList>
-                </Tabs>
-                {/* Beta toggle - only show when JSON is selected and not in virtualized log view */}
-                {selectedViewTab === "json" &&
-                  !(selectedTab === "log" && isLogViewVirtualized) && (
-                    <div className="mr-1 flex items-center gap-1.5">
-                      <Switch
-                        size="sm"
-                        checked={jsonBetaEnabled}
-                        onCheckedChange={handleBetaToggle}
-                      />
-                      <span className="text-muted-foreground text-xs">
-                        Beta
-                      </span>
-                    </div>
-                  )}
-              </>
-            )}
-          </TabsBarList>
-        </TooltipProvider>
+                </>
+              )}
+            </TabsBarList>
+          </TooltipProvider>
+        )}
 
         {/* Preview tab content */}
         <TabsBarContent
@@ -499,28 +521,30 @@ export function ObservationDetailView({
         </TabsBarContent>
 
         {/* Scores tab content */}
-        <TabsBarContent
-          value="scores"
-          className="mt-0 mr-4 mb-2 flex h-full min-h-0 flex-1 overflow-hidden"
-        >
-          <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
-            <ScoresTable
-              projectId={projectId}
-              traceId={traceId}
-              observationId={observation.id}
-              hiddenColumns={[
-                "traceId",
-                "observationId",
-                "traceName",
-                "traceTags",
-                "jobConfigurationId",
-                "userId",
-              ]}
-              localStorageSuffix="ObservationPreview"
-              disableUrlPersistence={isPeekMode}
-            />
-          </div>
-        </TabsBarContent>
+        {showScoresTab && (
+          <TabsBarContent
+            value="scores"
+            className="mt-0 mr-4 mb-2 flex h-full min-h-0 flex-1 overflow-hidden"
+          >
+            <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+              <ScoresTable
+                projectId={projectId}
+                traceId={traceId}
+                observationId={observation.id}
+                hiddenColumns={[
+                  "traceId",
+                  "observationId",
+                  "traceName",
+                  "traceTags",
+                  "jobConfigurationId",
+                  "userId",
+                ]}
+                localStorageSuffix="ObservationPreview"
+                disableUrlPersistence={isPeekMode || isAnnotationMode}
+              />
+            </div>
+          </TabsBarContent>
+        )}
 
         {/* Log View tab content (v4 mode only) */}
         {showLogViewTab && (

@@ -31,7 +31,7 @@ export type TraceProps = {
   scores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
   projectId: string;
-  context?: "peek" | "fullscreen";
+  context?: "fullscreen" | "peek" | "annotation";
 };
 
 export function Trace({

@@ -39,8 +39,10 @@ interface ViewPreferencesContextValue {
   setShowGraph: (value: boolean) => void;
   minObservationLevel: ObservationLevelType;
   setMinObservationLevel: (value: ObservationLevelType) => void;
-  /** Whether trace is rendered in peek mode (e.g., annotation queues) */
+  /** Whether trace is rendered in peek mode (e.g., table peek views) */
   isPeekMode: boolean;
+  /** Whether trace is rendered in annotation mode (annotation queue processing) */
+  isAnnotationMode: boolean;
   /** Log view ordering mode (chronological or tree-order) */
   logViewMode: LogViewMode;
   setLogViewMode: (value: LogViewMode) => void;
@@ -71,7 +73,7 @@ export function useViewPreferences(): ViewPreferencesContextValue {
 interface ViewPreferencesProviderProps {
   children: ReactNode;
   /** Context in which trace is rendered - affects feature availability */
-  traceContext?: "peek" | "fullscreen";
+  traceContext?: "fullscreen" | "peek" | "annotation";
 }
 
 export function ViewPreferencesProvider({
@@ -79,6 +81,7 @@ export function ViewPreferencesProvider({
   traceContext = "fullscreen",
 }: ViewPreferencesProviderProps) {
   const isPeekMode = traceContext === "peek";
+  const isAnnotationMode = traceContext === "annotation";
   const [showDuration, setShowDuration] = useLocalStorage(
     "durationOnObservationTree",
     true,
@@ -135,6 +138,7 @@ export function ViewPreferencesProvider({
       minObservationLevel,
       setMinObservationLevel,
       isPeekMode,
+      isAnnotationMode,
       logViewMode,
       setLogViewMode,
       logViewTreeStyle,
@@ -160,6 +164,7 @@ export function ViewPreferencesProvider({
       minObservationLevel,
       setMinObservationLevel,
       isPeekMode,
+      isAnnotationMode,
       logViewMode,
       setLogViewMode,
       logViewTreeStyle,

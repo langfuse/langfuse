@@ -41,6 +41,7 @@ import {
 } from "../ObservationDetailView/ObservationMetadataBadgesTooltip";
 import { aggregateTraceMetrics } from "@/src/components/trace/lib/trace-aggregation";
 import { resolveEvalExecutionMetadata } from "@/src/components/trace/lib/resolve-metadata";
+import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
 
 export interface TraceDetailViewHeaderProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -72,6 +73,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   isCommentDrawerOpen,
   onCommentDrawerOpenChange,
 }: TraceDetailViewHeaderProps) {
+  const { isAnnotationMode } = useViewPreferences();
   const aggregatedMetrics = useMemo(
     () => aggregateTraceMetrics(observations),
     [observations],
@@ -106,28 +108,31 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             key={trace.id}
             size="sm"
           />
-          <div className="flex items-start">
-            <AnnotateDrawer
-              key={"annotation-drawer-" + trace.id}
-              projectId={projectId}
-              scoreTarget={{
-                type: "trace",
-                traceId: trace.id,
-              }}
-              scores={traceScores}
-              scoreMetadata={{
-                projectId: projectId,
-                environment: trace.environment,
-              }}
-              size="sm"
-            />
-            <CreateNewAnnotationQueueItem
-              projectId={projectId}
-              objectId={trace.id}
-              objectType={AnnotationQueueObjectType.TRACE}
-              size="sm"
-            />
-          </div>
+          {/* Hide annotation buttons in annotation mode (panel shown separately) */}
+          {!isAnnotationMode && (
+            <div className="flex items-start">
+              <AnnotateDrawer
+                key={"annotation-drawer-" + trace.id}
+                projectId={projectId}
+                scoreTarget={{
+                  type: "trace",
+                  traceId: trace.id,
+                }}
+                scores={traceScores}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: trace.environment,
+                }}
+                size="sm"
+              />
+              <CreateNewAnnotationQueueItem
+                projectId={projectId}
+                objectId={trace.id}
+                objectType={AnnotationQueueObjectType.TRACE}
+                size="sm"
+              />
+            </div>
+          )}
           <CommentDrawerButton
             projectId={projectId}
             objectId={trace.id}
