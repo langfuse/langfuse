@@ -247,6 +247,61 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       testPromptEquality(createPromptParams, fetchedPrompt.body);
     });
 
+    it("should fetch an existing prompt whose decoded name ends in versions/{number}", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const promptName = `folder/versions/2`;
+
+      const createPromptParams: CreatePromptInDBParams = {
+        name: promptName,
+        prompt: "prompt",
+        labels: ["production"],
+        version: 1,
+        config: {
+          temperature: 0.1,
+        },
+        projectId,
+        createdBy: "user-1",
+      };
+
+      await createPromptInDB(createPromptParams);
+
+      const fetchedPrompt = await makeAPICall<Prompt>(
+        "GET",
+        `${baseURI}/${promptName}`,
+        undefined,
+        auth,
+      );
+      expect(fetchedPrompt.status).toBe(200);
+
+      if (!isPrompt(fetchedPrompt.body)) {
+        throw new Error("Expected body to be a prompt");
+      }
+
+      testPromptEquality(createPromptParams, fetchedPrompt.body);
+    });
+
+    it("should return method not allowed for non-PATCH version paths", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      await createPromptInDB({
+        name: "versioned-prompt",
+        prompt: "prompt",
+        labels: ["production"],
+        version: 1,
+        projectId,
+        createdBy: "user-1",
+      });
+
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/versioned-prompt/versions/1`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(405);
+    });
+
     it("should fetch a prompt with special characters", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const promptName = "promptName?!+ =@#;" + nanoid();
