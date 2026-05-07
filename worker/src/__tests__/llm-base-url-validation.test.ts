@@ -158,12 +158,40 @@ describe("LLM base URL validation", () => {
     ).resolves.not.toThrow();
   });
 
-  it("should allow unresolved public hostnames by default", async () => {
+  it("should reject hostnames that fail DNS resolution to close the SSRF rebinding gap", async () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
 
     await expect(
       validateLlmConnectionBaseURL("https://gateway.invalid/v1"),
+    ).rejects.toThrow(/DNS lookup failed/);
+  });
+
+  it("should allow unresolved hostnames when explicitly allowlisted", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+    const whitelist: LlmBaseUrlValidationWhitelist = {
+      hosts: ["gateway.invalid"],
+      ips: [],
+      ip_ranges: [],
+    };
+
+    await expect(
+      validateLlmConnectionBaseURL("https://gateway.invalid/v1", whitelist),
     ).resolves.not.toThrow();
+  });
+
+  it("should reject unresolved hostnames on Langfuse Cloud regardless of whitelist", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+
+    const whitelist: LlmBaseUrlValidationWhitelist = {
+      hosts: ["gateway.invalid"],
+      ips: [],
+      ip_ranges: [],
+    };
+
+    await expect(
+      validateLlmConnectionBaseURL("https://gateway.invalid/v1", whitelist),
+    ).rejects.toThrow(/DNS lookup failed/);
   });
 
   it("should reject non-HTTPS URLs on Langfuse Cloud", async () => {

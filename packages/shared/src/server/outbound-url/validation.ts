@@ -16,7 +16,6 @@ export interface OutboundUrlValidationWhitelist {
 export interface ValidateOutboundUrlHostOptions {
   url: URL;
   whitelist: OutboundUrlValidationWhitelist;
-  shouldThrowIfDnsResolutionFails: boolean;
   logContext: string;
   shouldSkipDnsCheckForLiteralIps: boolean;
 }
@@ -78,7 +77,6 @@ export function parseOutboundUrl(urlString: string): URL {
 export async function validateOutboundUrlHost({
   url,
   whitelist,
-  shouldThrowIfDnsResolutionFails,
   logContext,
   shouldSkipDnsCheckForLiteralIps,
 }: ValidateOutboundUrlHostOptions): Promise<void> {
@@ -105,13 +103,11 @@ export async function validateOutboundUrlHost({
     if (shouldSkipDnsCheckForLiteralIps) return;
   }
 
-  let ips: string[];
-  try {
-    ips = await resolveHost(hostname);
-  } catch (error) {
-    if (!shouldThrowIfDnsResolutionFails) return;
-    throw error;
-  }
+  // DNS-resolution failure is treated as a hard validation error: silently
+  // returning here would let attacker-controlled or split-horizon DNS bypass
+  // the IP blocklist (DNS-rebinding SSRF). Self-hosted gateways that the
+  // validator cannot resolve must be added to the host whitelist above.
+  const ips = await resolveHost(hostname);
 
   for (const ip of ips) {
     if (isIPBlocked(ip, whitelist.ips, whitelist.ip_ranges)) {

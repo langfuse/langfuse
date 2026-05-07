@@ -14,7 +14,6 @@ import {
 const MAX_IMAGE_URL_REDIRECTS = 5;
 const IMAGE_URL_VALIDATION_OPTIONS = {
   whitelist: { hosts: [], ips: [], ip_ranges: [] },
-  shouldThrowIfDnsResolutionFails: true,
   logContext: "Image URL",
   shouldSkipDnsCheckForLiteralIps: true,
 } satisfies Omit<ValidateOutboundUrlHostOptions, "url">;
