@@ -46,3 +46,67 @@ export const BLOB_EXPORT_FIELD_GROUPS = [
 ] as const;
 
 export type BlobExportFieldGroup = (typeof BLOB_EXPORT_FIELD_GROUPS)[number];
+
+export const EXPORT_FIELD_GROUP_OPTIONS: Array<{
+  value: BlobExportFieldGroup;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "core",
+    label: "Core",
+    description:
+      "id, traceId, startTime, endTime, projectId, parentObservationId, type",
+  },
+  {
+    value: "basic",
+    label: "Basic",
+    description:
+      "name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId",
+  },
+  {
+    value: "time",
+    label: "Time",
+    description: "completionStartTime, createdAt, updatedAt",
+  },
+  {
+    value: "io",
+    label: "Input / Output",
+    description: "input, output",
+  },
+  {
+    value: "metadata",
+    label: "Metadata",
+    description: "metadata",
+  },
+  {
+    value: "model",
+    label: "Model",
+    description: "providedModelName, modelId, modelParameters",
+  },
+  {
+    value: "usage",
+    label: "Usage",
+    description: "usageDetails, costDetails, totalCost",
+  },
+  {
+    value: "prompt",
+    label: "Prompt",
+    description: "promptId, promptName, promptVersion",
+  },
+  {
+    value: "metrics",
+    label: "Metrics",
+    description: "latency, timeToFirstToken",
+  },
+  {
+    value: "tools",
+    label: "Tools",
+    description: "toolDefinitions, toolCalls, toolCallNames",
+  },
+  {
+    value: "trace_context",
+    label: "Trace Context",
+    description: "tags, release, traceName, usagePricingTierName",
+  },
+];

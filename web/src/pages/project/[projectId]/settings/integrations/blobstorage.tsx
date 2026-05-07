@@ -14,6 +14,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Switch } from "@/src/components/ui/switch";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -51,6 +52,7 @@ import {
   AnalyticsIntegrationExportSource,
   type BlobStorageIntegration,
   EXPORT_SOURCE_OPTIONS,
+  EXPORT_FIELD_GROUP_OPTIONS,
   BLOB_EXPORT_FIELD_GROUPS,
   type BlobExportFieldGroup,
 } from "@langfuse/shared";
@@ -304,6 +306,8 @@ const BlobStorageIntegrationSettingsForm = ({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
+
+  const watchedExportSource = blobStorageForm.watch("exportSource");
 
   const utils = api.useUtils();
   const mut = api.blobStorageIntegration.update.useMutation({
@@ -722,6 +726,56 @@ const BlobStorageIntegrationSettingsForm = ({
             )}
           />
         )}
+
+        {isBetaEnabled &&
+          watchedExportSource === AnalyticsIntegrationExportSource.EVENTS && (
+            <FormField
+              control={blobStorageForm.control}
+              name="exportFieldGroups"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Export Field Groups</FormLabel>
+                  <FormDescription>
+                    Choose which field groups to include in enriched observation
+                    exports. Deselect sensitive groups (e.g. Input / Output,
+                    Metadata) to reduce export size.
+                  </FormDescription>
+                  <div className="mt-2 space-y-2">
+                    {EXPORT_FIELD_GROUP_OPTIONS.map((option) => (
+                      <div
+                        key={option.value}
+                        className="flex items-start gap-2"
+                      >
+                        <Checkbox
+                          id={`field-group-${option.value}`}
+                          checked={(field.value ?? []).includes(option.value)}
+                          onCheckedChange={(checked) => {
+                            const current = field.value ?? [];
+                            const next = checked
+                              ? [...current, option.value]
+                              : current.filter((v) => v !== option.value);
+                            field.onChange(next);
+                          }}
+                        />
+                        <label
+                          htmlFor={`field-group-${option.value}`}
+                          className="cursor-pointer space-y-0.5"
+                        >
+                          <div className="text-sm leading-none font-medium">
+                            {option.label}
+                          </div>
+                          <div className="text-muted-foreground text-xs">
+                            {option.description}
+                          </div>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
         {blobStorageForm.watch("exportMode") ===
           BlobStorageExportMode.FROM_CUSTOM_DATE && (
