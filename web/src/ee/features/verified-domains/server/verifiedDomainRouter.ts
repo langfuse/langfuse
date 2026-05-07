@@ -4,8 +4,8 @@ import {
   createTRPCRouter,
   protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
+import { resolveTxtFresh } from "@/src/ee/features/verified-domains/server/dnsLookup";
 import { TRPCError } from "@trpc/server";
-import { promises as dns } from "node:dns";
 import * as z from "zod";
 
 const VERIFICATION_RECORD_PREFIX = "_langfuse-verification";
@@ -25,7 +25,8 @@ const domainInput = z
     { message: "Must be a valid domain (e.g. acme.com)" },
   );
 
-const recordNameFor = (domain: string) =>
+// FQDN form, used internally by the verifier to dig the TXT record.
+const recordFqdnFor = (domain: string) =>
   `${VERIFICATION_RECORD_PREFIX}.${domain}`;
 const recordValueFor = (token: string) =>
   `${VERIFICATION_VALUE_PREFIX}${token}`;
@@ -50,7 +51,7 @@ export const verifiedDomainRouter = createTRPCRouter({
         domain: row.domain,
         verifiedAt: row.verifiedAt,
         createdAt: row.createdAt,
-        recordName: recordNameFor(row.domain),
+        recordHost: VERIFICATION_RECORD_PREFIX,
         recordValue: recordValueFor(row.verificationToken),
       }));
     }),
@@ -81,7 +82,7 @@ export const verifiedDomainRouter = createTRPCRouter({
           domain: existing.domain,
           verifiedAt: existing.verifiedAt,
           createdAt: existing.createdAt,
-          recordName: recordNameFor(existing.domain),
+          recordHost: VERIFICATION_RECORD_PREFIX,
           recordValue: recordValueFor(existing.verificationToken),
         };
       }
@@ -107,7 +108,7 @@ export const verifiedDomainRouter = createTRPCRouter({
         domain: row.domain,
         verifiedAt: row.verifiedAt,
         createdAt: row.createdAt,
-        recordName: recordNameFor(row.domain),
+        recordHost: VERIFICATION_RECORD_PREFIX,
         recordValue: recordValueFor(row.verificationToken),
       };
     }),
@@ -136,20 +137,16 @@ export const verifiedDomainRouter = createTRPCRouter({
         return { id: row.id, domain: row.domain, verifiedAt: row.verifiedAt };
       }
 
-      const recordName = recordNameFor(row.domain);
+      const recordFqdn = recordFqdnFor(row.domain);
       const expected = recordValueFor(row.verificationToken);
 
       let records: string[][] = [];
       try {
-        records = await dns.resolveTxt(recordName);
-      } catch (e: unknown) {
-        const code =
-          typeof e === "object" && e !== null && "code" in e
-            ? String((e as { code: unknown }).code)
-            : "UNKNOWN";
+        records = await resolveTxtFresh(recordFqdn);
+      } catch {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: `Could not find a TXT record at "${recordName}" (${code}). DNS changes may take up to 24h to propagate.`,
+          message: `Could not find a TXT record at "${recordFqdn}". DNS changes may take up to 24h to propagate.`,
         });
       }
 
@@ -159,7 +156,7 @@ export const verifiedDomainRouter = createTRPCRouter({
       if (!matched) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: `TXT record at "${recordName}" does not contain the expected value "${expected}". Found ${flat.length} record(s).`,
+          message: `TXT record at "${recordFqdn}" does not contain the expected value "${expected}". Found ${flat.length} record(s).`,
         });
       }
 

@@ -1,26 +1,18 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { resolveTxtFresh } from "@/src/ee/features/verified-domains/server/dnsLookup";
 import { prisma } from "@langfuse/shared/src/db";
 import { Role } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
-import { promises as dns } from "node:dns";
-import type * as DnsModule from "node:dns";
 import type { Session } from "next-auth";
 import type { Mock } from "vitest";
 import { v4 as uuidv4 } from "uuid";
 
-vi.mock("node:dns", async () => {
-  const actual = await vi.importActual<typeof DnsModule>("node:dns");
-  return {
-    ...actual,
-    promises: {
-      ...actual.promises,
-      resolveTxt: vi.fn(),
-    },
-  };
-});
+vi.mock("@/src/ee/features/verified-domains/server/dnsLookup", () => ({
+  resolveTxtFresh: vi.fn(),
+}));
 
-const resolveTxtMock = dns.resolveTxt as unknown as Mock;
+const resolveTxtMock = resolveTxtFresh as unknown as Mock;
 
 beforeEach(() => {
   resolveTxtMock.mockReset();
@@ -110,7 +102,7 @@ describe("verifiedDomainRouter.create", () => {
 
     expect(result.domain).toBe(domain);
     expect(result.verifiedAt).toBeNull();
-    expect(result.recordName).toBe(`_langfuse-verification.${domain}`);
+    expect(result.recordHost).toBe("_langfuse-verification");
     expect(result.recordValue).toMatch(/^langfuse-verify=/);
 
     const row = await prisma.verifiedDomain.findUnique({ where: { domain } });
@@ -198,7 +190,7 @@ describe("verifiedDomainRouter.list", () => {
     expect(domains).toEqual([a, b].sort());
 
     rows.forEach((r) => {
-      expect(r.recordName).toBe(`_langfuse-verification.${r.domain}`);
+      expect(r.recordHost).toBe("_langfuse-verification");
       expect(r.recordValue).toMatch(/^langfuse-verify=/);
     });
   });
@@ -225,7 +217,9 @@ describe("verifiedDomainRouter.verify", () => {
     });
 
     expect(result.verifiedAt).not.toBeNull();
-    expect(resolveTxtMock).toHaveBeenCalledWith(created.recordName);
+    expect(resolveTxtMock).toHaveBeenCalledWith(
+      `${created.recordHost}.${created.domain}`,
+    );
 
     const log = await prisma.auditLog.findFirst({
       where: {

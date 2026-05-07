@@ -155,7 +155,7 @@ function DomainsTable({ orgId }: { orgId: string }) {
               <TableCell
                 density="comfortable"
                 colSpan={4}
-                className="text-center"
+                className="py-12 text-center text-sm"
               >
                 No domains added yet
               </TableCell>
@@ -176,7 +176,7 @@ type DomainRowData = {
   domain: string;
   verifiedAt: Date | null;
   createdAt: Date;
-  recordName: string;
+  recordHost: string;
   recordValue: string;
 };
 
@@ -248,7 +248,7 @@ function DomainRow({ orgId, row }: { orgId: string; row: DomainRowData }) {
         <TableRow className="bg-muted/30">
           <TableCell colSpan={4} className="py-4">
             <DnsInstructions
-              recordName={row.recordName}
+              recordHost={row.recordHost}
               recordValue={row.recordValue}
             />
           </TableCell>
@@ -259,10 +259,10 @@ function DomainRow({ orgId, row }: { orgId: string; row: DomainRowData }) {
 }
 
 function DnsInstructions({
-  recordName,
+  recordHost,
   recordValue,
 }: {
-  recordName: string;
+  recordHost: string;
   recordValue: string;
 }) {
   return (
@@ -275,7 +275,7 @@ function DnsInstructions({
           <TableHeader>
             <TableRow>
               <TableHead className="w-16">Type</TableHead>
-              <TableHead>Name</TableHead>
+              <TableHead className="w-54">Host</TableHead>
               <TableHead>Value</TableHead>
             </TableRow>
           </TableHeader>
@@ -286,8 +286,8 @@ function DnsInstructions({
               </TableCell>
               <TableCellWithCopyButton
                 density="comfortable"
-                text={recordName}
-                className="py-3 font-mono break-all"
+                text={recordHost}
+                className="w-54 py-3 font-mono break-all"
               />
               <TableCellWithCopyButton
                 density="comfortable"
