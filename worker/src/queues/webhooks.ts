@@ -115,6 +115,7 @@ async function executeHttpAction({
   executionId,
   executionStart,
   actionConfig,
+  additionalSensitiveHeaders,
 }: {
   url: string;
   payload: string;
@@ -125,6 +126,7 @@ async function executeHttpAction({
   executionId: string;
   executionStart: Date;
   actionConfig: ActionDomainWithSecrets;
+  additionalSensitiveHeaders?: string[];
 }): Promise<{ httpStatus: number; responseBody: string }> {
   let httpStatus: number | undefined;
   let responseBody: string | undefined;
@@ -161,6 +163,7 @@ async function executeHttpAction({
               maxRedirects: env.LANGFUSE_WEBHOOK_MAX_REDIRECTS,
               skipValidation,
               whitelist: whitelistFromEnv(),
+              additionalSensitiveHeaders,
             },
           );
 
@@ -383,11 +386,15 @@ async function executeWebhookAction({
 
   // Prepare headers with signature if secret exists
   const requestHeaders: Record<string, string> = {};
+  const additionalSensitiveHeaders: string[] = [];
 
   // Add webhook config headers first
   if (webhookConfig.requestHeaders) {
     for (const [key, value] of Object.entries(webhookConfig.requestHeaders)) {
       requestHeaders[key] = value.value;
+      if (value.secret) {
+        additionalSensitiveHeaders.push(key);
+      }
     }
   }
 
@@ -419,6 +426,7 @@ async function executeWebhookAction({
     executionId,
     executionStart,
     actionConfig,
+    additionalSensitiveHeaders,
   });
 }
 

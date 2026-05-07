@@ -3,6 +3,7 @@ import { api } from "@/src/utils/api";
 import {
   adaptEventsToTraceFormat,
   type AdaptedTraceData,
+  type EventsTraceObservation,
 } from "@/src/features/events/lib/eventsToTraceAdapter";
 import {
   filterAndValidateDbScoreList,
@@ -10,7 +11,6 @@ import {
   ScoreDataTypeEnum,
   type ScoreDomain,
 } from "@langfuse/shared";
-import type { FullEventsObservations } from "@langfuse/shared/src/server";
 import {
   type WithStringifiedMetadata,
   toDomainArrayWithStringifiedMetadata,
@@ -72,7 +72,7 @@ export function useEventsTraceData(
 
   // Step 2: Find root observation and calculate time range for batchIO
   const observations = eventsQuery.data?.observations as
-    | FullEventsObservations
+    | EventsTraceObservation[]
     | undefined;
 
   const rootObservation = useMemo(() => {
