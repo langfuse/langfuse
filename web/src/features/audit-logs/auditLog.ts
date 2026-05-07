@@ -42,6 +42,7 @@ export type AuditableResource =
   | "action"
   | "slackIntegration"
   | "cloudSpendAlert"
+  | "verifiedDomain"
   // legacy resources
   | "membership";
 
