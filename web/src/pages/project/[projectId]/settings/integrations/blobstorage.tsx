@@ -762,12 +762,15 @@ const BlobStorageIntegrationSettingsForm = ({
                           checked={(field.value ?? []).includes(option.value)}
                           onCheckedChange={(checked) => {
                             const current = field.value ?? [];
-                            const next = checked
-                              ? [...current, option.value]
-                              : current.filter(
-                                  (v: BlobExportFieldGroup) =>
-                                    v !== option.value,
-                                );
+                            const next =
+                              checked === true
+                                ? current.includes(option.value)
+                                  ? current
+                                  : [...current, option.value]
+                                : current.filter(
+                                    (v: BlobExportFieldGroup) =>
+                                      v !== option.value,
+                                  );
                             field.onChange(next);
                           }}
                         />
