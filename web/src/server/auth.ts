@@ -917,7 +917,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             logger.error("No email found in user object");
             throw new Error("No email found in user object");
           }
-          if (z.string().email().safeParse(email).success === false) {
+          if (z.email().safeParse(email).success === false) {
             logger.error("Invalid email found in user object");
             throw new Error("Invalid email found in user object");
           }

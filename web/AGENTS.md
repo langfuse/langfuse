@@ -5,7 +5,9 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## Purpose
 
-- Next.js 15 application with UI, tRPC backend, and public REST API routes.
+- Next.js application with UI, tRPC backend, and public REST API routes.
+- Check `web/package.json` for current Next.js, React, and tRPC versions before
+  version-sensitive work.
 - Primary package for frontend and most request/response surface changes.
 
 ## Maintenance Contract
@@ -82,6 +84,26 @@ signoff of user-visible changes.
   must be installed, ask the user before doing so.
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
+- When changing shared UI/table patterns, update sibling variants consistently,
+  including default-visible and hidden columns or states.
+- For component style variants, prefer `cva` with `VariantProps` and merge
+  caller classes through `cn`, following existing `src/components/ui/*`
+  components:
+
+  ```tsx
+  const cardVariants = cva("rounded-md border", {
+    variants: {
+      intent: { default: "bg-background", error: "border-destructive" },
+    },
+    defaultVariants: { intent: "default" },
+  });
+
+  type CardProps = React.HTMLAttributes<HTMLDivElement> &
+    VariantProps<typeof cardVariants>;
+
+  const className = cn(cardVariants({ intent }), props.className);
+  ```
+
 - When anchoring sticky, fixed, or absolute elements to the viewport, use
   `top-banner-offset`, `pt-banner-offset`, `h-screen-with-banner`, or
   `min-h-screen-with-banner` instead of raw `top-0` so banners do not overlap
@@ -97,6 +119,12 @@ signoff of user-visible changes.
   unique test data over global reset helpers.
 - Put pure server unit tests that do not need Postgres bootstrap under
   `src/__tests__/server/unit/**` so they skip the shared DB setup hook.
+- For small utility functions, prefer Vitest in-source tests when colocated
+  coverage is the simplest option, especially when the test needs access to
+  private implementation details without widening the module API.
+- Do not extract private utility functions into separate files only to make
+  them testable. Keep them local unless the user explicitly asks for extraction
+  or the utility is meaningfully reused.
 
 ## Quick Commands
 
@@ -104,8 +132,9 @@ signoff of user-visible changes.
 - Lint: `pnpm --filter web run lint`
 - Lint fix: `pnpm --filter web run lint:fix`
 - Typecheck: `pnpm --filter web run typecheck`
-- Server tests: `pnpm --filter web run test -- <pattern>`
-- Client tests: `pnpm --filter web run test-client -- <pattern>`
+- Server tests: `pnpm --filter web run test -- <args>`
+- In-source tests: `pnpm --filter web run test:in-source -- <args>`
+- Client tests: `pnpm --filter web run test-client -- <args>`
 - E2E tests: `pnpm --filter web run test:e2e`
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
@@ -150,4 +179,13 @@ signoff of user-visible changes.
 - Router style is Pages Router-centric; follow existing routing patterns.
 - Keep tests independent; no reliance on test execution order.
 - Confirm the target `*.clienttest.*` or `*.servertest.*` file exists before passing a pattern to `vitest run`; source files do not always have a matching colocated test file.
+- When passing a Vitest file or pattern through `pnpm --filter web ...`, make it
+  relative to `web/` because the script runs with `web` as the working
+  directory. Example: use `src/features/widgets/chart-library/BigNumber.tsx`,
+  not `web/src/features/widgets/chart-library/BigNumber.tsx`.
+- Prefer separate test files for components, integration coverage, and broader
+  behaviors; use Vitest in-source tests mainly for small-scoped utilities.
+- Run Vitest in-source utility coverage with `pnpm --filter web run test:in-source`;
+  do not try to target these through `test-client` or by assuming a separate
+  `*.clienttest.*`/`*.servertest.*` file exists.
 - Do not hand-edit build artifacts: `.next/*`, `.next-check/*`, `dist/*`.

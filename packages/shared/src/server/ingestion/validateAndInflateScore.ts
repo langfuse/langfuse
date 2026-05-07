@@ -1,4 +1,6 @@
 import {
+  ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE,
+  isAnnotationScoreMissingConfigId,
   ScoreBodyWithoutConfig,
   ScoreConfigDomain,
   type ScoreDataTypeType,
@@ -22,6 +24,13 @@ export async function validateAndInflateScore(
   params: ValidateAndInflateScoreParams,
 ) {
   const { body, projectId, scoreId } = params;
+
+  // Central choke point: both POST /api/public/scores and
+  // POST /api/public/ingestion enqueue events that run through this function
+  // in the worker, so enforcing here covers both entry points.
+  if (isAnnotationScoreMissingConfigId(body)) {
+    throw new InvalidRequestError(ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE);
+  }
 
   if (body.configId) {
     const config = await prisma.scoreConfig.findFirst({

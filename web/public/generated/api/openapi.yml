@@ -10231,9 +10231,28 @@ components:
             Reference a score config on a score. The unique langfuse identifier
             of a score config. When passing this field, the dataType and
             stringValue fields are automatically populated.
+        source:
+          $ref: '#/components/schemas/legacyCreateScoreSource'
+          nullable: true
+          description: >-
+            The source of the score. Defaults to API. Set to ANNOTATION to
+            prefill scores (e.g. from an LLM) for a human reviewer to verify in
+            an annotation queue. When source is ANNOTATION, a configId is
+            required unless dataType is CORRECTION. EVAL is reserved for
+            internal evaluator outputs and is not accepted on this endpoint.
       required:
         - name
         - value
+    legacyCreateScoreSource:
+      title: legacyCreateScoreSource
+      type: string
+      enum:
+        - API
+        - ANNOTATION
+      description: |-
+        Source values accepted when creating a score via the public REST API.
+        EVAL is reserved for internal evaluator outputs and is intentionally not
+        exposed here — use commons.ScoreSource when reading scores.
     legacyCreateScoreResponse:
       title: legacyCreateScoreResponse
       type: object

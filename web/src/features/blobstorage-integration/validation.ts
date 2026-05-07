@@ -1,4 +1,4 @@
-import { z } from "zod";
+import type { z } from "zod";
 
 /**
  * Azure container names must be 3-63 characters, lowercase letters, numbers,
@@ -23,7 +23,7 @@ export function validateAzureContainerName(
     !AZURE_CONTAINER_NAME_REGEX.test(data.bucketName)
   ) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       message: AZURE_CONTAINER_NAME_ERROR,
       path: ["bucketName"],
     });

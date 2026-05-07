@@ -58,7 +58,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
+import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -68,10 +68,7 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
-import {
-  type DataTablePeekViewProps,
-  TablePeekView,
-} from "@/src/components/table/peek";
+import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import {
   addPrefixToScoreKeys,
@@ -176,7 +173,6 @@ export type EventsTableProps = {
   userId?: string;
   omittedFilter?: ObservationEventsOmittableFilterColumn[];
   hideControls?: boolean;
-  viewPersistenceKey?: string;
   // External control props for embedded preview tables
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
@@ -189,7 +185,6 @@ export default function ObservationsEventsTable({
   userId,
   omittedFilter = [],
   hideControls = false,
-  viewPersistenceKey,
   externalFilterState,
   externalDateRange,
   limitRows,
@@ -520,6 +515,7 @@ export default function ObservationsEventsTable({
     projectId,
     tableName: "observations",
     setSelectedRows,
+    setSelectAll,
   });
 
   const tableActions: TableAction[] = [
@@ -550,7 +546,7 @@ export default function ObservationsEventsTable({
       label: "Evaluate",
       description: "Run evaluations on selected observations.",
       customDialog: true,
-      icon: <LightbulbIcon className="mr-2 h-4 w-4" />,
+      icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
       accessCheck: {
         scope: "evalJob:CUD",
       },
@@ -1217,12 +1213,12 @@ export default function ObservationsEventsTable({
   });
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
-    tableName: TableViewPresetTableName.Observations,
+    tableName: TableViewPresetTableName.ObservationsEvents,
     projectId,
-    viewPersistenceKey,
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
       setSearchQuery: setSearchQuery,
@@ -1230,8 +1226,12 @@ export default function ObservationsEventsTable({
     validationContext: {
       columns,
       filterColumnDefinition: eventsFilterConfig.columnDefinitions,
+      expandableFilterColumns: eventsFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
     },
     currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
   });
 
@@ -1239,12 +1239,10 @@ export default function ObservationsEventsTable({
     if (hideControls) return undefined;
     return {
       itemType: "TRACE",
-      customTitlePrefix: "Observation ID:",
       detailNavigationKey: "observations",
-      children: <PeekViewObservationDetail projectId={projectId} />,
       ...peekNavigationProps,
     };
-  }, [projectId, peekNavigationProps, hideControls]);
+  }, [peekNavigationProps, hideControls]);
 
   const rows: EventsTableRow[] = useMemo(() => {
     const result =
@@ -1325,6 +1323,11 @@ export default function ObservationsEventsTable({
     return Object.keys(selectedRows).filter((id) => rowIds.has(id));
   }, [observations.rows, selectedRows]);
 
+  const selectedObservationCount =
+    selectAll && totalCount !== null
+      ? totalCount
+      : selectedObservationIds.length;
+
   const exampleObservation = useMemo(() => {
     const firstId = selectedObservationIds[0];
     const firstObs = observations.rows?.find((o) => o.id === firstId);
@@ -1352,7 +1355,7 @@ export default function ObservationsEventsTable({
               tableAllowsFullTextSearch: true,
             }}
             viewConfig={{
-              tableName: TableViewPresetTableName.Observations,
+              tableName: TableViewPresetTableName.ObservationsEvents,
               projectId,
               controllers: viewControllers,
             }}
@@ -1396,12 +1399,17 @@ export default function ObservationsEventsTable({
                 tableName={BatchExportTableName.Events}
                 key="batchExport"
               />,
-              selectedObservationIds.length > 0 ? (
+              selectedObservationIds.length > 0 || selectAll ? (
                 <TableActionMenu
                   key="observations-multi-select-actions"
                   projectId={projectId}
                   actions={tableActions}
                   tableName={BatchExportTableName.Observations}
+                  selectedCount={selectedObservationCount}
+                  onClearSelection={() => {
+                    setSelectedRows({});
+                    setSelectAll(false);
+                  }}
                   onCustomAction={(actionType) => {
                     if (actionType === ActionId.ObservationBatchEvaluation) {
                       setShowRunEvaluationDialog(true);
@@ -1429,7 +1437,12 @@ export default function ObservationsEventsTable({
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
           {!hideControls && (
-            <DataTableControls queryFilter={queryFilter} filterWithAI />
+            <DataTableControls
+              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
+              key={viewControllers.selectedViewId ?? "no-view"}
+              queryFilter={queryFilter}
+              filterWithAI
+            />
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -1491,6 +1504,7 @@ export default function ObservationsEventsTable({
                     }
               }
               rowSelection={selectedRows}
+              highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               setOrderBy={setOrderByState}
               orderBy={orderByState}
@@ -1530,7 +1544,12 @@ export default function ObservationsEventsTable({
             />
           </div>
         </ResizableFilterLayout>
-        {peekConfig && <TablePeekView peekView={peekConfig} />}
+        {peekConfig && (
+          <TablePeekViewObservationDetail
+            {...peekConfig}
+            projectId={projectId}
+          />
+        )}
       </div>
 
       {showRunEvaluationDialog && (

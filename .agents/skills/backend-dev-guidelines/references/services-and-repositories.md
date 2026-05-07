@@ -412,190 +412,19 @@ Repository: "Here's the Prisma query that does that"
 - ❌ Know about HTTP
 - ❌ Make decisions (that's service layer)
 
-### Repository Template
+### Langfuse Repository Examples
 
-```typescript
-// repositories/UserRepository.ts
-import { PrismaService } from "@project-lifecycle-portal/database";
-import type { User, Prisma } from "@project-lifecycle-portal/database";
+Use these current Langfuse files as repository templates:
 
-export class UserRepository {
-  /**
-   * Find user by ID with optimized query
-   */
-  async findById(userId: string): Promise<User | null> {
-    try {
-      return await PrismaService.main.user.findUnique({
-        where: { userID: userId },
-        select: {
-          userID: true,
-          email: true,
-          name: true,
-          isActive: true,
-          roles: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
-    } catch (error) {
-      console.error("[UserRepository] Error finding user by ID:", error);
-      throw new Error(`Failed to find user: ${userId}`);
-    }
-  }
+- PostgreSQL repository with project-scoped filters:
+  `packages/shared/src/server/repositories/comments.ts`
+- ClickHouse repository with project-scoped filters and query helpers:
+  `packages/shared/src/server/repositories/traces.ts`
+- Repository tests:
+  `web/src/__tests__/server/repositories/event-repository.servertest.ts`
 
-  /**
-   * Find all active users
-   */
-  async findActive(options?: {
-    orderBy?: Prisma.UserOrderByWithRelationInput;
-  }): Promise<User[]> {
-    try {
-      return await PrismaService.main.user.findMany({
-        where: { isActive: true },
-        orderBy: options?.orderBy || { name: "asc" },
-        select: {
-          userID: true,
-          email: true,
-          name: true,
-          roles: true,
-        },
-      });
-    } catch (error) {
-      console.error("[UserRepository] Error finding active users:", error);
-      throw new Error("Failed to find active users");
-    }
-  }
-
-  /**
-   * Find user by email
-   */
-  async findByEmail(email: string): Promise<User | null> {
-    try {
-      return await PrismaService.main.user.findUnique({
-        where: { email },
-      });
-    } catch (error) {
-      console.error("[UserRepository] Error finding user by email:", error);
-      throw new Error(`Failed to find user with email: ${email}`);
-    }
-  }
-
-  /**
-   * Create new user
-   */
-  async create(data: Prisma.UserCreateInput): Promise<User> {
-    try {
-      return await PrismaService.main.user.create({ data });
-    } catch (error) {
-      console.error("[UserRepository] Error creating user:", error);
-      throw new Error("Failed to create user");
-    }
-  }
-
-  /**
-   * Update user
-   */
-  async update(userId: string, data: Prisma.UserUpdateInput): Promise<User> {
-    try {
-      return await PrismaService.main.user.update({
-        where: { userID: userId },
-        data,
-      });
-    } catch (error) {
-      console.error("[UserRepository] Error updating user:", error);
-      throw new Error(`Failed to update user: ${userId}`);
-    }
-  }
-
-  /**
-   * Delete user (soft delete by setting isActive = false)
-   */
-  async delete(userId: string): Promise<User> {
-    try {
-      return await PrismaService.main.user.update({
-        where: { userID: userId },
-        data: { isActive: false },
-      });
-    } catch (error) {
-      console.error("[UserRepository] Error deleting user:", error);
-      throw new Error(`Failed to delete user: ${userId}`);
-    }
-  }
-
-  /**
-   * Check if email exists
-   */
-  async emailExists(email: string): Promise<boolean> {
-    try {
-      const count = await PrismaService.main.user.count({
-        where: { email },
-      });
-      return count > 0;
-    } catch (error) {
-      console.error("[UserRepository] Error checking email exists:", error);
-      throw new Error("Failed to check if email exists");
-    }
-  }
-}
-
-// Export singleton instance
-export const userRepository = new UserRepository();
-```
-
-**Using Repository in Service:**
-
-```typescript
-// services/userService.ts
-import { userRepository } from "../repositories/UserRepository";
-import { ConflictError, NotFoundError } from "../utils/errors";
-
-export class UserService {
-  /**
-   * Create new user with business rules
-   */
-  async createUser(data: {
-    email: string;
-    name: string;
-    roles: string[];
-  }): Promise<User> {
-    // Business rule: Check if email already exists
-    const emailExists = await userRepository.emailExists(data.email);
-    if (emailExists) {
-      throw new ConflictError("Email already exists");
-    }
-
-    // Business rule: Validate roles
-    const validRoles = ["admin", "operations", "user"];
-    const invalidRoles = data.roles.filter(
-      (role) => !validRoles.includes(role),
-    );
-    if (invalidRoles.length > 0) {
-      throw new ValidationError(`Invalid roles: ${invalidRoles.join(", ")}`);
-    }
-
-    // Create user via repository
-    return await userRepository.create({
-      email: data.email,
-      name: data.name,
-      roles: data.roles,
-      isActive: true,
-    });
-  }
-
-  /**
-   * Get user by ID
-   */
-  async getUser(userId: string): Promise<User> {
-    const user = await userRepository.findById(userId);
-
-    if (!user) {
-      throw new NotFoundError(`User not found: ${userId}`);
-    }
-
-    return user;
-  }
-}
-```
+Keep data-access concerns in repositories and business decisions in services.
+Project-scoped queries must include `projectId` or `project_id` filters.
 
 ---
 
@@ -803,70 +632,13 @@ class UserService {
 
 ## Testing Services
 
-### Unit Tests
+Use `testing-guide.md` for backend test patterns. Prefer current Langfuse tests
+over invented examples:
 
-```typescript
-// tests/userService.test.ts
-import { UserService } from "../services/userService";
-import { userRepository } from "../repositories/UserRepository";
-import { ConflictError } from "../utils/errors";
-import type { Mock } from "vitest";
-
-// Mock repository
-vi.mock("../repositories/UserRepository");
-
-describe("UserService", () => {
-  let userService: UserService;
-
-  beforeEach(() => {
-    userService = new UserService();
-    vi.clearAllMocks();
-  });
-
-  describe("createUser", () => {
-    it("should create user when email does not exist", async () => {
-      // Arrange
-      const userData = {
-        email: "test@example.com",
-        name: "Test User",
-        roles: ["user"],
-      };
-
-      (userRepository.emailExists as Mock).mockResolvedValue(false);
-      (userRepository.create as Mock).mockResolvedValue({
-        userID: "123",
-        ...userData,
-      });
-
-      // Act
-      const user = await userService.createUser(userData);
-
-      // Assert
-      expect(user).toBeDefined();
-      expect(user.email).toBe(userData.email);
-      expect(userRepository.emailExists).toHaveBeenCalledWith(userData.email);
-      expect(userRepository.create).toHaveBeenCalled();
-    });
-
-    it("should throw ConflictError when email exists", async () => {
-      // Arrange
-      const userData = {
-        email: "existing@example.com",
-        name: "Test User",
-        roles: ["user"],
-      };
-
-      (userRepository.emailExists as Mock).mockResolvedValue(true);
-
-      // Act & Assert
-      await expect(userService.createUser(userData)).rejects.toThrow(
-        ConflictError,
-      );
-      expect(userRepository.create).not.toHaveBeenCalled();
-    });
-  });
-});
-```
+- Repository tests:
+  `web/src/__tests__/server/repositories/event-repository.servertest.ts`
+- Pure service unit tests:
+  `web/src/__tests__/server/unit/`
 
 ---
 

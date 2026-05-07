@@ -2,7 +2,12 @@
 
 ## Purpose
 
-Establish consistency and best practices across Langfuse's backend packages (web, worker, packages/shared) using Next.js 14, tRPC, BullMQ, and TypeScript patterns.
+Establish consistency and best practices across Langfuse's backend packages
+(`web`, `worker`, `packages/shared`) using Next.js, tRPC, BullMQ, and TypeScript
+patterns. Check package manifests such as `web/package.json` for current
+framework versions before version-sensitive work.
+Keep this file as an entrypoint; open reference files only when the task needs
+their details.
 
 ## When to Use This Skill
 
@@ -64,7 +69,7 @@ Use this guide when working on:
 ### Layered Architecture
 
 ```
-# Web Package (Next.js 14)
+# Web Package (Next.js)
 
 ┌─ tRPC API ──────────────────┐   ┌── Public REST API ──────────┐
 │                             │   │                             │
@@ -102,150 +107,6 @@ Use this guide when working on:
 
 See [references/architecture-overview.md](references/architecture-overview.md)
 for complete details.
-
----
-
-## Directory Structure
-
-### Web Package (`/web/`)
-
-```
-web/src/
-├── features/                # Feature-organized code
-│   ├── [feature-name]/
-│   │   ├── server/          # Backend logic
-│   │   │   ├── *Router.ts   # tRPC router
-│   │   │   └── service.ts   # Business logic
-│   │   ├── components/      # React components
-│   │   └── types/           # Feature types
-├── server/
-│   ├── api/
-│   │   ├── routers/         # tRPC routers
-│   │   ├── trpc.ts          # tRPC setup & middleware
-│   │   └── root.ts          # Main router
-│   ├── auth.ts              # NextAuth.js config
-│   └── db.ts                # Database client
-├── pages/
-│   ├── api/
-│   │   ├── public/          # Public REST APIs
-│   │   └── trpc/            # tRPC endpoint
-│   └── [routes].tsx         # Next.js pages
-├── __tests__/               # Vitest tests
-│   └── server/              # Integration tests
-├── instrumentation.ts       # OpenTelemetry (FIRST IMPORT)
-└── env.mjs                  # Environment config
-```
-
-### Worker Package (`/worker/`)
-
-```
-worker/src/
-├── queues/                  # BullMQ processors
-│   ├── evalQueue.ts
-│   ├── ingestionQueue.ts
-│   └── workerManager.ts
-├── features/                # Business logic
-│   └── [feature]/
-│       └── service.ts
-├── instrumentation.ts       # OpenTelemetry (FIRST IMPORT)
-├── app.ts                   # Express setup + queue registration
-├── env.ts                   # Environment config
-└── index.ts                 # Server start
-```
-
-### Shared Package (`/packages/shared/`)
-
-```
-shared/src/
-├── server/                  # Server utilities
-│   ├── auth/                # Authentication helpers
-│   ├── clickhouse/          # ClickHouse client & schema
-│   ├── instrumentation/     # OpenTelemetry helpers
-│   ├── llm/                 # LLM integration utilities
-│   ├── redis/               # Redis queues & cache
-│   ├── repositories/        # Data repositories
-│   ├── services/            # Shared services
-│   ├── utils/               # Server utilities
-│   ├── logger.ts
-│   └── queues.ts
-├── encryption/              # Encryption utilities
-├── features/                # Feature-specific code
-├── tableDefinitions/        # Table schemas
-├── utils/                   # Shared utilities
-├── constants.ts
-├── db.ts                    # Prisma client
-├── env.ts                   # Environment config
-└── index.ts                 # Main exports
-```
-
-**Import Paths (package.json exports):**
-
-The shared package exposes specific import paths for different use cases:
-
-| Import Path                                | Maps To                           | Use For                                                         |
-| ------------------------------------------ | --------------------------------- | --------------------------------------------------------------- |
-| `@langfuse/shared`                         | `dist/src/index.js`               | General types, schemas, utilities, constants                    |
-| `@langfuse/shared/src/db`                  | `dist/src/db.js`                  | Prisma client and database types                                |
-| `@langfuse/shared/src/server`              | `dist/src/server/index.js`        | Server-side utilities (queues, auth, services, instrumentation) |
-| `@langfuse/shared/src/server/auth/apiKeys` | `dist/src/server/auth/apiKeys.js` | API key management utilities                                    |
-| `@langfuse/shared/encryption`              | `dist/src/encryption/index.js`    | Encryption and signature utilities                              |
-
-**Usage Examples:**
-
-```typescript
-// General imports - types, schemas, constants, interfaces
-import {
-  CloudConfigSchema,
-  StringNoHTML,
-  AnnotationQueueObjectType,
-  type APIScoreV2,
-  type ColumnDefinition,
-  Role,
-} from "@langfuse/shared";
-
-// Database - Prisma client and types
-import { prisma, Prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
-import { type DB as Database } from "@langfuse/shared";
-
-// Server utilities - queues, services, auth, instrumentation
-import {
-  logger,
-  instrumentAsync,
-  traceException,
-  redis,
-  getTracesTable,
-  StorageService,
-  sendMembershipInvitationEmail,
-  invalidateApiKeysForProject,
-  recordIncrement,
-  recordHistogram,
-} from "@langfuse/shared/src/server";
-
-// API key management (specific path)
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
-
-// Encryption utilities
-import { encrypt, decrypt, sign, verify } from "@langfuse/shared/encryption";
-```
-
-**What Goes Where:**
-
-The shared package provides types, utilities, and server code used by both web and worker packages. It has **5 export paths** that control frontend vs backend access:
-
-| Import Path                                | Usage                 | What's Included                                                                    |
-| ------------------------------------------ | --------------------- | ---------------------------------------------------------------------------------- |
-| `@langfuse/shared`                         | ✅ Frontend + Backend | Prisma types, Zod schemas, constants, table definitions, domain models, utilities  |
-| `@langfuse/shared/src/db`                  | 🔒 Backend only       | Prisma client instance                                                             |
-| `@langfuse/shared/src/server`              | 🔒 Backend only       | Services, repositories, queues, auth, ClickHouse, LLM integration, instrumentation |
-| `@langfuse/shared/src/server/auth/apiKeys` | 🔒 Backend only       | API key management (separated to avoid circular deps)                              |
-| `@langfuse/shared/encryption`              | 🔒 Backend only       | Database field encryption/decryption                                               |
-
-**Naming Conventions:**
-
-- tRPC Routers: `camelCaseRouter.ts` - `datasetRouter.ts`
-- Services: `service.ts` in feature directory
-- Queue Processors: `camelCaseQueue.ts` - `evalQueue.ts`
-- Public APIs: `kebab-case.ts` - `dataset-items.ts`
 
 ---
 
@@ -355,51 +216,10 @@ const result = await instrumentAsync(
 
 ### 7. Comprehensive Testing Required
 
-Write tests for all new features and bug fixes. See [testing-guide.md](references/testing-guide.md) for detailed examples.
-
-**Test Types:**
-
-| Type        | Framework | Location                                   | Purpose                      |
-| ----------- | --------- | ------------------------------------------ | ---------------------------- |
-| Integration | Vitest    | `web/src/__tests__/server/`                | Full API endpoint testing    |
-| tRPC        | Vitest    | `web/src/__tests__/server/`                | tRPC procedures with auth    |
-| Service     | Vitest    | `web/src/__tests__/server/repositories/`   | Repository/service functions |
-| Worker      | Vitest    | `worker/src/__tests__/`                    | Queue processors & streams   |
-
-**Quick Examples:**
-
-```typescript
-// Integration Test (Public API)
-const res = await makeZodVerifiedAPICall(
-  PostDatasetsV1Response, "POST", "/api/public/datasets",
-  { name: "test-dataset" }, auth
-);
-expect(res.status).toBe(200);
-
-// tRPC Test
-const { caller } = await prepare(); // Creates session + caller
-const response = await caller.automations.getAutomations({ projectId });
-expect(response).toHaveLength(1);
-
-// Service Test
-const result = await getObservationsWithModelDataFromEventsTable({
-  projectId, filter: [...], limit: 1000, offset: 0
-});
-expect(result.length).toBeGreaterThan(0);
-
-// Worker Test (vitest)
-const stream = await getObservationStream({ projectId, filter: [] });
-const rows = [];
-for await (const chunk of stream) rows.push(chunk);
-expect(rows).toHaveLength(2);
-```
-
-**Key Principles:**
-
-- Use unique IDs (`randomUUID()`) to avoid test interference
-- Clean up test data or use unique project IDs
-- Tests must be independent and runnable in any order
-- Prefer scoped cleanup or unique project IDs over global reset helpers
+Add targeted tests for new backend behavior and bug fixes. Keep tests
+independent and parallel-safe. See
+[testing-guide.md](references/testing-guide.md) for tRPC, public API, service,
+repository, and worker examples.
 
 ### 8. Always Filter by projectId for Tenant Isolation
 
@@ -448,72 +268,26 @@ Trace:
 
 ---
 
-## Common Imports
+## Live Examples
 
-```typescript
-// tRPC (Web)
-import { z } from "zod/v4";
-import {
-  createTRPCRouter,
-  protectedProjectProcedure,
-} from "@/src/server/api/trpc";
-import { TRPCError } from "@trpc/server";
-
-// Database
-import { prisma } from "@langfuse/shared/src/db";
-import type { Prisma } from "@prisma/client";
-
-// ClickHouse
-import {
-  queryClickhouse,
-  queryClickhouseStream,
-  upsertClickhouse,
-} from "@langfuse/shared/src/server";
-
-// Observability - OpenTelemetry + DataDog (NOT Sentry for backend)
-import {
-  logger,          // Winston logger with OTEL/DataDog trace context
-  traceException,  // Record exceptions to OpenTelemetry spans
-  instrumentAsync, // Create instrumented spans for operations
-} from "@langfuse/shared/src/server";
-
-// Config
-import { env } from "@/src/env.mjs"; // web
-// or
-import { env } from "./env"; // worker
-
-// Public API (Web)
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-
-// Queue Processing (Worker)
-import { Job } from "bullmq";
-import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
-```
+Reference existing Langfuse features for implementation patterns:
+- tRPC router with project auth and Zod input:
+  `web/src/features/events/server/eventsRouter.ts`
+- Public API route with middleware and typed request/response schemas:
+  `web/src/pages/api/public/datasets.ts`
+- Worker queue processor with typed jobs, logging, and retry behavior:
+  `worker/src/queues/evalQueue.ts`
+- Tenant filters for Prisma and ClickHouse:
+  `references/database-patterns.md`
 
 ---
 
-## Quick Reference
+## Naming Conventions
 
-### HTTP Status Codes
-
-| Code | Use Case     |
-| ---- | ------------ |
-| 200  | Success      |
-| 201  | Created      |
-| 400  | Bad Request  |
-| 401  | Unauthorized |
-| 403  | Forbidden    |
-| 404  | Not Found    |
-| 500  | Server Error |
-
-### Example Features to Reference
-
-Reference existing Langfuse features for implementation patterns:
-- **Datasets** (`web/src/features/datasets/`) - Complete feature with tRPC router, public API, and service
-- **Prompts** (`web/src/features/prompts/`) - Feature with versioning and templates
-- **Evaluations** (`web/src/features/evals/`) - Complex feature with worker integration
-- **Public API** (`web/src/features/public-api/`) - Middleware and route patterns
+- tRPC routers: `camelCaseRouter.ts`, e.g. `datasetRouter.ts`
+- Services: `service.ts` in the feature server directory
+- Queue processors: `camelCaseQueue.ts`, e.g. `evalQueue.ts`
+- Public API routes: kebab-case filenames, e.g. `dataset-items.ts`
 
 ---
 
@@ -530,6 +304,9 @@ Reference existing Langfuse features for implementation patterns:
 
 ## Navigation Guide
 
+Keep detailed backend guidance in these focused reference files and open only
+the one that matches the task.
+
 | Need to...                | Read this                                                    |
 | ------------------------- | ------------------------------------------------------------ |
 | Understand architecture   | [architecture-overview.md](references/architecture-overview.md)         |
@@ -541,37 +318,3 @@ Reference existing Langfuse features for implementation patterns:
 | Write tests               | [testing-guide.md](references/testing-guide.md)                         |
 
 ---
-
-## Reference Files
-
-### [architecture-overview.md](references/architecture-overview.md)
-
-Three-layer architecture (tRPC/Public API → Services → Data Access), request lifecycle for tRPC/Public API/Worker, Next.js 14 directory structure, dual database system (PostgreSQL + ClickHouse), separation of concerns, repository pattern for complex queries
-
-### [routing-and-controllers.md](references/routing-and-controllers.md)
-
-Next.js file-based routing, tRPC router patterns, Public REST API routes, layered architecture (Entry Points → Services → Repositories → Database), service layer organization, anti-patterns to avoid
-
-### [services-and-repositories.md](references/services-and-repositories.md)
-
-Service layer overview, dependency injection patterns, singleton patterns, repository pattern for data access, service design principles, caching strategies, testing services
-
-### [middleware-guide.md](references/middleware-guide.md)
-
-tRPC middleware (withErrorHandling, withOtelInstrumentation, enforceUserIsAuthed), seven tRPC procedure types (publicProcedure, authenticatedProcedure, protectedProjectProcedure, etc.), Public API middleware (withMiddlewares, createAuthedProjectAPIRoute), authentication patterns (NextAuth for tRPC, Basic Auth for Public API)
-
-### [database-patterns.md](references/database-patterns.md)
-
-Dual database architecture (PostgreSQL via Prisma + ClickHouse via direct client), PostgreSQL CRUD operations, ClickHouse query patterns (queryClickhouse, queryClickhouseStream, upsertClickhouse), repository pattern for complex queries, tenant isolation with projectId filtering, when to use which database
-
-### [configuration.md](references/configuration.md)
-
-Environment variable validation with Zod, package-specific configs (web/env.mjs with t3-oss/env-nextjs, worker/env.ts, shared/env.ts), NEXT_PUBLIC_LANGFUSE_CLOUD_REGION usage, LANGFUSE_EE_LICENSE_KEY for enterprise features, best practices for env management
-
-### [testing-guide.md](references/testing-guide.md)
-
-Integration tests (Public API with makeZodVerifiedAPICall), tRPC tests (createInnerTRPCContext, appRouter.createCaller), service-level tests (repository/service functions), worker tests (vitest with streams), test isolation principles, running tests (Vitest for web and worker)
-
-**Skill Status**: COMPLETE ✅
-**Line Count**: ~540 lines
-**Progressive Disclosure**: 7 reference files ✅
