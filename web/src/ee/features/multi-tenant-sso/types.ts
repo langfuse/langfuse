@@ -35,6 +35,14 @@ const idTokenSignedResponseAlg = z
   ])
   .optional();
 
+// OIDC Discovery (§4) requires the issuer to be served over TLS, and OAuth
+// credential exchange likewise cannot ride on HTTP without leaking tokens, so
+// every user-supplied URL we build OAuth/OIDC endpoints from must start with
+// https://. Shared across `issuer` and provider-specific base URLs.
+const oidcIssuer = z.string().startsWith("https://", {
+  message: "OIDC issuer urls must start with https://",
+});
+
 export const GoogleProviderSchema = base.extend({
   authProvider: z.literal("google"),
   authConfig: z
@@ -67,7 +75,9 @@ export const GithubEnterpriseProviderSchema = base.extend({
       clientId: z.string(),
       clientSecret: z.string(),
       enterprise: z.object({
-        baseUrl: z.url(),
+        baseUrl: z.string().startsWith("https://", {
+          message: "Github Enterprise baseUrls must start with https://",
+        }),
       }),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
       tokenEndpointAuthMethod: tokenEndpointAuthMethod,
@@ -81,7 +91,7 @@ export const GitlabProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string().optional(),
+      issuer: oidcIssuer.optional(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
       tokenEndpointAuthMethod: tokenEndpointAuthMethod,
       idTokenSignedResponseAlg: idTokenSignedResponseAlg,
@@ -95,7 +105,7 @@ export const Auth0ProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string(),
+      issuer: oidcIssuer,
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
       tokenEndpointAuthMethod: tokenEndpointAuthMethod,
       idTokenSignedResponseAlg: idTokenSignedResponseAlg,
@@ -109,9 +119,7 @@ export const OktaProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string().startsWith("https://", {
-        message: "Okta issuer must start with https://",
-      }),
+      issuer: oidcIssuer,
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
       tokenEndpointAuthMethod: tokenEndpointAuthMethod,
       idTokenSignedResponseAlg: idTokenSignedResponseAlg,
@@ -125,7 +133,7 @@ export const AuthentikProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string().regex(/^https:\/\/.+\/application\/o\/[^/]+$/, {
+      issuer: oidcIssuer.regex(/^https:\/\/.+\/application\/o\/[^/]+$/, {
         message:
           "Authentik issuer must be in format https://<domain>/application/o/<slug> without trailing slash",
       }),
@@ -142,7 +150,7 @@ export const OneLoginProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string(),
+      issuer: oidcIssuer,
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
       tokenEndpointAuthMethod: tokenEndpointAuthMethod,
       idTokenSignedResponseAlg: idTokenSignedResponseAlg,
@@ -170,7 +178,7 @@ export const CognitoProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string(),
+      issuer: oidcIssuer,
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
       tokenEndpointAuthMethod: tokenEndpointAuthMethod,
       idTokenSignedResponseAlg: idTokenSignedResponseAlg,
@@ -185,7 +193,7 @@ export const KeycloakProviderSchema = base.extend({
       name: z.string().optional(),
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string(),
+      issuer: oidcIssuer,
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
       tokenEndpointAuthMethod: tokenEndpointAuthMethod,
       idTokenSignedResponseAlg: idTokenSignedResponseAlg,
@@ -200,7 +208,7 @@ export const CustomProviderSchema = base.extend({
       name: z.string(),
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string(),
+      issuer: oidcIssuer,
       scope: z.string().nullish(),
       idToken: z.boolean().optional().default(true),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
@@ -216,7 +224,7 @@ export const JumpCloudProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.url(),
+      issuer: oidcIssuer,
       scope: z.string().nullish(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
       tokenEndpointAuthMethod: tokenEndpointAuthMethod,
