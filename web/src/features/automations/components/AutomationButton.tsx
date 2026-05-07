@@ -1,8 +1,9 @@
 import { ActionButton } from "@/src/components/ActionButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Zap, Loader2 } from "lucide-react";
+import { Zap } from "lucide-react";
 import { type ButtonProps } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export const AutomationButton = ({
   projectId,
@@ -21,7 +22,7 @@ export const AutomationButton = ({
 
   const numberIndicator = numberOfAutomations.isLoading ? (
     <span className="ml-1.5 inline-flex w-6 items-center justify-center rounded-sm bg-transparent px-1 text-xs">
-      <Loader2 className="h-3 w-3 animate-spin" />
+      <Spinner size="xxs" />
     </span>
   ) : (
     <span

@@ -1,5 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import {
+  LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
+  withMiddlewares,
+} from "@/src/features/public-api/server/withMiddlewares";
 import {
   BaseError,
   LangfuseNotFoundError,
@@ -209,7 +212,45 @@ describe("withMiddlewares error handling", () => {
       expect(jsonData["message"]).toContain(
         ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       );
-      expect(jsonData["error"]).toBe("Unprocessable Content");
+      expect(jsonData["error"]).toBe("Request timed out");
+    });
+
+    it("should handle ClickHouseResourceError with custom advice", async () => {
+      const originalError = new Error("Timeout exceeded");
+      const resourceError = new ClickHouseResourceError(
+        "TIMEOUT",
+        originalError,
+      );
+
+      const handler = withMiddlewares(
+        {
+          GET: async () => {
+            throw resourceError;
+          },
+        },
+        {
+          clickHouseResourceErrorMessage:
+            LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
+        },
+      );
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        headers: {
+          "x-langfuse-public-key": "test-key",
+        },
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(422);
+      const jsonData = JSON.parse(res._getData());
+      expect(jsonData["message"]).toBe(
+        LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
+      );
+      expect(jsonData["message"]).toContain(
+        "https://langfuse.com/docs/metrics/features/metrics-api",
+      );
     });
   });
 

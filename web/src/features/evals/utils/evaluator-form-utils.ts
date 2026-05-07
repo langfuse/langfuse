@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  EvalTargetObjectSchema,
   singleFilter,
   type langfuseObjects,
   TimeScopeSchema,
@@ -14,7 +15,7 @@ export const isLegacyEvalTarget = (target: string): boolean =>
 
 export const evalConfigFormSchema = z.object({
   scoreName: z.string(),
-  target: z.string(),
+  target: EvalTargetObjectSchema,
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   mapping: z.array(wipVariableMapping),
   sampling: z.coerce.number().gt(0).lte(1),

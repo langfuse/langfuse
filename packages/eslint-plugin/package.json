@@ -1,0 +1,21 @@
+{
+  "name": "@repo/eslint-plugin",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^24.3.0",
+    "@typescript-eslint/parser": "^8.59.0",
+    "@typescript-eslint/rule-tester": "^8.59.0",
+    "@typescript-eslint/utils": "^8.59.0",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.4"
+  }
+}

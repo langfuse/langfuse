@@ -1,18 +1,11 @@
-import { URL } from "node:url";
 import { env } from "../../env";
-import { logger } from "../logger";
 import {
-  isHostnameBlocked,
-  isIPBlocked,
-  isIPAddress,
-} from "../webhooks/ipBlocking";
-import { resolveHost } from "../webhooks/validation";
+  type OutboundUrlValidationWhitelist,
+  parseOutboundUrl,
+  validateOutboundUrlHost,
+} from "../outbound-url";
 
-export interface LlmBaseUrlValidationWhitelist {
-  hosts: string[];
-  ips: string[];
-  ip_ranges: string[];
-}
+export type LlmBaseUrlValidationWhitelist = OutboundUrlValidationWhitelist;
 
 export function llmBaseUrlWhitelistFromEnv(): LlmBaseUrlValidationWhitelist {
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
@@ -42,92 +35,23 @@ export async function validateLlmConnectionBaseURL(
       }
     : whitelist;
 
-  let url: URL;
-  try {
-    url = new URL(normalizeURL(urlString));
-  } catch {
-    throw new Error("Invalid URL syntax");
-  }
+  const url = parseOutboundUrl(urlString);
 
   if (!["https:", "http:"].includes(url.protocol)) {
     throw new Error("Only HTTP and HTTPS protocols are allowed");
   }
 
-  const hostname = normalizeHostname(url.hostname);
-
-  if (effectiveWhitelist.hosts.includes(hostname)) {
-    return;
-  }
-
-  if (isHostnameBlocked(hostname)) {
-    throw new Error("Blocked hostname detected");
-  }
+  await validateOutboundUrlHost({
+    url,
+    whitelist: effectiveWhitelist,
+    shouldThrowIfDnsResolutionFails: false,
+    logContext: "LLM base URL",
+    // Existing LLM validation accepts public IP literals after CIDR checks so
+    // custom gateways are not forced through DNS at write time.
+    shouldSkipDnsCheckForLiteralIps: true,
+  });
 
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && url.protocol !== "https:") {
     throw new Error("Only HTTPS base URLs are allowed on Langfuse Cloud");
   }
-
-  if (isIPAddress(hostname)) {
-    if (
-      isIPBlocked(
-        hostname,
-        effectiveWhitelist.ips,
-        effectiveWhitelist.ip_ranges,
-      )
-    ) {
-      logger.warn(
-        `LLM base URL validation blocked IP address in hostname: ${hostname}`,
-      );
-      throw new Error("Blocked IP address detected");
-    }
-
-    return;
-  }
-
-  let ips: string[];
-  try {
-    ips = await resolveHost(hostname);
-  } catch {
-    // DNS resolution is best-effort here so valid custom gateways do not fail at write time.
-    return;
-  }
-
-  for (const ip of ips) {
-    if (isIPBlocked(ip, effectiveWhitelist.ips, effectiveWhitelist.ip_ranges)) {
-      logger.warn(
-        `LLM base URL validation blocked resolved IP address: ${ip} for hostname: ${hostname}`,
-      );
-      throw new Error("Blocked IP address detected");
-    }
-  }
-}
-
-function normalizeURL(urlString: string): string {
-  let normalized = urlString.trim();
-
-  try {
-    normalized = decodeURIComponent(normalized);
-  } catch {
-    throw new Error("Invalid URL encoding");
-  }
-
-  try {
-    normalized = normalized.normalize("NFC");
-  } catch {
-    throw new Error("Invalid unicode in URL");
-  }
-
-  return normalized;
-}
-
-function normalizeHostname(hostname: string): string {
-  let normalized = hostname.toLowerCase();
-
-  try {
-    normalized = new URL(`http://${normalized}`).hostname;
-  } catch {
-    // Keep the original hostname so URL parsing can fail consistently elsewhere.
-  }
-
-  return normalized;
 }
