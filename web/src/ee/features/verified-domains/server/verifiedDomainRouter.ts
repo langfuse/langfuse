@@ -286,20 +286,24 @@ export const verifiedDomainRouter = createTRPCRouter({
         });
       }
 
-      // Refuse to drop a verified domain that still has an active SSO
-      // configuration. Otherwise the SsoConfig would be orphaned: it would
-      // continue to enforce SSO at sign-in but disappear from the UI (the
-      // listing is scoped to verified domains) and become undeletable through
-      // the normal flow. Force admins to explicitly remove the SSO config
-      // first so the dependency is acknowledged.
-      const ssoConfig = await ctx.prisma.ssoConfig.findUnique({
-        where: { domain: row.domain },
-      });
-      if (ssoConfig) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: `An SSO configuration is active for "${row.domain}". Remove the SSO configuration before deleting this domain.`,
+      // Once verified, refuse to drop the row while its SsoConfig is still
+      // active — otherwise the config would be orphaned: it would continue
+      // to enforce SSO at sign-in but disappear from the UI and become
+      // undeletable through the normal flow. Pending claims are exempt:
+      // since they're shareable across orgs (any number can claim the same
+      // domain unverified), an SsoConfig that exists for the domain
+      // necessarily belongs to a *different* org's verified row, and
+      // blocking on it would trap stale pending claims permanently.
+      if (row.verifiedAt) {
+        const ssoConfig = await ctx.prisma.ssoConfig.findUnique({
+          where: { domain: row.domain },
         });
+        if (ssoConfig) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `An SSO configuration is active for "${row.domain}". Remove the SSO configuration before deleting this domain.`,
+          });
+        }
       }
 
       await ctx.prisma.verifiedDomain.delete({ where: { id: row.id } });

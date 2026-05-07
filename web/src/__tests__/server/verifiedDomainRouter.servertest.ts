@@ -457,13 +457,17 @@ describe("verifiedDomainRouter.delete", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
-  it("returns PRECONDITION_FAILED when an SSO configuration exists for the domain", async () => {
+  it("returns PRECONDITION_FAILED when deleting a verified domain whose SSO is still active", async () => {
     const { org, caller } = await prepare();
     const domain = `delete-with-sso-${uuidv4().slice(0, 8)}.com`;
 
     const created = await caller.verifiedDomain.create({
       orgId: org.id,
       domain,
+    });
+    await prisma.verifiedDomain.update({
+      where: { id: created.id },
+      data: { verifiedAt: new Date() },
     });
     await prisma.ssoConfig.create({
       data: {
@@ -483,6 +487,58 @@ describe("verifiedDomainRouter.delete", () => {
 
     const row = await prisma.verifiedDomain.findFirst({ where: { domain } });
     expect(row).not.toBeNull();
+  });
+
+  it("allows deleting a pending claim even when another org's verified SsoConfig exists for the domain", async () => {
+    // Pending claims are shareable across orgs and have no SSO bearing — the
+    // active SsoConfig necessarily belongs to a different org's verified
+    // row. Without this exemption, a stale pending claim would be trapped
+    // permanently because the orphan check would fire on the other org's
+    // config.
+    const a = await prepare();
+    const b = await prepare();
+    const domain = `pending-with-other-sso-${uuidv4().slice(0, 8)}.com`;
+
+    const aPending = await a.caller.verifiedDomain.create({
+      orgId: a.org.id,
+      domain,
+    });
+    const bRow = await b.caller.verifiedDomain.create({
+      orgId: b.org.id,
+      domain,
+    });
+    await prisma.verifiedDomain.update({
+      where: { id: bRow.id },
+      data: { verifiedAt: new Date() },
+    });
+    await prisma.ssoConfig.create({
+      data: {
+        domain,
+        authProvider: "okta",
+        authConfig: {
+          clientId: "x",
+          clientSecret: "y",
+          issuer: "https://x.okta.com",
+        },
+      },
+    });
+
+    await a.caller.verifiedDomain.delete({
+      orgId: a.org.id,
+      id: aPending.id,
+    });
+
+    const aAfter = await prisma.verifiedDomain.findUnique({
+      where: { id: aPending.id },
+    });
+    expect(aAfter).toBeNull();
+    // Org B's verified row + SSO config are untouched.
+    const bAfter = await prisma.verifiedDomain.findUnique({
+      where: { id: bRow.id },
+    });
+    expect(bAfter?.verifiedAt).not.toBeNull();
+    const sso = await prisma.ssoConfig.findUnique({ where: { domain } });
+    expect(sso).not.toBeNull();
   });
 
   it("rejects callers without organization:update scope (MEMBER role)", async () => {
