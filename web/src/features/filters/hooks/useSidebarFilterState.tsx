@@ -249,6 +249,51 @@ export type UIFilter =
 
 const EMPTY_MAP: Map<string, number> = new Map();
 
+const mergeUniqueStrings = (...lists: (string[] | undefined)[]): string[] =>
+  Array.from(
+    new Set(
+      lists.flatMap((list) => (list ?? []).filter((value) => value.length > 0)),
+    ),
+  );
+
+const resolveKnownKeyOptions = (
+  facetKeyOptions: string[] | undefined,
+  availableKeys:
+    | (string | SingleValueOption)[]
+    | Record<string, string[]>
+    | undefined,
+  activeKeys: string[],
+): string[] | undefined => {
+  if (facetKeyOptions !== undefined) {
+    return mergeUniqueStrings(facetKeyOptions, activeKeys);
+  }
+
+  if (!Array.isArray(availableKeys)) {
+    return undefined;
+  }
+
+  return mergeUniqueStrings(
+    availableKeys.map((option) =>
+      typeof option === "string" ? option : option.value,
+    ),
+    activeKeys,
+  );
+};
+
+const mergeAvailableValuesWithActiveFilters = (
+  availableValues: Record<string, string[]>,
+  activeFilters: KeyValueFilterEntry[],
+): Record<string, string[]> => {
+  const merged: Record<string, string[]> = { ...availableValues };
+
+  for (const filter of activeFilters) {
+    if (!filter.key) continue;
+    merged[filter.key] = mergeUniqueStrings(merged[filter.key], filter.value);
+  }
+
+  return merged;
+};
+
 // extract values and counts from options array
 // for both string[] and SingleValueOption[]
 function processOptions(options: (string | SingleValueOption)[]): {
@@ -1146,14 +1191,22 @@ export function useSidebarFilterState(
 
           // Get available values from options
           const availableValues = options[facet.column] ?? {};
+          const mergedAvailableValues =
+            typeof availableValues === "object" &&
+            !Array.isArray(availableValues)
+              ? mergeAvailableValuesWithActiveFilters(
+                  availableValues as Record<string, string[]>,
+                  activeFilters,
+                )
+              : ({} as Record<string, string[]>);
 
           // Extract key options from availableValues if not defined in facet
           const keyOptions =
             facet.keyOptions ??
-            (typeof availableValues === "object" &&
-            !Array.isArray(availableValues)
-              ? Object.keys(availableValues as Record<string, string[]>)
-              : undefined);
+            mergeUniqueStrings(
+              Object.keys(mergedAvailableValues),
+              activeFilters.map((filter) => filter.key),
+            );
 
           return {
             type: "keyValue",
@@ -1163,11 +1216,7 @@ export function useSidebarFilterState(
 
             value: activeFilters,
             keyOptions,
-            availableValues:
-              typeof availableValues === "object" &&
-              !Array.isArray(availableValues)
-                ? (availableValues as Record<string, string[]>)
-                : ({} as Record<string, string[]>),
+            availableValues: mergedAvailableValues,
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
@@ -1236,13 +1285,11 @@ export function useSidebarFilterState(
 
           // Get available keys from options (should be array of score names)
           const availableKeys = options[facet.column];
-          const keyOptions =
-            facet.keyOptions ??
-            (Array.isArray(availableKeys)
-              ? availableKeys.map((opt) =>
-                  typeof opt === "string" ? opt : opt.value,
-                )
-              : undefined);
+          const keyOptions = resolveKnownKeyOptions(
+            facet.keyOptions,
+            availableKeys,
+            activeFilters.map((filter) => filter.key),
+          );
 
           return {
             type: "numericKeyValue",
@@ -1320,13 +1367,11 @@ export function useSidebarFilterState(
 
           // Get available keys from options
           const availableKeys = options[facet.column];
-          const keyOptions =
-            facet.keyOptions ??
-            (Array.isArray(availableKeys)
-              ? availableKeys.map((opt) =>
-                  typeof opt === "string" ? opt : opt.value,
-                )
-              : undefined);
+          const keyOptions = resolveKnownKeyOptions(
+            facet.keyOptions,
+            availableKeys,
+            activeFilters.map((filter) => filter.key),
+          );
 
           return {
             type: "stringKeyValue",
@@ -1536,6 +1581,14 @@ export function useSidebarFilterState(
           }));
 
         const hasTextFilters = textFilters.length > 0;
+        const hasExplicitCheckboxFilter =
+          !!checkboxFilter &&
+          Array.isArray(checkboxFilter.value) &&
+          checkboxFilter.value.length > 0;
+        const hasExplicitCheckboxFilterWhileLoading =
+          hasExplicitCheckboxFilter &&
+          selectedValues.length === 0 &&
+          availableValues.length === 0;
         const hasCheckboxSelections =
           selectedValues.length > 0 &&
           selectedValues.length !== availableValues.length;
@@ -1564,9 +1617,12 @@ export function useSidebarFilterState(
           (isManagedEnvironmentFacet
             ? hasManagedEnvironmentSelectionOverride
             : (currentOperator === "all of" &&
-                selectedValues.length === availableValues.length) ||
-              (currentOperator === "none of" && selectedValues.length > 0) ||
-              hasCheckboxSelections);
+                (selectedValues.length === availableValues.length ||
+                  hasExplicitCheckboxFilterWhileLoading)) ||
+              (currentOperator === "none of" &&
+                hasExplicitCheckboxFilterWhileLoading) ||
+              hasCheckboxSelections ||
+              hasExplicitCheckboxFilterWhileLoading);
         const disableState = getFacetDisabledState(facet);
 
         return {

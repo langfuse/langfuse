@@ -16,7 +16,6 @@ import {
   Check,
   IndentIncrease,
   Timer,
-  Loader2,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Command, CommandInput } from "@/src/components/ui/command";
@@ -31,6 +30,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { cn } from "@/src/utils/tailwind";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export interface LogViewToolbarProps {
   /** Current search query */
@@ -244,7 +244,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                     disabled={isDownloadLoading}
                   >
                     {isDownloadLoading ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Spinner size="xs" />
                     ) : isCopied ? (
                       <Check className="h-3.5 w-3.5" />
                     ) : (
@@ -296,7 +296,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                     disabled={isDownloadLoading}
                   >
                     {isDownloadLoading ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Spinner size="xs" />
                     ) : (
                       <Download className="h-3.5 w-3.5" />
                     )}
