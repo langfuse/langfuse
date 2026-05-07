@@ -2696,6 +2696,41 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
   }));
 };
 
+export const getObservationsTraceIdsFromEventsTable = async (opts: {
+  projectId: string;
+  observationIds: string[];
+}) => {
+  const { projectId, observationIds } = opts;
+
+  const queryBuilder = new EventsQueryBuilder({ projectId })
+    .selectRaw("e.trace_id AS trace_id", "e.span_id AS span_id")
+    .whereRaw("e.span_id IN {observationIds: Array(String)}", {
+      observationIds,
+    });
+
+  const { query, params: queryParams } = queryBuilder.buildWithParams();
+
+  const result = await queryClickhouse<{
+    trace_id: string;
+    span_id: string;
+  }>({
+    query,
+    params: queryParams,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "getObservationsTraceIdsFromEventsTable",
+      projectId,
+    },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return result.map((row) => ({
+    id: row.span_id,
+    traceId: row.trace_id,
+  }));
+};
+
 /**
  * Column mappings for user queries from events table.
  * Includes a "Timestamp" mapping that points to start_time for compatibility
