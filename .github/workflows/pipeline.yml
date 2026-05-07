@@ -147,6 +147,29 @@ jobs:
             echo "No JS/TS/CSS files changed - skipping prettier check"
           fi
 
+  tests-eslint-plugin:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] eslint-plugin test dependency cache only; no published artifacts are built from this cached state
+        with:
+          node-version: 24
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm install
+      - name: run eslint-plugin tests
+        run: pnpm --filter @repo/eslint-plugin run test
+
   test-docker-build:
     timeout-minutes: 20
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -659,6 +682,7 @@ jobs:
       [
         lint,
         prettier-check,
+        tests-eslint-plugin,
         tests-web,
         tests-worker,
         test-worker-llm-connections,

@@ -109,7 +109,8 @@
       "@types/react-dom": "19.2.3",
       "glob": "^10.5.0",
       "qs": "6.14.1",
-      "path-to-regexp@0.1.12": "0.1.13"
+      "path-to-regexp@0.1.12": "0.1.13",
+      "ip-address@10.1.0": "10.2.0"
     },
     "patchedDependencies": {
       "next-auth@4.24.13": "patches/next-auth@4.24.13.patch"

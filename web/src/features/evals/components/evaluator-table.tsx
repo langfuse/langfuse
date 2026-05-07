@@ -24,13 +24,7 @@ import {
 } from "@/src/features/evals/utils/typeHelpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
-import {
-  MoreVertical,
-  Loader2,
-  ExternalLinkIcon,
-  Edit,
-  Info,
-} from "lucide-react";
+import { MoreVertical, ExternalLinkIcon, Edit, Info } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { TablePeekView } from "@/src/components/table/peek";
@@ -69,6 +63,7 @@ import {
   type EvaluatorDataRow,
   useEvaluatorTableData,
 } from "@/src/features/evals/hooks/useEvaluatorTableData";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 function LegacyBadgeCell({ status }: { status: string }) {
   return (
@@ -534,7 +529,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           </DialogHeader>
           {existingEvaluator.isLoading ? (
             <div className="flex items-center justify-center p-4">
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <Spinner size="lg" />
             </div>
           ) : (
             <EvaluatorForm
