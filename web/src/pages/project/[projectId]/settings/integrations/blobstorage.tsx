@@ -309,6 +309,16 @@ const BlobStorageIntegrationSettingsForm = ({
 
   const watchedExportSource = blobStorageForm.watch("exportSource");
 
+  // When the user switches away from EVENTS, reset exportFieldGroups to the
+  // full default so the hidden .min(1) constraint never blocks submission.
+  useEffect(() => {
+    if (watchedExportSource !== AnalyticsIntegrationExportSource.EVENTS) {
+      blobStorageForm.setValue("exportFieldGroups", [
+        ...BLOB_EXPORT_FIELD_GROUPS,
+      ]);
+    }
+  }, [watchedExportSource]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const utils = api.useUtils();
   const mut = api.blobStorageIntegration.update.useMutation({
     onSuccess: () => {
@@ -754,7 +764,10 @@ const BlobStorageIntegrationSettingsForm = ({
                             const current = field.value ?? [];
                             const next = checked
                               ? [...current, option.value]
-                              : current.filter((v) => v !== option.value);
+                              : current.filter(
+                                  (v: BlobExportFieldGroup) =>
+                                    v !== option.value,
+                                );
                             field.onChange(next);
                           }}
                         />
