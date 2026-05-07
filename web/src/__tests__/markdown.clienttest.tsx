@@ -45,6 +45,10 @@ describe("containsAnyMarkdown Function", () => {
     expect(containsAnyMarkdown("2.")).toBe(false);
   });
 
+  it("Does not treat a standalone ordered list marker mid-document as markdown", () => {
+    expect(containsAnyMarkdown("Intro\n\n2.\n\nMore")).toBe(false);
+  });
+
   it("Detects blockquotes", () => {
     expect(containsAnyMarkdown("> This is a blockquote")).toBe(true);
   });

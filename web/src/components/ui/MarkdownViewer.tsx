@@ -63,7 +63,7 @@ type ReactMarkdownNodeChildren = Exclude<
 // html is rendered as plain text by default.
 const MemoizedReactMarkdown: FC<Options> = memo(ReactMarkdown);
 
-const STANDALONE_ORDERED_LIST_MARKER_REGEX = /^(\s*)(\d+)\.(\s*)$/;
+const STANDALONE_ORDERED_LIST_MARKER_REGEX = /^(\s*)(\d+)\.(\s*)$/gm;
 const FENCED_CODE_BLOCK_REGEX = /^\s*```/;
 
 const normalizeStandaloneOrderedListMarker = (markdown: string): string => {
