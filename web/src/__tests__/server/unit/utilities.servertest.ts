@@ -59,28 +59,17 @@ describe("utilities image URL validation", () => {
     const s3Url =
       "https://bucket.s3.amazonaws.com/image.png?X-Amz-Signature=signature";
 
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(null, {
-          status: 302,
-          headers: { Location: "https://169.254.169.254/latest/meta-data/" },
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(null, {
-          status: 302,
-          headers: { Location: "https://169.254.169.254/latest/meta-data/" },
-        }),
-      );
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { Location: "https://169.254.169.254/latest/meta-data/" },
+      }),
+    );
 
     await expect(isValidImageUrl(s3Url)).resolves.toBe(false);
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
-      method: "HEAD",
-      redirect: "manual",
-    });
-    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
       method: "HEAD",
       redirect: "manual",
     });

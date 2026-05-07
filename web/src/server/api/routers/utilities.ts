@@ -59,6 +59,8 @@ const s3UrlSchema = z.object({
   }),
 });
 
+type PresignedS3UrlValidationResult = "not-s3-url" | "valid" | "invalid";
+
 const isImageContent = (response: Response): boolean => {
   const contentType = response.headers.get("content-type");
   return !!contentType && contentType.startsWith("image/");
@@ -95,7 +97,9 @@ const fetchImageUrlWithSecureRedirects = async (
  * @param url The pre-signed S3 URL to validate
  * @returns True if the URL is valid and reachable, false otherwise
  */
-const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
+const validatePresignedS3Url = async (
+  url: string,
+): Promise<PresignedS3UrlValidationResult> => {
   try {
     const parsedUrl = new URL(url);
 
@@ -108,7 +112,7 @@ const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
 
     if (!result.success) {
       logger.info("Invalid pre-signed S3 URL:", result.error.message);
-      return false;
+      return "not-s3-url";
     }
 
     // Perform a HEAD request to check reachability
@@ -119,7 +123,7 @@ const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
 
     // Status 200 indicates the URL is valid
     if (response.ok && isImageContent(response)) {
-      return true;
+      return "valid";
     }
 
     // Attempt a GET request, as most pre-signed URLs are restricted to GET requests only
@@ -134,10 +138,12 @@ const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
         headers: { Range: "bytes=0-1" }, // Fetch only the first byte, expected server response for valid pre-signed URLs is 206 Partial Content
       });
 
-      return getResponse.ok && isImageContent(getResponse); // 200 or 206 Partial Content indicates success
+      return getResponse.ok && isImageContent(getResponse)
+        ? "valid"
+        : "invalid"; // 200 or 206 Partial Content indicates success
     }
 
-    return false;
+    return "invalid";
   } catch (error) {
     if (error instanceof z.ZodError) {
       logger.info("URL Validation Error:", error.message);
@@ -146,15 +152,22 @@ const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
     } else {
       logger.info("Unknown error:", error);
     }
-    return false;
+    return "invalid";
   }
 };
 
 export const isValidImageUrl = async (url: string): Promise<boolean> => {
   try {
     // Pre-signed URLs (AWS S3) often have restricted access methods. Some only allow GET requests, others only HEAD. We need to try both.
-    if (await isValidPresignedS3Url(url)) {
+    const presignedS3UrlValidationResult = await validatePresignedS3Url(url);
+    if (presignedS3UrlValidationResult === "valid") {
       return true;
+    }
+    // If the URL looks like a pre-signed S3 URL but validation failed, do not
+    // retry it through the generic image path; that would repeat the same
+    // secure fetch and DNS checks for the same URL.
+    if (presignedS3UrlValidationResult === "invalid") {
+      return false;
     }
 
     const response = await fetchImageUrlWithSecureRedirects(url, {
@@ -177,11 +190,6 @@ export const utilsRouter = createTRPCRouter({
   validateImgUrl: authenticatedProcedure
     .input(z.string().max(2048))
     .query(async ({ input: url }) => {
-      const isValidUrl = await isValidAndSecureUrl(url);
-      if (!isValidUrl) {
-        return { isValid: false };
-      }
-
       const isValidImg = await isValidImageUrl(url);
       return { isValid: isValidImg };
     }),
