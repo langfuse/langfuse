@@ -214,6 +214,31 @@ describe("Projects API", () => {
       expect(project?.metadata).toEqual(metadata);
     });
 
+    it("should parse metadata sent as a JSON string", async () => {
+      const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
+      const metadata = { plan: "pro", features: ["all"] };
+
+      const response = await makeZodVerifiedAPICall(
+        ProjectCreationResponseSchema,
+        "POST",
+        "/api/public/projects",
+        {
+          name: uniqueProjectName,
+          metadata: JSON.stringify(metadata),
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        201,
+      );
+
+      expect(response.status).toBe(201);
+      expect(response.body.metadata).toEqual(metadata);
+
+      const project = await prisma.project.findUnique({
+        where: { id: response.body.id },
+      });
+      expect(project?.metadata).toEqual(metadata);
+    });
+
     it("should create a new project with retention days", async () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
 
@@ -452,6 +477,29 @@ describe("Projects API", () => {
       });
       expect(project).not.toBeNull();
       expect(project?.name).toBe("Updated Project Name");
+      expect(project?.metadata).toEqual(newMetadata);
+    });
+
+    it("should parse update metadata sent as a JSON string", async () => {
+      const newMetadata = { plan: "enterprise", features: ["all", "custom"] };
+      const response = await makeZodVerifiedAPICall(
+        ProjectUpdateResponseSchema,
+        "PUT",
+        `/api/public/projects/${testProjectId}`,
+        {
+          name: "Updated Project Name",
+          metadata: JSON.stringify(newMetadata),
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        200,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.metadata).toEqual(newMetadata);
+
+      const project = await prisma.project.findUnique({
+        where: { id: testProjectId },
+      });
       expect(project?.metadata).toEqual(newMetadata);
     });
 

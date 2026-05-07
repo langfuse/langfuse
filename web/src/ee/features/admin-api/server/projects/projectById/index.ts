@@ -32,9 +32,10 @@ export async function handleUpdateProject(
       });
     }
 
+    let parsedMetadata = metadata;
     if (metadata !== undefined && typeof metadata !== "object") {
       try {
-        JSON.parse(metadata);
+        parsedMetadata = JSON.parse(metadata);
       } catch (error) {
         return res.status(400).json({
           message: `Invalid metadata. Should be a valid JSON object: ${error}`,
@@ -77,7 +78,7 @@ export async function handleUpdateProject(
       data: {
         name,
         ...(retention !== undefined ? { retentionDays: retention } : {}),
-        ...(metadata !== undefined ? { metadata } : {}),
+        ...(metadata !== undefined ? { metadata: parsedMetadata } : {}),
       },
       select: {
         id: true,
