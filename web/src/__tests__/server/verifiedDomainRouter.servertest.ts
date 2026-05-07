@@ -41,6 +41,7 @@ function createSession(
   user: { id: string; email: string | null; name: string | null },
   org: { id: string; name: string },
   role: Role,
+  plan: "cloud:enterprise" | "cloud:hobby",
 ): Session {
   return {
     expires: "1",
@@ -54,7 +55,7 @@ function createSession(
           id: org.id,
           name: org.name,
           role,
-          plan: "cloud:enterprise",
+          plan,
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
@@ -77,12 +78,15 @@ function createSession(
   };
 }
 
-async function prepareWithRole(role: Role) {
+async function prepareWithRole(
+  role: Role,
+  plan: "cloud:enterprise" | "cloud:hobby" = "cloud:enterprise",
+) {
   const { org, user } = await createTestOrg();
   await prisma.organizationMembership.create({
     data: { userId: user.id, orgId: org.id, role },
   });
-  const session = createSession(user, org, role);
+  const session = createSession(user, org, role, plan);
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
   return { org, user, session, caller };
@@ -175,6 +179,15 @@ describe("verifiedDomainRouter.create", () => {
   it("rejects callers without organization:update scope (MEMBER role)", async () => {
     const { org, caller } = await prepareWithRole(Role.MEMBER);
     const domain = `forbidden-${uuidv4().slice(0, 8)}.com`;
+
+    await expect(
+      caller.verifiedDomain.create({ orgId: org.id, domain }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects when the org plan lacks the cloud-multi-tenant-sso entitlement", async () => {
+    const { org, caller } = await prepareWithRole(Role.OWNER, "cloud:hobby");
+    const domain = `entitlement-${uuidv4().slice(0, 8)}.com`;
 
     await expect(
       caller.verifiedDomain.create({ orgId: org.id, domain }),

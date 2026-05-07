@@ -1,4 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   createTRPCRouter,
@@ -8,6 +9,14 @@ import { resolveTxtFresh } from "@/src/ee/features/verified-domains/server/dnsLo
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
+
+// Verified domains are infrastructure for multi-tenant SSO; gate every
+// mutation on the same entitlement so the API surface matches the UI
+// (`useHasEntitlement` already hides the feature on lower plans). Pending
+// claims are shareable so squatting no longer locks out enterprise
+// customers, but limiting reach to entitled orgs is still cleaner — fewer
+// stale rows from hobby orgs poking at the API directly.
+const VERIFIED_DOMAIN_ENTITLEMENT = "cloud-multi-tenant-sso" as const;
 
 const VERIFICATION_RECORD_PREFIX = "_langfuse-verification";
 const VERIFICATION_VALUE_PREFIX = "langfuse-verify=";
@@ -41,6 +50,11 @@ export const verifiedDomainRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organization:update",
       });
+      throwIfNoEntitlement({
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+        entitlement: VERIFIED_DOMAIN_ENTITLEMENT,
+      });
 
       const rows = await ctx.prisma.verifiedDomain.findMany({
         where: { organizationId: input.orgId },
@@ -64,6 +78,11 @@ export const verifiedDomainRouter = createTRPCRouter({
         session: ctx.session,
         organizationId: input.orgId,
         scope: "organization:update",
+      });
+      throwIfNoEntitlement({
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+        entitlement: VERIFIED_DOMAIN_ENTITLEMENT,
       });
 
       // Pending claims are shareable across orgs; only verified claims are
@@ -158,6 +177,11 @@ export const verifiedDomainRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organization:update",
       });
+      throwIfNoEntitlement({
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+        entitlement: VERIFIED_DOMAIN_ENTITLEMENT,
+      });
 
       const row = await ctx.prisma.verifiedDomain.findFirst({
         where: { id: input.id, organizationId: input.orgId },
@@ -244,6 +268,11 @@ export const verifiedDomainRouter = createTRPCRouter({
         session: ctx.session,
         organizationId: input.orgId,
         scope: "organization:update",
+      });
+      throwIfNoEntitlement({
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+        entitlement: VERIFIED_DOMAIN_ENTITLEMENT,
       });
 
       const row = await ctx.prisma.verifiedDomain.findFirst({
