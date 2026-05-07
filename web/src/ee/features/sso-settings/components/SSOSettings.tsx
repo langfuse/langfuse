@@ -350,13 +350,37 @@ function SsoConfigDialog({
     const parsed = SsoProviderSchema.safeParse(payload);
     if (!parsed.success) {
       const firstIssue = parsed.error.issues[0];
-      const path = firstIssue.path.join(".");
-      form.setError(
-        path.startsWith("authConfig.")
-          ? (path as `authConfig.${"clientId" | "clientSecret" | "issuer" | "tenantId" | "baseUrl" | "name"}`)
-          : "authProvider",
-        { message: firstIssue.message },
-      );
+      const schemaPath = firstIssue.path.join(".");
+      // `buildSsoPayload` re-nests `baseUrl` under `enterprise` for
+      // github-enterprise; the strict schema reports errors at the nested
+      // path, but the form field is registered flat. Map back so
+      // `setError` lands on a watched field and the inline message renders.
+      const formPath =
+        schemaPath === "authConfig.enterprise.baseUrl"
+          ? "authConfig.baseUrl"
+          : schemaPath;
+      const formField = formPath.startsWith("authConfig.")
+        ? (formPath as `authConfig.${"clientId" | "clientSecret" | "issuer" | "tenantId" | "baseUrl" | "name"}`)
+        : "authProvider";
+      form.setError(formField, { message: firstIssue.message });
+      // Defensive fallback: if a future schema path doesn't map cleanly to
+      // a registered form field, surface a toast so the user is never left
+      // with a silently-closing dialog and no feedback.
+      const FORM_FIELDS = [
+        "authProvider",
+        "authConfig.clientId",
+        "authConfig.clientSecret",
+        "authConfig.issuer",
+        "authConfig.tenantId",
+        "authConfig.baseUrl",
+        "authConfig.name",
+      ];
+      if (!FORM_FIELDS.includes(formField)) {
+        showErrorToast(
+          existing ? "Update failed" : "SSO configuration failed",
+          firstIssue.message,
+        );
+      }
       setConfirmOpen(false);
       return;
     }
