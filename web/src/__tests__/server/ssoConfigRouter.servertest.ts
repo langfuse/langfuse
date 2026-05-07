@@ -6,6 +6,35 @@ import { Role } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 
+// `validateSsoConfig` does a live OIDC discovery fetch. Default mock returns
+// a valid response that mirrors the issuer; individual tests override.
+const fetchMock = vi.fn<typeof fetch>();
+beforeEach(() => {
+  fetchMock.mockReset();
+  vi.stubGlobal("fetch", fetchMock);
+  mockDiscoveryOk("https://example.okta.com");
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+function mockDiscoveryOk(expectedIssuer: string) {
+  // Construct a fresh Response per call — Response bodies are single-use and
+  // tests that call `save` more than once would otherwise hit a consumed body.
+  fetchMock.mockImplementation(
+    async () =>
+      new Response(
+        JSON.stringify({
+          issuer: expectedIssuer,
+          authorization_endpoint: `${expectedIssuer}/authorize`,
+          token_endpoint: `${expectedIssuer}/oauth/token`,
+          jwks_uri: `${expectedIssuer}/.well-known/jwks.json`,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+  );
+}
+
 async function createTestOrg() {
   const orgId = uuidv4();
   const userId = uuidv4();
@@ -395,5 +424,143 @@ describe("ssoConfigRouter.delete", () => {
     await expect(
       member.caller.ssoConfig.delete({ orgId: member.org.id, domain }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("ssoConfigRouter.save — IdP discovery validation", () => {
+  function discoveryResponse(body: unknown, status = 200) {
+    return new Response(
+      typeof body === "string" ? body : JSON.stringify(body),
+      { status, headers: { "content-type": "application/json" } },
+    );
+  }
+
+  it("rejects when the discovery endpoint returns a non-2xx", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-404-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    fetchMock.mockResolvedValueOnce(discoveryResponse({}, 404));
+
+    await expect(
+      caller.ssoConfig.save({ orgId: org.id, payload: samplePayload(domain) }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+    const row = await prisma.ssoConfig.findUnique({ where: { domain } });
+    expect(row).toBeNull();
+  });
+
+  it("rejects when the discovery endpoint is unreachable", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-unreachable-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    fetchMock.mockRejectedValueOnce(new Error("ECONNREFUSED"));
+
+    await expect(
+      caller.ssoConfig.save({ orgId: org.id, payload: samplePayload(domain) }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("rejects when the discovery body is not valid JSON", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-bad-json-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    fetchMock.mockResolvedValueOnce(discoveryResponse("not json", 200));
+
+    await expect(
+      caller.ssoConfig.save({ orgId: org.id, payload: samplePayload(domain) }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("rejects when the discovery doc is missing required fields", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-missing-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    fetchMock.mockResolvedValueOnce(
+      discoveryResponse({ issuer: "https://example.okta.com" }),
+    );
+
+    await expect(
+      caller.ssoConfig.save({ orgId: org.id, payload: samplePayload(domain) }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("rejects when the returned issuer does not match the configured one", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-mismatch-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    fetchMock.mockResolvedValueOnce(
+      discoveryResponse({
+        issuer: "https://different.okta.com",
+        authorization_endpoint: "https://different.okta.com/authorize",
+        token_endpoint: "https://different.okta.com/oauth/token",
+        jwks_uri: "https://different.okta.com/.well-known/jwks.json",
+      }),
+    );
+
+    await expect(
+      caller.ssoConfig.save({ orgId: org.id, payload: samplePayload(domain) }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("accepts a discovery doc whose issuer matches modulo trailing slash", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-slash-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    // Auth0-style: discovery returns the issuer with a trailing slash even
+    // though we configured it without one.
+    fetchMock.mockResolvedValueOnce(
+      discoveryResponse({
+        issuer: "https://example.okta.com/",
+        authorization_endpoint: "https://example.okta.com/authorize",
+        token_endpoint: "https://example.okta.com/oauth/token",
+        jwks_uri: "https://example.okta.com/.well-known/jwks.json",
+      }),
+    );
+
+    const result = await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: samplePayload(domain),
+    });
+    expect(result.domain).toBe(domain);
+  });
+
+  it("calls the right discovery URL for the configured issuer", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-url-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    mockDiscoveryOk("https://example.okta.com");
+
+    await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: samplePayload(domain),
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://example.okta.com/.well-known/openid-configuration",
+      expect.any(Object),
+    );
+  });
+
+  it("skips discovery for OAuth-only providers (github)", async () => {
+    const { org, caller } = await prepare();
+    const domain = `github-skip-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    fetchMock.mockClear();
+
+    const result = await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: {
+        domain,
+        authProvider: "github" as const,
+        authConfig: {
+          clientId: "gh-client",
+          clientSecret: "gh-secret",
+          allowDangerousEmailAccountLinking: true,
+        },
+      },
+    });
+
+    expect(result.domain).toBe(domain);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

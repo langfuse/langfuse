@@ -6,6 +6,7 @@ import {
   protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
 import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
+import { validateSsoConfig } from "@/src/ee/features/multi-tenant-sso/validateSsoConfig";
 import { encrypt } from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
@@ -106,6 +107,11 @@ export const ssoConfigRouter = createTRPCRouter({
           message: `Domain "${domain}" is not verified for this organization. Verify the domain first in the Verified Domains section.`,
         });
       }
+
+      // Pre-flight the IdP discovery doc so misconfigurations surface here
+      // instead of locking out users at first sign-in. Throws TRPCError with
+      // PRECONDITION_FAILED on any failure.
+      await validateSsoConfig(input.payload);
 
       const existing = await ctx.prisma.ssoConfig.findUnique({
         where: { domain },
