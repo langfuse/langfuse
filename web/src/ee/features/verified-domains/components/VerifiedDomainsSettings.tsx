@@ -241,7 +241,12 @@ function DomainRow({ orgId, row }: { orgId: string; row: DomainRowData }) {
               Verify
             </Button>
           )}
-          <DeleteDomainButton orgId={orgId} id={row.id} domain={row.domain} />
+          <DeleteDomainButton
+            orgId={orgId}
+            id={row.id}
+            domain={row.domain}
+            verified={Boolean(row.verifiedAt)}
+          />
         </TableCell>
       </TableRow>
       {!row.verifiedAt && expanded && (
@@ -384,10 +389,12 @@ function DeleteDomainButton({
   orgId,
   id,
   domain,
+  verified,
 }: {
   orgId: string;
   id: string;
   domain: string;
+  verified: boolean;
 }) {
   const utils = api.useUtils();
 
@@ -415,9 +422,9 @@ function DeleteDomainButton({
         <AlertDialogHeader>
           <AlertDialogTitle>Remove {domain}?</AlertDialogTitle>
           <AlertDialogDescription>
-            Removing a verified domain blocks new SSO configurations for this
-            domain until it is re-verified. Existing SSO configs are not
-            affected.
+            {verified
+              ? "If an SSO configuration exists for this domain, you must remove it first. The domain can be re-verified later."
+              : "This removes the pending claim. The domain can be re-added and verified later."}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
