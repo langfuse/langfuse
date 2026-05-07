@@ -366,6 +366,34 @@ describe("verifiedDomainRouter.delete", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
+  it("returns PRECONDITION_FAILED when an SSO configuration exists for the domain", async () => {
+    const { org, caller } = await prepare();
+    const domain = `delete-with-sso-${uuidv4().slice(0, 8)}.com`;
+
+    const created = await caller.verifiedDomain.create({
+      orgId: org.id,
+      domain,
+    });
+    await prisma.ssoConfig.create({
+      data: {
+        domain,
+        authProvider: "okta",
+        authConfig: {
+          clientId: "x",
+          clientSecret: "y",
+          issuer: "https://x.okta.com",
+        },
+      },
+    });
+
+    await expect(
+      caller.verifiedDomain.delete({ orgId: org.id, id: created.id }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+    const row = await prisma.verifiedDomain.findUnique({ where: { domain } });
+    expect(row).not.toBeNull();
+  });
+
   it("rejects callers without organization:update scope (MEMBER role)", async () => {
     const owner = await prepare();
     const member = await prepareWithRole(Role.MEMBER);

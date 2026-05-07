@@ -185,9 +185,18 @@ export const ssoConfigRouter = createTRPCRouter({
         entitlement: SSO_CONFIG_ENTITLEMENT,
       });
 
-      // Domain ownership: only allow deleting configs for domains the org owns.
+      // Domain ownership: only allow deleting configs for domains the caller's
+      // org has actually verified. Requiring `verifiedAt` here matches the
+      // `save` gate and prevents an org from creating a pending claim for
+      // someone else's domain (e.g. a config provisioned by the legacy admin
+      // handler with no VerifiedDomain backing) and using it to delete an
+      // SSO config they don't own.
       const verifiedDomain = await ctx.prisma.verifiedDomain.findFirst({
-        where: { domain: input.domain, organizationId: input.orgId },
+        where: {
+          domain: input.domain,
+          organizationId: input.orgId,
+          verifiedAt: { not: null },
+        },
       });
       if (!verifiedDomain) {
         throw new TRPCError({

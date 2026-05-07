@@ -201,6 +201,22 @@ export const verifiedDomainRouter = createTRPCRouter({
         });
       }
 
+      // Refuse to drop a verified domain that still has an active SSO
+      // configuration. Otherwise the SsoConfig would be orphaned: it would
+      // continue to enforce SSO at sign-in but disappear from the UI (the
+      // listing is scoped to verified domains) and become undeletable through
+      // the normal flow. Force admins to explicitly remove the SSO config
+      // first so the dependency is acknowledged.
+      const ssoConfig = await ctx.prisma.ssoConfig.findUnique({
+        where: { domain: row.domain },
+      });
+      if (ssoConfig) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `An SSO configuration is active for "${row.domain}". Remove the SSO configuration before deleting this domain.`,
+        });
+      }
+
       await ctx.prisma.verifiedDomain.delete({ where: { id: row.id } });
 
       await auditLog({

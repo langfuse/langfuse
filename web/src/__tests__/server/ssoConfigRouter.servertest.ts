@@ -411,6 +411,34 @@ describe("ssoConfigRouter.delete", () => {
     expect(row).not.toBeNull();
   });
 
+  it("returns NOT_FOUND when the caller only holds a pending VerifiedDomain claim", async () => {
+    // Guards the legacy-config bypass: an SsoConfig provisioned by the admin
+    // REST handler has no VerifiedDomain backing. Without the verifiedAt gate,
+    // any org could claim a pending row for that domain and delete the
+    // active config out from under the real owner.
+    const { org, caller } = await prepare();
+    const domain = `pending-delete-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain, /* verified */ false);
+    await prisma.ssoConfig.create({
+      data: {
+        domain,
+        authProvider: "okta",
+        authConfig: {
+          clientId: "x",
+          clientSecret: "y",
+          issuer: "https://x.okta.com",
+        },
+      },
+    });
+
+    await expect(
+      caller.ssoConfig.delete({ orgId: org.id, domain }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const row = await prisma.ssoConfig.findUnique({ where: { domain } });
+    expect(row).not.toBeNull();
+  });
+
   it("rejects callers without organization:update scope (MEMBER role)", async () => {
     const owner = await prepare();
     const member = await prepareWithRole(Role.MEMBER);
