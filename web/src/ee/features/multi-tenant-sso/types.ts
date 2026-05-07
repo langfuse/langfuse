@@ -38,10 +38,13 @@ const idTokenSignedResponseAlg = z
 // OIDC Discovery (§4) requires the issuer to be served over TLS, and OAuth
 // credential exchange likewise cannot ride on HTTP without leaking tokens, so
 // every user-supplied URL we build OAuth/OIDC endpoints from must start with
-// https://. Shared across `issuer` and provider-specific base URLs.
-const oidcIssuer = z.string().startsWith("https://", {
-  message: "OIDC issuer urls must start with https://",
-});
+// https://. `z.url()` enforces RFC 3986 grammar so values like `"https://"`
+// or `"https:// foo"` don't sneak through and only blow up at sign-in.
+const oidcIssuer = z
+  .url({ message: "OIDC issuer urls must be a valid URL" })
+  .startsWith("https://", {
+    message: "OIDC issuer urls must start with https://",
+  });
 
 export const GoogleProviderSchema = base.extend({
   authProvider: z.literal("google"),
@@ -75,9 +78,11 @@ export const GithubEnterpriseProviderSchema = base.extend({
       clientId: z.string(),
       clientSecret: z.string(),
       enterprise: z.object({
-        baseUrl: z.string().startsWith("https://", {
-          message: "Github Enterprise baseUrls must start with https://",
-        }),
+        baseUrl: z
+          .url({ message: "Github Enterprise baseUrls must be a valid URL" })
+          .startsWith("https://", {
+            message: "Github Enterprise baseUrls must start with https://",
+          }),
       }),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
       tokenEndpointAuthMethod: tokenEndpointAuthMethod,

@@ -150,6 +150,30 @@ describe("ssoConfigRouter.save", () => {
     expect(row).toBeNull();
   });
 
+  it("rejects OIDC issuers that pass the https:// prefix but fail URL grammar", async () => {
+    // Pre-PR these fields used z.url(); the scheme-tightening refactor
+    // dropped grammar validation. `https://` (scheme only) and `https:// foo`
+    // both pass startsWith but are not valid URLs.
+    const { org, caller } = await prepare();
+    const domain = `bad-grammar-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+
+    for (const badIssuer of ["https://", "https:// foo"]) {
+      await expect(
+        caller.ssoConfig.save({
+          orgId: org.id,
+          payload: {
+            ...samplePayload(domain),
+            authConfig: {
+              ...samplePayload(domain).authConfig,
+              issuer: badIssuer,
+            },
+          },
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    }
+  });
+
   it("rejects Azure AD payloads with an empty tenantId", async () => {
     // Empty tenantId saves cleanly otherwise but locks all users out at
     // sign-in (NextAuth builds https://login.microsoftonline.com//v2.0/...).
