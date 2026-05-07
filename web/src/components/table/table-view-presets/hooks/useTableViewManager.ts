@@ -25,6 +25,7 @@ interface TableStateUpdaters {
   setOrderBy?: (orderBy: OrderByState) => void;
   setFilters?: (filters: FilterState) => void;
   setSearchQuery?: (searchQuery: string) => void;
+  setExpandedFilters?: (expandedFilters: string[]) => void;
 }
 
 interface UseTableStateProps {
@@ -34,8 +35,10 @@ interface UseTableStateProps {
   validationContext?: {
     columns?: LangfuseColumnDef<any, any>[];
     filterColumnDefinition?: ColumnDefinition[];
+    expandableFilterColumns?: string[];
   };
   currentFilterState?: FilterState;
+  currentExpandedFilters?: string[];
   disabled?: boolean;
 }
 
@@ -56,6 +59,7 @@ export function useTableViewManager({
   stateUpdaters,
   validationContext = {},
   currentFilterState,
+  currentExpandedFilters,
   disabled = false,
 }: UseTableStateProps) {
   const router = useRouter();
@@ -114,6 +118,7 @@ export function useTableViewManager({
     setColumnOrder,
     setColumnVisibility,
     setSearchQuery,
+    setExpandedFilters,
   } = stateUpdaters;
 
   // Use refs to always get latest function references to avoid stale closures in applyViewState
@@ -121,11 +126,13 @@ export function useTableViewManager({
   const setFiltersRef = useRef(setFilters);
   const setOrderByRef = useRef(setOrderBy);
   const setSearchQueryRef = useRef(setSearchQuery);
+  const setExpandedFiltersRef = useRef(setExpandedFilters);
 
   // Update refs immediately on every render
   setFiltersRef.current = setFilters;
   setOrderByRef.current = setOrderBy;
   setSearchQueryRef.current = setSearchQuery;
+  setExpandedFiltersRef.current = setExpandedFilters;
 
   // Extract primitive for effect dep (rerender-dependencies: avoid object deps)
   const defaultViewId = resolvedDefault?.viewId;
@@ -227,6 +234,24 @@ export function useTableViewManager({
 
       const filtersAlreadyApplied = isEqual(currentFilterState, validFilters);
 
+      if (
+        setExpandedFiltersRef.current &&
+        validationContext.expandableFilterColumns?.length
+      ) {
+        const nextExpandedFilters = Array.from(
+          new Set([
+            ...(currentExpandedFilters ?? []),
+            ...validFilters
+              .map((filter) => filter.column)
+              .filter((column) =>
+                validationContext.expandableFilterColumns?.includes(column),
+              ),
+          ]),
+        );
+
+        setExpandedFiltersRef.current(nextExpandedFilters);
+      }
+
       if (setFiltersRef.current) {
         setFiltersRef.current(validFilters);
         // Track expected filters to observe when state actually updates (for useEffect below)
@@ -263,6 +288,7 @@ export function useTableViewManager({
       setColumnVisibility,
       validationContext,
       currentFilterState,
+      currentExpandedFilters,
     ],
   );
 
