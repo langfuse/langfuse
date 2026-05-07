@@ -150,6 +150,33 @@ describe("ssoConfigRouter.save", () => {
     expect(row).toBeNull();
   });
 
+  it("rejects Azure AD payloads with an empty tenantId", async () => {
+    // Empty tenantId saves cleanly otherwise but locks all users out at
+    // sign-in (NextAuth builds https://login.microsoftonline.com//v2.0/...).
+    const { org, caller } = await prepare();
+    const domain = `azure-empty-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+
+    await expect(
+      caller.ssoConfig.save({
+        orgId: org.id,
+        payload: {
+          domain,
+          authProvider: "azure-ad" as const,
+          authConfig: {
+            clientId: "client-123",
+            clientSecret: "super-secret",
+            tenantId: "",
+            allowDangerousEmailAccountLinking: false,
+          },
+        },
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    const row = await prisma.ssoConfig.findUnique({ where: { domain } });
+    expect(row).toBeNull();
+  });
+
   it("rejects when the verified domain belongs to a different org", async () => {
     const a = await prepare();
     const b = await prepare();

@@ -164,7 +164,13 @@ export const AzureAdProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      tenantId: z.string(),
+      // NextAuth interpolates tenantId straight into
+      // https://login.microsoftonline.com/<tenantId>/v2.0/...; an empty
+      // string saves cleanly and only blows up at sign-in (double slash,
+      // no tenant). Same class of footgun as a schemeless issuer URL.
+      tenantId: z.string().min(1, {
+        message: "Azure AD tenantId is required",
+      }),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
       tokenEndpointAuthMethod: tokenEndpointAuthMethod,
       idTokenSignedResponseAlg: idTokenSignedResponseAlg,
