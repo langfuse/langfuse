@@ -66,17 +66,35 @@ export const verifiedDomainRouter = createTRPCRouter({
         scope: "organization:update",
       });
 
-      const existing = await ctx.prisma.verifiedDomain.findUnique({
-        where: { domain: input.domain },
+      // Pending claims are shareable across orgs; only verified claims are
+      // exclusive. Block create only when another org has already verified
+      // the domain — otherwise a hobby-plan org could squat a global slot
+      // for a domain it doesn't own. Verified-claim exclusivity is also
+      // enforced at the DB level by a partial unique index on
+      // `domain WHERE verified_at IS NOT NULL`.
+      const verifiedElsewhere = await ctx.prisma.verifiedDomain.findFirst({
+        where: { domain: input.domain, verifiedAt: { not: null } },
       });
-
-      if (existing && existing.organizationId !== input.orgId) {
+      if (
+        verifiedElsewhere &&
+        verifiedElsewhere.organizationId !== input.orgId
+      ) {
         throw new TRPCError({
           code: "CONFLICT",
-          message: `Domain "${input.domain}" is already claimed by another organization. Contact support if this is your domain.`,
+          message: `Domain "${input.domain}" is already verified by another organization.`,
         });
       }
 
+      // Per-org idempotency: returning the existing row lets the UI re-open
+      // the same DNS instructions without minting a fresh verification token.
+      const existing = await ctx.prisma.verifiedDomain.findUnique({
+        where: {
+          organizationId_domain: {
+            organizationId: input.orgId,
+            domain: input.domain,
+          },
+        },
+      });
       if (existing) {
         return {
           id: existing.id,
@@ -88,10 +106,10 @@ export const verifiedDomainRouter = createTRPCRouter({
         };
       }
 
-      // The check-then-create pattern above is not atomic; two concurrent
-      // requests for the same new domain (across orgs) can both pass and the
-      // second hits the unique index on `domain`. Translate Prisma's P2002
-      // into a clean CONFLICT instead of bubbling up as a 500.
+      // Race protection: two parallel creates from the same org or two orgs
+      // racing each other after a verified row was just created. The
+      // (organizationId, domain) unique index and the partial index on
+      // verified rows both surface as Prisma P2002.
       let row;
       try {
         row = await ctx.prisma.verifiedDomain.create({
@@ -108,7 +126,7 @@ export const verifiedDomainRouter = createTRPCRouter({
         ) {
           throw new TRPCError({
             code: "CONFLICT",
-            message: `Domain "${input.domain}" is already claimed by another organization. Contact support if this is your domain.`,
+            message: `Domain "${input.domain}" is already verified by another organization.`,
           });
         }
         throw error;
@@ -179,10 +197,29 @@ export const verifiedDomainRouter = createTRPCRouter({
         });
       }
 
-      const updated = await ctx.prisma.verifiedDomain.update({
-        where: { id: row.id },
-        data: { verifiedAt: new Date() },
-      });
+      // Verified-claim exclusivity is enforced by a partial unique index on
+      // `domain WHERE verified_at IS NOT NULL`. If another org already
+      // verified this domain (e.g. they raced us after we both proved DNS),
+      // the update returns P2002. Translate to CONFLICT so the user sees a
+      // clean message instead of an opaque 500.
+      let updated;
+      try {
+        updated = await ctx.prisma.verifiedDomain.update({
+          where: { id: row.id },
+          data: { verifiedAt: new Date() },
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Domain "${row.domain}" is already verified by another organization.`,
+          });
+        }
+        throw error;
+      }
 
       await auditLog({
         session: ctx.session,

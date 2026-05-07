@@ -105,7 +105,7 @@ describe("verifiedDomainRouter.create", () => {
     expect(result.recordHost).toBe("_langfuse-verification");
     expect(result.recordValue).toMatch(/^langfuse-verify=/);
 
-    const row = await prisma.verifiedDomain.findUnique({ where: { domain } });
+    const row = await prisma.verifiedDomain.findFirst({ where: { domain } });
     expect(row?.organizationId).toBe(org.id);
     expect(row?.createdByUserId).toBe(user.id);
   });
@@ -130,12 +130,39 @@ describe("verifiedDomainRouter.create", () => {
     expect(count).toBe(1);
   });
 
-  it("returns CONFLICT when another org has claimed the domain", async () => {
+  it("allows another org to create a pending claim for the same domain", async () => {
+    // Pending claims are shareable across orgs — they're just unverified DNS
+    // intent. Only verified rows are exclusive. Without this, a hobby-plan
+    // squatter could lock out the legitimate enterprise customer.
     const a = await prepare();
     const b = await prepare();
-    const domain = `conflict-${uuidv4().slice(0, 8)}.com`;
+    const domain = `shared-pending-${uuidv4().slice(0, 8)}.com`;
 
     await a.caller.verifiedDomain.create({ orgId: a.org.id, domain });
+    const bResult = await b.caller.verifiedDomain.create({
+      orgId: b.org.id,
+      domain,
+    });
+
+    expect(bResult.domain).toBe(domain);
+    expect(bResult.verifiedAt).toBeNull();
+
+    const rows = await prisma.verifiedDomain.findMany({ where: { domain } });
+    expect(rows).toHaveLength(2);
+  });
+
+  it("returns CONFLICT when another org has already verified the domain", async () => {
+    const a = await prepare();
+    const b = await prepare();
+    const domain = `verified-elsewhere-${uuidv4().slice(0, 8)}.com`;
+
+    await prisma.verifiedDomain.create({
+      data: {
+        organizationId: a.org.id,
+        domain,
+        verifiedAt: new Date(),
+      },
+    });
 
     await expect(
       b.caller.verifiedDomain.create({ orgId: b.org.id, domain }),
@@ -154,12 +181,13 @@ describe("verifiedDomainRouter.create", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("returns CONFLICT when the create races a concurrent insert (P2002)", async () => {
+  it("returns CONFLICT when the create races a concurrent verified insert (P2002)", async () => {
     const { org, caller } = await prepare();
     const domain = `race-${uuidv4().slice(0, 8)}.com`;
 
-    // Simulate the TOCTOU race: the pre-read returns null, but the create
-    // hits the unique index. The handler must translate P2002 to CONFLICT.
+    // Simulate the race where another org verifies between our pre-check and
+    // create — the partial unique index on `domain WHERE verified_at IS NOT
+    // NULL` fires. The handler must translate P2002 to CONFLICT.
     const spy = vi.spyOn(prisma.verifiedDomain, "create").mockRejectedValueOnce(
       new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
         code: "P2002",
@@ -288,7 +316,7 @@ describe("verifiedDomainRouter.verify", () => {
       caller.verifiedDomain.verify({ orgId: org.id, id: created.id }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
 
-    const row = await prisma.verifiedDomain.findUnique({ where: { domain } });
+    const row = await prisma.verifiedDomain.findFirst({ where: { domain } });
     expect(row?.verifiedAt).toBeNull();
   });
 
@@ -332,6 +360,36 @@ describe("verifiedDomainRouter.verify", () => {
     expect(resolveTxtMock).toHaveBeenCalledTimes(1);
   });
 
+  it("returns CONFLICT when another org verifies the same domain first", async () => {
+    const a = await prepare();
+    const b = await prepare();
+    const domain = `verify-race-${uuidv4().slice(0, 8)}.com`;
+
+    const aRow = await a.caller.verifiedDomain.create({
+      orgId: a.org.id,
+      domain,
+    });
+    const bRow = await b.caller.verifiedDomain.create({
+      orgId: b.org.id,
+      domain,
+    });
+
+    resolveTxtMock.mockResolvedValue([[aRow.recordValue], [bRow.recordValue]]);
+
+    await a.caller.verifiedDomain.verify({ orgId: a.org.id, id: aRow.id });
+
+    // The partial unique index fires on B's update; the handler translates
+    // P2002 into CONFLICT.
+    await expect(
+      b.caller.verifiedDomain.verify({ orgId: b.org.id, id: bRow.id }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+
+    const bAfter = await prisma.verifiedDomain.findUnique({
+      where: { id: bRow.id },
+    });
+    expect(bAfter?.verifiedAt).toBeNull();
+  });
+
   it("returns NOT_FOUND when the row belongs to a different org", async () => {
     const a = await prepare();
     const b = await prepare();
@@ -359,7 +417,7 @@ describe("verifiedDomainRouter.delete", () => {
 
     await caller.verifiedDomain.delete({ orgId: org.id, id: created.id });
 
-    const row = await prisma.verifiedDomain.findUnique({ where: { domain } });
+    const row = await prisma.verifiedDomain.findFirst({ where: { domain } });
     expect(row).toBeNull();
 
     const log = await prisma.auditLog.findFirst({
@@ -410,7 +468,7 @@ describe("verifiedDomainRouter.delete", () => {
       caller.verifiedDomain.delete({ orgId: org.id, id: created.id }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
 
-    const row = await prisma.verifiedDomain.findUnique({ where: { domain } });
+    const row = await prisma.verifiedDomain.findFirst({ where: { domain } });
     expect(row).not.toBeNull();
   });
 
