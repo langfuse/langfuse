@@ -712,6 +712,81 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
     );
   });
 
+  it("accepts the {tenantid} placeholder in Azure AD multi-tenant discovery responses", async () => {
+    // Microsoft returns a literal `{tenantid}` placeholder in the discovery
+    // doc for tenantId values "common", "organizations", and "consumers" —
+    // the actual tenant is bound at sign-in time per user. A strict
+    // equality check would block these legitimate multi-tenant configs.
+    const { org, caller } = await prepare();
+    const domain = `azure-multi-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+
+    fetchMock.mockResolvedValueOnce(
+      discoveryResponse({
+        issuer: "https://login.microsoftonline.com/{tenantid}/v2.0",
+        authorization_endpoint:
+          "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+        token_endpoint:
+          "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+        jwks_uri:
+          "https://login.microsoftonline.com/common/discovery/v2.0/keys",
+      }),
+    );
+
+    const result = await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: {
+        domain,
+        authProvider: "azure-ad" as const,
+        authConfig: {
+          clientId: "azure-client",
+          clientSecret: "azure-secret",
+          tenantId: "common",
+          allowDangerousEmailAccountLinking: false,
+        },
+      },
+    });
+
+    expect(result.domain).toBe(domain);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration",
+      expect.any(Object),
+    );
+  });
+
+  it("still rejects single-tenant Azure AD when the discovery issuer does not match", async () => {
+    const { org, caller } = await prepare();
+    const domain = `azure-single-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+
+    // Specific tenantId — Microsoft returns a real issuer with that tenant
+    // GUID, not the placeholder. A mismatch must still throw.
+    fetchMock.mockResolvedValueOnce(
+      discoveryResponse({
+        issuer: "https://login.microsoftonline.com/{tenantid}/v2.0",
+        authorization_endpoint: "https://login.microsoftonline.com/x/authorize",
+        token_endpoint: "https://login.microsoftonline.com/x/token",
+        jwks_uri: "https://login.microsoftonline.com/x/keys",
+      }),
+    );
+
+    await expect(
+      caller.ssoConfig.save({
+        orgId: org.id,
+        payload: {
+          domain,
+          authProvider: "azure-ad" as const,
+          authConfig: {
+            clientId: "azure-client",
+            clientSecret: "azure-secret",
+            tenantId: "00000000-0000-0000-0000-000000000000",
+            allowDangerousEmailAccountLinking: false,
+          },
+        },
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
   it("skips discovery for OAuth-only providers (github)", async () => {
     const { org, caller } = await prepare();
     const domain = `github-skip-${uuidv4().slice(0, 8)}.com`;

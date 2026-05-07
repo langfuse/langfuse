@@ -50,6 +50,32 @@ function discoveryIssuerFor(payload: SsoProviderSchema): string | null {
 
 const stripTrailingSlash = (url: string) => url.replace(/\/$/, "");
 
+// Microsoft's documented multi-tenant tenantId values. Discovery for these
+// returns `issuer` with the literal `{tenantid}` placeholder string instead
+// of the configured tenantId — the actual tenant is bound at token-issuance
+// time per user's home tenant. NextAuth's AzureADProvider handles this at
+// sign-in, so save-time we compare against the placeholder rather than the
+// configured value to avoid blocking legitimate multi-tenant configurations.
+const AZURE_AD_MULTI_TENANT = new Set(["common", "organizations", "consumers"]);
+const AZURE_AD_TENANT_PLACEHOLDER = "{tenantid}";
+
+function expectedReturnedIssuer(
+  payload: SsoProviderSchema,
+  trimmedIssuer: string,
+): string {
+  if (
+    payload.authProvider === "azure-ad" &&
+    payload.authConfig &&
+    AZURE_AD_MULTI_TENANT.has(payload.authConfig.tenantId)
+  ) {
+    return trimmedIssuer.replace(
+      `/${payload.authConfig.tenantId}/`,
+      `/${AZURE_AD_TENANT_PLACEHOLDER}/`,
+    );
+  }
+  return trimmedIssuer;
+}
+
 // Pre-flight check that the IdP's OIDC discovery document is reachable, well
 // formed, and reports the issuer we configured. Catches gross misconfigurations
 // (wrong issuer URL, unreachable IdP, mistyped tenant id) at save time instead
@@ -115,11 +141,14 @@ export async function validateSsoConfig(
   // Per OIDC Discovery §3, the discovery doc's `issuer` must match the URL we
   // used to fetch it. Trim trailing slashes on both sides — Auth0 and friends
   // typically serve the issuer with a trailing `/` even if users don't enter it.
+  // Azure AD multi-tenant endpoints return `{tenantid}` as a literal
+  // placeholder; map our expected issuer to the same shape before comparing.
   const returnedIssuer = stripTrailingSlash(doc.issuer as string);
-  if (returnedIssuer !== trimmedIssuer) {
+  const expectedIssuer = expectedReturnedIssuer(payload, trimmedIssuer);
+  if (returnedIssuer !== expectedIssuer) {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
-      message: `OIDC discovery at ${discoveryUrl} reported issuer "${doc.issuer as string}" but we expected "${trimmedIssuer}". Check the issuer URL matches exactly.`,
+      message: `OIDC discovery at ${discoveryUrl} reported issuer "${doc.issuer as string}" but we expected "${expectedIssuer}". Check the issuer URL matches exactly.`,
     });
   }
 }
