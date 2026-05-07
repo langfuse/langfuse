@@ -46,6 +46,18 @@ describe("enrichObservationStream field group filtering", () => {
     expect(results[0]).not.toHaveProperty("time_to_first_token");
   });
 
+  it("converts latency independently of time_to_first_token", async () => {
+    // Guards are independent: a row with latency but no time_to_first_token
+    // should convert latency and leave time_to_first_token out entirely.
+    const rows = [{ id: "obs-1", latency: 2000 }];
+    const results = await collect(
+      enrichObservationStream(rowStream(rows), "project-1", "model_id", true),
+    );
+
+    expect(results[0].latency).toBe(2);
+    expect(results[0]).not.toHaveProperty("time_to_first_token");
+  });
+
   it("removes metadata when ClickHouse returns empty map and metadata is not selected", async () => {
     // Simulates ClickHouse returning {} for an unselected Map column.
     const rows = [{ id: "obs-1", metadata: {} }];

@@ -63,13 +63,13 @@ export async function* enrichObservationStream(
       delete enriched.metadata;
     }
 
-    // Only convert latency fields when ClickHouse actually returned them.
-    // If the metrics group was not selected, latency is absent from the row
-    // (undefined), so we skip the conversion and leave the field out entirely.
     if (convertLatencyToSeconds && row.latency !== undefined) {
       const latency = row.latency as number | null;
-      const ttft = row.time_to_first_token as number | null;
       enriched.latency = latency != null ? latency / 1000 : null;
+    }
+
+    if (convertLatencyToSeconds && row.time_to_first_token !== undefined) {
+      const ttft = row.time_to_first_token as number | null;
       enriched.time_to_first_token = ttft != null ? ttft / 1000 : null;
     }
 
