@@ -37,24 +37,49 @@ export const compactSmallNumberFormatter = (
 export const numberFormatter = (
   number?: number | bigint,
   fractionDigits?: number,
+  maxFractionDigits?: number,
 ) => {
   return Intl.NumberFormat("en-US", {
     notation: "standard",
     useGrouping: true,
     minimumFractionDigits: fractionDigits ?? 2,
-    maximumFractionDigits: fractionDigits ?? 2,
+    maximumFractionDigits: maxFractionDigits ?? fractionDigits ?? 2,
   }).format(number ?? 0);
 };
 
-export const latencyFormatter = (milliseconds?: number) => {
-  return Intl.NumberFormat("en-US", {
+const durationDivisors = [1, 1_000, 60_000, 3_600_000, 86_400_000] as const;
+
+const durationFormatters = [
+  "millisecond",
+  "second",
+  "minute",
+  "hour",
+  "day",
+].map((unit) =>
+  Intl.NumberFormat("en-US", {
     style: "unit",
-    unit: "second",
+    unit: unit,
     unitDisplay: "narrow",
     notation: "compact",
-    minimumFractionDigits: 2,
+    minimumFractionDigits: 0,
     maximumFractionDigits: 2,
-  }).format((milliseconds ?? 0) / 1000);
+  }),
+);
+
+const selectDurationFormatter = (
+  milliseconds: number | bigint,
+): [Intl.NumberFormat, number] => {
+  const ms = Number(milliseconds);
+  const tier = durationDivisors.reduce(
+    (acc, divisor, i) => (Math.abs(ms) >= divisor ? i : acc),
+    0,
+  );
+  return [durationFormatters[tier], ms / durationDivisors[tier]!];
+};
+
+export const latencyFormatter = (milliseconds?: number): string => {
+  const [fmt, value] = selectDurationFormatter(milliseconds ?? 0);
+  return fmt.format(value ?? 0);
 };
 
 export const usdFormatter = (

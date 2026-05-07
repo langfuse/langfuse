@@ -12,13 +12,14 @@ import { useExperimentResultsState } from "@/src/features/experiments/hooks/useE
 import { useEffect } from "react";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
 import { Button } from "@/src/components/ui/button";
-import { X, Loader2 } from "lucide-react";
+import { X } from "lucide-react";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import {
   EXPERIMENT_RUN_TABS,
   getExperimentRunTabs,
 } from "@/src/features/navigation/utils/experiment-run-tabs";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export default function ExperimentResults() {
   const router = useRouter();
@@ -82,7 +83,7 @@ export default function ExperimentResults() {
     return (
       <Page headerProps={{ title: "Experiments" }}>
         <div className="flex h-full items-center justify-center">
-          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+          <Spinner size="xl" variant="muted" />
         </div>
       </Page>
     );

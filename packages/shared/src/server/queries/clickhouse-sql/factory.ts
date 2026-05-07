@@ -9,6 +9,7 @@ import {
   type ColumnDefinition,
   type UiColumnMappings,
 } from "../../../tableDefinitions";
+import { COMPATIBLE_FILTER_TYPES } from "./filterTypeCompatibility";
 import {
   StringFilter,
   DateTimeFilter,
@@ -29,21 +30,6 @@ export class QueryBuilderError extends Error {
     this.name = "QueryBuilderError";
   }
 }
-
-// Maps each ColumnDefinition.type to the filter types that are structurally compatible
-// at the ClickHouse level. string/stringOptions both operate on String columns,
-// and stringOptions "any of" works on Array columns too.
-const COMPATIBLE_FILTER_TYPES: Record<string, string[]> = {
-  string: ["string", "stringOptions"],
-  stringOptions: ["string", "stringOptions"],
-  arrayOptions: ["arrayOptions", "stringOptions"],
-  datetime: ["datetime"],
-  number: ["number"],
-  boolean: ["boolean"],
-  stringObject: ["stringObject"],
-  numberObject: ["numberObject"],
-  categoryOptions: ["categoryOptions", "stringOptions"],
-};
 
 // This function ensures that the user only selects valid columns from the clickhouse schema.
 // The filter property in this column needs to be zod verified.

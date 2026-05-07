@@ -1,0 +1,14 @@
+{
+  "extends": "@repo/typescript-config/base",
+  "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "target": "ES2022",
+    "strictNullChecks": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "exclude": ["node_modules"],
+  "include": ["src"]
+}

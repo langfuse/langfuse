@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import Page from "@/src/components/layouts/page";
-import { FlaskConical, Loader2 } from "lucide-react";
+import { FlaskConical } from "lucide-react";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import {
   EXPERIMENT_RUN_TABS,
@@ -9,6 +9,7 @@ import {
 } from "@/src/features/navigation/utils/experiment-run-tabs";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export default function ExperimentAnalytics() {
   const router = useRouter();
@@ -57,7 +58,7 @@ export default function ExperimentAnalytics() {
     return (
       <Page headerProps={{ title: "Analytics" }}>
         <div className="flex h-full items-center justify-center">
-          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+          <Spinner size="xl" variant="muted" />
         </div>
       </Page>
     );
