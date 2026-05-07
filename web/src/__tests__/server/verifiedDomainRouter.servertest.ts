@@ -499,16 +499,16 @@ describe("verifiedDomainRouter.delete", () => {
     const b = await prepare();
     const domain = `pending-with-other-sso-${uuidv4().slice(0, 8)}.com`;
 
-    const aPending = await a.caller.verifiedDomain.create({
+    const pendingClaim = await a.caller.verifiedDomain.create({
       orgId: a.org.id,
       domain,
     });
-    const bRow = await b.caller.verifiedDomain.create({
+    const verifiedClaim = await b.caller.verifiedDomain.create({
       orgId: b.org.id,
       domain,
     });
     await prisma.verifiedDomain.update({
-      where: { id: bRow.id },
+      where: { id: verifiedClaim.id },
       data: { verifiedAt: new Date() },
     });
     await prisma.ssoConfig.create({
@@ -525,18 +525,18 @@ describe("verifiedDomainRouter.delete", () => {
 
     await a.caller.verifiedDomain.delete({
       orgId: a.org.id,
-      id: aPending.id,
+      id: pendingClaim.id,
     });
 
-    const aAfter = await prisma.verifiedDomain.findUnique({
-      where: { id: aPending.id },
+    const pendingAfter = await prisma.verifiedDomain.findUnique({
+      where: { id: pendingClaim.id },
     });
-    expect(aAfter).toBeNull();
+    expect(pendingAfter).toBeNull();
     // Org B's verified row + SSO config are untouched.
-    const bAfter = await prisma.verifiedDomain.findUnique({
-      where: { id: bRow.id },
+    const verifiedAfter = await prisma.verifiedDomain.findUnique({
+      where: { id: verifiedClaim.id },
     });
-    expect(bAfter?.verifiedAt).not.toBeNull();
+    expect(verifiedAfter?.verifiedAt).not.toBeNull();
     const sso = await prisma.ssoConfig.findUnique({ where: { domain } });
     expect(sso).not.toBeNull();
   });
