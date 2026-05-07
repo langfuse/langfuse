@@ -2696,6 +2696,16 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
   }));
 };
 
+/**
+ * Discouraged: Avoid using this function for new code.
+ *
+ * This function exists solely to support the annotation queue items lookup,
+ * which needs to resolve parent trace IDs for observation-type queue items.
+ * It is problematic for performance as it lacks time filtering, requiring
+ * ClickHouse to scan a broad range of data.
+ * We aim to refactor the annotation queue data model to eliminate this
+ * dependency in a future iteration.
+ */
 export const getObservationsTraceIdsFromEventsTable = async (opts: {
   projectId: string;
   observationIds: string[];
