@@ -44,18 +44,20 @@ export async function* enrichObservationStream(
 ): AsyncGenerator<Record<string, unknown>> {
   const { getModel } = createModelCache(projectId);
 
-  for await (const row of stream) {
-    const modelId = row[modelIdField] as string | null | undefined;
-    const model = await getModel(modelId);
-    const pricing = enrichObservationWithModelData(model);
+  const includePricing = !fieldGroups || fieldGroups.includes("usage");
 
-    const enriched: Record<string, unknown> = {
-      ...row,
-      model_id: pricing.modelId ?? modelId ?? null,
-      input_price: pricing.inputPrice,
-      output_price: pricing.outputPrice,
-      total_price: pricing.totalPrice,
-    };
+  for await (const row of stream) {
+    const enriched: Record<string, unknown> = { ...row };
+
+    if (includePricing) {
+      const modelId = row[modelIdField] as string | null | undefined;
+      const model = await getModel(modelId);
+      const pricing = enrichObservationWithModelData(model);
+      enriched.model_id = pricing.modelId ?? modelId ?? null;
+      enriched.input_price = pricing.inputPrice;
+      enriched.output_price = pricing.outputPrice;
+      enriched.total_price = pricing.totalPrice;
+    }
 
     // ClickHouse returns {} for Map columns even when not SELECTed — drop it
     // when the metadata group was not requested.

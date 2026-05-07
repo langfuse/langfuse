@@ -69,4 +69,45 @@ describe("enrichObservationStream field group filtering", () => {
 
     expect(results[0]).not.toHaveProperty("metadata");
   });
+
+  it("does not add pricing fields when usage group is not selected", async () => {
+    const rows = [{ id: "obs-1" }];
+    const results = await collect(
+      enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
+        "core",
+      ] as any),
+    );
+
+    expect(results[0]).not.toHaveProperty("model_id");
+    expect(results[0]).not.toHaveProperty("input_price");
+    expect(results[0]).not.toHaveProperty("output_price");
+    expect(results[0]).not.toHaveProperty("total_price");
+  });
+
+  it("adds pricing fields when usage group is selected", async () => {
+    const rows = [{ id: "obs-1", model_id: "gpt-4" }];
+    const results = await collect(
+      enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
+        "core",
+        "usage",
+      ] as any),
+    );
+
+    expect(results[0]).toHaveProperty("model_id");
+    expect(results[0]).toHaveProperty("input_price");
+    expect(results[0]).toHaveProperty("output_price");
+    expect(results[0]).toHaveProperty("total_price");
+  });
+
+  it("adds model pricing fields when fieldGroups is undefined (legacy v3 path)", async () => {
+    const rows = [{ id: "obs-1" }];
+    const results = await collect(
+      enrichObservationStream(rowStream(rows), "project-1", "model_id", false),
+    );
+
+    expect(results[0]).toHaveProperty("model_id");
+    expect(results[0]).toHaveProperty("input_price");
+    expect(results[0]).toHaveProperty("output_price");
+    expect(results[0]).toHaveProperty("total_price");
+  });
 });
