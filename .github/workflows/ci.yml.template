@@ -28,14 +28,14 @@ jobs:
         run: docker compose -f "docker-compose.yml" up -d --build
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # v3
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
-          version: 10.33.0
+          version: 11.0.8
 
-      - name: Setup Node 18
+      - name: Setup Node 24
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 18
+          node-version: 24
 
       - name: Get pnpm store directory
         id: pnpm-cache
