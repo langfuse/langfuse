@@ -216,7 +216,10 @@ export const CustomProviderSchema = base.extend({
   authProvider: z.literal("custom"),
   authConfig: z
     .object({
-      name: z.string(),
+      // Display label rendered as "Display Name" in the form. Surfaced as
+      // a required field; reject empty strings so the schema matches the
+      // form contract.
+      name: z.string().min(1, { message: "Name is required" }),
       clientId: z.string(),
       clientSecret: z.string(),
       issuer: oidcIssuer,

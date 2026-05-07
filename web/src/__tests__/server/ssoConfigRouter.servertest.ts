@@ -174,6 +174,34 @@ describe("ssoConfigRouter.save", () => {
     }
   });
 
+  it("rejects Custom OIDC payloads with an empty name", async () => {
+    // The form labels Display Name as a user-facing required field; reject
+    // empty values at the schema layer so the form contract is enforced.
+    const { org, caller } = await prepare();
+    const domain = `custom-empty-name-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+
+    await expect(
+      caller.ssoConfig.save({
+        orgId: org.id,
+        payload: {
+          domain,
+          authProvider: "custom" as const,
+          authConfig: {
+            name: "",
+            clientId: "client-123",
+            clientSecret: "super-secret",
+            issuer: "https://example.okta.com",
+            allowDangerousEmailAccountLinking: false,
+          },
+        },
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    const row = await prisma.ssoConfig.findUnique({ where: { domain } });
+    expect(row).toBeNull();
+  });
+
   it("rejects Azure AD payloads with an empty tenantId", async () => {
     // Empty tenantId saves cleanly otherwise but locks all users out at
     // sign-in (NextAuth builds https://login.microsoftonline.com//v2.0/...).
