@@ -194,7 +194,7 @@ export const GenerationLatencyChart = ({
                       data={timeSeriesToDataPoints(item.data, agg)}
                       config={{
                         metric: {
-                          label: "Seconds",
+                          label: "Latency",
                         },
                       }}
                       rowLimit={100}
