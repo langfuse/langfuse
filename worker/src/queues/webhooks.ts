@@ -146,10 +146,27 @@ async function executeHttpAction({
         }, env.LANGFUSE_WEBHOOK_TIMEOUT_MS);
 
         try {
+          const whitelist = whitelistFromEnv();
+
           // Skip validation when flag is set (for tests with MSW mocking)
           if (!skipValidation) {
-            await validateWebhookURL(url);
+            await validateWebhookURL(url, whitelist);
           }
+
+          const redirectOptions = skipValidation
+            ? {
+                maxRedirects: env.LANGFUSE_WEBHOOK_MAX_REDIRECTS,
+                skipValidation: true as const,
+                additionalSensitiveHeaders,
+              }
+            : {
+                maxRedirects: env.LANGFUSE_WEBHOOK_MAX_REDIRECTS,
+                redirectValidation: {
+                  validateUrl: validateWebhookURL,
+                  whitelist,
+                },
+                additionalSensitiveHeaders,
+              };
 
           const redirectResult = await fetchWithSecureRedirects(
             url,
@@ -159,12 +176,7 @@ async function executeHttpAction({
               headers,
               signal: abortController.signal,
             },
-            {
-              maxRedirects: env.LANGFUSE_WEBHOOK_MAX_REDIRECTS,
-              skipValidation,
-              whitelist: whitelistFromEnv(),
-              additionalSensitiveHeaders,
-            },
+            redirectOptions,
           );
 
           const res = redirectResult.response;
