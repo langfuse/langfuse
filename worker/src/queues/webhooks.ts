@@ -501,7 +501,15 @@ async function executeGitHubDispatchAction({
     );
   }
 
-  const githubPayload = JSON.stringify(validatedPayload.data);
+  const { prompt, ...clientPayloadWithoutPrompt } =
+    validatedPayload.data.client_payload;
+  const githubPayload = JSON.stringify({
+    ...validatedPayload.data,
+    client_payload: {
+      ...clientPayloadWithoutPrompt,
+      prompt,
+    },
+  });
 
   // Prepare headers with GitHub token
   const requestHeaders: Record<string, string> = {};
