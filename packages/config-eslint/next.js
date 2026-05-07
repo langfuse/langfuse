@@ -107,4 +107,15 @@ export default [
       "react/no-unused-prop-types": "warn",
     },
   },
+
+  // Vitest in-source testing should only be used while developing, not in committed code.
+  {
+    name: "langfuse/no-in-source-vitest",
+    plugins: {
+      "@repo": langfusePlugin,
+    },
+    rules: {
+      "@repo/no-in-source-vitest": "warn",
+    },
+  },
 ];

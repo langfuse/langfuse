@@ -1,16 +1,23 @@
 import dns from "node:dns/promises";
 import { URL } from "node:url";
-import { logger } from "./logger";
+import { logger } from "../logger";
 import {
   isHostnameBlocked,
   isIPBlocked,
   isIPAddress,
-} from "./webhooks/ipBlocking";
+} from "../webhooks/ipBlocking";
 
 export interface OutboundUrlValidationWhitelist {
   hosts: string[];
   ips: string[];
   ip_ranges: string[];
+}
+
+export interface ValidateOutboundUrlHostOptions {
+  url: URL;
+  whitelist: OutboundUrlValidationWhitelist;
+  logContext: string;
+  shouldSkipDnsCheckForLiteralIps: boolean;
 }
 
 export async function resolveHost(hostname: string): Promise<string[]> {
@@ -70,16 +77,9 @@ export function parseOutboundUrl(urlString: string): URL {
 export async function validateOutboundUrlHost({
   url,
   whitelist,
-  shouldThrowIfDnsResolutionFails,
   logContext,
   shouldSkipDnsCheckForLiteralIps,
-}: {
-  url: URL;
-  whitelist: OutboundUrlValidationWhitelist;
-  shouldThrowIfDnsResolutionFails: boolean;
-  logContext: string;
-  shouldSkipDnsCheckForLiteralIps: boolean;
-}): Promise<void> {
+}: ValidateOutboundUrlHostOptions): Promise<void> {
   // WHATWG URL parsing already lowercases and punycodes HTTP(S) hostnames, so
   // host safety checks stay tied to the parsed URL component.
   const hostname = url.hostname;
@@ -103,13 +103,11 @@ export async function validateOutboundUrlHost({
     if (shouldSkipDnsCheckForLiteralIps) return;
   }
 
-  let ips: string[];
-  try {
-    ips = await resolveHost(hostname);
-  } catch (error) {
-    if (!shouldThrowIfDnsResolutionFails) return;
-    throw error;
-  }
+  // DNS-resolution failure is treated as a hard validation error: silently
+  // returning here would let attacker-controlled or split-horizon DNS bypass
+  // the IP blocklist (DNS-rebinding SSRF). Self-hosted gateways that the
+  // validator cannot resolve must be added to the host whitelist above.
+  const ips = await resolveHost(hostname);
 
   for (const ip of ips) {
     if (isIPBlocked(ip, whitelist.ips, whitelist.ip_ranges)) {
