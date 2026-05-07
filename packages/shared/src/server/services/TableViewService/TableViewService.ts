@@ -253,7 +253,10 @@ export class TableViewService {
         if (
           !existingPreset ||
           (preset.tableName === TableViewPresetTableName.ObservationsEvents &&
-            existingPreset.tableName === TableViewPresetTableName.Observations)
+            existingPreset.tableName ===
+              TableViewPresetTableName.Observations) ||
+          // Non-system presets should take precedence over system presets
+          (!preset.isSystem && existingPreset.isSystem)
         ) {
           presetsByName.set(preset.name, preset);
         }
