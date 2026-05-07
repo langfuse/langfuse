@@ -12,7 +12,7 @@ import {
   type ActionDomainWithSecrets,
 } from "@langfuse/shared";
 import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   validateWebhookURL,
   whitelistFromEnv,
@@ -289,14 +289,11 @@ async function executeHttpAction({
           isWebhookAction(actionConfig) ||
           isGitHubDispatchAction(actionConfig)
         ) {
-          await tx.action.update({
-            where: { id: automation.action.id, projectId },
-            data: {
-              config: {
-                ...actionConfig.config,
-                lastFailingExecutionId: executionId,
-              } as any, // Cast needed for Prisma Json type
-            },
+          await setActionLastFailingExecutionId({
+            tx,
+            actionId: automation.action.id,
+            projectId,
+            executionId,
           });
         }
 
@@ -657,14 +654,11 @@ async function executeSlackAction({
       });
 
       // Update action config to store the failing execution ID
-      await tx.action.update({
-        where: { id: automation.action.id, projectId },
-        data: {
-          config: {
-            ...failureActionConfig.config,
-            lastFailingExecutionId: executionId,
-          },
-        },
+      await setActionLastFailingExecutionId({
+        tx,
+        actionId: automation.action.id,
+        projectId,
+        executionId,
       });
 
       logger.warn(
@@ -677,3 +671,31 @@ async function executeSlackAction({
     );
   }
 }
+
+const setActionLastFailingExecutionId = async ({
+  tx,
+  actionId,
+  projectId,
+  executionId,
+}: {
+  tx: Prisma.TransactionClient;
+  actionId: string;
+  projectId: string;
+  executionId: string;
+}) => {
+  // The execution config may contain decrypted headers, so patch only this JSON
+  // key and leave the stored encrypted config untouched.
+  await tx.$executeRaw`
+    UPDATE actions
+    SET
+      config = jsonb_set(
+        config,
+        '{lastFailingExecutionId}',
+        to_jsonb(${executionId}::text),
+        true
+      ),
+      updated_at = NOW()
+    WHERE id = ${actionId}
+      AND project_id = ${projectId}
+  `;
+};
