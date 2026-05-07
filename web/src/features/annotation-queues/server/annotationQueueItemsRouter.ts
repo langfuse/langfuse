@@ -220,12 +220,13 @@ export const queueItemRouter = createTRPCRouter({
       let traceIds: { id: string; traceId: string }[];
 
       if (hasQueueItemsReferencingObservations) {
-        env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true"
-          ? await getObservationsTraceIdsFromEventsTable({
-              projectId: input.projectId,
-              observationIds,
-            })
-          : await getTraceIdsForObservations(input.projectId, observationIds);
+        traceIds =
+          env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true"
+            ? await getObservationsTraceIdsFromEventsTable({
+                projectId: input.projectId,
+                observationIds,
+              })
+            : await getTraceIdsForObservations(input.projectId, observationIds);
       } else {
         traceIds = [];
       }
