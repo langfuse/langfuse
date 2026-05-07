@@ -1,7 +1,7 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
-import { decrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { Role } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
@@ -316,6 +316,82 @@ describe("ssoConfigRouter.save", () => {
     expect(updateLog?.before).not.toBeNull();
     expect(updateLog?.before).not.toContain("super-secret-value");
     expect(updateLog?.before).not.toContain("rotated-secret");
+  });
+
+  it("preserves advanced authConfig fields on update for the same provider", async () => {
+    // Legacy support-endpoint configs may set scope, tokenEndpointAuthMethod,
+    // idTokenSignedResponseAlg, etc. The self-service form doesn't surface
+    // those fields, so a naive whole-row replace would silently wipe them
+    // when the admin re-enters the secret. Merge instead.
+    const { org, caller } = await prepare();
+    const domain = `merge-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+
+    await prisma.ssoConfig.create({
+      data: {
+        domain,
+        authProvider: "okta",
+        authConfig: {
+          clientId: "old-client",
+          clientSecret: encrypt("old-secret"),
+          issuer: "https://example.okta.com",
+          tokenEndpointAuthMethod: "private_key_jwt",
+          idTokenSignedResponseAlg: "RS256",
+        },
+      },
+    });
+
+    await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: samplePayload(domain),
+    });
+
+    const stored = await prisma.ssoConfig.findUniqueOrThrow({
+      where: { domain },
+    });
+    const cfg = stored.authConfig as Record<string, unknown>;
+    // Form-supplied fields take priority on the merge.
+    expect(cfg.clientId).toBe("client-123");
+    expect(decrypt(cfg.clientSecret as string)).toBe("super-secret-value");
+    // Advanced fields the form doesn't carry are preserved.
+    expect(cfg.tokenEndpointAuthMethod).toBe("private_key_jwt");
+    expect(cfg.idTokenSignedResponseAlg).toBe("RS256");
+  });
+
+  it("resets authConfig fields when the provider changes", async () => {
+    // Switching providers is an explicit reset — Custom-only fields like
+    // `name`/`scope` aren't valid in another provider's schema and shouldn't
+    // bleed across.
+    const { org, caller } = await prepare();
+    const domain = `switch-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+
+    await prisma.ssoConfig.create({
+      data: {
+        domain,
+        authProvider: "custom",
+        authConfig: {
+          name: "Old Custom",
+          clientId: "old-client",
+          clientSecret: encrypt("old-secret"),
+          issuer: "https://old.example.com",
+          scope: "openid email custom-scope",
+        },
+      },
+    });
+
+    await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: samplePayload(domain),
+    });
+
+    const stored = await prisma.ssoConfig.findUniqueOrThrow({
+      where: { domain },
+    });
+    const cfg = stored.authConfig as Record<string, unknown>;
+    expect(stored.authProvider).toBe("okta");
+    expect(cfg.name).toBeUndefined();
+    expect(cfg.scope).toBeUndefined();
   });
 
   it("rejects callers without organization:update scope (MEMBER role)", async () => {

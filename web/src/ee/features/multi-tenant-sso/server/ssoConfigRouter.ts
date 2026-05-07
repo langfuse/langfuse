@@ -117,10 +117,30 @@ export const ssoConfigRouter = createTRPCRouter({
         where: { domain },
       });
 
-      const encryptedAuthConfig = authConfig
+      // Preserve advanced authConfig fields the self-service form doesn't
+      // surface (scope, idToken, tokenEndpointAuthMethod, idTokenSignedResponseAlg)
+      // when the admin re-saves the same provider — typically just to rotate a
+      // secret. Without this merge, fields originally set via the legacy
+      // support endpoint would silently disappear and break sign-in. Switching
+      // providers is treated as an intentional reset (Custom-only fields like
+      // `name` or `scope` would be incompatible with the new provider).
+      const mergedAuthConfig =
+        existing &&
+        existing.authProvider === authProvider &&
+        authConfig &&
+        existing.authConfig
+          ? {
+              ...(existing.authConfig as Record<string, unknown>),
+              ...authConfig,
+            }
+          : authConfig;
+
+      const encryptedAuthConfig = mergedAuthConfig
         ? {
-            ...authConfig,
-            clientSecret: encrypt(authConfig.clientSecret),
+            ...mergedAuthConfig,
+            clientSecret: encrypt(
+              (mergedAuthConfig as { clientSecret: string }).clientSecret,
+            ),
           }
         : null;
 
