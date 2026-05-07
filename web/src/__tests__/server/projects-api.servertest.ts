@@ -239,6 +239,44 @@ describe("Projects API", () => {
       expect(project?.metadata).toEqual(metadata);
     });
 
+    it.each([
+      ["JSON-stringified null", '"null"' /* JSON.stringify(null) */],
+      ["JSON-stringified array", JSON.stringify([1, 2, 3])],
+      ["JSON-stringified number", JSON.stringify(42)],
+      ["JSON-stringified string", JSON.stringify("foo")],
+    ])(
+      "should reject create when metadata is %s",
+      async (_label, metadataValue) => {
+        const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
+        const result = await makeAPICall(
+          "POST",
+          "/api/public/projects",
+          {
+            name: uniqueProjectName,
+            metadata: metadataValue,
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        expect(result.status).toBe(400);
+        expect(result.body.message).toContain("valid JSON object");
+      },
+    );
+
+    it("should reject create when metadata is a literal null", async () => {
+      const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
+      const result = await makeAPICall(
+        "POST",
+        "/api/public/projects",
+        {
+          name: uniqueProjectName,
+          metadata: null,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(result.status).toBe(400);
+      expect(result.body.message).toContain("valid JSON object");
+    });
+
     it("should create a new project with retention days", async () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
 
@@ -501,6 +539,64 @@ describe("Projects API", () => {
         where: { id: testProjectId },
       });
       expect(project?.metadata).toEqual(newMetadata);
+    });
+
+    it.each([
+      ["JSON-stringified null", '"null"'],
+      ["JSON-stringified array", JSON.stringify([1, 2, 3])],
+      ["JSON-stringified number", JSON.stringify(42)],
+      ["JSON-stringified string", JSON.stringify("foo")],
+    ])(
+      "should reject update and preserve existing metadata when metadata is %s",
+      async (_label, metadataValue) => {
+        const seedMetadata = { plan: "pro", features: ["all"] };
+        await prisma.project.update({
+          where: { id: testProjectId },
+          data: { metadata: seedMetadata },
+        });
+
+        const result = await makeAPICall(
+          "PUT",
+          `/api/public/projects/${testProjectId}`,
+          {
+            name: "Updated Project Name",
+            metadata: metadataValue,
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        expect(result.status).toBe(400);
+        expect(result.body.message).toContain("valid JSON object");
+
+        const project = await prisma.project.findUnique({
+          where: { id: testProjectId },
+        });
+        expect(project?.metadata).toEqual(seedMetadata);
+      },
+    );
+
+    it("should reject update when metadata is a literal null and preserve existing metadata", async () => {
+      const seedMetadata = { plan: "pro", features: ["all"] };
+      await prisma.project.update({
+        where: { id: testProjectId },
+        data: { metadata: seedMetadata },
+      });
+
+      const result = await makeAPICall(
+        "PUT",
+        `/api/public/projects/${testProjectId}`,
+        {
+          name: "Updated Project Name",
+          metadata: null,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(result.status).toBe(400);
+      expect(result.body.message).toContain("valid JSON object");
+
+      const project = await prisma.project.findUnique({
+        where: { id: testProjectId },
+      });
+      expect(project?.metadata).toEqual(seedMetadata);
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {

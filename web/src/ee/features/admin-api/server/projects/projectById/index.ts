@@ -42,6 +42,16 @@ export async function handleUpdateProject(
         });
       }
     }
+    if (
+      parsedMetadata !== undefined &&
+      (typeof parsedMetadata !== "object" ||
+        parsedMetadata === null ||
+        Array.isArray(parsedMetadata))
+    ) {
+      return res.status(400).json({
+        message: "Invalid metadata. Should be a valid JSON object.",
+      });
+    }
 
     // Validate retention days if provided
     if (retention !== undefined) {
