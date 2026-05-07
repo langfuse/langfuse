@@ -23,7 +23,8 @@ import {
   unstablePublicEvalsErrorContract,
   type PublicApiErrorContract,
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
-import { isPrismaException } from "@/src/utils/exceptions";
+import { Prisma } from "@prisma/client";
+
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
