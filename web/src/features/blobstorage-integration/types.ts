@@ -37,13 +37,25 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
     .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
   exportFieldGroups: z
     .array(z.enum(BLOB_EXPORT_FIELD_GROUPS))
-    .min(1, { message: "At least one field group must be selected" })
     .default([...BLOB_EXPORT_FIELD_GROUPS]),
   compressed: z.boolean().default(true),
 });
 
 export const blobStorageIntegrationFormSchema =
-  blobStorageIntegrationFormSchemaBase.superRefine(validateAzureContainerName);
+  blobStorageIntegrationFormSchemaBase
+    .superRefine(validateAzureContainerName)
+    .superRefine((data, ctx) => {
+      if (
+        data.exportSource === AnalyticsIntegrationExportSource.EVENTS &&
+        data.exportFieldGroups.length === 0
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message: "At least one field group must be selected",
+          path: ["exportFieldGroups"],
+        });
+      }
+    });
 
 export type BlobStorageIntegrationFormSchema = z.infer<
   typeof blobStorageIntegrationFormSchema

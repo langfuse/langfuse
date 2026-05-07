@@ -1,5 +1,4 @@
 import { renderHook, act } from "@testing-library/react";
-import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -33,57 +32,38 @@ const VALID_BASE: BlobStorageIntegrationFormSchema = {
   exportStartDate: null,
 };
 
-function useBlobStorageForm(defaults: BlobStorageIntegrationFormSchema) {
-  const form = useForm<BlobStorageIntegrationFormSchema>({
-    resolver: zodResolver(blobStorageIntegrationFormSchema),
-    defaultValues: defaults,
-    mode: "onChange",
+describe("blob storage form — exportFieldGroups validation", () => {
+  it("blocks submission when exportSource is EVENTS and all groups are deselected", async () => {
+    const { result } = renderHook(() =>
+      useForm<BlobStorageIntegrationFormSchema>({
+        resolver: zodResolver(blobStorageIntegrationFormSchema),
+        defaultValues: {
+          ...VALID_BASE,
+          exportSource: AnalyticsIntegrationExportSource.EVENTS,
+          exportFieldGroups: [],
+        },
+      }),
+    );
+
+    const onSubmit = vi.fn();
+    await act(async () => {
+      await result.current.handleSubmit(onSubmit)();
+    });
+
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  const exportSource = form.watch("exportSource");
-
-  useEffect(() => {
-    if (exportSource !== AnalyticsIntegrationExportSource.EVENTS) {
-      form.setValue("exportFieldGroups", [...BLOB_EXPORT_FIELD_GROUPS]);
-    }
-  }, [exportSource]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  return form;
-}
-
-describe("blob storage form — exportFieldGroups reset on source switch", () => {
-  it("resets exportFieldGroups to the full default when switching away from EVENTS", async () => {
-    const { result } = renderHook(() => useBlobStorageForm(VALID_BASE));
-
-    // Simulate user unchecking all field groups while on EVENTS
-    await act(async () => {
-      result.current.setValue("exportFieldGroups", []);
-    });
-    expect(result.current.getValues("exportFieldGroups")).toStrictEqual([]);
-
-    // Switch away from EVENTS — useEffect should reset exportFieldGroups
-    await act(async () => {
-      result.current.setValue(
-        "exportSource",
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-      );
-    });
-
-    expect(result.current.getValues("exportFieldGroups")).toStrictEqual([
-      ...BLOB_EXPORT_FIELD_GROUPS,
-    ]);
-  });
-
-  it("allows submission after switching from EVENTS with empty groups to TRACES_OBSERVATIONS", async () => {
-    const { result } = renderHook(() => useBlobStorageForm(VALID_BASE));
-
-    await act(async () => {
-      result.current.setValue("exportFieldGroups", []);
-      result.current.setValue(
-        "exportSource",
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-      );
-    });
+  it("allows submission when exportSource is TRACES_OBSERVATIONS regardless of exportFieldGroups", async () => {
+    const { result } = renderHook(() =>
+      useForm<BlobStorageIntegrationFormSchema>({
+        resolver: zodResolver(blobStorageIntegrationFormSchema),
+        defaultValues: {
+          ...VALID_BASE,
+          exportSource: AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+          exportFieldGroups: [],
+        },
+      }),
+    );
 
     const onSubmit = vi.fn();
     await act(async () => {
@@ -91,5 +71,31 @@ describe("blob storage form — exportFieldGroups reset on source switch", () =>
     });
 
     expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
+  it("preserves a saved subset when switching exportSource away from EVENTS", async () => {
+    const { result } = renderHook(() =>
+      useForm<BlobStorageIntegrationFormSchema>({
+        resolver: zodResolver(blobStorageIntegrationFormSchema),
+        defaultValues: {
+          ...VALID_BASE,
+          exportSource: AnalyticsIntegrationExportSource.EVENTS,
+          exportFieldGroups: ["core", "basic"],
+        },
+      }),
+    );
+
+    await act(async () => {
+      result.current.setValue(
+        "exportSource",
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      );
+    });
+
+    // Subset must be preserved — no automatic reset
+    expect(result.current.getValues("exportFieldGroups")).toStrictEqual([
+      "core",
+      "basic",
+    ]);
   });
 });
