@@ -50,7 +50,11 @@ function createSession(
   org: { id: string; name: string },
   project: { id: string; name: string },
   plan: Plan,
+  roles: { orgRole?: Role; projectRole?: Role } = {},
 ): Session {
+  const orgRole = roles.orgRole ?? Role.OWNER;
+  const projectRole = roles.projectRole ?? Role.OWNER;
+
   return {
     expires: "1",
     user: {
@@ -62,7 +66,7 @@ function createSession(
         {
           id: org.id,
           name: org.name,
-          role: "OWNER",
+          role: orgRole,
           plan: plan,
           cloudConfig: undefined,
           metadata: {},
@@ -70,7 +74,7 @@ function createSession(
           projects: [
             {
               id: project.id,
-              role: "OWNER",
+              role: projectRole,
               retentionDays: 30,
               deletedAt: null,
               name: project.name,
@@ -257,6 +261,90 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       });
       expect(inviteCount).toBe(4);
     }, 25_000);
+  });
+});
+
+describe("membersRouter.allInvitesFromProject", () => {
+  it("returns a totalCount that matches project-scoped invitation filtering", async () => {
+    const { org, project, ownerUser } = await prepare("cloud:core");
+    const otherProject = await prisma.project.create({
+      data: {
+        id: uuidv4(),
+        name: `Other Project ${uuidv4().substring(0, 8)}`,
+        orgId: org.id,
+      },
+    });
+    const projectOnlyUser = await createTestUser();
+    const orgMembership = await prisma.organizationMembership.create({
+      data: {
+        userId: projectOnlyUser.id,
+        orgId: org.id,
+        role: Role.NONE,
+      },
+    });
+    await prisma.projectMembership.create({
+      data: {
+        userId: projectOnlyUser.id,
+        projectId: project.id,
+        role: Role.MEMBER,
+        orgMembershipId: orgMembership.id,
+      },
+    });
+
+    const orgInviteEmail = `org-invite-${uuidv4().substring(0, 8)}@test.com`;
+    const projectInviteEmail = `project-invite-${uuidv4().substring(0, 8)}@test.com`;
+    const otherProjectInviteEmail = `other-project-invite-${uuidv4().substring(0, 8)}@test.com`;
+
+    await prisma.membershipInvitation.createMany({
+      data: [
+        {
+          orgId: org.id,
+          email: orgInviteEmail,
+          orgRole: Role.MEMBER,
+          invitedByUserId: ownerUser.id,
+        },
+        {
+          orgId: org.id,
+          projectId: project.id,
+          email: projectInviteEmail,
+          orgRole: Role.NONE,
+          projectRole: Role.MEMBER,
+          invitedByUserId: ownerUser.id,
+        },
+        {
+          orgId: org.id,
+          projectId: otherProject.id,
+          email: otherProjectInviteEmail,
+          orgRole: Role.NONE,
+          projectRole: Role.MEMBER,
+          invitedByUserId: ownerUser.id,
+        },
+      ],
+    });
+
+    const projectOnlySession = createSession(
+      projectOnlyUser,
+      org,
+      project,
+      "cloud:core",
+      { orgRole: Role.NONE, projectRole: Role.MEMBER },
+    );
+    const ctx = createInnerTRPCContext({
+      session: projectOnlySession,
+      headers: {},
+    });
+    const caller = appRouter.createCaller({ ...ctx, prisma });
+
+    const result = await caller.members.allInvitesFromProject({
+      projectId: project.id,
+      page: 0,
+      limit: 10,
+    });
+
+    expect(result.totalCount).toBe(2);
+    expect(result.invitations.map((invite) => invite.email).sort()).toEqual(
+      [orgInviteEmail, projectInviteEmail].sort(),
+    );
   });
 });
 
