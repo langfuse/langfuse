@@ -138,35 +138,37 @@ function DomainsTable({ orgId }: { orgId: string }) {
 
   return (
     <Card className="mb-4 overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="text-primary pl-2.5">Domain</TableHead>
-            <TableHead className="text-primary">Status</TableHead>
-            <TableHead className="text-primary hidden md:table-cell">
-              Added
-            </TableHead>
-            <TableHead />
-          </TableRow>
-        </TableHeader>
-        <TableBody className="text-muted-foreground">
-          {query.data && query.data.length === 0 ? (
+      <div className="overflow-x-auto">
+        <Table className="min-w-[640px] md:min-w-0">
+          <TableHeader>
             <TableRow>
-              <TableCell
-                density="comfortable"
-                colSpan={4}
-                className="py-12 text-center text-sm"
-              >
-                No domains added yet
-              </TableCell>
+              <TableHead className="text-primary pl-2.5">Domain</TableHead>
+              <TableHead className="text-primary">Status</TableHead>
+              <TableHead className="text-primary hidden md:table-cell">
+                Added
+              </TableHead>
+              <TableHead />
             </TableRow>
-          ) : (
-            query.data?.map((row) => (
-              <DomainRow key={row.id} orgId={orgId} row={row} />
-            ))
-          )}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody className="text-muted-foreground">
+            {query.data && query.data.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  density="comfortable"
+                  colSpan={4}
+                  className="py-12 text-center text-sm"
+                >
+                  No domains added yet
+                </TableCell>
+              </TableRow>
+            ) : (
+              query.data?.map((row) => (
+                <DomainRow key={row.id} orgId={orgId} row={row} />
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </Card>
   );
 }
@@ -201,7 +203,7 @@ function DomainRow({ orgId, row }: { orgId: string; row: DomainRowData }) {
   return (
     <>
       <TableRow className="hover:bg-primary-foreground">
-        <TableCell density="comfortable" className="font-mono">
+        <TableCell density="comfortable" className="font-mono break-all">
           {!row.verifiedAt ? (
             <button
               type="button"
@@ -229,25 +231,24 @@ function DomainRow({ orgId, row }: { orgId: string; row: DomainRowData }) {
         <TableCell density="comfortable" className="hidden md:table-cell">
           {row.createdAt.toLocaleDateString()}
         </TableCell>
-        <TableCell
-          density="comfortable"
-          className="flex items-center justify-end gap-2"
-        >
-          {!row.verifiedAt && (
-            <Button
-              size="sm"
-              onClick={() => verifyMutation.mutate({ orgId, id: row.id })}
-              loading={verifyMutation.isPending}
-            >
-              Verify
-            </Button>
-          )}
-          <DeleteDomainButton
-            orgId={orgId}
-            id={row.id}
-            domain={row.domain}
-            verified={Boolean(row.verifiedAt)}
-          />
+        <TableCell density="comfortable" className="text-right">
+          <div className="flex items-center justify-end gap-2">
+            {!row.verifiedAt && (
+              <Button
+                size="sm"
+                onClick={() => verifyMutation.mutate({ orgId, id: row.id })}
+                loading={verifyMutation.isPending}
+              >
+                Verify
+              </Button>
+            )}
+            <DeleteDomainButton
+              orgId={orgId}
+              id={row.id}
+              domain={row.domain}
+              verified={Boolean(row.verifiedAt)}
+            />
+          </div>
         </TableCell>
       </TableRow>
       {!row.verifiedAt && expanded && (
@@ -277,32 +278,34 @@ function DnsInstructions({
         Add the following TXT record to your DNS provider:
       </p>
       <Card className="overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-16">Type</TableHead>
-              <TableHead className="w-54">Host</TableHead>
-              <TableHead>Value</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow>
-              <TableCell density="comfortable" className="w-16 font-mono">
-                TXT
-              </TableCell>
-              <TableCellWithCopyButton
-                density="comfortable"
-                text={recordHost}
-                className="w-54 py-3 font-mono break-all"
-              />
-              <TableCellWithCopyButton
-                density="comfortable"
-                text={recordValue}
-                className="py-3 font-mono break-all"
-              />
-            </TableRow>
-          </TableBody>
-        </Table>
+        <div className="overflow-x-auto">
+          <Table className="min-w-[680px] md:min-w-0">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-16">Type</TableHead>
+                <TableHead className="w-54">Host</TableHead>
+                <TableHead>Value</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell density="comfortable" className="w-16 font-mono">
+                  TXT
+                </TableCell>
+                <TableCellWithCopyButton
+                  density="comfortable"
+                  text={recordHost}
+                  className="w-54 py-3 font-mono break-all"
+                />
+                <TableCellWithCopyButton
+                  density="comfortable"
+                  text={recordValue}
+                  className="py-3 font-mono break-all"
+                />
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
       </Card>
       <p className="text-muted-foreground text-xs">
         DNS changes may take up to 24h to propagate. After adding the record,

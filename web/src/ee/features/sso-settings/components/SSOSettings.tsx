@@ -203,28 +203,30 @@ function SsoConfigsTable({ orgId }: { orgId: string }) {
 
   return (
     <Card className="mb-4 overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="text-primary pl-2.5">Domain</TableHead>
-            <TableHead className="text-primary">Provider</TableHead>
-            <TableHead className="text-primary hidden md:table-cell">
-              Updated
-            </TableHead>
-            <TableHead />
-          </TableRow>
-        </TableHeader>
-        <TableBody className="text-muted-foreground">
-          {verifiedDomains.map((row) => (
-            <SsoConfigRow
-              key={row.domain}
-              orgId={orgId}
-              domain={row.domain}
-              config={configByDomain.get(row.domain) ?? null}
-            />
-          ))}
-        </TableBody>
-      </Table>
+      <div className="overflow-x-auto">
+        <Table className="min-w-[640px] md:min-w-0">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-primary pl-2.5">Domain</TableHead>
+              <TableHead className="text-primary">Provider</TableHead>
+              <TableHead className="text-primary hidden md:table-cell">
+                Updated
+              </TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody className="text-muted-foreground">
+            {verifiedDomains.map((row) => (
+              <SsoConfigRow
+                key={row.domain}
+                orgId={orgId}
+                domain={row.domain}
+                config={configByDomain.get(row.domain) ?? null}
+              />
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </Card>
   );
 }
@@ -240,7 +242,7 @@ function SsoConfigRow({
 }) {
   return (
     <TableRow className="hover:bg-primary-foreground">
-      <TableCell density="comfortable" className="font-mono">
+      <TableCell density="comfortable" className="font-mono break-all">
         {domain}
       </TableCell>
       <TableCell density="comfortable">
@@ -253,14 +255,13 @@ function SsoConfigRow({
       <TableCell density="comfortable" className="hidden md:table-cell">
         {config ? config.updatedAt.toLocaleDateString() : "—"}
       </TableCell>
-      <TableCell
-        density="comfortable"
-        className="flex items-center justify-end gap-2"
-      >
-        <SsoConfigDialog orgId={orgId} domain={domain} existing={config} />
-        {config ? (
-          <DeleteSsoConfigButton orgId={orgId} domain={domain} />
-        ) : null}
+      <TableCell density="comfortable" className="text-right">
+        <div className="flex items-center justify-end gap-2">
+          <SsoConfigDialog orgId={orgId} domain={domain} existing={config} />
+          {config ? (
+            <DeleteSsoConfigButton orgId={orgId} domain={domain} />
+          ) : null}
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -605,22 +606,24 @@ function CallbackUrlPanel({ callbackUrl }: { callbackUrl: string }) {
     <div>
       <p className="mb-2 text-sm font-medium">Callback URL</p>
       <Card className="overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>URL</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow>
-              <TableCellWithCopyButton
-                density="comfortable"
-                text={callbackUrl}
-                className="py-3 font-mono break-all"
-              />
-            </TableRow>
-          </TableBody>
-        </Table>
+        <div className="overflow-x-auto">
+          <Table className="min-w-[680px] md:min-w-0">
+            <TableHeader>
+              <TableRow>
+                <TableHead>URL</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCellWithCopyButton
+                  density="comfortable"
+                  text={callbackUrl}
+                  className="py-3 font-mono break-all"
+                />
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
       </Card>
       <p className="text-muted-foreground mt-2 text-xs">
         Add this URL as an authorized redirect URI in your identity provider.
