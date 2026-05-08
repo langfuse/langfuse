@@ -78,6 +78,7 @@ import {
   buildWidgetName,
   buildWidgetDescription,
   formatMetricName,
+  getWidgetMetricPresentation,
   sanitizePivotTableDefaultSort,
 } from "@/src/features/widgets/utils";
 import {
@@ -320,11 +321,17 @@ export function WidgetForm({
     initialWidgetRequiresV2 ? 2 : (initialValues.minVersion ?? 1),
   );
   const viewVersion: ViewVersion =
+<<<<<<< caleb/lfe-9173-importexporttransfer-widget-configs
     (isBetaEnabled && selectedView !== "traces") ||
     widgetMinVersion >= 2 ||
     initialWidgetRequiresV2
+=======
+    initialWidgetRequiresV2 || (initialValues.minVersion ?? 1) >= 2
+>>>>>>> main
       ? "v2"
-      : "v1";
+      : isBetaEnabled && selectedView !== "traces"
+        ? "v2"
+        : "v1";
   const availableViewOptions = viewVersion === "v2" ? viewsV2 : views;
 
   // For regular charts: single metric selection
@@ -1074,6 +1081,7 @@ export function WidgetForm({
     ],
   );
 
+<<<<<<< caleb/lfe-9173-importexporttransfer-widget-configs
   const handleImportWidget = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -1141,6 +1149,25 @@ export function WidgetForm({
       showMalformedImportToast();
     }
   };
+=======
+  const chartPresentation = useMemo(() => {
+    if (selectedChartType === "PIVOT_TABLE") {
+      return undefined;
+    }
+
+    return getWidgetMetricPresentation({
+      metric: { measure: selectedMeasure, agg: selectedAggregation },
+      view: selectedView,
+      version: viewVersion,
+    });
+  }, [
+    selectedAggregation,
+    selectedChartType,
+    selectedMeasure,
+    selectedView,
+    viewVersion,
+  ]);
+>>>>>>> main
 
   const handleSaveWidget = () => {
     if (!queryValidation.valid) {
@@ -2064,6 +2091,15 @@ export function WidgetForm({
                 <Chart
                   chartType={selectedChartType as DashboardWidgetChartType}
                   data={transformedData}
+                  config={
+                    chartPresentation
+                      ? {
+                          metric: {
+                            label: chartPresentation.label,
+                          },
+                        }
+                      : undefined
+                  }
                   rowLimit={rowLimit}
                   chartConfig={
                     selectedChartType === "PIVOT_TABLE"
@@ -2117,6 +2153,7 @@ export function WidgetForm({
                   }
                   onSortChange={undefined}
                   isLoading={queryResult.isPending}
+                  metricFormatter={chartPresentation?.metricFormatter}
                 />
                 <ChartLoadingState
                   isLoading={chartLoadingState.isLoading}

@@ -71,6 +71,13 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_OTEL_INGESTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
+    .string()
+    .optional(),
   LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -233,6 +240,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_OTEL_INGESTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_OTEL_INGESTION_SECONDARY_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_INGESTION_SECONDARY_QUEUE_IS_ENABLED: z

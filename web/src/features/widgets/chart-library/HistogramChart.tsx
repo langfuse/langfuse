@@ -1,12 +1,19 @@
 import React from "react";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type DataPoint,
+  type MetricFormatterFunction,
+} from "@/src/features/widgets/chart-library/chart-props";
+import {
+  formatMetric,
+  toFullMetricString,
+} from "@/src/features/widgets/chart-library/utils";
 import { BarChart, Bar, XAxis, YAxis } from "recharts";
 import {
+  type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
-import { compactSmallNumberFormatter } from "@/src/utils/numbers";
 
 interface HistogramDataPoint {
   binLabel: string;
@@ -18,14 +25,22 @@ interface HistogramDataPoint {
 
 const HistogramChart = ({
   data,
+  config = {
+    count: {
+      label: "Count",
+      color: "hsl(var(--chart-1))",
+    },
+  },
   subtleFill = false,
-  valueFormatter,
+  metricFormatter = (value, options) => formatMetric(value, options),
 }: {
   data: DataPoint[];
+  config?: ChartConfig;
   subtleFill?: boolean;
-  valueFormatter?: (value: number) => string;
+  metricFormatter?: MetricFormatterFunction;
 }) => {
-  const formatBinEdge = valueFormatter ?? compactSmallNumberFormatter;
+  const formatBinEdge = (value: number) =>
+    toFullMetricString(metricFormatter(value, { style: "compact" }));
 
   const transformHistogramData = (data: DataPoint[]): HistogramDataPoint[] => {
     if (!data.length) return [];
@@ -53,14 +68,6 @@ const HistogramChart = ({
   };
 
   const histogramData = transformHistogramData(data);
-
-  // Chart configuration
-  const config = {
-    count: {
-      label: "Count",
-      color: "hsl(var(--chart-1))",
-    },
-  };
 
   if (!histogramData.length) {
     return (
@@ -110,7 +117,11 @@ const HistogramChart = ({
               active={active}
               payload={payload}
               label={label}
-              valueFormatter={(v) => compactSmallNumberFormatter(Number(v))}
+              valueFormatter={(v) =>
+                toFullMetricString(
+                  formatMetric(Number(v), { style: "compact" }),
+                )
+              }
               nameFormatter={(name) => (name === "count" ? "Count" : name)}
               labelFormatter={(label) => `Bin: ${label}`}
             />
