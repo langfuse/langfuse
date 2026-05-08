@@ -85,11 +85,18 @@ describe("enrichObservationStream field group filtering", () => {
     expect(results[0]).not.toHaveProperty("total_price");
   });
 
-  it("adds pricing fields but drops model_id when usage is selected without model", async () => {
-    // ClickHouse fetches model_id because usage was requested (needed for the
-    // pricing lookup), but enrichObservationStream removes it from the output
-    // because the model group was not selected.
-    const rows = [{ id: "obs-1", model_id: "gpt-4" }];
+  it("adds pricing fields but drops all model_export columns when usage is selected without model", async () => {
+    // ClickHouse fetches model_export (model_id, provided_model_name,
+    // model_parameters) whenever usage is requested so the pricing lookup has
+    // data. All three must be removed from the output when model is not selected.
+    const rows = [
+      {
+        id: "obs-1",
+        model_id: "gpt-4",
+        provided_model_name: "gpt-4",
+        model_parameters: { temperature: 0.7 },
+      },
+    ];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
         "core" as ObservationFieldGroup,
@@ -98,6 +105,8 @@ describe("enrichObservationStream field group filtering", () => {
     );
 
     expect(results[0]).not.toHaveProperty("model_id");
+    expect(results[0]).not.toHaveProperty("provided_model_name");
+    expect(results[0]).not.toHaveProperty("model_parameters");
     expect(results[0]).toHaveProperty("input_price");
     expect(results[0]).toHaveProperty("output_price");
     expect(results[0]).toHaveProperty("total_price");

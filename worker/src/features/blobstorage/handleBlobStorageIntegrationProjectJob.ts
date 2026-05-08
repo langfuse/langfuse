@@ -59,11 +59,14 @@ export async function* enrichObservationStream(
       enriched.total_price = pricing.totalPrice;
     }
 
-    // model_id is fetched by the ClickHouse query whenever usage or model is
-    // selected (so the pricing lookup has data). Drop it here if the model
-    // group was not explicitly requested.
+    // model_export (provided_model_name, model_id, model_parameters) is fetched
+    // whenever usage OR model is requested — usage needs model_id for the
+    // pricing lookup. Drop all three when the model group was not requested so
+    // they don't leak into a usage-only export.
     if (!includeModelId) {
       delete enriched[modelIdField];
+      delete enriched.provided_model_name;
+      delete enriched.model_parameters;
     }
 
     // ClickHouse returns {} for Map columns even when not SELECTed — drop it
