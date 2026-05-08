@@ -56,18 +56,18 @@ export const EXPORT_FIELD_GROUP_OPTIONS: Array<{
     value: "core",
     label: "Core",
     description:
-      "id, traceId, startTime, endTime, projectId, parentObservationId, type",
+      "id, trace_id, start_time, end_time, project_id, parent_observation_id, type",
   },
   {
     value: "basic",
     label: "Basic",
     description:
-      "name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId",
+      "name, level, status_message, version, environment, bookmarked, public, user_id, session_id",
   },
   {
     value: "time",
     label: "Time",
-    description: "completionStartTime, createdAt, updatedAt",
+    description: "completion_start_time, created_at, updated_at",
   },
   {
     value: "io",
@@ -82,31 +82,31 @@ export const EXPORT_FIELD_GROUP_OPTIONS: Array<{
   {
     value: "model",
     label: "Model",
-    description: "providedModelName, modelId, modelParameters",
+    description: "provided_model_name, model_id, model_parameters",
   },
   {
     value: "usage",
     label: "Usage",
-    description: "usageDetails, costDetails, totalCost",
+    description: "usage_details, cost_details, total_cost",
   },
   {
     value: "prompt",
     label: "Prompt",
-    description: "promptId, promptName, promptVersion",
+    description: "prompt_id, prompt_name, prompt_version",
   },
   {
     value: "metrics",
     label: "Metrics",
-    description: "latency, timeToFirstToken",
+    description: "latency, time_to_first_token",
   },
   {
     value: "tools",
     label: "Tools",
-    description: "toolDefinitions, toolCalls, toolCallNames",
+    description: "tool_definitions, tool_calls, tool_call_names",
   },
   {
     value: "trace_context",
     label: "Trace Context",
-    description: "tags, release, traceName, usagePricingTierName",
+    description: "tags, release, trace_name, usage_pricing_tier_name",
   },
 ];

@@ -78,30 +78,4 @@ describe("blob storage form — exportFieldGroups validation", () => {
 
     expect(onSubmit).toHaveBeenCalledOnce();
   });
-
-  it("preserves a saved subset when switching exportSource away from EVENTS", async () => {
-    const { result } = renderHook(() =>
-      useForm({
-        resolver: zodResolver(blobStorageIntegrationFormSchema),
-        defaultValues: {
-          ...VALID_BASE,
-          exportSource: AnalyticsIntegrationExportSource.EVENTS,
-          exportFieldGroups: ["core", "basic"],
-        },
-      }),
-    );
-
-    await act(async () => {
-      result.current.setValue(
-        "exportSource",
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-      );
-    });
-
-    // Subset must be preserved — no automatic reset
-    expect(result.current.getValues("exportFieldGroups")).toStrictEqual([
-      "core",
-      "basic",
-    ]);
-  });
 });

@@ -745,8 +745,11 @@ const BlobStorageIntegrationSettingsForm = ({
                     Choose which field groups to include in the enriched
                     observations export. Deselect large groups (e.g. Input /
                     Output) to reduce export size, or privacy-sensitive groups
-                    (e.g. Metadata) to avoid storing user data. Traces, scores,
-                    and legacy observations are always exported in full.
+                    (e.g. Metadata) to avoid storing user data. Scores are
+                    always exported.
+                    {watchedExportSource ===
+                      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS &&
+                      " Traces and legacy observations are also exported in full."}
                   </FormDescription>
                   <div className="mt-2 space-y-2">
                     {EXPORT_FIELD_GROUP_OPTIONS.map((option) => (
