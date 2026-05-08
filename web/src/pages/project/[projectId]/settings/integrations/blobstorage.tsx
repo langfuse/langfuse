@@ -314,6 +314,9 @@ const BlobStorageIntegrationSettingsForm = ({
     onSuccess: () => {
       utils.blobStorageIntegration.invalidate();
     },
+    onError: (error) => {
+      showErrorToast("Failed to save integration", error.message);
+    },
   });
   const mutDelete = api.blobStorageIntegration.delete.useMutation({
     onSuccess: () => {
