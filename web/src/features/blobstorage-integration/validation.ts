@@ -12,15 +12,6 @@ export function validateExportFieldGroups(
 
   if (!requiresFieldGroups) return;
 
-  if (data.exportFieldGroups.length === 0) {
-    ctx.addIssue({
-      code: "custom",
-      message: "At least one field group must be selected",
-      path: ["exportFieldGroups"],
-    });
-    return;
-  }
-
   if (!data.exportFieldGroups.includes("core")) {
     ctx.addIssue({
       code: "custom",

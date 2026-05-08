@@ -34,44 +34,23 @@ const VALID_BASE: BlobStorageIntegrationFormSchema = {
 
 describe("blob storage form — exportFieldGroups validation", () => {
   it.each([
-    AnalyticsIntegrationExportSource.EVENTS,
-    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
-  ])(
-    "blocks submission when exportSource is %s and all groups are deselected",
-    async (source) => {
+    [AnalyticsIntegrationExportSource.EVENTS, []],
+    [AnalyticsIntegrationExportSource.EVENTS, ["basic", "io"]],
+    [AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS, []],
+    [
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
+      ["basic", "io"],
+    ],
+  ] as const)(
+    "blocks submission when exportSource is %s and core is absent (groups: %s)",
+    async (source, exportFieldGroups) => {
       const { result } = renderHook(() =>
         useForm({
           resolver: zodResolver(blobStorageIntegrationFormSchema),
           defaultValues: {
             ...VALID_BASE,
             exportSource: source,
-            exportFieldGroups: [],
-          },
-        }),
-      );
-
-      const onSubmit = vi.fn();
-      await act(async () => {
-        await result.current.handleSubmit(onSubmit)();
-      });
-
-      expect(onSubmit).not.toHaveBeenCalled();
-    },
-  );
-
-  it.each([
-    AnalyticsIntegrationExportSource.EVENTS,
-    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
-  ])(
-    "blocks submission when exportSource is %s and core is missing from groups",
-    async (source) => {
-      const { result } = renderHook(() =>
-        useForm({
-          resolver: zodResolver(blobStorageIntegrationFormSchema),
-          defaultValues: {
-            ...VALID_BASE,
-            exportSource: source,
-            exportFieldGroups: ["basic", "io"],
+            exportFieldGroups: [...exportFieldGroups],
           },
         }),
       );
