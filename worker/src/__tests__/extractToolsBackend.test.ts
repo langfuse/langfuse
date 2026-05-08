@@ -294,6 +294,63 @@ describe("extractToolsFromObservation", () => {
       });
     });
 
+    it("extracts AI SDK tool-call content parts and input arguments from ingestion output", () => {
+      const output = [
+        {
+          role: "assistant",
+          content: [
+            { type: "text", text: "I'll look that up." },
+            {
+              type: "tool-call",
+              toolCallId: "tooluse_123",
+              toolName: "getWeather",
+              input: {
+                location: "Berlin",
+                unit: "celsius",
+              },
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              type: "tool-call",
+              toolCallId: "tooluse_456",
+              toolName: "getForecast",
+              input: {
+                location: "San Francisco",
+                days: 3,
+              },
+            },
+          ],
+        },
+      ];
+
+      const { toolArguments } = extractToolsFromObservation(null, output);
+
+      expect(toolArguments).toHaveLength(2);
+      expect(toolArguments[0]).toMatchObject({
+        id: "tooluse_123",
+        name: "getWeather",
+        arguments: JSON.stringify({
+          location: "Berlin",
+          unit: "celsius",
+        }),
+        type: "tool-call",
+      });
+      expect(toolArguments[1]).toMatchObject({
+        id: "tooluse_456",
+        name: "getForecast",
+        arguments: JSON.stringify({
+          location: "San Francisco",
+          days: 3,
+        }),
+        type: "tool-call",
+      });
+    });
+
     it("preserves index field for parallel tool calls", () => {
       const output = {
         tool_calls: [
