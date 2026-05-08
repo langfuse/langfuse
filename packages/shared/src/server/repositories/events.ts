@@ -3003,9 +3003,8 @@ export const getEventsForBlobStorageExport = function (
   for (const group of effectiveGroups) {
     if (group === "io") {
       queryBuilder.selectIO(false); // Full I/O, no truncation
-    } else if (group === "model") {
-      // handled by needsModelFields below to avoid double-selecting
-    } else {
+    } else if (group !== "model") {
+      // model_export is selected below via needsModelFields to avoid double-selecting
       queryBuilder.selectFieldSet(group as FieldSetName);
     }
   }
