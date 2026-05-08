@@ -5,7 +5,7 @@ import { TabComponent } from "@/src/features/dashboard/components/TabsComponent"
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
-import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
+import { costFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
@@ -165,18 +165,16 @@ export const UserChart = ({
   const BAR_ROW_HEIGHT = 36;
   const CHART_AXIS_PADDING = 32;
 
-  const localUsdFormatter = (value: number) =>
-    totalCostDashboardFormatted(value);
-
   const data = [
     {
       tabTitle: "Token cost",
       data: isExpanded
         ? transformedCost.slice(0, maxNumberOfEntries.expanded)
         : transformedCost.slice(0, maxNumberOfEntries.collapsed),
-      totalMetric: totalCostDashboardFormatted(totalCost),
+      totalMetric: costFormatter(totalCost),
       metricDescription: "Total cost",
-      formatter: localUsdFormatter,
+      chartMetricLabel: "USD",
+      chartUnit: "USD",
     },
     {
       tabTitle: "Count of Traces",
@@ -187,8 +185,10 @@ export const UserChart = ({
         ? compactNumberFormatter(totalTraces)
         : compactNumberFormatter(0),
       metricDescription: "Total traces",
+      chartMetricLabel: "Traces",
+      chartUnit: "traces",
     },
-  ];
+  ] as const;
 
   return (
     <DashboardCard
@@ -222,14 +222,19 @@ export const UserChart = ({
                       <Chart
                         chartType="HORIZONTAL_BAR"
                         data={barListToDataPoints(item.data)}
+                        config={{
+                          metric: {
+                            label: item.chartMetricLabel,
+                          },
+                        }}
                         rowLimit={maxNumberOfEntries.expanded}
                         chartConfig={{
                           type: "HORIZONTAL_BAR",
                           row_limit: maxNumberOfEntries.expanded,
+                          unit: item.chartUnit,
                           show_value_labels: true,
                           subtle_fill: true,
                         }}
-                        valueFormatter={item.formatter}
                       />
                     </div>
                   </div>

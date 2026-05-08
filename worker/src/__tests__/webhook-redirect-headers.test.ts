@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../../packages/shared/src/server/logger";
-import { fetchWithSecureRedirects } from "../../../packages/shared/src/server/webhooks/redirectHandler";
+import {
+  fetchWithSecureRedirects,
+  type OutboundUrlValidationWhitelist,
+} from "../../../packages/shared/src/server/outbound-url";
 
 const fetchMock = vi.fn<typeof fetch>();
 vi.stubGlobal("fetch", fetchMock);
@@ -142,5 +145,48 @@ describe("fetchWithSecureRedirects header handling", () => {
 
     expect(finalHeaders.get("x-custom-header")).toBe("keep-me");
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("should use custom redirect validation when provided", async () => {
+    const validateRedirectUrl =
+      vi.fn<
+        (
+          url: string,
+          whitelist?: OutboundUrlValidationWhitelist,
+        ) => Promise<void>
+      >();
+    validateRedirectUrl.mockResolvedValue(undefined);
+    const whitelist = {
+      hosts: ["other.example.com"],
+      ips: [],
+      ip_ranges: [],
+    };
+
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { Location: "https://other.example.com/final" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }));
+
+    await fetchWithSecureRedirects(
+      "https://example.com/start",
+      { method: "POST" },
+      {
+        maxRedirects: 1,
+        redirectValidation: {
+          validateUrl: validateRedirectUrl,
+          whitelist,
+        },
+      },
+    );
+
+    expect(validateRedirectUrl).toHaveBeenCalledWith(
+      "https://other.example.com/final",
+      whitelist,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

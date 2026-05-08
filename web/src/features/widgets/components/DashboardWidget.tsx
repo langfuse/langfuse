@@ -25,6 +25,7 @@ import {
   formatMetricName,
   shouldUseWidgetSSE,
   sanitizePivotTableDefaultSort,
+  getWidgetMetricPresentation,
 } from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
@@ -93,9 +94,11 @@ export function DashboardWidget({
   // If widget requires v2 features (minVersion >= 2), must use v2.
   // Otherwise follow the beta toggle.
   const metricsVersion: ViewVersion =
-    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2 || isBetaEnabled
+    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2
       ? "v2"
-      : "v1";
+      : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
+        ? "v2"
+        : "v1";
   const hasCUDAccess =
     useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
     dashboardOwner !== "LANGFUSE";
@@ -297,6 +300,27 @@ export function DashboardWidget({
     });
   }, [queryResult.data, widget.data]);
 
+  const chartPresentation = useMemo(() => {
+    if (!widget.data) {
+      return undefined;
+    }
+
+    if (widget.data.chartType === "PIVOT_TABLE") {
+      return undefined;
+    }
+
+    const metric = widget.data.metrics[0];
+    if (!metric) {
+      return undefined;
+    }
+
+    return getWidgetMetricPresentation({
+      metric,
+      view: widget.data.view,
+      version: metricsVersion,
+    });
+  }, [metricsVersion, widget.data]);
+
   const handleEdit = () => {
     router.push(
       `/project/${projectId}/widgets/${placement.widgetId}?dashboardId=${dashboardId}`,
@@ -427,6 +451,15 @@ export function DashboardWidget({
             <Chart
               chartType={widget.data.chartType}
               data={transformedData}
+              config={
+                chartPresentation
+                  ? {
+                      metric: {
+                        label: chartPresentation.label,
+                      },
+                    }
+                  : undefined
+              }
               rowLimit={
                 widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
                 widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
@@ -468,6 +501,7 @@ export function DashboardWidget({
                 widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
               }
               isLoading={queryResult.isPending}
+              metricFormatter={chartPresentation?.metricFormatter}
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}

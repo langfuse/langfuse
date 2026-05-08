@@ -12,6 +12,12 @@ import {
   type CreateTableViewPresetsInput,
   type UpdateTableViewPresetsInput,
 } from "./types";
+import {
+  getSystemTableViewPresetById,
+  getSystemTableViewPresetByTableAndId,
+  getSystemTableViewPresets,
+  isSystemTableViewPresetId,
+} from "./systemPresets";
 
 const TABLE_NAME_TO_URL_MAP: Partial<Record<TableViewPresetTableName, string>> =
   {
@@ -210,7 +216,27 @@ export class TableViewService {
       },
     });
 
-    const presets = TableViewPresetsNamesCreatorListSchema.parse(records);
+    const systemPresets = getSystemTableViewPresets(tableName).map(
+      (preset) => ({
+        id: preset.id,
+        name: preset.name,
+        description: preset.description,
+        isSystem: true,
+        tableName: preset.tableName,
+        createdBy: null,
+        createdByUser: null,
+        filters: preset.state.filters,
+        columnOrder: preset.state.columnOrder,
+        columnVisibility: preset.state.columnVisibility,
+        searchQuery: preset.state.searchQuery ?? null,
+        orderBy: preset.state.orderBy,
+      }),
+    );
+
+    const presets = TableViewPresetsNamesCreatorListSchema.parse([
+      ...systemPresets,
+      ...records,
+    ]);
 
     if (tableName === TableViewPresetTableName.ObservationsEvents) {
       // Deduplicate presets that have the same name,
@@ -227,7 +253,10 @@ export class TableViewService {
         if (
           !existingPreset ||
           (preset.tableName === TableViewPresetTableName.ObservationsEvents &&
-            existingPreset.tableName === TableViewPresetTableName.Observations)
+            existingPreset.tableName ===
+              TableViewPresetTableName.Observations) ||
+          // Non-system presets should take precedence over system presets
+          (!preset.isSystem && existingPreset.isSystem)
         ) {
           presetsByName.set(preset.name, preset);
         }
@@ -246,6 +275,31 @@ export class TableViewService {
     id: string,
     projectId: string,
   ): Promise<TableViewPresetDomain> {
+    if (isSystemTableViewPresetId(id)) {
+      const systemPreset = getSystemTableViewPresetById(id);
+
+      if (!systemPreset) {
+        throw new LangfuseNotFoundError(
+          `Saved table view preset not found for id ${id} in project ${projectId}`,
+        );
+      }
+
+      return {
+        id: systemPreset.id,
+        projectId,
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+        createdBy: null,
+        name: systemPreset.name,
+        tableName: systemPreset.tableName,
+        filters: systemPreset.state.filters,
+        columnOrder: systemPreset.state.columnOrder,
+        columnVisibility: systemPreset.state.columnVisibility,
+        searchQuery: systemPreset.state.searchQuery ?? null,
+        orderBy: systemPreset.state.orderBy,
+      };
+    }
+
     const tableViewPresets = await prisma.tableViewPreset.findUnique({
       where: {
         id,
@@ -271,6 +325,15 @@ export class TableViewService {
     tableName: TableViewPresetTableName,
     projectId: string,
   ): Promise<string> {
+    if (
+      isSystemTableViewPresetId(TableViewPresetsId) &&
+      !getSystemTableViewPresetByTableAndId(tableName, TableViewPresetsId)
+    ) {
+      throw new Error(
+        `Permalinks are not supported for preset ${TableViewPresetsId}`,
+      );
+    }
+
     const page = TABLE_NAME_TO_URL_MAP[tableName];
     if (!page) {
       throw new Error(`Permalinks are not supported for table ${tableName}`);
