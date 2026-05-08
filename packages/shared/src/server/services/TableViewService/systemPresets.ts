@@ -45,9 +45,10 @@ const buildFilterOnlySystemPreset = ({
 
 const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
   buildFilterOnlySystemPreset({
-    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}trace_root_events`,
-    name: "Trace Root Events",
-    description: "See top-level events only, good for trace-level analysis",
+    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}trace_root_observations`,
+    name: "Trace Root Observations",
+    description:
+      "See top-level observations only, good for trace-level analysis",
     tableName: TableViewPresetTableName.ObservationsEvents,
     filters: [
       {
@@ -61,7 +62,7 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
   buildFilterOnlySystemPreset({
     id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}generations_only`,
     name: "Generations Only",
-    description: "Focus on LLM generation events",
+    description: "Focus on LLM generation observations",
     tableName: TableViewPresetTableName.ObservationsEvents,
     filters: [
       {
@@ -97,26 +98,6 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
         type: "stringOptions",
         operator: "any of",
         value: ["AGENT", "CHAIN", "TOOL", "RETRIEVER"],
-      },
-    ],
-  }),
-  buildFilterOnlySystemPreset({
-    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}otel_root_spans`,
-    name: "OTEL Root Spans",
-    description: "See top-level OpenTelemetry spans only",
-    tableName: TableViewPresetTableName.ObservationsEvents,
-    filters: [
-      {
-        column: "hasParentObservation",
-        type: "boolean",
-        operator: "=",
-        value: false,
-      },
-      {
-        column: "type",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["SPAN"],
       },
     ],
   }),
