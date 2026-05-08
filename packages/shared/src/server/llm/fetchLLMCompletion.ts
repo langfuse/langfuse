@@ -53,6 +53,13 @@ import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
 
 export type CompletionWithReasoning = { text: string; reasoning?: string };
+type AIMessageContent = AIMessage["content"];
+type AIMessageContentBlock = Exclude<AIMessageContent, string>[number];
+type SplitAIMessageContent = {
+  text: string;
+  contentWithoutThinking: AIMessageContent;
+  reasoning?: string;
+};
 
 const NON_RETRYABLE_LLM_ERROR_PATTERNS = [
   "Request timed out",
@@ -67,6 +74,7 @@ const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 // Maps adapters to the content block types that represent "thinking".
 // Used to extract reasoning separately and strip thinking parts from parsed output.
 const THINKING_BLOCK_TYPES: Partial<Record<LLMAdapter, Set<string>>> = {
+  [LLMAdapter.Bedrock]: new Set(["reasoning_content"]),
   [LLMAdapter.VertexAI]: new Set(["reasoning"]),
   [LLMAdapter.GoogleAIStudio]: new Set(["reasoning"]),
 };
@@ -570,17 +578,15 @@ export async function fetchLLMCompletion(
             .invoke(finalMessages, runConfigWithTimeout),
       });
 
-      // For thinking adapters, strip reasoning blocks from content before parsing
-      // so ToolCallResponseSchema can validate. Extract reasoning separately.
       if (thinkingTypes != null && Array.isArray(result.content)) {
-        const reasoning = extractReasoning(result.content, thinkingTypes);
-        // mutates Langchain AIMessage in place, not ideal but safe because only used for parsing below
-        result.content = result.content.filter(
-          (block) =>
-            typeof block === "string" || !thinkingTypes.has(block.type),
+        const { contentWithoutThinking, reasoning } = splitAIMessageContent(
+          result.content,
+          thinkingTypes,
         );
-
-        const parsed = ToolCallResponseSchema.safeParse(result);
+        const parsed = ToolCallResponseSchema.safeParse({
+          content: contentWithoutThinking,
+          tool_calls: result.tool_calls,
+        });
         if (!parsed.success)
           throw Error("Failed to parse LLM tool call result");
 
@@ -603,7 +609,7 @@ export async function fetchLLMCompletion(
         abortController: runtimeTimeoutController,
         operation: () =>
           chatModel
-            .pipe(new BytesOutputParser())
+            .pipe(createBytesOutputParser(thinkingTypes))
             .stream(finalMessages, runConfigWithTimeout),
       });
 
@@ -616,7 +622,21 @@ export async function fetchLLMCompletion(
         abortController: runtimeTimeoutController,
         operation: () => chatModel.invoke(finalMessages, runConfigWithTimeout),
       });
-      return extractCompletionWithReasoning(aiMessage, thinkingTypes);
+      const completion = extractCompletionWithReasoning(
+        aiMessage,
+        thinkingTypes,
+      );
+
+      // Bedrock only returns reasoning blocks for selected models. Preserve the
+      // historical plain-string shape when the response contains no reasoning.
+      if (
+        modelParams.adapter === LLMAdapter.Bedrock &&
+        completion.reasoning == null
+      ) {
+        return completion.text;
+      }
+
+      return completion;
     }
 
     const completion = await executeWithRuntimeTimeout({
@@ -681,52 +701,91 @@ export async function fetchLLMCompletion(
   }
 }
 
-// extracts reasoning text from an array of content blocks.
-// returns concatenated reasoning or undefined if no reasoning blocks are found
-function extractReasoning(
-  content: AIMessage["content"],
-  thinkingBlockTypes: Set<string>,
-): string | undefined {
-  if (typeof content === "string" || !Array.isArray(content)) return undefined;
-  const parts: string[] = [];
-  for (const block of content) {
-    if (typeof block !== "string" && thinkingBlockTypes.has(block.type)) {
-      const text = (block as any).text ?? (block as any).reasoning;
-      if (typeof text === "string") parts.push(text);
-    }
-  }
-  return parts.length > 0 ? parts.join("") : undefined;
-}
-
-/**
- * Splits AIMessage content into text and reasoning parts.
- * Text parts are concatenated into `text`, thinking-type parts into `reasoning`.
- */
 function extractCompletionWithReasoning(
   message: AIMessage,
   thinkingBlockTypes: Set<string>,
 ): CompletionWithReasoning {
-  const { content } = message;
+  const { text, reasoning } = splitAIMessageContent(
+    message.content,
+    thinkingBlockTypes,
+  );
 
-  if (typeof content === "string") return { text: content };
-  if (!Array.isArray(content)) return { text: String(content) };
+  return {
+    text,
+    ...(reasoning ? { reasoning } : {}),
+  };
+}
 
-  const reasoning = extractReasoning(content, thinkingBlockTypes);
+function createBytesOutputParser(
+  thinkingBlockTypes: Set<string> | undefined,
+): BytesOutputParser {
+  return thinkingBlockTypes != null
+    ? new ThinkingBlockFilteringBytesOutputParser(thinkingBlockTypes)
+    : new BytesOutputParser();
+}
+
+class ThinkingBlockFilteringBytesOutputParser extends BytesOutputParser {
+  constructor(private readonly thinkingBlockTypes: Set<string>) {
+    super();
+  }
+
+  protected _baseMessageContentToString(
+    content: Exclude<AIMessageContent, string>,
+  ): string {
+    return splitAIMessageContent(content, this.thinkingBlockTypes).text;
+  }
+}
+
+function splitAIMessageContent(
+  content: AIMessageContent,
+  thinkingBlockTypes: Set<string>,
+): SplitAIMessageContent {
+  if (typeof content === "string") {
+    return { text: content, contentWithoutThinking: content };
+  }
+
+  if (!Array.isArray(content)) {
+    return { text: String(content), contentWithoutThinking: content };
+  }
 
   const textParts: string[] = [];
+  const reasoningParts: string[] = [];
+  const contentWithoutThinking: AIMessageContentBlock[] = [];
+
   for (const block of content) {
     if (typeof block === "string") {
       textParts.push(block);
-    } else if (!thinkingBlockTypes.has(block.type)) {
-      const text = (block as any).text ?? (block as any).reasoning;
+      contentWithoutThinking.push(block as AIMessageContentBlock);
+    } else if (thinkingBlockTypes.has(block.type)) {
+      const reasoning = extractReasoningBlockText(block);
+      if (typeof reasoning === "string") reasoningParts.push(reasoning);
+    } else {
+      const text = extractTextBlockText(block);
       if (typeof text === "string") textParts.push(text);
+      contentWithoutThinking.push(block);
     }
   }
 
   return {
     text: textParts.join(""),
-    ...(reasoning ? { reasoning } : {}),
+    contentWithoutThinking,
+    ...(reasoningParts.length > 0
+      ? { reasoning: reasoningParts.join("") }
+      : {}),
   };
+}
+
+function extractTextBlockText(block: AIMessageContentBlock) {
+  return (block as any).text ?? (block as any).reasoning;
+}
+
+function extractReasoningBlockText(block: AIMessageContentBlock) {
+  const reasoningText = (block as any).reasoningText;
+
+  if (typeof reasoningText === "string") return reasoningText;
+  if (typeof reasoningText?.text === "string") return reasoningText.text;
+
+  return extractTextBlockText(block);
 }
 
 /**
