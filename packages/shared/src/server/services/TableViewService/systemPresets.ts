@@ -46,7 +46,7 @@ const buildFilterOnlySystemPreset = ({
 const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
   buildFilterOnlySystemPreset({
     id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}trace_root_observations`,
-    name: "Trace Root Observations",
+    name: "Root Observations",
     description:
       "See top-level observations only, good for trace-level analysis",
     tableName: TableViewPresetTableName.ObservationsEvents,
