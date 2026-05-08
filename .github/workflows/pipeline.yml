@@ -145,10 +145,10 @@ jobs:
 
           echo "Checking files changed from $BASE_SHA to HEAD"
 
-          if git diff --quiet --exit-code "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css'; then
+          if git diff --quiet --exit-code --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css'; then
             echo "No JS/TS/CSS files changed - skipping prettier check"
           else
-            git diff --name-only -z "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' \
+            git diff --name-only -z --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' \
               | xargs -0 --no-run-if-empty pnpm prettier --check --experimental-cli --
           fi
 
