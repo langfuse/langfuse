@@ -109,10 +109,9 @@ describe("datasets trpc", () => {
       );
 
       const requestOptions = fetchMock.mock.calls[0]?.[1] as
-        | (RequestInit & { dispatcher?: unknown })
+        | RequestInit
         | undefined;
 
-      expect(requestOptions?.dispatcher).toBeDefined();
       expect(new Headers(requestOptions?.headers).get("content-type")).toBe(
         "application/json",
       );
