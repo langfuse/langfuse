@@ -2,8 +2,8 @@ import { renderHook, act } from "@testing-library/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  blobStorageIntegrationFormSchema,
   type BlobStorageIntegrationFormSchema,
+  blobStorageIntegrationFormSchema,
 } from "@/src/features/blobstorage-integration/types";
 import {
   AnalyticsIntegrationExportSource,
@@ -33,29 +33,35 @@ const VALID_BASE: BlobStorageIntegrationFormSchema = {
 };
 
 describe("blob storage form — exportFieldGroups validation", () => {
-  it("blocks submission when exportSource is EVENTS and all groups are deselected", async () => {
-    const { result } = renderHook(() =>
-      useForm<BlobStorageIntegrationFormSchema>({
-        resolver: zodResolver(blobStorageIntegrationFormSchema),
-        defaultValues: {
-          ...VALID_BASE,
-          exportSource: AnalyticsIntegrationExportSource.EVENTS,
-          exportFieldGroups: [],
-        },
-      }),
-    );
+  it.each([
+    AnalyticsIntegrationExportSource.EVENTS,
+    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
+  ])(
+    "blocks submission when exportSource is %s and all groups are deselected",
+    async (source) => {
+      const { result } = renderHook(() =>
+        useForm({
+          resolver: zodResolver(blobStorageIntegrationFormSchema),
+          defaultValues: {
+            ...VALID_BASE,
+            exportSource: source,
+            exportFieldGroups: [],
+          },
+        }),
+      );
 
-    const onSubmit = vi.fn();
-    await act(async () => {
-      await result.current.handleSubmit(onSubmit)();
-    });
+      const onSubmit = vi.fn();
+      await act(async () => {
+        await result.current.handleSubmit(onSubmit)();
+      });
 
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
+      expect(onSubmit).not.toHaveBeenCalled();
+    },
+  );
 
   it("allows submission when exportSource is TRACES_OBSERVATIONS regardless of exportFieldGroups", async () => {
     const { result } = renderHook(() =>
-      useForm<BlobStorageIntegrationFormSchema>({
+      useForm({
         resolver: zodResolver(blobStorageIntegrationFormSchema),
         defaultValues: {
           ...VALID_BASE,
@@ -75,7 +81,7 @@ describe("blob storage form — exportFieldGroups validation", () => {
 
   it("preserves a saved subset when switching exportSource away from EVENTS", async () => {
     const { result } = renderHook(() =>
-      useForm<BlobStorageIntegrationFormSchema>({
+      useForm({
         resolver: zodResolver(blobStorageIntegrationFormSchema),
         defaultValues: {
           ...VALID_BASE,

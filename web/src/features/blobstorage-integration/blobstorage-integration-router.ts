@@ -74,7 +74,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         .superRefine(validateAzureContainerName)
         .superRefine((data, ctx) => {
           if (
-            data.exportSource === AnalyticsIntegrationExportSource.EVENTS &&
+            (data.exportSource === AnalyticsIntegrationExportSource.EVENTS ||
+              data.exportSource ===
+                AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS) &&
             data.exportFieldGroups.length === 0
           ) {
             ctx.addIssue({
