@@ -12,7 +12,7 @@ import {
   type ActionDomainWithSecrets,
 } from "@langfuse/shared";
 import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   validateWebhookURL,
   whitelistFromEnv,
@@ -115,6 +115,7 @@ async function executeHttpAction({
   executionId,
   executionStart,
   actionConfig,
+  additionalSensitiveHeaders,
 }: {
   url: string;
   payload: string;
@@ -125,6 +126,7 @@ async function executeHttpAction({
   executionId: string;
   executionStart: Date;
   actionConfig: ActionDomainWithSecrets;
+  additionalSensitiveHeaders?: string[];
 }): Promise<{ httpStatus: number; responseBody: string }> {
   let httpStatus: number | undefined;
   let responseBody: string | undefined;
@@ -144,10 +146,27 @@ async function executeHttpAction({
         }, env.LANGFUSE_WEBHOOK_TIMEOUT_MS);
 
         try {
+          const whitelist = whitelistFromEnv();
+
           // Skip validation when flag is set (for tests with MSW mocking)
           if (!skipValidation) {
-            await validateWebhookURL(url);
+            await validateWebhookURL(url, whitelist);
           }
+
+          const redirectOptions = skipValidation
+            ? {
+                maxRedirects: env.LANGFUSE_WEBHOOK_MAX_REDIRECTS,
+                skipValidation: true as const,
+                additionalSensitiveHeaders,
+              }
+            : {
+                maxRedirects: env.LANGFUSE_WEBHOOK_MAX_REDIRECTS,
+                redirectValidation: {
+                  validateUrl: validateWebhookURL,
+                  whitelist,
+                },
+                additionalSensitiveHeaders,
+              };
 
           const redirectResult = await fetchWithSecureRedirects(
             url,
@@ -157,11 +176,7 @@ async function executeHttpAction({
               headers,
               signal: abortController.signal,
             },
-            {
-              maxRedirects: env.LANGFUSE_WEBHOOK_MAX_REDIRECTS,
-              skipValidation,
-              whitelist: whitelistFromEnv(),
-            },
+            redirectOptions,
           );
 
           const res = redirectResult.response;
@@ -289,14 +304,11 @@ async function executeHttpAction({
           isWebhookAction(actionConfig) ||
           isGitHubDispatchAction(actionConfig)
         ) {
-          await tx.action.update({
-            where: { id: automation.action.id, projectId },
-            data: {
-              config: {
-                ...actionConfig.config,
-                lastFailingExecutionId: executionId,
-              } as any, // Cast needed for Prisma Json type
-            },
+          await setActionLastFailingExecutionId({
+            tx,
+            actionId: automation.action.id,
+            projectId,
+            executionId,
           });
         }
 
@@ -383,11 +395,15 @@ async function executeWebhookAction({
 
   // Prepare headers with signature if secret exists
   const requestHeaders: Record<string, string> = {};
+  const additionalSensitiveHeaders: string[] = [];
 
   // Add webhook config headers first
   if (webhookConfig.requestHeaders) {
     for (const [key, value] of Object.entries(webhookConfig.requestHeaders)) {
       requestHeaders[key] = value.value;
+      if (value.secret) {
+        additionalSensitiveHeaders.push(key);
+      }
     }
   }
 
@@ -419,6 +435,7 @@ async function executeWebhookAction({
     executionId,
     executionStart,
     actionConfig,
+    additionalSensitiveHeaders,
   });
 }
 
@@ -657,14 +674,11 @@ async function executeSlackAction({
       });
 
       // Update action config to store the failing execution ID
-      await tx.action.update({
-        where: { id: automation.action.id, projectId },
-        data: {
-          config: {
-            ...failureActionConfig.config,
-            lastFailingExecutionId: executionId,
-          },
-        },
+      await setActionLastFailingExecutionId({
+        tx,
+        actionId: automation.action.id,
+        projectId,
+        executionId,
       });
 
       logger.warn(
@@ -677,3 +691,31 @@ async function executeSlackAction({
     );
   }
 }
+
+const setActionLastFailingExecutionId = async ({
+  tx,
+  actionId,
+  projectId,
+  executionId,
+}: {
+  tx: Prisma.TransactionClient;
+  actionId: string;
+  projectId: string;
+  executionId: string;
+}) => {
+  // The execution config may contain decrypted headers, so patch only this JSON
+  // key and leave the stored encrypted config untouched.
+  await tx.$executeRaw`
+    UPDATE actions
+    SET
+      config = jsonb_set(
+        config,
+        '{lastFailingExecutionId}',
+        to_jsonb(${executionId}::text),
+        true
+      ),
+      updated_at = NOW()
+    WHERE id = ${actionId}
+      AND project_id = ${projectId}
+  `;
+};

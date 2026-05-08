@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { DatasetCompareRunsTable } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { FlaskConical, List, Loader2 } from "lucide-react";
+import { FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import {
@@ -27,6 +27,7 @@ import { AnnotationPanel } from "@/src/features/datasets/components/AnnotationPa
 import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 function DatasetCompareInternal() {
   const router = useRouter();
@@ -99,7 +100,7 @@ function DatasetCompareInternal() {
   if (!runsData.data || runs.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+        <Spinner size="xl" variant="muted" />
       </div>
     );
   }
@@ -142,7 +143,7 @@ function DatasetCompareInternal() {
         }}
       >
         <div className="flex h-full items-center justify-center">
-          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+          <Spinner size="xl" variant="muted" />
         </div>
       </Page>
     );

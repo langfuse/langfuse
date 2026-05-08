@@ -71,6 +71,12 @@ export const queueItemRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "annotationQueues:read",
+      });
+
       const item = await ctx.prisma.annotationQueueItem.findUnique({
         where: {
           id: input.itemId,

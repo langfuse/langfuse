@@ -67,6 +67,7 @@ describe("Blob Storage Integrations API", () => {
   let testProject2Id: string;
   let testApiKey: string;
   let testApiSecretKey: string;
+  let testApiKeyId: string;
   let otherOrgId: string;
   let otherProjectId: string;
 
@@ -110,6 +111,7 @@ describe("Blob Storage Integrations API", () => {
     });
     testApiKey = orgApiKey.publicKey;
     testApiSecretKey = orgApiKey.secretKey;
+    testApiKeyId = orgApiKey.id;
 
     // Create another organization for cross-org tests
     const otherOrg = await prisma.organization.create({
@@ -610,6 +612,34 @@ describe("Blob Storage Integrations API", () => {
         },
       );
       expect(deletedIntegration).toBeNull();
+    });
+
+    it("should create an audit log entry for delete", async () => {
+      const auditLogWhere = {
+        resourceType: "blobStorageIntegration",
+        resourceId: testIntegrationId,
+        action: "delete",
+        orgId: testOrgId,
+        projectId: testIntegrationId,
+        apiKeyId: testApiKeyId,
+      };
+      const auditLogCountBefore = await prisma.auditLog.count({
+        where: auditLogWhere,
+      });
+
+      await makeZodVerifiedAPICall(
+        BlobStorageIntegrationDeletionResponseSchema,
+        "DELETE",
+        `/api/public/integrations/blob-storage/${testIntegrationId}`,
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+
+      const auditLogCountAfter = await prisma.auditLog.count({
+        where: auditLogWhere,
+      });
+      expect(auditLogCountAfter).toBe(auditLogCountBefore + 1);
     });
 
     it("should return 404 for non-existent integration", async () => {
