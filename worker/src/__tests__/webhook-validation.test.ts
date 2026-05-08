@@ -182,7 +182,9 @@ describe("Webhook URL Validation", () => {
 
       for (const delimiter of encodedDelimiters) {
         await expect(
-          validateWebhookURL(`http://example.com${delimiter}@127.0.0.1/hook`),
+          validateWebhookURLAndGetIPs(
+            `http://example.com${delimiter}@127.0.0.1/hook`,
+          ),
         ).rejects.toThrow(
           "URL credentials are not allowed. Use authentication headers instead.",
         );
@@ -191,7 +193,7 @@ describe("Webhook URL Validation", () => {
 
     it("should reject URLs with embedded credentials", async () => {
       await expect(
-        validateWebhookURL("https://user:pass@example.com/hook"),
+        validateWebhookURLAndGetIPs("https://user:pass@example.com/hook"),
       ).rejects.toThrow(
         "URL credentials are not allowed. Use authentication headers instead.",
       );
@@ -199,7 +201,7 @@ describe("Webhook URL Validation", () => {
 
     it("should validate IDN hostnames using their punycoded hostname", async () => {
       await expect(
-        validateWebhookURL("http://тест.example.com/hook"),
+        validateWebhookURLAndGetIPs("http://тест.example.com/hook"),
       ).resolves.not.toThrow();
 
       expect(resolve4Mock).toHaveBeenCalledWith("xn--e1aybc.example.com");

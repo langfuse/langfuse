@@ -265,10 +265,11 @@ export async function fetchWithSecureRedirects(
         // while image URLs require HTTPS. Keep the fetch helper generic and
         // require callers to pass the validator that matches their flow.
         // The validator returns the resolved IPs so the next hop can pin DNS.
-        const resolvedIPs = await redirectOptions.redirectValidation.validateUrl(
-          redirectUrl,
-          redirectOptions.redirectValidation.whitelist,
-        );
+        const resolvedIPs =
+          await redirectOptions.redirectValidation.validateUrl(
+            redirectUrl,
+            redirectOptions.redirectValidation.whitelist,
+          );
         currentResolvedIPs = useIPPinning ? resolvedIPs : undefined;
       } catch (error) {
         logger.warn("Redirect validation failed", {

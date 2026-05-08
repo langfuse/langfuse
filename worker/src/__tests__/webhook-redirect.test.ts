@@ -24,7 +24,7 @@ import { randomUUID } from "crypto";
  *
  * The redirect validation implementation is in:
  * - packages/shared/src/server/outbound-url/fetch.ts (fetchWithSecureRedirects)
- * - packages/shared/src/server/webhooks/validation.ts (validateWebhookURL)
+ * - packages/shared/src/server/webhooks/validation.ts (validateWebhookURLAndGetIPs)
  */
 
 // Mock server to handle HTTP redirects

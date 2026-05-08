@@ -1795,8 +1795,11 @@ export const datasetRouter = createTRPCRouter({
           },
           {
             maxRedirects: 5,
-            whitelist: whitelistFromEnv(),
-            initialResolvedIPs: resolvedIPs,
+            redirectValidation: {
+              validateUrl: validateWebhookURLAndGetIPs,
+              whitelist: whitelistFromEnv(),
+              initialResolvedIPs: resolvedIPs,
+            },
           },
         );
         const response = redirectResult.response;
