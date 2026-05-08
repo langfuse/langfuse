@@ -45,6 +45,7 @@ export async function* enrichObservationStream(
   const { getModel } = createModelCache(projectId);
 
   const includePricing = !fieldGroups || fieldGroups.includes("usage");
+  const includeModelId = !fieldGroups || fieldGroups.includes("model");
 
   for await (const row of stream) {
     const enriched: Record<string, unknown> = { ...row };
@@ -53,10 +54,16 @@ export async function* enrichObservationStream(
       const modelId = row[modelIdField] as string | null | undefined;
       const model = await getModel(modelId);
       const pricing = enrichObservationWithModelData(model);
-      enriched.model_id = pricing.modelId ?? modelId ?? null;
       enriched.input_price = pricing.inputPrice;
       enriched.output_price = pricing.outputPrice;
       enriched.total_price = pricing.totalPrice;
+    }
+
+    // model_id is fetched by the ClickHouse query whenever usage or model is
+    // selected (so the pricing lookup has data). Drop it here if the model
+    // group was not explicitly requested.
+    if (!includeModelId) {
+      delete enriched[modelIdField];
     }
 
     // ClickHouse returns {} for Map columns even when not SELECTed — drop it

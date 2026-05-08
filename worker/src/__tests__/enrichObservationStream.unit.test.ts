@@ -85,11 +85,30 @@ describe("enrichObservationStream field group filtering", () => {
     expect(results[0]).not.toHaveProperty("total_price");
   });
 
-  it("adds pricing fields when usage group is selected", async () => {
+  it("adds pricing fields but drops model_id when usage is selected without model", async () => {
+    // ClickHouse fetches model_id because usage was requested (needed for the
+    // pricing lookup), but enrichObservationStream removes it from the output
+    // because the model group was not selected.
     const rows = [{ id: "obs-1", model_id: "gpt-4" }];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
         "core" as ObservationFieldGroup,
+        "usage" as ObservationFieldGroup,
+      ]),
+    );
+
+    expect(results[0]).not.toHaveProperty("model_id");
+    expect(results[0]).toHaveProperty("input_price");
+    expect(results[0]).toHaveProperty("output_price");
+    expect(results[0]).toHaveProperty("total_price");
+  });
+
+  it("preserves model_id when both model and usage groups are selected", async () => {
+    const rows = [{ id: "obs-1", model_id: "gpt-4" }];
+    const results = await collect(
+      enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
+        "core" as ObservationFieldGroup,
+        "model" as ObservationFieldGroup,
         "usage" as ObservationFieldGroup,
       ]),
     );
@@ -101,7 +120,9 @@ describe("enrichObservationStream field group filtering", () => {
   });
 
   it("adds model pricing fields when fieldGroups is undefined (legacy v3 path)", async () => {
-    const rows = [{ id: "obs-1" }];
+    // Legacy path: fieldGroups undefined means all fields included; model_id
+    // passes through from the source row unchanged.
+    const rows = [{ id: "obs-1", model_id: "gpt-4" }];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false),
     );
