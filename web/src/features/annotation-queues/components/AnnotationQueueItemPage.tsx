@@ -198,7 +198,7 @@ export const AnnotationQueueItemPage: React.FC<{
     // Handle deleted queue item
     if (!relevantItem) {
       return (
-        <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden">
+        <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden border-none">
           <SearchXIcon className="text-muted-foreground mb-2 h-8 w-8" />
           <span className="text-muted-foreground max-w-96 text-sm text-wrap">
             Item has been <strong>deleted from annotation queue</strong>.
@@ -235,9 +235,11 @@ export const AnnotationQueueItemPage: React.FC<{
   };
 
   return (
-    <div className="grid h-full grid-rows-[1fr_auto] gap-2 overflow-hidden">
-      {renderContent()}
-      <div className="mb-2 grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto_min-content]">
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {renderContent()}
+      </div>
+      <div className="grid w-full shrink-0 grid-cols-1 justify-end gap-2 py-2 sm:grid-cols-[auto_min-content]">
         {!isSingleItem && (
           <div className="flex max-h-10 flex-row gap-2">
             <span className="bg-muted grid h-9 min-w-16 items-center rounded-md p-1 text-center text-sm">
@@ -271,7 +273,7 @@ export const AnnotationQueueItemPage: React.FC<{
               <Button
                 onClick={handleComplete}
                 size="lg"
-                className="w-full"
+                className="mr-2 w-full"
                 disabled={
                   completeMutation.isPending || !hasAccess || objectData.isError
                 }

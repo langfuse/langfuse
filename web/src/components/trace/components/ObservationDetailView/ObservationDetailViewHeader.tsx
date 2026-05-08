@@ -182,6 +182,7 @@ export const ObservationDetailViewHeader = memo(
         </div>
 
         {/* Metadata badges */}
+
         <div className="flex flex-col gap-2">
           {/* Timestamp */}
           <div className="flex flex-wrap items-center gap-1">
@@ -193,69 +194,72 @@ export const ObservationDetailViewHeader = memo(
           </div>
 
           {/* Other badges */}
-          <div className="flex flex-wrap items-center gap-1">
-            <LatencyBadge latencySeconds={latencySeconds} />
-            <TimeToFirstTokenBadge
-              timeToFirstToken={observation.timeToFirstToken}
-            />
-            <SessionBadge
-              sessionId={observation.sessionId ?? null}
-              projectId={projectId}
-            />
-            <UserIdBadge
-              userId={observation.userId ?? null}
-              projectId={projectId}
-            />
-            <EnvironmentBadge environment={observation.environment} />
-            <CostBadge
-              totalCost={
-                subtreeMetrics
-                  ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
-                  : totalCost
-              }
-              costDetails={
-                subtreeMetrics?.costDetails ?? observation.costDetails
-              }
-            />
-            {subtreeMetrics ? (
-              subtreeMetrics.hasGenerationLike &&
-              subtreeMetrics.usageDetails && (
-                <UsageBadge
-                  type="GENERATION"
-                  inputUsage={subtreeMetrics.inputUsage}
-                  outputUsage={subtreeMetrics.outputUsage}
-                  totalUsage={subtreeMetrics.totalUsage}
-                  usageDetails={subtreeMetrics.usageDetails}
-                />
-              )
-            ) : (
-              <UsageBadge
-                type={observation.type}
-                inputUsage={inputUsage}
-                outputUsage={outputUsage}
-                totalUsage={totalUsage}
-                usageDetails={observation.usageDetails}
+          {!isAnnotationMode && (
+            <div className="flex flex-wrap items-center gap-1">
+              <LatencyBadge latencySeconds={latencySeconds} />
+              <TimeToFirstTokenBadge
+                timeToFirstToken={observation.timeToFirstToken}
               />
-            )}
-            <VersionBadge version={observation.version} />
-            <ModelBadge
-              model={observation.model}
-              internalModelId={observation.internalModelId}
-              projectId={projectId}
-              usageDetails={observation.usageDetails}
-            />
-            <ModelParametersBadges
-              modelParameters={observation.modelParameters}
-            />
-            <LevelBadge level={observation.level} />
-            <StatusMessageBadge statusMessage={observation.statusMessage} />
-            {observation.promptId && (
-              <PromptBadge
-                promptId={observation.promptId}
+              <SessionBadge
+                sessionId={observation.sessionId ?? null}
                 projectId={projectId}
               />
-            )}
-          </div>
+              <UserIdBadge
+                userId={observation.userId ?? null}
+                projectId={projectId}
+              />
+              <EnvironmentBadge environment={observation.environment} />
+              <CostBadge
+                totalCost={
+                  subtreeMetrics
+                    ? (treeNodeTotalCost?.toNumber() ??
+                      subtreeMetrics.totalCost)
+                    : totalCost
+                }
+                costDetails={
+                  subtreeMetrics?.costDetails ?? observation.costDetails
+                }
+              />
+              {subtreeMetrics ? (
+                subtreeMetrics.hasGenerationLike &&
+                subtreeMetrics.usageDetails && (
+                  <UsageBadge
+                    type="GENERATION"
+                    inputUsage={subtreeMetrics.inputUsage}
+                    outputUsage={subtreeMetrics.outputUsage}
+                    totalUsage={subtreeMetrics.totalUsage}
+                    usageDetails={subtreeMetrics.usageDetails}
+                  />
+                )
+              ) : (
+                <UsageBadge
+                  type={observation.type}
+                  inputUsage={inputUsage}
+                  outputUsage={outputUsage}
+                  totalUsage={totalUsage}
+                  usageDetails={observation.usageDetails}
+                />
+              )}
+              <VersionBadge version={observation.version} />
+              <ModelBadge
+                model={observation.model}
+                internalModelId={observation.internalModelId}
+                projectId={projectId}
+                usageDetails={observation.usageDetails}
+              />
+              <ModelParametersBadges
+                modelParameters={observation.modelParameters}
+              />
+              <LevelBadge level={observation.level} />
+              <StatusMessageBadge statusMessage={observation.statusMessage} />
+              {observation.promptId && (
+                <PromptBadge
+                  promptId={observation.promptId}
+                  projectId={projectId}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
     );

@@ -38,17 +38,15 @@ export const TraceAnnotationProcessor: React.FC<
   if (!data) return <div className="p-3">Loading...</div>;
 
   const leftPanel = (
-    <div className="flex h-full flex-col overflow-y-auto">
-      <Trace
-        key={data.id}
-        trace={data}
-        scores={data.scores}
-        corrections={data.corrections}
-        projectId={data.projectId}
-        observations={data.observations}
-        context="annotation"
-      />
-    </div>
+    <Trace
+      key={data.id}
+      trace={data}
+      scores={data.scores}
+      corrections={data.corrections}
+      projectId={data.projectId}
+      observations={data.observations}
+      context="annotation"
+    />
   );
 
   const rightPanel = (

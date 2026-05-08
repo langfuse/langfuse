@@ -159,32 +159,34 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         </div>
 
         {/* Other badges */}
-        <div className="flex flex-wrap items-center gap-1">
-          <LatencyBadge latencySeconds={trace.latency ?? null} />
-          <SessionBadge sessionId={trace.sessionId} projectId={projectId} />
-          <UserIdBadge userId={trace.userId} projectId={projectId} />
-          <TargetTraceBadge
-            targetTraceId={targetTraceId}
-            projectId={projectId}
-          />
-          <EnvironmentBadge environment={trace.environment} />
-          <ReleaseBadge release={trace.release} />
-          <VersionBadge version={trace.version} />
-          <CostBadge
-            totalCost={aggregatedMetrics.totalCost}
-            costDetails={aggregatedMetrics.costDetails}
-          />
-          {aggregatedMetrics.hasGenerationLike &&
-            aggregatedMetrics.usageDetails && (
-              <UsageBadge
-                type="GENERATION"
-                inputUsage={aggregatedMetrics.inputUsage}
-                outputUsage={aggregatedMetrics.outputUsage}
-                totalUsage={aggregatedMetrics.totalUsage}
-                usageDetails={aggregatedMetrics.usageDetails}
-              />
-            )}
-        </div>
+        {!isAnnotationMode && (
+          <div className="flex flex-wrap items-center gap-1">
+            <LatencyBadge latencySeconds={trace.latency ?? null} />
+            <SessionBadge sessionId={trace.sessionId} projectId={projectId} />
+            <UserIdBadge userId={trace.userId} projectId={projectId} />
+            <TargetTraceBadge
+              targetTraceId={targetTraceId}
+              projectId={projectId}
+            />
+            <EnvironmentBadge environment={trace.environment} />
+            <ReleaseBadge release={trace.release} />
+            <VersionBadge version={trace.version} />
+            <CostBadge
+              totalCost={aggregatedMetrics.totalCost}
+              costDetails={aggregatedMetrics.costDetails}
+            />
+            {aggregatedMetrics.hasGenerationLike &&
+              aggregatedMetrics.usageDetails && (
+                <UsageBadge
+                  type="GENERATION"
+                  inputUsage={aggregatedMetrics.inputUsage}
+                  outputUsage={aggregatedMetrics.outputUsage}
+                  totalUsage={aggregatedMetrics.totalUsage}
+                  usageDetails={aggregatedMetrics.usageDetails}
+                />
+              )}
+          </div>
+        )}
       </div>
     </div>
   );
