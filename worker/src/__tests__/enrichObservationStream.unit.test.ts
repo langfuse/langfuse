@@ -18,6 +18,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 });
 
 import { enrichObservationStream } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
+import type { ObservationFieldGroup } from "@langfuse/shared/src/server";
 
 async function* rowStream(
   rows: Record<string, unknown>[],
@@ -63,8 +64,8 @@ describe("enrichObservationStream field group filtering", () => {
     const rows = [{ id: "obs-1", metadata: {} }];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
-        "core",
-      ] as any),
+        "core" as ObservationFieldGroup,
+      ]),
     );
 
     expect(results[0]).not.toHaveProperty("metadata");
@@ -74,8 +75,8 @@ describe("enrichObservationStream field group filtering", () => {
     const rows = [{ id: "obs-1" }];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
-        "core",
-      ] as any),
+        "core" as ObservationFieldGroup,
+      ]),
     );
 
     expect(results[0]).not.toHaveProperty("model_id");
@@ -88,9 +89,9 @@ describe("enrichObservationStream field group filtering", () => {
     const rows = [{ id: "obs-1", model_id: "gpt-4" }];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
-        "core",
-        "usage",
-      ] as any),
+        "core" as ObservationFieldGroup,
+        "usage" as ObservationFieldGroup,
+      ]),
     );
 
     expect(results[0]).toHaveProperty("model_id");
