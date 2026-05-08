@@ -1,4 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
+import { getServerAuthSession } from "@/src/server/auth";
+import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { type GetServerSideProps } from "next";
 import { useRouter } from "next/router";
 
@@ -13,17 +15,24 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   const projectId = context.params.projectId as string;
   const evaluatorId = context.params.configId as string;
 
+  const session = await getServerAuthSession({
+    req: context.req,
+    res: context.res,
+  });
+
+  if (!isProjectMemberOrAdmin(session?.user, projectId)) {
+    return {
+      notFound: true,
+    };
+  }
+
   const evaluator = await prisma.jobConfiguration.findUnique({
     where: {
       id: evaluatorId,
       projectId,
     },
     select: {
-      project: {
-        select: {
-          id: true,
-        },
-      },
+      id: true,
     },
   });
 
