@@ -250,6 +250,11 @@ const processBlobStorageExport = async (config: {
       : blobStorageProps.contentType;
 
     // Fetch data based on table type
+    const exportFieldGroups =
+      config.exportFieldGroups && config.exportFieldGroups.length > 0
+        ? config.exportFieldGroups
+        : [...OBSERVATION_FIELD_GROUPS];
+
     let dataStream: AsyncGenerator<Record<string, unknown>>;
 
     switch (config.table) {
@@ -285,14 +290,12 @@ const processBlobStorageExport = async (config: {
             config.projectId,
             config.minTimestamp,
             config.maxTimestamp,
-            config.exportFieldGroups && config.exportFieldGroups.length > 0
-              ? config.exportFieldGroups
-              : [...OBSERVATION_FIELD_GROUPS],
+            exportFieldGroups,
           ),
           config.projectId,
           "model_id",
           config.convertV4LatencyToSeconds,
-          config.exportFieldGroups,
+          exportFieldGroups,
         );
         break;
       default:
