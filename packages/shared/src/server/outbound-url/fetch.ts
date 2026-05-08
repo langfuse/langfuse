@@ -11,7 +11,12 @@ const EMPTY_WHITELIST: OutboundUrlValidationWhitelist = {
   ip_ranges: [],
 };
 
-const connectionValidatingDispatchers = new Map<string, unknown>();
+const MAX_CONNECTION_VALIDATING_DISPATCHERS = 16;
+type CloseableDispatcher = {
+  close: () => Promise<void> | void;
+};
+
+const connectionValidatingDispatchers = new Map<string, CloseableDispatcher>();
 
 const SENSITIVE_REDIRECT_HEADERS = new Set([
   "authorization",
@@ -342,10 +347,14 @@ async function validateAndResolveOutboundUrlOrigin(
 
 function getConnectionValidatingDispatcher(
   whitelist: OutboundUrlValidationWhitelist,
-): unknown {
+): CloseableDispatcher {
   const cacheKey = getWhitelistCacheKey(whitelist);
   const cachedDispatcher = connectionValidatingDispatchers.get(cacheKey);
-  if (cachedDispatcher) return cachedDispatcher;
+  if (cachedDispatcher) {
+    connectionValidatingDispatchers.delete(cacheKey);
+    connectionValidatingDispatchers.set(cacheKey, cachedDispatcher);
+    return cachedDispatcher;
+  }
 
   const dispatcher = new Agent().compose(
     interceptors.dns({
@@ -365,8 +374,37 @@ function getConnectionValidatingDispatcher(
     }),
   );
 
+  if (
+    connectionValidatingDispatchers.size >=
+    MAX_CONNECTION_VALIDATING_DISPATCHERS
+  ) {
+    const oldestEntry = connectionValidatingDispatchers.entries().next().value;
+
+    if (oldestEntry) {
+      const [oldestCacheKey, oldestDispatcher] = oldestEntry;
+      connectionValidatingDispatchers.delete(oldestCacheKey);
+      closeConnectionValidatingDispatcher(oldestDispatcher);
+    }
+  }
+
   connectionValidatingDispatchers.set(cacheKey, dispatcher);
   return dispatcher;
+}
+
+function closeConnectionValidatingDispatcher(
+  dispatcher: CloseableDispatcher,
+): void {
+  try {
+    void Promise.resolve(dispatcher.close()).catch((error) => {
+      logger.warn("Failed to close evicted outbound URL dispatcher", {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    });
+  } catch (error) {
+    logger.warn("Failed to close evicted outbound URL dispatcher", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
 }
 
 function getWhitelistCacheKey(

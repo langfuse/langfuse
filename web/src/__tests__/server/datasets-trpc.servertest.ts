@@ -75,7 +75,7 @@ describe("datasets trpc", () => {
     it("should execute remote experiments through the secure webhook fetch helper", async () => {
       const { project, caller } = await prepare();
       const datasetId = v4();
-      const remoteExperimentUrl = "https://93.184.216.34/remote-run";
+      const remoteExperimentUrl = "https://example.com/remote-run";
 
       await prisma.dataset.create({
         data: {
