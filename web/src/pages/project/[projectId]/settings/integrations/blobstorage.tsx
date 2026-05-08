@@ -752,41 +752,62 @@ const BlobStorageIntegrationSettingsForm = ({
                       " Traces and legacy observations are also exported in full."}
                   </FormDescription>
                   <div className="mt-2 space-y-2">
-                    {EXPORT_FIELD_GROUP_OPTIONS.map((option) => (
-                      <div
-                        key={option.value}
-                        className="flex items-start gap-2"
-                      >
-                        <Checkbox
-                          id={`field-group-${option.value}`}
-                          checked={(field.value ?? []).includes(option.value)}
-                          onCheckedChange={(checked) => {
-                            const current = field.value ?? [];
-                            const next =
-                              checked === true
-                                ? current.includes(option.value)
-                                  ? current
-                                  : [...current, option.value]
-                                : current.filter(
-                                    (v: BlobExportFieldGroup) =>
-                                      v !== option.value,
-                                  );
-                            field.onChange(next);
-                          }}
-                        />
-                        <label
-                          htmlFor={`field-group-${option.value}`}
-                          className="cursor-pointer space-y-0.5"
+                    {EXPORT_FIELD_GROUP_OPTIONS.map((option) => {
+                      const isCore = option.value === "core";
+                      return (
+                        <div
+                          key={option.value}
+                          className="flex items-start gap-2"
                         >
-                          <div className="text-sm leading-none font-medium">
-                            {option.label}
-                          </div>
-                          <div className="text-muted-foreground text-xs">
-                            {option.description}
-                          </div>
-                        </label>
-                      </div>
-                    ))}
+                          <Checkbox
+                            id={`field-group-${option.value}`}
+                            checked={
+                              isCore
+                                ? true
+                                : (field.value ?? []).includes(option.value)
+                            }
+                            disabled={isCore}
+                            onCheckedChange={
+                              isCore
+                                ? undefined
+                                : (checked) => {
+                                    const current = field.value ?? [];
+                                    const next =
+                                      checked === true
+                                        ? current.includes(option.value)
+                                          ? current
+                                          : [...current, option.value]
+                                        : current.filter(
+                                            (v: BlobExportFieldGroup) =>
+                                              v !== option.value,
+                                          );
+                                    field.onChange(next);
+                                  }
+                            }
+                          />
+                          <label
+                            htmlFor={`field-group-${option.value}`}
+                            className={
+                              isCore
+                                ? "space-y-0.5"
+                                : "cursor-pointer space-y-0.5"
+                            }
+                          >
+                            <div className="text-sm leading-none font-medium">
+                              {option.label}
+                              {isCore && (
+                                <span className="text-muted-foreground ml-1 font-normal">
+                                  (required)
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-muted-foreground text-xs">
+                              {option.description}
+                            </div>
+                          </label>
+                        </div>
+                      );
+                    })}
                   </div>
                   <FormMessage>
                     {
