@@ -229,6 +229,11 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             outcome: "success",
             jobId,
           },
+        }).catch((auditLogError) => {
+          logger.error(
+            `Failed to create audit log for blob storage integration run`,
+            auditLogError,
+          );
         });
 
         return { success: true, jobId };
@@ -347,6 +352,11 @@ This file can be safely deleted.`;
             outcome: "success",
             testFileName,
           },
+        }).catch((auditLogError) => {
+          logger.error(
+            `Failed to create audit log for blob storage integration validation`,
+            auditLogError,
+          );
         });
 
         return {

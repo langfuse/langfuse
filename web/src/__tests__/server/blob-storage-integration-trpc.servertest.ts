@@ -136,7 +136,8 @@ describe("Blob Storage Integration tRPC Router", () => {
     });
   });
 
-  beforeEach(() => {
+  afterEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
@@ -200,6 +201,27 @@ describe("Blob Storage Integration tRPC Router", () => {
         outcome: "failure",
         error: "INTERNAL_SERVER_ERROR",
       });
+    });
+
+    it("does not fail a queued manual run when success audit logging fails", async () => {
+      const add = vi.fn().mockResolvedValue(undefined);
+      (
+        BlobStorageIntegrationProcessingQueue.getInstance as Mock
+      ).mockReturnValue({ add });
+      const auditLogCreateSpy = vi
+        .spyOn(prisma.auditLog, "create")
+        .mockRejectedValueOnce(new Error("audit log unavailable"));
+
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      const result = await caller.blobStorageIntegration.runNow({
+        projectId: project.id,
+      });
+
+      expect(result.success).toBe(true);
+      expect(add).toHaveBeenCalledTimes(1);
+      expect(auditLogCreateSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -266,6 +288,29 @@ describe("Blob Storage Integration tRPC Router", () => {
         error: "Error",
       });
       expect(JSON.stringify(after)).not.toContain("provider rejected");
+    });
+
+    it("does not fail validation when success audit logging fails", async () => {
+      const uploadWithSignedUrl = vi.fn().mockResolvedValue({
+        signedUrl: "https://signed.example/upload",
+      });
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        uploadWithSignedUrl,
+      });
+      const auditLogCreateSpy = vi
+        .spyOn(prisma.auditLog, "create")
+        .mockRejectedValueOnce(new Error("audit log unavailable"));
+
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      const result = await caller.blobStorageIntegration.validate({
+        projectId: project.id,
+      });
+
+      expect(result.success).toBe(true);
+      expect(uploadWithSignedUrl).toHaveBeenCalledTimes(1);
+      expect(auditLogCreateSpy).toHaveBeenCalledTimes(1);
     });
   });
 });
