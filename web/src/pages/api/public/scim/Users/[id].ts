@@ -5,6 +5,40 @@ import { logger, redis } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
+// Mirrors the tRPC `deleteMembership` invariant. Returns true when the caller
+// must stop because the response has already been written with a 403.
+async function rejectIfLastOwner(
+  res: NextApiResponse,
+  userId: string,
+  orgId: string,
+): Promise<boolean> {
+  const membership = await prisma.organizationMembership.findUnique({
+    where: { orgId_userId: { orgId, userId } },
+    select: { role: true },
+  });
+  if (!membership || membership.role !== "OWNER") {
+    return false;
+  }
+
+  const ownerCount = await prisma.organizationMembership.count({
+    where: { orgId, role: "OWNER" },
+  });
+  if (ownerCount > 1) {
+    return false;
+  }
+
+  logger.warn(
+    `[SCIM] Refused to remove last OWNER ${userId} from org ${orgId}`,
+  );
+  res.status(403).json({
+    schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+    detail:
+      "Cannot remove the last owner of an organization. Assign new owner or delete organization.",
+    status: 403,
+  });
+  return true;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -230,6 +264,9 @@ async function handlePatch(
           `[SCIM] Provisioned user ${user.id} in org ${orgId} via PATCH`,
         );
       } else {
+        if (await rejectIfLastOwner(res, user.id, orgId)) {
+          return;
+        }
         // Deprovision the user by removing them from the organization
         await prisma.organizationMembership.deleteMany({
           where: {
@@ -336,6 +373,9 @@ async function handlePut(
         `[SCIM] Provisioned user ${user.id} in org ${orgId} with role ${role} via PUT`,
       );
     } else {
+      if (await rejectIfLastOwner(res, user.id, orgId)) {
+        return;
+      }
       // Deprovision the user by removing them from the organization
       await prisma.organizationMembership.deleteMany({
         where: {
@@ -374,6 +414,9 @@ async function handleDelete(
   user: User,
   orgId: string,
 ) {
+  if (await rejectIfLastOwner(res, user.id, orgId)) {
+    return;
+  }
   // Delete just removes the user from the organization
   await prisma.organizationMembership.deleteMany({
     where: {
