@@ -2988,7 +2988,12 @@ export const getEventsForBlobStorageExport = function (
 ) {
   const queryBuilder = new EventsQueryBuilder({ projectId });
 
-  for (const group of fieldGroups) {
+  // core is always required (provides id, trace_id, start/end_time used for cursor and deduplication)
+  const effectiveGroups = fieldGroups.includes("core")
+    ? fieldGroups
+    : (["core", ...fieldGroups] as ObservationFieldGroup[]);
+
+  for (const group of effectiveGroups) {
     if (group === "io") {
       queryBuilder.selectIO(false); // Full I/O, no truncation
     } else if (group === "model") {
