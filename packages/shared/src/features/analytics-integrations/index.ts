@@ -47,66 +47,60 @@ export const BLOB_EXPORT_FIELD_GROUPS = [
 
 export type BlobExportFieldGroup = (typeof BLOB_EXPORT_FIELD_GROUPS)[number];
 
-export const EXPORT_FIELD_GROUP_OPTIONS: Array<{
-  value: BlobExportFieldGroup;
-  label: string;
-  description: string;
-}> = [
-  {
-    value: "core",
+// Keyed by BlobExportFieldGroup so TypeScript errors if a group is added to
+// BLOB_EXPORT_FIELD_GROUPS without a corresponding label/description here.
+const EXPORT_FIELD_GROUP_LABELS = {
+  core: {
     label: "Core",
     description:
       "id, trace_id, start_time, end_time, project_id, parent_observation_id, type",
   },
-  {
-    value: "basic",
+  basic: {
     label: "Basic",
     description:
       "name, level, status_message, version, environment, bookmarked, public, user_id, session_id",
   },
-  {
-    value: "time",
+  time: {
     label: "Time",
     description: "completion_start_time, created_at, updated_at",
   },
-  {
-    value: "io",
+  io: {
     label: "Input / Output",
     description: "input, output",
   },
-  {
-    value: "metadata",
+  metadata: {
     label: "Metadata",
     description: "metadata",
   },
-  {
-    value: "model",
+  model: {
     label: "Model",
     description: "provided_model_name, model_id, model_parameters",
   },
-  {
-    value: "usage",
+  usage: {
     label: "Usage",
     description: "usage_details, cost_details, total_cost",
   },
-  {
-    value: "prompt",
+  prompt: {
     label: "Prompt",
     description: "prompt_id, prompt_name, prompt_version",
   },
-  {
-    value: "metrics",
+  metrics: {
     label: "Metrics",
     description: "latency, time_to_first_token",
   },
-  {
-    value: "tools",
+  tools: {
     label: "Tools",
     description: "tool_definitions, tool_calls, tool_call_names",
   },
-  {
-    value: "trace_context",
+  trace_context: {
     label: "Trace Context",
     description: "tags, release, trace_name, usage_pricing_tier_name",
   },
-];
+} satisfies Record<
+  BlobExportFieldGroup,
+  { label: string; description: string }
+>;
+
+export const EXPORT_FIELD_GROUP_OPTIONS = BLOB_EXPORT_FIELD_GROUPS.map(
+  (value) => ({ value, ...EXPORT_FIELD_GROUP_LABELS[value] }),
+);

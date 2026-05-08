@@ -7,8 +7,10 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { blobStorageIntegrationFormSchemaBase } from "@/src/features/blobstorage-integration/types";
-import { validateAzureContainerName } from "@/src/features/blobstorage-integration/validation";
-import { AnalyticsIntegrationExportSource } from "@langfuse/shared";
+import {
+  validateAzureContainerName,
+  validateExportFieldGroups,
+} from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { TRPCError } from "@trpc/server";
 import {
@@ -72,20 +74,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
       blobStorageIntegrationFormSchemaBase
         .extend({ projectId: z.string() })
         .superRefine(validateAzureContainerName)
-        .superRefine((data, ctx) => {
-          if (
-            (data.exportSource === AnalyticsIntegrationExportSource.EVENTS ||
-              data.exportSource ===
-                AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS) &&
-            data.exportFieldGroups.length === 0
-          ) {
-            ctx.addIssue({
-              code: "custom",
-              message: "At least one field group must be selected",
-              path: ["exportFieldGroups"],
-            });
-          }
-        }),
+        .superRefine(validateExportFieldGroups),
     )
     .mutation(async ({ input, ctx }) => {
       try {

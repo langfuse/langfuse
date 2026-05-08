@@ -1,4 +1,23 @@
 import type { z } from "zod";
+import { AnalyticsIntegrationExportSource } from "@langfuse/shared";
+
+export function validateExportFieldGroups(
+  data: { exportSource: string; exportFieldGroups: unknown[] },
+  ctx: z.RefinementCtx,
+) {
+  if (
+    (data.exportSource === AnalyticsIntegrationExportSource.EVENTS ||
+      data.exportSource ===
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS) &&
+    data.exportFieldGroups.length === 0
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      message: "At least one field group must be selected",
+      path: ["exportFieldGroups"],
+    });
+  }
+}
 
 /**
  * Azure container names must be 3-63 characters, lowercase letters, numbers,

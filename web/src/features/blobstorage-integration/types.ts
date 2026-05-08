@@ -6,7 +6,10 @@ import {
   AnalyticsIntegrationExportSource,
   BLOB_EXPORT_FIELD_GROUPS,
 } from "@langfuse/shared";
-import { validateAzureContainerName } from "@/src/features/blobstorage-integration/validation";
+import {
+  validateAzureContainerName,
+  validateExportFieldGroups,
+} from "@/src/features/blobstorage-integration/validation";
 
 export const blobStorageIntegrationFormSchemaBase = z.object({
   type: z.enum(BlobStorageIntegrationType),
@@ -44,20 +47,7 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
 export const blobStorageIntegrationFormSchema =
   blobStorageIntegrationFormSchemaBase
     .superRefine(validateAzureContainerName)
-    .superRefine((data, ctx) => {
-      if (
-        (data.exportSource === AnalyticsIntegrationExportSource.EVENTS ||
-          data.exportSource ===
-            AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS) &&
-        data.exportFieldGroups.length === 0
-      ) {
-        ctx.addIssue({
-          code: "custom",
-          message: "At least one field group must be selected",
-          path: ["exportFieldGroups"],
-        });
-      }
-    });
+    .superRefine(validateExportFieldGroups);
 
 export type BlobStorageIntegrationFormSchema = z.infer<
   typeof blobStorageIntegrationFormSchema
