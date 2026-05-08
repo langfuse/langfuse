@@ -122,7 +122,7 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
           orientation="horizontal"
           id={RESIZABLE_PANEL_GROUP_ID}
           defaultLayout={defaultLayout}
-          onLayoutChanged={onLayoutChanged}
+          onLayoutChanged={isAnnotationMode ? undefined : onLayoutChanged}
         >
           {children}
         </Group>

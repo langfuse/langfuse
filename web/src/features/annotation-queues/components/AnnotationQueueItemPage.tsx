@@ -124,11 +124,13 @@ export const AnnotationQueueItemPage: React.FC<{
 
   useEffect(() => {
     if (relevantItem && router.query.itemId !== relevantItem.id) {
-      router.push(
+      router.replace(
         {
           pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${relevantItem.id}`,
+          query: router.query,
         },
         undefined,
+        { shallow: true },
       );
     }
   }, [relevantItem, router, projectId, annotationQueueId]);
