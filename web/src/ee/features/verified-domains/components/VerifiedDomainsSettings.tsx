@@ -187,6 +187,7 @@ function DomainRow({ orgId, row }: { orgId: string; row: DomainRowData }) {
   const verifyMutation = api.verifiedDomain.verify.useMutation({
     onSuccess: () => {
       void utils.verifiedDomain.list.invalidate({ orgId });
+      void utils.ssoConfig.get.invalidate({ orgId });
       showSuccessToast({
         title: "Domain verified",
         description: `${row.domain} is now verified.`,
