@@ -15,7 +15,7 @@ import {
   mergeHeaders,
   createDisplayHeaders,
   encryptSecretHeaders,
-  validateWebhookURL,
+  validateWebhookURLAndGetIPs,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
@@ -55,7 +55,7 @@ export async function processWebhookActionConfig({
   }
 
   try {
-    await validateWebhookURL(actionConfig.url);
+    await validateWebhookURLAndGetIPs(actionConfig.url);
   } catch (error) {
     throw new TRPCError({
       code: "BAD_REQUEST",

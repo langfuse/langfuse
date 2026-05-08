@@ -79,13 +79,21 @@ export async function validateOutboundUrlHost({
   whitelist,
   logContext,
   shouldSkipDnsCheckForLiteralIps,
-}: ValidateOutboundUrlHostOptions): Promise<void> {
+}: ValidateOutboundUrlHostOptions): Promise<string[]> {
   // WHATWG URL parsing already lowercases and punycodes HTTP(S) hostnames, so
   // host safety checks stay tied to the parsed URL component.
   const hostname = url.hostname;
 
   if (whitelist.hosts.includes(hostname)) {
-    return;
+    // Whitelisted host — skip blocking checks but still resolve for IP pinning.
+    // DNS resolution is best-effort: a transient failure should not block a
+    // whitelisted destination, so callers fall back to unpinned delivery.
+    if (isIPAddress(hostname)) return [hostname];
+    try {
+      return await resolveHost(hostname);
+    } catch {
+      return [];
+    }
   }
 
   if (isHostnameBlocked(hostname)) {
@@ -100,7 +108,7 @@ export async function validateOutboundUrlHost({
       throw new Error("Blocked IP address detected");
     }
 
-    if (shouldSkipDnsCheckForLiteralIps) return;
+    if (shouldSkipDnsCheckForLiteralIps) return [hostname];
   }
 
   // DNS-resolution failure is treated as a hard validation error: silently
@@ -117,6 +125,8 @@ export async function validateOutboundUrlHost({
       throw new Error("Blocked IP address detected");
     }
   }
+
+  return ips;
 }
 
 function assertValidUrlEncoding(urlString: string): void {

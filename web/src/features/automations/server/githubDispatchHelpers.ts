@@ -8,7 +8,7 @@ import {
 } from "@langfuse/shared";
 import {
   getActionByIdWithSecrets,
-  validateWebhookURL,
+  validateWebhookURLAndGetIPs,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
@@ -60,7 +60,7 @@ export async function processGitHubDispatchActionConfig({
   }
 
   try {
-    await validateWebhookURL(urlToUse);
+    await validateWebhookURLAndGetIPs(urlToUse);
   } catch (error) {
     throw new TRPCError({
       code: "BAD_REQUEST",

@@ -10,7 +10,7 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
-import { validateWebhookURL } from "@langfuse/shared/src/server";
+import { validateWebhookURLAndGetIPs } from "@langfuse/shared/src/server";
 
 export const posthogIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -72,7 +72,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
 
       // Validate PostHog hostname to prevent SSRF attacks
       try {
-        await validateWebhookURL(input.posthogHostname);
+        await validateWebhookURLAndGetIPs(input.posthogHostname);
       } catch (error) {
         throw new TRPCError({
           code: "BAD_REQUEST",

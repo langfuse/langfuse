@@ -41,7 +41,8 @@ import {
   TraceSinkParams,
 } from "./types";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
-import { ProxyAgent } from "undici";
+import { type Agent, ProxyAgent } from "undici";
+import { createPinnedAgent } from "../webhooks/pinnedAgent";
 import { getInternalTracingHandler } from "./getInternalTracingHandler";
 import { decrypt } from "../../encryption";
 import {
@@ -51,6 +52,7 @@ import {
 } from "./utils";
 import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
+import { validateLlmConnectionBaseURL } from "./baseUrlValidation";
 
 export type CompletionWithReasoning = { text: string; reasoning?: string };
 type AIMessageContent = AIMessage["content"];
@@ -224,6 +226,14 @@ export async function fetchLLMCompletion(
   } = params;
 
   const { baseURL, config } = llmConnection;
+
+  // Re-validate user-configured base URL at call time and obtain resolved IPs.
+  // The URL was already validated when saved, but DNS may have changed since.
+  let baseURLResolvedIPs: string[] = [];
+  if (baseURL) {
+    baseURLResolvedIPs = await validateLlmConnectionBaseURL(baseURL);
+  }
+
   const apiKey = decrypt(llmConnection.secretKey); // the apiKey must never be printed to the console
   const extraHeaders = decryptAndParseExtraHeaders(llmConnection.extraHeaders);
 
@@ -308,9 +318,16 @@ export async function fetchLLMCompletion(
     (m) => m.content.length > 0 || "tool_calls" in m,
   );
 
-  // Common proxy configuration for all adapters
+  // Dispatcher for outbound LLM SDK requests.
+  // When HTTPS_PROXY is set the proxy handles DNS + routing.
+  // Otherwise, if we resolved IPs for a user-configured base URL,
+  // pin DNS so the SDK connects to the already-validated addresses.
   const proxyUrl = env.HTTPS_PROXY;
-  const proxyDispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
+  const llmDispatcher: Agent | ProxyAgent | undefined = proxyUrl
+    ? new ProxyAgent(proxyUrl)
+    : baseURLResolvedIPs.length > 0
+      ? createPinnedAgent(baseURLResolvedIPs)
+      : undefined;
   const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
 
   let chatModel:
@@ -337,8 +354,8 @@ export async function fetchLLMCompletion(
         maxRetries,
         defaultHeaders: extraHeaders,
         timeout: timeoutMs,
-        ...(proxyDispatcher && {
-          fetchOptions: { dispatcher: proxyDispatcher },
+        ...(llmDispatcher && {
+          fetchOptions: { dispatcher: llmDispatcher },
         }),
       },
       temperature: modelParams.temperature,
@@ -390,8 +407,8 @@ export async function fetchLLMCompletion(
         baseURL: processedBaseURL,
         timeout: timeoutMs,
         defaultHeaders: extraHeaders,
-        ...(proxyDispatcher && {
-          fetchOptions: { dispatcher: proxyDispatcher },
+        ...(llmDispatcher && {
+          fetchOptions: { dispatcher: llmDispatcher },
         }),
       },
       modelKwargs: modelParams.providerOptions,
@@ -412,8 +429,8 @@ export async function fetchLLMCompletion(
       configuration: {
         timeout: timeoutMs,
         defaultHeaders: extraHeaders,
-        ...(proxyDispatcher && {
-          fetchOptions: { dispatcher: proxyDispatcher },
+        ...(llmDispatcher && {
+          fetchOptions: { dispatcher: llmDispatcher },
         }),
       },
       modelKwargs: modelParams.providerOptions,
@@ -698,6 +715,12 @@ export async function fetchLLMCompletion(
     });
   } finally {
     await processTracedEvents();
+    // Close the single-use pinned agent to release its connection pool.
+    // ProxyAgent also extends Agent, so this handles both cases.
+    // Swallow close errors so they can't mask the original completion error.
+    if (llmDispatcher) {
+      await llmDispatcher.close().catch(() => undefined);
+    }
   }
 }
 

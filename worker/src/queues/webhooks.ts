@@ -14,7 +14,7 @@ import {
 import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
-  validateWebhookURL,
+  validateWebhookURLAndGetIPs,
   whitelistFromEnv,
   fetchWithSecureRedirects,
 } from "@langfuse/shared/src/server";
@@ -148,9 +148,11 @@ async function executeHttpAction({
         try {
           const whitelist = whitelistFromEnv();
 
-          // Skip validation when flag is set (for tests with MSW mocking)
+          // Validate URL and obtain resolved IPs for DNS pinning. Skipped in
+          // tests where the URL is mocked via MSW.
+          let resolvedIPs: string[] | undefined;
           if (!skipValidation) {
-            await validateWebhookURL(url, whitelist);
+            resolvedIPs = await validateWebhookURLAndGetIPs(url, whitelist);
           }
 
           const redirectOptions = skipValidation
@@ -162,8 +164,9 @@ async function executeHttpAction({
             : {
                 maxRedirects: env.LANGFUSE_WEBHOOK_MAX_REDIRECTS,
                 redirectValidation: {
-                  validateUrl: validateWebhookURL,
+                  validateUrl: validateWebhookURLAndGetIPs,
                   whitelist,
+                  initialResolvedIPs: resolvedIPs,
                 },
                 additionalSensitiveHeaders,
               };
@@ -271,12 +274,10 @@ async function executeHttpAction({
           startedAt: executionStart,
           finishedAt: new Date(),
           error: error instanceof Error ? error.message : "Unknown error",
-          output: httpStatus
-            ? {
-                httpStatus,
-                responseBody: responseBody?.substring(0, 1000),
-              }
-            : undefined,
+          // Do not persist the external response body: a hostile endpoint could
+          // echo data from an internal service reached via SSRF before a
+          // redirect is blocked, turning this column into an exfiltration channel.
+          output: httpStatus ? { httpStatus } : undefined,
         },
       });
 

@@ -524,7 +524,6 @@ describe("Webhook Integration Tests", () => {
       );
       expect(execution?.output).toMatchObject({
         httpStatus: 500,
-        responseBody: '{"error":"Internal Server Error"}',
       });
     });
 

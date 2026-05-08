@@ -84,6 +84,9 @@ const fetchImageUrlWithSecureRedirects = async (
             "Image URL redirect target failed security validation",
           );
         }
+        // Image URL fetches do not pin DNS today; return [] to disable pinning
+        // while preserving the generic validator contract.
+        return [];
       },
     },
   });
