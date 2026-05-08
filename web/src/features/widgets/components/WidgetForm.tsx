@@ -321,17 +321,11 @@ export function WidgetForm({
     initialWidgetRequiresV2 ? 2 : (initialValues.minVersion ?? 1),
   );
   const viewVersion: ViewVersion =
-<<<<<<< caleb/lfe-9173-importexporttransfer-widget-configs
-    (isBetaEnabled && selectedView !== "traces") ||
+    initialWidgetRequiresV2 ||
     widgetMinVersion >= 2 ||
-    initialWidgetRequiresV2
-=======
-    initialWidgetRequiresV2 || (initialValues.minVersion ?? 1) >= 2
->>>>>>> main
+    (isBetaEnabled && selectedView !== "traces")
       ? "v2"
-      : isBetaEnabled && selectedView !== "traces"
-        ? "v2"
-        : "v1";
+      : "v1";
   const availableViewOptions = viewVersion === "v2" ? viewsV2 : views;
 
   // For regular charts: single metric selection
@@ -1081,7 +1075,6 @@ export function WidgetForm({
     ],
   );
 
-<<<<<<< caleb/lfe-9173-importexporttransfer-widget-configs
   const handleImportWidget = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -1149,7 +1142,7 @@ export function WidgetForm({
       showMalformedImportToast();
     }
   };
-=======
+
   const chartPresentation = useMemo(() => {
     if (selectedChartType === "PIVOT_TABLE") {
       return undefined;
@@ -1167,7 +1160,6 @@ export function WidgetForm({
     selectedView,
     viewVersion,
   ]);
->>>>>>> main
 
   const handleSaveWidget = () => {
     if (!queryValidation.valid) {
