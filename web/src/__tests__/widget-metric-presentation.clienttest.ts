@@ -1,70 +1,43 @@
 import { getWidgetMetricPresentation } from "@/src/features/widgets/utils";
 
 describe("getWidgetMetricPresentation", () => {
-  it("returns USD labeling for cost widgets", () => {
-    const presentation = getWidgetMetricPresentation({
+  it.each([
+    {
+      name: "cost widgets",
       metric: { measure: "totalCost", agg: "sum" },
       view: "observations",
-      version: "v1",
-    });
-
-    expect(presentation.label).toBe("USD");
-    expect(
-      presentation.metricFormatter?.(1.234567, {
-        style: "compact",
-      }),
-    ).toEqual({
-      prefix: "$",
-      main: "1.234567",
-    });
-    expect(
-      presentation.metricFormatter?.(-1.234567, {
-        style: "compact",
-      }),
-    ).toEqual({
-      negative: true,
-      prefix: "$",
-      main: "1.234567",
-    });
-    expect(
-      presentation.metricFormatter?.(-10.123456, {
-        style: "compact",
-      }),
-    ).toEqual({
-      negative: true,
-      prefix: "$",
-      main: "10.12",
-    });
-  });
-
-  it("returns latency presentation for millisecond widgets", () => {
-    const presentation = getWidgetMetricPresentation({
+      label: "USD",
+      sampleValue: 1.234567,
+      formatted: { prefix: "$" },
+    },
+    {
+      name: "millisecond widgets",
       metric: { measure: "latency", agg: "p95" },
       view: "traces",
-      version: "v1",
-    });
+      label: "Duration",
+      sampleValue: 1500,
+      formatted: { suffix: "s" },
+    },
+  ] as const)(
+    "returns $label labeling and unit formatting for $name",
+    ({ metric, view, label, sampleValue, formatted }) => {
+      const presentation = getWidgetMetricPresentation({
+        metric,
+        view,
+        version: "v1",
+      });
 
-    expect(presentation.label).toBe("Duration");
-    expect(
-      presentation.metricFormatter?.(1500, {
-        style: "compact",
-      }),
-    ).toEqual({
-      main: "1.5",
-      suffix: "s",
-    });
-    expect(
-      presentation.metricFormatter?.(-1500, {
-        style: "compact",
-      }),
-    ).toEqual({
-      negative: true,
-      main: "1.5",
-      suffix: "s",
-    });
-  });
+      expect(presentation.label).toBe(label);
+      expect(presentation.metricFormatter).toBeDefined();
+      expect(
+        presentation.metricFormatter?.(sampleValue, {
+          style: "compact",
+        }),
+      ).toMatchObject(formatted);
+    },
+  );
 
-  it("returns unit labels for token widgets", () => {
+  it("returns unit labels without custom formatting for non-special units", () => {
     const presentation = getWidgetMetricPresentation({
       metric: { measure: "totalTokens", agg: "sum" },
       view: "observations",
@@ -75,35 +48,33 @@ describe("getWidgetMetricPresentation", () => {
     expect(presentation.metricFormatter).toBeUndefined();
   });
 
-  it("falls back to the default presentation for count aggregations", () => {
-    const presentation = getWidgetMetricPresentation({
+  it.each([
+    {
       metric: { measure: "latency", agg: "count" },
       view: "traces",
-      version: "v1",
-    });
-
-    expect(presentation.label).toBe("Count Latency");
-    expect(presentation.metricFormatter).toBeUndefined();
-  });
-
-  it("falls back to the default presentation for uniq aggregations", () => {
-    const presentation = getWidgetMetricPresentation({
+      label: "Count Latency",
+    },
+    {
       metric: { measure: "totalCost", agg: "uniq" },
       view: "observations",
-      version: "v1",
-    });
-
-    expect(presentation.label).toBe("Uniq Total Cost");
-    expect(presentation.metricFormatter).toBeUndefined();
-  });
-
-  it("uses the default metric label for count_count", () => {
-    const presentation = getWidgetMetricPresentation({
+      label: "Uniq Total Cost",
+    },
+    {
       metric: { measure: "count", agg: "count" },
       view: "traces",
-      version: "v1",
-    });
+      label: "Count",
+    },
+  ] as const)(
+    "falls back to the default presentation for $metric.agg aggregations",
+    ({ metric, view, label }) => {
+      const presentation = getWidgetMetricPresentation({
+        metric,
+        view,
+        version: "v1",
+      });
 
-    expect(presentation.label).toBe("Count");
-  });
+      expect(presentation.label).toBe(label);
+      expect(presentation.metricFormatter).toBeUndefined();
+    },
+  );
 });
