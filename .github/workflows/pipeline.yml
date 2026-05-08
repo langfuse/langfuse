@@ -34,17 +34,22 @@ jobs:
       # was already tested in a prior successful run of this workflow.
       - id: skip_check
         env:
+          EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             echo "should_skip=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          CURRENT_TREE=$(gh api "repos/${{ github.repository }}/git/commits/${{ github.sha }}" --jq '.tree.sha')
+          CURRENT_TREE=$(gh api "repos/$REPOSITORY/git/commits/$COMMIT_SHA" --jq '.tree.sha')
 
-          MATCH=$(gh api "repos/${{ github.repository }}/actions/workflows/pipeline.yml/runs?status=success&per_page=20" \
-            --jq "[.workflow_runs[] | select(.id != ${{ github.run_id }} and .head_commit.tree_id == \"$CURRENT_TREE\")] | first | .head_sha // empty")
+          MATCH=$(gh api "repos/$REPOSITORY/actions/workflows/pipeline.yml/runs?status=success&per_page=20" \
+            | jq -r --argjson run_id "$RUN_ID" --arg current_tree "$CURRENT_TREE" \
+              '[.workflow_runs[] | select(.id != $run_id and .head_commit.tree_id == $current_tree)] | first | .head_sha // empty')
 
           if [[ -n "$MATCH" ]]; then
             echo "::notice::Tree $CURRENT_TREE already tested in a prior successful run (commit $MATCH) — skipping"
@@ -128,23 +133,23 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: Check formatting on changed files
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE_SHA=${{ github.event.pull_request.base.sha }}
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE_SHA="$PR_BASE_SHA"
           else
             BASE_SHA=$(git merge-base origin/main HEAD)
           fi
 
           echo "Checking files changed from $BASE_SHA to HEAD"
 
-          # Get changed files
-          CHANGED_FILES=$(git diff --name-only $BASE_SHA HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | tr '\n' ' ')
-
-          if [ -n "$CHANGED_FILES" ] && [ "$CHANGED_FILES" != " " ]; then
-            echo "Files to check: $CHANGED_FILES"
-            pnpm prettier --check --experimental-cli $CHANGED_FILES
-          else
+          if git diff --quiet --exit-code --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css'; then
             echo "No JS/TS/CSS files changed - skipping prettier check"
+          else
+            git diff --name-only -z --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' \
+              | xargs -0 --no-run-if-empty pnpm prettier --check --experimental-cli --
           fi
 
   tests-eslint-plugin:
