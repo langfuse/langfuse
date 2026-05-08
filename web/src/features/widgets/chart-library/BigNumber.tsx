@@ -121,6 +121,7 @@ export const BigNumber: React.FC<ChartProps> = ({
           : { main: "0" };
 
         const textLength = (
+          (testDisplayValue.negative ? "-" : "") +
           (testDisplayValue.prefix ?? "") +
           testDisplayValue.main +
           (testDisplayValue.suffix ?? "")
@@ -169,6 +170,16 @@ export const BigNumber: React.FC<ChartProps> = ({
               getAffixFontSize(fontSize),
             )}
           >
+            {displayValue.negative && (
+              <span
+                className={cn(
+                  "text-foreground font-extrabold tracking-tight",
+                  fontSize,
+                )}
+              >
+                -
+              </span>
+            )}
             {displayValue.prefix}
           </span>
         )}
@@ -177,7 +188,7 @@ export const BigNumber: React.FC<ChartProps> = ({
           className={cn("text-center font-extrabold tracking-tight", fontSize)}
           title={calculatedMetric.toString()}
         >
-          {displayValue.negative ? "-" : ""}
+          {displayValue.negative && !displayValue.prefix ? "-" : ""}
           {displayValue.main}
         </span>
         {displayValue.suffix && (

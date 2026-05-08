@@ -169,6 +169,54 @@ const formatExponentialMetric = (
   return formatted;
 };
 
+const compactUnits = [
+  [1e12, "T"],
+  [1e9, "B"],
+  [1e6, "M"],
+  [1e3, "K"],
+] as const;
+
+const formatCompactMetric = (
+  value: number,
+  maxCharacters?: number,
+): FormattedMetric => {
+  for (let i = 0; i < compactUnits.length; i++) {
+    const [divisor, suffix] = compactUnits[i];
+    if (value < divisor) {
+      continue;
+    }
+
+    const formatted = formatFixedMetric(
+      value / divisor,
+      3,
+      suffix,
+      maxCharacters,
+    );
+
+    if (Number(formatted.main) >= 1000 && i > 0) {
+      const [nextDivisor, nextSuffix] = compactUnits[i - 1];
+      return formatFixedMetric(
+        value / nextDivisor,
+        3,
+        nextSuffix,
+        maxCharacters,
+      );
+    }
+
+    return formatted;
+  }
+
+  if (value >= 1) {
+    return formatFixedMetric(value, 3, "", maxCharacters);
+  }
+
+  if (value >= 1e-3) {
+    return formatFixedMetric(value, 6, "", maxCharacters);
+  }
+
+  return formatExponentialMetric(value, maxCharacters);
+};
+
 const durationDivisors = [1, 1_000, 60_000, 3_600_000, 86_400_000] as const;
 const durationUnits = [
   "millisecond",
@@ -316,41 +364,7 @@ export function formatMetric(
       return { main: "0" };
     }
 
-    const compactUnits = [
-      [1e12, "T"],
-      [1e9, "B"],
-      [1e6, "M"],
-      [1e3, "K"],
-    ] as const;
-
-    for (const [divisor, suffix] of compactUnits) {
-      if (absValue >= divisor) {
-        return applyNegative(
-          formatFixedMetric(
-            absValue / divisor,
-            3,
-            suffix,
-            magnitudeMaxCharacters,
-          ),
-        );
-      }
-    }
-
-    if (absValue >= 1) {
-      return applyNegative(
-        formatFixedMetric(absValue, 3, "", magnitudeMaxCharacters),
-      );
-    }
-
-    if (absValue >= 1e-3) {
-      return applyNegative(
-        formatFixedMetric(absValue, 6, "", magnitudeMaxCharacters),
-      );
-    }
-
-    return applyNegative(
-      formatExponentialMetric(absValue, magnitudeMaxCharacters),
-    );
+    return applyNegative(formatCompactMetric(absValue, magnitudeMaxCharacters));
   }
 
   if (value !== 0 && absValue < 1e-3) {

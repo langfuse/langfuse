@@ -28,6 +28,28 @@ describe("formatMetric", () => {
     });
   });
 
+  it("normalizes compact units when constrained rounding reaches the next suffix", () => {
+    expect(
+      formatMetric(999_999, { style: "compact", maxCharacters: 4 }),
+    ).toEqual({
+      main: "1",
+      suffix: "M",
+    });
+    expect(
+      formatMetric(999_999_999, { style: "compact", maxCharacters: 4 }),
+    ).toEqual({
+      main: "1",
+      suffix: "B",
+    });
+    expect(
+      formatMetric(-999_999, { style: "compact", maxCharacters: 4 }),
+    ).toEqual({
+      negative: true,
+      main: "1",
+      suffix: "M",
+    });
+  });
+
   it("trims USD precision to fit maxCharacters", () => {
     expect(
       formatMetric(1.234567, {
