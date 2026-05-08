@@ -129,38 +129,6 @@ const resolveMetadata = (metadata: string | null | undefined) => {
   }
 };
 
-const validateRemoteExperimentUrl = async (urlString: string) => {
-  const trimmedUrl = urlString.trim();
-
-  let url: URL;
-  try {
-    url = new URL(trimmedUrl);
-  } catch {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Invalid remote run URL: Invalid URL syntax",
-    });
-  }
-
-  if (url.protocol !== "https:") {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Invalid remote run URL: Only HTTPS URLs are allowed",
-    });
-  }
-
-  try {
-    await validateWebhookURL(trimmedUrl);
-  } catch (error) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Invalid remote run URL: ${error instanceof Error ? error.message : "Unknown error"}`,
-    });
-  }
-
-  return trimmedUrl;
-};
-
 type GenerateDatasetQueryInput = {
   select: Prisma.Sql;
   projectId: string;
@@ -1699,12 +1667,19 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
-      const remoteExperimentUrl = await validateRemoteExperimentUrl(input.url);
+      try {
+        await validateWebhookURL(input.url);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Invalid remote run URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+        });
+      }
 
       const updatedDataset = await updateDataset({
         input: {
           id: input.datasetId,
-          remoteExperimentUrl,
+          remoteExperimentUrl: input.url,
           remoteExperimentPayload: input.defaultPayload ?? {},
           remoteExperimentEnabled: input.enabled,
         },

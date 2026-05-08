@@ -63,8 +63,12 @@ describe("datasets.upsertRemoteExperiment", () => {
 
   it.each([
     {
-      url: "http://example.com/hook",
-      message: "Only HTTPS URLs are allowed",
+      url: "not-a-url",
+      message: "Invalid URL syntax",
+    },
+    {
+      url: "ftp://example.com/hook",
+      message: "Only HTTP and HTTPS protocols are allowed",
     },
     {
       url: "https://127.0.0.1/hook",
