@@ -17,7 +17,10 @@ import {
   RESOURCE_METRICS,
   isEmptyChart,
 } from "@/src/features/dashboard/lib/score-analytics-utils";
-import { compareViewChartDataToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import {
+  compareViewChartDataToDataPoints,
+  getCompareViewChartUnit,
+} from "@/src/features/dashboard/lib/chart-data-adapters";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
@@ -275,47 +278,16 @@ export default function DatasetCompare() {
                     );
                   }
 
-                  const dataPoints =
-                    chartLabels.length === 1
-                      ? chartData.map((d) => ({
-                          time_dimension: d.binLabel,
-                          dimension: chartLabels[0]!,
-                          metric: (d[chartLabels[0]!] as number) ?? 0,
-                        }))
-                      : compareViewChartDataToDataPoints(
-                          chartData,
-                          chartLabels,
-                        );
-
-                  // TODO: remove when revamping the datasets api for it to directly return ms
-                  // Normalize latency chart values to milliseconds so Chart can use its built-in metric formatter.
-                  const normalizedDataPoints =
-                    key === "latency"
-                      ? dataPoints.map((dataPoint) => ({
-                          ...dataPoint,
-                          metric:
-                            typeof dataPoint.metric === "number"
-                              ? dataPoint.metric * 1000
-                              : dataPoint.metric,
-                        }))
-                      : dataPoints;
+                  const dataPoints = compareViewChartDataToDataPoints(
+                    chartData,
+                    chartLabels,
+                    key,
+                  );
 
                   const chartType =
                     chartLabels.length === 1
                       ? "LINE_TIME_SERIES"
                       : "BAR_TIME_SERIES";
-
-                  const chartUnit = (() => {
-                    if (key === "latency") {
-                      return "millisecond";
-                    }
-
-                    if (key === "cost") {
-                      return "USD";
-                    }
-
-                    return undefined;
-                  })();
 
                   return (
                     <div
@@ -328,11 +300,11 @@ export default function DatasetCompare() {
                       <div className="min-h-[200px] min-w-0 flex-1">
                         <Chart
                           chartType={chartType}
-                          data={normalizedDataPoints}
-                          rowLimit={Math.max(normalizedDataPoints.length, 1)}
+                          data={dataPoints}
+                          rowLimit={Math.max(dataPoints.length, 1)}
                           chartConfig={{
                             type: chartType,
-                            unit: chartUnit,
+                            unit: getCompareViewChartUnit(key),
                           }}
                           legendPosition={
                             chartLabels.length > 1 ? "above" : "none"
