@@ -1,5 +1,17 @@
 import type { OutboundUrlValidationWhitelist } from "./validation";
+import { isIP } from "node:net";
+import { Agent, interceptors } from "undici";
 import { logger } from "../logger";
+import { isIPBlocked } from "../webhooks/ipBlocking";
+import { resolveHost } from "./validation";
+
+const EMPTY_WHITELIST: OutboundUrlValidationWhitelist = {
+  hosts: [],
+  ips: [],
+  ip_ranges: [],
+};
+
+const connectionValidatingDispatchers = new Map<string, unknown>();
 
 const SENSITIVE_REDIRECT_HEADERS = new Set([
   "authorization",
@@ -73,6 +85,16 @@ interface RedirectValidationOptions {
   whitelist?: OutboundUrlValidationWhitelist;
 }
 
+type FetchOptionsWithDispatcher = Omit<RequestInit, "dispatcher"> & {
+  dispatcher?: unknown;
+};
+
+type DnsLookupRecord = {
+  address: string;
+  family: 4 | 6;
+  ttl: number;
+};
+
 /**
  * Options for secure redirect handling
  */
@@ -90,8 +112,10 @@ export type RedirectOptions =
  * Fetches a URL with manual redirect handling and validation at each step.
  *
  * This function prevents SSRF attacks via redirects by validating each redirect
- * target before following it. Callers provide validation so each outbound flow
- * can enforce its own protocol, port, and whitelist rules.
+ * target before following it. For validated calls, it also validates resolved
+ * IPs through an Undici dispatcher at connection time so DNS cannot rebind to a
+ * blocked address between validation and fetch. Callers provide URL validation
+ * so each outbound flow can enforce its own protocol, port, and whitelist rules.
  *
  * @param url - The initial URL to fetch
  * @param options - Fetch options (method, body, headers, signal, etc.)
@@ -132,8 +156,19 @@ export async function fetchWithSecureRedirects(
   let redirectDepth = 0;
 
   // Force manual redirect handling to prevent automatic following.
-  let fetchOptions: RequestInit = {
+  const connectionValidationWhitelist =
+    redirectOptions.skipValidation === true
+      ? undefined
+      : (redirectOptions.redirectValidation.whitelist ?? EMPTY_WHITELIST);
+  const connectionValidatingDispatcher = connectionValidationWhitelist
+    ? getConnectionValidatingDispatcher(connectionValidationWhitelist)
+    : undefined;
+
+  let fetchOptions: FetchOptionsWithDispatcher = {
     ...options,
+    ...(connectionValidatingDispatcher
+      ? { dispatcher: connectionValidatingDispatcher }
+      : {}),
     redirect: "manual",
   };
 
@@ -145,7 +180,7 @@ export async function fetchWithSecureRedirects(
     });
 
     // Fetch the current URL
-    const response = await fetch(currentUrl, fetchOptions);
+    const response = await fetch(currentUrl, fetchOptions as RequestInit);
 
     // Check if this is a redirect response (3xx status codes)
     const isRedirect =
@@ -272,6 +307,76 @@ export async function fetchWithSecureRedirects(
     ...redirectChain,
     currentUrl,
   ]);
+}
+
+async function validateAndResolveOutboundUrlOrigin(
+  origin: URL,
+  whitelist: OutboundUrlValidationWhitelist,
+): Promise<DnsLookupRecord[]> {
+  const hostname = origin.hostname;
+  const ips = await resolveHost(hostname);
+
+  return ips.map((ip) => {
+    const family = isIP(ip);
+    if (family !== 4 && family !== 6) {
+      throw new Error(`DNS lookup returned invalid IP address for ${hostname}`);
+    }
+
+    if (
+      !whitelist.hosts.includes(hostname) &&
+      isIPBlocked(ip, whitelist.ips, whitelist.ip_ranges)
+    ) {
+      logger.warn(
+        `Outbound URL connection blocked resolved IP address: ${ip} for hostname: ${hostname}`,
+      );
+      throw new Error("Blocked IP address detected");
+    }
+
+    return {
+      address: ip,
+      family,
+      ttl: 0,
+    };
+  });
+}
+
+function getConnectionValidatingDispatcher(
+  whitelist: OutboundUrlValidationWhitelist,
+): unknown {
+  const cacheKey = getWhitelistCacheKey(whitelist);
+  const cachedDispatcher = connectionValidatingDispatchers.get(cacheKey);
+  if (cachedDispatcher) return cachedDispatcher;
+
+  const dispatcher = new Agent().compose(
+    interceptors.dns({
+      maxTTL: 0,
+      lookup: (origin, _options, callback) => {
+        void validateAndResolveOutboundUrlOrigin(origin, whitelist)
+          .then((records) => callback(null, records))
+          .catch((error) =>
+            callback(
+              error instanceof Error
+                ? (error as NodeJS.ErrnoException)
+                : new Error("Outbound URL connection validation failed"),
+              [],
+            ),
+          );
+      },
+    }),
+  );
+
+  connectionValidatingDispatchers.set(cacheKey, dispatcher);
+  return dispatcher;
+}
+
+function getWhitelistCacheKey(
+  whitelist: OutboundUrlValidationWhitelist,
+): string {
+  return JSON.stringify({
+    hosts: [...whitelist.hosts].sort(),
+    ips: [...whitelist.ips].sort(),
+    ip_ranges: [...whitelist.ip_ranges].sort(),
+  });
 }
 
 function stripSensitiveRedirectHeaders(

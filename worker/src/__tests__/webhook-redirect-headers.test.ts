@@ -14,6 +14,51 @@ afterEach(() => {
 });
 
 describe("fetchWithSecureRedirects header handling", () => {
+  it("should attach a connection-validating dispatcher when validation is enabled", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("ok", { status: 200 }));
+
+    await fetchWithSecureRedirects(
+      "https://example.com/start",
+      { method: "POST" },
+      {
+        maxRedirects: 0,
+        redirectValidation: {
+          validateUrl: vi.fn().mockResolvedValue(undefined),
+          whitelist: {
+            hosts: ["example.com"],
+            ips: [],
+            ip_ranges: [],
+          },
+        },
+      },
+    );
+
+    const requestOptions = fetchMock.mock.calls[0]?.[1] as
+      | (RequestInit & { dispatcher?: unknown })
+      | undefined;
+
+    expect(requestOptions?.dispatcher).toBeDefined();
+  });
+
+  it("should not attach a connection-validating dispatcher when validation is skipped", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("ok", { status: 200 }));
+
+    await fetchWithSecureRedirects(
+      "https://example.com/start",
+      { method: "POST" },
+      {
+        maxRedirects: 0,
+        skipValidation: true,
+      },
+    );
+
+    const requestOptions = fetchMock.mock.calls[0]?.[1] as
+      | (RequestInit & { dispatcher?: unknown })
+      | undefined;
+
+    expect(requestOptions?.dispatcher).toBeUndefined();
+  });
+
   it("should keep sensitive headers on same-origin redirects", async () => {
     fetchMock
       .mockResolvedValueOnce(

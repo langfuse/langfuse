@@ -65,6 +65,8 @@ import {
   getDatasetItemsCountGrouped,
   getDatasetVersionForRun,
   escapeSqlLikePattern,
+  fetchWithSecureRedirects,
+  whitelistFromEnv,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -76,6 +78,8 @@ import { v4 } from "uuid";
 
 // Batch size kept small (100) as items may have large input/output/metadata JSON
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
+const REMOTE_EXPERIMENT_TIMEOUT_MS = 20_000;
+const REMOTE_EXPERIMENT_MAX_REDIRECTS = 10;
 
 /**
  * Adds a case-insensitive search condition to a query
@@ -1763,8 +1767,10 @@ export const datasetRouter = createTRPCRouter({
         };
       }
 
+      const whitelist = whitelistFromEnv();
+
       try {
-        await validateWebhookURL(dataset.remoteExperimentUrl);
+        await validateWebhookURL(dataset.remoteExperimentUrl, whitelist);
       } catch (error) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -1773,19 +1779,41 @@ export const datasetRouter = createTRPCRouter({
       }
 
       try {
-        const response = await fetch(dataset.remoteExperimentUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            projectId: input.projectId,
+        const { response, redirectChain, finalUrl } =
+          await fetchWithSecureRedirects(
+            dataset.remoteExperimentUrl,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                projectId: input.projectId,
+                datasetId: input.datasetId,
+                datasetName: dataset.name,
+                payload: input.payload ?? dataset.remoteExperimentPayload,
+              }),
+              signal: AbortSignal.timeout(REMOTE_EXPERIMENT_TIMEOUT_MS),
+            },
+            {
+              maxRedirects: REMOTE_EXPERIMENT_MAX_REDIRECTS,
+              redirectValidation: {
+                validateUrl: validateWebhookURL,
+                whitelist,
+              },
+            },
+          );
+
+        if (redirectChain.length > 0) {
+          logger.info("Remote experiment trigger followed redirects", {
             datasetId: input.datasetId,
-            datasetName: dataset.name,
-            payload: input.payload ?? dataset.remoteExperimentPayload,
-          }),
-          signal: AbortSignal.timeout(20000), // 20 second timeout
-        });
+            projectId: input.projectId,
+            initialUrl: dataset.remoteExperimentUrl,
+            finalUrl,
+            redirectCount: redirectChain.length,
+            redirectChain,
+          });
+        }
 
         if (!response.ok) {
           logger.info(`Remote server returned error (${response.status})`);
