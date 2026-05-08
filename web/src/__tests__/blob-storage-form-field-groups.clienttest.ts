@@ -59,6 +59,32 @@ describe("blob storage form — exportFieldGroups validation", () => {
     },
   );
 
+  it.each([
+    AnalyticsIntegrationExportSource.EVENTS,
+    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
+  ])(
+    "blocks submission when exportSource is %s and core is missing from groups",
+    async (source) => {
+      const { result } = renderHook(() =>
+        useForm({
+          resolver: zodResolver(blobStorageIntegrationFormSchema),
+          defaultValues: {
+            ...VALID_BASE,
+            exportSource: source,
+            exportFieldGroups: ["basic", "io"],
+          },
+        }),
+      );
+
+      const onSubmit = vi.fn();
+      await act(async () => {
+        await result.current.handleSubmit(onSubmit)();
+      });
+
+      expect(onSubmit).not.toHaveBeenCalled();
+    },
+  );
+
   it("allows submission when exportSource is TRACES_OBSERVATIONS regardless of exportFieldGroups", async () => {
     const { result } = renderHook(() =>
       useForm({

@@ -5,15 +5,26 @@ export function validateExportFieldGroups(
   data: { exportSource: string; exportFieldGroups: unknown[] },
   ctx: z.RefinementCtx,
 ) {
-  if (
-    (data.exportSource === AnalyticsIntegrationExportSource.EVENTS ||
-      data.exportSource ===
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS) &&
-    data.exportFieldGroups.length === 0
-  ) {
+  const requiresFieldGroups =
+    data.exportSource === AnalyticsIntegrationExportSource.EVENTS ||
+    data.exportSource ===
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
+
+  if (!requiresFieldGroups) return;
+
+  if (data.exportFieldGroups.length === 0) {
     ctx.addIssue({
       code: "custom",
       message: "At least one field group must be selected",
+      path: ["exportFieldGroups"],
+    });
+    return;
+  }
+
+  if (!data.exportFieldGroups.includes("core")) {
+    ctx.addIssue({
+      code: "custom",
+      message: "The Core field group is required",
       path: ["exportFieldGroups"],
     });
   }
