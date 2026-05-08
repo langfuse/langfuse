@@ -85,6 +85,7 @@ describe("datasets.upsertRemoteExperiment", () => {
           id: datasetId,
           projectId,
           name: `remote-experiment-${datasetId}`,
+          remoteExperimentEnabled: false,
         },
       });
 
@@ -117,7 +118,7 @@ describe("datasets.upsertRemoteExperiment", () => {
 
       expect(dataset.remoteExperimentUrl).toBeNull();
       expect(dataset.remoteExperimentPayload).toBeNull();
-      expect(dataset.remoteExperimentEnabled).toBe(true);
+      expect(dataset.remoteExperimentEnabled).toBe(false);
     },
   );
 });
