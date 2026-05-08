@@ -308,6 +308,7 @@ const BlobStorageIntegrationSettingsForm = ({
   }, [state]);
 
   const watchedExportSource = blobStorageForm.watch("exportSource");
+  const watchedExportMode = blobStorageForm.watch("exportMode");
 
   const utils = api.useUtils();
   const mut = api.blobStorageIntegration.update.useMutation({
@@ -784,14 +785,18 @@ const BlobStorageIntegrationSettingsForm = ({
                       </div>
                     ))}
                   </div>
-                  <FormMessage />
+                  <FormMessage>
+                    {
+                      blobStorageForm.formState.errors.exportFieldGroups
+                        ?.message
+                    }
+                  </FormMessage>
                 </FormItem>
               )}
             />
           )}
 
-        {blobStorageForm.watch("exportMode") ===
-          BlobStorageExportMode.FROM_CUSTOM_DATE && (
+        {watchedExportMode === BlobStorageExportMode.FROM_CUSTOM_DATE && (
           <FormField
             control={blobStorageForm.control}
             name="exportStartDate"
