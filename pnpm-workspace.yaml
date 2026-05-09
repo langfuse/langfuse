@@ -24,7 +24,7 @@ minimumReleaseAgeExclude:
   - "eslint-config-next@16.2.6"
   - "@next/eslint-plugin-next@16.2.6"
   - "fast-xml-builder@1.1.7"
-  - "fast-uri@3.1.1"
+  - "fast-uri@3.1.2"
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
