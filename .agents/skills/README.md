@@ -72,6 +72,24 @@ Use for:
 
 Open: [code-review/SKILL.md](code-review/SKILL.md)
 
+### detect-prod-regressions
+
+Use for:
+- proactive Datadog sweeps across `prod-us`, `prod-eu`, `prod-hipaa`, and `prod-jp`
+- comparing recent production errors, logs, spans, and API latency to baselines
+- handing measured regressions to `linear-bug-triage` for Linear issues or comments
+
+Open: [detect-prod-regressions/SKILL.md](detect-prod-regressions/SKILL.md)
+
+### linear-bug-triage
+
+Use for:
+- deduplicating measured bug or regression evidence against Linear
+- creating new Linear bug issues in `Triage` with `bug` and related labels
+- adding concise evidence comments to related existing Linear issues
+
+Open: [linear-bug-triage/SKILL.md](linear-bug-triage/SKILL.md)
+
 ### changelog-writing
 
 Use for:
