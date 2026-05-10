@@ -37,6 +37,12 @@ evaluating, and debugging AI applications.
 - Debugging a Linear issue, GitHub issue, or incident report using Datadog
   (APM, logs, metrics) to establish a root cause:
   `.agents/skills/debug-issue-with-datadog/SKILL.md`
+- Measured bug or regression evidence that needs Linear deduplication, evidence
+  comments, or Triage bug issue creation:
+  `.agents/skills/linear-bug-triage/SKILL.md`
+- Proactive production regression sweeps across Datadog errors, logs, spans, and
+  API latency with Linear handoff:
+  `.agents/skills/detect-prod-regressions/SKILL.md`
 - Changelog drafting for completed feature branches:
   `.agents/skills/changelog-writing/SKILL.md`
 - ClickHouse schema/query review:
