@@ -85,34 +85,6 @@ export const DetailPageNav = (props: {
               variant="outline"
               type="button"
               className="p-2"
-              disabled={!previousPageEntry}
-              onClick={() => {
-                if (previousPageEntry) {
-                  capture("navigate_detail_pages:button_click_prev_or_next");
-                  navigateToEntry(previousPageEntry);
-                }
-              }}
-            >
-              <ChevronUp className="h-4 w-4" />
-              <span className="bg-primary/80 text-primary-foreground ml-1 h-4 w-4 rounded-sm text-xs shadow-xs">
-                K
-              </span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span>Navigate up</span>
-            <InputCommandShortcut className="bg-muted ml-2 rounded-sm p-1 px-2">
-              k
-            </InputCommandShortcut>
-          </TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              type="button"
-              className="p-2"
               disabled={!nextPageEntry}
               onClick={() => {
                 if (nextPageEntry) {
@@ -131,6 +103,34 @@ export const DetailPageNav = (props: {
             <span>Navigate down</span>
             <InputCommandShortcut className="bg-muted ml-2 rounded-sm p-1 px-2">
               j
+            </InputCommandShortcut>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              type="button"
+              className="p-2"
+              disabled={!previousPageEntry}
+              onClick={() => {
+                if (previousPageEntry) {
+                  capture("navigate_detail_pages:button_click_prev_or_next");
+                  navigateToEntry(previousPageEntry);
+                }
+              }}
+            >
+              <ChevronUp className="h-4 w-4" />
+              <span className="bg-primary/80 text-primary-foreground ml-1 h-4 w-4 rounded-sm text-xs shadow-xs">
+                K
+              </span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <span>Navigate up</span>
+            <InputCommandShortcut className="bg-muted ml-2 rounded-sm p-1 px-2">
+              k
             </InputCommandShortcut>
           </TooltipContent>
         </Tooltip>
