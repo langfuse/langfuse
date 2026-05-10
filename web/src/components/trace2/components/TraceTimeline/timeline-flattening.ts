@@ -82,22 +82,32 @@ export function flattenTreeWithTimelineMetrics(
 
     // Handle first token time for streaming LLMs (completionStartTime)
     // This is stored on observations that have streaming responses
-    const firstTokenTimeOffset =
+    const hasCompletionStart =
       "completionStartTime" in currentNode &&
-      currentNode.completionStartTime instanceof Date
-        ? calculateTimelineOffset(
-            currentNode.completionStartTime,
-            traceStartTime,
-            totalScaleSpan,
-            scaleWidth,
-          )
-        : undefined;
+      currentNode.completionStartTime instanceof Date;
+
+    const firstTokenTimeOffset = hasCompletionStart
+      ? calculateTimelineOffset(
+          currentNode.completionStartTime as Date,
+          traceStartTime,
+          totalScaleSpan,
+          scaleWidth,
+        )
+      : undefined;
+
+    // Time to first token in seconds (wall-clock from observation start to first token)
+    const timeToFirstToken = hasCompletionStart
+      ? ((currentNode.completionStartTime as Date).getTime() -
+          currentNode.startTime.getTime()) /
+        1000
+      : undefined;
 
     const metrics: TimelineMetrics = {
       startOffset,
       itemWidth,
       firstTokenTimeOffset,
       latency,
+      timeToFirstToken,
     };
 
     // Add current node to result
