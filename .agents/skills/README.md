@@ -108,15 +108,6 @@ Use for:
 
 Open: [clickhouse-best-practices/SKILL.md](clickhouse-best-practices/SKILL.md)
 
-### debug-issue-with-datadog
-
-Use for:
-- root-causing Linear, GitHub, or incident reports with Datadog evidence
-- production debugging across APM spans, logs, metrics, and monitors
-- mapping observed error clusters back to Langfuse code paths
-
-Open: [debug-issue-with-datadog/SKILL.md](debug-issue-with-datadog/SKILL.md)
-
 ### pnpm-upgrade-package
 
 Use for:

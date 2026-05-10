@@ -34,9 +34,6 @@ evaluating, and debugging AI applications.
   `.agents/skills/add-model-price/SKILL.md`
 - Code review tasks:
   `.agents/skills/code-review/SKILL.md`
-- Debugging a Linear issue, GitHub issue, or incident report using Datadog
-  (APM, logs, metrics) to establish a root cause:
-  `.agents/skills/debug-issue-with-datadog/SKILL.md`
 - Measured bug or regression evidence that needs Linear deduplication, evidence
   comments, or Triage bug issue creation:
   `.agents/skills/linear-bug-triage/SKILL.md`

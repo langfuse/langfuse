@@ -70,9 +70,9 @@ Include the recent window and baseline window in each handoff to
 ## Datadog Sweep
 
 Before querying Datadog, load the relevant Datadog MCP guidance for logs,
-traces, metrics, and visualizations. Use the existing
-[`debug-issue-with-datadog`](../debug-issue-with-datadog/SKILL.md) playbook
-when you need query syntax, repo mapping, or trace drill-down patterns.
+traces, metrics, and visualizations. If the investigation needs infra context,
+switch to the private platform workspace where the Datadog debugging workflow
+can read both app and infrastructure code.
 
 For each environment, check:
 
