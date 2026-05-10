@@ -126,4 +126,15 @@ describe("useOrganizationSettingsPages", () => {
       true,
     );
   });
+
+  it("hides organization API key settings without admin-api entitlement", () => {
+    vi.mocked(useHasEntitlement).mockImplementation(() => false);
+    vi.mocked(useHasOrganizationAccess).mockReturnValue(true);
+
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+
+    expect(result.current.find((page) => page.slug === "api-keys")?.show).toBe(
+      false,
+    );
+  });
 });
