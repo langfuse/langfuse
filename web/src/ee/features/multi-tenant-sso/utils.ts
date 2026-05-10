@@ -38,7 +38,7 @@ let cachedSsoConfigs: {
 async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
   if (!multiTenantSsoAvailable) return [];
 
-  const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+  const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
   const FAILEDTOFETCH_RETRY_AFTER = 60 * 1000; // 1 minute
   const DB_MAX_WAIT = 2 * 1000; // 2 seconds
   const DB_TIMEOUT = 3 * 1000; // 3 seconds

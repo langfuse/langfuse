@@ -644,6 +644,54 @@ describe("SCIM API", () => {
         expect(duplicateResult.status).toBe(409);
         expect(duplicateResult.body.detail).toContain("already exists");
       });
+
+      it("should return 409 when userName differs only by email case", async () => {
+        const localPart = `Mixed.Case.${randomUUID().substring(0, 8)}`;
+        const mixedCaseEmail = `${localPart}@Example.com`;
+        const lowerCaseEmail = `${localPart.toLowerCase()}@example.com`;
+
+        // Create with mixed-case userName
+        const createResponse = await makeAPICall(
+          "POST",
+          "/api/public/scim/Users",
+          {
+            userName: mixedCaseEmail,
+            name: {
+              formatted: "Test User",
+            },
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        expect(createResponse.status).toBe(201);
+        testUserId = createResponse.body.id;
+
+        // The stored user email should be lowercased
+        const storedUser = await prisma.user.findUnique({
+          where: { id: testUserId },
+        });
+        expect(storedUser?.email).toBe(lowerCaseEmail);
+
+        // Re-POST with a case-variant userName: must be detected as duplicate
+        const duplicateResult = await makeAPICall(
+          "POST",
+          "/api/public/scim/Users",
+          {
+            userName: lowerCaseEmail,
+            name: {
+              formatted: "Another User",
+            },
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        expect(duplicateResult.status).toBe(409);
+        expect(duplicateResult.body.detail).toContain("already exists");
+
+        // No duplicate org membership should have been created
+        const orgMemberships = await prisma.organizationMembership.findMany({
+          where: { userId: testUserId, orgId },
+        });
+        expect(orgMemberships.length).toBe(1);
+      });
     });
 
     describe("GET /api/public/scim/Users/{id}", () => {
