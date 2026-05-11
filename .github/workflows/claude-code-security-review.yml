@@ -20,10 +20,11 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 2
+          persist-credentials: false
 
       - name: Patch Claude API validation model
         shell: bash
@@ -33,15 +34,16 @@ jobs:
           from pathlib import Path
 
           runner_workspace = Path(os.environ["RUNNER_WORKSPACE"])
-          action_path = (
+          action_root = (
               runner_workspace.parent
               / "_actions"
               / "anthropics"
               / "claude-code-security-review"
-              / "main"
-              / "claudecode"
-              / "claude_api_client.py"
           )
+          matches = list(action_root.glob("*/claudecode/claude_api_client.py"))
+          if len(matches) != 1:
+              raise SystemExit(f"Expected one Claude API client under {action_root}, found {len(matches)}")
+          action_path = matches[0]
           source = action_path.read_text()
           old = 'model="claude-3-5-haiku-20241022",'
           new = "model=self.model,"
@@ -51,7 +53,7 @@ jobs:
           PY
 
       - name: Run Claude Code security review
-        uses: anthropics/claude-code-security-review@main
+        uses: anthropics/claude-code-security-review@0c6a49f1fa56a1d472575da86a94dbc1edb78eda # main, 2026-05-11
         with:
           claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
           claude-model: claude-opus-4-1-20250805
