@@ -156,24 +156,37 @@ function isToolCallLike(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
 
   const call = value as Record<string, unknown>;
+  if (call.type === "tool-result") return false;
+
   const functionCall = call.function as Record<string, unknown> | undefined;
-  const hasOpenAiShape = Boolean(functionCall?.name);
-  const hasAiSdkShape =
+  const hasOpenAiShape = Boolean(
+    functionCall?.name && "arguments" in functionCall,
+  );
+  const hasAiSdkToolCallShape =
     Boolean(call.toolName) &&
-    (["input", "args", "toolCallId"].some((key) => key in call) ||
-      call.type === "tool-call");
-  const hasResponsesShape = Boolean(call.call_id && call.name);
-  const hasArgumentsShape = ["arguments", "args", "input"].some(
-    (key) => key in call,
+    (call.type === "tool-call" || ["input", "args"].some((key) => key in call));
+  const hasResponsesShape = Boolean(
+    call.call_id && call.name && "arguments" in call,
   );
-  const hasKnownToolType = ["function", "tool-call", "tool_use"].includes(
-    String(call.type),
+  const hasAnthropicToolUseShape = Boolean(
+    call.type === "tool_use" && call.name && "input" in call,
   );
-  const hasNamedArguments =
-    Boolean(call.name) && (hasArgumentsShape || hasKnownToolType);
+  const hasToolCallMarker =
+    "id" in call ||
+    "index" in call ||
+    ["function", "function_call", "tool-call", "tool_use"].includes(
+      String(call.type),
+    );
+  const hasFlatToolCallShape = Boolean(
+    call.name && "arguments" in call && hasToolCallMarker,
+  );
 
   return (
-    hasOpenAiShape || hasAiSdkShape || hasResponsesShape || hasNamedArguments
+    hasOpenAiShape ||
+    hasAiSdkToolCallShape ||
+    hasResponsesShape ||
+    hasAnthropicToolUseShape ||
+    hasFlatToolCallShape
   );
 }
 
@@ -264,15 +277,13 @@ function extractToolCallsFromRawOutput(
 
   // Array of messages
   if (Array.isArray(output)) {
-    const isRawToolCallArray =
-      output.some(isToolCallLike) && !output.some(isMessageLike);
-
-    if (isRawToolCallArray) {
-      addToolArguments(args, output);
-    } else {
-      for (const msg of output) {
-        if (msg && typeof msg === "object") {
-          extractToolCallsFromMessage(msg as Record<string, unknown>, args);
+    for (const item of output) {
+      if (item && typeof item === "object") {
+        const obj = item as Record<string, unknown>;
+        if (isToolCallLike(obj) && !isMessageLike(obj)) {
+          addToolArgument(args, obj);
+        } else {
+          extractToolCallsFromMessage(obj, args);
         }
       }
     }

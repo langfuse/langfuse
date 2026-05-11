@@ -405,6 +405,35 @@ describe("extractToolsFromObservation", () => {
       });
     });
 
+    it("extracts mixed message and raw tool call arrays from ingestion output", () => {
+      const output = JSON.stringify([
+        {
+          role: "assistant",
+          content: "I'll check the weather.",
+        },
+        {
+          toolCallId: "tooluse_weather",
+          toolName: "getWeather",
+          input: {
+            location: "Berlin",
+            unit: "celsius",
+          },
+        },
+      ]);
+
+      const { toolArguments } = extractToolsFromObservation(null, output);
+
+      expect(toolArguments).toHaveLength(1);
+      expect(toolArguments[0]).toMatchObject({
+        id: "tooluse_weather",
+        name: "getWeather",
+        arguments: JSON.stringify({
+          location: "Berlin",
+          unit: "celsius",
+        }),
+      });
+    });
+
     it("does not treat arbitrary output arrays with id and name fields as tool calls", () => {
       const output = JSON.stringify([
         {
@@ -414,6 +443,60 @@ describe("extractToolsFromObservation", () => {
         {
           id: "weather_station_2",
           name: "San Francisco weather station",
+        },
+      ]);
+
+      const { toolArguments } = extractToolsFromObservation(null, output);
+
+      expect(toolArguments).toEqual([]);
+    });
+
+    it("does not treat AI SDK tool-result arrays as tool calls", () => {
+      // tool-result arrays are not treated as tool calls, they might not be caused
+      // because a model choose to call a tool, but might be externally caused
+      const output = JSON.stringify([
+        {
+          type: "tool-result",
+          toolCallId: "tooluse_weather",
+          toolName: "getWeather",
+          result: {
+            temperature: 19,
+          },
+        },
+      ]);
+
+      const { toolArguments } = extractToolsFromObservation(null, output);
+
+      expect(toolArguments).toEqual([]);
+    });
+
+    it("does not treat function definition arrays as tool calls", () => {
+      const output = JSON.stringify([
+        {
+          type: "function",
+          function: {
+            name: "getWeather",
+            parameters: {
+              type: "object",
+              properties: {
+                location: { type: "string" },
+              },
+            },
+          },
+        },
+      ]);
+
+      const { toolArguments } = extractToolsFromObservation(null, output);
+
+      expect(toolArguments).toEqual([]);
+    });
+
+    it("does not treat arbitrary output arrays with name and input fields as tool calls", () => {
+      const output = JSON.stringify([
+        {
+          id: "review_1",
+          name: "Alice",
+          input: "Great weather forecast.",
         },
       ]);
 
