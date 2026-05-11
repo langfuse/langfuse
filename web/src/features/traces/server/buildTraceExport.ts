@@ -57,13 +57,15 @@ const hasProjectAccess = (
 const getObservationRecordsForTrace = async (params: {
   traceId: string;
   projectId: string;
+  timestamp: Date;
   omitLargeFields: boolean;
 }) => {
-  const { traceId, projectId, omitLargeFields } = params;
+  const { traceId, projectId, timestamp, omitLargeFields } = params;
 
   return getObservationsForTraceFromEventsTable({
     traceId,
     projectId,
+    timestamp,
     selectIOAndMetadata: !omitLargeFields,
     selectToolData: !omitLargeFields,
   });
@@ -72,13 +74,20 @@ const getObservationRecordsForTrace = async (params: {
 const getObservationRecordCountForTrace = async (params: {
   traceId: string;
   projectId: string;
+  timestamp: Date;
 }) => {
-  const { traceId, projectId } = params;
+  const { traceId, projectId, timestamp } = params;
 
   return getObservationsCountFromEventsTable({
     projectId,
     filter: [
       { type: "string", operator: "=", column: "traceId", value: traceId },
+      {
+        type: "datetime",
+        operator: ">=",
+        column: "startTime",
+        value: new Date(timestamp.getTime() - 60 * 60 * 1000),
+      },
     ],
   });
 };
@@ -160,12 +169,14 @@ export async function buildTraceExport({
   const observationRecordCount = await getObservationRecordCountForTrace({
     traceId,
     projectId,
+    timestamp: trace.timestamp,
   });
   const omitLargeFields =
     observationRecordCount >= TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD;
   const observationRecords = await getObservationRecordsForTrace({
     traceId,
     projectId,
+    timestamp: trace.timestamp,
     omitLargeFields,
   }).then((result) => result.observations);
 
@@ -203,7 +214,6 @@ export async function buildTraceExport({
     projectId: score.projectId,
     environment: score.environment,
     name: score.name,
-    value: score.value,
     source: score.source,
     authorUserId: score.authorUserId,
     comment: score.comment,
@@ -216,11 +226,19 @@ export async function buildTraceExport({
     sessionId: score.sessionId,
     datasetRunId: score.datasetRunId,
     observationId: score.observationId,
-    stringValue:
-      score.dataType === ScoreDataTypeEnum.CORRECTION
-        ? score.longStringValue
-        : (score.stringValue ?? null),
     dataType: score.dataType,
+    ...(score.dataType !== ScoreDataTypeEnum.TEXT && { value: score.value }),
+    ...(score.dataType === ScoreDataTypeEnum.CATEGORICAL ||
+    score.dataType === ScoreDataTypeEnum.BOOLEAN ||
+    score.dataType === ScoreDataTypeEnum.TEXT ||
+    score.dataType === ScoreDataTypeEnum.CORRECTION
+      ? {
+          stringValue:
+            score.dataType === ScoreDataTypeEnum.CORRECTION
+              ? score.longStringValue
+              : (score.stringValue ?? null),
+        }
+      : {}),
   }));
 
   const observations = observationRecords.map((record) => {
@@ -270,7 +288,7 @@ export async function buildTraceExport({
             toolCalls: record.toolCalls ?? [],
             input: record.input,
             output: record.output,
-            metadata: JSON.stringify(record.metadata ?? {}),
+            metadata: record.metadata ?? {},
           }
         : {}),
     };

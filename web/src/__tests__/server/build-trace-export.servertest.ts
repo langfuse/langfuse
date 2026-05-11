@@ -49,6 +49,10 @@ vi.mock("../../server/adminAccessWebhook", () => ({
 
 const projectId = "project-1";
 const traceId = "trace-1";
+const traceTimestamp = new Date("2024-01-01T00:00:00.000Z");
+const observationStartTimeFilter = new Date(
+  traceTimestamp.getTime() - 60 * 60 * 1000,
+);
 
 const makeSession = (overrides?: {
   admin?: boolean;
@@ -68,7 +72,7 @@ const makeSession = (overrides?: {
 const makeTrace = (overrides?: Record<string, unknown>) => ({
   id: traceId,
   name: "Trace 1",
-  timestamp: new Date("2024-01-01T00:00:00.000Z"),
+  timestamp: traceTimestamp,
   environment: "default",
   tags: [],
   bookmarked: false,
@@ -186,11 +190,18 @@ describe("buildTraceExport", () => {
       projectId,
       filter: [
         { type: "string", operator: "=", column: "traceId", value: traceId },
+        {
+          type: "datetime",
+          operator: ">=",
+          column: "startTime",
+          value: observationStartTimeFilter,
+        },
       ],
     });
     expect(mockGetObservationsForTraceFromEventsTable).toHaveBeenCalledWith({
       traceId,
       projectId,
+      timestamp: traceTimestamp,
       selectIOAndMetadata: true,
       selectToolData: true,
     });
@@ -198,7 +209,7 @@ describe("buildTraceExport", () => {
     expect(mockGetScoresAndCorrectionsForTraces).toHaveBeenCalledWith({
       projectId,
       traceIds: [traceId],
-      timestamp: makeTrace().timestamp,
+      timestamp: traceTimestamp,
     });
     expect(result.scores[0]).not.toHaveProperty("longStringValue");
     expect(result.scores[0]).not.toHaveProperty("queueId");
@@ -208,7 +219,7 @@ describe("buildTraceExport", () => {
         expect.objectContaining({
           id: "score-1",
           traceId,
-          stringValue: null,
+          value: 1,
           dataType: "NUMERIC",
         }),
       ],
@@ -248,12 +259,40 @@ describe("buildTraceExport", () => {
         id: "score-1",
         traceId,
         dataType: "CORRECTION",
+        value: 0,
         stringValue: "corrected output",
       }),
     ]);
     expect(result.scores[0]).not.toHaveProperty("longStringValue");
     expect(result.scores[0]).not.toHaveProperty("queueId");
     expect(result.scores[0]).not.toHaveProperty("executionTraceId");
+  });
+
+  it("keeps text score content in stringValue", async () => {
+    mockGetScoresAndCorrectionsForTraces.mockResolvedValue([
+      makeScore({
+        dataType: "TEXT",
+        value: 0,
+        stringValue: "helpful response",
+      }),
+    ]);
+
+    const result = await buildTraceExport({
+      traceId,
+      projectId,
+      session: makeSession(),
+    });
+
+    expect(result.scores).toEqual([
+      expect.objectContaining({
+        id: "score-1",
+        traceId,
+        dataType: "TEXT",
+        stringValue: "helpful response",
+      }),
+    ]);
+    expect(result.scores[0]).not.toHaveProperty("value");
+    expect(result.scores[0]).not.toHaveProperty("longStringValue");
   });
 
   it("omits IO, metadata, toolDefinitions, and toolCalls for large trace exports", async () => {
@@ -276,6 +315,7 @@ describe("buildTraceExport", () => {
     expect(mockGetObservationsForTraceFromEventsTable).toHaveBeenCalledWith({
       traceId,
       projectId,
+      timestamp: traceTimestamp,
       selectIOAndMetadata: false,
       selectToolData: false,
     });
