@@ -479,6 +479,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
           onChange: setPaginationState,
           state: paginationState,
         }}
+        cellPadding="comfortable"
       />
     </>
   );
