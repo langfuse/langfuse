@@ -501,6 +501,7 @@ export default function ObservationsEventsTable({
       projectId,
       filter: scoreFilters.forObservations(),
       fromTimestamp: dateRange?.from,
+      defaultHidden: true,
     });
   const { scoreColumns: traceScoreColumns, isLoading: isTraceColumnLoading } =
     useScoreColumns<EventsTableRow>({
@@ -509,6 +510,7 @@ export default function ObservationsEventsTable({
       filter: scoreFilters.forTraceLevel(),
       fromTimestamp: dateRange?.from,
       prefix: "Trace",
+      defaultHidden: true,
     });
 
   const { selectActionColumn } = TableSelectionManager<EventsTableRow>({
