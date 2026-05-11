@@ -6,7 +6,8 @@ description: |
   issues in Triage. Use when Codex has confirmed evidence from Datadog,
   benchmarks, traces, timings, flamegraphs, logs, or production measurements and
   needs Linear search, comments, labels, Datadog links, or bug ticket creation
-  without fix suggestions.
+  without fix suggestions, but only after a human has approved sharing the
+  findings in Linear.
 ---
 
 # Linear Bug Triage
@@ -14,6 +15,28 @@ description: |
 Use this skill after a bug or regression candidate has measured evidence. This
 skill owns Linear search, deduplication, evidence comments, and ticket creation;
 the calling skill owns deciding whether the signal is issue-worthy.
+
+## Human Approval Gate
+
+Before doing anything in Linear, first show the findings to the human in a
+compact markdown table and ask for explicit permission to share them in Linear.
+The table should include one row per candidate with:
+
+- Candidate / cluster name.
+- Environments.
+- Service and route/resource.
+- Recent window measurement.
+- Baseline measurement.
+- Delta / regression summary.
+- Key Datadog evidence links.
+- Proposed Linear action (`comment existing`, `create new`, or `none`).
+
+If the human does not explicitly approve, stop after presenting the table. Do
+not search Linear, do not comment on issues, and do not create issues.
+
+If this skill was invoked by `detect-prod-regressions` and that calling skill
+already showed the findings table and obtained explicit human approval for a
+Linear handoff, skip this gate and proceed directly to deduplication.
 
 ## Required Evidence
 
@@ -34,7 +57,7 @@ measurements alone.
 
 ## Deduplication
 
-Before creating a new issue:
+After the human explicitly approves, before creating a new issue:
 
 1. Search Linear for related open issues using exact error text, route/resource,
    service, environment, monitor name, and Datadog link keywords.

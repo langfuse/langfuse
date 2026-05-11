@@ -479,6 +479,7 @@ export function PromptTable() {
                 onChange: setPaginationAndFolderState,
                 state: paginationState,
               }}
+              cellPadding="comfortable"
             />
           </div>
         </ResizableFilterLayout>

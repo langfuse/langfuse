@@ -177,6 +177,8 @@ signoff of user-visible changes.
 ## Package-Specific Rules
 
 - Router style is Pages Router-centric; follow existing routing patterns.
+- In `src/pages`, do not keep both `foo.ts(x)` and a `foo/` folder. If the
+  folder exists, put the route implementation in `foo/index.ts(x)` instead.
 - Keep tests independent; no reliance on test execution order.
 - Confirm the target `*.clienttest.*` or `*.servertest.*` file exists before passing a pattern to `vitest run`; source files do not always have a matching colocated test file.
 - When passing a Vitest file or pattern through `pnpm --filter web ...`, make it

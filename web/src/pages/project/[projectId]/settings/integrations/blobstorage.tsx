@@ -51,6 +51,8 @@ import {
   AnalyticsIntegrationExportSource,
   type BlobStorageIntegration,
   EXPORT_SOURCE_OPTIONS,
+  BLOB_EXPORT_FIELD_GROUPS,
+  type BlobExportFieldGroup,
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
@@ -260,6 +262,10 @@ const BlobStorageIntegrationSettingsForm = ({
         (isBetaEnabled
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportFieldGroups:
+        (state?.exportFieldGroups as BlobExportFieldGroup[]) ?? [
+          ...BLOB_EXPORT_FIELD_GROUPS,
+        ],
       compressed: state?.compressed ?? true,
     },
     disabled: isLoading,
@@ -290,6 +296,10 @@ const BlobStorageIntegrationSettingsForm = ({
         (isBetaEnabled
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportFieldGroups:
+        (state?.exportFieldGroups as BlobExportFieldGroup[]) ?? [
+          ...BLOB_EXPORT_FIELD_GROUPS,
+        ],
       compressed: state?.compressed ?? true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

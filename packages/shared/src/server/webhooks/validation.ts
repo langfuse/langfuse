@@ -9,6 +9,8 @@ import {
 export type WebhookValidationWhitelist = OutboundUrlValidationWhitelist;
 export { resolveHost };
 
+export const WEBHOOK_URL_VALIDATION_LOG_CONTEXT = "Webhook";
+
 export function whitelistFromEnv(): WebhookValidationWhitelist {
   return {
     hosts: env.LANGFUSE_WEBHOOK_WHITELISTED_HOST || [],
@@ -42,7 +44,7 @@ export async function validateWebhookURL(
   await validateOutboundUrlHost({
     url,
     whitelist,
-    logContext: "Webhook",
+    logContext: WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
     // Preserve the existing webhook behavior: public IP literals must still
     // pass the same DNS-resolution path as hostname destinations.
     shouldSkipDnsCheckForLiteralIps: false,

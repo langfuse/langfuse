@@ -17,6 +17,7 @@ import {
   validateWebhookURL,
   whitelistFromEnv,
   fetchWithSecureRedirects,
+  WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
 } from "@langfuse/shared/src/server";
 import {
   TQueueJobTypes,
@@ -164,6 +165,7 @@ async function executeHttpAction({
                 redirectValidation: {
                   validateUrl: validateWebhookURL,
                   whitelist,
+                  logContext: WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
                 },
                 additionalSensitiveHeaders,
               };
