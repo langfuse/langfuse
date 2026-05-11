@@ -1,6 +1,11 @@
-import { Wrench } from "lucide-react";
+import { AlertTriangle, Wrench } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import type { z } from "zod";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 
@@ -8,12 +13,14 @@ interface ToolCallInvocationsViewProps {
   message: z.infer<typeof ChatMlMessageSchema>;
   toolCallNumbers?: number[];
   className?: string;
+  toolNamesWithExtractionWarning?: Set<string>;
 }
 
 export function ToolCallInvocationsView({
   message,
   toolCallNumbers,
   className,
+  toolNamesWithExtractionWarning,
 }: ToolCallInvocationsViewProps) {
   const toolCalls = message.tool_calls;
 
@@ -25,6 +32,16 @@ export function ToolCallInvocationsView({
     <div className={cn("flex flex-col gap-2", className)}>
       {toolCalls.map((toolCall, index) => {
         const invocationNumber = toolCallNumbers?.[index];
+        const aiSdkToolCall = toolCall as { toolName?: unknown };
+        const toolCallName =
+          typeof toolCall.name === "string"
+            ? toolCall.name
+            : typeof aiSdkToolCall.toolName === "string"
+              ? aiSdkToolCall.toolName
+              : undefined;
+        const showExtractionWarning =
+          toolCallName !== undefined &&
+          Boolean(toolNamesWithExtractionWarning?.has(toolCallName));
         // Parse arguments if they're a JSON string
         let parsedArguments = toolCall.arguments;
         if (typeof toolCall.arguments === "string") {
@@ -56,8 +73,27 @@ export function ToolCallInvocationsView({
                   {invocationNumber !== undefined && (
                     <span className="mr-1">{invocationNumber}.</span>
                   )}
-                  {toolCall.name}
+                  {toolCallName ?? toolCall.name}
                 </span>
+                {showExtractionWarning && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        aria-label="Tool call was not extracted at ingestion"
+                        className="inline-flex"
+                        tabIndex={0}
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs">
+                      This tool call was rendered from raw input/output, but its
+                      tool definition name was not extracted into analytics
+                      columns at ingestion time. Tool filters and dashboards may
+                      not include it.
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </div>
 
               {/* Right: Call ID if available */}

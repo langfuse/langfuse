@@ -26,9 +26,14 @@ import type {
   ParseResponse,
 } from "@/src/workers/json-parser.worker";
 
-type ObservationWithStringifiedIO = ObservationReturnTypeWithMetadata & {
+type ObservationWithStringifiedIO = Omit<
+  ObservationReturnTypeWithMetadata,
+  "traceId"
+> & {
+  traceId: string | null;
   input: string | null;
   output: string | null;
+  toolDefinitionNames: string[];
 };
 
 type ParsedObservationResult =
@@ -112,6 +117,10 @@ interface ParsedData {
   metadata: unknown;
   parseTime: number;
 }
+
+const getToolDefinitionNames = (
+  toolDefinitions?: Record<string, unknown> | null,
+): string[] => (toolDefinitions ? Object.keys(toolDefinitions) : []);
 
 /**
  * Sync parse helper - used for small payloads or when Web Worker unavailable
@@ -246,13 +255,22 @@ export function useParsedObservation({
           output: eventsQuery.data.output,
           // Stringify metadata to match ObservationReturnTypeWithMetadata format
           metadata: stringifyMetadata(eventsQuery.data.metadata),
+          toolDefinitionNames: eventsQuery.data.toolDefinitionNames,
         } satisfies ObservationWithStringifiedIO;
       }
       // No base observation provided: return partial events data with safe stringified I/O.
       return eventsQuery.data;
     }
-    // Beta OFF: return full observation from observations table
-    return observationQuery.data;
+    // Beta OFF: return full observation from observations table with canonical
+    // tool definition names for frontend extraction diffing.
+    return observationQuery.data
+      ? ({
+          ...observationQuery.data,
+          toolDefinitionNames: getToolDefinitionNames(
+            observationQuery.data.toolDefinitions,
+          ),
+        } satisfies ObservationWithStringifiedIO)
+      : undefined;
   }, [isBetaEnabled, baseObservation, eventsQuery.data, observationQuery.data]);
 
   // TODO: remove when going into prod
