@@ -72,6 +72,24 @@ Use for:
 
 Open: [code-review/SKILL.md](code-review/SKILL.md)
 
+### detect-prod-regressions
+
+Use for:
+- proactive Datadog sweeps across `prod-us`, `prod-eu`, `prod-hipaa`, and `prod-jp`
+- comparing recent production errors, logs, spans, and API latency to baselines
+- handing measured regressions to `linear-bug-triage` for Linear issues or comments
+
+Open: [detect-prod-regressions/SKILL.md](detect-prod-regressions/SKILL.md)
+
+### linear-bug-triage
+
+Use for:
+- deduplicating measured bug or regression evidence against Linear
+- creating new Linear bug issues in `Triage` with `bug` and related labels
+- adding concise evidence comments to related existing Linear issues
+
+Open: [linear-bug-triage/SKILL.md](linear-bug-triage/SKILL.md)
+
 ### changelog-writing
 
 Use for:
@@ -80,6 +98,24 @@ Use for:
 - checking related docs links for changelog posts
 
 Open: [changelog-writing/SKILL.md](changelog-writing/SKILL.md)
+
+### clickhouse-best-practices
+
+Use for:
+- ClickHouse schema, query, or configuration review
+- ClickHouse migrations under `packages/shared/clickhouse/**`
+- applying the repo-specific ClickHouse rules layered on top of upstream best practices
+
+Open: [clickhouse-best-practices/SKILL.md](clickhouse-best-practices/SKILL.md)
+
+### debug-issue-with-datadog
+
+Use for:
+- root-causing Linear, GitHub, or incident reports with Datadog evidence
+- production debugging across APM spans, logs, metrics, and monitors
+- mapping observed error clusters back to Langfuse code paths
+
+Open: [debug-issue-with-datadog/SKILL.md](debug-issue-with-datadog/SKILL.md)
 
 ### pnpm-upgrade-package
 
@@ -91,6 +127,15 @@ Use for:
   current release-age gate
 
 Open: [pnpm-upgrade-package/SKILL.md](pnpm-upgrade-package/SKILL.md)
+
+### turborepo
+
+Use for:
+- `turbo.json` task graph, caching, filtering, or affected-run changes
+- root/package script organization for Turborepo workflows
+- monorepo package boundaries and shared-code layout decisions
+
+Open: [turborepo/SKILL.md](turborepo/SKILL.md)
 
 ## Adding a New Shared Skill
 

@@ -107,6 +107,7 @@
       "rollup@^4.0.0": "^4.22.4",
       "@types/node-fetch": "^2.6.13",
       "@types/react-dom": "19.2.3",
+      "fast-xml-builder": "1.1.7",
       "glob": "^10.5.0",
       "qs": "6.14.1",
       "path-to-regexp@0.1.12": "0.1.13",
