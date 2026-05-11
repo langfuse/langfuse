@@ -15,6 +15,7 @@ permissions:
 jobs:
   security-review:
     name: Security review
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -26,6 +27,15 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
+      - name: Checkout Claude Code security review action
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: anthropics/claude-code-security-review
+          ref: 0c6a49f1fa56a1d472575da86a94dbc1edb78eda
+          path: .github/actions/claude-code-security-review
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Patch Claude API validation model
         shell: bash
         run: |
@@ -33,17 +43,16 @@ jobs:
           import os
           from pathlib import Path
 
-          runner_workspace = Path(os.environ["RUNNER_WORKSPACE"])
-          action_root = (
-              runner_workspace.parent
-              / "_actions"
-              / "anthropics"
+          action_path = (
+              Path(os.environ["GITHUB_WORKSPACE"])
+              / ".github"
+              / "actions"
               / "claude-code-security-review"
+              / "claudecode"
+              / "claude_api_client.py"
           )
-          matches = list(action_root.glob("*/claudecode/claude_api_client.py"))
-          if len(matches) != 1:
-              raise SystemExit(f"Expected one Claude API client under {action_root}, found {len(matches)}")
-          action_path = matches[0]
+          if not action_path.exists():
+              raise SystemExit(f"Expected Claude API client not found at {action_path}")
           source = action_path.read_text()
           old = 'model="claude-3-5-haiku-20241022",'
           new = "model=self.model,"
@@ -53,7 +62,7 @@ jobs:
           PY
 
       - name: Run Claude Code security review
-        uses: anthropics/claude-code-security-review@0c6a49f1fa56a1d472575da86a94dbc1edb78eda # main, 2026-05-11
+        uses: ./.github/actions/claude-code-security-review
         with:
           claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
           claude-model: claude-opus-4-1-20250805
