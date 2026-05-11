@@ -43,6 +43,18 @@ Use for:
 
 Open: [analyze-cloud-costs/SKILL.md](analyze-cloud-costs/SKILL.md)
 
+### datadog-query-recipes
+
+Use for:
+- production telemetry research across `prod-us`, `prod-eu`, `prod-hipaa`,
+  and `prod-jp`
+- Datadog query recipes for spans, logs, metrics, tenants, public API usage,
+  and queue consumers
+- ad hoc measured questions where the task is not yet an incident root-cause
+  analysis
+
+Open: [datadog-query-recipes/SKILL.md](datadog-query-recipes/SKILL.md)
+
 ### frontend-browser-review
 
 Use for:
