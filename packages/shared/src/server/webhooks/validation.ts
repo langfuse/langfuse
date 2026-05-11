@@ -42,7 +42,6 @@ export async function validateWebhookURL(
   await validateOutboundUrlHost({
     url,
     whitelist,
-    shouldThrowIfDnsResolutionFails: true,
     logContext: "Webhook",
     // Preserve the existing webhook behavior: public IP literals must still
     // pass the same DNS-resolution path as hostname destinations.

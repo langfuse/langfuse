@@ -38,15 +38,42 @@ Current shape:
     "playwright": {
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"]
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--isolated",
+        "--save-trace",
+        "--output-dir",
+        ".playwright-mcp",
+        "--test-id-attribute",
+        "data-testid"
+      ]
     },
-    "datadog": {
+    "langfuse-docs": {
       "transport": "http",
-      "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp"
+      "url": "https://langfuse.com/api/mcp"
+    },
+    "linear": {
+      "transport": "http",
+      "url": "https://mcp.linear.app/mcp"
     }
   },
   "claude": {
-    "settings": {}
+    "settings": {
+      "permissions": {
+        "allow": [
+          "Bash(find:*)",
+          "Bash(rg:*)",
+          "Bash(grep:*)",
+          "Bash(ls:*)",
+          "Bash(cat:*)",
+          "Bash(head:*)",
+          "Bash(tail:*)"
+        ],
+        "deny": []
+      },
+      "enableAllProjectMcpServers": true
+    }
   },
   "codex": {
     "environment": {

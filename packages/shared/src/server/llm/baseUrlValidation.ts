@@ -44,7 +44,6 @@ export async function validateLlmConnectionBaseURL(
   await validateOutboundUrlHost({
     url,
     whitelist: effectiveWhitelist,
-    shouldThrowIfDnsResolutionFails: false,
     logContext: "LLM base URL",
     // Existing LLM validation accepts public IP literals after CIDR checks so
     // custom gateways are not forced through DNS at write time.

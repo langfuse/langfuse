@@ -183,11 +183,15 @@ export default async function handler(
         role = parsedRoles.data[0];
       }
 
-      // Check if user already exists
+      // Check if user already exists. Normalize the email to lowercase to
+      // stay consistent with the upsert below; otherwise a case-variant
+      // userName slips past the duplicate check and the upsert can collide
+      // with an existing user row.
+      const normalizedEmail = userName.toLowerCase();
       const existingUser = await prisma.organizationMembership.findMany({
         where: {
           user: {
-            email: userName,
+            email: normalizedEmail,
           },
           orgId: authCheck.scope.orgId,
         },
@@ -207,10 +211,10 @@ export default async function handler(
       // Create the user
       const user = await prisma.user.upsert({
         where: {
-          email: userName.toLowerCase(),
+          email: normalizedEmail,
         },
         create: {
-          email: userName.toLowerCase(),
+          email: normalizedEmail,
           name: name?.formatted || displayName,
           password: password ? await hashPassword(password) : undefined,
         },
