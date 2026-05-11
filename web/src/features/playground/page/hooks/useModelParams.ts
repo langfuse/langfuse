@@ -12,19 +12,13 @@ import { type ModelParamsContext } from "@/src/components/ModelParameters";
 import { getModelNameKey, getModelProviderKey } from "../storage/keys";
 
 type PromptConfigModel = {
+  selectionKey?: string;
   provider?: string;
   model: string;
 };
 
 type UseModelParamsOptions = {
   promptConfigModel?: PromptConfigModel | null;
-};
-
-type AvailableLlmApiKey = {
-  provider: string;
-  adapter: LLMAdapter;
-  customModels: string[];
-  withDefaultModels: boolean;
 };
 
 /**
@@ -65,68 +59,68 @@ export const useModelParams = (
     string | null
   >(modelProviderKey, null);
 
-  const llmApiKeys = useMemo(
-    () => availableLLMApiKeys.data?.data ?? [],
-    [availableLLMApiKeys.data?.data],
-  );
-
   const availableProviders = useMemo(() => {
-    return llmApiKeys.map((key) => key.provider);
-  }, [llmApiKeys]);
+    const adapter = availableLLMApiKeys.data?.data ?? [];
 
-  const selectedProviderApiKey = llmApiKeys.find(
+    return adapter.map((key) => key.provider) ?? [];
+  }, [availableLLMApiKeys.data?.data]);
+
+  const selectedProviderApiKey = availableLLMApiKeys.data?.data.find(
     (key) => key.provider === modelParams.provider.value,
   );
 
-  const resolveProviderForModel = useCallback(
-    ({ provider: providerOrAdapter, model }: PromptConfigModel) => {
-      const matchingApiKey = providerOrAdapter
-        ? (llmApiKeys.find(({ provider }) => provider === providerOrAdapter) ??
-          llmApiKeys.find(({ adapter }) => adapter === providerOrAdapter))
-        : llmApiKeys.find((apiKey) =>
-            getAvailableModels(apiKey).includes(model),
-          );
-
-      return matchingApiKey?.provider;
-    },
-    [llmApiKeys],
-  );
-
+  const promptConfigSelectionKey = options?.promptConfigModel?.selectionKey;
   const promptConfigProvider = options?.promptConfigModel?.provider;
   const promptConfigModel = options?.promptConfigModel?.model;
-  const resolvedPromptConfigProvider = promptConfigModel
-    ? resolveProviderForModel({
-        ...(promptConfigProvider ? { provider: promptConfigProvider } : {}),
-        model: promptConfigModel,
-      })
-    : undefined;
+  const resolvedPromptConfigProvider = useMemo(() => {
+    if (!promptConfigModel) return undefined;
 
-  const providerModelCombinations = useMemo(() => {
-    const combinations =
-      llmApiKeys.reduce((acc, v) => {
-        if (v.withDefaultModels) {
-          acc.push(
-            ...supportedModels[v.adapter].map((m) => `${v.provider}: ${m}`),
-          );
-        }
-        acc.push(...v.customModels.map((m) => `${v.provider}: ${m}`));
+    const apiKeys = availableLLMApiKeys.data?.data ?? [];
+    const matchingApiKey = promptConfigProvider
+      ? (apiKeys.find(({ provider }) => provider === promptConfigProvider) ??
+        apiKeys.find(({ adapter }) => adapter === promptConfigProvider))
+      : apiKeys.find(({ adapter, customModels, withDefaultModels }) =>
+          (withDefaultModels
+            ? customModels.concat(supportedModels[adapter])
+            : customModels
+          ).includes(promptConfigModel),
+        );
 
-        return acc;
-      }, [] as string[]) ?? [];
+    return matchingApiKey?.provider;
+  }, [availableLLMApiKeys.data?.data, promptConfigModel, promptConfigProvider]);
 
-    if (resolvedPromptConfigProvider && promptConfigModel) {
-      combinations.push(
-        `${resolvedPromptConfigProvider}: ${promptConfigModel}`,
-      );
-    }
+  const providerModelCombinations =
+    availableLLMApiKeys.data?.data.reduce((acc, v) => {
+      if (v.withDefaultModels) {
+        acc.push(
+          ...supportedModels[v.adapter].map((m) => `${v.provider}: ${m}`),
+        );
+      }
+      acc.push(...v.customModels.map((m) => `${v.provider}: ${m}`));
 
-    return [...new Set(combinations)];
-  }, [llmApiKeys, promptConfigModel, resolvedPromptConfigProvider]);
+      return acc;
+    }, [] as string[]) ?? [];
+
+  const promptConfigProviderModelCombination =
+    resolvedPromptConfigProvider && promptConfigModel
+      ? `${resolvedPromptConfigProvider}: ${promptConfigModel}`
+      : undefined;
+
+  if (
+    promptConfigProviderModelCombination &&
+    !providerModelCombinations.includes(promptConfigProviderModelCombination)
+  ) {
+    providerModelCombinations.push(promptConfigProviderModelCombination);
+  }
 
   const availableModels = useMemo(() => {
     if (!selectedProviderApiKey) return [];
 
-    const baseModels = getAvailableModels(selectedProviderApiKey);
+    const baseModels = selectedProviderApiKey.withDefaultModels
+      ? selectedProviderApiKey.customModels.concat(
+          supportedModels[selectedProviderApiKey.adapter],
+        )
+      : selectedProviderApiKey.customModels;
 
     const shouldAddModelFromPromptConfig =
       resolvedPromptConfigProvider === selectedProviderApiKey.provider &&
@@ -223,6 +217,26 @@ export const useModelParams = (
     persistedModelName,
   ]);
 
+  useEffect(() => {
+    if (
+      !promptConfigSelectionKey ||
+      !resolvedPromptConfigProvider ||
+      !promptConfigModel
+    ) {
+      return;
+    }
+
+    setModelParams((prev) => ({
+      ...prev,
+      provider: { value: resolvedPromptConfigProvider, enabled: true },
+      model: { value: promptConfigModel, enabled: true },
+    }));
+  }, [
+    promptConfigSelectionKey,
+    promptConfigModel,
+    resolvedPromptConfigProvider,
+  ]);
+
   // Update adapter, max temperature, temperature, max_tokens, top_p when provider changes
   useEffect(() => {
     if (selectedProviderApiKey?.adapter) {
@@ -271,7 +285,6 @@ export const useModelParams = (
     updateModelParamValue,
     setModelParamEnabled,
     providerModelCombinations,
-    resolveProviderForModel,
   };
 };
 
@@ -366,8 +379,3 @@ function getDefaultAdapterParams(
       };
   }
 }
-
-const getAvailableModels = (apiKey: AvailableLlmApiKey): string[] =>
-  apiKey.withDefaultModels
-    ? [...apiKey.customModels, ...supportedModels[apiKey.adapter]]
-    : apiKey.customModels;

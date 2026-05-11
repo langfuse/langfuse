@@ -27,18 +27,3 @@ export function getEnabledModelParamState(
     {},
   );
 }
-
-export function getDisabledModelParamState(
-  modelParams: UIModelParams,
-): Partial<UIModelParams> {
-  return {
-    max_tokens: { ...modelParams.max_tokens, enabled: false },
-    temperature: { ...modelParams.temperature, enabled: false },
-    top_p: { ...modelParams.top_p, enabled: false },
-    maxReasoningTokens: {
-      ...modelParams.maxReasoningTokens,
-      enabled: false,
-    },
-    providerOptions: { ...modelParams.providerOptions, enabled: false },
-  };
-}
