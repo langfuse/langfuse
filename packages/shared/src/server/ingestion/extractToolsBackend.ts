@@ -163,8 +163,8 @@ function isToolCallLike(value: unknown): boolean {
     (["input", "args", "toolCallId"].some((key) => key in call) ||
       call.type === "tool-call");
   const hasResponsesShape = Boolean(call.call_id && call.name);
-  const hasArgumentsShape = ["arguments", "args", "input"].some((key) =>
-    key in call,
+  const hasArgumentsShape = ["arguments", "args", "input"].some(
+    (key) => key in call,
   );
   const hasKnownToolType = ["function", "tool-call", "tool_use"].includes(
     String(call.type),
