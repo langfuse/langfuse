@@ -123,14 +123,17 @@ export const AnnotationQueueItemPage: React.FC<{
   const objectData = useAnnotationObjectData(relevantItem ?? null, projectId);
 
   useEffect(() => {
-    if (relevantItem && router.query.itemId !== relevantItem.id) {
-      router.replace(
+    if (relevantItem?.id && router.query.itemId !== relevantItem.id) {
+      const observation =
+        relevantItem.objectType === AnnotationQueueObjectType.OBSERVATION
+          ? relevantItem.objectId
+          : undefined;
+      router.push(
         {
           pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${relevantItem.id}`,
-          query: router.query,
+          query: observation ? { observation } : undefined,
         },
         undefined,
-        { shallow: true },
       );
     }
   }, [relevantItem, router, projectId, annotationQueueId]);
