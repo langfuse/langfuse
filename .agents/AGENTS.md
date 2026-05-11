@@ -25,6 +25,9 @@ evaluating, and debugging AI applications.
 
 - Architecture principles for high-scale observability and wide event data:
   `.agents/ARCHITECTURE_PRINCIPLES.md`
+- Langfuse org navigation, cross-repo context, or when context/skills from
+  other Langfuse codebases may be required:
+  use the `langfuse-codebase-navigator` skill.
 - Repo-wide agent setup, `.agents/**`, provider shims, or MCP/bootstrap config:
   `.agents/README.md`,
   `.agents/skills/agent-setup-maintenance/SKILL.md`
