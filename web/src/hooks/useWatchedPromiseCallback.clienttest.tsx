@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 const createDeferred = <T,>() => {
@@ -17,7 +18,7 @@ const createDeferred = <T,>() => {
 describe("useWatchedPromiseCallback", () => {
   it("tracks loading state and reuses the in-flight promise", async () => {
     const deferred = createDeferred<string>();
-    const callback = jest.fn().mockReturnValue(deferred.promise);
+    const callback = vi.fn().mockReturnValue(deferred.promise);
 
     const { result } = renderHook(() =>
       useWatchedPromiseCallback(callback, []),
@@ -48,7 +49,7 @@ describe("useWatchedPromiseCallback", () => {
 
   it("clears loading state after a rejection", async () => {
     const deferred = createDeferred<string>();
-    const callback = jest.fn().mockReturnValue(deferred.promise);
+    const callback = vi.fn().mockReturnValue(deferred.promise);
 
     const { result } = renderHook(() =>
       useWatchedPromiseCallback(callback, []),
@@ -75,7 +76,7 @@ describe("useWatchedPromiseCallback", () => {
   it("allows a new invocation after the previous promise resolves", async () => {
     const firstDeferred = createDeferred<string>();
     const secondDeferred = createDeferred<string>();
-    const callback = jest
+    const callback = vi
       .fn()
       .mockReturnValueOnce(firstDeferred.promise)
       .mockReturnValueOnce(secondDeferred.promise);
@@ -122,7 +123,7 @@ describe("useWatchedPromiseCallback", () => {
 
   it("clears loading state correctly in Strict Mode", async () => {
     const deferred = createDeferred<string>();
-    const callback = jest.fn().mockReturnValue(deferred.promise);
+    const callback = vi.fn().mockReturnValue(deferred.promise);
 
     const { result } = renderHook(
       () => useWatchedPromiseCallback(callback, []),

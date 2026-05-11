@@ -1,20 +1,30 @@
 import { LangfuseNotFoundError, UnauthorizedError } from "@langfuse/shared";
 import { env } from "@langfuse/shared/src/env";
+import { beforeEach, afterAll, describe, expect, it, vi } from "vitest";
 import {
   buildTraceExport,
   TraceDownloadTooLargeError,
   type TraceExportSession,
 } from "@/src/features/traces/server/buildTraceExport";
 
-const mockGetTraceById = jest.fn();
-const mockGetObservationsCountFromEventsTable = jest.fn();
-const mockGetObservationsForTraceFromEventsTable = jest.fn();
-const mockGetScoresAndCorrectionsForTraces = jest.fn();
-const mockTraceSessionFindFirst = jest.fn();
-const mockSendAdminAccessWebhook = jest.fn();
+const {
+  mockGetTraceById,
+  mockGetObservationsCountFromEventsTable,
+  mockGetObservationsForTraceFromEventsTable,
+  mockGetScoresAndCorrectionsForTraces,
+  mockTraceSessionFindFirst,
+  mockSendAdminAccessWebhook,
+} = vi.hoisted(() => ({
+  mockGetTraceById: vi.fn(),
+  mockGetObservationsCountFromEventsTable: vi.fn(),
+  mockGetObservationsForTraceFromEventsTable: vi.fn(),
+  mockGetScoresAndCorrectionsForTraces: vi.fn(),
+  mockTraceSessionFindFirst: vi.fn(),
+  mockSendAdminAccessWebhook: vi.fn(),
+}));
 
-jest.mock("@langfuse/shared/src/server", () => ({
-  ...jest.requireActual("@langfuse/shared/src/server"),
+vi.mock("@langfuse/shared/src/server", async () => ({
+  ...(await vi.importActual("@langfuse/shared/src/server")),
   getTraceById: (...args: unknown[]) => mockGetTraceById(...args),
   getObservationsCountFromEventsTable: (...args: unknown[]) =>
     mockGetObservationsCountFromEventsTable(...args),
@@ -24,7 +34,7 @@ jest.mock("@langfuse/shared/src/server", () => ({
     mockGetScoresAndCorrectionsForTraces(...args),
 }));
 
-jest.mock("@langfuse/shared/src/db", () => ({
+vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
     traceSession: {
       findFirst: (...args: unknown[]) => mockTraceSessionFindFirst(...args),
@@ -32,7 +42,7 @@ jest.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-jest.mock("../../server/adminAccessWebhook", () => ({
+vi.mock("../../server/adminAccessWebhook", () => ({
   sendAdminAccessWebhook: (...args: unknown[]) =>
     mockSendAdminAccessWebhook(...args),
 }));
@@ -147,7 +157,7 @@ describe("buildTraceExport", () => {
     env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES =
       originalObservationLimit;
     mockGetTraceById.mockResolvedValue(makeTrace());

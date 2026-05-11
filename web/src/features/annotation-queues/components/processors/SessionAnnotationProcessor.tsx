@@ -9,7 +9,7 @@ import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
+import { CopyIdsPopover } from "@/src/components/trace/components/_shared/CopyIdsPopover";
 import { Badge } from "@/src/components/ui/badge";
 import { Separator } from "@/src/components/ui/separator";
 import Link from "next/link";

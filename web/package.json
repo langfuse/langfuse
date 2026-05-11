@@ -23,7 +23,9 @@
     "test:watch": "dotenv -e ../.env.test -e ../.env -- vitest --project client --project server --project in-source",
     "test:e2e": "dotenv -e ../.env.test -e ../.env -- playwright test --reporter=line",
     "test:e2e:server": "dotenv -e ../.env.test -e ../.env -- vitest run --project e2e-server",
-    "build-trace": "dotenv -e ../.env -- next internal trace .next/trace-turbopack"
+    "build-trace": "dotenv -e ../.env -- next internal trace .next/trace-turbopack",
+    "storybook": "dotenv -e ../.env -- storybook dev -p 6006",
+    "build-storybook": "dotenv -e ../.env -- storybook build"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
@@ -165,6 +167,9 @@
     "@playwright/test": "^1.57.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
+    "@storybook/addon-a11y": "^10.3.6",
+    "@storybook/addon-docs": "^10.3.6",
+    "@storybook/nextjs-vite": "^10.3.6",
     "@tailwindcss/forms": "^0.5.11",
     "@tailwindcss/postcss": "^4.2.2",
     "@testing-library/jest-dom": "^6.4.6",
@@ -183,11 +188,14 @@
     "dotenv-cli": "^7.4.2",
     "eslint": "^9.39.2",
     "eslint-config-next": "16.2.6",
+    "eslint-plugin-storybook": "^10.3.6",
     "node-mocks-http": "^1.17.2",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.7.2",
+    "storybook": "^10.3.6",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.7.2",
+    "vite": "^7.0.5",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.4",
     "wait-for-expect": "^3.0.2"

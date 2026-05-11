@@ -1,20 +1,23 @@
-/** @jest-environment node */
+/** @vitest-environment node */
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { LangfuseNotFoundError, UnauthorizedError } from "@langfuse/shared";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import handler from "../../pages/api/traces/[traceId]/download";
 import { TraceDownloadTooLargeError } from "../../features/traces/server/buildTraceExport";
 
-const mockGetServerAuthSession = jest.fn();
-const mockBuildTraceExport = jest.fn();
+const { mockGetServerAuthSession, mockBuildTraceExport } = vi.hoisted(() => ({
+  mockGetServerAuthSession: vi.fn(),
+  mockBuildTraceExport: vi.fn(),
+}));
 
-jest.mock("../../server/auth", () => ({
+vi.mock("../../server/auth", () => ({
   getServerAuthSession: (...args: unknown[]) =>
     mockGetServerAuthSession(...args),
 }));
 
-jest.mock("../../features/traces/server/buildTraceExport", () => ({
-  ...jest.requireActual("../../features/traces/server/buildTraceExport"),
+vi.mock("../../features/traces/server/buildTraceExport", async () => ({
+  ...(await vi.importActual("../../features/traces/server/buildTraceExport")),
   buildTraceExport: (...args: unknown[]) => mockBuildTraceExport(...args),
 }));
 
@@ -28,7 +31,7 @@ const createGetMocks = (query: Record<string, string | string[] | undefined>) =>
 
 describe("GET /api/traces/[traceId]/download", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockGetServerAuthSession.mockResolvedValue({
       user: {
         email: "test@example.com",
