@@ -257,6 +257,7 @@ export async function buildTraceExport({
       level: record.level ?? null,
       traceName: record.traceName ?? trace.name ?? "",
       statusMessage: record.statusMessage ?? null,
+      release: record.release ?? null,
       version: record.version ?? null,
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
