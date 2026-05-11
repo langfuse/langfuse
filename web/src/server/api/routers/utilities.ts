@@ -85,6 +85,8 @@ const fetchImageUrlWithSecureRedirects = async (
           );
         }
       },
+      whitelist: IMAGE_URL_VALIDATION_OPTIONS.whitelist,
+      logContext: IMAGE_URL_VALIDATION_OPTIONS.logContext,
     },
   });
 

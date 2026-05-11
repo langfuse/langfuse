@@ -23,9 +23,17 @@ evaluating, and debugging AI applications.
 
 ## Start Here By Task
 
+- Architecture principles for high-scale observability and wide event data:
+  `.agents/ARCHITECTURE_PRINCIPLES.md`
+- Langfuse org navigation, cross-repo context, or when context/skills from
+  other Langfuse codebases may be required:
+  use the `langfuse-codebase-navigator` skill.
 - Repo-wide agent setup, `.agents/**`, provider shims, or MCP/bootstrap config:
   `.agents/README.md`,
   `.agents/skills/agent-setup-maintenance/SKILL.md`
+- Langfuse Cloud cost structure, infra spend, AWS/ClickHouse cost splits, or
+  Metabase cost marts:
+  `.agents/skills/analyze-cloud-costs/SKILL.md`
 - Backend/API work in `web/src/server/**`, `web/src/pages/api/public/**`,
   `worker/src/**`, or `packages/shared/src/**`:
   `.agents/skills/backend-dev-guidelines/SKILL.md`

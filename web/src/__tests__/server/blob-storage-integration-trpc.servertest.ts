@@ -11,6 +11,7 @@ import {
   QueueJobs,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
+import { BLOB_EXPORT_FIELD_GROUPS } from "@langfuse/shared";
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -121,6 +122,26 @@ const findAuditLog = async ({
 
 const parseAuditLogAfter = (after: string | null) =>
   after ? (JSON.parse(after) as Record<string, unknown>) : null;
+
+// Base config for tRPC update calls (exportFieldGroups tests).
+// exportSource EVENTS triggers field-group validation.
+const baseConfig = {
+  type: "S3" as const,
+  bucketName: "test-bucket",
+  endpoint: null,
+  region: "us-east-1",
+  accessKeyId: "AKIA123456789",
+  secretAccessKey: "secret123456789",
+  prefix: "exports/",
+  exportFrequency: "daily" as const,
+  enabled: true,
+  forcePathStyle: false,
+  fileType: "JSONL" as const,
+  exportMode: "FULL_HISTORY" as const,
+  exportStartDate: null,
+  compressed: true,
+  exportSource: "EVENTS" as const,
+};
 
 describe("Blob Storage Integration tRPC Router", () => {
   afterAll(async () => {
@@ -311,6 +332,64 @@ describe("Blob Storage Integration tRPC Router", () => {
       expect(result.success).toBe(true);
       expect(uploadWithSignedUrl).toHaveBeenCalledTimes(1);
       expect(auditLogCreateSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("exportFieldGroups", () => {
+    it("stores a custom subset and round-trips via get", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportFieldGroups: ["core", "io"],
+      });
+
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result?.exportFieldGroups).toStrictEqual(["core", "io"]);
+    });
+
+    it("defaults to all groups when exportFieldGroups is omitted", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+
+      const stored = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+      });
+      expect(stored?.exportFieldGroups).toStrictEqual([
+        ...BLOB_EXPORT_FIELD_GROUPS,
+      ]);
+    });
+
+    it("overwrites stored subset when a new subset is submitted", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportFieldGroups: ["core", "basic"],
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportFieldGroups: ["core", "io", "metrics"],
+      });
+
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result?.exportFieldGroups).toStrictEqual([
+        "core",
+        "io",
+        "metrics",
+      ]);
     });
   });
 });

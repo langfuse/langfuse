@@ -30,3 +30,19 @@ export const EXPORT_SOURCE_OPTIONS: Array<{
 
 export type ExportSourceOption = (typeof EXPORT_SOURCE_OPTIONS)[number];
 export type ExportSourceValue = ExportSourceOption["value"];
+
+export const BLOB_EXPORT_FIELD_GROUPS = [
+  "core",
+  "basic",
+  "time",
+  "io",
+  "metadata",
+  "model",
+  "usage",
+  "prompt",
+  "metrics",
+  "tools",
+  "trace_context",
+] as const;
+
+export type BlobExportFieldGroup = (typeof BLOB_EXPORT_FIELD_GROUPS)[number];
