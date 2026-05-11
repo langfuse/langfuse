@@ -6,16 +6,15 @@ description: |
   baseline benchmarks or traces across prod-us, prod-eu, prod-hipaa, and
   prod-jp. Use when asked to sweep production for new bugs, catch regressions
   early, catch low-occurrence coding bugs or edge cases, compare recent changes
-  to Datadog measurements, or hand measured production evidence to the
-  linear-bug-triage skill for Linear action.
+  to Datadog measurements, or prepare measured production evidence for human
+  review before any optional Linear handoff.
 ---
 
 # Detect Prod Regressions
 
 Run this skill as an evidence-first production sweep. The deliverable is a set
-of measured candidate bugs handed to
-[`linear-bug-triage`](../linear-bug-triage/SKILL.md) for Linear action, plus a
-short summary of what was checked.
+of measured candidate bugs summarized for a human reviewer in a compact table,
+plus a short summary of what was checked. Do not touch Linear automatically.
 
 ## Required Scope
 
@@ -64,8 +63,9 @@ Use the user's stated window when provided. Otherwise:
 3. If release or deployment markers, service versions, git SHAs, or change
    timestamps are visible, compare post-change versus pre-change windows.
 
-Include the recent window and baseline window in each handoff to
-`linear-bug-triage`.
+Include the recent window and baseline window in any later handoff to
+`linear-bug-triage` after the human explicitly approves sharing findings in
+Linear.
 
 ## Datadog Sweep
 
@@ -112,10 +112,37 @@ evidence.
 
 ## Linear Handoff
 
-For every confirmed candidate bug, use
+Before doing anything in Linear, show the human reviewer a findings table in
+chat and ask for permission to share the findings in Linear. The table should
+include one row per candidate with:
+
+- Candidate / cluster name.
+- Environments.
+- Service and route/resource.
+- Recent window measurement.
+- Baseline measurement.
+- Delta / regression summary.
+- Key evidence links.
+- Recommended Linear action (`comment existing`, `create new`, or `none`).
+
+Use a concrete markdown table shaped like this:
+
+```markdown
+| Candidate | Envs | Service / Route | Recent Window | Baseline | Delta | Evidence | Proposed Linear Action |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Public scores latency regression | prod-us | `web` `GET /api/public/v2/scores/index` | p95 `7.44s`, p99 `12.77s`, count `71,448` | p95 `4.34s`, p99 `6.60s`, count `26,024` | p95 `+72%`, p99 `+94%`, volume `+174%` | [metrics](https://app.datadoghq.com/) [spans](https://app.datadoghq.com/) [trace](https://app.datadoghq.com/) | comment existing |
+| ClickHouse socket hang up cluster | prod-us | `web-iso` `POST /` | errors `14,088` | errors `6,026` | `+134%` errors | [spans](https://app.datadoghq.com/) [trace](https://app.datadoghq.com/) | comment existing |
+| Ingestion DLQ monitor noise | prod-eu | `worker-cpu` `langfuse.queue.ingestion.dlq_length` | max `150` | max `150` | flat | [metrics](https://app.datadoghq.eu/) | none |
+```
+
+If a requested signal is unavailable, write `No measurements found` in the
+relevant cell instead of leaving it blank.
+
+Only if the human explicitly approves, use
 [`linear-bug-triage`](../linear-bug-triage/SKILL.md) for Linear search,
 deduplication, evidence comments, Triage issue creation, labels, and ticket
-formatting. Treat that skill as the source of truth for Linear behavior.
+formatting. Treat that skill as the source of truth for Linear behavior once
+approval is granted.
 
 Hand off:
 
@@ -131,8 +158,11 @@ Hand off:
 Summarize:
 
 - The windows compared and all prod environments checked.
-- New Linear issues created, with links.
-- Existing Linear issues commented on, with links.
+- The findings table shown to the human.
+- Whether the human approved sharing findings in Linear.
+- New Linear issues created, with links, only if approval was granted.
+- Existing Linear issues commented on, with links, only if approval was
+  granted.
 - Candidate signals skipped with "No measurements found".
 - A compact "no new bugs found" statement when no issue-worthy regressions were
   measured.

@@ -67,6 +67,7 @@ import {
   escapeSqlLikePattern,
   fetchWithSecureRedirects,
   whitelistFromEnv,
+  WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -1809,6 +1810,7 @@ export const datasetRouter = createTRPCRouter({
               redirectValidation: {
                 validateUrl: validateWebhookURL,
                 whitelist,
+                logContext: WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
               },
             },
           );

@@ -129,6 +129,80 @@ function addToolArgument(args: ClickhouseToolArgument[], call: unknown): void {
   });
 }
 
+function addToolArguments(
+  args: ClickhouseToolArgument[],
+  calls: unknown[] | undefined,
+): void {
+  if (!calls) return;
+
+  for (const call of calls) {
+    addToolArgument(args, call);
+  }
+}
+
+function parseArrayIfString(data: unknown): unknown[] | undefined {
+  if (Array.isArray(data)) return data;
+  if (typeof data !== "string") return undefined;
+
+  try {
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Detects model-requested tool invocations in unlabelled output arrays.
+ * Excludes available tool definitions and tool result payloads.
+ */
+function isToolCallLike(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+
+  const call = value as Record<string, unknown>;
+  if (call.type === "tool-result") return false;
+
+  const functionCall = call.function as Record<string, unknown> | undefined;
+  const hasOpenAiShape = Boolean(
+    functionCall?.name && "arguments" in functionCall,
+  );
+  const hasAiSdkToolCallShape =
+    Boolean(call.toolName) &&
+    (call.type === "tool-call" || ["input", "args"].some((key) => key in call));
+  const hasResponsesShape = Boolean(
+    call.call_id && call.name && "arguments" in call,
+  );
+  const hasAnthropicToolUseShape = Boolean(
+    call.type === "tool_use" && call.name && "input" in call,
+  );
+  const hasToolCallMarker =
+    "id" in call ||
+    "index" in call ||
+    ["function", "function_call", "tool-call", "tool_use"].includes(
+      String(call.type),
+    );
+  const hasFlatToolCallShape = Boolean(
+    call.name && "arguments" in call && hasToolCallMarker,
+  );
+
+  return (
+    hasOpenAiShape ||
+    hasAiSdkToolCallShape ||
+    hasResponsesShape ||
+    hasAnthropicToolUseShape ||
+    hasFlatToolCallShape
+  );
+}
+
+function isMessageLike(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+
+  const message = value as Record<string, unknown>;
+  return ["role", "content", "tool_calls", "additional_kwargs"].some(
+    (key) => key in message,
+  );
+}
+
 /**
  * Helper to add a tool call from content-array parts.
  * Handles Anthropic `tool_use` and AI SDK `tool-call` parts.
@@ -207,9 +281,14 @@ function extractToolCallsFromRawOutput(
 
   // Array of messages
   if (Array.isArray(output)) {
-    for (const msg of output) {
-      if (msg && typeof msg === "object") {
-        extractToolCallsFromMessage(msg as Record<string, unknown>, args);
+    for (const item of output) {
+      if (item && typeof item === "object") {
+        const obj = item as Record<string, unknown>;
+        if (isToolCallLike(obj) && !isMessageLike(obj)) {
+          addToolArgument(args, obj);
+        } else {
+          extractToolCallsFromMessage(obj, args);
+        }
       }
     }
     return;
@@ -219,11 +298,9 @@ function extractToolCallsFromRawOutput(
   const obj = output as Record<string, unknown>;
 
   // Direct tool_calls at top level
-  if (Array.isArray(obj.tool_calls)) {
-    for (const call of obj.tool_calls) {
-      addToolArgument(args, call);
-    }
-  }
+  const directToolCalls =
+    parseArrayIfString(obj.tool_calls) ?? parseArrayIfString(obj.toolCalls);
+  addToolArguments(args, directToolCalls);
 
   // OpenAI choices format: {choices: [{message: {tool_calls: [...]}}]}
   if (Array.isArray(obj.choices)) {
@@ -231,11 +308,10 @@ function extractToolCallsFromRawOutput(
       if (choice && typeof choice === "object") {
         const c = choice as Record<string, unknown>;
         const message = c.message as Record<string, unknown> | undefined;
-        if (message && Array.isArray(message.tool_calls)) {
-          for (const call of message.tool_calls) {
-            addToolArgument(args, call);
-          }
-        }
+        const messageToolCalls =
+          parseArrayIfString(message?.tool_calls) ??
+          parseArrayIfString(message?.toolCalls);
+        addToolArguments(args, messageToolCalls);
       }
     }
   }
@@ -259,11 +335,8 @@ function extractToolCallsFromRawOutput(
   const additionalKwargs = obj.additional_kwargs as
     | Record<string, unknown>
     | undefined;
-  if (additionalKwargs && Array.isArray(additionalKwargs.tool_calls)) {
-    for (const call of additionalKwargs.tool_calls) {
-      addToolArgument(args, call);
-    }
-  }
+  const additionalToolCalls = parseArrayIfString(additionalKwargs?.tool_calls);
+  addToolArguments(args, additionalToolCalls);
 }
 
 /**
@@ -273,11 +346,9 @@ function extractToolCallsFromMessage(
   msg: Record<string, unknown>,
   args: ClickhouseToolArgument[],
 ): void {
-  if (Array.isArray(msg.tool_calls)) {
-    for (const call of msg.tool_calls) {
-      addToolArgument(args, call);
-    }
-  }
+  const messageToolCalls =
+    parseArrayIfString(msg.tool_calls) ?? parseArrayIfString(msg.toolCalls);
+  addToolArguments(args, messageToolCalls);
 
   // Tool calls in content arrays: Anthropic `tool_use`, AI SDK `tool-call`
   if (Array.isArray(msg.content)) {
