@@ -45,6 +45,8 @@ evaluating, and debugging AI applications.
   `.agents/skills/detect-prod-regressions/SKILL.md`
 - Changelog drafting for completed feature branches:
   `.agents/skills/changelog-writing/SKILL.md`
+- Weekly changelog candidate review across app plus sibling Langfuse repos:
+  `.agents/skills/weekly-changelog-check/SKILL.md`
 - ClickHouse schema/query review:
   `.agents/skills/clickhouse-best-practices/SKILL.md`
 - Monorepo/Turbo task graph changes:

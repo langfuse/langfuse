@@ -99,6 +99,15 @@ Use for:
 
 Open: [changelog-writing/SKILL.md](changelog-writing/SKILL.md)
 
+### weekly-changelog-check
+
+Use for:
+- reviewing the previous week's cross-repo product work for changelog coverage
+- deciding whether to publish, update, or skip a changelog entry
+- checking whether an open PR in `langfuse/langfuse-docs` is already adding the changelog
+
+Open: [weekly-changelog-check/SKILL.md](weekly-changelog-check/SKILL.md)
+
 ### clickhouse-best-practices
 
 Use for:
