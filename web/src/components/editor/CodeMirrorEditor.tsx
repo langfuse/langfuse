@@ -6,18 +6,18 @@ import CodeMirror, {
   ViewPlugin,
   type ViewUpdate,
 } from "@uiw/react-codemirror";
-import { RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
+import {
+  EditorState,
+  RangeSetBuilder,
+  StateEffect,
+  StateField,
+} from "@codemirror/state";
 import { SearchQuery, search, setSearchQuery } from "@codemirror/search";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
-import {
-  useState,
-  useCallback,
-  type MutableRefObject,
-  type RefObject,
-} from "react";
+import { useState, useCallback, type RefObject } from "react";
 import { LanguageSupport, StreamLanguage } from "@codemirror/language";
 import type { StringStream } from "@codemirror/language";
 import {
@@ -304,6 +304,7 @@ const searchHighlightingSupport = StateField.define<DecorationSet>({
 export function applyCodeMirrorSearchQuery(
   editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
   searchValue: string,
+  matchRanges: { from: number; to: number }[],
 ) {
   const view = editorRef?.current?.view;
   if (!view) {
@@ -320,14 +321,6 @@ export function applyCodeMirrorSearchQuery(
     effects: setSearchQuery.of(searchQuery),
   });
 
-  const cursor = searchQuery.getCursor(view.state);
-  const matchRanges: { from: number; to: number }[] = [];
-  let current = cursor.next();
-  while (!current.done) {
-    matchRanges.push(current.value);
-    current = cursor.next();
-  }
-
   view.dispatch({
     effects: setSearchHighlightMarks.of(matchRanges),
   });
@@ -336,17 +329,23 @@ export function applyCodeMirrorSearchQuery(
 export function setActiveSearchMarkCodeMirrorRange(
   editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
   range: { from: number; to: number } | null,
+  { scrollIntoView = true }: { scrollIntoView?: boolean } = {},
 ) {
   const view = editorRef?.current?.view;
   if (!view || !range) {
     return;
   }
 
+  const effects: StateEffect<unknown>[] = [
+    setSelectedSearchHighlightMark.of(range),
+  ];
+
+  if (scrollIntoView) {
+    effects.push(EditorView.scrollIntoView(range.from));
+  }
+
   view.dispatch({
-    effects: [
-      setSelectedSearchHighlightMark.of(range),
-      EditorView.scrollIntoView(range.from),
-    ],
+    effects,
   });
 }
 
@@ -404,8 +403,7 @@ export function CodeMirrorEditor({
   const handleEditorRef = useCallback(
     (instance: ReactCodeMirrorRef | null) => {
       if (editorRef) {
-        (editorRef as MutableRefObject<ReactCodeMirrorRef | null>).current =
-          instance;
+        (editorRef as RefObject<ReactCodeMirrorRef | null>).current = instance;
       }
 
       if (instance) {
@@ -428,6 +426,10 @@ export function CodeMirrorEditor({
       }}
       lang={mode === "json" ? "json" : undefined}
       extensions={[
+        // Block document changes (including paste) when not editable; the
+        // `editable` DOM facet alone does not always prevent paste (see CM6
+        // EditorState.readOnly vs EditorView.editable).
+        ...(!editable ? [EditorState.readOnly.of(true)] : []),
         searchHighlightingSupport,
         search(),
         // RTL/bidi support - must be early for proper line decoration

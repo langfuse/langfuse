@@ -106,14 +106,14 @@ export const CategoricalEvalOutputDefinitionV2Schema = z
         switch (violation.type) {
           case "minimum_count":
             ctx.addIssue({
-              code: z.ZodIssueCode.custom,
+              code: "custom",
               message: getMinimumCategoricalCategoriesMessage(),
               path: ["score", "categories"],
             });
             return;
           case "duplicate_value":
             ctx.addIssue({
-              code: z.ZodIssueCode.custom,
+              code: "custom",
               message: "Categories must be unique",
               path: ["score", "categories", violation.index],
             });
@@ -293,7 +293,7 @@ function buildResultSchemaForResolvedOutputDefinition(
           .superRefine((categories, ctx) => {
             if (new Set(categories).size !== categories.length) {
               ctx.addIssue({
-                code: z.ZodIssueCode.custom,
+                code: "custom",
                 message: "Score categories must be unique",
               });
             }

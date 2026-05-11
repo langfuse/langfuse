@@ -50,6 +50,7 @@ export const APIObservation = z
     startTime: z.coerce.date(),
     endTime: z.coerce.date().nullable(),
     version: z.string().nullable(),
+    release: z.string().nullable().optional(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
     input: z.any(),
@@ -150,6 +151,11 @@ export const transformDbToApiObservation = (
 
     // exclude trace name, this will only be available on events api
     traceName,
+
+    // Exclude tags
+    tags,
+    traceTags,
+
     // Exclude tool data from public API (not yet released)
 
     toolDefinitions,
@@ -164,7 +170,14 @@ export const transformDbToApiObservation = (
 
     public: _public,
     ...rest
-  } = observation as EventsObservation & ObservationPriceFields;
+  } = observation as EventsObservation &
+    ObservationPriceFields & {
+      // The `tags` field is sometimes renamed to `traceTags` depending on context.
+      // Since `transformDbToApiObservation` is called from multiple sources,
+      // either `tags` or `traceTags` may exist on the input observation.
+      // This is not part of the standard `EventsObservation` type.
+      traceTags?: string[];
+    };
 
   return {
     ...rest,
@@ -363,7 +376,7 @@ export const GetObservationsV2Query = z.object({
 /**
  * Typed observation schema for v2 API responses.
  * Core fields are always present; other fields are optional depending on requested field groups.
- * Uses .passthrough() to allow server enrichment fields not explicitly listed.
+ * Uses .loose() to allow server enrichment fields not explicitly listed.
  */
 const APIObservationV2 = z
   .object({
@@ -421,7 +434,7 @@ const APIObservationV2 = z
     // Enrichment fields
     modelId: z.string().nullable().optional(),
   })
-  .passthrough();
+  .loose();
 
 export const GetObservationsV2Response = z
   .object({

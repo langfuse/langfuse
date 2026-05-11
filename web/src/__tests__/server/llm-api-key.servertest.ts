@@ -1,25 +1,25 @@
-/** @jest-environment node */
-
-jest.mock("@langfuse/shared/src/server", () => {
-  const actual = jest.requireActual("@langfuse/shared/src/server");
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
-    fetchLLMCompletion: jest.fn(),
+    fetchLLMCompletion: vi.fn(),
   };
 });
 
 import type { Session } from "next-auth";
-import { LLMAdapter } from "@langfuse/shared";
+import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
+import { AuthMethod } from "@/src/features/llm-api-key/types";
 import {
   createOrgProjectAndApiKey,
   fetchLLMCompletion,
 } from "@langfuse/shared/src/server";
 
-const mockFetchLLMCompletion = jest.mocked(fetchLLMCompletion);
+const mockFetchLLMCompletion = vi.mocked(fetchLLMCompletion);
 
 describe("llmApiKey.all RPC", () => {
   let projectId: string;
@@ -108,7 +108,7 @@ describe("llmApiKey.all RPC", () => {
     const provider = "openai";
     const adapter = LLMAdapter.OpenAI;
     const customModels = ["fancy-gpt-3.5-turbo"];
-    const baseURL = "https://custom.openai.com/v1";
+    const baseURL = "https://example.com/v1";
     const withDefaultModels = false;
 
     await caller.llmApiKey.create({
@@ -140,6 +140,49 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].displaySecretKey).toMatch(/^...[a-zA-Z0-9]{4}$/);
   });
 
+  it("should create a Bedrock llm api key with a Bedrock API key", async () => {
+    const secret = "bedrock-api-key-1234";
+
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: JSON.stringify({ apiKey: secret }),
+      provider: "bedrock",
+      adapter: LLMAdapter.Bedrock,
+      customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+      withDefaultModels: false,
+      config: { region: "us-east-1" },
+    });
+
+    const llmApiKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "bedrock",
+      },
+    });
+
+    expect(decrypt(llmApiKey.secretKey)).toBe(
+      JSON.stringify({
+        apiKey: secret,
+      }),
+    );
+    expect(llmApiKey.displaySecretKey).toBe("...1234");
+    expect(llmApiKey.config).toEqual({ region: "us-east-1" });
+  });
+
+  it("should reject creating a Bedrock key with invalid secret key JSON", async () => {
+    await expect(
+      caller.llmApiKey.create({
+        projectId,
+        secretKey: JSON.stringify({ unknownField: "value" }),
+        provider: "bedrock",
+        adapter: LLMAdapter.Bedrock,
+        customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+        withDefaultModels: false,
+        config: { region: "us-east-1" },
+      }),
+    ).rejects.toThrow("Invalid Bedrock credentials");
+  });
+
   it("should block creating an llm api key with a localhost base URL", async () => {
     await expect(
       caller.llmApiKey.create({
@@ -157,7 +200,7 @@ describe("llmApiKey.all RPC", () => {
     const provider = "openai";
     const adapter = LLMAdapter.OpenAI;
     const customModels = ["fancy-gpt-3.5-turbo"];
-    const baseURL = "https://custom.openai.com/v1";
+    const baseURL = "https://example.com/v1";
     const withDefaultModels = false;
 
     await caller.llmApiKey.create({
@@ -197,6 +240,87 @@ describe("llmApiKey.all RPC", () => {
     // response must not contain the secret key itself
     const secretKey = llmApiKeys[0].secretKey;
     expect(secretKey).toBeUndefined();
+  });
+
+  it("should derive the Bedrock auth method in llmApiKey.all without returning secrets", async () => {
+    await prisma.llmApiKeys.createMany({
+      data: [
+        {
+          projectId,
+          provider: "bedrock-access",
+          adapter: LLMAdapter.Bedrock,
+          secretKey: encrypt(
+            JSON.stringify({
+              accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+              secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            }),
+          ),
+          displaySecretKey: "...MPLE",
+          customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+          withDefaultModels: false,
+          extraHeaderKeys: [],
+          config: { region: "us-east-1" },
+        },
+        {
+          projectId,
+          provider: "bedrock-api",
+          adapter: LLMAdapter.Bedrock,
+          secretKey: encrypt(
+            JSON.stringify({
+              apiKey: "bedrock-api-key-1234",
+            }),
+          ),
+          displaySecretKey: "...1234",
+          customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+          withDefaultModels: false,
+          extraHeaderKeys: [],
+          config: { region: "us-east-1" },
+        },
+        {
+          projectId,
+          provider: "bedrock-default",
+          adapter: LLMAdapter.Bedrock,
+          secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
+          displaySecretKey: "Default AWS credentials",
+          customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+          withDefaultModels: false,
+          extraHeaderKeys: [],
+          config: { region: "us-east-1" },
+        },
+        {
+          projectId,
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("sk-test"),
+          displaySecretKey: "...test",
+          customModels: [],
+          withDefaultModels: true,
+          extraHeaderKeys: [],
+        },
+      ],
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+    });
+
+    expect(
+      llmApiKeys.find((key) => key.provider === "bedrock-access")?.authMethod,
+    ).toBe(AuthMethod.AccessKeys);
+    expect(
+      llmApiKeys.find((key) => key.provider === "bedrock-api")?.authMethod,
+    ).toBe(AuthMethod.ApiKey);
+    expect(
+      llmApiKeys.find((key) => key.provider === "bedrock-default")?.authMethod,
+    ).toBe(AuthMethod.DefaultCredentials);
+    expect(
+      llmApiKeys.find((key) => key.provider === "openai")?.authMethod,
+    ).toBeUndefined();
+    expect(
+      llmApiKeys.every(
+        (key) => key.secretKey === undefined && key.extraHeaders === undefined,
+      ),
+    ).toBe(true);
   });
 
   it("should require llmApiKeys:create access for testing a new llm api key", async () => {
@@ -366,13 +490,13 @@ describe("llmApiKey.all RPC", () => {
       provider: "openai",
       adapter: LLMAdapter.OpenAI,
       secretKey: "sk-rotated",
-      baseURL: "https://new-endpoint.example.com/v1",
+      baseURL: "https://example.net/v1",
     });
 
     expect(result).toEqual({ success: true });
     expect(mockFetchLLMCompletion).toHaveBeenCalledTimes(1);
     const llmConnection = mockFetchLLMCompletion.mock.calls[0][0].llmConnection;
-    expect(llmConnection.baseURL).toBe("https://new-endpoint.example.com/v1");
+    expect(llmConnection.baseURL).toBe("https://example.net/v1");
     expect(decrypt(llmConnection.secretKey)).toBe("sk-rotated");
     expect(llmConnection.extraHeaders).toBeUndefined();
   });
@@ -382,7 +506,7 @@ describe("llmApiKey.all RPC", () => {
     const provider = "openai";
     const adapter = LLMAdapter.OpenAI;
     const customModels = ["fancy-gpt-3.5-turbo"];
-    const baseURL = "https://custom.openai.com/v1";
+    const baseURL = "https://example.com/v1";
     const withDefaultModels = false;
 
     // Create initial key
@@ -415,7 +539,7 @@ describe("llmApiKey.all RPC", () => {
 
     // Update the key
     const newSecret = "new-test-secret";
-    const newBaseURL = "https://new-custom.openai.com/v1";
+    const newBaseURL = "https://example.org/v1";
     const newCustomModels = ["new-fancy-gpt-3.5-turbo"];
     const newWithDefaultModels = true;
 
@@ -448,12 +572,293 @@ describe("llmApiKey.all RPC", () => {
     expect(updatedKeys[0].withDefaultModels).toBe(newWithDefaultModels);
   });
 
+  it("should update a Bedrock Access key auth to a Bedrock API key", async () => {
+    const provider = "bedrock";
+
+    await caller.llmApiKey.create({
+      projectId,
+      provider,
+      adapter: LLMAdapter.Bedrock,
+      secretKey: JSON.stringify({
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      }),
+      customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+      withDefaultModels: false,
+      config: { region: "us-east-1" },
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider,
+      },
+    });
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider,
+      adapter: LLMAdapter.Bedrock,
+      secretKey: JSON.stringify({ apiKey: "bedrock-api-key-5678" }),
+      customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+      withDefaultModels: false,
+      config: { region: "eu-west-1" },
+    });
+
+    const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: { id: existingKey.id },
+    });
+
+    expect(decrypt(updatedKey.secretKey)).toBe(
+      JSON.stringify({
+        apiKey: "bedrock-api-key-5678",
+      }),
+    );
+    expect(updatedKey.displaySecretKey).toBe("...5678");
+    expect(updatedKey.config).toEqual({ region: "eu-west-1" });
+  });
+
+  it("should update a Bedrock API key auth to Access keys", async () => {
+    const provider = "bedrock";
+
+    await caller.llmApiKey.create({
+      projectId,
+      provider,
+      adapter: LLMAdapter.Bedrock,
+      secretKey: JSON.stringify({ apiKey: "bedrock-api-key-1234" }),
+      customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+      withDefaultModels: false,
+      config: { region: "us-east-1" },
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider },
+    });
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider,
+      adapter: LLMAdapter.Bedrock,
+      secretKey: JSON.stringify({
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      }),
+      customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+      withDefaultModels: false,
+      config: { region: "eu-west-1" },
+    });
+
+    const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: { id: existingKey.id },
+    });
+
+    expect(decrypt(updatedKey.secretKey)).toBe(
+      JSON.stringify({
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      }),
+    );
+    expect(updatedKey.displaySecretKey).toBe("...EKEY");
+    expect(updatedKey.config).toEqual({ region: "eu-west-1" });
+  });
+
+  it("should update a Bedrock DefaultCredentials key to explicit Access keys", async () => {
+    const provider = "bedrock";
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+    try {
+      // Simulate self-hosted to allow default credentials
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+      await caller.llmApiKey.create({
+        projectId,
+        provider,
+        adapter: LLMAdapter.Bedrock,
+        secretKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+        customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+        withDefaultModels: false,
+        config: { region: "us-east-1" },
+      });
+
+      const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider },
+      });
+
+      expect(decrypt(existingKey.secretKey)).toBe(
+        BEDROCK_USE_DEFAULT_CREDENTIALS,
+      );
+      expect(existingKey.displaySecretKey).toBe("Default AWS credentials");
+
+      await caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        provider,
+        adapter: LLMAdapter.Bedrock,
+        secretKey: JSON.stringify({
+          accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+          secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        }),
+        customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+        withDefaultModels: false,
+        config: { region: "eu-west-1" },
+      });
+
+      const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+        where: { id: existingKey.id },
+      });
+
+      expect(decrypt(updatedKey.secretKey)).toBe(
+        JSON.stringify({
+          accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+          secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        }),
+      );
+      expect(updatedKey.displaySecretKey).toBe("...EKEY");
+      expect(updatedKey.config).toEqual({ region: "eu-west-1" });
+    } finally {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+    }
+  });
+
+  it("should update a Bedrock DefaultCredentials key to a Bedrock API key", async () => {
+    const provider = "bedrock";
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+    try {
+      // Simulate self-hosted to allow default credentials
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+      await caller.llmApiKey.create({
+        projectId,
+        provider,
+        adapter: LLMAdapter.Bedrock,
+        secretKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+        customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+        withDefaultModels: false,
+        config: { region: "us-east-1" },
+      });
+
+      const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider },
+      });
+
+      await caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        provider,
+        adapter: LLMAdapter.Bedrock,
+        secretKey: JSON.stringify({ apiKey: "bedrock-api-key-9999" }),
+        customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+        withDefaultModels: false,
+        config: { region: "eu-west-1" },
+      });
+
+      const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+        where: { id: existingKey.id },
+      });
+
+      expect(decrypt(updatedKey.secretKey)).toBe(
+        JSON.stringify({ apiKey: "bedrock-api-key-9999" }),
+      );
+      expect(updatedKey.displaySecretKey).toBe("...9999");
+      expect(updatedKey.config).toEqual({ region: "eu-west-1" });
+    } finally {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+    }
+  });
+
+  it("should reject updating a Bedrock key back to DefaultCredentials on cloud", async () => {
+    const provider = "bedrock";
+
+    await caller.llmApiKey.create({
+      projectId,
+      provider,
+      adapter: LLMAdapter.Bedrock,
+      secretKey: JSON.stringify({
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      }),
+      customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+      withDefaultModels: false,
+      config: { region: "us-east-1" },
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider },
+    });
+
+    await expect(
+      caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        provider,
+        adapter: LLMAdapter.Bedrock,
+        secretKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+        customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+        withDefaultModels: false,
+        config: { region: "eu-west-1" },
+      }),
+    ).rejects.toThrow(
+      "Default AWS credentials are only allowed for Bedrock in self-hosted deployments",
+    );
+  });
+
+  it("should update a Bedrock Access key auth back to DefaultCredentials (self-hosted)", async () => {
+    const provider = "bedrock";
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+    await caller.llmApiKey.create({
+      projectId,
+      provider,
+      adapter: LLMAdapter.Bedrock,
+      secretKey: JSON.stringify({
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      }),
+      customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+      withDefaultModels: false,
+      config: { region: "us-east-1" },
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider },
+    });
+
+    try {
+      // Simulate self-hosted deployment where default credentials are allowed
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+      await caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        provider,
+        adapter: LLMAdapter.Bedrock,
+        secretKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+        customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+        withDefaultModels: false,
+        config: { region: "eu-west-1" },
+      });
+    } finally {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+    }
+
+    const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: { id: existingKey.id },
+    });
+
+    expect(decrypt(updatedKey.secretKey)).toBe(BEDROCK_USE_DEFAULT_CREDENTIALS);
+    expect(updatedKey.displaySecretKey).toBe("Default AWS credentials");
+    expect(updatedKey.config).toEqual({ region: "eu-west-1" });
+  });
+
   it("should update only the secret key", async () => {
     const secret = "test-secret";
     const provider = "openai";
     const adapter = LLMAdapter.OpenAI;
     const customModels = ["fancy-gpt-3.5-turbo"];
-    const baseURL = "https://custom.openai.com/v1";
+    const baseURL = "https://example.com/v1";
     const withDefaultModels = false;
 
     // Create initial key
@@ -516,7 +921,7 @@ describe("llmApiKey.all RPC", () => {
     const provider = "openai";
     const adapter = LLMAdapter.OpenAI;
     const customModels = ["fancy-gpt-3.5-turbo"];
-    const baseURL = "https://custom.openai.com/v1";
+    const baseURL = "https://example.com/v1";
     const withDefaultModels = false;
     const extraHeaders = {
       "X-Custom-Header": "custom-value",

@@ -106,7 +106,7 @@ export type SafeGitHubDispatchActionConfig = z.infer<
 
 export const GitHubDispatchActionCreateSchema = z.object({
   type: z.literal("GITHUB_DISPATCH"),
-  url: z.string().url().optional(), // Optional for updates, validated in helper
+  url: z.url().optional(), // Optional for updates, validated in helper
   eventType: z.string().min(1).max(100).optional(), // Optional for updates, validated in helper
   githubToken: z.string().optional(), // Optional for updates, validated in helper
 });

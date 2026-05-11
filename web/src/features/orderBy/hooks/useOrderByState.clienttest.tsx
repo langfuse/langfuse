@@ -1,3 +1,4 @@
+import type { Mock } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
 import { TestRouter } from "@/src/__tests__/fixtures/TestRouter";
@@ -9,8 +10,8 @@ import { QueryParamProvider } from "use-query-params";
 
 afterEach(cleanup);
 
-jest.mock("next/router", () => ({
-  useRouter: jest.fn(),
+vi.mock("next/router", () => ({
+  useRouter: vi.fn(),
 }));
 
 // The test for the useOrderByState hook
@@ -26,7 +27,7 @@ describe.skip("useOrderByState hook", () => {
   });
 
   beforeEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
     locationMock = new LocationMock("https://langfuse.com");
     testRouter = new TestRouter(locationMock);
     Object.defineProperty(window, "location", {
@@ -35,7 +36,7 @@ describe.skip("useOrderByState hook", () => {
       configurable: true,
     });
 
-    (useRouter as jest.Mock).mockReturnValue(testRouter);
+    (useRouter as Mock).mockReturnValue(testRouter);
   });
 
   test("orderBy takes the default value if no url param is given", () => {

@@ -1,7 +1,7 @@
 // Mock the problematic @langfuse/shared import before importing our functions
-jest.mock("@langfuse/shared", () => {
-  const actual = jest.requireActual("@langfuse/shared");
-  const { z } = require("zod");
+vi.mock("@langfuse/shared", async () => {
+  const actual = await vi.importActual("@langfuse/shared");
+  const { z } = (await vi.importActual("zod")) as any;
 
   const OpenAITextContentPart = z.object({
     type: z.literal("text"),
@@ -62,7 +62,7 @@ jest.mock("@langfuse/shared", () => {
         tool_calls: z.array(z.any()).optional(),
         tool_call_id: z.string().optional(),
       })
-      .passthrough(),
+      .loose(),
     isOpenAITextContentPart: (content: any) => {
       return OpenAITextContentPart.safeParse(content).success;
     },

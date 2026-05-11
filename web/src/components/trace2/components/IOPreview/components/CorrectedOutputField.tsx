@@ -1,4 +1,4 @@
-import { Pencil, Trash, FileDiff, Loader2, Check, Info } from "lucide-react";
+import { Pencil, Trash, FileDiff, Check, Info } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { type ScoreDomain } from "@langfuse/shared";
@@ -17,6 +17,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import Link from "next/link";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 interface CorrectedOutputFieldProps {
   projectId: string;
@@ -202,7 +203,7 @@ export function CorrectedOutputField({
                 )}
                 {isValidJson && saveStatus === "saving" && (
                   <div className="mr-2 flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <Spinner size="xxs" />
                     <span className="text-muted-foreground text-xs">
                       Saving
                     </span>

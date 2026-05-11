@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
+  AuthMethod,
   CreateLlmApiKey,
   UpdateLlmApiKey,
+  SafeLlmApiKeySchema,
+  type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -12,11 +15,11 @@ import {
 } from "@/src/server/api/trpc";
 import {
   type ChatMessage,
-  LLMApiKeySchema,
   ChatMessageRole,
   supportedModels,
   GCPServiceAccountKeySchema,
   BedrockConfigSchema,
+  BedrockCredentialSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
@@ -48,6 +51,40 @@ export function getDisplaySecretKey(secretKey: string) {
   return secretKey.endsWith('"}')
     ? "..." + secretKey.slice(-6, -2)
     : "..." + secretKey.slice(-4);
+}
+
+export function validateBedrockSecretKey(secretKey: string) {
+  if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
+    return;
+  }
+
+  try {
+    BedrockCredentialSchema.parse(JSON.parse(secretKey));
+  } catch {
+    throw new Error(
+      "Invalid Bedrock credentials. Expected a JSON object with either {accessKeyId, secretAccessKey} or {apiKey}.",
+    );
+  }
+}
+
+function getBedrockAuthMethod(
+  secretKey: string,
+): BedrockAuthMethod | undefined {
+  if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
+    return AuthMethod.DefaultCredentials;
+  }
+
+  try {
+    const parsed = BedrockCredentialSchema.parse(JSON.parse(secretKey));
+    return parsed && "apiKey" in parsed
+      ? AuthMethod.ApiKey
+      : AuthMethod.AccessKeys;
+  } catch (error) {
+    logger.warn("Failed to derive Bedrock auth method from stored secret", {
+      error,
+    });
+    return undefined;
+  }
 }
 
 type TestLLMConnectionParams = {
@@ -176,6 +213,18 @@ export const llmApiKeyRouter = createTRPCRouter({
               code: "BAD_REQUEST",
               message:
                 "Default AWS credentials are only allowed for Bedrock in self-hosted deployments.",
+            });
+          }
+        }
+
+        if (input.adapter === LLMAdapter.Bedrock) {
+          try {
+            validateBedrockSecretKey(input.secretKey);
+          } catch (e) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                e instanceof Error ? e.message : "Invalid Bedrock credentials.",
             });
           }
         }
@@ -381,35 +430,39 @@ export const llmApiKeyRouter = createTRPCRouter({
         scope: "llmApiKeys:read",
       });
 
-      const apiKeys = z
-        .array(
-          LLMApiKeySchema.extend({
-            secretKey: z.undefined(),
-            extraHeaders: z.undefined(),
-          }),
-        )
-        .parse(
-          await ctx.prisma.llmApiKeys.findMany({
-            // we must not return the secret key AND extra headers via the API, hence not selected
-            select: {
-              id: true,
-              createdAt: true,
-              updatedAt: true,
-              provider: true,
-              displaySecretKey: true,
-              projectId: true,
-              adapter: true,
-              baseURL: true,
-              customModels: true,
-              withDefaultModels: true,
-              extraHeaderKeys: true,
-              config: true,
-            },
-            where: {
-              projectId: input.projectId,
-            },
-          }),
-        );
+      const storedApiKeys = await ctx.prisma.llmApiKeys.findMany({
+        // secretKey is selected server-side only to derive a safe auth-method enum for Bedrock
+        select: {
+          id: true,
+          createdAt: true,
+          updatedAt: true,
+          provider: true,
+          displaySecretKey: true,
+          projectId: true,
+          adapter: true,
+          baseURL: true,
+          customModels: true,
+          withDefaultModels: true,
+          extraHeaderKeys: true,
+          config: true,
+          secretKey: true,
+        },
+        where: {
+          projectId: input.projectId,
+        },
+      });
+
+      const apiKeys = z.array(SafeLlmApiKeySchema).parse(
+        storedApiKeys.map(({ secretKey, ...apiKey }) => ({
+          ...apiKey,
+          secretKey: undefined,
+          extraHeaders: undefined,
+          authMethod:
+            apiKey.adapter === LLMAdapter.Bedrock
+              ? getBedrockAuthMethod(decrypt(secretKey))
+              : undefined,
+        })),
+      );
 
       const count = await ctx.prisma.llmApiKeys.count({
         where: {
@@ -589,6 +642,18 @@ export const llmApiKeyRouter = createTRPCRouter({
               code: "BAD_REQUEST",
               message:
                 "Default AWS credentials are only allowed for Bedrock in self-hosted deployments.",
+            });
+          }
+        }
+
+        if (input.secretKey && input.adapter === LLMAdapter.Bedrock) {
+          try {
+            validateBedrockSecretKey(input.secretKey);
+          } catch (e) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                e instanceof Error ? e.message : "Invalid Bedrock credentials.",
             });
           }
         }

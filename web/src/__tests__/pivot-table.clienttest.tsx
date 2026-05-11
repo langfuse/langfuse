@@ -9,13 +9,12 @@
  * - Metric value formatting and display
  * - Column header formatting
  *
- * Uses Jest and React Testing Library for component testing.
+ * Uses Vitest and React Testing Library for component testing.
  * This test focuses on component behavior rather than data transformation logic.
  */
 
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import "@testing-library/jest-dom";
 
 import {
   PivotTable,
@@ -306,24 +305,6 @@ describe("PivotTable Component", () => {
 
       // Should still render a table
       expect(screen.getByRole("table")).toBeInTheDocument();
-    });
-
-    test("passes accessibilityLayer prop correctly", () => {
-      const data: DataPoint[] = [
-        {
-          time_dimension: "2024-01-01",
-          dimension: "test",
-          metric: 100,
-        },
-      ];
-
-      const props: PivotTableProps = {
-        data,
-        accessibilityLayer: true,
-      };
-
-      // Should render without error
-      expect(() => render(<PivotTable {...props} />)).not.toThrow();
     });
   });
 

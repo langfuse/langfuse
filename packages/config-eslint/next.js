@@ -2,6 +2,7 @@ import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
 import turboConfig from "eslint-config-turbo/flat";
 import "eslint-plugin-only-warn";
+import langfusePlugin from "@repo/eslint-plugin";
 
 export default [
   // Global ignores - include config files
@@ -62,6 +63,9 @@ export default [
     name: "langfuse/next/typescript",
     files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
+      parserOptions: {
+        projectService: true,
+      },
       globals: {
         React: "readonly",
         JSX: "readonly",
@@ -74,8 +78,12 @@ export default [
         },
       },
     },
+    plugins: {
+      "@repo": langfusePlugin,
+    },
     rules: {
       "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
+      "@repo/no-tailwind-overflow-scroll": "warn",
       // Custom rules from old config
       "@typescript-eslint/consistent-type-imports": [
         "warn",
@@ -94,7 +102,20 @@ export default [
           ignoreRestSiblings: true,
         },
       ],
+      "@typescript-eslint/no-deprecated": "warn",
       "react/jsx-key": ["error", { warnOnDuplicates: true }],
+      "react/no-unused-prop-types": "warn",
+    },
+  },
+
+  // Vitest in-source testing should only be used while developing, not in committed code.
+  {
+    name: "langfuse/no-in-source-vitest",
+    plugins: {
+      "@repo": langfusePlugin,
+    },
+    rules: {
+      "@repo/no-in-source-vitest": "warn",
     },
   },
 ];

@@ -1,4 +1,3 @@
-/** @jest-environment node */
 // Set environment variables before any imports to ensure VERSIONED mode
 process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
   "true";

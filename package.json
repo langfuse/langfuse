@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.167.2",
+  "version": "3.173.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -46,7 +46,7 @@
     "braces": "3.0.3",
     "dotenv-cli": "^7.4.4",
     "husky": "^9.1.7",
-    "prettier": "^3.8.1",
+    "prettier": "^3.8.3",
     "release-it": "^19.2.4",
     "turbo": "2.9.5"
   },
@@ -107,8 +107,11 @@
       "rollup@^4.0.0": "^4.22.4",
       "@types/node-fetch": "^2.6.13",
       "@types/react-dom": "19.2.3",
+      "fast-xml-builder": "1.1.7",
       "glob": "^10.5.0",
-      "qs": "6.14.1"
+      "qs": "6.14.1",
+      "path-to-regexp@0.1.12": "0.1.13",
+      "ip-address@10.1.0": "10.2.0"
     },
     "patchedDependencies": {
       "next-auth@4.24.13": "patches/next-auth@4.24.13.patch"

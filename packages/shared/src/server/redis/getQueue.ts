@@ -40,6 +40,7 @@ export function getQueue(
     | QueueName.LLMAsJudgeExecution
     | QueueName.TraceUpsert
     | QueueName.OtelIngestionQueue
+    | QueueName.OtelIngestionSecondaryQueue
   >,
 ): Queue | null {
   switch (queueName) {

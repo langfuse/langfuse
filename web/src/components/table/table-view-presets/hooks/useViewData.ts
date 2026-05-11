@@ -1,11 +1,13 @@
 import { api } from "@/src/utils/api";
+import { type TableViewPresetTableName } from "@langfuse/shared";
 
-type UseViewDataProps = {
-  tableName: string;
+export const useViewData = ({
+  tableName,
+  projectId,
+}: {
+  tableName: TableViewPresetTableName;
   projectId: string;
-};
-
-export const useViewData = ({ tableName, projectId }: UseViewDataProps) => {
+}) => {
   const { data: TableViewPresets } =
     api.TableViewPresets.getByTableName.useQuery({
       tableName,

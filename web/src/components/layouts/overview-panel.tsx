@@ -18,7 +18,7 @@ interface OverviewPanelToggleProps extends React.ComponentPropsWithoutRef<
 }
 
 const OverviewPanelToggle = React.forwardRef<
-  React.ElementRef<typeof Button>,
+  React.ComponentRef<typeof Button>,
   OverviewPanelToggleProps
 >(({ open, onOpenChange, className, ...props }, ref) => (
   <Button
