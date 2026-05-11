@@ -489,6 +489,194 @@ describe("/api/public/v2/observations API Endpoint", () => {
     });
   });
 
+  maybe("Field group contract", () => {
+    // Core fields always returned regardless of which group is requested
+    const CORE_FIELDS = [
+      "id",
+      "traceId",
+      "type",
+      "startTime",
+      "endTime",
+      "projectId",
+      "parentObservationId",
+    ] as const;
+
+    // All non-core fields across all groups — used to assert absence.
+    // Note: latency is computed from start_time/end_time (both in core). timeToFirstToken is computed from start_time
+    // and completion_start_time, but the converter spreads it when EITHER is defined; since start_time is in core and
+    // always selected, timeToFirstToken is always present (as null when completion_start_time is not selected).
+    const ALL_NON_CORE_FIELDS = [
+      // basic
+      "name",
+      "level",
+      "statusMessage",
+      "version",
+      "environment",
+      "bookmarked",
+      "public",
+      "userId",
+      "sessionId",
+      // time
+      "completionStartTime",
+      "createdAt",
+      "updatedAt",
+      // io
+      "input",
+      "output",
+      // metadata
+      "metadata",
+      // model — note: the API response uses "model" for the provided model name,
+      // not "providedModelName" (the domain type maps provided_model_name → model)
+      "model",
+      "internalModelId",
+      "modelParameters",
+      // usage
+      "usageDetails",
+      "costDetails",
+      "totalCost",
+      // prompt
+      "promptId",
+      "promptName",
+      "promptVersion",
+    ] as const;
+
+    let sharedObsId: string;
+    let sharedTraceId: string;
+
+    beforeEach(async () => {
+      sharedTraceId = randomUUID();
+      sharedObsId = randomUUID();
+      const now = new Date();
+      const timeValue = now.getTime() * 1000;
+
+      const obs = createEvent({
+        id: sharedObsId,
+        span_id: sharedObsId,
+        trace_id: sharedTraceId,
+        project_id: projectId,
+        name: "field-group-contract-obs",
+        type: "GENERATION",
+        level: "DEFAULT",
+        status_message: "ok",
+        version: "1.0",
+        environment: "production",
+        bookmarked: true,
+        public: true,
+        user_id: "test-user",
+        session_id: "test-session",
+        start_time: timeValue,
+        end_time: timeValue + 1000 * 1000,
+        completion_start_time: timeValue + 500 * 1000,
+        provided_model_name: "gpt-4",
+        model_id: randomUUID(),
+        model_parameters: '{"temperature":0.5}',
+        usage_details: { input: 10, output: 20, total: 30 },
+        cost_details: { input: 0.01, output: 0.02, total: 0.03 },
+        prompt_id: randomUUID(),
+        prompt_name: "contract-prompt",
+        prompt_version: 2,
+        input: "contract input",
+        output: "contract output",
+        metadata_names: ["key"],
+        metadata_values: ["val"],
+      });
+
+      await createEventsCh([obs]);
+    });
+
+    // Known fixture values — used to assert exact values, not just presence.
+    // toBeDefined() passes for null; for fields the fixture explicitly sets we
+    // assert the stored value so a null regression is caught.
+    const knownValues: Record<string, unknown> = {
+      name: "field-group-contract-obs",
+      level: "DEFAULT",
+      statusMessage: "ok",
+      version: "1.0",
+      environment: "production",
+      bookmarked: true,
+      public: true,
+      userId: "test-user",
+      sessionId: "test-session",
+      model: "gpt-4",
+      modelParameters: { temperature: 0.5 },
+      promptName: "contract-prompt",
+      promptVersion: 2,
+      input: "contract input",
+      output: "contract output",
+    };
+
+    const fieldsForGroup: Record<string, readonly string[]> = {
+      basic: [
+        "name",
+        "level",
+        "statusMessage",
+        "version",
+        "environment",
+        "bookmarked",
+        "public",
+        "userId",
+        "sessionId",
+      ],
+      time: ["completionStartTime", "createdAt", "updatedAt"],
+      io: ["input", "output"],
+      metadata: ["metadata"],
+      // "model" is the API response key for provided_model_name (see domain type)
+      model: ["model", "internalModelId", "modelParameters"],
+      usage: ["usageDetails", "costDetails", "totalCost"],
+      prompt: ["promptId", "promptName", "promptVersion"],
+      // latency and timeToFirstToken are always returned (computed from core start_time, completion_start_time,
+      // end_time), but the metrics group is still defined for documentation and to verify these fields are indeed
+      // present
+      metrics: ["latency", "timeToFirstToken"],
+    };
+
+    for (const [group, expectedFields] of Object.entries(fieldsForGroup)) {
+      it(`field group contract: ${group}`, async () => {
+        const response = await getObservations(
+          `/api/public/v2/observations?fields=${group}&traceId=${sharedTraceId}`,
+        );
+
+        expect(response.status).toBe(200);
+        const obs = response.body.data.find((o: any) => o.id === sharedObsId);
+        expect(obs).toBeDefined();
+        if (!obs) return; // narrow type; expect above already fails the test
+
+        // Core fields always present
+        for (const field of CORE_FIELDS) {
+          expect(obs[field]).toBeDefined();
+        }
+
+        // Requested group fields present — assert exact value when the fixture
+        // set one, toBeDefined() otherwise (e.g. dates, generated IDs).
+        for (const field of expectedFields) {
+          if (field in knownValues) {
+            expect(
+              obs[field],
+              `expected field "${field}" to equal fixture value for group "${group}"`,
+            ).toStrictEqual(knownValues[field]);
+          } else {
+            expect(
+              obs[field],
+              `expected field "${field}" to be defined for group "${group}"`,
+            ).toBeDefined();
+          }
+        }
+
+        // Fields from other groups absent (null or undefined — API may serialize
+        // absent fields as null rather than omitting them from the JSON)
+        const absentFields = ALL_NON_CORE_FIELDS.filter(
+          (f) => !(expectedFields as readonly string[]).includes(f),
+        );
+        for (const field of absentFields) {
+          expect(
+            obs[field] ?? undefined,
+            `expected field "${field}" to be null/undefined when only group "${group}" is requested`,
+          ).toBeUndefined();
+        }
+      });
+    }
+  });
+
   maybe("Metadata expansion with expandMetadata parameter", () => {
     it("should return full metadata values when expandMetadata is specified", async () => {
       const traceId = randomUUID();

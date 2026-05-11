@@ -231,7 +231,7 @@ export function ScoreAnalyticsProvider({
  * function StatisticsCard() {
  *   const { data, colors, isLoading } = useScoreAnalytics();
  *
- *   if (isLoading) return <Loader />;
+ *   if (isLoading) return <Spinner size="sm" />;
  *   if (!data) return null;
  *
  *   return <div>Mean: {data.statistics.score1.mean}</div>;
