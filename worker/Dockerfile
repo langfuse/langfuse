@@ -55,7 +55,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 # we only need the prod + generated prisma client plus .prisma artifacts
 # @langfuse/shared still pulls in next-auth transitively, so keep the deploy output
 # intact here instead of pruning node_modules in Docker.
-# also, pnpm v10 needs the pnpm legacy deploy implementation, we didn't upgrade that yet
+# Keep legacy deploy until the worker Docker image is verified with pnpm's default deploy implementation.
 RUN pnpm --filter worker deploy --legacy --prod /prod/worker && \
     builder_prisma_client_dir="$(find /app/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     deployed_prisma_client_dir="$(find /prod/worker/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
