@@ -23,6 +23,8 @@ evaluating, and debugging AI applications.
 
 ## Start Here By Task
 
+- Architecture principles for high-scale observability and wide event data:
+  `.agents/ARCHITECTURE_PRINCIPLES.md`
 - Repo-wide agent setup, `.agents/**`, provider shims, or MCP/bootstrap config:
   `.agents/README.md`,
   `.agents/skills/agent-setup-maintenance/SKILL.md`
