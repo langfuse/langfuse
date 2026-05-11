@@ -492,6 +492,7 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
+      ...(extraHeaders ? { customHeaders: extraHeaders } as any : {}),
       ...(googleProviderOptions
         ? {
             thinkingConfig: googleProviderOptions as any, // Typecast as thinkingLevel is intentionally looser typed
