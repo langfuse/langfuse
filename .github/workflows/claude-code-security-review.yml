@@ -4,33 +4,56 @@ on:
   pull_request:
     types:
       - opened
-      - ready_for_review
       - reopened
       - synchronize
+      - ready_for_review
 
-permissions: {}
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   security-review:
     name: Claude Code Security Review
-    # The upstream action is only intended for trusted PRs and exits early
-    # outside pull_request events. synchronize makes it run for each new commit.
-    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
+    timeout-minutes: 30
+
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 2
-          persist-credentials: false
+
+      - name: Patch Claude API validation model
+        shell: bash
+        run: |
+          python <<'PY'
+          import os
+          from pathlib import Path
+
+          runner_workspace = Path(os.environ["RUNNER_WORKSPACE"])
+          action_path = (
+              runner_workspace.parent
+              / "_actions"
+              / "anthropics"
+              / "claude-code-security-review"
+              / "main"
+              / "claudecode"
+              / "claude_api_client.py"
+          )
+          source = action_path.read_text()
+          old = 'model="claude-3-5-haiku-20241022",'
+          new = "model=self.model,"
+          if old not in source:
+              raise SystemExit(f"Expected validation model not found in {action_path}")
+          action_path.write_text(source.replace(old, new))
+          PY
 
       - name: Run Claude Code security review
-        uses: anthropics/claude-code-security-review@0c6a49f1fa56a1d472575da86a94dbc1edb78eda # main, 2026-05-11
+        uses: anthropics/claude-code-security-review@main
         with:
           claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+          claude-model: claude-opus-4-1-20250805
           comment-pr: true
           run-every-commit: true
