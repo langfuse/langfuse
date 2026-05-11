@@ -33,6 +33,16 @@ Use for:
 
 Open: [agent-setup-maintenance/SKILL.md](agent-setup-maintenance/SKILL.md)
 
+### analyze-cloud-costs
+
+Use for:
+- Langfuse Cloud infrastructure cost structure
+- AWS versus ClickHouse cost splits and cost drivers
+- Metabase infra cost dashboard and cost marts
+- daily cost per tracing event and cost regression analysis
+
+Open: [analyze-cloud-costs/SKILL.md](analyze-cloud-costs/SKILL.md)
+
 ### frontend-browser-review
 
 Use for:

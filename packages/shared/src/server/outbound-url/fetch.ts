@@ -1,3 +1,4 @@
+import { addSecureOutboundConnectionValidation } from "./connection";
 import type { OutboundUrlValidationWhitelist } from "./validation";
 import { logger } from "../logger";
 
@@ -71,6 +72,7 @@ interface BaseRedirectOptions {
 interface RedirectValidationOptions {
   validateUrl: RedirectUrlValidator;
   whitelist?: OutboundUrlValidationWhitelist;
+  logContext?: string;
 }
 
 /**
@@ -131,11 +133,15 @@ export async function fetchWithSecureRedirects(
   let currentUrl = url;
   let redirectDepth = 0;
 
-  // Force manual redirect handling to prevent automatic following.
-  let fetchOptions: RequestInit = {
-    ...options,
-    redirect: "manual",
-  };
+  // Disable automatic redirects so every Location target is validated before
+  // following it, and attach connection-time DNS/IP validation for each fetch.
+  let fetchOptions: RequestInit = addConnectionTimeValidation(
+    {
+      ...options,
+      redirect: "manual",
+    },
+    redirectOptions,
+  );
 
   while (redirectDepth <= maxRedirects) {
     logger.debug("Fetching URL with manual redirect handling", {
@@ -272,6 +278,20 @@ export async function fetchWithSecureRedirects(
     ...redirectChain,
     currentUrl,
   ]);
+}
+
+function addConnectionTimeValidation(
+  options: RequestInit,
+  redirectOptions: RedirectOptions,
+): RequestInit {
+  if (redirectOptions.skipValidation === true) {
+    return options;
+  }
+
+  return addSecureOutboundConnectionValidation(options, {
+    whitelist: redirectOptions.redirectValidation.whitelist,
+    logContext: redirectOptions.redirectValidation.logContext,
+  });
 }
 
 function stripSensitiveRedirectHeaders(

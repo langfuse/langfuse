@@ -10,6 +10,8 @@ or `.vscode/`.
 ## Layout
 
 - `AGENTS.md`: canonical shared root instructions
+- `ARCHITECTURE_PRINCIPLES.md`: architecture principles for high-scale
+  observability
 - `config.json`: shared bootstrap and MCP configuration used to generate
   tool-specific shims
 - `skills/`: shared, tool-neutral implementation guidance for recurring
