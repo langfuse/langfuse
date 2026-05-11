@@ -1096,12 +1096,30 @@ export function WidgetForm({
       const result = await importWidgetFile({
         file,
         optionSets: {
-          environmentValues: environmentOptions.map((option) => option.value),
-          traceNames: nameOptions.map((option) => option.value),
-          tags: tagsOptions.map((option) => option.value),
-          toolNames: toolNamesOptions.map((option) => option.value),
-          calledToolNames: calledToolNamesOptions.map((option) => option.value),
-          modelNames: modelOptions.map((option) => option.value),
+          environmentValues: environmentFilterOptions.data?.map(
+            (option) => option.environment,
+          ),
+          traceNames: traceFilterOptions.data
+            ? normalizeSingleValueOptions(traceFilterOptions.data.name).map(
+                (option) => option.value,
+              )
+            : undefined,
+          tags: traceFilterOptions.data
+            ? traceFilterOptions.data.tags.map((option) => option.value)
+            : undefined,
+          toolNames: generationsFilterOptions.data
+            ? generationsFilterOptions.data.toolNames.map(
+                (option) => option.value,
+              )
+            : undefined,
+          calledToolNames: generationsFilterOptions.data
+            ? generationsFilterOptions.data.calledToolNames.map(
+                (option) => option.value,
+              )
+            : undefined,
+          modelNames: generationsFilterOptions.data
+            ? generationsFilterOptions.data.model.map((option) => option.value)
+            : undefined,
           observationLevels: observationLevelOptions.map(
             (option) => option.value,
           ),
