@@ -810,6 +810,80 @@ describe("extractToolsFromObservation", () => {
       expect(result.toolArguments[0].arguments).toBe('{"location":"NYC"}');
     });
 
+    it("should extract AI SDK available tools from metadata while preserving called provider tools", () => {
+      const input = [
+        {
+          role: "user",
+          content: [{ type: "text", text: "What's the weather in Berlin?" }],
+        },
+      ];
+
+      const output = {
+        role: "assistant",
+        content: "Here's what I found.",
+        tool_calls: [
+          {
+            type: "tool-call",
+            toolCallId: "call_provider_search_1",
+            toolName: "web_search",
+            input: {
+              query: "weather forecast in Berlin",
+            },
+            providerExecuted: true,
+          },
+        ],
+      };
+
+      const tools = [
+        {
+          type: "function",
+          name: "get_weather",
+          description: "Get current weather for a location.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              location: { type: "string" },
+              unit: { type: "string", enum: ["celsius", "fahrenheit"] },
+            },
+            required: ["location"],
+          },
+        },
+        {
+          type: "provider",
+          name: "web_search",
+          id: "provider.web_search",
+          args: {},
+        },
+      ];
+
+      const metadata = {
+        tools,
+        providerToolIds: ["web_search"],
+        attributes: {
+          "ai.prompt.tools": tools,
+        },
+      };
+
+      const result = extractToolsFromObservation(input, output, metadata);
+
+      expect(result.toolDefinitions.map((t) => t.name)).toEqual([
+        "get_weather",
+        "web_search",
+      ]);
+      expect(result.toolDefinitions[0].parameters).toBe(
+        JSON.stringify(tools[0].inputSchema),
+      );
+      expect(result.toolArguments).toHaveLength(1);
+      expect(result.toolArguments[0]).toMatchObject({
+        id: "call_provider_search_1",
+        name: "web_search",
+        arguments: JSON.stringify({
+          query: "weather forecast in Berlin",
+        }),
+        type: "tool-call",
+      });
+    });
+
     it.skip("should extract tool definitions from OTel metadata structure i.e. pydantic-ai", () => {
       // TODO: Re-enable when OTel processor maps metadata.attributes.model_request_parameters.function_tools → input.tools
       const metadata = {
