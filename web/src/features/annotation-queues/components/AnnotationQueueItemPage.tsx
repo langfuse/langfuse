@@ -16,7 +16,6 @@ import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData"
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
 import { ObjectNotFoundCard } from "@/src/components/ui/object-not-found-card";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useSession } from "next-auth/react";
 
 export const AnnotationQueueItemPage: React.FC<{
@@ -28,7 +27,6 @@ export const AnnotationQueueItemPage: React.FC<{
   const router = useRouter();
   const { status: sessionStatus } = useSession();
   const sessionLoaded = sessionStatus !== "loading";
-  const { isBetaEnabled } = useV4Beta();
   const isSingleItem = router.query.singleItem === "true";
   const [nextItemData, setNextItemData] = useState<
     RouterOutput["annotationQueues"]["fetchAndLockNext"] | null
@@ -44,7 +42,7 @@ export const AnnotationQueueItemPage: React.FC<{
   const itemId = isSingleItem ? queryItemId : seenItemIds[progressIndex];
 
   const seenItemData = api.annotationQueueItems.byId.useQuery(
-    { projectId, itemId: itemId as string, isBetaEnabled },
+    { projectId, itemId: itemId as string },
     { enabled: !!itemId && sessionLoaded, refetchOnMount: false },
   );
 
@@ -59,7 +57,6 @@ export const AnnotationQueueItemPage: React.FC<{
           queueId: annotationQueueId,
           projectId,
           seenItemIds,
-          isBetaEnabled,
         });
         setNextItemData(nextItem);
       }
@@ -92,7 +89,6 @@ export const AnnotationQueueItemPage: React.FC<{
           queueId: annotationQueueId,
           projectId,
           seenItemIds,
-          isBetaEnabled,
         });
         setNextItemData(nextItem);
       }
@@ -171,7 +167,6 @@ export const AnnotationQueueItemPage: React.FC<{
         queueId: annotationQueueId,
         projectId,
         seenItemIds,
-        isBetaEnabled,
       });
       setNextItemData(nextItem);
     }
