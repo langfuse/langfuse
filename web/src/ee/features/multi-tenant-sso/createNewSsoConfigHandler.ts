@@ -1,6 +1,8 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
+import { validateSsoConfig } from "@/src/ee/features/multi-tenant-sso/validateSsoConfig";
+import { TRPCError } from "@trpc/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
@@ -58,6 +60,19 @@ export async function createNewSsoConfigHandler(
         error: `An SSO configuration already exists for domain '${domain}'`,
       });
       return;
+    }
+
+    // Pre-flight the IdP discovery doc so misconfigurations surface here
+    // instead of locking out users at first sign-in. Same check applied by
+    // the self-service tRPC `ssoConfig.save` mutation.
+    try {
+      await validateSsoConfig(body.data);
+    } catch (e) {
+      if (e instanceof TRPCError) {
+        res.status(412).json({ error: e.message });
+        return;
+      }
+      throw e;
     }
 
     const encryptedClientSecret = authConfig

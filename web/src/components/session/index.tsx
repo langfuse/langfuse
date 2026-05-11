@@ -781,12 +781,17 @@ export const SessionEventsPage: React.FC<{
       setColumnOrder,
       setColumnVisibility,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
     },
     validationContext: {
       columns: [],
       filterColumnDefinition: sessionEventsFilterConfig.columnDefinitions,
+      expandableFilterColumns: sessionEventsFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
   });
 
   const applySystemPreset = useCallback(

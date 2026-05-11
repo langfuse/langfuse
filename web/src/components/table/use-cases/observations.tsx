@@ -1286,6 +1286,7 @@ export default function ObservationsTable({
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
       setSearchQuery: setSearchQuery,
@@ -1293,8 +1294,12 @@ export default function ObservationsTable({
     validationContext: {
       columns,
       filterColumnDefinition: observationsFilterConfig.columnDefinitions,
+      expandableFilterColumns: observationsFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
     },
     currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
   });
 
@@ -1451,7 +1456,13 @@ export default function ObservationsTable({
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
-          {!hideControls && <DataTableControls queryFilter={queryFilter} />}
+          {!hideControls && (
+            <DataTableControls
+              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
+              key={viewControllers.selectedViewId ?? "no-view"}
+              queryFilter={queryFilter}
+            />
+          )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable

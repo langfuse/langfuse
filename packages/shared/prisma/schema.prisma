@@ -106,6 +106,7 @@ model Organization {
   ApiKey                           ApiKey[]
   surveys                          Survey[]
   cloudSpendAlerts                 CloudSpendAlert[]
+  verifiedDomains                  VerifiedDomain[]
 
   @@map("organizations")
 }
@@ -1064,6 +1065,28 @@ model SsoConfig {
   // e.g. { "clientId": "1234", "clientSecret": "5678" }, null if credentials from env should be used
   // secrets like clientSecret are encrypted on the application level
   @@map("sso_configs")
+}
+
+// Domain ownership claim for an organization, verified via DNS TXT record.
+// Required before an SsoConfig can be created for that domain.
+model VerifiedDomain {
+  id                String       @id @default(uuid())
+  organizationId    String       @map("organization_id")
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  domain            String
+  verificationToken String       @unique @default(uuid()) @map("verification_token")
+  verifiedAt        DateTime?    @map("verified_at")
+  createdByUserId   String?      @map("created_by_user_id")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @default(now()) @updatedAt @map("updated_at")
+
+  // A domain can have at most one pending claim per org (idempotency for
+  // create) and at most one verified claim across the whole instance
+  // (enforced via a partial unique index added in the migration, since
+  // Prisma cannot express partial uniqueness in the schema DSL).
+  @@unique([organizationId, domain])
+  @@index([organizationId])
+  @@map("verified_domains")
 }
 
 model PosthogIntegration {

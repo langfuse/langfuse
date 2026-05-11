@@ -774,6 +774,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               email: true,
               image: true,
               emailVerified: true,
+              password: true,
               createdAt: true,
               featureFlags: true,
               admin: true,
@@ -904,6 +905,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                     ),
                     emailVerified: dbUser.emailVerified?.toISOString(),
                     featureFlags: parseFlags(dbUser.featureFlags),
+                    hasPassword: Boolean(dbUser.password),
                   }
                 : null,
           };
@@ -965,6 +967,20 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
           // Only allow sign in via email link if user is already in db as this is used for password reset
           if (account?.provider === "email") {
+            const blockedDomains = getSSOBlockedDomains();
+            if (userDomain && blockedDomains.includes(userDomain)) {
+              logger.info(
+                "Blocked email-OTP sign in for domain enforced via AUTH_DOMAINS_WITH_SSO_ENFORCEMENT",
+                { email },
+              );
+              const params = new URLSearchParams({
+                reason: "sso_enforced_domain",
+              });
+              if (email) params.set("email", email);
+              params.set("attemptedProvider", "email");
+              return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/enterprise-sso-required?${params.toString()}`;
+            }
+
             const user = await prisma.user.findUnique({
               where: {
                 email: email,
