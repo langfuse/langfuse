@@ -4,19 +4,16 @@ import type { SurveyFormData } from "../lib/surveyTypes";
 import { surveyReducer, initialSurveyState } from "../lib/surveyReducer";
 import { SURVEY_QUESTIONS, TOTAL_STEPS } from "../lib/questions";
 import { api } from "@/src/utils/api";
-import { SurveyName } from "@prisma/client";
-import { useSession } from "next-auth/react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export function useSurveyForm() {
   const [state, dispatch] = useReducer(surveyReducer, initialSurveyState);
-  const { data: session } = useSession();
-  const createSurveyMutation = api.surveys.create.useMutation({
+  const completeOnboardingMutation = api.onboarding.complete.useMutation({
     onSuccess: () => {
       showSuccessToast({
-        title: "Survey submitted",
-        description: "Thank you for your feedback!",
+        title: "Workspace ready",
+        description: "Your onboarding has been completed.",
       });
     },
     onError: (error) => {
@@ -86,17 +83,15 @@ export function useSurveyForm() {
         transformedResponse["referralSource"] = data.referralSource.trim();
 
       try {
-        await createSurveyMutation.mutateAsync({
-          surveyName: SurveyName.USER_ONBOARDING,
+        return await completeOnboardingMutation.mutateAsync({
           response: transformedResponse,
-          orgId: session?.user?.organizations?.[0]?.id,
         });
       } catch {
         // Error handling is done in the mutation callbacks
         // This catch block is for any additional error handling if needed
       }
     },
-    [createSurveyMutation, session],
+    [completeOnboardingMutation],
   );
 
   return {

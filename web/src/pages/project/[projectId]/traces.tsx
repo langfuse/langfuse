@@ -2,6 +2,7 @@ import React from "react";
 import { useRouter } from "next/router";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import Page from "@/src/components/layouts/page";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { api } from "@/src/utils/api";
 import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";
 import {
@@ -11,16 +12,22 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { StarterProjectInvitePrompt } from "@/src/features/onboarding/components/StarterProjectInvitePrompt";
 
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { isBetaEnabled, isInitializing } = useV4Beta();
   const { project } = useQueryProject();
+  const hasRetentionConfigured = Boolean(
+    project?.retentionDays && project.retentionDays > 0,
+  );
+  const initialHasTracingConfigured =
+    project?.hasTraces || hasRetentionConfigured ? true : undefined;
 
   // Check if the user has tracing configured
   // Skip polling entirely if the project flag is already set in the session
-  const { data: hasTracingConfigured, isLoading } =
+  const { data: hasTracingConfigured } =
     api.traces.hasTracingConfigured.useQuery(
       { projectId },
       {
@@ -30,13 +37,28 @@ export default function Traces() {
             skipBatch: true,
           },
         },
+        meta: {
+          silentHttpCodes: [500, 503],
+        },
         refetchInterval: project?.hasTraces ? false : 10_000,
-        initialData: project?.hasTraces ? true : undefined,
+        initialData: initialHasTracingConfigured,
         staleTime: project?.hasTraces ? Infinity : 0,
       },
     );
 
-  const showOnboarding = !isLoading && !hasTracingConfigured;
+  const showOnboarding = hasTracingConfigured === false;
+
+  if (hasTracingConfigured === undefined) {
+    return (
+      <Page
+        headerProps={{
+          title: "Tracing",
+        }}
+      >
+        <NoDataOrLoading isLoading />
+      </Page>
+    );
+  }
 
   if (showOnboarding) {
     return (
@@ -52,6 +74,7 @@ export default function Traces() {
         scrollable
       >
         <TracesOnboarding projectId={projectId} />
+        <StarterProjectInvitePrompt />
       </Page>
     );
   }
@@ -88,6 +111,7 @@ export default function Traces() {
               },
       }}
     >
+      <StarterProjectInvitePrompt />
       {isInitializing ? (
         <>
           {/* Wait for the beta flag before mounting either table. Otherwise the

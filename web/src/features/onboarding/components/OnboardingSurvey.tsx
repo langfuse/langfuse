@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react";
 import type { Path } from "react-hook-form";
 import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { Form } from "@/src/components/ui/form";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
@@ -8,9 +9,14 @@ import { useSurveyForm } from "../hooks/useSurveyForm";
 import { SurveyProgress } from "./SurveyProgress";
 import { SurveyStep } from "./SurveyStep";
 import type { SurveyFormData } from "../lib/surveyTypes";
+import { env } from "@/src/env.mjs";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { STARTER_PROJECT_INVITE_PROMPT_STORAGE_KEY } from "@/src/features/onboarding/lib/starterProjectInvitePrompt";
 
 export function OnboardingSurvey() {
   const router = useRouter();
+  const { update: updateSession } = useSession();
+  const homePath = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`;
   const {
     form,
     state,
@@ -26,10 +32,48 @@ export function OnboardingSurvey() {
 
   const onSubmit = useCallback(
     async (data: SurveyFormData) => {
-      await handleSubmit(data);
-      void router.push("/");
+      const result = await handleSubmit(data);
+      if (!result) {
+        return;
+      }
+
+      if (result.shouldShowInvitePrompt && result.starterProjectId) {
+        localStorage.setItem(
+          STARTER_PROJECT_INVITE_PROMPT_STORAGE_KEY,
+          JSON.stringify({
+            projectId: result.starterProjectId,
+          }),
+        );
+      }
+
+      try {
+        await updateSession();
+      } catch {
+        showErrorToast(
+          "Workspace created",
+          "Your workspace was created, but we couldn't refresh your session. Reloading the app to continue.",
+          "WARNING",
+        );
+        if (typeof window !== "undefined") {
+          window.location.assign(homePath);
+        }
+        return;
+      }
+
+      void router
+        .push(homePath)
+        .then((didNavigate) => {
+          if (!didNavigate && typeof window !== "undefined") {
+            window.location.assign(homePath);
+          }
+        })
+        .catch(() => {
+          if (typeof window !== "undefined") {
+            window.location.assign(homePath);
+          }
+        });
     },
-    [handleSubmit, router],
+    [handleSubmit, homePath, router, updateSession],
   );
 
   useEffect(() => {
@@ -107,7 +151,7 @@ export function OnboardingSurvey() {
 
   const handleSkipButton = () => {
     if (isLastStep) {
-      void router.push("/");
+      form.handleSubmit(onSubmit)();
     } else {
       goNext();
     }

@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { PlusIcon } from "lucide-react";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -50,9 +50,15 @@ const formSchema = z.object({
 export function CreateProjectMemberButton(props: {
   orgId: string;
   project?: { id: string; name: string };
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
+  dialogTitle?: ReactNode;
+  showRoleScopeDetails?: boolean;
 }) {
   const capture = usePostHogClientCapture();
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = props.open ?? uncontrolledOpen;
   const hasOrgAccess = useHasOrganizationAccess({
     organizationId: props.orgId,
     scope: "organizationMembers:CUD",
@@ -85,6 +91,12 @@ export function CreateProjectMemberButton(props: {
   const hasProjectRoleEntitlement = useHasEntitlement("rbac-project-roles");
   const hasOnlySingleProjectAccess =
     !hasOrgAccess && hasProjectAccess && hasProjectRoleEntitlement;
+  const dialogTitle =
+    props.dialogTitle ??
+    `Add new member to the ${
+      hasOnlySingleProjectAccess ? "project" : "organization"
+    }`;
+  const showRoleScopeDetails = props.showRoleScopeDetails ?? true;
 
   const utils = api.useUtils();
   const mutCreateProjectMember = api.members.create.useMutation({
@@ -104,6 +116,13 @@ export function CreateProjectMemberButton(props: {
       projectRole: hasOnlySingleProjectAccess ? Role.MEMBER : Role.NONE,
     },
   });
+
+  const setOpen = (nextOpen: boolean) => {
+    if (props.open === undefined) {
+      setUncontrolledOpen(nextOpen);
+    }
+    props.onOpenChange?.(nextOpen);
+  };
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     capture(
@@ -137,26 +156,25 @@ export function CreateProjectMemberButton(props: {
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <ActionButton
-            variant="secondary"
-            loading={mutCreateProjectMember.isPending}
-            hasAccess={hasOrgAccess || hasOnlySingleProjectAccess}
-            limit={orgMemberLimit}
-            limitValue={(orgMemberCount ?? 0) + (inviteCount ?? 0)}
-            icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
-          >
-            {hasOnlySingleProjectAccess
-              ? "Add project member"
-              : "Add new member"}
-          </ActionButton>
-        </DialogTrigger>
+        {!props.hideTrigger && (
+          <DialogTrigger asChild>
+            <ActionButton
+              variant="secondary"
+              loading={mutCreateProjectMember.isPending}
+              hasAccess={hasOrgAccess || hasOnlySingleProjectAccess}
+              limit={orgMemberLimit}
+              limitValue={(orgMemberCount ?? 0) + (inviteCount ?? 0)}
+              icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
+            >
+              {hasOnlySingleProjectAccess
+                ? "Add project member"
+                : "Add new member"}
+            </ActionButton>
+          </DialogTrigger>
+        )}
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              Add new member to the{" "}
-              {hasOnlySingleProjectAccess ? "project" : "organization"}
-            </DialogTitle>
+            <DialogTitle>{dialogTitle}</DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
@@ -196,7 +214,11 @@ export function CreateProjectMemberButton(props: {
                           </FormControl>
                           <SelectContent>
                             {Object.values(Role).map((role) => (
-                              <RoleSelectItem role={role} key={role} />
+                              <RoleSelectItem
+                                role={role}
+                                key={role}
+                                showScopeDetails={showRoleScopeDetails}
+                              />
                             ))}
                           </SelectContent>
                         </Select>
@@ -237,6 +259,7 @@ export function CreateProjectMemberButton(props: {
                                   role={role}
                                   key={role}
                                   isProjectRole
+                                  showScopeDetails={showRoleScopeDetails}
                                 />
                               ))}
                           </SelectContent>

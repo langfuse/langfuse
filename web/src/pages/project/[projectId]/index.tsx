@@ -1,3 +1,4 @@
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
@@ -16,7 +17,6 @@ import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-b
 import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
-import { useMemo } from "react";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
   findClosestDashboardInterval,
@@ -44,6 +44,8 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
+import { api } from "@/src/utils/api";
+import { useQueryProject } from "@/src/features/projects/hooks";
 
 const HOME_DASHBOARD_CARD_IDS = {
   traces: "home:traces",
@@ -58,9 +60,60 @@ const HOME_DASHBOARD_CARD_IDS = {
   scoreAnalytics: "home:score-analytics",
 } as const;
 
-export default function Dashboard() {
+export default function ProjectHome() {
   const router = useRouter();
-  const projectId = router.query.projectId as string;
+  const projectId =
+    typeof router.query.projectId === "string"
+      ? router.query.projectId
+      : undefined;
+  const { project } = useQueryProject();
+  const hasRetentionConfigured = Boolean(
+    project?.retentionDays && project.retentionDays > 0,
+  );
+  const initialHasTracingConfigured =
+    project?.hasTraces || hasRetentionConfigured ? true : undefined;
+  const { data: hasTracingConfigured } =
+    api.traces.hasTracingConfigured.useQuery(
+      { projectId: projectId ?? "" },
+      {
+        enabled: !!projectId,
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
+        },
+        meta: {
+          silentHttpCodes: [500, 503],
+        },
+        refetchInterval: project?.hasTraces ? false : 10_000,
+        initialData: initialHasTracingConfigured,
+        staleTime: project?.hasTraces ? Infinity : 0,
+      },
+    );
+
+  const shouldRedirectToTracing =
+    projectId !== undefined && hasTracingConfigured === false;
+
+  useEffect(() => {
+    if (!projectId || !shouldRedirectToTracing) {
+      return;
+    }
+
+    void router.replace(`/project/${projectId}/traces`);
+  }, [projectId, router, shouldRedirectToTracing]);
+
+  if (!projectId) {
+    return null;
+  }
+
+  if (hasTracingConfigured === undefined || shouldRedirectToTracing) {
+    return <NoDataOrLoading isLoading />;
+  }
+
+  return <ProjectHomeDashboard projectId={projectId} />;
+}
+
+function ProjectHomeDashboard({ projectId }: { projectId: string }) {
   const { timeRange, setTimeRange } = useDashboardDateRange();
   const { isBetaEnabled } = useV4Beta();
   const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";

@@ -19,14 +19,27 @@ import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 export const RoleSelectItem = ({
   role,
   isProjectRole,
+  showScopeDetails = true,
 }: {
   role: Role;
   isProjectRole?: boolean;
+  showScopeDetails?: boolean;
 }) => {
   const isProjectNoneRole = role === Role.NONE && isProjectRole;
   const isOrgNoneRole = role === Role.NONE && !isProjectRole;
   const orgScopes = reduceScopesToListItems(organizationRoleAccessRights, role);
   const projectScopes = reduceScopesToListItems(projectRoleAccessRights, role);
+
+  if (!showScopeDetails) {
+    return (
+      <SelectItem value={role} className="max-w-56">
+        <span>
+          {formatRole(role)}
+          {isProjectNoneRole ? " (keep default role)" : ""}
+        </span>
+      </SelectItem>
+    );
+  }
 
   return (
     <HoverCard openDelay={0} closeDelay={0}>

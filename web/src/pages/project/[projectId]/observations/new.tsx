@@ -2,6 +2,7 @@ import React from "react";
 import { useRouter } from "next/router";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import Page from "@/src/components/layouts/page";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { api } from "@/src/utils/api";
 import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";
 import {
@@ -14,10 +15,15 @@ export default function Events() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { project } = useQueryProject();
+  const hasRetentionConfigured = Boolean(
+    project?.retentionDays && project.retentionDays > 0,
+  );
+  const initialHasTracingConfigured =
+    project?.hasTraces || hasRetentionConfigured ? true : undefined;
 
   // Check if the user has tracing configured
   // Skip polling entirely if the project flag is already set in the session
-  const { data: hasTracingConfigured, isLoading } =
+  const { data: hasTracingConfigured } =
     api.traces.hasTracingConfigured.useQuery(
       { projectId },
       {
@@ -27,13 +33,28 @@ export default function Events() {
             skipBatch: true,
           },
         },
+        meta: {
+          silentHttpCodes: [500, 503],
+        },
         refetchInterval: project?.hasTraces ? false : 10_000,
-        initialData: project?.hasTraces ? true : undefined,
+        initialData: initialHasTracingConfigured,
         staleTime: project?.hasTraces ? Infinity : 0,
       },
     );
 
-  const showOnboarding = !isLoading && !hasTracingConfigured;
+  const showOnboarding = hasTracingConfigured === false;
+
+  if (hasTracingConfigured === undefined) {
+    return (
+      <Page
+        headerProps={{
+          title: "Tracing - Events Table (New)",
+        }}
+      >
+        <NoDataOrLoading isLoading />
+      </Page>
+    );
+  }
 
   return (
     <Page
