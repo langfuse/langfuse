@@ -24,7 +24,6 @@ import {
   deriveFilters,
   type ApiColumnMapping,
   ObservationPriceFields,
-  StringFilter,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import type { FilterState } from "../../types";
@@ -3355,6 +3354,7 @@ export const getTracesIdentifierForSessionFromEvents = async (
   const tracesBuilder = eventsTracesAggregation({
     projectId,
     truncated: true,
+    orderByTimestamp: false,
   });
 
   tracesBuilder.whereRaw(
@@ -3370,6 +3370,10 @@ export const getTracesIdentifierForSessionFromEvents = async (
     },
   );
 
+  tracesBuilder.havingRaw("session_id = {sessionId: String}", {
+    sessionId: sessionId,
+  });
+
   // Build the final query
   const queryBuilder = new CTEQueryBuilder()
     .withCTEFromBuilder("traces", tracesBuilder)
@@ -3381,17 +3385,6 @@ export const getTracesIdentifierForSessionFromEvents = async (
       "t.timestamp",
       "t.project_id",
       "t.environment",
-    )
-    .applyFilters(
-      new FilterList([
-        new StringFilter({
-          clickhouseTable: "traces",
-          field: "session_id",
-          operator: "=",
-          value: sessionId,
-          tablePrefix: "t",
-        }),
-      ]),
     )
     .orderBy("ORDER BY t.timestamp ASC")
     .limitBy("t.id", "t.project_id");
