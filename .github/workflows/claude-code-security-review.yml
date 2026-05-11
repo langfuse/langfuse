@@ -1,4 +1,4 @@
-name: Claude Code Security Review
+name: Security review
 
 on:
   pull_request:
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   security-review:
-    name: Claude Code Security Review
+    name: Security review
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
