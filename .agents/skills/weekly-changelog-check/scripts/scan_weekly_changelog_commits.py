@@ -139,7 +139,6 @@ def classify(repo: str, subject: str) -> tuple[str, str]:
     if commit_type in {"security", "perf"} and keyword_hits:
         return "high", f"{commit_type} with visible keywords: {', '.join(keyword_hits[:4])}"
     if repo in {"cli", "js-sdk", "python-sdk", "docs"} and commit_type in {
-        "feat",
         "fix",
         "docs",
     }:
@@ -193,8 +192,23 @@ def scan_repo(repo: Repo, since: dt.datetime, until: dt.datetime) -> tuple[list[
     return commits, total, None
 
 
-def existing_changelogs(root: Path, since: dt.datetime, until: dt.datetime) -> list[str]:
-    changelog_dir = root / "docs" / "content" / "changelog"
+def resolve_docs_repo(repos: list[Repo]) -> Repo | None:
+    for repo in repos:
+        if repo.url.rstrip("/").endswith("/langfuse/langfuse-docs.git"):
+            return repo
+    for repo in repos:
+        if repo.name in {"docs", "langfuse-docs"}:
+            return repo
+    return None
+
+
+def existing_changelogs(
+    workspace_root: Path,
+    docs_repo_root: Path,
+    since: dt.datetime,
+    until: dt.datetime,
+) -> list[str]:
+    changelog_dir = docs_repo_root / "content" / "changelog"
     if not changelog_dir.exists():
         return []
     entries: list[str] = []
@@ -204,7 +218,7 @@ def existing_changelogs(root: Path, since: dt.datetime, until: dt.datetime) -> l
             continue
         date = dt.datetime.fromisoformat(match.group(1)).replace(tzinfo=since.tzinfo)
         if since <= date < until:
-            entries.append(str(path.relative_to(root)))
+            entries.append(str(path.relative_to(workspace_root)))
     return entries
 
 
@@ -296,7 +310,10 @@ def main() -> int:
             errors[repo.name] = error
 
     candidates.sort(key=lambda item: (item.repo, item.date, item.short), reverse=True)
-    changelogs = existing_changelogs(root, since, until)
+    docs_repo = resolve_docs_repo(repos)
+    changelogs = (
+        existing_changelogs(root, docs_repo.path, since, until) if docs_repo else []
+    )
 
     if args.json:
         decision, reason = recommendation(candidates, changelogs)
