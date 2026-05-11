@@ -4113,4 +4113,168 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
 
     expect(rows).toHaveLength(0);
   });
+
+  it("should return exactly the expected set of output columns with correct types and values", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = Date.now();
+    const traceId = randomUUID();
+    const modelId = randomUUID();
+    const promptId = randomUUID();
+
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      type: "GENERATION",
+      name: "column-contract-event",
+      start_time: now * 1000,
+      end_time: (now + 1000) * 1000,
+      completion_start_time: (now + 500) * 1000,
+      bookmarked: true,
+      public: true,
+      provided_model_name: "gpt-4",
+      model_id: modelId,
+      model_parameters: '{"temperature":0.7}',
+      usage_details: { input: 10, output: 20, total: 30 },
+      cost_details: { input: 0.01, output: 0.02, total: 0.03 },
+      prompt_id: promptId,
+      prompt_name: "test-prompt",
+      prompt_version: 1,
+      tool_calls: ["search"],
+      tool_definitions: { search: "Search the web" },
+      tool_call_names: ["search"],
+      input: "test input",
+      output: "test output",
+      metadata_names: ["env"],
+      metadata_values: ["production"],
+    });
+
+    await createEventsCh([event]);
+
+    const stream = getEventsForBlobStorageExport(
+      projectId,
+      new Date(now - 60 * 60 * 1000),
+      new Date(now + 60 * 60 * 1000),
+    );
+
+    const rows: Record<string, unknown>[] = [];
+    for await (const row of stream) {
+      rows.push(row);
+    }
+
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
+
+    // Exact column set — any addition, removal, or rename will fail this test
+    const expectedColumns = [
+      "id",
+      "trace_id",
+      "project_id",
+      "start_time",
+      "end_time",
+      "name",
+      "type",
+      "environment",
+      "version",
+      "user_id",
+      "session_id",
+      "level",
+      "status_message",
+      "prompt_name",
+      "prompt_id",
+      "prompt_version",
+      "model_id",
+      "provided_model_name",
+      "model_parameters",
+      "usage_details",
+      "cost_details",
+      "total_cost",
+      "completion_start_time",
+      "latency",
+      "time_to_first_token",
+      "tags",
+      "release",
+      "trace_name",
+      "parent_observation_id",
+      "bookmarked",
+      "public",
+      "created_at",
+      "updated_at",
+      "tool_definitions",
+      "tool_calls",
+      "tool_call_names",
+      "usage_pricing_tier_name",
+      "input",
+      "output",
+      "metadata",
+    ].sort();
+
+    expect(Object.keys(row).sort()).toEqual(expectedColumns);
+
+    // --- Fixture-set string columns ---
+    expect(row.id).toBe(event.span_id);
+    expect(row.trace_id).toBe(traceId);
+    expect(row.project_id).toBe(projectId);
+    expect(row.name).toBe("column-contract-event");
+    expect(row.type).toBe("GENERATION");
+    expect(row.environment).toBe("default"); // createEvent default
+    expect(row.level).toBe("DEFAULT"); // createEvent default
+    expect(row.provided_model_name).toBe("gpt-4");
+    expect(row.model_id).toBe(modelId);
+    expect(row.model_parameters).toBe('{"temperature":0.7}');
+    expect(row.prompt_name).toBe("test-prompt");
+    expect(row.prompt_id).toBe(promptId);
+    expect(row.input).toBe("test input");
+    expect(row.output).toBe("test output");
+
+    // --- Boolean columns ---
+    expect(row.bookmarked).toBe(true);
+    expect(row.public).toBe(true);
+
+    // --- Numeric columns ---
+    expect(row.prompt_version).toBe(1);
+    // latency = date_diff('millisecond', start_time, end_time)
+    // start: now*1000 µs, end: (now+1000)*1000 µs → 1000 ms
+    expect(row.latency).toBe(1000);
+    // time_to_first_token = date_diff('millisecond', start_time, completion_start_time)
+    // start: now*1000 µs, completion: (now+500)*1000 µs → 500 ms
+    expect(row.time_to_first_token).toBe(500);
+
+    // --- Object / array columns ---
+    expect(row.usage_details).toEqual({ input: 10, output: 20, total: 30 });
+    expect(row.cost_details).toEqual({
+      input: 0.01,
+      output: 0.02,
+      total: 0.03,
+    });
+    expect(row.tool_calls).toEqual(["search"]);
+    expect(row.tool_definitions).toEqual({ search: "Search the web" });
+    expect(row.tool_call_names).toEqual(["search"]);
+    expect(row.tags).toEqual([]); // createEvent default
+    expect(row.metadata).toEqual({ env: "production" });
+
+    // --- Date columns — ClickHouse returns DateTime64 as strings ---
+    expect(typeof row.start_time).toBe("string");
+    expect(typeof row.end_time).toBe("string");
+    expect(typeof row.completion_start_time).toBe("string");
+    expect(typeof row.created_at).toBe("string");
+    expect(typeof row.updated_at).toBe("string");
+
+    // --- Unset String columns (non-nullable in events_core → return "" not null) ---
+    expect(row.version).toBe("");
+    expect(row.user_id).toBe("");
+    expect(row.session_id).toBe("");
+    expect(row.status_message).toBe("");
+    expect(row.release).toBe("");
+    // parent_span_id is non-nullable String; createEvent sets it to null → stored as ""
+    expect(row.parent_observation_id).toBe("");
+    // trace_name is non-nullable String; not populated (no trace inserted) → ""
+    expect(row.trace_name).toBe("");
+
+    // --- Nullable columns (NULL when unset) ---
+    // usage_pricing_tier_name is Nullable(String) in events_core
+    expect(row.usage_pricing_tier_name).toBeNull();
+
+    // --- total_cost: ALIAS for cost_details['total'] → 0.03 (set in fixture) ---
+    expect(row.total_cost).toBeCloseTo(0.03);
+  });
 });
