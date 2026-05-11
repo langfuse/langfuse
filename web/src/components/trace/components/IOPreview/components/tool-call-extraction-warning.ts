@@ -1,4 +1,4 @@
-const TOOL_EXTRACTION_LEGACY_CUTOFF_MS = Date.UTC(2025, 5, 1);
+const TOOL_EXTRACTION_LEGACY_CUTOFF_MS = Date.parse("2026-05-01T00:00:00.000Z");
 
 function getObservationStartTimeMs(
   observationStartTime?: Date | string | null,
@@ -27,7 +27,7 @@ export function getToolNamesMissingFromToolDefinitions({
 
   if (
     observationStartTimeMs === undefined ||
-    observationStartTimeMs >= TOOL_EXTRACTION_LEGACY_CUTOFF_MS ||
+    observationStartTimeMs < TOOL_EXTRACTION_LEGACY_CUTOFF_MS ||
     frontendToolDefinitionNames.length === 0 ||
     !Array.isArray(toolDefinitionNames)
   ) {
