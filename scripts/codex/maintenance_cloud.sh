@@ -8,7 +8,7 @@ if ! command -v corepack >/dev/null 2>&1; then
 fi
 
 corepack enable
-corepack prepare pnpm@11.0.8 --activate
+corepack prepare pnpm@11.0.9 --activate
 
 # shellcheck source=/dev/null
 source "$(dirname "${BASH_SOURCE[0]}")/cloud_services.sh"

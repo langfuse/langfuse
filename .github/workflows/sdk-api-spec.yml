@@ -28,7 +28,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
-          version: 11.0.8
+          version: 11.0.9
 
       - name: Setup Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
@@ -131,7 +131,7 @@ jobs:
 
           # Install dependencies and format
           corepack enable
-          corepack prepare pnpm@11.0.8 --activate
+          corepack prepare pnpm@11.0.9 --activate
           pnpm install
           pnpm format
 

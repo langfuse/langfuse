@@ -19,7 +19,7 @@ if ! command -v corepack >/dev/null 2>&1; then
 fi
 
 corepack enable
-corepack prepare pnpm@11.0.8 --activate
+corepack prepare pnpm@11.0.9 --activate
 
 ensure_env_file .env .env.dev.example
 ensure_env_file .env.test .env.test.example
