@@ -26,6 +26,9 @@ evaluating, and debugging AI applications.
 - Repo-wide agent setup, `.agents/**`, provider shims, or MCP/bootstrap config:
   `.agents/README.md`,
   `.agents/skills/agent-setup-maintenance/SKILL.md`
+- Langfuse Cloud cost structure, infra spend, AWS/ClickHouse cost splits, or
+  Metabase cost marts:
+  `.agents/skills/analyze-cloud-costs/SKILL.md`
 - Backend/API work in `web/src/server/**`, `web/src/pages/api/public/**`,
   `worker/src/**`, or `packages/shared/src/**`:
   `.agents/skills/backend-dev-guidelines/SKILL.md`
