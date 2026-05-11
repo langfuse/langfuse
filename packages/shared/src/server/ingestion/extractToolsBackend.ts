@@ -152,6 +152,10 @@ function parseArrayIfString(data: unknown): unknown[] | undefined {
   }
 }
 
+/**
+ * Detects model-requested tool invocations in unlabelled output arrays.
+ * Excludes available tool definitions and tool result payloads.
+ */
 function isToolCallLike(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
 
