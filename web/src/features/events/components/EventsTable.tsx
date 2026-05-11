@@ -1233,6 +1233,7 @@ export default function ObservationsEventsTable({
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
+    allowBackendSystemPresets: true,
   });
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {

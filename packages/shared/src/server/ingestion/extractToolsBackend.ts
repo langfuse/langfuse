@@ -76,7 +76,7 @@ function flattenToolCall(call: unknown): {
   // Handle nested {function: {name, arguments}} format
   const func = c.function as Record<string, unknown> | undefined;
   const name = (func?.name ?? c.name ?? c.toolName) as string | undefined;
-  const rawArgs = func?.arguments ?? c.arguments ?? c.args;
+  const rawArgs = func?.arguments ?? c.arguments ?? c.args ?? c.input;
   const args =
     typeof rawArgs === "string" ? rawArgs : JSON.stringify(rawArgs ?? {});
 
@@ -127,6 +127,28 @@ function addToolArgument(args: ClickhouseToolArgument[], call: unknown): void {
     type: flattened.type,
     index: flattened.index,
   });
+}
+
+/**
+ * Helper to add a tool call from content-array parts.
+ * Handles Anthropic `tool_use` and AI SDK `tool-call` parts.
+ */
+function addToolArgumentFromContentPart(
+  args: ClickhouseToolArgument[],
+  part: Record<string, unknown>,
+): void {
+  if (part.type === "tool_use") {
+    addToolArgument(args, {
+      id: part.id,
+      name: part.name,
+      arguments: JSON.stringify(part.input ?? {}),
+      type: "tool_use",
+    });
+  }
+
+  if (part.type === "tool-call") {
+    addToolArgument(args, part);
+  }
 }
 
 /**
@@ -218,21 +240,17 @@ function extractToolCallsFromRawOutput(
     }
   }
 
-  // Anthropic tool_use in content array: {content: [{type: "tool_use", ...}]}
+  // Tool calls in content arrays: Anthropic `tool_use`, AI SDK `tool-call`
   if (Array.isArray(obj.content)) {
     for (const part of obj.content) {
       if (
         part &&
         typeof part === "object" &&
-        (part as Record<string, unknown>).type === "tool_use"
+        ["tool_use", "tool-call"].includes(
+          (part as Record<string, unknown>).type as string,
+        )
       ) {
-        const p = part as Record<string, unknown>;
-        addToolArgument(args, {
-          id: p.id,
-          name: p.name,
-          arguments: JSON.stringify(p.input ?? {}),
-          type: "tool_use",
-        });
+        addToolArgumentFromContentPart(args, part as Record<string, unknown>);
       }
     }
   }
@@ -261,21 +279,17 @@ function extractToolCallsFromMessage(
     }
   }
 
-  // Anthropic content array
+  // Tool calls in content arrays: Anthropic `tool_use`, AI SDK `tool-call`
   if (Array.isArray(msg.content)) {
     for (const part of msg.content) {
       if (
         part &&
         typeof part === "object" &&
-        (part as Record<string, unknown>).type === "tool_use"
+        ["tool_use", "tool-call"].includes(
+          (part as Record<string, unknown>).type as string,
+        )
       ) {
-        const p = part as Record<string, unknown>;
-        addToolArgument(args, {
-          id: p.id,
-          name: p.name,
-          arguments: JSON.stringify(p.input ?? {}),
-          type: "tool_use",
-        });
+        addToolArgumentFromContentPart(args, part as Record<string, unknown>);
       }
     }
   }

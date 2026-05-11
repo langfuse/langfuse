@@ -40,6 +40,7 @@ interface UseTableStateProps {
   currentFilterState?: FilterState;
   currentExpandedFilters?: string[];
   disabled?: boolean;
+  allowBackendSystemPresets?: boolean;
 }
 
 const isViewApplicableToTable = (
@@ -61,6 +62,7 @@ export function useTableViewManager({
   currentFilterState,
   currentExpandedFilters,
   disabled = false,
+  allowBackendSystemPresets = false,
 }: UseTableStateProps) {
   const router = useRouter();
   const isRouterReady = router.isReady;
@@ -146,18 +148,24 @@ export function useTableViewManager({
 
     // If viewId already in the URL and is not a system preset, let the getById
     // query resolve it.
-    if (selectedViewId && !isSystemPresetId(selectedViewId)) {
+    if (
+      selectedViewId &&
+      (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets)
+    ) {
       return;
     }
 
-    // Clear stale system preset from URL (e.g. navigated from session detail).
+    // Clear stale frontend-only system presets from the URL.
     if (selectedViewId && isSystemPresetId(selectedViewId)) {
       handleSetViewId(null);
       return;
     }
 
     // Priority 1: Session storage (from a previous visit to this table)
-    if (storedViewId && !isSystemPresetId(storedViewId)) {
+    if (
+      storedViewId &&
+      (!isSystemPresetId(storedViewId) || allowBackendSystemPresets)
+    ) {
       setSelectedViewId(storedViewId);
       return;
     }
@@ -166,8 +174,7 @@ export function useTableViewManager({
     if (isDefaultLoading) return;
 
     if (defaultViewId) {
-      if (isSystemPresetId(defaultViewId)) {
-        // Resolved defaults should never point to system presets; clear if they do.
+      if (isSystemPresetId(defaultViewId) && !allowBackendSystemPresets) {
         handleSetViewId(null);
         return;
       }
@@ -187,6 +194,7 @@ export function useTableViewManager({
     storedViewId,
     isDefaultLoading,
     defaultViewId,
+    allowBackendSystemPresets,
     handleSetViewId,
     setStoredViewId,
     setSelectedViewId,
@@ -292,7 +300,7 @@ export function useTableViewManager({
     ],
   );
 
-  // Fetch view data if viewId is provided (skip for system presets)
+  // Fetch view data if a viewId is provided (skip for frontend-only system presets)
   const {
     data: selectedViewData,
     error: selectedViewError,
@@ -306,7 +314,7 @@ export function useTableViewManager({
         isRouterReady &&
         !!selectedViewId &&
         !isInitialized &&
-        !isSystemPresetId(selectedViewId),
+        (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets),
     },
   );
 

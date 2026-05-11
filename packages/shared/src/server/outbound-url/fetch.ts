@@ -90,8 +90,8 @@ export type RedirectOptions =
  * Fetches a URL with manual redirect handling and validation at each step.
  *
  * This function prevents SSRF attacks via redirects by validating each redirect
- * target before following it. Callers provide validation so each outbound flow
- * can enforce its own protocol, port, and whitelist rules.
+ * target before following it. Callers provide URL validation so each outbound
+ * flow can enforce its own protocol, port, and whitelist rules.
  *
  * @param url - The initial URL to fetch
  * @param options - Fetch options (method, body, headers, signal, etc.)
