@@ -262,6 +262,7 @@ export function IOPreviewPretty({
         tools={allTools}
         toolCallCounts={toolCallCounts}
         toolNameToDefinitionNumber={toolNameToDefinitionNumber}
+        toolNamesWithExtractionWarning={toolNamesWithExtractionWarning}
       />
 
       {canDisplayAsChat ? (

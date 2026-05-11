@@ -1,11 +1,7 @@
-import { AlertTriangle, Wrench } from "lucide-react";
+import { Wrench } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { ToolExtractionWarningIcon } from "@/src/components/trace/components/IOPreview/components/ToolExtractionWarningIcon";
 import type { z } from "zod";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 
@@ -75,25 +71,7 @@ export function ToolCallInvocationsView({
                   )}
                   {toolCallName ?? toolCall.name}
                 </span>
-                {showExtractionWarning && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span
-                        aria-label="Tool call was not extracted at ingestion"
-                        className="inline-flex"
-                        tabIndex={0}
-                      >
-                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs text-xs">
-                      This tool call was rendered from raw input/output, but its
-                      tool definition name was not extracted into analytics
-                      columns at ingestion time. Tool filters and dashboards may
-                      not include it.
-                    </TooltipContent>
-                  </Tooltip>
-                )}
+                {showExtractionWarning && <ToolExtractionWarningIcon />}
               </div>
 
               {/* Right: Call ID if available */}
