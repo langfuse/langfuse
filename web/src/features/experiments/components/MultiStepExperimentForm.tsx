@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Form } from "@/src/components/ui/form";
 import {
@@ -28,7 +28,11 @@ import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvalua
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { useExperimentNameValidation } from "@/src/features/experiments/hooks/useExperimentNameValidation";
 import { useExperimentPromptData } from "@/src/features/experiments/hooks/useExperimentPromptData";
-import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
+import {
+  getDisabledModelParamState,
+  getEnabledModelParamState,
+  getFinalModelParams,
+} from "@/src/utils/getFinalModelParams";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
@@ -97,6 +101,7 @@ export const MultiStepExperimentForm = ({
   const [selectedSchemaName, setSelectedSchemaName] = useState<string | null>(
     null,
   );
+  const lastAppliedPromptConfigId = useRef<string | null>(null);
 
   const steps = [
     { id: "prompt", label: "Prompt & Model" },
@@ -176,19 +181,76 @@ export const MultiStepExperimentForm = ({
   });
 
   const {
+    promptId: promptIdFromHook,
+    promptsByName,
+    expectedColumns,
+    selectedPromptModelConfig,
+  } = useExperimentPromptData({
+    projectId,
+    form,
+  });
+
+  const {
     modelParams,
+    setModelParams,
     updateModelParamValue,
     setModelParamEnabled,
     availableModels,
     providerModelCombinations,
     availableProviders,
-  } = useModelParams();
+    resolveProviderForModel,
+  } = useModelParams(undefined, {
+    promptConfigModel: selectedPromptModelConfig
+      ? {
+          ...(selectedPromptModelConfig.provider
+            ? { provider: selectedPromptModelConfig.provider }
+            : {}),
+          model: selectedPromptModelConfig.model,
+        }
+      : null,
+  });
 
   useExperimentNameValidation({
     projectId,
     datasetId,
     form,
   });
+
+  useEffect(() => {
+    if (!promptIdFromHook || !selectedPromptModelConfig) return;
+    if (lastAppliedPromptConfigId.current === promptIdFromHook) return;
+
+    const promptProvider = resolveProviderForModel(selectedPromptModelConfig);
+    if (!promptProvider) return;
+
+    if (
+      modelParams.provider.value !== promptProvider ||
+      modelParams.model.value !== selectedPromptModelConfig.model
+    ) {
+      setModelParams((prev) => ({
+        ...prev,
+        provider: { value: promptProvider, enabled: true },
+        model: { value: selectedPromptModelConfig.model, enabled: true },
+      }));
+      return;
+    }
+
+    lastAppliedPromptConfigId.current = promptIdFromHook;
+    setModelParams((prev) => ({
+      ...prev,
+      ...getDisabledModelParamState(prev),
+      ...getEnabledModelParamState(selectedPromptModelConfig.modelParams),
+      provider: { value: promptProvider, enabled: true },
+      model: { value: selectedPromptModelConfig.model, enabled: true },
+    }));
+  }, [
+    modelParams.model.value,
+    modelParams.provider.value,
+    promptIdFromHook,
+    resolveProviderForModel,
+    selectedPromptModelConfig,
+    setModelParams,
+  ]);
 
   // Watch model config changes and update form
   useEffect(() => {
@@ -203,15 +265,6 @@ export const MultiStepExperimentForm = ({
       form.clearErrors("modelConfig");
     }
   }, [modelParams, form]);
-
-  const {
-    promptId: promptIdFromHook,
-    promptsByName,
-    expectedColumns,
-  } = useExperimentPromptData({
-    projectId,
-    form,
-  });
 
   const experimentMutation = api.experiments.createExperiment.useMutation({
     onSuccess: handleExperimentSuccess ?? (() => {}),

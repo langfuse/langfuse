@@ -11,6 +11,22 @@ import {
 import { type ModelParamsContext } from "@/src/components/ModelParameters";
 import { getModelNameKey, getModelProviderKey } from "../storage/keys";
 
+type PromptConfigModel = {
+  provider?: string;
+  model: string;
+};
+
+type UseModelParamsOptions = {
+  promptConfigModel?: PromptConfigModel | null;
+};
+
+type AvailableLlmApiKey = {
+  provider: string;
+  adapter: LLMAdapter;
+  customModels: string[];
+  withDefaultModels: boolean;
+};
+
 /**
  * Hook for managing model parameters with window isolation support
  * Supports both single-window and multi-window scenarios through window-specific localStorage keys
@@ -18,7 +34,10 @@ import { getModelNameKey, getModelProviderKey } from "../storage/keys";
  * @param windowId - Optional window identifier for state isolation. Defaults to "default" for backward compatibility
  * @returns Object with model parameters state and management functions
  */
-export const useModelParams = (windowId?: string) => {
+export const useModelParams = (
+  windowId?: string,
+  options?: UseModelParamsOptions,
+) => {
   const [modelParams, setModelParams] = useState<UIModelParams>({
     ...getDefaultAdapterParams(LLMAdapter.OpenAI),
     provider: { value: "", enabled: true },
@@ -46,40 +65,78 @@ export const useModelParams = (windowId?: string) => {
     string | null
   >(modelProviderKey, null);
 
+  const llmApiKeys = useMemo(
+    () => availableLLMApiKeys.data?.data ?? [],
+    [availableLLMApiKeys.data?.data],
+  );
+
   const availableProviders = useMemo(() => {
-    const adapter = availableLLMApiKeys.data?.data ?? [];
+    return llmApiKeys.map((key) => key.provider);
+  }, [llmApiKeys]);
 
-    return adapter.map((key) => key.provider) ?? [];
-  }, [availableLLMApiKeys.data?.data]);
-
-  const selectedProviderApiKey = availableLLMApiKeys.data?.data.find(
+  const selectedProviderApiKey = llmApiKeys.find(
     (key) => key.provider === modelParams.provider.value,
   );
 
-  const providerModelCombinations =
-    availableLLMApiKeys.data?.data.reduce((acc, v) => {
-      if (v.withDefaultModels) {
-        acc.push(
-          ...supportedModels[v.adapter].map((m) => `${v.provider}: ${m}`),
-        );
-      }
-      acc.push(...v.customModels.map((m) => `${v.provider}: ${m}`));
+  const resolveProviderForModel = useCallback(
+    ({ provider: providerOrAdapter, model }: PromptConfigModel) => {
+      const matchingApiKey = providerOrAdapter
+        ? (llmApiKeys.find(({ provider }) => provider === providerOrAdapter) ??
+          llmApiKeys.find(({ adapter }) => adapter === providerOrAdapter))
+        : llmApiKeys.find((apiKey) =>
+            getAvailableModels(apiKey).includes(model),
+          );
 
-      return acc;
-    }, [] as string[]) ?? [];
-
-  const availableModels = useMemo(
-    () =>
-      !selectedProviderApiKey
-        ? []
-        : selectedProviderApiKey.withDefaultModels
-          ? [
-              ...selectedProviderApiKey.customModels,
-              ...supportedModels[selectedProviderApiKey.adapter],
-            ]
-          : selectedProviderApiKey.customModels,
-    [selectedProviderApiKey],
+      return matchingApiKey?.provider;
+    },
+    [llmApiKeys],
   );
+
+  const promptConfigProvider = options?.promptConfigModel?.provider;
+  const promptConfigModel = options?.promptConfigModel?.model;
+  const resolvedPromptConfigProvider = promptConfigModel
+    ? resolveProviderForModel({
+        ...(promptConfigProvider ? { provider: promptConfigProvider } : {}),
+        model: promptConfigModel,
+      })
+    : undefined;
+
+  const providerModelCombinations = useMemo(() => {
+    const combinations =
+      llmApiKeys.reduce((acc, v) => {
+        if (v.withDefaultModels) {
+          acc.push(
+            ...supportedModels[v.adapter].map((m) => `${v.provider}: ${m}`),
+          );
+        }
+        acc.push(...v.customModels.map((m) => `${v.provider}: ${m}`));
+
+        return acc;
+      }, [] as string[]) ?? [];
+
+    if (resolvedPromptConfigProvider && promptConfigModel) {
+      combinations.push(
+        `${resolvedPromptConfigProvider}: ${promptConfigModel}`,
+      );
+    }
+
+    return [...new Set(combinations)];
+  }, [llmApiKeys, promptConfigModel, resolvedPromptConfigProvider]);
+
+  const availableModels = useMemo(() => {
+    if (!selectedProviderApiKey) return [];
+
+    const baseModels = getAvailableModels(selectedProviderApiKey);
+
+    const shouldAddModelFromPromptConfig =
+      resolvedPromptConfigProvider === selectedProviderApiKey.provider &&
+      promptConfigModel &&
+      !baseModels.includes(promptConfigModel);
+
+    return shouldAddModelFromPromptConfig
+      ? [...baseModels, promptConfigModel]
+      : baseModels;
+  }, [promptConfigModel, resolvedPromptConfigProvider, selectedProviderApiKey]);
 
   const updateModelParamValue = useCallback<
     ModelParamsContext["updateModelParamValue"]
@@ -214,6 +271,7 @@ export const useModelParams = (windowId?: string) => {
     updateModelParamValue,
     setModelParamEnabled,
     providerModelCombinations,
+    resolveProviderForModel,
   };
 };
 
@@ -308,3 +366,8 @@ function getDefaultAdapterParams(
       };
   }
 }
+
+const getAvailableModels = (apiKey: AvailableLlmApiKey): string[] =>
+  apiKey.withDefaultModels
+    ? [...apiKey.customModels, ...supportedModels[apiKey.adapter]]
+    : apiKey.customModels;
