@@ -9,7 +9,7 @@
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import {
   type ObservationType,
   AnnotationQueueObjectType,
@@ -49,6 +49,17 @@ import { type AggregatedTraceMetrics } from "@/src/components/trace/lib/trace-ag
 import type Decimal from "decimal.js";
 import { DetailHeaderActionsMenu } from "@/src/components/trace/components/_shared/DetailHeaderActionsMenu";
 import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useTraceData } from "@/src/components/trace/contexts/TraceDataContext";
+import { Button } from "@/src/components/ui/button";
+import { LockIcon, SquarePen } from "lucide-react";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTrigger,
+} from "@/src/components/ui/drawer";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -91,6 +102,20 @@ export const ObservationDetailViewHeader = memo(
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
     const { isAnnotationMode } = useViewPreferences();
+    const { isBetaEnabled: isV4Enabled } = useV4Beta();
+    const { trace, serverScores } = useTraceData();
+
+    // Get trace-level scores for V4 dual annotation
+    const traceScores = useMemo(
+      () => serverScores.filter((s) => !s.observationId),
+      [serverScores],
+    );
+
+    // Access check for annotation drawer
+    const hasAnnotationAccess = useHasProjectAccess({
+      projectId,
+      scope: "scores:CUD",
+    });
 
     // Format cost and usage values
     const totalCost = observation.totalCost;
@@ -136,21 +161,52 @@ export const ObservationDetailViewHeader = memo(
             {/* Hide annotation buttons in annotation mode (panel shown separately) */}
             {!isAnnotationMode && (
               <div className="flex items-start">
-                <AnnotateDrawer
-                  key={"annotation-drawer-" + observation.id}
-                  projectId={projectId}
-                  scoreTarget={{
-                    type: "trace",
-                    traceId: traceId,
-                    observationId: observation.id,
-                  }}
-                  scores={observationScores}
-                  scoreMetadata={{
-                    projectId: projectId,
-                    environment: observation.environment,
-                  }}
-                  size="sm"
-                />
+                {isV4Enabled ? (
+                  <Drawer>
+                    <DrawerTrigger asChild>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={!hasAnnotationAccess}
+                        className="rounded-r-none"
+                      >
+                        {!hasAnnotationAccess ? (
+                          <LockIcon className="mr-1.5 h-3 w-3" />
+                        ) : (
+                          <SquarePen className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        <span>Annotate</span>
+                      </Button>
+                    </DrawerTrigger>
+                    <DrawerContent className="p-3">
+                      <DualAnnotationContent
+                        projectId={projectId}
+                        traceId={traceId}
+                        observationId={observation.id}
+                        traceEnvironment={trace.environment}
+                        observationEnvironment={observation.environment}
+                        observationScores={observationScores}
+                        traceScores={traceScores}
+                      />
+                    </DrawerContent>
+                  </Drawer>
+                ) : (
+                  <AnnotateDrawer
+                    key={"annotation-drawer-" + observation.id}
+                    projectId={projectId}
+                    scoreTarget={{
+                      type: "trace",
+                      traceId: traceId,
+                      observationId: observation.id,
+                    }}
+                    scores={observationScores}
+                    scoreMetadata={{
+                      projectId: projectId,
+                      environment: observation.environment,
+                    }}
+                    size="sm"
+                  />
+                )}
                 <CreateNewAnnotationQueueItem
                   projectId={projectId}
                   objectId={observation.id}
