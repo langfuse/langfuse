@@ -6,6 +6,7 @@ import {
   ObservationLevel,
   PrismaClient,
   Prompt,
+  type JsonNested,
 } from "@langfuse/shared";
 import {
   ClickhouseClientType,
@@ -47,6 +48,7 @@ import {
   flattenJsonToPathArrays,
   getDatasetItemById,
   extractToolsFromObservation,
+  moveToolDefinitionsFromMetadataToInput,
   convertDefinitionsToMap,
   convertCallsToArrays,
   hasNoEvalConfigsCache,
@@ -800,25 +802,27 @@ export class IngestionService {
     // Search for the first non-null input and output in the observation events and set them on the merged result.
     // Fallback to the ClickHouse input/output if none are found within the events list.
     const reversedRawRecords = timeSortedEvents.slice().reverse();
-    mergedObservationRecord.input = this.stringify(
+    const rawInput =
       reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
-        clickhouseObservationRecord?.input,
-    );
-    mergedObservationRecord.output = this.stringify(
+      clickhouseObservationRecord?.input;
+    const rawOutput =
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
-        clickhouseObservationRecord?.output,
+      clickhouseObservationRecord?.output;
+    const normalizedToolInput = moveToolDefinitionsFromMetadataToInput(
+      rawInput,
+      mergedObservationRecord.metadata,
+    );
+
+    mergedObservationRecord.input = this.stringify(normalizedToolInput.input);
+    mergedObservationRecord.output = this.stringify(rawOutput);
+    mergedObservationRecord.metadata = convertJsonSchemaToRecord(
+      (normalizedToolInput.metadata ?? {}) as JsonNested,
     );
 
     // Extract tool definitions and calls from raw input/output
     try {
-      const rawInput = reversedRawRecords.find((record) => record?.body?.input)
-        ?.body?.input;
-      const rawOutput = reversedRawRecords.find(
-        (record) => record?.body?.output,
-      )?.body?.output;
-
       const { toolDefinitions, toolArguments } = extractToolsFromObservation(
-        rawInput,
+        normalizedToolInput.input,
         rawOutput,
       );
 

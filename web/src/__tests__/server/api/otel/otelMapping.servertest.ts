@@ -4112,6 +4112,9 @@ describe("OTel Resource Span Mapping", () => {
           },
         },
       ]);
+      expect(
+        observation?.body.metadata?.attributes?.["gen_ai.tool.definitions"],
+      ).toBeUndefined();
     });
 
     it("should map AI SDK available tools from metadata to input and remove them from metadata", async () => {
@@ -4225,6 +4228,10 @@ describe("OTel Resource Span Mapping", () => {
                     key: "custom.attribute",
                     value: { stringValue: "keep-me" },
                   },
+                  {
+                    key: "custom.unmapped",
+                    value: { stringValue: "still-metadata" },
+                  },
                 ],
                 status: {},
               },
@@ -4255,12 +4262,36 @@ describe("OTel Resource Span Mapping", () => {
       ]);
       expect(parsedInput.tools).toEqual(tools);
 
+      expect(observation?.body.output).toBeDefined();
+      const parsedOutput =
+        typeof observation?.body.output === "string"
+          ? JSON.parse(observation.body.output)
+          : observation?.body.output;
+
+      expect(parsedOutput).toEqual([
+        {
+          type: "tool-call",
+          toolCallId: "call_get_weather_1",
+          toolName: "get_weather",
+          input: {
+            location: "Berlin",
+            unit: "celsius",
+          },
+        },
+      ]);
+
       expect(observation?.body.metadata?.tools).toBeUndefined();
       expect(
         observation?.body.metadata?.attributes?.["ai.prompt.tools"],
       ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.["ai.response.toolCalls"],
+      ).toBeUndefined();
       expect(observation?.body.metadata?.attributes?.["custom.attribute"]).toBe(
         "keep-me",
+      );
+      expect(observation?.body.metadata?.attributes?.["custom.unmapped"]).toBe(
+        "still-metadata",
       );
 
       expect(trace?.body.metadata?.tools).toBeUndefined();

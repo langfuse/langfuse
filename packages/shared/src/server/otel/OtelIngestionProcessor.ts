@@ -19,6 +19,7 @@ import {
   recordDistribution,
   UsageDetails,
   extractToolsFromObservation,
+  moveToolDefinitionsFromMetadataToInput,
   convertDefinitionsToMap,
   convertCallsToArrays,
 } from "../";
@@ -1395,6 +1396,7 @@ export class OtelIngestionProcessor {
       // Vercel AI SDK
       "ai.prompt.messages",
       "ai.prompt",
+      "ai.prompt.tools",
       "ai.toolCall.args",
       "ai.response.text",
       "ai.result.text",
@@ -1439,6 +1441,7 @@ export class OtelIngestionProcessor {
       // OpenTelemetry
       "gen_ai.input.messages",
       "gen_ai.output.messages",
+      "gen_ai.tool.definitions",
       "gen_ai.tool.call.arguments",
       "gen_ai.tool.call.result",
       // Genkit
@@ -1549,7 +1552,11 @@ export class OtelIngestionProcessor {
                         : undefined;
       }
 
-      return { input, output, filteredAttributes };
+      return {
+        input: this.appendOtelToolDefinitionsToInput(input, attributes),
+        output,
+        filteredAttributes,
+      };
     }
 
     const inputEvents = events.filter(
@@ -1843,71 +1850,13 @@ export class OtelIngestionProcessor {
     input: unknown,
     attributes: Record<string, unknown>,
   ): unknown {
-    const toolDefinitions = this.extractOtelToolDefinitions(attributes);
-
-    if (!toolDefinitions || input == null) {
+    if (input == null) {
       return input;
     }
 
-    const mergeToolDefinitions = (value: unknown): unknown => {
-      if (Array.isArray(value)) {
-        return { messages: value, tools: toolDefinitions };
-      }
-
-      if (typeof value !== "object" || value == null) {
-        return null;
-      }
-
-      const inputObject = value as Record<string, unknown>;
-
-      if (inputObject.tools != null) {
-        return inputObject;
-      }
-
-      return {
-        ...inputObject,
-        tools: toolDefinitions,
-      };
-    };
-
-    if (typeof input === "string") {
-      try {
-        const parsedInput = JSON.parse(input);
-        const mergedInput = mergeToolDefinitions(parsedInput);
-        return mergedInput == null ? input : JSON.stringify(mergedInput);
-      } catch {
-        return input;
-      }
-    }
-
-    return mergeToolDefinitions(input) ?? input;
-  }
-
-  private extractOtelToolDefinitions(
-    attributes: Record<string, unknown>,
-  ): unknown[] | null {
-    const parseJsonString = (value: unknown): unknown => {
-      if (typeof value !== "string") {
-        return value;
-      }
-
-      try {
-        return JSON.parse(value);
-      } catch {
-        return value;
-      }
-    };
-
-    const modelRequestParameters = parseJsonString(
-      attributes["model_request_parameters"],
-    ) as Record<string, unknown> | null;
-
-    const toolDefinitions = parseJsonString(
-      attributes["gen_ai.tool.definitions"] ??
-        modelRequestParameters?.function_tools,
-    );
-
-    return Array.isArray(toolDefinitions) ? toolDefinitions : null;
+    return moveToolDefinitionsFromMetadataToInput(input, {
+      attributes,
+    }).input;
   }
 
   /**
@@ -2050,16 +1999,6 @@ export class OtelIngestionProcessor {
         "ai.telemetry.metadata.langfusePrompt",
       ]),
     });
-
-    // Vercel AI SDK
-    const tools =
-      "ai.prompt.tools" in attributes
-        ? attributes["ai.prompt.tools"]
-        : undefined;
-
-    if (tools) {
-      langfuseMetadata["tools"] = tools;
-    }
 
     return {
       ...topLevelMetadata,

@@ -1,11 +1,91 @@
 import { describe, it, expect } from "vitest";
 import {
   extractToolsFromObservation,
+  moveToolDefinitionsFromMetadataToInput,
   convertDefinitionsToMap,
   convertCallsToArrays,
 } from "@langfuse/shared/src/server";
 
 describe("extractToolsFromObservation", () => {
+  describe("Tool metadata normalization", () => {
+    it("moves AI SDK tools from metadata to input and removes duplicate metadata", () => {
+      const input = [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "What is the weather in Berlin?",
+            },
+          ],
+        },
+      ];
+      const tools = [
+        {
+          type: "function",
+          name: "get_weather",
+          description: "Get current weather for a location.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              location: { type: "string" },
+            },
+            required: ["location"],
+          },
+        },
+      ];
+      const metadata = {
+        tools,
+        attributes: {
+          "ai.prompt.tools": JSON.stringify(tools),
+          "custom.attribute": "keep-me",
+        },
+      };
+
+      const result = moveToolDefinitionsFromMetadataToInput(input, metadata);
+
+      expect(result.input).toEqual({
+        messages: input,
+        tools,
+      });
+      expect(result.metadata).toEqual({
+        attributes: {
+          "custom.attribute": "keep-me",
+        },
+      });
+    });
+
+    it("merges metadata tools with existing input tools before cleanup", () => {
+      const existingTool = {
+        type: "function",
+        name: "search_docs",
+        description: "Search docs.",
+        inputSchema: { type: "object" },
+      };
+      const metadataTool = {
+        type: "function",
+        name: "get_weather",
+        description: "Get weather.",
+        inputSchema: { type: "object" },
+      };
+      const input = {
+        messages: [{ role: "user", content: "Need weather and docs" }],
+        tools: [existingTool],
+      };
+      const metadata = {
+        tools: [metadataTool],
+      };
+
+      const result = moveToolDefinitionsFromMetadataToInput(input, metadata);
+
+      expect(result.input).toEqual({
+        messages: input.messages,
+        tools: [existingTool, metadataTool],
+      });
+      expect(result.metadata).toEqual({});
+    });
+  });
+
   describe("Tool Definitions extraction", () => {
     it("extracts OpenAI format tools from input", () => {
       const input = {
@@ -59,8 +139,7 @@ describe("extractToolsFromObservation", () => {
       expect(toolDefinitions[0].name).toBe("search");
     });
 
-    it.skip("extracts tools from OTel metadata attributes", () => {
-      // TODO: Re-enable when OTel processor maps gen_ai.tool.definitions → input.tools
+    it("extracts normalized tools from OTel metadata attributes", () => {
       const metadata = {
         attributes: {
           "gen_ai.tool.definitions": [
@@ -73,18 +152,17 @@ describe("extractToolsFromObservation", () => {
         },
       };
 
+      const normalized = moveToolDefinitionsFromMetadataToInput(null, metadata);
       const { toolDefinitions } = extractToolsFromObservation(
+        normalized.input,
         null,
-        null,
-        metadata,
       );
 
       expect(toolDefinitions).toHaveLength(1);
       expect(toolDefinitions[0].name).toBe("calculator");
     });
 
-    it.skip("extracts tools from OTel indexed format", () => {
-      // TODO: Re-enable when OTel processor maps llm.tools.*.tool.json_schema → input.tools
+    it("extracts normalized tools from OTel indexed format", () => {
       const metadata = {
         attributes: {
           "llm.tools.0.tool.json_schema": {
@@ -98,10 +176,10 @@ describe("extractToolsFromObservation", () => {
         },
       };
 
+      const normalized = moveToolDefinitionsFromMetadataToInput(null, metadata);
       const { toolDefinitions } = extractToolsFromObservation(
+        normalized.input,
         null,
-        null,
-        metadata,
       );
 
       expect(toolDefinitions).toHaveLength(2);
@@ -864,7 +942,11 @@ describe("extractToolsFromObservation", () => {
         },
       };
 
-      const result = extractToolsFromObservation(input, output, metadata);
+      const normalized = moveToolDefinitionsFromMetadataToInput(
+        input,
+        metadata,
+      );
+      const result = extractToolsFromObservation(normalized.input, output);
 
       expect(result.toolDefinitions.map((t) => t.name)).toEqual([
         "get_weather",
@@ -884,8 +966,7 @@ describe("extractToolsFromObservation", () => {
       });
     });
 
-    it.skip("should extract tool definitions from OTel metadata structure i.e. pydantic-ai", () => {
-      // TODO: Re-enable when OTel processor maps metadata.attributes.model_request_parameters.function_tools → input.tools
+    it("should extract normalized tool definitions from OTel metadata structure i.e. pydantic-ai", () => {
       const metadata = {
         attributes: {
           "gen_ai.operation.name": "chat",
@@ -955,8 +1036,11 @@ describe("extractToolsFromObservation", () => {
         ],
       };
 
-      // Also test with explicit framework hint
-      const result = extractToolsFromObservation(input, output, metadata);
+      const normalized = moveToolDefinitionsFromMetadataToInput(
+        input,
+        metadata,
+      );
+      const result = extractToolsFromObservation(normalized.input, output);
 
       // Should extract 3 available tools
       expect(result.toolDefinitions).toHaveLength(3);

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+type IngestionJsonValue = string | object | number | boolean | null | undefined;
+
 /**
  * ClickHouse storage schema for tool definitions.
  *
@@ -43,6 +45,14 @@ function flattenToolDefinition(tool: unknown): {
   description?: string;
   parameters?: unknown;
 } {
+  if (typeof tool === "string") {
+    try {
+      tool = JSON.parse(tool);
+    } catch {
+      return {};
+    }
+  }
+
   if (!tool || typeof tool !== "object") return {};
   const t = tool as Record<string, unknown>;
 
@@ -378,6 +388,222 @@ function parseIfString(data: unknown): unknown {
     }
   }
   return data;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toIngestionJsonValue(value: unknown): IngestionJsonValue {
+  if (value == null) return value;
+
+  const valueType = typeof value;
+  return valueType === "string" ||
+    valueType === "number" ||
+    valueType === "boolean" ||
+    valueType === "object"
+    ? (value as IngestionJsonValue)
+    : undefined;
+}
+
+function parseToolDefinitionArray(tools: unknown): unknown[] | undefined {
+  const parsedTools = parseArrayIfString(tools);
+  if (!parsedTools) return undefined;
+
+  return parsedTools.map(parseIfString);
+}
+
+function dedupeToolDefinitions(tools: unknown[]): unknown[] {
+  const seenToolNames = new Set<string>();
+  return tools.filter((tool) => {
+    const name = flattenToolDefinition(tool).name;
+    if (!name) return true;
+    if (seenToolNames.has(name)) return false;
+    seenToolNames.add(name);
+    return true;
+  });
+}
+
+function collectToolDefinitionsFromMetadata(
+  metadata: Record<string, unknown>,
+): unknown[] {
+  let tools: unknown[] = [];
+  const addTools = (value: unknown) => {
+    const parsedTools = parseToolDefinitionArray(value);
+    if (parsedTools) tools = tools.concat(parsedTools);
+  };
+
+  addTools(metadata.tools);
+
+  const attributes = isPlainRecord(metadata.attributes)
+    ? metadata.attributes
+    : undefined;
+
+  if (!attributes) return tools;
+
+  addTools(attributes["ai.prompt.tools"]);
+  addTools(attributes["gen_ai.tool.definitions"]);
+
+  const modelRequestParameters = parseIfString(
+    attributes.model_request_parameters,
+  );
+  if (isPlainRecord(modelRequestParameters)) {
+    addTools(modelRequestParameters.function_tools);
+  }
+
+  const indexedToolKeys = Object.keys(attributes)
+    .map((key) => ({
+      key,
+      match: /^llm\.tools\.(\d+)\.tool\.json_schema$/.exec(key),
+    }))
+    .filter(
+      (entry): entry is { key: string; match: RegExpExecArray } =>
+        entry.match !== null,
+    )
+    .sort((left, right) => Number(left.match[1]) - Number(right.match[1]));
+
+  for (const { key } of indexedToolKeys) {
+    tools.push(parseIfString(attributes[key]));
+  }
+
+  return dedupeToolDefinitions(tools);
+}
+
+function appendToolsToInput(
+  input: unknown,
+  tools: unknown[],
+): { input: IngestionJsonValue; mapped: boolean } {
+  const mergeTools = (
+    value: unknown,
+  ): { input: IngestionJsonValue; mapped: boolean } => {
+    if (Array.isArray(value)) {
+      return { input: { messages: value, tools }, mapped: true };
+    }
+
+    if (isPlainRecord(value)) {
+      if (value.tools != null) {
+        const existingTools = parseToolDefinitionArray(value.tools);
+
+        if (!existingTools) {
+          return { input: toIngestionJsonValue(input), mapped: false };
+        }
+
+        return {
+          input: {
+            ...value,
+            tools: dedupeToolDefinitions(existingTools.concat(tools)),
+          },
+          mapped: true,
+        };
+      }
+
+      return {
+        input: { ...value, tools },
+        mapped: true,
+      };
+    }
+
+    if (value == null) {
+      return { input: { tools }, mapped: true };
+    }
+
+    return { input: toIngestionJsonValue(input), mapped: false };
+  };
+
+  if (typeof input === "string") {
+    try {
+      const merged = mergeTools(JSON.parse(input));
+      return {
+        input: merged.mapped ? JSON.stringify(merged.input) : input,
+        mapped: merged.mapped,
+      };
+    } catch {
+      return { input, mapped: false };
+    }
+  }
+
+  return mergeTools(input);
+}
+
+function removeToolDefinitionsFromMetadata(
+  metadata: Record<string, unknown>,
+): Record<string, unknown> {
+  const cleanedMetadata = { ...metadata };
+  delete cleanedMetadata.tools;
+
+  const attributes = isPlainRecord(cleanedMetadata.attributes)
+    ? { ...cleanedMetadata.attributes }
+    : undefined;
+
+  if (!attributes) return cleanedMetadata;
+
+  delete attributes["ai.prompt.tools"];
+  delete attributes["gen_ai.tool.definitions"];
+
+  const modelRequestParameters = parseIfString(
+    attributes.model_request_parameters,
+  );
+  if (isPlainRecord(modelRequestParameters)) {
+    const cleanedModelRequestParameters = { ...modelRequestParameters };
+    delete cleanedModelRequestParameters.function_tools;
+
+    if (Object.keys(cleanedModelRequestParameters).length > 0) {
+      attributes.model_request_parameters =
+        typeof attributes.model_request_parameters === "string"
+          ? JSON.stringify(cleanedModelRequestParameters)
+          : cleanedModelRequestParameters;
+    } else {
+      delete attributes.model_request_parameters;
+    }
+  }
+
+  for (const key of Object.keys(attributes)) {
+    if (/^llm\.tools\.\d+\.tool\.json_schema$/.test(key)) {
+      delete attributes[key];
+    }
+  }
+
+  if (Object.keys(attributes).length > 0) {
+    cleanedMetadata.attributes = attributes;
+  } else {
+    delete cleanedMetadata.attributes;
+  }
+
+  return cleanedMetadata;
+}
+
+export function moveToolDefinitionsFromMetadataToInput(
+  input: unknown,
+  metadata: unknown,
+): { input: IngestionJsonValue; metadata: IngestionJsonValue } {
+  const parsedMetadata = parseIfString(metadata);
+  if (!isPlainRecord(parsedMetadata)) {
+    return {
+      input: toIngestionJsonValue(input),
+      metadata: toIngestionJsonValue(metadata),
+    };
+  }
+
+  const tools = collectToolDefinitionsFromMetadata(parsedMetadata);
+  if (tools.length === 0) {
+    return {
+      input: toIngestionJsonValue(input),
+      metadata: toIngestionJsonValue(metadata),
+    };
+  }
+
+  const mappedInput = appendToolsToInput(input, tools);
+  if (!mappedInput.mapped) {
+    return {
+      input: toIngestionJsonValue(input),
+      metadata: toIngestionJsonValue(metadata),
+    };
+  }
+
+  return {
+    input: mappedInput.input,
+    metadata: removeToolDefinitionsFromMetadata(parsedMetadata),
+  };
 }
 
 /**
