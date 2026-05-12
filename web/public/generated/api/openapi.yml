@@ -7349,8 +7349,10 @@ components:
           $ref: '#/components/schemas/ExportSource'
           nullable: true
           description: >-
-            Data to export. Defaults to `TRACES_OBSERVATIONS` when omitted
-            (matches the column default).
+            Data to export. When omitted on update, the existing value is
+            preserved; when omitted on create, the column default
+            (`TRACES_OBSERVATIONS`) applies. Required when `exportFieldGroups`
+            is provided.
         exportFieldGroups:
           type: array
           items:
@@ -7360,15 +7362,20 @@ components:
             Field groups to include in each exported row.
 
 
-            For exportSource `EVENTS` or `TRACES_OBSERVATIONS_EVENTS`: optional;
-            defaults to all groups when omitted. Must include `core` if
-            provided.
+            For exportSource `EVENTS` or `TRACES_OBSERVATIONS_EVENTS`: must
+            include `core` if provided. When omitted on create, the column
+            default (all groups) applies. When omitted on update, the existing
+            value is preserved.
 
 
             For exportSource `TRACES_OBSERVATIONS`: this field must be omitted
             or null. Sending an array (including an empty array) returns 400,
             because that source uses a fixed column set and does not honor field
             groups.
+
+
+            `exportFieldGroups` requires `exportSource` to be provided in the
+            same request.
       required:
         - projectId
         - type

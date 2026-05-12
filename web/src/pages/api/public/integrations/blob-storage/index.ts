@@ -10,7 +10,6 @@ import {
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
   AnalyticsIntegrationExportSource,
-  BLOB_EXPORT_FIELD_GROUPS,
   type BlobExportFieldGroup,
   LangfuseNotFoundError,
   UnauthorizedError,
@@ -184,11 +183,7 @@ async function handleUpsertBlobStorageIntegration(
       exportStartDate: validatedData.exportStartDate ?? null,
       compressed: validatedData.compressed,
       exportSource: validatedData.exportSource,
-      exportFieldGroups:
-        validatedData.exportSource ===
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
-          ? undefined
-          : (validatedData.exportFieldGroups ?? [...BLOB_EXPORT_FIELD_GROUPS]),
+      exportFieldGroups: validatedData.exportFieldGroups ?? undefined,
     },
   });
 

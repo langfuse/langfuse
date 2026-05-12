@@ -1037,6 +1037,117 @@ describe("Blob Storage Integrations API", () => {
         "io",
       ]);
     });
+
+    it("PUT without exportSource preserves existing EVENTS source and field groups", async () => {
+      // Pre-seed an EVENTS row with a custom field-group subset
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "initial-bucket",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "EVENTS",
+          exportFieldGroups: ["core", "io"],
+        },
+      });
+
+      // PUT update with exportSource and exportFieldGroups both omitted
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        bucketName: "updated-bucket",
+      };
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(putResponse.status).toBe(200);
+      expect(putResponse.body.exportSource).toBe("EVENTS");
+      expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
+
+      // DB row preserved on both columns; bucket updated
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportSource).toBe("EVENTS");
+      expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
+      expect(saved?.bucketName).toBe("updated-bucket");
+    });
+
+    it("PUT exportSource=EVENTS without exportFieldGroups on existing EVENTS row preserves field groups", async () => {
+      // Pre-seed an EVENTS row with a custom field-group subset
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "initial-bucket",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "EVENTS",
+          exportFieldGroups: ["core", "io"],
+        },
+      });
+
+      // PUT with explicit exportSource=EVENTS but exportFieldGroups omitted
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportSource: "EVENTS" as const,
+        bucketName: "updated-bucket",
+      };
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(putResponse.status).toBe(200);
+      expect(putResponse.body.exportSource).toBe("EVENTS");
+      expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
+      expect(saved?.bucketName).toBe("updated-bucket");
+    });
+
+    it("PUT with exportFieldGroups but no exportSource -> 400", async () => {
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportFieldGroups: ["core", "io"],
+      };
+
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(400);
+      const message = JSON.stringify(result.body).toLowerCase();
+      expect(message).toContain("exportsource is required");
+    });
   });
 
   describe("DELETE /api/public/integrations/blob-storage/{id}", () => {
