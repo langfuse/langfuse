@@ -84,7 +84,7 @@ jobs:
                 return `["staging"]`
               }
               if (context.ref === "refs/heads/production") {
-                return `["prod-eu", "prod-us", "prod-hipaa", "prod-jp"]`
+                return `["prod-eu", "prod-us", "prod-hipaa", "prod-jps"]`
               }
             }
             return "[]"
