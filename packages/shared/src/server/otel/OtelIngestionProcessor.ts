@@ -1606,7 +1606,10 @@ export class OtelIngestionProcessor {
           : null;
 
       return {
-        input: processedInput,
+        input: this.appendOtelToolDefinitionsToInput(
+          processedInput,
+          attributes,
+        ),
         output:
           processedOutput && processedOutput.length === 1
             ? processedOutput[0]
@@ -1850,10 +1853,6 @@ export class OtelIngestionProcessor {
     input: unknown,
     attributes: Record<string, unknown>,
   ): unknown {
-    if (input == null) {
-      return input;
-    }
-
     return moveToolDefinitionsFromMetadataToInput(input, {
       attributes,
     }).input;

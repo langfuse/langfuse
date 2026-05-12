@@ -84,6 +84,38 @@ describe("extractToolsFromObservation", () => {
       });
       expect(result.metadata).toEqual({});
     });
+
+    it("moves tools from stringified metadata attributes and removes duplicate metadata", () => {
+      const input = [{ role: "user", content: "Need a calculation" }];
+      const tool = {
+        name: "calculator",
+        description: "Do math.",
+        parameters: {
+          type: "object",
+          properties: {
+            expression: { type: "string" },
+          },
+        },
+      };
+      const metadata = {
+        attributes: JSON.stringify({
+          "llm.tools.0.tool.json_schema": tool,
+          "custom.attribute": "keep-me",
+        }),
+      };
+
+      const result = moveToolDefinitionsFromMetadataToInput(input, metadata);
+
+      expect(result.input).toEqual({
+        messages: input,
+        tools: [tool],
+      });
+      expect(result.metadata).toEqual({
+        attributes: {
+          "custom.attribute": "keep-me",
+        },
+      });
+    });
   });
 
   describe("Tool Definitions extraction", () => {

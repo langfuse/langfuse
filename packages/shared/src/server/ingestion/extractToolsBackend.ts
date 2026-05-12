@@ -394,6 +394,11 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function parsePlainRecord(value: unknown): Record<string, unknown> | undefined {
+  const parsed = parseIfString(value);
+  return isPlainRecord(parsed) ? parsed : undefined;
+}
+
 function toIngestionJsonValue(value: unknown): IngestionJsonValue {
   if (value == null) return value;
 
@@ -435,9 +440,7 @@ function collectToolDefinitionsFromMetadata(
 
   addTools(metadata.tools);
 
-  const attributes = isPlainRecord(metadata.attributes)
-    ? metadata.attributes
-    : undefined;
+  const attributes = parsePlainRecord(metadata.attributes);
 
   if (!attributes) return tools;
 
@@ -531,9 +534,8 @@ function removeToolDefinitionsFromMetadata(
   const cleanedMetadata = { ...metadata };
   delete cleanedMetadata.tools;
 
-  const attributes = isPlainRecord(cleanedMetadata.attributes)
-    ? { ...cleanedMetadata.attributes }
-    : undefined;
+  const parsedAttributes = parsePlainRecord(cleanedMetadata.attributes);
+  const attributes = parsedAttributes ? { ...parsedAttributes } : undefined;
 
   if (!attributes) return cleanedMetadata;
 

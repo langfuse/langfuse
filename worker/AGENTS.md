@@ -99,3 +99,4 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
   surface any discrepancies:
   - https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage
   - https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields
+- be very mindful of adding additional `JSON.parse` calls in the ingestion processing pipeline. Those can cause performance issues, because JSONs might be very large. Ideally, parse each JSON subset only once.
