@@ -4114,6 +4114,161 @@ describe("OTel Resource Span Mapping", () => {
       ]);
     });
 
+    it("should map AI SDK available tools from metadata to input and remove them from metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567891";
+      const rootSpanId = "1234567890abcdea";
+      const tools = [
+        {
+          type: "function",
+          name: "get_weather",
+          description: "Get current weather for a location.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              location: { type: "string" },
+              unit: { type: "string", enum: ["celsius", "fahrenheit"] },
+            },
+            required: ["location"],
+            additionalProperties: false,
+          },
+        },
+        {
+          type: "function",
+          name: "schedule_reminder",
+          description: "Schedule a reminder.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              date: { type: "string" },
+              time: { type: "string" },
+              message: { type: "string" },
+            },
+            required: ["date", "time", "message"],
+            additionalProperties: false,
+          },
+        },
+      ];
+
+      const span = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "otel-test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai",
+              version: "6.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "ai.generateText",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "ai.operationId",
+                    value: { stringValue: "ai.generateText.doGenerate" },
+                  },
+                  {
+                    key: "ai.model.id",
+                    value: { stringValue: "test-model" },
+                  },
+                  {
+                    key: "ai.prompt.messages",
+                    value: {
+                      stringValue: JSON.stringify([
+                        {
+                          role: "user",
+                          content: [
+                            {
+                              type: "text",
+                              text: "What is the weather in Berlin?",
+                            },
+                          ],
+                        },
+                      ]),
+                    },
+                  },
+                  {
+                    key: "ai.prompt.tools",
+                    value: { stringValue: JSON.stringify(tools) },
+                  },
+                  {
+                    key: "ai.response.toolCalls",
+                    value: {
+                      stringValue: JSON.stringify([
+                        {
+                          type: "tool-call",
+                          toolCallId: "call_get_weather_1",
+                          toolName: "get_weather",
+                          input: {
+                            location: "Berlin",
+                            unit: "celsius",
+                          },
+                        },
+                      ]),
+                    },
+                  },
+                  {
+                    key: "custom.attribute",
+                    value: { stringValue: "keep-me" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(span, new Set());
+
+      const trace = events.find((e) => e.type === "trace-create");
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      expect(observation?.body.input).toBeDefined();
+
+      const parsedInput =
+        typeof observation?.body.input === "string"
+          ? JSON.parse(observation.body.input)
+          : observation?.body.input;
+
+      expect(parsedInput.messages).toEqual([
+        {
+          role: "user",
+          content: [{ type: "text", text: "What is the weather in Berlin?" }],
+        },
+      ]);
+      expect(parsedInput.tools).toEqual(tools);
+
+      expect(observation?.body.metadata?.tools).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.["ai.prompt.tools"],
+      ).toBeUndefined();
+      expect(observation?.body.metadata?.attributes?.["custom.attribute"]).toBe(
+        "keep-me",
+      );
+
+      expect(trace?.body.metadata?.tools).toBeUndefined();
+      expect(
+        trace?.body.metadata?.attributes?.["ai.prompt.tools"],
+      ).toBeUndefined();
+    });
+
     it("should filter all input/output attribute patterns from metadata.attributes while preserving custom attributes", async () => {
       // This test verifies that extractInputAndOutput's filteredAttributes correctly removes
       // all known input/output attribute patterns from multiple frameworks
