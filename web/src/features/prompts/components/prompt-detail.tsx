@@ -295,8 +295,14 @@ export const PromptDetail = ({
       ),
       jsCode: getJsCode(prompt.name, prompt.version, sortedLabels, variables),
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prompt?.id]);
+  }, [
+    prompt?.id,
+    prompt?.type,
+    prompt?.prompt,
+    prompt?.name,
+    prompt?.version,
+    prompt?.labels,
+  ]);
 
   if (!promptHistory.data || !prompt) {
     return <div className="p-3">Loading...</div>;
