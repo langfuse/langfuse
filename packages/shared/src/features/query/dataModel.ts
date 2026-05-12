@@ -1162,6 +1162,13 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "Dataset used in the experiment.",
       highCardinality: true,
     },
+    experimentMetadata: {
+      sql: "events_observations.experiment_metadata_names",
+      alias: "experimentMetadata",
+      type: "stringObject",
+      description: "Metadata key-value pairs associated with the experiment.",
+      uiHidden: true, // Only available as filter, not as breakdown dimension
+    },
     experimentId: {
       sql: "nullIf(events_observations.experiment_id, '')",
       alias: "experimentId",
