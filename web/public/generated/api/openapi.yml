@@ -7267,6 +7267,12 @@ components:
 
         - `TRACES_OBSERVATIONS_EVENTS`: both sets. For the `EVENTS` portion,
         columns are controlled by `exportFieldGroups`.
+
+
+        **Note:** `EVENTS` and the events portion of
+        `TRACES_OBSERVATIONS_EVENTS` rely on the observations_v2 events table
+        (Langfuse Fast Preview / v4), which is currently available on Langfuse
+        Cloud only. See https://langfuse.com/docs/v4.
     ExportFieldGroup:
       title: ExportFieldGroup
       type: string
