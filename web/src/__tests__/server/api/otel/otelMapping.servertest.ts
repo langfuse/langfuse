@@ -4117,6 +4117,99 @@ describe("OTel Resource Span Mapping", () => {
       ).toBeUndefined();
     });
 
+    it("should map gen_ai.tool.definitions to input.tools for event-based gen_ai messages", async () => {
+      const traceId = "abcdef1234567890abcdef1234567892";
+      const rootSpanId = "1234567890abcdeb";
+      const tool = {
+        type: "function",
+        name: "calculator",
+        description: "Do math",
+        parameters: {
+          type: "object",
+          properties: {
+            expression: { type: "string" },
+          },
+        },
+      };
+
+      const span = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "otel-test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "otel-test-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "otel-genai-event-span",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.tool.definitions",
+                    value: { stringValue: JSON.stringify([tool]) },
+                  },
+                ],
+                events: [
+                  {
+                    name: "gen_ai.user.message",
+                    timeUnixNano: {
+                      low: 1000000,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    attributes: [
+                      {
+                        key: "content",
+                        value: { stringValue: "What is 2 + 2?" },
+                      },
+                    ],
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(span, new Set());
+
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      expect(observation?.body.input).toBeDefined();
+
+      const parsedInput =
+        typeof observation?.body.input === "string"
+          ? JSON.parse(observation.body.input)
+          : observation?.body.input;
+
+      expect(parsedInput).toEqual({
+        messages: [{ role: "user", content: "What is 2 + 2?" }],
+        tools: [tool],
+      });
+      expect(
+        observation?.body.metadata?.attributes?.["gen_ai.tool.definitions"],
+      ).toBeUndefined();
+    });
+
     it("should map AI SDK available tools from metadata to input and remove them from metadata", async () => {
       const traceId = "abcdef1234567890abcdef1234567891";
       const rootSpanId = "1234567890abcdea";
