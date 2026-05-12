@@ -1,9 +1,12 @@
 # The node alpine image is available here: https://github.com/nodejs/docker-node
-FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24-alpine AS alpine
+FROM --platform=${TARGETPLATFORM:-linux/amd64} edge.fkinternal.com/docker-external/node:24-alpine AS alpine
+
+# Inject Flipkart corporate CA so all HTTPS calls (apk, npm, go, prisma) work
+COPY flipkart-ca.pem /usr/local/share/ca-certificates/flipkart-ca.crt
+RUN apk add --no-cache --allow-untrusted ca-certificates && update-ca-certificates
 
 # It's important to update the index before installing packages to ensure you're getting the latest versions.
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client zlib
+RUN apk add --no-cache libc6-compat
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
@@ -19,17 +22,15 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 RUN rm -rf /usr/local/lib/node_modules/corepack && \
     rm -f /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
-FROM --platform=${BUILDPLATFORM} golang:1.24 AS migrate-builder
+FROM --platform=${BUILDPLATFORM} edge.fkinternal.com/docker-external/golang:1.24 AS migrate-builder
 ARG TARGETOS
 ARG TARGETARCH
+COPY flipkart-ca.pem /usr/local/share/ca-certificates/flipkart-ca.crt
+RUN update-ca-certificates
 ENV CGO_ENABLED=0 \
     GOBIN=/out \
     GOOS=${TARGETOS} \
     GOARCH=${TARGETARCH}
-# Build only the ClickHouse migrate CLI Langfuse uses at runtime.
-# compile this ourselves instead of downloading the upstream release
-# because prebuilt bins bundle many unused drivers and thus inherit CVEs
-# eg.: https://github.com/golang-migrate/migrate/issues/1357
 RUN /usr/local/go/bin/go install -trimpath -tags 'clickhouse' -ldflags='-s -w' \
     github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
 
@@ -105,7 +106,7 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 # set the CI flag to true to get CI specific logs
 ENV CI true
 
-RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
+RUN NODE_OPTIONS='--max-old-space-size=4096' turbo run build --filter=web...
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner
@@ -128,7 +129,7 @@ ENV DOCKER_BUILD 0
 # Set NEXT_MANUAL_SIG_HANDLE for runtime
 ENV NEXT_MANUAL_SIG_HANDLE true
 
-RUN apk add --no-cache dumb-init tzdata
+RUN wget -O /usr/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_$(uname -m | sed s/aarch64/aarch64/ | sed s/x86_64/x86_64/) && chmod +x /usr/bin/dumb-init && apk add --no-cache --allow-untrusted tzdata || true
 
 # Don't run production as root
 ARG UID=1001

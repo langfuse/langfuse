@@ -1,0 +1,76 @@
+# Complete build approach: Include node_modules in final stage
+# This avoids turbopack hash mismatches by keeping build + runtime node_modules in sync
+#
+# KEY FIX: Build everything in builder stage, copy BOTH .next AND node_modules
+# to the final runtime stage (not just .next on top of the official image)
+#
+# Build stages use $BUILDPLATFORM (native arm64 on Mac) to avoid QEMU for pnpm install.
+# The final stage uses amd64 base and includes all built artifacts.
+
+FROM --platform=$BUILDPLATFORM jfrog.fkinternal.com/docker-external/node:24-alpine AS alpine
+RUN apk add --no-cache --allow-untrusted libc6-compat || true
+
+FROM --platform=$BUILDPLATFORM alpine AS build-base
+RUN npm install turbo@2.9.5 --global
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+
+FROM --platform=$BUILDPLATFORM build-base AS pruner
+WORKDIR /app
+COPY . .
+RUN turbo prune --scope=web --docker
+
+FROM --platform=$BUILDPLATFORM build-base AS builder
+WORKDIR /app
+COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=pruner /app/out/json/ .
+RUN NODE_TLS_REJECT_UNAUTHORIZED=0 pnpm install --frozen-lockfile
+COPY --from=pruner /app/out/full/ .
+RUN rm -f ./web/src/middleware.ts
+
+# CRITICAL: CPUS=1 forces sequential build instead of worker threads
+# This prevents QEMU segfaults on multi-threaded Next.js compilation
+RUN NODE_TLS_REJECT_UNAUTHORIZED=0 NODE_OPTIONS='--max-old-space-size=8192' \
+    CPUS=1 turbo run build --filter=web... --concurrency=1
+
+# ============================================================================
+# FIXED: Runtime stage includes BOTH .next AND node_modules from builder
+# This ensures turbopack hashes match the actual modules at runtime
+# ============================================================================
+FROM --platform=linux/amd64 jfrog.fkinternal.com/docker-external/node:24-alpine AS runtime
+
+# Install system dependencies (matching official Langfuse image)
+RUN apk add --no-cache --allow-untrusted libc6-compat dumb-init || true
+
+WORKDIR /app
+
+# Copy the complete built application from builder
+# Include all node_modules and the .next directory
+COPY --from=builder --chown=1001:1001 /app/node_modules ./node_modules
+COPY --from=builder --chown=1001:1001 /app/web/node_modules ./web/node_modules
+COPY --from=builder --chown=1001:1001 /app/web/.next ./web/.next
+COPY --from=builder --chown=1001:1001 /app/web/public ./web/public
+COPY --from=builder --chown=1001:1001 /app/web/package.json ./web/package.json
+COPY --from=builder --chown=1001:1001 /app/packages/shared/dist ./packages/shared/dist
+
+# Copy Prisma schema and migrations
+COPY --from=builder --chown=1001:1001 /app/packages/shared/prisma ./packages/shared/prisma
+
+# Set up environment
+ENV NODE_ENV=production
+ENV NEXTAUTH_URL=http://localhost:3000
+
+# Security context
+RUN chown -R 1001:1001 /app
+USER 1001
+
+# Health check
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/api/public/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+EXPOSE 3000
+
+ENTRYPOINT ["/sbin/dumb-init", "--"]
+CMD ["node", "/app/web/server.js"]

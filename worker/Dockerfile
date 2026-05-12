@@ -1,9 +1,9 @@
 # The node alpine image is available here: https://github.com/nodejs/docker-node
-FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24-alpine AS alpine
+FROM --platform=${TARGETPLATFORM:-linux/amd64} edge.fkinternal.com/docker-external/node:24-alpine AS alpine
 
 # It's important to update the index before installing packages to ensure you're getting the latest versions.
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client zlib
+RUN apk add --no-cache --allow-untrusted libc6-compat || true
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
@@ -46,7 +46,7 @@ ARG NEXT_PUBLIC_POSTHOG_HOST
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
-RUN turbo run build --filter=worker...
+RUN NODE_TLS_REJECT_UNAUTHORIZED=0 turbo run build --filter=worker...
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 
@@ -69,7 +69,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
 
-RUN apk add --no-cache dumb-init
+RUN wget -O /usr/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_$(uname -m | sed s/aarch64/aarch64/ | sed s/x86_64/x86_64/) && chmod +x /usr/bin/dumb-init
 
 WORKDIR /app
 

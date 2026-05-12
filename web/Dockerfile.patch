@@ -1,0 +1,42 @@
+# Use the full build pipeline from the original web Dockerfile
+# but override the source with our changed file.
+# This ensures node_modules, Next.js version, and chunk hashes all match.
+#
+# KEY FIX: CPUS=1 limits Next.js worker threads to prevent QEMU multi-threading crashes.
+# Build stages use $BUILDPLATFORM (native arm64 on Mac) to avoid QEMU for pnpm install.
+# The .next output is pure JS (platform-independent), so it layers fine onto amd64 base.
+
+FROM --platform=$BUILDPLATFORM jfrog.fkinternal.com/docker-external/node:24-alpine AS alpine
+RUN apk add --no-cache --allow-untrusted libc6-compat || true
+
+FROM --platform=$BUILDPLATFORM alpine AS build-base
+RUN npm install turbo@2.9.5 --global
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+
+FROM --platform=$BUILDPLATFORM build-base AS pruner
+WORKDIR /app
+COPY . .
+RUN turbo prune --scope=web --docker
+
+FROM --platform=$BUILDPLATFORM build-base AS builder
+WORKDIR /app
+COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=pruner /app/out/json/ .
+RUN NODE_TLS_REJECT_UNAUTHORIZED=0 pnpm install --frozen-lockfile
+COPY --from=pruner /app/out/full/ .
+RUN rm -f ./web/src/middleware.ts
+
+# CRITICAL: CPUS=1 forces sequential build instead of worker threads
+# This prevents QEMU segfaults on multi-threaded Next.js compilation
+RUN NODE_TLS_REJECT_UNAUTHORIZED=0 NODE_OPTIONS='--max-old-space-size=8192' \
+    CPUS=1 turbo run build --filter=web... --concurrency=1
+
+# Stage 2: Layer rebuilt .next + node_modules on top of the production base image
+# CRITICAL FIX: Include node_modules so turbopack hashes match at runtime
+FROM edge.fkinternal.com/docker-external/langfuse/langfuse:3
+COPY --from=builder --chown=1001:1001 /app/node_modules /app/node_modules
+COPY --from=builder --chown=1001:1001 /app/web/node_modules /app/web/node_modules
+COPY --from=builder --chown=1001:1001 /app/web/.next /app/web/.next
