@@ -67,14 +67,7 @@ import {
   Plus,
   X,
   AlertCircle,
-  Sparkles,
 } from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  PopoverClose,
-} from "@/src/components/ui/popover";
 import {
   buildWidgetName,
   buildWidgetDescription,
@@ -463,6 +456,21 @@ export function WidgetForm({
     () => mapWidgetUiTableFilterToView(selectedView, userFilterState),
     [selectedView, userFilterState],
   );
+
+  // Detect if we're in "experiments mode" - observations view with experiment filter
+  // Check both column id ("experimentId") and name ("Experiment ID") since filter builder may use either
+  const isExperimentsMode = useMemo(() => {
+    if (selectedView !== "observations") return false;
+    return userFilterState.some(
+      (f) =>
+        (f.column === "experimentId" || f.column === "Experiment ID") &&
+        f.type === "null" &&
+        f.operator === "is not null",
+    );
+  }, [selectedView, userFilterState]);
+
+  // Display view for the selector - shows "experiments" when in experiments mode
+  const displayView = isExperimentsMode ? "experiments" : selectedView;
 
   // When beta is toggled on while "traces" is selected (and not editing an
   // existing widget), auto-switch to "observations" and reset dependent fields.
@@ -1361,46 +1369,43 @@ export function WidgetForm({
             )}
             {/* Data Selection Section */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold">Data Selection</h3>
-                {viewVersion === "v2" && (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Presets
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64 p-1" align="end">
-                      {Object.entries(WIDGET_FILTER_PRESETS).map(
-                        ([key, preset]) => (
-                          <PopoverClose key={key} asChild>
-                            <button
-                              className="hover:bg-accent flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm"
-                              onClick={() => {
-                                // Set view to preset's view
-                                setSelectedView(preset.view);
-                                // Clear existing filters and apply preset filters
-                                setUserFilterState([...preset.filters]);
-                              }}
-                            >
-                              <preset.icon className="h-4 w-4" />
-                              {preset.label}
-                            </button>
-                          </PopoverClose>
-                        ),
-                      )}
-                    </PopoverContent>
-                  </Popover>
-                )}
-              </div>
-
               {/* View Selection */}
               <div className="space-y-2">
                 <Label htmlFor="view-select">View</Label>
                 <Select
-                  value={selectedView}
-                  onValueChange={(value) => {
+                  value={displayView}
+                  onValueChange={(displayValue) => {
+                    // Handle "experiments" as a UI alias for observations + filter
+                    const value =
+                      displayValue === "experiments"
+                        ? "observations"
+                        : displayValue;
+
+                    if (displayValue === "experiments") {
+                      if (!isExperimentsMode) {
+                        // Apply experiment filter (clearing any score-only filters)
+                        setUserFilterState([
+                          ...WIDGET_FILTER_PRESETS.allExperimentData.filters,
+                        ]);
+                        setSelectedView("observations");
+                      }
+                    } else if (
+                      displayValue === "observations" &&
+                      isExperimentsMode
+                    ) {
+                      setUserFilterState((prev) =>
+                        prev.filter(
+                          (f) =>
+                            !(
+                              (f.column === "experimentId" ||
+                                f.column === "Experiment ID") &&
+                              f.type === "null" &&
+                              f.operator === "is not null"
+                            ),
+                        ),
+                      );
+                    }
+
                     if (value !== selectedView) {
                       const newView = value as z.infer<typeof views>;
                       const newViewDeclaration =
@@ -1485,6 +1490,14 @@ export function WidgetForm({
                         }
                       />
                     ))}
+                    {viewVersion === "v2" && (
+                      <WidgetPropertySelectItem
+                        key="experiments"
+                        value="experiments"
+                        label="Experiment Items"
+                        description="Observations that were ingested as part of an experiment."
+                      />
+                    )}
                   </SelectContent>
                 </Select>
               </div>
