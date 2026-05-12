@@ -61,6 +61,32 @@ types:
       - daily
       - weekly
 
+  ExportSource:
+    docs: |
+      What data the integration exports.
+      - `TRACES_OBSERVATIONS`: legacy traces + observations + scores tables with a fixed column set. The `exportFieldGroups` field is not applicable.
+      - `EVENTS`: enriched observations_v2 events; columns are controlled by `exportFieldGroups`.
+      - `TRACES_OBSERVATIONS_EVENTS`: both sets. For the `EVENTS` portion, columns are controlled by `exportFieldGroups`.
+    enum:
+      - EVENTS
+      - TRACES_OBSERVATIONS
+      - TRACES_OBSERVATIONS_EVENTS
+
+  ExportFieldGroup:
+    docs: Field group for the EVENTS export.
+    enum:
+      - core
+      - basic
+      - time
+      - io
+      - metadata
+      - model
+      - usage
+      - prompt
+      - metrics
+      - tools
+      - trace_context
+
   CreateBlobStorageIntegrationRequest:
     properties:
       projectId:
@@ -100,6 +126,19 @@ types:
       compressed:
         type: optional<boolean>
         docs: Enable gzip compression for exported files (.csv.gz, .json.gz, .jsonl.gz). Defaults to true.
+      exportSource:
+        type: optional<ExportSource>
+        docs: |
+          Data to export. Defaults to `TRACES_OBSERVATIONS` when omitted (matches the column default).
+
+      exportFieldGroups:
+        type: optional<list<ExportFieldGroup>>
+        docs: |
+          Field groups to include in each exported row.
+
+          For exportSource `EVENTS` or `TRACES_OBSERVATIONS_EVENTS`: optional; defaults to all groups when omitted. Must include `core` if provided.
+
+          For exportSource `TRACES_OBSERVATIONS`: this field must be omitted or null. Sending an array (including an empty array) returns 400, because that source uses a fixed column set and does not honor field groups.
 
   BlobStorageIntegrationResponse:
     properties:
@@ -118,6 +157,11 @@ types:
       exportMode: BlobStorageExportMode
       exportStartDate: nullable<datetime>
       compressed: boolean
+      exportSource: ExportSource
+      exportFieldGroups:
+        type: nullable<list<ExportFieldGroup>>
+        docs: |
+          Field groups included in each exported row for `EVENTS` / `TRACES_OBSERVATIONS_EVENTS` sources. Always `null` when exportSource is `TRACES_OBSERVATIONS` (the field does not apply to that source; any legacy DB value is hidden from the public surface).
       nextSyncAt: nullable<datetime>
       lastSyncAt: nullable<datetime>
       lastError: nullable<string>

@@ -9,6 +9,9 @@ import {
   type BlobStorageIntegrationResponseType,
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
+  AnalyticsIntegrationExportSource,
+  BLOB_EXPORT_FIELD_GROUPS,
+  type BlobExportFieldGroup,
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
@@ -87,6 +90,12 @@ async function handleGetBlobStorageIntegrations(
       exportMode: integration.exportMode,
       exportStartDate: integration.exportStartDate,
       compressed: integration.compressed,
+      exportSource: integration.exportSource,
+      exportFieldGroups:
+        integration.exportSource ===
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
+          ? null
+          : (integration.exportFieldGroups as BlobExportFieldGroup[]),
       nextSyncAt: integration.nextSyncAt,
       lastSyncAt: integration.lastSyncAt,
       lastError: integration.lastError,
@@ -174,6 +183,12 @@ async function handleUpsertBlobStorageIntegration(
       exportMode: validatedData.exportMode,
       exportStartDate: validatedData.exportStartDate ?? null,
       compressed: validatedData.compressed,
+      exportSource: validatedData.exportSource,
+      exportFieldGroups:
+        validatedData.exportSource ===
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
+          ? undefined
+          : (validatedData.exportFieldGroups ?? [...BLOB_EXPORT_FIELD_GROUPS]),
     },
   });
 
@@ -194,6 +209,12 @@ async function handleUpsertBlobStorageIntegration(
     exportMode: integration.exportMode,
     exportStartDate: integration.exportStartDate,
     compressed: integration.compressed,
+    exportSource: integration.exportSource,
+    exportFieldGroups:
+      integration.exportSource ===
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
+        ? null
+        : (integration.exportFieldGroups as BlobExportFieldGroup[]),
     nextSyncAt: integration.nextSyncAt,
     lastSyncAt: integration.lastSyncAt,
     lastError: integration.lastError,
