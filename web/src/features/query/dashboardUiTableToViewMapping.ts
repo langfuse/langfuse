@@ -153,6 +153,23 @@ const viewFilterDefinitions: Record<
       sourceSpec("Observation Release", { uiTableId: "release" }),
     ),
     defineField("version", sourceSpec("Version", { uiTableId: "version" })),
+    // Experiment fields (v2 only - experiment data only exists in events table)
+    defineField(
+      "experimentName",
+      sourceSpec("Experiment Name", { uiTableId: "experimentName" }),
+    ),
+    defineField(
+      "experimentDatasetId",
+      sourceSpec("Experiment Dataset", { uiTableId: "experimentDatasetId" }),
+    ),
+    defineField(
+      "experimentMetadata",
+      sourceSpec("Experiment Metadata", { uiTableId: "experimentMetadata" }),
+    ),
+    defineField(
+      "experimentId",
+      sourceSpec("Experiment ID", { uiTableId: "experimentId" }),
+    ),
   ],
   "scores-numeric": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),

@@ -16,6 +16,8 @@ type GetWidgetFilterColumnsParams = {
   toolNamesOptions: SingleValueOption[];
   calledToolNamesOptions: SingleValueOption[];
   observationLevelOptions: SingleValueOption[];
+  experimentNameOptions: SingleValueOption[];
+  experimentDatasetOptions: SingleValueOption[];
 };
 
 type WidgetFilterColumnSpec = {
@@ -33,6 +35,8 @@ const getWidgetFilterColumnSpecs = ({
   toolNamesOptions,
   calledToolNamesOptions,
   observationLevelOptions,
+  experimentNameOptions,
+  experimentDatasetOptions,
 }: GetWidgetFilterColumnsParams): WidgetFilterColumnSpec[] => {
   const filterColumns: WidgetFilterColumnSpec[] = [
     {
@@ -128,6 +132,7 @@ const getWidgetFilterColumnSpecs = ({
 
   if (selectedView === "observations") {
     filterColumns.push(
+      // v2-only filter columns (experiment data only exists in events table)
       ...(viewVersion === "v2"
         ? [
             {
@@ -135,6 +140,42 @@ const getWidgetFilterColumnSpecs = ({
                 name: "Observation Release",
                 id: "release",
                 type: "string",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Experiment Name",
+                id: "experimentName",
+                type: "stringOptions",
+                options: experimentNameOptions,
+                internal: "internalValue",
+              },
+              customSelect: true,
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Experiment Dataset",
+                id: "experimentDatasetId",
+                type: "stringOptions",
+                options: experimentDatasetOptions,
+                internal: "internalValue",
+              },
+              customSelect: true,
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Experiment Metadata",
+                id: "experimentMetadata",
+                type: "stringObject",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Experiment ID",
+                id: "experimentId",
+                type: "null",
                 internal: "internalValue",
               },
             } satisfies WidgetFilterColumnSpec,
