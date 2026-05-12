@@ -1,6 +1,6 @@
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
-import { Trace } from "@/src/components/trace2/Trace";
+import { Trace } from "@/src/components/trace/Trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TablePeekView } from "@/src/components/table/peek";
 

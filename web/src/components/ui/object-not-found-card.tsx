@@ -6,7 +6,7 @@ export const ObjectNotFoundCard = ({
 }: {
   type: "TRACE" | "OBSERVATION" | "SESSION";
 }) => (
-  <Card className="flex h-full items-center justify-center p-6">
+  <Card className="flex h-full w-full items-center justify-center border-none p-6">
     <div className="text-center">
       <SearchXIcon className="text-muted-foreground mx-auto mb-2 h-8 w-8" />
       <p className="text-muted-foreground text-sm capitalize">

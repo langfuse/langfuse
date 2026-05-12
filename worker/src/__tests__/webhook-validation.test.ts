@@ -1,17 +1,26 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 
-const { resolve4Mock, resolve6Mock } = vi.hoisted(() => ({
+const { resolve4Mock, resolve6Mock, lookupMock } = vi.hoisted(() => ({
   resolve4Mock: vi.fn<(hostname: string) => Promise<string[]>>(),
   resolve6Mock: vi.fn<(hostname: string) => Promise<string[]>>(),
+  lookupMock:
+    vi.fn<
+      (
+        hostname: string,
+        options: { all: true },
+      ) => Promise<Array<{ address: string; family: 4 | 6 }>>
+    >(),
 }));
 
 vi.mock("node:dns/promises", () => ({
   default: {
     resolve4: resolve4Mock,
     resolve6: resolve6Mock,
+    lookup: lookupMock,
   },
   resolve4: resolve4Mock,
   resolve6: resolve6Mock,
+  lookup: lookupMock,
 }));
 
 import { validateWebhookURL } from "../../../packages/shared/src/server/webhooks/validation";
@@ -32,6 +41,13 @@ beforeEach(() => {
     return ["93.184.216.34"];
   });
   resolve6Mock.mockRejectedValue(dnsError("ENODATA", "mocked-hostname"));
+  lookupMock.mockImplementation(async (hostname: string) => {
+    if (hostname === nonexistentDomain) {
+      throw dnsError("ENOTFOUND", hostname);
+    }
+
+    return [{ address: "93.184.216.34", family: 4 }];
+  });
 });
 
 describe("Webhook URL Validation", () => {
@@ -146,6 +162,9 @@ describe("Webhook URL Validation", () => {
       ).rejects.toThrow("DNS lookup failed");
       expect(resolve4Mock).toHaveBeenCalledWith(nonexistentDomain);
       expect(resolve6Mock).toHaveBeenCalledWith(nonexistentDomain);
+      expect(lookupMock).toHaveBeenCalledWith(nonexistentDomain, {
+        all: true,
+      });
     });
 
     it("should reject URL-encoded localhost bypass attempts", async () => {
@@ -153,6 +172,41 @@ describe("Webhook URL Validation", () => {
       await expect(
         validateWebhookURL("http://%6C%6F%63%61%6C%68%6F%73%74/hook"),
       ).rejects.toThrow("Blocked hostname detected");
+    });
+
+    it("should reject encoded delimiter userinfo SSRF bypass attempts", async () => {
+      // Percent-encoded delimiters are data to the WHATWG URL parser before
+      // parsing, but become syntax if the whole URL is decoded first.
+      // Validation must parse the same URL string that fetch will execute.
+      const encodedDelimiters = ["%2F", "%23", "%3F", "%5C"];
+
+      for (const delimiter of encodedDelimiters) {
+        await expect(
+          validateWebhookURL(`http://example.com${delimiter}@127.0.0.1/hook`),
+        ).rejects.toThrow(
+          "URL credentials are not allowed. Use authentication headers instead.",
+        );
+      }
+    });
+
+    it("should reject URLs with embedded credentials", async () => {
+      await expect(
+        validateWebhookURL("https://user:pass@example.com/hook"),
+      ).rejects.toThrow(
+        "URL credentials are not allowed. Use authentication headers instead.",
+      );
+    });
+
+    it("should validate IDN hostnames using their punycoded hostname", async () => {
+      await expect(
+        validateWebhookURL("http://тест.example.com/hook"),
+      ).resolves.not.toThrow();
+
+      expect(resolve4Mock).toHaveBeenCalledWith("xn--e1aybc.example.com");
+      expect(resolve6Mock).toHaveBeenCalledWith("xn--e1aybc.example.com");
+      expect(lookupMock).toHaveBeenCalledWith("xn--e1aybc.example.com", {
+        all: true,
+      });
     });
 
     it("should reject internal/intranet hostnames", async () => {
