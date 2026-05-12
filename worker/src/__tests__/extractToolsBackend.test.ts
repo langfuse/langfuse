@@ -125,7 +125,7 @@ describe("extractToolsFromObservation", () => {
         description: "Get weather.",
       };
       const attributes = JSON.stringify({
-        "custom.attribute": "keep-me",
+        "custom.attribute": "mentions model_request_parameters in the value",
       });
 
       const result = moveToolDefinitionsFromMetadataToInput(input, {

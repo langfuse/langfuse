@@ -4017,107 +4017,7 @@ describe("OTel Resource Span Mapping", () => {
       );
     });
 
-    it("should map gen_ai.tool.definitions to input.tools for gen_ai.input.messages", async () => {
-      const traceId = "abcdef1234567890abcdef1234567890";
-      const rootSpanId = "1234567890abcdef";
-
-      const span = {
-        resource: {
-          attributes: [
-            {
-              key: "service.name",
-              value: { stringValue: "otel-test-service" },
-            },
-          ],
-        },
-        scopeSpans: [
-          {
-            scope: {
-              name: "otel-test-scope",
-              version: "1.0.0",
-            },
-            spans: [
-              {
-                traceId: Buffer.from(traceId, "hex"),
-                spanId: Buffer.from(rootSpanId, "hex"),
-                name: "otel-genai-span",
-                kind: 1,
-                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
-                endTimeUnixNano: {
-                  low: 1000000,
-                  high: 406528574,
-                  unsigned: true,
-                },
-                attributes: [
-                  {
-                    key: "gen_ai.input.messages",
-                    value: {
-                      stringValue: JSON.stringify([
-                        { role: "user", content: "What is 2 + 2?" },
-                      ]),
-                    },
-                  },
-                  {
-                    key: "gen_ai.tool.definitions",
-                    value: {
-                      stringValue: JSON.stringify([
-                        {
-                          type: "function",
-                          name: "calculator",
-                          description: "Do math",
-                          parameters: {
-                            type: "object",
-                            properties: {
-                              expression: { type: "string" },
-                            },
-                          },
-                        },
-                      ]),
-                    },
-                  },
-                ],
-                status: {},
-              },
-            ],
-          },
-        ],
-      };
-
-      const events = await convertOtelSpanToIngestionEvent(span, new Set());
-
-      const observation = events.find(
-        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
-      );
-
-      expect(observation?.body.input).toBeDefined();
-
-      const parsedInput =
-        typeof observation?.body.input === "string"
-          ? JSON.parse(observation.body.input)
-          : observation?.body.input;
-
-      expect(parsedInput.messages).toEqual([
-        { role: "user", content: "What is 2 + 2?" },
-      ]);
-      expect(parsedInput.tools).toEqual([
-        {
-          type: "function",
-          name: "calculator",
-          description: "Do math",
-          parameters: {
-            type: "object",
-            properties: {
-              expression: { type: "string" },
-            },
-          },
-        },
-      ]);
-      expect(
-        observation?.body.metadata?.attributes?.["gen_ai.tool.definitions"],
-      ).toBeUndefined();
-    });
-
-    it("should map gen_ai.tool.definitions to input.tools for event-based gen_ai messages", async () => {
+    it("should preserve gen_ai.tool.definitions in metadata for worker normalization", async () => {
       const traceId = "abcdef1234567890abcdef1234567892";
       const rootSpanId = "1234567890abcdeb";
       const tool = {
@@ -4201,16 +4101,18 @@ describe("OTel Resource Span Mapping", () => {
           ? JSON.parse(observation.body.input)
           : observation?.body.input;
 
-      expect(parsedInput).toEqual({
-        messages: [{ role: "user", content: "What is 2 + 2?" }],
-        tools: [tool],
-      });
+      expect(parsedInput).toEqual([
+        {
+          role: "user",
+          content: "What is 2 + 2?",
+        },
+      ]);
       expect(
         observation?.body.metadata?.attributes?.["gen_ai.tool.definitions"],
-      ).toBeUndefined();
+      ).toBe(JSON.stringify([tool]));
     });
 
-    it("should map AI SDK available tools from metadata to input and remove them from metadata", async () => {
+    it("should preserve AI SDK available tools in metadata for worker normalization", async () => {
       const traceId = "abcdef1234567890abcdef1234567891";
       const rootSpanId = "1234567890abcdea";
       const tools = [
@@ -4225,21 +4127,6 @@ describe("OTel Resource Span Mapping", () => {
               unit: { type: "string", enum: ["celsius", "fahrenheit"] },
             },
             required: ["location"],
-            additionalProperties: false,
-          },
-        },
-        {
-          type: "function",
-          name: "schedule_reminder",
-          description: "Schedule a reminder.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              date: { type: "string" },
-              time: { type: "string" },
-              message: { type: "string" },
-            },
-            required: ["date", "time", "message"],
             additionalProperties: false,
           },
         },
@@ -4335,7 +4222,6 @@ describe("OTel Resource Span Mapping", () => {
 
       const events = await convertOtelSpanToIngestionEvent(span, new Set());
 
-      const trace = events.find((e) => e.type === "trace-create");
       const observation = events.find(
         (e) => e.type.endsWith("-create") && e.type !== "trace-create",
       );
@@ -4347,13 +4233,12 @@ describe("OTel Resource Span Mapping", () => {
           ? JSON.parse(observation.body.input)
           : observation?.body.input;
 
-      expect(parsedInput.messages).toEqual([
+      expect(parsedInput).toEqual([
         {
           role: "user",
           content: [{ type: "text", text: "What is the weather in Berlin?" }],
         },
       ]);
-      expect(parsedInput.tools).toEqual(tools);
 
       expect(observation?.body.output).toBeDefined();
       const parsedOutput =
@@ -4374,9 +4259,9 @@ describe("OTel Resource Span Mapping", () => {
       ]);
 
       expect(observation?.body.metadata?.tools).toBeUndefined();
-      expect(
-        observation?.body.metadata?.attributes?.["ai.prompt.tools"],
-      ).toBeUndefined();
+      expect(observation?.body.metadata?.attributes?.["ai.prompt.tools"]).toBe(
+        JSON.stringify(tools),
+      );
       expect(
         observation?.body.metadata?.attributes?.["ai.response.toolCalls"],
       ).toBeUndefined();
@@ -4386,11 +4271,6 @@ describe("OTel Resource Span Mapping", () => {
       expect(observation?.body.metadata?.attributes?.["custom.unmapped"]).toBe(
         "still-metadata",
       );
-
-      expect(trace?.body.metadata?.tools).toBeUndefined();
-      expect(
-        trace?.body.metadata?.attributes?.["ai.prompt.tools"],
-      ).toBeUndefined();
     });
 
     it("should filter all input/output attribute patterns from metadata.attributes while preserving custom attributes", async () => {

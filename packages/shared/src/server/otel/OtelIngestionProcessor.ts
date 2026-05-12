@@ -19,7 +19,6 @@ import {
   recordDistribution,
   UsageDetails,
   extractToolsFromObservation,
-  moveToolDefinitionsFromMetadataToInput,
   convertDefinitionsToMap,
   convertCallsToArrays,
 } from "../";
@@ -1396,7 +1395,6 @@ export class OtelIngestionProcessor {
       // Vercel AI SDK
       "ai.prompt.messages",
       "ai.prompt",
-      "ai.prompt.tools",
       "ai.toolCall.args",
       "ai.response.text",
       "ai.result.text",
@@ -1441,7 +1439,6 @@ export class OtelIngestionProcessor {
       // OpenTelemetry
       "gen_ai.input.messages",
       "gen_ai.output.messages",
-      "gen_ai.tool.definitions",
       "gen_ai.tool.call.arguments",
       "gen_ai.tool.call.result",
       // Genkit
@@ -1552,11 +1549,7 @@ export class OtelIngestionProcessor {
                         : undefined;
       }
 
-      return {
-        input: this.appendOtelToolDefinitionsToInput(input, attributes),
-        output,
-        filteredAttributes,
-      };
+      return { input, output, filteredAttributes };
     }
 
     const inputEvents = events.filter(
@@ -1606,10 +1599,7 @@ export class OtelIngestionProcessor {
           : null;
 
       return {
-        input: this.appendOtelToolDefinitionsToInput(
-          processedInput,
-          attributes,
-        ),
+        input: processedInput,
         output:
           processedOutput && processedOutput.length === 1
             ? processedOutput[0]
@@ -1832,11 +1822,7 @@ export class OtelIngestionProcessor {
       );
     }
     if (input || output) {
-      return {
-        input: this.appendOtelToolDefinitionsToInput(input, attributes),
-        output,
-        filteredAttributes,
-      };
+      return { input, output, filteredAttributes };
     }
 
     // OpenTelemetry tools (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
@@ -1847,15 +1833,6 @@ export class OtelIngestionProcessor {
     }
 
     return { input: null, output: null, filteredAttributes };
-  }
-
-  private appendOtelToolDefinitionsToInput(
-    input: unknown,
-    attributes: Record<string, unknown>,
-  ): unknown {
-    return moveToolDefinitionsFromMetadataToInput(input, {
-      attributes,
-    }).input;
   }
 
   /**

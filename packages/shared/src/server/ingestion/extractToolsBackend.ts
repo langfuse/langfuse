@@ -399,17 +399,14 @@ function parsePlainRecord(value: unknown): Record<string, unknown> | undefined {
   return isPlainRecord(parsed) ? parsed : undefined;
 }
 
+const TOOL_METADATA_ATTRIBUTE_KEY_PATTERN =
+  /"(?:ai\.prompt\.tools|gen_ai\.tool\.definitions|model_request_parameters|llm\.tools\.\d+\.tool\.json_schema)"\s*:/;
+
 function parseMetadataAttributes(
   value: unknown,
 ): Record<string, unknown> | undefined {
   if (typeof value === "string") {
-    const hasToolDefinitionKey =
-      value.includes("ai.prompt.tools") ||
-      value.includes("gen_ai.tool.definitions") ||
-      value.includes("model_request_parameters") ||
-      value.includes("llm.tools.");
-
-    if (!hasToolDefinitionKey) {
+    if (!TOOL_METADATA_ATTRIBUTE_KEY_PATTERN.test(value)) {
       return undefined;
     }
   }
@@ -465,31 +462,58 @@ function dedupeToolDefinitions(tools: unknown[]): unknown[] {
   });
 }
 
-function collectToolDefinitionsFromMetadata(
+function collectAndRemoveToolDefinitionsFromMetadata(
   metadata: Record<string, unknown>,
-): unknown[] {
+): { tools: unknown[]; metadata: Record<string, unknown> } {
   let tools: unknown[] = [];
-  const addTools = (value: unknown) => {
-    const parsedTools = parseToolDefinitionArray(value);
+  const cleanedMetadata = { ...metadata };
+  const addTools = (
+    value: unknown,
+    options: { requireEveryItem?: boolean } = {},
+  ) => {
+    const parsedTools = parseToolDefinitionArray(value, options);
     if (parsedTools) tools = tools.concat(parsedTools);
   };
 
-  addTools(
-    parseToolDefinitionArray(metadata.tools, { requireEveryItem: true }),
-  );
+  const metadataTools = parseToolDefinitionArray(metadata.tools, {
+    requireEveryItem: true,
+  });
+  if (metadataTools && metadataTools.length > 0) {
+    tools = tools.concat(metadataTools);
+    delete cleanedMetadata.tools;
+  }
 
   const attributes = parseMetadataAttributes(metadata.attributes);
 
-  if (!attributes) return tools;
+  if (!attributes) {
+    return { tools: dedupeToolDefinitions(tools), metadata: cleanedMetadata };
+  }
+
+  const cleanedAttributes = { ...attributes };
 
   addTools(attributes["ai.prompt.tools"]);
+  delete cleanedAttributes["ai.prompt.tools"];
+
   addTools(attributes["gen_ai.tool.definitions"]);
+  delete cleanedAttributes["gen_ai.tool.definitions"];
 
   const modelRequestParameters = parseIfString(
     attributes.model_request_parameters,
   );
   if (isPlainRecord(modelRequestParameters)) {
     addTools(modelRequestParameters.function_tools);
+
+    const cleanedModelRequestParameters = { ...modelRequestParameters };
+    delete cleanedModelRequestParameters.function_tools;
+
+    if (Object.keys(cleanedModelRequestParameters).length > 0) {
+      cleanedAttributes.model_request_parameters =
+        typeof attributes.model_request_parameters === "string"
+          ? JSON.stringify(cleanedModelRequestParameters)
+          : cleanedModelRequestParameters;
+    } else {
+      delete cleanedAttributes.model_request_parameters;
+    }
   }
 
   const indexedToolKeys = Object.keys(attributes)
@@ -505,9 +529,16 @@ function collectToolDefinitionsFromMetadata(
 
   for (const { key } of indexedToolKeys) {
     tools.push(parseIfString(attributes[key]));
+    delete cleanedAttributes[key];
   }
 
-  return dedupeToolDefinitions(tools);
+  if (Object.keys(cleanedAttributes).length > 0) {
+    cleanedMetadata.attributes = cleanedAttributes;
+  } else {
+    delete cleanedMetadata.attributes;
+  }
+
+  return { tools: dedupeToolDefinitions(tools), metadata: cleanedMetadata };
 }
 
 function appendToolsToInput(
@@ -570,57 +601,6 @@ function appendToolsToInput(
   return mergeTools(input);
 }
 
-function removeToolDefinitionsFromMetadata(
-  metadata: Record<string, unknown>,
-): Record<string, unknown> {
-  const cleanedMetadata = { ...metadata };
-  const metadataTools = parseToolDefinitionArray(cleanedMetadata.tools, {
-    requireEveryItem: true,
-  });
-  if (metadataTools && metadataTools.length > 0) {
-    delete cleanedMetadata.tools;
-  }
-
-  const parsedAttributes = parseMetadataAttributes(cleanedMetadata.attributes);
-  const attributes = parsedAttributes ? { ...parsedAttributes } : undefined;
-
-  if (!attributes) return cleanedMetadata;
-
-  delete attributes["ai.prompt.tools"];
-  delete attributes["gen_ai.tool.definitions"];
-
-  const modelRequestParameters = parseIfString(
-    attributes.model_request_parameters,
-  );
-  if (isPlainRecord(modelRequestParameters)) {
-    const cleanedModelRequestParameters = { ...modelRequestParameters };
-    delete cleanedModelRequestParameters.function_tools;
-
-    if (Object.keys(cleanedModelRequestParameters).length > 0) {
-      attributes.model_request_parameters =
-        typeof attributes.model_request_parameters === "string"
-          ? JSON.stringify(cleanedModelRequestParameters)
-          : cleanedModelRequestParameters;
-    } else {
-      delete attributes.model_request_parameters;
-    }
-  }
-
-  for (const key of Object.keys(attributes)) {
-    if (/^llm\.tools\.\d+\.tool\.json_schema$/.test(key)) {
-      delete attributes[key];
-    }
-  }
-
-  if (Object.keys(attributes).length > 0) {
-    cleanedMetadata.attributes = attributes;
-  } else {
-    delete cleanedMetadata.attributes;
-  }
-
-  return cleanedMetadata;
-}
-
 export function moveToolDefinitionsFromMetadataToInput(
   input: unknown,
   metadata: unknown,
@@ -633,7 +613,9 @@ export function moveToolDefinitionsFromMetadataToInput(
     };
   }
 
-  const tools = collectToolDefinitionsFromMetadata(parsedMetadata);
+  const normalizedMetadata =
+    collectAndRemoveToolDefinitionsFromMetadata(parsedMetadata);
+  const { tools } = normalizedMetadata;
   if (tools.length === 0) {
     return {
       input: toIngestionJsonValue(input),
@@ -651,7 +633,7 @@ export function moveToolDefinitionsFromMetadataToInput(
 
   return {
     input: mappedInput.input,
-    metadata: removeToolDefinitionsFromMetadata(parsedMetadata),
+    metadata: normalizedMetadata.metadata,
   };
 }
 
