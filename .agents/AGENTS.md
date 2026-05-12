@@ -34,6 +34,9 @@ evaluating, and debugging AI applications.
 - Langfuse Cloud cost structure, infra spend, AWS/ClickHouse cost splits, or
   Metabase cost marts:
   `.agents/skills/analyze-cloud-costs/SKILL.md`
+- Production telemetry research, Datadog query recipes, tenant/public API usage
+  audits, or queue consumer telemetry:
+  `.agents/skills/datadog-query-recipes/SKILL.md`
 - Backend/API work in `web/src/server/**`, `web/src/pages/api/public/**`,
   `worker/src/**`, or `packages/shared/src/**`:
   `.agents/skills/backend-dev-guidelines/SKILL.md`

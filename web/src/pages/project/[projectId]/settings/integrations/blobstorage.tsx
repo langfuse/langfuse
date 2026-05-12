@@ -14,6 +14,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Switch } from "@/src/components/ui/switch";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -51,6 +52,7 @@ import {
   AnalyticsIntegrationExportSource,
   type BlobStorageIntegration,
   EXPORT_SOURCE_OPTIONS,
+  EXPORT_FIELD_GROUP_OPTIONS,
   BLOB_EXPORT_FIELD_GROUPS,
   type BlobExportFieldGroup,
 } from "@langfuse/shared";
@@ -305,10 +307,16 @@ const BlobStorageIntegrationSettingsForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
+  const watchedExportSource = blobStorageForm.watch("exportSource");
+  const watchedExportMode = blobStorageForm.watch("exportMode");
+
   const utils = api.useUtils();
   const mut = api.blobStorageIntegration.update.useMutation({
     onSuccess: () => {
       utils.blobStorageIntegration.invalidate();
+    },
+    onError: (error) => {
+      showErrorToast("Failed to save integration", error.message);
     },
   });
   const mutDelete = api.blobStorageIntegration.delete.useMutation({
@@ -723,8 +731,96 @@ const BlobStorageIntegrationSettingsForm = ({
           />
         )}
 
-        {blobStorageForm.watch("exportMode") ===
-          BlobStorageExportMode.FROM_CUSTOM_DATE && (
+        {isBetaEnabled &&
+          (watchedExportSource === AnalyticsIntegrationExportSource.EVENTS ||
+            watchedExportSource ===
+              AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS) && (
+            <FormField
+              control={blobStorageForm.control}
+              name="exportFieldGroups"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Export Field Groups</FormLabel>
+                  <FormDescription>
+                    Choose which field groups to include in the enriched
+                    observations export. Deselect large groups (e.g. Input /
+                    Output) to reduce export size, or privacy-sensitive groups
+                    (e.g. Metadata) to avoid storing user data. Scores are
+                    always exported.
+                    {watchedExportSource ===
+                      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS &&
+                      " Traces and legacy observations are also exported in full."}
+                  </FormDescription>
+                  <div className="mt-2 space-y-2">
+                    {EXPORT_FIELD_GROUP_OPTIONS.map((option) => {
+                      const isCore = option.value === "core";
+                      return (
+                        <div
+                          key={option.value}
+                          className="flex items-start gap-2"
+                        >
+                          <Checkbox
+                            id={`field-group-${option.value}`}
+                            checked={
+                              isCore
+                                ? true
+                                : (field.value ?? []).includes(option.value)
+                            }
+                            disabled={isCore}
+                            onCheckedChange={
+                              isCore
+                                ? undefined
+                                : (checked) => {
+                                    const current = field.value ?? [];
+                                    const next =
+                                      checked === true
+                                        ? current.includes(option.value)
+                                          ? current
+                                          : [...current, option.value]
+                                        : current.filter(
+                                            (v: BlobExportFieldGroup) =>
+                                              v !== option.value,
+                                          );
+                                    field.onChange(next);
+                                  }
+                            }
+                          />
+                          <label
+                            htmlFor={`field-group-${option.value}`}
+                            className={
+                              isCore
+                                ? "space-y-0.5"
+                                : "cursor-pointer space-y-0.5"
+                            }
+                          >
+                            <div className="text-sm leading-none font-medium">
+                              {option.label}
+                              {isCore && (
+                                <span className="text-muted-foreground ml-1 font-normal">
+                                  (required)
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-muted-foreground text-xs">
+                              {option.description}
+                            </div>
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <FormMessage>
+                    {
+                      blobStorageForm.formState.errors.exportFieldGroups
+                        ?.message
+                    }
+                  </FormMessage>
+                </FormItem>
+              )}
+            />
+          )}
+
+        {watchedExportMode === BlobStorageExportMode.FROM_CUSTOM_DATE && (
           <FormField
             control={blobStorageForm.control}
             name="exportStartDate"
