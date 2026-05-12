@@ -429,18 +429,36 @@ function toIngestionJsonValue(value: unknown): IngestionJsonValue {
     : undefined;
 }
 
-function parseToolDefinitionArray(tools: unknown): unknown[] | undefined {
+function isToolDefinitionLike(tool: unknown): boolean {
+  return Boolean(flattenToolDefinition(tool).name);
+}
+
+function parseToolDefinitionArray(
+  tools: unknown,
+  options: { requireEveryItem?: boolean } = {},
+): unknown[] | undefined {
   const parsedTools = parseArrayIfString(tools);
   if (!parsedTools) return undefined;
 
-  return parsedTools.map(parseIfString);
+  const normalizedTools = parsedTools.map(parseIfString);
+  if (normalizedTools.length === 0) return [];
+
+  const toolDefinitions = normalizedTools.filter(isToolDefinitionLike);
+  if (
+    options.requireEveryItem &&
+    toolDefinitions.length !== normalizedTools.length
+  ) {
+    return undefined;
+  }
+
+  return toolDefinitions.length > 0 ? toolDefinitions : undefined;
 }
 
 function dedupeToolDefinitions(tools: unknown[]): unknown[] {
   const seenToolNames = new Set<string>();
   return tools.filter((tool) => {
     const name = flattenToolDefinition(tool).name;
-    if (!name) return true;
+    if (!name) return false;
     if (seenToolNames.has(name)) return false;
     seenToolNames.add(name);
     return true;
@@ -456,7 +474,9 @@ function collectToolDefinitionsFromMetadata(
     if (parsedTools) tools = tools.concat(parsedTools);
   };
 
-  addTools(metadata.tools);
+  addTools(
+    parseToolDefinitionArray(metadata.tools, { requireEveryItem: true }),
+  );
 
   const attributes = parseMetadataAttributes(metadata.attributes);
 
@@ -528,6 +548,10 @@ function appendToolsToInput(
       return { input: { tools }, mapped: true };
     }
 
+    if (typeof value === "string") {
+      return { input: { prompt: value, tools }, mapped: true };
+    }
+
     return { input: toIngestionJsonValue(input), mapped: false };
   };
 
@@ -539,7 +563,7 @@ function appendToolsToInput(
         mapped: merged.mapped,
       };
     } catch {
-      return { input, mapped: false };
+      return { input: { prompt: input, tools }, mapped: true };
     }
   }
 
@@ -550,7 +574,12 @@ function removeToolDefinitionsFromMetadata(
   metadata: Record<string, unknown>,
 ): Record<string, unknown> {
   const cleanedMetadata = { ...metadata };
-  delete cleanedMetadata.tools;
+  const metadataTools = parseToolDefinitionArray(cleanedMetadata.tools, {
+    requireEveryItem: true,
+  });
+  if (metadataTools && metadataTools.length > 0) {
+    delete cleanedMetadata.tools;
+  }
 
   const parsedAttributes = parseMetadataAttributes(cleanedMetadata.attributes);
   const attributes = parsedAttributes ? { ...parsedAttributes } : undefined;

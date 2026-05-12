@@ -815,9 +815,15 @@ export class IngestionService {
 
     mergedObservationRecord.input = this.stringify(normalizedToolInput.input);
     mergedObservationRecord.output = this.stringify(rawOutput);
-    mergedObservationRecord.metadata = convertJsonSchemaToRecord(
-      (normalizedToolInput.metadata ?? {}) as JsonNested,
-    );
+    const normalizedMetadata = normalizedToolInput.metadata ?? {};
+    mergedObservationRecord.metadata =
+      normalizedMetadata &&
+      typeof normalizedMetadata === "object" &&
+      !Array.isArray(normalizedMetadata)
+        ? convertRecordValuesToString(
+            normalizedMetadata as Record<string, unknown>,
+          )
+        : convertJsonSchemaToRecord(normalizedMetadata as JsonNested);
 
     // Extract tool definitions and calls from raw input/output
     try {

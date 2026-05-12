@@ -141,6 +141,70 @@ describe("extractToolsFromObservation", () => {
         attributes,
       });
     });
+
+    it("maps tools onto plain string input instead of dropping them", () => {
+      const tool = {
+        type: "function",
+        name: "get_weather",
+        description: "Get weather.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            location: { type: "string" },
+          },
+        },
+      };
+      const metadata = {
+        attributes: {
+          "ai.prompt.tools": [tool],
+          "custom.attribute": "keep-me",
+        },
+      };
+
+      const result = moveToolDefinitionsFromMetadataToInput(
+        "What is the weather in Berlin?",
+        metadata,
+      );
+
+      expect(result.input).toEqual({
+        prompt: "What is the weather in Berlin?",
+        tools: [tool],
+      });
+      expect(result.metadata).toEqual({
+        attributes: {
+          "custom.attribute": "keep-me",
+        },
+      });
+    });
+
+    it("preserves user metadata.tools arrays that are not tool definitions", () => {
+      const input = [{ role: "user", content: "Need weather" }];
+      const tool = {
+        type: "function",
+        name: "get_weather",
+        description: "Get weather.",
+      };
+      const metadata = {
+        tools: ["hammer"],
+        attributes: {
+          "ai.prompt.tools": [tool],
+          "custom.attribute": "keep-me",
+        },
+      };
+
+      const result = moveToolDefinitionsFromMetadataToInput(input, metadata);
+
+      expect(result.input).toEqual({
+        messages: input,
+        tools: [tool],
+      });
+      expect(result.metadata).toEqual({
+        tools: ["hammer"],
+        attributes: {
+          "custom.attribute": "keep-me",
+        },
+      });
+    });
   });
 
   describe("Tool Definitions extraction", () => {
