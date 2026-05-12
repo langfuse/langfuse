@@ -19,6 +19,8 @@ import Decimal from "decimal.js";
 import {
   getDatabaseReadStreamPaginated,
   getTraceIdentifierStream,
+  getSessionIdentifierStream,
+  getObservationIdentifierStream,
 } from "../database-read-stream/getDatabaseReadStream";
 import { env } from "../../env";
 import { Job, Queue } from "bullmq";
@@ -39,7 +41,6 @@ import { processAddObservationsToDataset } from "./processAddObservationsToDatas
 import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
 import { processBatchedObservationEval } from "./processBatchedObservationEval";
 
-const CHUNK_SIZE = 1000;
 const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
   return filters.map((f: FilterCondition) =>
     f.type === "datetime" ? { ...f, value: new Date(f.value) } : f,
@@ -173,8 +174,11 @@ export const handleBatchActionJob = async (
       throw new Error(`Target ID is required for create action`);
     }
 
+    // Annotation-queue actions only need record IDs — use lightweight identifier
+    // streams to avoid fetching input/output/metadata/scores into memory.
     const dbReadStream =
-      actionId === "trace-delete"
+      actionId === "trace-delete" ||
+      actionId === "trace-add-to-annotation-queue"
         ? await getTraceIdentifierStream({
             projectId: projectId,
             cutoffCreatedAt: new Date(cutoffCreatedAt),
@@ -183,43 +187,59 @@ export const handleBatchActionJob = async (
             searchQuery: query.searchQuery ?? undefined,
             searchType: query.searchType ?? ["id" as const],
           })
-        : tableName === BatchTableNames.Observations
-          ? await getObservationStream({
-              projectId: projectId,
-              cutoffCreatedAt: new Date(cutoffCreatedAt),
-              filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-              searchQuery: query.searchQuery ?? undefined,
-              searchType: query.searchType ?? ["id" as const],
-            })
-          : await getDatabaseReadStreamPaginated({
+        : actionId === "session-add-to-annotation-queue"
+          ? await getSessionIdentifierStream({
               projectId: projectId,
               cutoffCreatedAt: new Date(cutoffCreatedAt),
               filter: convertDatesInFiltersFromStrings(query.filter ?? []),
               orderBy: query.orderBy,
-              tableName: tableName as BatchTableNames,
               searchQuery: query.searchQuery ?? undefined,
               searchType: query.searchType ?? ["id" as const],
-            });
+            })
+          : actionId === "observation-add-to-annotation-queue"
+            ? await getObservationIdentifierStream({
+                projectId: projectId,
+                cutoffCreatedAt: new Date(cutoffCreatedAt),
+                filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+                searchQuery: query.searchQuery ?? undefined,
+                searchType: query.searchType ?? ["id" as const],
+              })
+            : tableName === BatchTableNames.Observations
+              ? await getObservationStream({
+                  projectId: projectId,
+                  cutoffCreatedAt: new Date(cutoffCreatedAt),
+                  filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+                  searchQuery: query.searchQuery ?? undefined,
+                  searchType: query.searchType ?? ["id" as const],
+                })
+              : await getDatabaseReadStreamPaginated({
+                  projectId: projectId,
+                  cutoffCreatedAt: new Date(cutoffCreatedAt),
+                  filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+                  orderBy: query.orderBy,
+                  tableName: tableName as BatchTableNames,
+                  searchQuery: query.searchQuery ?? undefined,
+                  searchType: query.searchType ?? ["id" as const],
+                });
 
-    // Process stream in database-sized batches
-    // 1. Read all records
-    const records: any[] = [];
+    // Stream records in CHUNK_SIZE batches without accumulating the full result
+    // set in memory. Previously all records were collected into an array first,
+    // which caused the worker to OOM on large selections (5k+ traces).
+    let chunk: string[] = [];
     for await (const record of dbReadStream) {
       if (record?.id) {
-        records.push(record);
+        chunk.push(record.id);
+        if (chunk.length >= env.LANGFUSE_BATCH_ACTION_CHUNK_SIZE) {
+          logger.info(
+            `Processing chunk of ${chunk.length} records for ${actionId}`,
+          );
+          await processActionChunk(actionId, chunk, projectId, targetId);
+          chunk = [];
+        }
       }
     }
-
-    // 2. Process in chunks
-    for (let i = 0; i < records.length; i += CHUNK_SIZE) {
-      const batch = records.slice(i, i + CHUNK_SIZE);
-
-      await processActionChunk(
-        actionId,
-        batch.map((r) => r.id),
-        projectId,
-        targetId,
-      );
+    if (chunk.length > 0) {
+      await processActionChunk(actionId, chunk, projectId, targetId);
     }
   } else if (actionId === "eval-create") {
     // if a user wants to apply evals for historic traces or dataset runs, we do this here.
@@ -350,33 +370,13 @@ export const handleBatchActionJob = async (
         ? await getEventsStreamForDataset(streamParams)
         : await getObservationStream(streamParams);
 
-    // Collect all observations
-    const observations: Array<{
-      id: string;
-      traceId: string;
-      input: unknown;
-      output: unknown;
-      metadata: unknown;
-    }> = [];
-
-    for await (const record of dbReadStream) {
-      if (record?.id) {
-        observations.push({
-          id: record.id,
-          traceId: record.traceId,
-          input: record.input,
-          output: record.output,
-          metadata: record.metadata,
-        });
-      }
-    }
-
-    // Process observations and add to dataset
+    // Stream observations directly to avoid accumulating the full result set
+    // in memory (OOM risk for large selections with multi-KB payloads).
     await processAddObservationsToDataset({
       projectId,
       batchActionId: batchActionId as string,
       config: parsedConfig,
-      observations,
+      observationStream: dbReadStream,
     });
   } else if (actionId === "observation-run-batched-evaluation") {
     const { projectId, query, cutoffCreatedAt, evaluatorIds, batchActionId } =

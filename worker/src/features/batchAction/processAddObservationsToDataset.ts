@@ -139,27 +139,29 @@ export async function processAddObservationsToDataset(params: {
   projectId: string;
   batchActionId: string;
   config: ObservationAddToDatasetConfig;
-  observations: ObservationForMapping[];
+  // Accept an async iterable so the caller can stream records without
+  // accumulating the full result set in memory first.
+  observationStream: AsyncIterable<unknown>;
 }): Promise<void> {
-  const { projectId, batchActionId, config, observations } = params;
+  const { projectId, batchActionId, config, observationStream } = params;
   const { datasetId, mapping } = config;
 
-  // Update status to PROCESSING
+  // Update status to PROCESSING — totalCount is unknown until the stream is
+  // fully consumed, so we set it to 0 here and update it at the end.
   await prisma.batchAction.update({
     where: { id: batchActionId },
-    data: {
-      status: BatchActionStatus.Processing,
-      totalCount: observations.length,
-    },
+    data: { status: BatchActionStatus.Processing },
   });
 
   let processed = 0;
   let failed = 0;
+  let chunkIndex = 0;
   const allErrors: string[] = [];
 
-  // Process in chunks
-  for (let i = 0; i < observations.length; i += CHUNK_SIZE) {
-    const chunk = observations.slice(i, i + CHUNK_SIZE);
+  let chunk: ObservationForMapping[] = [];
+
+  const flushChunk = async () => {
+    if (chunk.length === 0) return;
 
     const result = await processChunk({
       projectId,
@@ -176,14 +178,35 @@ export async function processAddObservationsToDataset(params: {
       allErrors.push(...result.errors.slice(0, 10));
     }
 
-    // Update progress periodically (every 5 chunks or at the end)
-    if (i % (CHUNK_SIZE * 5) === 0 || i + CHUNK_SIZE >= observations.length) {
+    chunkIndex++;
+    // Update progress every 5 chunks
+    if (chunkIndex % 5 === 0) {
       await prisma.batchAction.update({
         where: { id: batchActionId },
         data: { processedCount: processed, failedCount: failed },
       });
     }
+
+    chunk = [];
+  };
+
+  for await (const record of observationStream) {
+    const r = record as Record<string, unknown> | null | undefined;
+    if (r?.id && typeof r.id === "string") {
+      chunk.push({
+        id: r.id,
+        traceId: r.traceId as string,
+        input: r.input,
+        output: r.output,
+        metadata: r.metadata,
+      });
+      if (chunk.length >= CHUNK_SIZE) {
+        await flushChunk();
+      }
+    }
   }
+
+  await flushChunk();
 
   // Determine final status
   const finalStatus =
@@ -199,7 +222,7 @@ export async function processAddObservationsToDataset(params: {
       ? `${failed} items failed validation. Sample errors:\n${allErrors.slice(0, 20).join("\n")}`
       : null;
 
-  // Update final status
+  // Update final status — totalCount is now known after streaming completes
   await prisma.batchAction.update({
     where: { id: batchActionId },
     data: {
@@ -207,6 +230,7 @@ export async function processAddObservationsToDataset(params: {
       finishedAt: new Date(),
       processedCount: processed,
       failedCount: failed,
+      totalCount: processed + failed,
       log: errorSummary,
     },
   });

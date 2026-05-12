@@ -625,6 +625,85 @@ export const getObservationsTableWithModelData = async (
   });
 };
 
+/**
+ * Lightweight query returning only observation identifiers (id, projectId,
+ * startTime). Use this instead of getObservationsTableWithModelData when only
+ * the id is needed (e.g. batch annotation-queue actions), to avoid fetching
+ * input/output/metadata/scores and causing memory pressure.
+ */
+export const getObservationIdentifiers = async (opts: {
+  projectId: string;
+  filter: FilterState;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  limit?: number;
+  offset?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
+}): Promise<Array<{ id: string; projectId: string; startTime: Date }>> => {
+  const { projectId, filter, limit, offset, clickhouseConfigs } = opts;
+
+  const skipDedup = await shouldSkipObservationsFinal(projectId);
+
+  const observationsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "observations",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+      tablePrefix: "o",
+    }),
+  ]);
+
+  observationsFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      observationsTableUiColumnDefinitions,
+      observationsTableCols,
+    ),
+  );
+
+  const appliedFilter = observationsFilter.apply();
+  const search = clickhouseSearchCondition(
+    opts.searchQuery,
+    opts.searchType,
+    "o",
+  );
+
+  const query = `
+    SELECT o.id, o.project_id, o.start_time
+    FROM observations o
+    WHERE ${appliedFilter.query}
+    ${search.query}
+    ORDER BY o.event_ts DESC
+    ${skipDedup ? "" : "LIMIT 1 BY o.id, o.project_id"}
+    ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""}`;
+
+  const rows = await queryClickhouse<{
+    id: string;
+    project_id: string;
+    start_time: string;
+  }>({
+    query,
+    params: {
+      ...appliedFilter.params,
+      ...search.params,
+    },
+    clickhouseConfigs,
+    tags: {
+      feature: "batch-action",
+      type: "observation",
+      kind: "identifiers",
+      projectId,
+    },
+  });
+
+  return rows.map((r) => ({
+    id: r.id,
+    projectId: r.project_id,
+    startTime: parseClickhouseUTCDateTimeFormat(r.start_time),
+  }));
+};
+
 const getObservationsTableInternal = async <T>(
   opts: ObservationTableQuery & {
     select: "count" | "rows";
