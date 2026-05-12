@@ -29,13 +29,12 @@ const BlobStorageIntegrationResponseSchema = z.object({
   exportMode: z.enum(["FULL_HISTORY", "FROM_TODAY", "FROM_CUSTOM_DATE"]),
   exportStartDate: z.coerce.date().nullable(),
   compressed: z.boolean(),
-  exportSource: z
-    .enum(["TRACES_OBSERVATIONS", "TRACES_OBSERVATIONS_EVENTS", "EVENTS"])
-    .optional(),
-  exportFieldGroups: z
-    .array(z.enum(BLOB_EXPORT_FIELD_GROUPS))
-    .nullable()
-    .optional(),
+  exportSource: z.enum([
+    "TRACES_OBSERVATIONS",
+    "TRACES_OBSERVATIONS_EVENTS",
+    "EVENTS",
+  ]),
+  exportFieldGroups: z.array(z.enum(BLOB_EXPORT_FIELD_GROUPS)).nullable(),
   nextSyncAt: z.coerce.date().nullable(),
   lastSyncAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
