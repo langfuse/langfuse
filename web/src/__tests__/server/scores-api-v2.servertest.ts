@@ -1166,6 +1166,31 @@ describe("/api/public/v2/scores API Endpoint", () => {
         });
       });
 
+      describe("should validate pagination", () => {
+        it("rejects limit > 100 with HTTP 400", async () => {
+          expect.assertions(5);
+          try {
+            await makeZodVerifiedAPICall(
+              z.object({
+                message: z.string(),
+                error: z.array(z.object({})),
+              }),
+              "GET",
+              `/api/public/v2/scores?limit=101`,
+              undefined,
+              authentication,
+            );
+          } catch (error) {
+            const msg = (error as Error).message;
+            expect(msg).toContain("status 400");
+            expect(msg).toContain('"message":"Invalid request data"');
+            expect(msg).toContain('"path":["limit"]');
+            expect(msg).toContain('"code":"too_big"');
+            expect(msg).toContain('"maximum":100');
+          }
+        });
+      });
+
       it("should filter scores by score IDs", async () => {
         const getScore = await makeZodVerifiedAPICall(
           GetScoresResponseV2,

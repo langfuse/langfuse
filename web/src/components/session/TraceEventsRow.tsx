@@ -11,7 +11,7 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { NewDatasetItemFromTraceId } from "@/src/components/session/NewDatasetItemFromTrace";
 import { AnnotationQueueObjectType, type FilterState } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
+import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
 import { api } from "@/src/utils/api";
 
 const TraceSkeleton = () => {
