@@ -413,7 +413,7 @@ importers:
         specifier: ^1.9.0
         version: 1.9.0
       '@opentelemetry/core':
-        specifier: ^2.6.0
+        specifier: ^2.7.1
         version: 2.7.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/exporter-trace-otlp-proto':
         specifier: ^0.217.0
@@ -440,16 +440,16 @@ importers:
         specifier: ^0.8.4
         version: 0.8.5(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources':
-        specifier: ^2.6.0
+        specifier: ^2.7.1
         version: 2.7.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-node':
         specifier: ^0.217.0
         version: 0.217.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base':
-        specifier: ^2.6.0
+        specifier: ^2.7.1
         version: 2.7.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-node':
-        specifier: ^2.6.0
+        specifier: ^2.7.1
         version: 2.7.1(@opentelemetry/api@1.9.0)
       '@paralleldrive/cuid2':
         specifier: ^2.2.2
@@ -900,7 +900,7 @@ importers:
         specifier: ^0.8.4
         version: 0.8.5(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources':
-        specifier: ^2.6.0
+        specifier: ^2.7.1
         version: 2.7.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-node':
         specifier: ^0.217.0

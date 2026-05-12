@@ -43,7 +43,7 @@
     "@opentelemetry/instrumentation-winston": "^0.57.0",
     "@opentelemetry/resource-detector-aws": "^2.13.0",
     "@opentelemetry/resource-detector-container": "^0.8.4",
-    "@opentelemetry/resources": "^2.6.0",
+    "@opentelemetry/resources": "^2.7.1",
     "@opentelemetry/sdk-node": "^0.217.0",
     "@prisma/instrumentation": "^6.19.3",
     "backoff": "^2.5.0",
