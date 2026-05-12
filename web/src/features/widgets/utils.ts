@@ -1,6 +1,13 @@
 import startCase from "lodash/startCase";
 import { type FilterState } from "@langfuse/shared";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import {
+  type ViewVersion,
+  views,
+  getViewDeclaration,
+} from "@/src/features/query";
+import { formatMetric } from "@/src/features/widgets/chart-library/utils";
+import { type MetricFormatterFunction } from "@/src/features/widgets/chart-library/chart-props";
 
 // Shared widget chart configuration types
 export type WidgetChartConfig = {
@@ -193,4 +200,61 @@ export function shouldUseWidgetSSE({
   version: "v1" | "v2";
 }): boolean {
   return isV4Enabled && version === "v2";
+}
+
+const widgetUnitLabels: Record<string, string> = {
+  USD: "USD",
+  millisecond: "Duration",
+  tokens: "Tokens",
+  "tokens/s": "Tokens/s",
+  traces: "Traces",
+  observations: "Observations",
+  scores: "Scores",
+  users: "Users",
+  sessions: "Sessions",
+  tools: "Tools",
+  calls: "Calls",
+};
+
+export function getWidgetMetricPresentation(params: {
+  metric: { measure: string; agg: string };
+  view: string;
+  version: ViewVersion;
+}): {
+  label: string;
+  metricFormatter?: MetricFormatterFunction;
+} {
+  const viewDeclaration = getViewDeclaration(
+    views.parse(params.view),
+    params.version,
+  );
+
+  const measureDefinition = viewDeclaration.measures[params.metric.measure];
+
+  const usesCountStyleAggregation =
+    params.metric.agg === "count" || params.metric.agg === "uniq";
+
+  if (
+    !usesCountStyleAggregation &&
+    (measureDefinition?.unit === "USD" ||
+      measureDefinition?.unit === "millisecond")
+  ) {
+    return {
+      label: widgetUnitLabels[measureDefinition.unit],
+      metricFormatter: (value, options) =>
+        formatMetric(value, { ...options, unit: measureDefinition.unit }),
+    };
+  }
+
+  if (!usesCountStyleAggregation && measureDefinition?.unit) {
+    return {
+      label:
+        widgetUnitLabels[measureDefinition.unit] ??
+        formatMetricName(measureDefinition.unit),
+    };
+  }
+
+  return {
+    label: formatMetricName(`${params.metric.agg}_${params.metric.measure}`),
+  };
 }

@@ -1,7 +1,10 @@
+import storybook from "eslint-plugin-storybook";
+
 import nextConfig from "@repo/eslint-config/next";
 
 export default [
   ...nextConfig,
+  ...storybook.configs["flat/recommended"],
 
   // Restrict react-icons imports
   {

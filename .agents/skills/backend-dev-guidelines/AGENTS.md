@@ -274,7 +274,7 @@ Reference existing Langfuse features for implementation patterns:
 - tRPC router with project auth and Zod input:
   `web/src/features/events/server/eventsRouter.ts`
 - Public API route with middleware and typed request/response schemas:
-  `web/src/pages/api/public/datasets.ts`
+  `web/src/pages/api/public/datasets/index.ts`
 - Worker queue processor with typed jobs, logging, and retry behavior:
   `worker/src/queues/evalQueue.ts`
 - Tenant filters for Prisma and ClickHouse:

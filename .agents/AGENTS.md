@@ -11,7 +11,7 @@ evaluating, and debugging AI applications.
 
 - `AGENTS.md` is a living document.
 - Keep this file concise and router-like. Push narrow or conditional workflows
-  into package-local `AGENTS.md` files or shared skills under `skills/`.
+  into package-local `AGENTS.md` files or shared skills under `.agents/skills/`.
 - Update this file in the same PR when monorepo-level architecture, workflows,
   dependency boundaries, mandatory verification commands, or release/security
   processes materially change.
@@ -23,39 +23,56 @@ evaluating, and debugging AI applications.
 
 ## Start Here By Task
 
+- Architecture principles for high-scale observability and wide event data:
+  `.agents/ARCHITECTURE_PRINCIPLES.md`
+- Langfuse org navigation, cross-repo context, or when context/skills from
+  other Langfuse codebases may be required:
+  use the `langfuse-codebase-navigator` skill.
 - Repo-wide agent setup, `.agents/**`, provider shims, or MCP/bootstrap config:
-  [`README.md`](README.md),
-  [`skills/agent-setup-maintenance/SKILL.md`](skills/agent-setup-maintenance/SKILL.md)
+  `.agents/README.md`,
+  `.agents/skills/agent-setup-maintenance/SKILL.md`
+- Langfuse Cloud cost structure, infra spend, AWS/ClickHouse cost splits, or
+  Metabase cost marts:
+  `.agents/skills/analyze-cloud-costs/SKILL.md`
+- Production telemetry research, Datadog query recipes, tenant/public API usage
+  audits, or queue consumer telemetry:
+  `.agents/skills/datadog-query-recipes/SKILL.md`
 - Backend/API work in `web/src/server/**`, `web/src/pages/api/public/**`,
   `worker/src/**`, or `packages/shared/src/**`:
-  [`skills/backend-dev-guidelines/SKILL.md`](skills/backend-dev-guidelines/SKILL.md)
+  `.agents/skills/backend-dev-guidelines/SKILL.md`
 - Model pricing work in `worker/src/constants/default-model-prices.json`,
   `packages/shared/src/server/llm/types.ts`, or related pricing files:
-  [`skills/add-model-price/SKILL.md`](skills/add-model-price/SKILL.md)
+  `.agents/skills/add-model-price/SKILL.md`
 - Code review tasks:
-  [`skills/code-review/SKILL.md`](skills/code-review/SKILL.md)
+  `.agents/skills/code-review/SKILL.md`
 - Debugging a Linear issue, GitHub issue, or incident report using Datadog
   (APM, logs, metrics) to establish a root cause:
-  [`skills/debug-issue-with-datadog/SKILL.md`](skills/debug-issue-with-datadog/SKILL.md)
+  `.agents/skills/debug-issue-with-datadog/SKILL.md`
+- Measured bug or regression evidence that needs Linear deduplication, evidence
+  comments, or Triage bug issue creation:
+  `.agents/skills/linear-bug-triage/SKILL.md`
+- Proactive production regression sweeps across Datadog errors, logs, spans, and
+  API latency with Linear handoff:
+  `.agents/skills/detect-prod-regressions/SKILL.md`
 - Changelog drafting for completed feature branches:
-  [`skills/changelog-writing/SKILL.md`](skills/changelog-writing/SKILL.md)
+  `.agents/skills/changelog-writing/SKILL.md`
 - ClickHouse schema/query review:
-  [`skills/clickhouse-best-practices/SKILL.md`](skills/clickhouse-best-practices/SKILL.md)
+  `.agents/skills/clickhouse-best-practices/SKILL.md`
 - Monorepo/Turbo task graph changes:
-  [`skills/turborepo/SKILL.md`](skills/turborepo/SKILL.md)
+  `.agents/skills/turborepo/SKILL.md`
 - pnpm dependency upgrades, package-version bumps, or `minimumReleaseAgeExclude`
   decisions in `pnpm-workspace.yaml`:
-  [`skills/pnpm-upgrade-package/SKILL.md`](skills/pnpm-upgrade-package/SKILL.md)
+  `.agents/skills/pnpm-upgrade-package/SKILL.md`
 - User-visible frontend changes, Playwright review, or browser signoff:
-  [`skills/frontend-browser-review/SKILL.md`](skills/frontend-browser-review/SKILL.md)
+  `.agents/skills/frontend-browser-review/SKILL.md`
 - Web UI and frontend entry points:
-  `../web/AGENTS.md`
+  `web/AGENTS.md`
 - Worker queues and processors:
-  `../worker/AGENTS.md`
+  `worker/AGENTS.md`
 - Shared contracts, exports, schema, and migrations:
-  `../packages/shared/AGENTS.md`
+  `packages/shared/AGENTS.md`
 - EE-only work:
-  `../ee/AGENTS.md`
+  `ee/AGENTS.md`
 
 Read the minimal set required for the task. More-specific package guides and
 shared skills take precedence over this root file for their scoped areas.
@@ -87,7 +104,7 @@ langfuse/
     `packages/shared/clickhouse/migrations/{clustered,unclustered}/*.sql`
 - Architecture handbook:
   [langfuse.com/handbook/product-engineering/architecture](https://langfuse.com/handbook/product-engineering/architecture)
-  with source markdown in
+  with source markdown in the sibling docs checkout at
   `../langfuse-docs/content/handbook/product-engineering/architecture.mdx`
 
 ## Core Commands
@@ -135,7 +152,7 @@ Minimum verification matrix:
   bug.
 - For user-visible frontend changes in `web/**`, review the affected flow in a
   real browser with the Playwright MCP server before signoff. Use
-  `skills/frontend-browser-review/SKILL.md` and `../web/AGENTS.md` for the
+  `.agents/skills/frontend-browser-review/SKILL.md` and `web/AGENTS.md` for the
   browser-review loop.
 - Never commit secrets or credentials. Keep `.env*.example` files in sync with
   required env vars.
@@ -145,19 +162,19 @@ Minimum verification matrix:
 - `.agents/AGENTS.md` is the canonical root guide.
 - Root `AGENTS.md` is a symlink to `.agents/AGENTS.md`.
 - Root `CLAUDE.md` is a compatibility symlink to `AGENTS.md`.
-- Shared agent/tool config lives in `config.json` and shared skills live in
-  `skills/`.
+- Shared agent/tool config lives in `.agents/config.json` and shared skills
+  live in `.agents/skills/`.
 - Project-scoped provider discovery files are generated local artifacts. Edit
   the canonical files under `.agents/` instead of editing generated tool
   directories by hand.
-- If you change `.agents/config.json`, `skills/**`, or the shim-generation
-  workflow, run:
+- If you change `.agents/config.json`, `.agents/skills/**`, or the
+  shim-generation workflow, run:
   - `pnpm run agents:sync`
   - `pnpm run agents:check`
 - Do not commit generated provider config or shim outputs under `.claude/`,
   `.cursor/`, `.codex/`, `.vscode/`, or `.mcp.json`.
 - Durable cross-tool guidance belongs in root/package `AGENTS.md` files or
-  `skills/**`, not only in tool-specific config directories.
+  `.agents/skills/**`, not only in tool-specific config directories.
 
 ## Commit, PR, and Release Rules
 

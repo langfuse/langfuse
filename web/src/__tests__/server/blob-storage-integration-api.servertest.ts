@@ -67,6 +67,7 @@ describe("Blob Storage Integrations API", () => {
   let testProject2Id: string;
   let testApiKey: string;
   let testApiSecretKey: string;
+  let testApiKeyId: string;
   let otherOrgId: string;
   let otherProjectId: string;
 
@@ -110,6 +111,7 @@ describe("Blob Storage Integrations API", () => {
     });
     testApiKey = orgApiKey.publicKey;
     testApiSecretKey = orgApiKey.secretKey;
+    testApiKeyId = orgApiKey.id;
 
     // Create another organization for cross-org tests
     const otherOrg = await prisma.organization.create({
@@ -557,6 +559,65 @@ describe("Blob Storage Integrations API", () => {
       });
       expect(savedIntegration?.compressed).toBe(false);
     });
+
+    it("should store all exportFieldGroups by default when creating via REST", async () => {
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+      };
+
+      await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportFieldGroups).toHaveLength(11);
+    });
+
+    it("should preserve exportFieldGroups in DB when updating via REST", async () => {
+      // Seed a row with a custom subset
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "initial-bucket",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportFieldGroups: ["core", "io"],
+        },
+      });
+
+      // Update via REST — exportFieldGroups is not part of the REST API schema
+      await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...validBlobStorageConfig,
+          projectId: testProject1Id,
+          bucketName: "updated-bucket",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
+    });
   });
 
   describe("DELETE /api/public/integrations/blob-storage/{id}", () => {
@@ -610,6 +671,34 @@ describe("Blob Storage Integrations API", () => {
         },
       );
       expect(deletedIntegration).toBeNull();
+    });
+
+    it("should create an audit log entry for delete", async () => {
+      const auditLogWhere = {
+        resourceType: "blobStorageIntegration",
+        resourceId: testIntegrationId,
+        action: "delete",
+        orgId: testOrgId,
+        projectId: testIntegrationId,
+        apiKeyId: testApiKeyId,
+      };
+      const auditLogCountBefore = await prisma.auditLog.count({
+        where: auditLogWhere,
+      });
+
+      await makeZodVerifiedAPICall(
+        BlobStorageIntegrationDeletionResponseSchema,
+        "DELETE",
+        `/api/public/integrations/blob-storage/${testIntegrationId}`,
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+
+      const auditLogCountAfter = await prisma.auditLog.count({
+        where: auditLogWhere,
+      });
+      expect(auditLogCountAfter).toBe(auditLogCountBefore + 1);
     });
 
     it("should return 404 for non-existent integration", async () => {

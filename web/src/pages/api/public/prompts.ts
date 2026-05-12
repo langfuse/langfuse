@@ -78,6 +78,16 @@ export default async function handler(
 
     // Handle POST requests
     if (req.method === "POST") {
+      const rateLimitCheck =
+        await RateLimitService.getInstance().rateLimitRequest(
+          authCheck.scope,
+          "prompts",
+        );
+
+      if (rateLimitCheck?.isRateLimited()) {
+        return rateLimitCheck.sendRestResponseIfLimited(res);
+      }
+
       const input = LegacyCreatePromptSchema.parse(req.body);
       const prompt = await createPrompt({
         ...input,

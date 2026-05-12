@@ -4,6 +4,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
   DefaultViewService,
+  getSystemTableViewPresets,
   TableViewService,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
@@ -11,6 +12,7 @@ import {
   LangfuseConflictError,
   TableViewPresetTableName,
 } from "@langfuse/shared";
+
 const createTableViewPreset = async ({
   projectId,
   name = `view-${randomUUID()}`,
@@ -49,6 +51,50 @@ describe("table view namespace compatibility", () => {
     );
 
     expect(presets.map((preset) => preset.id)).toContain(legacyPreset.id);
+  });
+
+  it("includes built-in system presets in the events table API list", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const systemPresets = getSystemTableViewPresets(
+      TableViewPresetTableName.ObservationsEvents,
+    );
+
+    const presets = await TableViewService.getTableViewPresetsByTableName(
+      TableViewPresetTableName.ObservationsEvents,
+      projectId,
+    );
+
+    expect(
+      presets.filter((preset) => preset.isSystem).map((preset) => preset.name),
+    ).toEqual(
+      expect.arrayContaining(systemPresets.map((preset) => preset.name)),
+    );
+  });
+
+  it("resolves built-in system presets by id", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const [traceRootEventsPreset] = getSystemTableViewPresets(
+      TableViewPresetTableName.ObservationsEvents,
+    );
+
+    expect(traceRootEventsPreset).not.toBeNull();
+
+    const preset = await TableViewService.getTableViewPresetsById(
+      traceRootEventsPreset?.id,
+      projectId,
+    );
+
+    expect(preset).toEqual(
+      expect.objectContaining({
+        id: traceRootEventsPreset?.id,
+        name: traceRootEventsPreset?.name,
+        projectId,
+        tableName: TableViewPresetTableName.ObservationsEvents,
+        filters: traceRootEventsPreset?.state.filters,
+      }),
+    );
   });
 
   it("deduplicates same-named events presets in favor of the canonical namespace", async () => {
