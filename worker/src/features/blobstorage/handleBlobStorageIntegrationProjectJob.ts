@@ -13,6 +13,8 @@ import {
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
   getEventsForBlobStorageExport,
+  OBSERVATION_FIELD_GROUPS,
+  type ObservationFieldGroup,
   getCurrentSpan,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
@@ -33,31 +35,53 @@ import { env } from "../../env";
 
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
 
-async function* enrichObservationStream(
+export async function* enrichObservationStream(
   stream: AsyncGenerator<Record<string, unknown>>,
   projectId: string,
   modelIdField: string,
   convertLatencyToSeconds: boolean,
+  fieldGroups?: ObservationFieldGroup[],
 ): AsyncGenerator<Record<string, unknown>> {
   const { getModel } = createModelCache(projectId);
 
+  const includePricing = !fieldGroups || fieldGroups.includes("usage");
+  const includeModelId = !fieldGroups || fieldGroups.includes("model");
+
   for await (const row of stream) {
-    const modelId = row[modelIdField] as string | null | undefined;
-    const model = await getModel(modelId);
-    const pricing = enrichObservationWithModelData(model);
+    const enriched: Record<string, unknown> = { ...row };
 
-    const enriched: Record<string, unknown> = {
-      ...row,
-      model_id: pricing.modelId ?? modelId ?? null,
-      input_price: pricing.inputPrice,
-      output_price: pricing.outputPrice,
-      total_price: pricing.totalPrice,
-    };
+    if (includePricing) {
+      const modelId = row[modelIdField] as string | null | undefined;
+      const model = await getModel(modelId);
+      const pricing = enrichObservationWithModelData(model);
+      enriched.input_price = pricing.inputPrice;
+      enriched.output_price = pricing.outputPrice;
+      enriched.total_price = pricing.totalPrice;
+    }
 
-    if (convertLatencyToSeconds) {
+    // model_export (provided_model_name, model_id, model_parameters) is fetched
+    // whenever usage OR model is requested — usage needs model_id for the
+    // pricing lookup. Drop all three when the model group was not requested so
+    // they don't leak into a usage-only export.
+    if (!includeModelId) {
+      delete enriched[modelIdField];
+      delete enriched.provided_model_name;
+      delete enriched.model_parameters;
+    }
+
+    // ClickHouse returns {} for Map columns even when not SELECTed — drop it
+    // when the metadata group was not requested.
+    if (fieldGroups && !fieldGroups.includes("metadata")) {
+      delete enriched.metadata;
+    }
+
+    if (convertLatencyToSeconds && row.latency !== undefined) {
       const latency = row.latency as number | null;
-      const ttft = row.time_to_first_token as number | null;
       enriched.latency = latency != null ? latency / 1000 : null;
+    }
+
+    if (convertLatencyToSeconds && row.time_to_first_token !== undefined) {
+      const ttft = row.time_to_first_token as number | null;
       enriched.time_to_first_token = ttft != null ? ttft / 1000 : null;
     }
 
@@ -201,6 +225,7 @@ const processBlobStorageExport = async (config: {
   fileType: BlobStorageIntegrationFileType;
   compressed: boolean;
   convertV4LatencyToSeconds: boolean;
+  exportFieldGroups?: ObservationFieldGroup[];
 }) => {
   logger.info(
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
@@ -237,6 +262,11 @@ const processBlobStorageExport = async (config: {
       : blobStorageProps.contentType;
 
     // Fetch data based on table type
+    const exportFieldGroups =
+      config.exportFieldGroups && config.exportFieldGroups.length > 0
+        ? config.exportFieldGroups
+        : [...OBSERVATION_FIELD_GROUPS];
+
     let dataStream: AsyncGenerator<Record<string, unknown>>;
 
     switch (config.table) {
@@ -272,10 +302,12 @@ const processBlobStorageExport = async (config: {
             config.projectId,
             config.minTimestamp,
             config.maxTimestamp,
+            exportFieldGroups,
           ),
           config.projectId,
           "model_id",
           config.convertV4LatencyToSeconds,
+          exportFieldGroups,
         );
         break;
       default:
@@ -424,6 +456,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       fileType: blobStorageIntegration.fileType,
       compressed: blobStorageIntegration.compressed,
       convertV4LatencyToSeconds,
+      exportFieldGroups:
+        blobStorageIntegration.exportFieldGroups as ObservationFieldGroup[],
     };
 
     // Check if this project should only export traces (legacy behavior via env var)

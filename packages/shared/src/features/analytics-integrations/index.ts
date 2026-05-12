@@ -46,3 +46,62 @@ export const BLOB_EXPORT_FIELD_GROUPS = [
 ] as const;
 
 export type BlobExportFieldGroup = (typeof BLOB_EXPORT_FIELD_GROUPS)[number];
+
+// Keyed by BlobExportFieldGroup so TypeScript errors if a group is added to
+// BLOB_EXPORT_FIELD_GROUPS without a corresponding label/description here.
+const EXPORT_FIELD_GROUP_LABELS = {
+  core: {
+    label: "Core",
+    description:
+      "id, trace_id, start_time, end_time, project_id, parent_observation_id, type",
+  },
+  basic: {
+    label: "Basic",
+    description:
+      "name, level, status_message, version, environment, bookmarked, public, user_id, session_id",
+  },
+  time: {
+    label: "Time",
+    description: "completion_start_time, created_at, updated_at",
+  },
+  io: {
+    label: "Input / Output",
+    description: "input, output",
+  },
+  metadata: {
+    label: "Metadata",
+    description: "metadata",
+  },
+  model: {
+    label: "Model",
+    description: "provided_model_name, model_id, model_parameters",
+  },
+  usage: {
+    label: "Usage",
+    description:
+      "usage_details, cost_details, total_cost, input_price, output_price, total_price",
+  },
+  prompt: {
+    label: "Prompt",
+    description: "prompt_id, prompt_name, prompt_version",
+  },
+  metrics: {
+    label: "Metrics",
+    description: "latency, time_to_first_token",
+  },
+  tools: {
+    label: "Tools",
+    description: "tool_definitions, tool_calls, tool_call_names",
+  },
+  trace_context: {
+    label: "Trace Context",
+    description: "tags, release, trace_name, usage_pricing_tier_name",
+  },
+} satisfies Record<
+  BlobExportFieldGroup,
+  { label: string; description: string }
+>;
+
+export const EXPORT_FIELD_GROUP_OPTIONS = BLOB_EXPORT_FIELD_GROUPS.map(
+  (value) => ({ value, ...EXPORT_FIELD_GROUP_LABELS[value] }),
+);

@@ -7,7 +7,10 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { blobStorageIntegrationFormSchemaBase } from "@/src/features/blobstorage-integration/types";
-import { validateAzureContainerName } from "@/src/features/blobstorage-integration/validation";
+import {
+  validateAzureContainerName,
+  validateExportFieldGroups,
+} from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { TRPCError } from "@trpc/server";
 import {
@@ -70,7 +73,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(
       blobStorageIntegrationFormSchemaBase
         .extend({ projectId: z.string() })
-        .superRefine(validateAzureContainerName),
+        .superRefine(validateAzureContainerName)
+        .superRefine(validateExportFieldGroups),
     )
     .mutation(async ({ input, ctx }) => {
       try {

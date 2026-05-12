@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { LoaderCircle } from "lucide-react";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
 import {
   Command,
@@ -68,7 +68,7 @@ export function MentionAutocomplete({
               role="status"
               aria-live="polite"
             >
-              <LoaderCircle className="h-4 w-4 animate-spin" />
+              <Spinner size="sm" />
               <span className="sr-only">Loading users...</span>
             </div>
           )}
