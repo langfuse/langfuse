@@ -59,7 +59,10 @@ const MAP_OBJECT_TYPE_TO_ACTION_PROPS: Record<
   },
   [AnnotationQueueObjectType.OBSERVATION]: {
     actionId: ActionId.ObservationAddToAnnotationQueue,
-    tableName: BatchExportTableName.Observations,
+    tableName:
+      env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true"
+        ? BatchExportTableName.Events
+        : BatchExportTableName.Observations,
   },
 };
 
@@ -296,10 +299,7 @@ export const queueItemRouter = createTRPCRouter({
       let createdCount = 0;
 
       if (input.isBatchAction && input.query) {
-        const actionProps =
-          MAP_OBJECT_TYPE_TO_ACTION_PROPS[
-            input.objectType as "TRACE" | "SESSION"
-          ];
+        const actionProps = MAP_OBJECT_TYPE_TO_ACTION_PROPS[input.objectType];
         if (!actionProps) {
           throw new TRPCError({
             code: "BAD_REQUEST",

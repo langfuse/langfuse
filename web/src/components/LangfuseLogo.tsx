@@ -22,7 +22,7 @@ export const LangfuseIcon = ({
   />
 );
 
-const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
+const LangfuseLogotypeOrCustomized = () => {
   const uiCustomization = useUiCustomization();
 
   if (uiCustomization?.logoLightModeHref && uiCustomization?.logoDarkModeHref) {
@@ -35,7 +35,7 @@ const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
           alt="Langfuse Logo"
           className={cn(
             "group-data-[collapsible=icon]:hidden dark:hidden",
-            size === "sm" ? "max-h-4 max-w-14" : "max-h-5 max-w-16",
+            "max-h-4 max-w-14",
           )}
         />
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -44,53 +44,44 @@ const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
           alt="Langfuse Logo"
           className={cn(
             "hidden group-data-[collapsible=icon]:hidden dark:block",
-            size === "sm" ? "max-h-4 max-w-14" : "max-h-5 max-w-16",
+            "max-h-4 max-w-14",
           )}
         />
-        <PlusIcon
-          size={size === "sm" ? 8 : 12}
-          className="group-data-[collapsible=icon]:hidden"
-        />
-        <LangfuseIcon size={size === "sm" ? 16 : 20} />
+        <PlusIcon size={8} className="group-data-[collapsible=icon]:hidden" />
+        <LangfuseIcon size={16} />
       </div>
     );
   }
 
   return (
     <div className="flex items-center">
-      <LangfuseIcon size={size === "sm" ? 16 : 20} />
-      <span
-        className={cn(
-          "ml-2 font-mono leading-none font-semibold group-data-[collapsible=icon]:hidden",
-          size === "sm" ? "text-sm" : "text-xl",
-        )}
-      >
-        Langfuse
-      </span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        className="-ml-1.5 max-h-6 max-w-22 group-data-[collapsible=icon]:hidden dark:hidden"
+        src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-black.svg`}
+        alt="Langfuse Logo"
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        className="-ml-1.5 hidden max-h-6 max-w-22 group-data-[collapsible=icon]:hidden dark:block"
+        src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-white.svg`}
+        alt="Langfuse Logo"
+      />
+      <LangfuseIcon
+        size={28}
+        className="hidden scale-120 group-data-[collapsible=icon]:block"
+      />
     </div>
   );
 };
 
-export const LangfuseLogo = ({
-  className,
-  size = "sm",
-  version = false,
-}: {
-  size?: "sm" | "xl";
-  className?: string;
-  version?: boolean;
-}) => {
+export const LangfuseLogo = ({ version = false }: { version?: boolean }) => {
   return (
-    <div
-      className={cn(
-        "-mt-2 ml-1 flex flex-wrap gap-4 lg:flex-col lg:items-start",
-        className,
-      )}
-    >
+    <div className="-mt-2 ml-1 flex flex-wrap gap-4 lg:flex-col lg:items-start">
       {/* Langfuse Logo */}
       <div className="flex items-center">
         <Link href="/" className="flex items-center">
-          <LangfuseLogotypeOrCustomized size={size} />
+          <LangfuseLogotypeOrCustomized />
         </Link>
         {version && (
           <VersionLabel className="ml-2 group-data-[collapsible=icon]:hidden" />

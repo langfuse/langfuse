@@ -602,3 +602,109 @@ export const getEventsStreamForDataset = async (props: {
     })(),
   );
 };
+
+/**
+ * Lightweight event stream for batch add-to-annotation-queue.
+ * Only fetches the fields needed for annotation queue item creation:
+ * id, traceId.
+ */
+export const getEventsStreamForAnnotationQueue = async (props: {
+  projectId: string;
+  cutoffCreatedAt: Date;
+  filter: FilterCondition[] | null;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  rowLimit?: number;
+}): Promise<Readable> => {
+  const {
+    projectId,
+    cutoffCreatedAt,
+    filter = [],
+    searchQuery,
+    searchType,
+    rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
+  } = props;
+
+  const eventOnlyFilters = (filter ?? []).filter((f) => {
+    const columnDef = eventsTableUiColumnDefinitions.find(
+      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    );
+
+    return (
+      columnDef?.clickhouseTableName !== "scores" &&
+      columnDef?.clickhouseTableName !== "comments"
+    );
+  });
+
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      [
+        ...eventOnlyFilters,
+        {
+          column: "startTime",
+          operator: "<" as const,
+          value: cutoffCreatedAt,
+          type: "datetime" as const,
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    ),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
+    "span_id",
+    "name",
+    "trace_name",
+    "user_id",
+    "session_id",
+    "trace_id",
+  ]);
+
+  const eventsQuery = new EventsQueryBuilder({ projectId })
+    .selectFieldSet("core")
+    .where(appliedEventsFilter)
+    .where(search)
+    .whereRaw("e.is_deleted = 0")
+    .orderByDefault()
+    .limitBy("e.span_id", "e.project_id")
+    .limit(rowLimit);
+
+  const { query, params: queryParams } = eventsQuery.buildWithParams();
+
+  type AnnotationQueueEventRow = {
+    id: string;
+    trace_id: string;
+  };
+
+  const asyncGenerator = queryClickhouseStream<AnnotationQueueEventRow>({
+    query,
+    params: queryParams,
+    clickhouseConfigs: {
+      request_timeout: 180_000,
+      clickhouse_settings: {
+        http_send_timeout: 300,
+        http_receive_timeout: 300,
+      },
+    },
+    tags: {
+      feature: "batch-add-to-annotation-queue",
+      type: "event",
+      kind: "annotation",
+      projectId,
+    },
+  });
+
+  return Readable.from(
+    (async function* () {
+      for await (const row of asyncGenerator) {
+        yield {
+          id: row.id,
+          traceId: row.trace_id,
+        };
+      }
+    })(),
+  );
+};
