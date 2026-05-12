@@ -6386,6 +6386,82 @@ describe("OTel Resource Span Mapping", () => {
       expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(10);
       expect(observationEvent?.body.usageDetails.output_audio_tokens).toBe(5);
     });
+
+    it("should normalize OpenInference prompt detail cache tokens", async () => {
+      const traceId = "abcdef1234567890abcdef1234567893";
+
+      const openInferenceSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                name: "openinference-generation",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "llm.token_count.prompt",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "llm.token_count.completion",
+                    value: { intValue: { low: 25, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "llm.token_count.prompt_details.cache_read",
+                    value: { intValue: { low: 30, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "llm.token_count.prompt_details.cache_write",
+                    value: { intValue: { low: 10, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        openInferenceSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(60);
+      expect(observationEvent?.body.usageDetails.output).toBe(25);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(30);
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(10);
+      expect(
+        observationEvent?.body.usageDetails["prompt_details.cache_read"],
+      ).toBeUndefined();
+      expect(
+        observationEvent?.body.usageDetails["prompt_details.cache_write"],
+      ).toBeUndefined();
+    });
   });
 
   describe("Vercel AI SDK Usage details", () => {
