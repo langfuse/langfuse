@@ -29,7 +29,6 @@ minimumReleaseAgeExclude:
   - "eslint-plugin-turbo@2.9.12"
   - "@turbo/darwin-arm64@2.9.12"
   - "@turbo/darwin-64@2.9.12"
-  - "@turbo/linux-arm64-gnu@2.9.12"
   - "@turbo/windows-64@2.9.12"
   - "@turbo/linux-64@2.9.12"
   - "@turbo/linux-arm64@2.9.12"
