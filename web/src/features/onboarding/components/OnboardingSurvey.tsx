@@ -80,7 +80,6 @@ export function OnboardingSurvey() {
 
   // Determine labeling/behavior of the primary (right) button
   const roleValue = form.watch("role");
-  const signupReasonValue = form.watch("signupReason");
   const referralSourceValue = form.watch("referralSource");
 
   const currentFieldId = currentQuestion?.id as
@@ -94,16 +93,13 @@ export function OnboardingSurvey() {
     v == null || (typeof v === "string" && v.trim() === "");
   const allFields = {
     role: roleValue,
-    signupReason: signupReasonValue,
     referralSource: referralSourceValue,
   } as const;
-
   const currentEmpty = isEmpty(currentValue);
-  const otherTwoEmpty = Object.entries(allFields)
+  const otherFieldsEmpty = Object.entries(allFields)
     .filter(([key]) => key !== currentFieldId)
     .every(([, v]) => isEmpty(v));
-  // showSkip: ghost button labeled "Skip" when skipping is the intended action
-  const showSkip = isLastStep ? currentEmpty && otherTwoEmpty : currentEmpty;
+  const showSkip = isLastStep ? currentEmpty && otherFieldsEmpty : currentEmpty;
 
   const handleSkipButton = () => {
     if (isLastStep) {
