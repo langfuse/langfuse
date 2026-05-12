@@ -72,6 +72,7 @@ import {
   buildEventsFullTableSplitQuery,
   type QueryWithParams,
   type SessionEventsMetricsRow,
+  type FieldSetName,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
@@ -872,6 +873,8 @@ export const OBSERVATION_FIELD_GROUPS = [
   "usage", // usageDetails, costDetails, totalCost
   "prompt", // promptId, promptName, promptVersion
   "metrics", // latency, timeToFirstToken
+  "tools", // toolDefinitions, toolCalls, toolCallNames
+  "trace_context", // tags, release, traceName, usagePricingTierName
 ] as const;
 
 export type ObservationFieldGroup = (typeof OBSERVATION_FIELD_GROUPS)[number];
@@ -2697,6 +2700,51 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
 };
 
 /**
+ * Discouraged: Avoid using this function for new code.
+ *
+ * This function exists solely to support the annotation queue items lookup,
+ * which needs to resolve parent trace IDs for observation-type queue items.
+ * It is problematic for performance as it lacks time filtering, requiring
+ * ClickHouse to scan a broad range of data.
+ * We aim to refactor the annotation queue data model to eliminate this
+ * dependency in a future iteration.
+ */
+export const getObservationsTraceIdsFromEventsTable = async (opts: {
+  projectId: string;
+  observationIds: string[];
+}) => {
+  const { projectId, observationIds } = opts;
+
+  const queryBuilder = new EventsQueryBuilder({ projectId })
+    .selectRaw("e.trace_id AS trace_id", "e.span_id AS span_id")
+    .whereRaw("e.span_id IN {observationIds: Array(String)}", {
+      observationIds,
+    });
+
+  const { query, params: queryParams } = queryBuilder.buildWithParams();
+
+  const result = await queryClickhouse<{
+    trace_id: string;
+    span_id: string;
+  }>({
+    query,
+    params: queryParams,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "getObservationsTraceIdsFromEventsTable",
+      projectId,
+    },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return result.map((row) => ({
+    id: row.span_id,
+    traceId: row.trace_id,
+  }));
+};
+
+/**
  * Column mappings for user queries from events table.
  * Includes a "Timestamp" mapping that points to start_time for compatibility
  * with the Users page filter state (which uses "Timestamp" from traces table).
@@ -2936,11 +2984,36 @@ export const getEventsForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroup[] = [...OBSERVATION_FIELD_GROUPS],
 ) {
-  const queryBuilder = new EventsQueryBuilder({ projectId })
-    .selectFieldSet("export")
-    .selectIO(false) // Full I/O, no truncation
-    .selectFieldSet("metadata")
+  const queryBuilder = new EventsQueryBuilder({ projectId });
+
+  // core is always required (provides id, trace_id, start/end_time used for cursor and deduplication)
+  const effectiveGroups = fieldGroups.includes("core")
+    ? fieldGroups
+    : (["core", ...fieldGroups] as ObservationFieldGroup[]);
+
+  // model_export must be selected whenever model or usage is requested:
+  // - model group: include model identification fields in the output
+  // - usage group (without model): pricing enrichment needs model_id for the
+  //   lookup; the field is dropped afterward by enrichObservationStream
+  const needsModelFields =
+    fieldGroups.includes("model") || fieldGroups.includes("usage");
+
+  for (const group of effectiveGroups) {
+    if (group === "io") {
+      queryBuilder.selectIO(false); // Full I/O, no truncation
+    } else if (group !== "model") {
+      // model_export is selected below via needsModelFields to avoid double-selecting
+      queryBuilder.selectFieldSet(group as FieldSetName);
+    }
+  }
+
+  if (needsModelFields) {
+    queryBuilder.selectFieldSet("model_export");
+  }
+
+  queryBuilder
     .whereRaw(
       "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time <= {maxTimestamp: DateTime64(3)}",
       {

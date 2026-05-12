@@ -1,12 +1,13 @@
-import { type DataPoint } from "./chart-props";
-import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
-  compactNumberFormatter,
-  compactSmallNumberFormatter,
-  latencyFormatter,
-  numberFormatter,
-  usdFormatter,
-} from "@/src/utils/numbers";
+  type DataPoint,
+  type FormatMetricOptions,
+  type FormattedMetric,
+} from "./chart-props";
+import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
+
+export const toFullMetricString = (metric: FormattedMetric): string =>
+  `${metric.negative ? "-" : ""}${metric.prefix ?? ""}${metric.main}${metric.suffix ?? ""}`;
 
 /**
  * Groups data by dimension to prepare it for time series breakdowns
@@ -100,39 +101,293 @@ export function getChartTypeDisplayName(
   }
 }
 
-/**
- * Formats a metric value for display, dispatching on the result unit returned
- * by getResultUnit. String values pass through unchanged.
- *
- * - "millisecond" → latencyFormatter (auto-scales ms/s/min/h/d)
- * - "USD" → usdFormatter
- * - any other unit (or undefined):
- *   - sub-unit magnitudes (|value| < 1, non-zero) → compactSmallNumberFormatter
- *     regardless of `compact`, since the regular formatters round small
- *     values toward "0" and lose precision
- *   - else `compact` true → compactNumberFormatter (e.g. "12K") for axis
- *     ticks
- *   - else → numberFormatter with up to 2 fractional digits and no
- *     trailing-zero padding
- *
- * `compact` is intended for axis ticks where space matters; tooltips and
- * tables should leave it off so values keep full precision.
- */
 export function valueFormatter(
   value: number | string,
   unit?: string,
   compact?: boolean,
 ): string {
-  if (typeof value === "string") return value;
-  switch (unit) {
-    case "millisecond":
-      return latencyFormatter(value);
-    case "USD":
-      return usdFormatter(value);
-    default:
-      if (value !== 0 && Math.abs(value) < 1)
-        return compactSmallNumberFormatter(value);
-      if (compact) return compactNumberFormatter(value);
-      return numberFormatter(value, 0, 2);
+  if (typeof value === "string") {
+    return value;
   }
+
+  return toFullMetricString(
+    formatMetric(value, {
+      unit,
+      style: compact ? "compact" : "full",
+    }),
+  );
+}
+
+const stripTrailingDecimalZeros = (numStr: string): string =>
+  numStr.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+
+const formatFixedMetric = (
+  value: number,
+  maxFractionDigits: number,
+  suffix = "",
+  maxCharacters?: number,
+): FormattedMetric => {
+  for (
+    let fractionDigits = maxFractionDigits;
+    fractionDigits >= 0;
+    fractionDigits--
+  ) {
+    const main = stripTrailingDecimalZeros(value.toFixed(fractionDigits));
+    const formatted = suffix ? { main, suffix } : { main };
+
+    if (
+      !maxCharacters ||
+      toFullMetricString(formatted).length <= maxCharacters
+    ) {
+      return formatted;
+    }
+  }
+
+  const main = Math.round(value).toString();
+  return suffix ? { main, suffix } : { main };
+};
+
+const formatExponentialMetric = (
+  value: number,
+  maxCharacters?: number,
+): FormattedMetric => {
+  const main = value.toExponential(2);
+  const formatted = { main };
+
+  if (!maxCharacters || toFullMetricString(formatted).length <= maxCharacters) {
+    return formatted;
+  }
+
+  for (let significantDigits = 2; significantDigits >= 1; significantDigits--) {
+    const shortened = value.toExponential(significantDigits - 1);
+    const shortenedFormatted = { main: shortened };
+    if (toFullMetricString(shortenedFormatted).length <= maxCharacters) {
+      return shortenedFormatted;
+    }
+  }
+
+  return formatted;
+};
+
+const compactUnits = [
+  [1e12, "T"],
+  [1e9, "B"],
+  [1e6, "M"],
+  [1e3, "K"],
+] as const;
+
+const formatCompactMetric = (
+  value: number,
+  maxCharacters?: number,
+): FormattedMetric => {
+  for (let i = 0; i < compactUnits.length; i++) {
+    const [divisor, suffix] = compactUnits[i];
+    if (value < divisor) {
+      continue;
+    }
+
+    const formatted = formatFixedMetric(
+      value / divisor,
+      3,
+      suffix,
+      maxCharacters,
+    );
+
+    if (Number(formatted.main) >= 1000 && i > 0) {
+      const [nextDivisor, nextSuffix] = compactUnits[i - 1];
+      return formatFixedMetric(
+        value / nextDivisor,
+        3,
+        nextSuffix,
+        maxCharacters,
+      );
+    }
+
+    return formatted;
+  }
+
+  if (value >= 1) {
+    return formatFixedMetric(value, 3, "", maxCharacters);
+  }
+
+  if (value >= 1e-3) {
+    return formatFixedMetric(value, 6, "", maxCharacters);
+  }
+
+  return formatExponentialMetric(value, maxCharacters);
+};
+
+const durationDivisors = [1, 1_000, 60_000, 3_600_000, 86_400_000] as const;
+const durationUnits = [
+  "millisecond",
+  "second",
+  "minute",
+  "hour",
+  "day",
+] as const;
+
+const formatWithConstrainedDecimals = ({
+  value,
+  maxCharacters,
+  maxFractionDigits,
+  createFormatter,
+}: {
+  value: number;
+  maxCharacters?: number;
+  maxFractionDigits: number;
+  createFormatter: (fractionDigits: number) => Intl.NumberFormat;
+}): FormattedMetric => {
+  let fallback: FormattedMetric | undefined;
+
+  for (
+    let fractionDigits = maxFractionDigits;
+    fractionDigits >= 0;
+    fractionDigits--
+  ) {
+    let prefix = "";
+    let main = "";
+    let suffix = "";
+
+    for (const part of createFormatter(fractionDigits).formatToParts(value)) {
+      switch (part.type) {
+        case "currency":
+          prefix += part.value;
+          break;
+        case "unit":
+          suffix += part.value;
+          break;
+        case "literal":
+          break;
+        default:
+          main += part.value;
+      }
+    }
+
+    const formatted: FormattedMetric = {
+      ...(prefix ? { prefix } : {}),
+      main: main || `${prefix}${suffix}`,
+      ...(suffix ? { suffix } : {}),
+    };
+
+    fallback = formatted;
+
+    if (
+      !maxCharacters ||
+      toFullMetricString(formatted).length <= maxCharacters
+    ) {
+      return formatted;
+    }
+  }
+
+  return fallback ?? { main: value.toString() };
+};
+
+/**
+ * Formats a metric into structured parts for chart labels, axes, and tooltips.
+ *
+ * - `unit === "millisecond"` auto-scales across ms/s/min/h/d and can reduce
+ *   fractional precision to satisfy `maxCharacters`.
+ * - `unit === "USD"` formats with a currency prefix and can reduce fractional
+ *   precision to satisfy `maxCharacters`.
+ * - `style === "compact"` uses compact suffixes for large values (`K`, `M`,
+ *   `B`, `T`), decimal formatting for `1e-3 <= |value| < 1`, and exponential
+ *   notation below `1e-3`.
+ * - `style === "full"` preserves more detail for non-zero sub-unit values by
+ *   using compact decimal formatting for `1e-3 <= |value| < 1` and exponential
+ *   notation below `1e-3`; otherwise it falls back to `numberFormatter`.
+ *
+ * `maxCharacters` is an optional space constraint that may reduce fractional
+ * digits or exponential precision for either style.
+ */
+export function formatMetric(
+  value: number,
+  options: FormatMetricOptions,
+): FormattedMetric {
+  const { unit, style, maxCharacters } = options;
+
+  const negative = value < 0;
+  const absValue = Math.abs(value);
+
+  const magnitudeMaxCharacters =
+    negative && maxCharacters ? maxCharacters - 1 : maxCharacters;
+
+  const applyNegative = (formatted: FormattedMetric): FormattedMetric =>
+    negative ? { negative: true, ...formatted } : formatted;
+
+  if (unit === "millisecond") {
+    const tier = durationDivisors.reduce(
+      (acc, divisor, i) => (absValue >= divisor ? i : acc),
+      0,
+    );
+
+    const normalizedValue = absValue / durationDivisors[tier];
+
+    return applyNegative(
+      formatWithConstrainedDecimals({
+        value: normalizedValue,
+        maxCharacters: magnitudeMaxCharacters,
+        maxFractionDigits: 2,
+        createFormatter: (fractionDigits) =>
+          new Intl.NumberFormat("en-US", {
+            style: "unit",
+            unit: durationUnits[tier],
+            unitDisplay: "narrow",
+            notation: "compact",
+            minimumFractionDigits: 0,
+            maximumFractionDigits: fractionDigits,
+          }),
+      }),
+    );
+  }
+
+  if (unit === "USD") {
+    const maxFractionDigits = value && absValue < 5 ? 6 : 2;
+
+    return applyNegative(
+      formatWithConstrainedDecimals({
+        value: absValue,
+        maxCharacters: magnitudeMaxCharacters,
+        maxFractionDigits,
+        createFormatter: (fractionDigits) =>
+          new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            minimumFractionDigits: Math.min(2, fractionDigits),
+            maximumFractionDigits: Math.max(0, fractionDigits),
+          }),
+      }),
+    );
+  }
+
+  if (style === "compact") {
+    if (value === 0) {
+      return { main: "0" };
+    }
+
+    return applyNegative(formatCompactMetric(absValue, magnitudeMaxCharacters));
+  }
+
+  if (value !== 0 && absValue < 1e-3) {
+    return applyNegative(
+      formatExponentialMetric(absValue, magnitudeMaxCharacters),
+    );
+  }
+
+  if (value !== 0 && absValue < 1) {
+    if (maxCharacters) {
+      return applyNegative(
+        formatFixedMetric(absValue, 6, "", magnitudeMaxCharacters),
+      );
+    }
+
+    return applyNegative({ main: compactNumberFormatter(absValue, 3) });
+  }
+
+  if (maxCharacters) {
+    return applyNegative(
+      formatFixedMetric(absValue, 2, "", magnitudeMaxCharacters),
+    );
+  }
+
+  return applyNegative({ main: numberFormatter(absValue, 0, 2) });
 }

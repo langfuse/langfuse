@@ -5,6 +5,7 @@ import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-ss
 import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { logger } from "@langfuse/shared/src/server";
+import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
 
 export function getSSOBlockedDomains() {
   return (
@@ -12,6 +13,42 @@ export function getSSOBlockedDomains() {
       .map((domain) => domain.trim().toLowerCase())
       .filter(Boolean) ?? []
   );
+}
+
+/**
+ * Validates that a user is eligible to sign up with email/password.
+ * Returns an error message string if ineligible, or null if eligible.
+ */
+export async function validateSignupEligibility({
+  email,
+}: {
+  email: string;
+}): Promise<string | null> {
+  // Block if disabled by env
+  if (
+    env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
+    env.AUTH_DISABLE_SIGNUP === "true"
+  ) {
+    return "Sign up is disabled.";
+  }
+  if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true") {
+    return "Sign up with email and password is disabled for this instance. Please use SSO.";
+  }
+
+  // check if email domain is blocked from email/password sign up via env
+  const blockedDomains = getSSOBlockedDomains();
+  const domain = email.split("@")[1]?.toLowerCase();
+  if (domain && blockedDomains.includes(domain)) {
+    return "Sign up with email and password is disabled for this domain. Please use SSO.";
+  }
+
+  // EE: check if custom SSO configuration is enabled for this domain
+  const multiTenantSsoProvider = await getSsoAuthProviderIdForDomain(domain);
+  if (multiTenantSsoProvider) {
+    return ENTERPRISE_SSO_REQUIRED_MESSAGE;
+  }
+
+  return null;
 }
 
 /*
@@ -23,18 +60,12 @@ export async function signupApiHandler(
   res: NextApiResponse,
 ) {
   if (req.method !== "POST") return;
-  // Block if disabled by env
-  if (
-    env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
-    env.AUTH_DISABLE_SIGNUP === "true"
-  ) {
-    res.status(422).json({ message: "Sign up is disabled." });
-    return;
-  }
-  if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true") {
-    res.status(422).json({
+
+  // Block direct signup when email verification is required
+  if (isEmailVerificationRequired()) {
+    res.status(403).json({
       message:
-        "Sign up with email and password is disabled for this instance. Please use SSO.",
+        "Direct signup is disabled. Please use the email verification flow.",
     });
     return;
   }
@@ -49,23 +80,11 @@ export async function signupApiHandler(
 
   const body = validBody.data;
 
-  // check if email domain is blocked from email/password sign up via env
-  const blockedDomains = getSSOBlockedDomains();
-  const domain = body.email.split("@")[1]?.toLowerCase();
-  if (domain && blockedDomains.includes(domain)) {
-    res.status(422).json({
-      message:
-        "Sign up with email and password is disabled for this domain. Please use SSO.",
-    });
-    return;
-  }
-
-  // EE: check if custom SSO configuration is enabled for this domain
-  const multiTenantSsoProvider = await getSsoAuthProviderIdForDomain(domain);
-  if (multiTenantSsoProvider) {
-    res.status(422).json({
-      message: ENTERPRISE_SSO_REQUIRED_MESSAGE,
-    });
+  const eligibilityError = await validateSignupEligibility({
+    email: body.email,
+  });
+  if (eligibilityError) {
+    res.status(422).json({ message: eligibilityError });
     return;
   }
 
