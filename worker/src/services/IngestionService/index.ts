@@ -426,7 +426,22 @@ export class IngestionService {
               }),
             ]);
 
-            if (!runData || !itemData) return [];
+            if (!runData || !itemData) {
+              logger.warn(
+                "Dropping dataset_run_item event: Postgres lookup miss",
+                {
+                  projectId,
+                  runId: event.body.runId,
+                  datasetId: event.body.datasetId,
+                  datasetItemId: event.body.datasetItemId,
+                  hasRunData: !!runData,
+                  hasItemData: !!itemData,
+                },
+              );
+              throw new Error(
+                `dataset_run_item lookup miss: hasRun=${!!runData} hasItem=${!!itemData} runId=${event.body.runId} datasetItemId=${event.body.datasetItemId}`,
+              );
+            }
 
             const timestamp = event.body.createdAt
               ? new Date(event.body.createdAt).getTime()
