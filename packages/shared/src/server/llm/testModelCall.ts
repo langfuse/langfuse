@@ -32,7 +32,7 @@ export const testModelCall = async ({
   const schema =
     structuredOutputSchema ??
     z.object({
-      score: z.string(),
+      score: z.number(),
       reasoning: z.string(),
     });
   const promptSchema =
