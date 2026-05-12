@@ -16,7 +16,7 @@ FROM mcr.microsoft.com/devcontainers/universal:2
 COPY --from=migrate-builder /out/migrate /usr/local/bin/migrate
 
 # Activate the repo's pinned pnpm via Corepack
-RUN corepack enable && corepack prepare pnpm@11.0.9 --activate
+RUN corepack enable && corepack prepare pnpm@11.1.0 --activate
 
 # Install Clickhouse
 RUN curl https://clickhouse.com/ | sh && \
