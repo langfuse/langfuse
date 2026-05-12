@@ -399,6 +399,24 @@ function parsePlainRecord(value: unknown): Record<string, unknown> | undefined {
   return isPlainRecord(parsed) ? parsed : undefined;
 }
 
+function parseMetadataAttributes(
+  value: unknown,
+): Record<string, unknown> | undefined {
+  if (typeof value === "string") {
+    const hasToolDefinitionKey =
+      value.includes("ai.prompt.tools") ||
+      value.includes("gen_ai.tool.definitions") ||
+      value.includes("model_request_parameters") ||
+      value.includes("llm.tools.");
+
+    if (!hasToolDefinitionKey) {
+      return undefined;
+    }
+  }
+
+  return parsePlainRecord(value);
+}
+
 function toIngestionJsonValue(value: unknown): IngestionJsonValue {
   if (value == null) return value;
 
@@ -440,7 +458,7 @@ function collectToolDefinitionsFromMetadata(
 
   addTools(metadata.tools);
 
-  const attributes = parsePlainRecord(metadata.attributes);
+  const attributes = parseMetadataAttributes(metadata.attributes);
 
   if (!attributes) return tools;
 
@@ -534,7 +552,7 @@ function removeToolDefinitionsFromMetadata(
   const cleanedMetadata = { ...metadata };
   delete cleanedMetadata.tools;
 
-  const parsedAttributes = parsePlainRecord(cleanedMetadata.attributes);
+  const parsedAttributes = parseMetadataAttributes(cleanedMetadata.attributes);
   const attributes = parsedAttributes ? { ...parsedAttributes } : undefined;
 
   if (!attributes) return cleanedMetadata;

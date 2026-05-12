@@ -116,6 +116,31 @@ describe("extractToolsFromObservation", () => {
         },
       });
     });
+
+    it("does not parse stringified metadata attributes without tool definition keys", () => {
+      const input = [{ role: "user", content: "Need weather" }];
+      const metadataTool = {
+        type: "function",
+        name: "get_weather",
+        description: "Get weather.",
+      };
+      const attributes = JSON.stringify({
+        "custom.attribute": "keep-me",
+      });
+
+      const result = moveToolDefinitionsFromMetadataToInput(input, {
+        tools: [metadataTool],
+        attributes,
+      });
+
+      expect(result.input).toEqual({
+        messages: input,
+        tools: [metadataTool],
+      });
+      expect(result.metadata).toEqual({
+        attributes,
+      });
+    });
   });
 
   describe("Tool Definitions extraction", () => {
