@@ -387,8 +387,11 @@ export class QueryBuilder {
         clickhouseSelect = "metadata";
         queryPrefix = clickhouseTableName;
         type = "stringObject";
-      } else if (filter.column === "experimentMetadata") {
-        // Experiment metadata uses array columns: experiment_metadata_names/values
+      } else if (
+        filter.column === "experimentMetadata" &&
+        view.name === "events_observations"
+      ) {
+        // Experiment metadata only exists on events table (v2 observations view)
         clickhouseSelect = "experiment_metadata";
         queryPrefix = clickhouseTableName;
         type = "stringObject";
