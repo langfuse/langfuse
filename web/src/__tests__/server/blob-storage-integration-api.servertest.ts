@@ -29,11 +29,7 @@ const BlobStorageIntegrationResponseSchema = z.object({
   exportMode: z.enum(["FULL_HISTORY", "FROM_TODAY", "FROM_CUSTOM_DATE"]),
   exportStartDate: z.coerce.date().nullable(),
   compressed: z.boolean(),
-  exportSource: z.enum([
-    "TRACES_OBSERVATIONS",
-    "TRACES_OBSERVATIONS_EVENTS",
-    "EVENTS",
-  ]),
+  exportSource: z.enum(["LEGACY", "ENRICHED", "LEGACY_AND_ENRICHED"]),
   exportFieldGroups: z.array(z.enum(BLOB_EXPORT_FIELD_GROUPS)).nullable(),
   nextSyncAt: z.coerce.date().nullable(),
   lastSyncAt: z.coerce.date().nullable(),
@@ -642,7 +638,7 @@ describe("Blob Storage Integrations API", () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
-        exportSource: "EVENTS" as const,
+        exportSource: "ENRICHED" as const,
         exportFieldGroups: ["core", "io"],
       };
 
@@ -654,7 +650,7 @@ describe("Blob Storage Integrations API", () => {
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
       expect(putResponse.status).toBe(200);
-      expect(putResponse.body.exportSource).toBe("EVENTS");
+      expect(putResponse.body.exportSource).toBe("ENRICHED");
       expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
 
       const getResponse = await makeZodVerifiedAPICall(
@@ -669,7 +665,7 @@ describe("Blob Storage Integrations API", () => {
         (i) => i.projectId === testProject1Id,
       );
       expect(integration).toBeDefined();
-      expect(integration?.exportSource).toBe("EVENTS");
+      expect(integration?.exportSource).toBe("ENRICHED");
       expect(integration?.exportFieldGroups).toStrictEqual(["core", "io"]);
     });
 
@@ -677,7 +673,7 @@ describe("Blob Storage Integrations API", () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
-        exportSource: "EVENTS" as const,
+        exportSource: "ENRICHED" as const,
         exportFieldGroups: ["io"],
       };
 
@@ -694,7 +690,7 @@ describe("Blob Storage Integrations API", () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
-        exportSource: "EVENTS" as const,
+        exportSource: "ENRICHED" as const,
       };
 
       const putResponse = await makeZodVerifiedAPICall(
@@ -718,7 +714,7 @@ describe("Blob Storage Integrations API", () => {
         (i) => i.projectId === testProject1Id,
       );
       expect(integration).toBeDefined();
-      expect(integration?.exportSource).toBe("EVENTS");
+      expect(integration?.exportSource).toBe("ENRICHED");
       expect(integration?.exportFieldGroups).toBeDefined();
       expect(integration?.exportFieldGroups).toHaveLength(
         BLOB_EXPORT_FIELD_GROUPS.length,
@@ -732,7 +728,7 @@ describe("Blob Storage Integrations API", () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
-        exportSource: "EVENTS" as const,
+        exportSource: "ENRICHED" as const,
         exportFieldGroups: null,
       };
 
@@ -772,7 +768,7 @@ describe("Blob Storage Integrations API", () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
-        exportSource: "TRACES_OBSERVATIONS" as const,
+        exportSource: "LEGACY" as const,
       };
 
       const putResponse = await makeZodVerifiedAPICall(
@@ -796,7 +792,7 @@ describe("Blob Storage Integrations API", () => {
         (i) => i.projectId === testProject1Id,
       );
       expect(integration).toBeDefined();
-      expect(integration?.exportSource).toBe("TRACES_OBSERVATIONS");
+      expect(integration?.exportSource).toBe("LEGACY");
       expect(integration?.exportFieldGroups).toBeNull();
     });
 
@@ -804,7 +800,7 @@ describe("Blob Storage Integrations API", () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
-        exportSource: "TRACES_OBSERVATIONS" as const,
+        exportSource: "LEGACY" as const,
         exportFieldGroups: null,
       };
 
@@ -836,7 +832,7 @@ describe("Blob Storage Integrations API", () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
-        exportSource: "TRACES_OBSERVATIONS" as const,
+        exportSource: "LEGACY" as const,
         exportFieldGroups: [],
       };
 
@@ -855,7 +851,7 @@ describe("Blob Storage Integrations API", () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
-        exportSource: "TRACES_OBSERVATIONS" as const,
+        exportSource: "LEGACY" as const,
         exportFieldGroups: ["core", "io"],
       };
 
@@ -903,7 +899,7 @@ describe("Blob Storage Integrations API", () => {
         (i) => i.projectId === testProject1Id,
       );
       expect(integration).toBeDefined();
-      expect(integration?.exportSource).toBe("TRACES_OBSERVATIONS");
+      expect(integration?.exportSource).toBe("LEGACY");
       expect(integration?.exportFieldGroups).toBeNull();
     });
 
@@ -935,7 +931,7 @@ describe("Blob Storage Integrations API", () => {
         {
           ...validBlobStorageConfig,
           projectId: testProject1Id,
-          exportSource: "TRACES_OBSERVATIONS" as const,
+          exportSource: "LEGACY" as const,
           bucketName: "updated-bucket",
         },
         createBasicAuthHeader(testApiKey, testApiSecretKey),
@@ -955,7 +951,7 @@ describe("Blob Storage Integrations API", () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
-        exportSource: "TRACES_OBSERVATIONS" as const,
+        exportSource: "LEGACY" as const,
       };
 
       const response = await makeZodVerifiedAPICall(
@@ -966,10 +962,7 @@ describe("Blob Storage Integrations API", () => {
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty(
-        "exportSource",
-        "TRACES_OBSERVATIONS",
-      );
+      expect(response.body).toHaveProperty("exportSource", "LEGACY");
       expect(response.body).toHaveProperty("exportFieldGroups");
       expect(response.body.exportFieldGroups).toBeNull();
     });
@@ -1028,9 +1021,9 @@ describe("Blob Storage Integrations API", () => {
       const eventsIntegration = getResponse.body.data.find(
         (i) => i.projectId === testProject2Id,
       );
-      expect(tracesObsIntegration?.exportSource).toBe("TRACES_OBSERVATIONS");
+      expect(tracesObsIntegration?.exportSource).toBe("LEGACY");
       expect(tracesObsIntegration?.exportFieldGroups).toBeNull();
-      expect(eventsIntegration?.exportSource).toBe("EVENTS");
+      expect(eventsIntegration?.exportSource).toBe("ENRICHED");
       expect(eventsIntegration?.exportFieldGroups).toStrictEqual([
         "core",
         "io",
@@ -1072,7 +1065,7 @@ describe("Blob Storage Integrations API", () => {
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
       expect(putResponse.status).toBe(200);
-      expect(putResponse.body.exportSource).toBe("EVENTS");
+      expect(putResponse.body.exportSource).toBe("ENRICHED");
       expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
 
       // DB row preserved on both columns; bucket updated
@@ -1121,7 +1114,7 @@ describe("Blob Storage Integrations API", () => {
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
       expect(putResponse.status).toBe(200);
-      expect(putResponse.body.exportSource).toBe("EVENTS");
+      expect(putResponse.body.exportSource).toBe("ENRICHED");
       expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
 
       const saved = await prisma.blobStorageIntegration.findUnique({
@@ -1156,7 +1149,7 @@ describe("Blob Storage Integrations API", () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
-        exportSource: "EVENTS" as const,
+        exportSource: "ENRICHED" as const,
         bucketName: "updated-bucket",
       };
       const putResponse = await makeZodVerifiedAPICall(
@@ -1167,7 +1160,7 @@ describe("Blob Storage Integrations API", () => {
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
       expect(putResponse.status).toBe(200);
-      expect(putResponse.body.exportSource).toBe("EVENTS");
+      expect(putResponse.body.exportSource).toBe("ENRICHED");
       expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
 
       const saved = await prisma.blobStorageIntegration.findUnique({

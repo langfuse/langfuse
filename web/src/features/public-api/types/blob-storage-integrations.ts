@@ -26,7 +26,48 @@ export const BlobStorageExportMode = z.enum([
   "FROM_CUSTOM_DATE",
 ]);
 
-export const BlobStorageExportSource = z.enum(AnalyticsIntegrationExportSource);
+/**
+ * Public REST enum for the blob-storage export source. Intentionally distinct
+ * from the internal `AnalyticsIntegrationExportSource` (Prisma): names here
+ * mirror the labels users see in the UI rather than the legacy internal
+ * identifiers. Maps to the internal enum via `toInternalExportSource` /
+ * `toPublicExportSource`.
+ */
+export const BlobStorageExportSource = z.enum([
+  "LEGACY",
+  "ENRICHED",
+  "LEGACY_AND_ENRICHED",
+]);
+
+const PUBLIC_TO_INTERNAL_EXPORT_SOURCE = {
+  LEGACY: AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+  ENRICHED: AnalyticsIntegrationExportSource.EVENTS,
+  LEGACY_AND_ENRICHED:
+    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
+} as const satisfies Record<
+  z.infer<typeof BlobStorageExportSource>,
+  AnalyticsIntegrationExportSource
+>;
+
+const INTERNAL_TO_PUBLIC_EXPORT_SOURCE = {
+  [AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS]: "LEGACY",
+  [AnalyticsIntegrationExportSource.EVENTS]: "ENRICHED",
+  [AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS]:
+    "LEGACY_AND_ENRICHED",
+} as const satisfies Record<
+  AnalyticsIntegrationExportSource,
+  z.infer<typeof BlobStorageExportSource>
+>;
+
+export const toInternalExportSource = (
+  publicValue: z.infer<typeof BlobStorageExportSource>,
+): AnalyticsIntegrationExportSource =>
+  PUBLIC_TO_INTERNAL_EXPORT_SOURCE[publicValue];
+
+export const toPublicExportSource = (
+  internalValue: AnalyticsIntegrationExportSource,
+): z.infer<typeof BlobStorageExportSource> =>
+  INTERNAL_TO_PUBLIC_EXPORT_SOURCE[internalValue];
 
 export const BlobStorageExportFieldGroup = z.enum(BLOB_EXPORT_FIELD_GROUPS);
 
@@ -85,15 +126,11 @@ export const CreateBlobStorageIntegrationRequest = z
       });
       return;
     }
-    if (
-      data.exportSource ===
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS &&
-      data.exportFieldGroups != null
-    ) {
+    if (data.exportSource === "LEGACY" && data.exportFieldGroups != null) {
       ctx.addIssue({
         code: "custom",
         message:
-          "exportFieldGroups is not applicable when exportSource is TRACES_OBSERVATIONS",
+          "exportFieldGroups is not applicable when exportSource is LEGACY",
         path: ["exportFieldGroups"],
       });
       return;
@@ -101,7 +138,7 @@ export const CreateBlobStorageIntegrationRequest = z
     if (data.exportFieldGroups != null && data.exportSource != null) {
       validateExportFieldGroups(
         {
-          exportSource: data.exportSource,
+          exportSource: toInternalExportSource(data.exportSource),
           exportFieldGroups: data.exportFieldGroups,
         },
         ctx,
