@@ -865,12 +865,13 @@ export const getTraceByIdFromEventsTable = async ({
  * Field groups for selective field fetching in v2 observations API
  *
  * - core: Always included (cursor-required fields)
- * - basic, time, io, metadata, model, usage, prompt, metrics: Optional groups
+ * - basic, time, io, metadata, model, usage, prompt, metrics, trace_context:
+ *   Optional groups
  *
  * Scoped to the observation contract. The blob exporter has a separate,
- * broader set (`BLOB_EXPORT_FIELD_GROUPS`) that adds denormalized trace
- * context and tool fields. Keep the two lists distinct so changes to the
- * exporter cannot silently widen the public API contract.
+ * broader set (`BLOB_EXPORT_FIELD_GROUPS`) that adds tool fields. Keep
+ * the two lists distinct so changes to the exporter cannot silently widen
+ * the public API contract.
  */
 export const OBSERVATION_FIELD_GROUPS = [
   "core", // Always included: id, traceId, startTime, endTime, projectId, parentObservationId, type
@@ -882,6 +883,7 @@ export const OBSERVATION_FIELD_GROUPS = [
   "usage", // usageDetails, costDetails, totalCost, usagePricingTierName
   "prompt", // promptId, promptName, promptVersion
   "metrics", // latency, timeToFirstToken
+  "trace_context", // tags, release, traceName (denormalized trace metadata)
 ] as const;
 
 export type ObservationFieldGroup = (typeof OBSERVATION_FIELD_GROUPS)[number];
