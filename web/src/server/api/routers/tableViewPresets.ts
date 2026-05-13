@@ -240,12 +240,14 @@ export const TableViewPresetsRouter = createTRPCRouter({
 
       let viewName = input.viewName;
 
-      // For non-system presets, always validate viewId exists and get viewName
+      // For non-system presets, always validate viewId exists and get viewName.
+      // Frontend-defined `__langfuse_` presets still pass the viewName directly.
       if (!input.viewId.startsWith("__langfuse_")) {
         const view = await TableViewService.getTableViewPresetsById(
           input.viewId,
           input.projectId,
         );
+
         // Use provided viewName or infer from view's tableName
         viewName = viewName ?? view.tableName;
       } else if (!viewName) {

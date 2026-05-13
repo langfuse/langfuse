@@ -7,7 +7,7 @@ RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
-RUN npm install turbo@2.9.5 --global
+RUN npm install turbo@2.9.12 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
@@ -15,7 +15,8 @@ RUN corepack prepare pnpm@10.33.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # package managers and build-only CLIs only increase exposure to CVEs -> remove them
-RUN rm -rf /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm && \
+RUN rm -rf /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm \
+            /root/.cache/node/corepack && \
     rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner

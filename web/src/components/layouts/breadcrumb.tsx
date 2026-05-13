@@ -13,13 +13,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import {
-  ChevronDownIcon,
-  LoaderCircle,
-  PlusIcon,
-  Settings,
-  Slash,
-} from "lucide-react";
+import { ChevronDownIcon, PlusIcon, Settings, Slash } from "lucide-react";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
 import { env } from "@/src/env.mjs";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -36,7 +31,10 @@ import { Badge } from "@/src/components/ui/badge";
 
 const LoadingMenuItem = () => (
   <DropdownMenuItem>
-    <LoaderCircle className="mr-1.5 h-4 w-4 animate-spin" /> Loading...
+    <span className="mr-1.5 inline-flex">
+      <Spinner size="sm" />
+    </span>
+    Loading...
   </DropdownMenuItem>
 );
 

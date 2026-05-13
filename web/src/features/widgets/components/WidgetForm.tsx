@@ -11,6 +11,7 @@ import {
   type metricAggregations,
   getValidAggregationsForMeasureType,
   type QueryType,
+  getResultUnit,
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
   partitionWidgetUiTableFiltersToView,
@@ -71,6 +72,7 @@ import {
   buildWidgetName,
   buildWidgetDescription,
   formatMetricName,
+  getWidgetMetricPresentation,
   sanitizePivotTableDefaultSort,
 } from "@/src/features/widgets/utils";
 import {
@@ -309,11 +311,11 @@ export function WidgetForm({
     filters: initialValues.filters ?? [],
   });
   const viewVersion: ViewVersion =
-    (isBetaEnabled && selectedView !== "traces") ||
-    (initialValues.minVersion ?? 1) >= 2 ||
-    initialWidgetRequiresV2
+    initialWidgetRequiresV2 || (initialValues.minVersion ?? 1) >= 2
       ? "v2"
-      : "v1";
+      : isBetaEnabled && selectedView !== "traces"
+        ? "v2"
+        : "v1";
   const availableViewOptions = viewVersion === "v2" ? viewsV2 : views;
 
   // For regular charts: single metric selection
@@ -1068,6 +1070,24 @@ export function WidgetForm({
       pivotDimensions,
     ],
   );
+
+  const chartPresentation = useMemo(() => {
+    if (selectedChartType === "PIVOT_TABLE") {
+      return undefined;
+    }
+
+    return getWidgetMetricPresentation({
+      metric: { measure: selectedMeasure, agg: selectedAggregation },
+      view: selectedView,
+      version: viewVersion,
+    });
+  }, [
+    selectedAggregation,
+    selectedChartType,
+    selectedMeasure,
+    selectedView,
+    viewVersion,
+  ]);
 
   const handleSaveWidget = () => {
     if (!queryValidation.valid) {
@@ -1970,6 +1990,15 @@ export function WidgetForm({
                 <Chart
                   chartType={selectedChartType as DashboardWidgetChartType}
                   data={transformedData}
+                  config={
+                    chartPresentation
+                      ? {
+                          metric: {
+                            label: chartPresentation.label,
+                          },
+                        }
+                      : undefined
+                  }
                   rowLimit={rowLimit}
                   chartConfig={
                     selectedChartType === "PIVOT_TABLE"
@@ -1978,6 +2007,14 @@ export function WidgetForm({
                           dimensions: pivotDimensions,
                           row_limit: rowLimit,
                           metrics: selectedMetrics.map((metric) => metric.id), // Pass metric field names
+                          units: selectedMetrics.map((metric) =>
+                            getResultUnit(
+                              selectedView,
+                              metric.measure,
+                              metric.aggregation,
+                              viewVersion,
+                            ),
+                          ),
                           defaultSort:
                             defaultSortColumn && defaultSortColumn !== "none"
                               ? {
@@ -1990,10 +2027,22 @@ export function WidgetForm({
                         ? {
                             type: selectedChartType as DashboardWidgetChartType,
                             bins: histogramBins,
+                            unit: getResultUnit(
+                              selectedView,
+                              selectedMeasure,
+                              selectedAggregation,
+                              viewVersion,
+                            ),
                           }
                         : {
                             type: selectedChartType as DashboardWidgetChartType,
                             row_limit: rowLimit,
+                            unit: getResultUnit(
+                              selectedView,
+                              selectedMeasure,
+                              selectedAggregation,
+                              viewVersion,
+                            ),
                           }
                   }
                   sortState={
@@ -2003,6 +2052,7 @@ export function WidgetForm({
                   }
                   onSortChange={undefined}
                   isLoading={queryResult.isPending}
+                  metricFormatter={chartPresentation?.metricFormatter}
                 />
                 <ChartLoadingState
                   isLoading={chartLoadingState.isLoading}

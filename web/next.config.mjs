@@ -70,6 +70,11 @@ const nextConfig = {
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
+  compiler: {
+    define: {
+      "import.meta.vitest": "undefined",
+    },
+  },
   turbopack: {
     resolveAlias: {
       "@langfuse/shared": "./packages/shared/src",
@@ -194,10 +199,18 @@ const nextConfig = {
     ];
   },
 
-  webpack(config, { isServer }) {
+  webpack(config, { isServer, webpack }) {
     // Exclude Datadog packages from webpack bundling to avoid issues
     // see: https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/dd_libraries/nodejs/#bundling-with-nextjs
     config.externals.push("@datadog/pprof", "dd-trace");
+
+    // Setup in-source testing: https://vitest.dev/guide/in-source.html#other-bundlers
+    config.plugins.push(
+      new webpack.DefinePlugin({
+        "import.meta.vitest": "undefined",
+      }),
+    );
+
     return config;
   },
 };

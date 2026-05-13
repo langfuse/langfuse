@@ -7,7 +7,7 @@ RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
-RUN npm install turbo@2.9.5 --global
+RUN npm install turbo@2.9.12 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
@@ -16,10 +16,11 @@ RUN corepack prepare pnpm@10.33.0 --activate
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # Remove build-only package managers. npm stays here because the runner stage
 # uses it to install prisma and optional dd-trace before removing it.
-RUN rm -rf /usr/local/lib/node_modules/corepack && \
+RUN rm -rf /usr/local/lib/node_modules/corepack \
+            /root/.cache/node/corepack && \
     rm -f /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
-FROM --platform=${BUILDPLATFORM} golang:1.24 AS migrate-builder
+FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder
 ARG TARGETOS
 ARG TARGETARCH
 ENV CGO_ENABLED=0 \
