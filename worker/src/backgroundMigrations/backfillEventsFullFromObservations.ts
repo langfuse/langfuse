@@ -365,13 +365,6 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
            AND (o.project_id, o.trace_id) < ({hiBoundProjectId: String}, {hiBoundTraceId: String})`
       : `WHERE (o.project_id, o.trace_id) >= ({loBoundProjectId: String}, {loBoundTraceId: String})`;
 
-    // Conditionally filter out 'attributes' key from metadata (OTEL ingest
-    // path stuffs raw attributes into a nested key that bloats events_full).
-    const metadataExpr =
-      env.LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_ATTRIBUTES_KEY === "true"
-        ? `mapFilter((k, v) -> k != 'attributes', o.metadata)`
-        : `o.metadata`;
-
     // Bound the live traces scan with a calendar window aligned with the
     // observations partition's month, so the LEFT ANY JOIN doesn't sweep the
     // entire traces table.
@@ -447,8 +440,8 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
         o.tool_call_names,
         coalesce(o.input, '') AS input,
         coalesce(o.output, '') AS output,
-        mapKeys(${metadataExpr}) AS metadata_names,
-        mapValues(${metadataExpr}) AS metadata_values,
+        mapKeys(o.metadata) AS metadata_names,
+        mapValues(o.metadata) AS metadata_values,
         multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-backfill', 'ingestion-api-backfill') AS source,
         '' AS blob_storage_file_path,
         0 AS event_bytes,
