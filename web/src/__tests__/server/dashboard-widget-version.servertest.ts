@@ -113,6 +113,35 @@ describe("dashboard widget minVersion", () => {
         [{ column: "release" }],
         true,
       ],
+      // v2-only experiment filters
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentId" }],
+        true,
+      ],
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentName" }],
+        true,
+      ],
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentDatasetId" }],
+        true,
+      ],
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentMetadata" }],
+        true,
+      ],
       // v1-compatible fields
       [
         "observations",
