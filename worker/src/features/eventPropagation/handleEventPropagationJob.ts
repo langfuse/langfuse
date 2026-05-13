@@ -63,13 +63,6 @@ export const handleEventPropagationJob = async (
     job.data.id,
   );
 
-  if (env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB === "true") {
-    logger.info(
-      "[DUAL WRITE] Early exit for event propagation job due to experiment flag",
-    );
-    return;
-  }
-
   try {
     // Step 1: Get the last processed partition from Redis and find the next one to process
     const lastProcessedPartition = await getLastProcessedPartition();
