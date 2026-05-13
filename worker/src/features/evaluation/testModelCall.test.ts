@@ -33,7 +33,7 @@ describe("testModelCall", () => {
     });
 
     const structuredOutputSchema = vi.mocked(fetchLLMCompletion).mock
-      .calls[0]?.[0].structuredOutputSchema as z.ZodObject<{
+      .calls[0]?.[0]?.structuredOutputSchema as z.ZodObject<{
       score: z.ZodNumber;
       reasoning: z.ZodString;
     }>;
