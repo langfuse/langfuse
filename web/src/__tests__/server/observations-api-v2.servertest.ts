@@ -534,6 +534,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       "usageDetails",
       "costDetails",
       "totalCost",
+      "usagePricingTierName",
       // prompt
       "promptId",
       "promptName",
@@ -572,6 +573,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         model_parameters: '{"temperature":0.5}',
         usage_details: { input: 10, output: 20, total: 30 },
         cost_details: { input: 0.01, output: 0.02, total: 0.03 },
+        usage_pricing_tier_name: "contract-tier",
         prompt_id: randomUUID(),
         prompt_name: "contract-prompt",
         prompt_version: 2,
@@ -603,6 +605,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       promptVersion: 2,
       input: "contract input",
       output: "contract output",
+      usagePricingTierName: "contract-tier",
     };
 
     const fieldsForGroup: Record<string, readonly string[]> = {
@@ -622,7 +625,12 @@ describe("/api/public/v2/observations API Endpoint", () => {
       metadata: ["metadata"],
       // "model" is the API response key for provided_model_name (see domain type)
       model: ["model", "internalModelId", "modelParameters"],
-      usage: ["usageDetails", "costDetails", "totalCost"],
+      usage: [
+        "usageDetails",
+        "costDetails",
+        "totalCost",
+        "usagePricingTierName",
+      ],
       prompt: ["promptId", "promptName", "promptVersion"],
       // latency and timeToFirstToken are always returned (computed from core start_time, completion_start_time,
       // end_time), but the metrics group is still defined for documentation and to verify these fields are indeed

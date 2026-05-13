@@ -79,7 +79,7 @@ const EXPORT_FIELD_GROUP_LABELS = {
   usage: {
     label: "Usage",
     description:
-      "usage_details, cost_details, total_cost, input_price, output_price, total_price",
+      "usage_details, cost_details, total_cost, input_price, output_price, total_price, usage_pricing_tier_name",
   },
   prompt: {
     label: "Prompt",
@@ -95,7 +95,7 @@ const EXPORT_FIELD_GROUP_LABELS = {
   },
   trace_context: {
     label: "Trace Context",
-    description: "tags, release, trace_name, usage_pricing_tier_name",
+    description: "tags, release, trace_name",
   },
 } satisfies Record<
   BlobExportFieldGroup,
