@@ -420,6 +420,7 @@ const APIObservationV2 = z
     usageDetails: z.record(z.string(), z.number().nonnegative()).optional(),
     costDetails: z.record(z.string(), z.number().nonnegative()).optional(),
     totalCost: z.number().nullable().optional(),
+    usagePricingTierName: z.string().nullable().optional(),
 
     // Prompt fields (field group: prompt)
     promptId: z.string().nullable().optional(),
