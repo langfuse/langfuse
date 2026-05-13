@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   checkHeaderBasedDirectWrite,
   checkSdkVersionRequirements,
+  filterDifyResourceSpans,
   getSdkInfoFromResourceSpans,
   type SdkInfo,
 } from "../otelIngestionQueue";
@@ -198,6 +199,55 @@ describe("checkSdkVersionRequirements (legacy fallback)", () => {
     },
   ])("$label → $expected", ({ sdkInfo, isExperiment, expected }) => {
     expect(checkSdkVersionRequirements(sdkInfo, isExperiment)).toBe(expected);
+  });
+});
+
+describe("filterDifyResourceSpans", () => {
+  it("drops resource spans with Dify service name and keeps the rest", () => {
+    const keepResourceSpan = {
+      resource: {
+        attributes: [
+          { key: "service.name", value: { stringValue: "customer-service" } },
+        ],
+      },
+      scopeSpans: [{ spans: [{ name: "kept-span" }] }],
+    };
+    const dropResourceSpan = {
+      resource: {
+        attributes: [
+          { key: "service.name", value: { stringValue: "langgenius/dify" } },
+        ],
+      },
+      scopeSpans: [{ spans: [{ name: "dify-span" }] }],
+    };
+    const keepSpanAttributeOnly = {
+      scopeSpans: [
+        {
+          spans: [
+            {
+              name: "span-level-service-name",
+              attributes: [
+                {
+                  key: "service.name",
+                  value: { stringValue: "langgenius/dify" },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const resourceSpans = [
+      keepResourceSpan,
+      dropResourceSpan,
+      keepSpanAttributeOnly,
+    ] as unknown as Parameters<typeof filterDifyResourceSpans>[0];
+
+    expect(filterDifyResourceSpans(resourceSpans)).toEqual([
+      keepResourceSpan,
+      keepSpanAttributeOnly,
+    ]);
   });
 });
 

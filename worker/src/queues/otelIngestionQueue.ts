@@ -38,6 +38,9 @@ import {
   createObservationEvalSchedulerDeps,
 } from "../features/evaluation/observationEval";
 
+const DIFY_SERVICE_NAME = "langgenius/dify";
+const OTEL_SERVICE_NAME_ATTRIBUTE = "service.name";
+
 /**
  * Check if HTTP headers from the SDK request indicate the batch is eligible
  * for direct event writes.
@@ -103,6 +106,22 @@ function extractBaseSdkVersion(sdkVersion: string): string {
   }
 
   return version;
+}
+
+export function filterDifyResourceSpans(
+  resourceSpans: ResourceSpan[],
+): ResourceSpan[] {
+  if (!Array.isArray(resourceSpans)) {
+    return [];
+  }
+
+  return resourceSpans.filter((resourceSpan) => {
+    const serviceName = resourceSpan?.resource?.attributes?.find(
+      (attribute) => attribute.key === OTEL_SERVICE_NAME_ATTRIBUTE,
+    )?.value?.stringValue;
+
+    return serviceName !== DIFY_SERVICE_NAME;
+  });
 }
 
 /**
@@ -264,6 +283,22 @@ export const otelIngestionQueueProcessorBuilder = (
 
       // Parse spans from S3 download
       let parsedSpans = JSON.parse(resourceSpans);
+      const filteredSpans = filterDifyResourceSpans(parsedSpans);
+      const droppedResourceSpanCount =
+        parsedSpans.length - filteredSpans.length;
+
+      if (droppedResourceSpanCount > 0) {
+        recordIncrement(
+          "langfuse.ingestion.otel.dropped_resource_spans",
+          droppedResourceSpanCount,
+          { reason: "dify_service_name" },
+        );
+      }
+
+      parsedSpans = filteredSpans;
+      if (parsedSpans.length === 0) {
+        return;
+      }
 
       // Apply ingestion masking if enabled (EE feature)
       if (isIngestionMaskingEnabled()) {
