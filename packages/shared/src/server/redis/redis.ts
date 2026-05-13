@@ -160,6 +160,10 @@ const createRedisSentinelInstance = (
 
   const sentinels = parseSentinelNodes(env.REDIS_SENTINEL_NODES);
   const tlsOptions = buildTlsOptions();
+  const sentinelTlsOptions =
+    env.REDIS_TLS_ENABLED === "true"
+      ? { sentinelTLS: tlsOptions.tls, enableTLSForSentinelMode: true }
+      : {};
 
   const instance = new Redis({
     sentinels,
@@ -171,6 +175,7 @@ const createRedisSentinelInstance = (
     ...defaultRedisOptions,
     ...additionalOptions,
     ...tlsOptions,
+    ...sentinelTlsOptions,
   });
 
   instance.on("error", (error) => {
