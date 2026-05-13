@@ -1147,6 +1147,35 @@ export const eventsObservationsView: ViewDeclarationType = {
         valueAlias: "usage_value",
       },
     },
+    // Experiment dimensions (v2 only - experiment data only exists in events table)
+    experimentName: {
+      sql: "nullIf(events_observations.experiment_name, '')",
+      alias: "experimentName",
+      type: "string",
+      description: "Name of the experiment this observation belongs to.",
+      // highCardinality: true,
+    },
+    experimentDatasetId: {
+      sql: "nullIf(events_observations.experiment_dataset_id, '')",
+      alias: "experimentDatasetId",
+      type: "string",
+      description: "Dataset used in the experiment.",
+      // highCardinality: true,
+    },
+    experimentId: {
+      sql: "nullIf(events_observations.experiment_id, '')",
+      alias: "experimentId",
+      type: "string",
+      description: "ID of the experiment this observation belongs to.",
+      uiHidden: true, // Only available as filter, not as breakdown dimension
+    },
+    experimentMetadata: {
+      sql: "experiment_metadata",
+      alias: "experimentMetadata",
+      type: "stringObject",
+      description: "Metadata key-value pairs associated with the experiment.",
+      uiHidden: true, // Only available as filter, not as breakdown dimension
+    },
   },
   measures: {
     count: {
