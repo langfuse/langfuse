@@ -632,9 +632,9 @@ describe("Blob Storage Integrations API", () => {
       });
     });
 
-    // ---- EVENTS / TRACES_OBSERVATIONS_EVENTS path ----
+    // ---- ENRICHED / LEGACY_AND_ENRICHED path ----
 
-    it("EVENTS + exportFieldGroups=[core,io] -> 200 and GET returns same value", async () => {
+    it("ENRICHED + exportFieldGroups=[core,io] -> 200 and GET returns same value", async () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -669,7 +669,7 @@ describe("Blob Storage Integrations API", () => {
       expect(integration?.exportFieldGroups).toStrictEqual(["core", "io"]);
     });
 
-    it("EVENTS + exportFieldGroups=[io] (missing core) -> 400", async () => {
+    it("ENRICHED + exportFieldGroups=[io] (missing core) -> 400", async () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -686,7 +686,7 @@ describe("Blob Storage Integrations API", () => {
       expect(result.status).toBe(400);
     });
 
-    it("EVENTS + exportFieldGroups omitted -> 200 and GET returns all 11 groups", async () => {
+    it("ENRICHED + exportFieldGroups omitted -> 200 and GET returns all 11 groups", async () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -724,7 +724,7 @@ describe("Blob Storage Integrations API", () => {
       );
     });
 
-    it("EVENTS + exportFieldGroups=null -> 200 and GET returns all 11 groups", async () => {
+    it("ENRICHED + exportFieldGroups=null -> 200 and GET returns all 11 groups", async () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -762,9 +762,9 @@ describe("Blob Storage Integrations API", () => {
       );
     });
 
-    // ---- TRACES_OBSERVATIONS path ----
+    // ---- LEGACY path ----
 
-    it("TRACES_OBSERVATIONS + exportFieldGroups omitted -> 200; GET hides field groups", async () => {
+    it("LEGACY + exportFieldGroups omitted -> 200; GET hides field groups", async () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -796,7 +796,7 @@ describe("Blob Storage Integrations API", () => {
       expect(integration?.exportFieldGroups).toBeNull();
     });
 
-    it("TRACES_OBSERVATIONS + exportFieldGroups=null -> 200; GET hides field groups", async () => {
+    it("LEGACY + exportFieldGroups=null -> 200; GET hides field groups", async () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -828,7 +828,7 @@ describe("Blob Storage Integrations API", () => {
       expect(integration?.exportFieldGroups).toBeNull();
     });
 
-    it("TRACES_OBSERVATIONS + exportFieldGroups=[] -> 400 with 'not applicable'", async () => {
+    it("LEGACY + exportFieldGroups=[] -> 400 with 'not applicable'", async () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -847,7 +847,7 @@ describe("Blob Storage Integrations API", () => {
       expect(message.toLowerCase()).toContain("not applicable");
     });
 
-    it("TRACES_OBSERVATIONS + exportFieldGroups=[core,io] -> 400 with 'not applicable'", async () => {
+    it("LEGACY + exportFieldGroups=[core,io] -> 400 with 'not applicable'", async () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -866,7 +866,7 @@ describe("Blob Storage Integrations API", () => {
       expect(message.toLowerCase()).toContain("not applicable");
     });
 
-    it("GET hides exportFieldGroups for legacy TRACES_OBSERVATIONS rows seeded via Prisma", async () => {
+    it("GET hides exportFieldGroups for legacy LEGACY rows seeded via Prisma", async () => {
       await prisma.blobStorageIntegration.create({
         data: {
           projectId: testProject1Id,
@@ -903,7 +903,7 @@ describe("Blob Storage Integrations API", () => {
       expect(integration?.exportFieldGroups).toBeNull();
     });
 
-    it("PUT TRACES_OBSERVATIONS preserves existing export_field_groups column in DB", async () => {
+    it("PUT LEGACY preserves existing export_field_groups column in DB", async () => {
       // Seed with a custom subset
       await prisma.blobStorageIntegration.create({
         data: {
@@ -947,7 +947,7 @@ describe("Blob Storage Integrations API", () => {
 
     // ---- Response shape ----
 
-    it("PUT response includes exportSource and exportFieldGroups (null for TRACES_OBSERVATIONS)", async () => {
+    it("PUT response includes exportSource and exportFieldGroups (null for LEGACY)", async () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -1015,23 +1015,71 @@ describe("Blob Storage Integrations API", () => {
         200,
       );
 
-      const tracesObsIntegration = getResponse.body.data.find(
+      const legacyIntegration = getResponse.body.data.find(
         (i) => i.projectId === testProject1Id,
       );
-      const eventsIntegration = getResponse.body.data.find(
+      const enrichedIntegration = getResponse.body.data.find(
         (i) => i.projectId === testProject2Id,
       );
-      expect(tracesObsIntegration?.exportSource).toBe("LEGACY");
-      expect(tracesObsIntegration?.exportFieldGroups).toBeNull();
-      expect(eventsIntegration?.exportSource).toBe("ENRICHED");
-      expect(eventsIntegration?.exportFieldGroups).toStrictEqual([
+      expect(legacyIntegration?.exportSource).toBe("LEGACY");
+      expect(legacyIntegration?.exportFieldGroups).toBeNull();
+      expect(enrichedIntegration?.exportSource).toBe("ENRICHED");
+      expect(enrichedIntegration?.exportFieldGroups).toStrictEqual([
         "core",
         "io",
       ]);
     });
 
-    it("PUT without exportSource preserves existing EVENTS source and field groups", async () => {
-      // Pre-seed an EVENTS row with a custom field-group subset
+    it("GET response maps internal TRACES_OBSERVATIONS_EVENTS to public LEGACY_AND_ENRICHED", async () => {
+      // Seed via Prisma with the third internal enum value to exercise the
+      // mapping for LEGACY_AND_ENRICHED through the public REST surface.
+      // satisfies-enforced exhaustiveness in INTERNAL_TO_PUBLIC_EXPORT_SOURCE
+      // catches a missing key at compile time, but only a runtime assertion
+      // catches a copy-paste regression (e.g. "ENRICHED" written twice).
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "bucket-mixed",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "TRACES_OBSERVATIONS_EVENTS",
+          exportFieldGroups: ["core", "io", "metadata"],
+        },
+      });
+
+      const getResponse = await makeZodVerifiedAPICall(
+        z.object({ data: z.array(BlobStorageIntegrationResponseSchema) }),
+        "GET",
+        "/api/public/integrations/blob-storage",
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+
+      const integration = getResponse.body.data.find(
+        (i) => i.projectId === testProject1Id,
+      );
+      expect(integration).toBeDefined();
+      expect(integration?.exportSource).toBe("LEGACY_AND_ENRICHED");
+      // exportFieldGroups is only masked to null for LEGACY — the
+      // LEGACY_AND_ENRICHED source returns the raw DB array.
+      expect(integration?.exportFieldGroups).toStrictEqual([
+        "core",
+        "io",
+        "metadata",
+      ]);
+    });
+
+    it("PUT without exportSource preserves existing ENRICHED source and field groups", async () => {
+      // Pre-seed an ENRICHED row with a custom field-group subset
       await prisma.blobStorageIntegration.create({
         data: {
           projectId: testProject1Id,
@@ -1077,8 +1125,8 @@ describe("Blob Storage Integrations API", () => {
       expect(saved?.bucketName).toBe("updated-bucket");
     });
 
-    it("PUT exportSource=null preserves existing EVENTS source and field groups", async () => {
-      // Pre-seed an EVENTS row with a custom field-group subset
+    it("PUT exportSource=null preserves existing ENRICHED source and field groups", async () => {
+      // Pre-seed an ENRICHED row with a custom field-group subset
       await prisma.blobStorageIntegration.create({
         data: {
           projectId: testProject1Id,
@@ -1124,8 +1172,8 @@ describe("Blob Storage Integrations API", () => {
       expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
     });
 
-    it("PUT exportSource=EVENTS without exportFieldGroups on existing EVENTS row preserves field groups", async () => {
-      // Pre-seed an EVENTS row with a custom field-group subset
+    it("PUT exportSource=ENRICHED without exportFieldGroups on existing ENRICHED row preserves field groups", async () => {
+      // Pre-seed an ENRICHED row with a custom field-group subset
       await prisma.blobStorageIntegration.create({
         data: {
           projectId: testProject1Id,
@@ -1145,7 +1193,7 @@ describe("Blob Storage Integrations API", () => {
         },
       });
 
-      // PUT with explicit exportSource=EVENTS but exportFieldGroups omitted
+      // PUT with explicit exportSource=ENRICHED but exportFieldGroups omitted
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
