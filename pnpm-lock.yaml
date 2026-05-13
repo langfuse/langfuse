@@ -668,8 +668,8 @@ importers:
         specifier: ^6.19.3
         version: 6.19.3(magicast@0.5.2)(typescript@5.9.2)
       protobufjs:
-        specifier: ^7.5.5
-        version: 7.5.5
+        specifier: ^7.5.6
+        version: 7.5.6
       rate-limiter-flexible:
         specifier: ^5.0.4
         version: 5.0.5
@@ -6343,8 +6343,8 @@ packages:
   end-of-stream@1.4.5:
     resolution: {integrity: sha512-ooEGc6HP26xXq/N+GCGOT0JKCLDGrq2bQUZrQ7gyrJiZANJ/8YDTxTpQBXGMn+WbIQXNVpyWymm7KYVICQnyOg==}
 
-  enhanced-resolve@5.21.0:
-    resolution: {integrity: sha512-otxSQPw4lkOZWkHpB3zaEQs6gWYEsmX4xQF68ElXC/TWvGxGMSGOvoNbaLXm6/cS/fSfHtsEdw90y20PCd+sCA==}
+  enhanced-resolve@5.21.1:
+    resolution: {integrity: sha512-8p7DUVq6XJnZEz9W4oSwiwycxBIjHjRzYb3Je3zVN+geKTRQKzAkR/K4PBExlS0090d9nshak6phMUxr3PDjmQ==}
     engines: {node: '>=10.13.0'}
 
   entities@4.5.0:
@@ -8735,8 +8735,8 @@ packages:
   property-information@7.1.0:
     resolution: {integrity: sha512-TwEZ+X+yCJmYfL7TPUOcvBZ4QfoT5YenQiJuX//0th53DE6w0xxLEtfK3iyryQFddXuvkIk51EEgrJQ0WJkOmQ==}
 
-  protobufjs@7.5.5:
-    resolution: {integrity: sha512-3wY1AxV+VBNW8Yypfd1yQY9pXnqTAN+KwQxL8iYm3/BjKYMNg4i0owhEe26PWDOMaIrzeeF98Lqd5NGz4omiIg==}
+  protobufjs@7.5.6:
+    resolution: {integrity: sha512-M71sTMB146U3u0di3yup8iM+zv8yPRNQVr1KK4tyBitl3qFvEGucq/rGDRShD2rsJhtN02RJaJ7j5X5hmy8SJg==}
     engines: {node: '>=12.0.0'}
 
   protobufjs@8.0.1:
@@ -11617,7 +11617,7 @@ snapshots:
     dependencies:
       lodash.camelcase: 4.3.0
       long: 5.3.2
-      protobufjs: 7.5.5
+      protobufjs: 7.5.6
       yargs: 17.7.2
 
   '@heroicons/react@2.2.0(react@19.2.4)':
@@ -12726,7 +12726,7 @@ snapshots:
       '@opentelemetry/sdk-logs': 0.208.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-metrics': 2.2.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 2.2.0(@opentelemetry/api@1.9.0)
-      protobufjs: 7.5.5
+      protobufjs: 7.5.6
 
   '@opentelemetry/otlp-transformer@0.217.0(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -14607,7 +14607,7 @@ snapshots:
   '@tailwindcss/node@4.2.2':
     dependencies:
       '@jridgewell/remapping': 2.3.5
-      enhanced-resolve: 5.21.0
+      enhanced-resolve: 5.21.1
       jiti: 2.7.0
       lightningcss: 1.32.0
       magic-string: 0.30.21
@@ -16415,7 +16415,7 @@ snapshots:
     dependencies:
       once: 1.4.0
 
-  enhanced-resolve@5.21.0:
+  enhanced-resolve@5.21.1:
     dependencies:
       graceful-fs: 4.2.11
       tapable: 2.3.3
@@ -19262,7 +19262,7 @@ snapshots:
 
   property-information@7.1.0: {}
 
-  protobufjs@7.5.5:
+  protobufjs@7.5.6:
     dependencies:
       '@protobufjs/aspromise': 1.1.2
       '@protobufjs/base64': 1.1.2
@@ -20807,7 +20807,7 @@ snapshots:
       acorn: 8.16.0
       browserslist: 4.28.2
       chrome-trace-event: 1.0.4
-      enhanced-resolve: 5.21.0
+      enhanced-resolve: 5.21.1
       es-module-lexer: 1.7.0
       eslint-scope: 5.1.1
       events: 3.3.0
