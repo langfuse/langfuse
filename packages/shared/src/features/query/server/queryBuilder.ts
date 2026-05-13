@@ -387,14 +387,6 @@ export class QueryBuilder {
         clickhouseSelect = "metadata";
         queryPrefix = clickhouseTableName;
         type = "stringObject";
-      } else if (
-        filter.column === "experimentMetadata" &&
-        view.name === "events_observations"
-      ) {
-        // Experiment metadata only exists on events table (v2 observations view)
-        clickhouseSelect = "experiment_metadata";
-        queryPrefix = clickhouseTableName;
-        type = "stringObject";
       } else if (filter.column.endsWith("Name")) {
         // Sometimes, the filter does not update correctly and sends us scoreName instead of name for scores, etc.
         // If this happens, none of the conditions above apply, and we use this fallback to avoid raising an error.
