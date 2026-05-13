@@ -367,6 +367,44 @@ describe("Blob Storage Integration tRPC Router", () => {
       ]);
     });
 
+    it("rejects submission when core group is absent (exportSource EVENTS)", async () => {
+      const { caller, project } = await prepare();
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportFieldGroups: ["basic", "io"],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("rejects empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS_EVENTS", async () => {
+      const { caller, project } = await prepare();
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+          exportFieldGroups: [],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("accepts empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS", async () => {
+      const { caller, project } = await prepare();
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS" as const,
+          exportFieldGroups: [],
+        }),
+      ).resolves.not.toThrow();
+    });
+
     it("overwrites stored subset when a new subset is submitted", async () => {
       const { caller, project } = await prepare();
 

@@ -572,6 +572,49 @@ describe("llmApiKey.all RPC", () => {
     expect(updatedKeys[0].withDefaultModels).toBe(newWithDefaultModels);
   });
 
+  it("should scope the llm api key update write by project id", async () => {
+    const secret = "test-secret";
+    const provider = "openai";
+    const adapter = LLMAdapter.OpenAI;
+
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: secret,
+      provider,
+      adapter,
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider,
+      },
+    });
+
+    const updateSpy = vi.spyOn(prisma.llmApiKeys, "update");
+
+    try {
+      await caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        secretKey: "new-test-secret",
+        provider,
+        adapter,
+      });
+
+      expect(updateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id: existingKey.id,
+            projectId,
+          },
+        }),
+      );
+    } finally {
+      updateSpy.mockRestore();
+    }
+  });
+
   it("should update a Bedrock Access key auth to a Bedrock API key", async () => {
     const provider = "bedrock";
 
