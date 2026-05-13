@@ -8081,6 +8081,12 @@ components:
           format: double
           nullable: true
           description: The total cost of the observation in USD
+        usagePricingTierName:
+          type: string
+          nullable: true
+          description: >-
+            The name of the pricing tier applied to this observation's usage
+            costs
         promptId:
           type: string
           nullable: true
