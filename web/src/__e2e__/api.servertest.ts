@@ -127,8 +127,20 @@ describe("Ingestion Pipeline", () => {
         expect(redis).not.toBeNull();
 
         const redisKeys = await redis?.keys(`api-key:*`);
-        expect(redisKeys?.length).toBe(1);
-        const redisValue = await redis?.get(redisKeys![0]);
+        expect(redisKeys?.length ?? 0).toBeGreaterThanOrEqual(1);
+        // Concurrent e2e tests may cache additional API keys — find the seed
+        // project's key by projectId rather than assuming it is the only one.
+        let redisValue: string | null | undefined = null;
+        for (const k of redisKeys ?? []) {
+          const v = await redis?.get(k);
+          if (!v) continue;
+          try {
+            if (JSON.parse(v).projectId === projectId) {
+              redisValue = v;
+              break;
+            }
+          } catch {}
+        }
 
         const llmApiKey = OrgEnrichedApiKey.parse(JSON.parse(redisValue!));
         expect(llmApiKey.projectId).toBe(
