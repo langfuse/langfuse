@@ -13,8 +13,6 @@ import {
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
   getEventsForBlobStorageExport,
-  OBSERVATION_FIELD_GROUPS,
-  type ObservationFieldGroup,
   getCurrentSpan,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
@@ -28,6 +26,8 @@ import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
   BlobStorageExportMode,
+  BLOB_EXPORT_FIELD_GROUPS,
+  type BlobExportFieldGroup,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
@@ -40,7 +40,7 @@ export async function* enrichObservationStream(
   projectId: string,
   modelIdField: string,
   convertLatencyToSeconds: boolean,
-  fieldGroups?: ObservationFieldGroup[],
+  fieldGroups?: BlobExportFieldGroup[],
 ): AsyncGenerator<Record<string, unknown>> {
   const { getModel } = createModelCache(projectId);
 
@@ -225,7 +225,7 @@ const processBlobStorageExport = async (config: {
   fileType: BlobStorageIntegrationFileType;
   compressed: boolean;
   convertV4LatencyToSeconds: boolean;
-  exportFieldGroups?: ObservationFieldGroup[];
+  exportFieldGroups?: BlobExportFieldGroup[];
 }) => {
   logger.info(
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
@@ -265,7 +265,7 @@ const processBlobStorageExport = async (config: {
     const exportFieldGroups =
       config.exportFieldGroups && config.exportFieldGroups.length > 0
         ? config.exportFieldGroups
-        : [...OBSERVATION_FIELD_GROUPS];
+        : [...BLOB_EXPORT_FIELD_GROUPS];
 
     let dataStream: AsyncGenerator<Record<string, unknown>>;
 
@@ -457,7 +457,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       compressed: blobStorageIntegration.compressed,
       convertV4LatencyToSeconds,
       exportFieldGroups:
-        blobStorageIntegration.exportFieldGroups as ObservationFieldGroup[],
+        blobStorageIntegration.exportFieldGroups as BlobExportFieldGroup[],
     };
 
     // Check if this project should only export traces (legacy behavior via env var)

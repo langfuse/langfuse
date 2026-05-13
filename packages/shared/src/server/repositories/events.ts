@@ -50,6 +50,10 @@ import {
   RenderingProps,
 } from "../utils/rendering";
 import {
+  BLOB_EXPORT_FIELD_GROUPS,
+  type BlobExportFieldGroup,
+} from "../../features/analytics-integrations";
+import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
@@ -862,6 +866,11 @@ export const getTraceByIdFromEventsTable = async ({
  *
  * - core: Always included (cursor-required fields)
  * - basic, time, io, metadata, model, usage, prompt, metrics: Optional groups
+ *
+ * Scoped to the observation contract. The blob exporter has a separate,
+ * broader set (`BLOB_EXPORT_FIELD_GROUPS`) that adds denormalized trace
+ * context and tool fields. Keep the two lists distinct so changes to the
+ * exporter cannot silently widen the public API contract.
  */
 export const OBSERVATION_FIELD_GROUPS = [
   "core", // Always included: id, traceId, startTime, endTime, projectId, parentObservationId, type
@@ -870,11 +879,9 @@ export const OBSERVATION_FIELD_GROUPS = [
   "io", // input, output
   "metadata", // metadata
   "model", // providedModelName, internalModelId, modelParameters
-  "usage", // usageDetails, costDetails, totalCost
+  "usage", // usageDetails, costDetails, totalCost, usagePricingTierName
   "prompt", // promptId, promptName, promptVersion
   "metrics", // latency, timeToFirstToken
-  "tools", // toolDefinitions, toolCalls, toolCallNames
-  "trace_context", // tags, release, traceName, usagePricingTierName
 ] as const;
 
 export type ObservationFieldGroup = (typeof OBSERVATION_FIELD_GROUPS)[number];
@@ -2984,14 +2991,14 @@ export const getEventsForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-  fieldGroups: ObservationFieldGroup[] = [...OBSERVATION_FIELD_GROUPS],
+  fieldGroups: BlobExportFieldGroup[] = [...BLOB_EXPORT_FIELD_GROUPS],
 ) {
   const queryBuilder = new EventsQueryBuilder({ projectId });
 
   // core is always required (provides id, trace_id, start/end_time used for cursor and deduplication)
   const effectiveGroups = fieldGroups.includes("core")
     ? fieldGroups
-    : (["core", ...fieldGroups] as ObservationFieldGroup[]);
+    : (["core", ...fieldGroups] as BlobExportFieldGroup[]);
 
   // model_export must be selected whenever model or usage is requested:
   // - model group: include model identification fields in the output

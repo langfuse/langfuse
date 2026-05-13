@@ -3127,7 +3127,7 @@ paths:
 
         - `model` - providedModelName, internalModelId, modelParameters
 
-        - `usage` - usageDetails, costDetails, totalCost
+        - `usage` - usageDetails, costDetails, totalCost, usagePricingTierName
 
         - `prompt` - promptId, promptName, promptVersion
 
