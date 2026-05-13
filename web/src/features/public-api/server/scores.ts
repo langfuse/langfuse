@@ -115,7 +115,7 @@ const buildPublicApiScoresVersionedQuery = ({
                 ${appliedScoresFilterQuery ? `AND ${appliedScoresFilterQuery}` : ""}
                 ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
               ORDER BY
-                s.timestamp desc
+                s.timestamp desc, s.event_ts desc
               LIMIT
                 1 BY s.id, s.project_id
                 ))
