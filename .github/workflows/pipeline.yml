@@ -84,6 +84,10 @@ jobs:
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.33.0
+      # Fork PRs may restore base-branch caches, so cache paths must never
+      # contain secrets. PR-created caches are scoped to the PR merge ref and
+      # are not restored by main. Release image builds intentionally do not
+      # restore CI caches.
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] lint job dependency cache only; no released artifacts are built or published from this cached state
         with:
           node-version: 24
@@ -465,12 +469,13 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      # Keep this secret-bearing job cache-cold to avoid exposing real provider
+      # credentials to potentially poisoned shared package-manager state.
       - name: Use Node.js 24
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] llm-connection test dependency cache only; privileged secrets are used here, but this cache is not consumed by artifact publishing
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: 24
-          cache: "pnpm"
-          cache-dependency-path: "pnpm-lock.yaml"
+          package-manager-cache: false
       - name: install dependencies
         run: |
           pnpm install

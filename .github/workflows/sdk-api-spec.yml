@@ -30,11 +30,13 @@ jobs:
         with:
           version: 10.33.0
 
+      # Keep this secret-bearing job cache-cold to avoid exposing Fern and
+      # GitHub write credentials to potentially poisoned shared package-manager state.
       - name: Setup Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: "24"
-          cache: "pnpm"
+          package-manager-cache: false
 
       - name: Install dependencies
         run: pnpm install
