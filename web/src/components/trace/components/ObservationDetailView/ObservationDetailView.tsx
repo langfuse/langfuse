@@ -244,8 +244,7 @@ export function ObservationDetailView({
       ? observationWithIORaw
       : undefined;
 
-  // For backward compatibility, create observationWithIO query-like object
-  const observationWithIOCompat = {
+  const observationWithIOQuery = {
     data: observationWithIO,
     isLoading: isLoadingObservation,
   };
@@ -457,14 +456,18 @@ export function ObservationDetailView({
             <IOPreview
               key={observation.id}
               observationName={observation.name ?? undefined}
-              input={observationWithIOCompat.data?.input ?? undefined}
-              output={observationWithIOCompat.data?.output ?? undefined}
+              input={observationWithIOQuery.data?.input ?? undefined}
+              output={observationWithIOQuery.data?.output ?? undefined}
               outputCorrection={outputCorrection}
-              metadata={observationWithIOCompat.data?.metadata ?? undefined}
+              metadata={observationWithIOQuery.data?.metadata ?? undefined}
+              observationStartTime={observation.startTime}
+              toolDefinitionNames={
+                observationWithIOQuery.data?.toolDefinitionNames
+              }
               parsedInput={parsedInput}
               parsedOutput={parsedOutput}
               parsedMetadata={parsedMetadata}
-              isLoading={observationWithIOCompat.isLoading}
+              isLoading={observationWithIOQuery.isLoading}
               isParsing={isWaitingForParsing}
               media={observationMedia.data}
               currentView={currentView}

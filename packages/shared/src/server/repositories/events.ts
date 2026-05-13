@@ -86,6 +86,7 @@ type EventBatchIOStringOutput = {
   input: string | null;
   output: string | null;
   metadata: MetadataDomain;
+  toolDefinitionNames: string[];
 };
 
 const BATCH_IO_STRING_RENDERING_PROPS: RenderingProps = {
@@ -2658,7 +2659,8 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
       e.span_id as id,
       ${inputSelect},
       ${outputSelect},
-      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata
+      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata,
+      mapKeys(e.tool_definitions) as "toolDefinitionNames"
     FROM ${tableName} e
     WHERE e.project_id = {projectId: String}
       AND e.span_id IN {observationIds: Array(String)}
@@ -2672,6 +2674,7 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
     input: string | null;
     output: string | null;
     metadata: Record<string, string>;
+    toolDefinitionNames: string[];
   }>({
     query,
     params: {
@@ -2696,6 +2699,7 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
     output: applyBatchIOStringRendering(r.output),
     metadata:
       r.metadata !== undefined ? parseMetadataCHRecordToDomain(r.metadata) : {},
+    toolDefinitionNames: r.toolDefinitionNames ?? [],
   }));
 };
 

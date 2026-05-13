@@ -5,6 +5,7 @@ import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { useState } from "react";
+import { ToolExtractionWarningIcon } from "./ToolExtractionWarningIcon";
 
 // Tool definition extracted from messages
 export interface ToolDefinition {
@@ -18,6 +19,7 @@ export interface ToolCallDefinitionCardProps {
   tools: ToolDefinition[];
   toolCallCounts: Map<string, number>;
   toolNameToDefinitionNumber?: Map<string, number>;
+  toolNamesWithExtractionWarning?: Set<string>;
   className?: string;
 }
 
@@ -34,6 +36,7 @@ export function ToolCallDefinitionCard({
   tools,
   toolCallCounts,
   toolNameToDefinitionNumber,
+  toolNamesWithExtractionWarning,
   className,
 }: ToolCallDefinitionCardProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
@@ -53,6 +56,9 @@ export function ToolCallDefinitionCard({
         const callCount = toolCallCounts.get(tool.name) || 0;
         const isCalled = callCount > 0;
         const toolDefinitionNumber = toolNameToDefinitionNumber?.get(tool.name);
+        const showExtractionWarning = Boolean(
+          toolNamesWithExtractionWarning?.has(tool.name),
+        );
         const statusText =
           callCount === 0
             ? "not called"
@@ -81,6 +87,7 @@ export function ToolCallDefinitionCard({
                   )}
                   {tool.name}
                 </span>
+                {showExtractionWarning && <ToolExtractionWarningIcon />}
               </div>
 
               {/* Right: Status badge + chevron indicator */}

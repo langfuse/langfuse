@@ -33,6 +33,7 @@ export interface ChatMessageProps {
   currentView: ViewMode;
   toolCallNumbers?: number[];
   isOutputMessage?: boolean;
+  toolNamesWithExtractionWarning?: Set<string>;
 }
 
 /**
@@ -50,6 +51,7 @@ export function ChatMessage({
   currentView,
   toolCallNumbers,
   isOutputMessage,
+  toolNamesWithExtractionWarning,
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
 
@@ -146,6 +148,7 @@ export function ChatMessage({
         <ToolCallInvocationsView
           message={message}
           toolCallNumbers={toolCallNumbers}
+          toolNamesWithExtractionWarning={toolNamesWithExtractionWarning}
         />
       </div>
     );
@@ -195,6 +198,7 @@ export function ChatMessage({
               <ToolCallInvocationsView
                 message={message}
                 toolCallNumbers={toolCallNumbers}
+                toolNamesWithExtractionWarning={toolNamesWithExtractionWarning}
               />
             </div>
           )}
@@ -214,6 +218,7 @@ export function ChatMessage({
               <ToolCallInvocationsView
                 message={message}
                 toolCallNumbers={toolCallNumbers}
+                toolNamesWithExtractionWarning={toolNamesWithExtractionWarning}
               />
             </div>
           )}

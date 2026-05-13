@@ -8,6 +8,7 @@ export interface SectionToolDefinitionsProps {
   tools: ToolDefinition[];
   toolCallCounts: Map<string, number>;
   toolNameToDefinitionNumber: Map<string, number>;
+  toolNamesWithExtractionWarning?: Set<string>;
 }
 
 /**
@@ -19,6 +20,7 @@ export function SectionToolDefinitions({
   tools,
   toolCallCounts,
   toolNameToDefinitionNumber,
+  toolNamesWithExtractionWarning,
 }: SectionToolDefinitionsProps) {
   if (tools.length === 0) {
     return null;
@@ -34,6 +36,7 @@ export function SectionToolDefinitions({
           tools={tools}
           toolCallCounts={toolCallCounts}
           toolNameToDefinitionNumber={toolNameToDefinitionNumber}
+          toolNamesWithExtractionWarning={toolNamesWithExtractionWarning}
           className="px-2"
         />
       </div>

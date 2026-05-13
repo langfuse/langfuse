@@ -22,6 +22,7 @@ export interface ChatMessageListProps {
   messageToToolCallNumbers: Map<number, number[]>;
   collapseLongHistory?: boolean;
   inputMessageCount?: number;
+  toolNamesWithExtractionWarning?: Set<string>;
 }
 
 /**
@@ -42,10 +43,14 @@ export function ChatMessageList({
   messageToToolCallNumbers,
   collapseLongHistory = true,
   inputMessageCount,
+  toolNamesWithExtractionWarning,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
   const messagesToRender = useMemo(
-    () => messages.filter(shouldRenderMessage),
+    () =>
+      messages
+        .map((message, originalIndex) => ({ message, originalIndex }))
+        .filter(({ message }) => shouldRenderMessage(message)),
     [messages],
   );
 
@@ -58,14 +63,12 @@ export function ChatMessageList({
 
   const visibleMessages = useMemo(
     () =>
-      messagesToRender
-        .map((message, originalIndex) => ({ message, originalIndex }))
-        .filter(
-          ({ originalIndex }) =>
-            !isCollapsed ||
-            originalIndex === 0 ||
-            originalIndex > messagesToRender.length - COLLAPSE_THRESHOLD,
-        ),
+      messagesToRender.filter(
+        (_, renderIndex) =>
+          !isCollapsed ||
+          renderIndex === 0 ||
+          renderIndex > messagesToRender.length - COLLAPSE_THRESHOLD,
+      ),
     [isCollapsed, messagesToRender],
   );
 
@@ -105,7 +108,7 @@ export function ChatMessageList({
     <div className="flex max-h-full min-h-0 flex-col gap-2">
       <div className="flex max-h-full min-h-0 flex-col gap-2">
         <div className="flex flex-col gap-2">
-          {visibleMessages.map(({ message, originalIndex }) => (
+          {visibleMessages.map(({ message, originalIndex }, renderIndex) => (
             <Fragment key={originalIndex}>
               <ChatMessage
                 message={message}
@@ -113,9 +116,14 @@ export function ChatMessageList({
                 currentView={currentView}
                 toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
                 isOutputMessage={originalIndex >= (inputMessageCount ?? 0)}
+                toolNamesWithExtractionWarning={
+                  originalIndex >= (inputMessageCount ?? 0)
+                    ? toolNamesWithExtractionWarning
+                    : undefined
+                }
               />
               {/* Show collapse/expand button after first message */}
-              {isCollapsed !== null && originalIndex === 0 && (
+              {isCollapsed !== null && renderIndex === 0 && (
                 <Button
                   variant="ghost"
                   size="xs"
