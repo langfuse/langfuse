@@ -72,62 +72,10 @@ clickhouse client \
   --database="${CLICKHOUSE_DB}" \
   --multiquery <<EOF
 
--- Create observations_batch_staging table for batch processing
--- This table uses 3-minute partitions to efficiently process observations in batches
--- and merge them with traces data into the events table.
--- Partitions are automatically expired after 12 hours via TTL (ttl_only_drop_parts=1
--- ensures only complete partitions are dropped, not individual rows).
--- See LFE-7122 for implementation details.
-CREATE TABLE IF NOT EXISTS observations_batch_staging
-(
-    id String,
-    trace_id String,
-    project_id String,
-    type LowCardinality(String),
-    parent_observation_id Nullable(String),
-    start_time DateTime64(3),
-    end_time Nullable(DateTime64(3)),
-    name String,
-    metadata Map(LowCardinality(String), String),
-    level LowCardinality(String),
-    status_message Nullable(String),
-    version Nullable(String),
-    input Nullable(String) CODEC(ZSTD(3)),
-    output Nullable(String) CODEC(ZSTD(3)),
-    provided_model_name Nullable(String),
-    internal_model_id Nullable(String),
-    model_parameters Nullable(String),
-    provided_usage_details Map(LowCardinality(String), UInt64),
-    usage_details Map(LowCardinality(String), UInt64),
-    provided_cost_details Map(LowCardinality(String), Decimal64(12)),
-    cost_details Map(LowCardinality(String), Decimal64(12)),
-    total_cost Nullable(Decimal64(12)),
-    usage_pricing_tier_id Nullable(String),
-    usage_pricing_tier_name Nullable(String),
-    tool_definitions Map(String, String),
-    tool_calls Array(String),
-    tool_call_names Array(String),
-    completion_start_time Nullable(DateTime64(3)),
-    prompt_id Nullable(String),
-    prompt_name Nullable(String),
-    prompt_version Nullable(UInt16),
-    created_at DateTime64(3) DEFAULT now(),
-    updated_at DateTime64(3) DEFAULT now(),
-    event_ts DateTime64(3),
-    is_deleted UInt8,
-    s3_first_seen_timestamp DateTime64(3),
-    environment LowCardinality(String) DEFAULT 'default',
-) ENGINE = ReplacingMergeTree(event_ts, is_deleted)
-PARTITION BY toStartOfInterval(s3_first_seen_timestamp, INTERVAL 3 MINUTE)
-PRIMARY KEY (project_id, toDate(s3_first_seen_timestamp))
-ORDER BY (
-    project_id,
-    toDate(s3_first_seen_timestamp),
-    trace_id,
-    id
-)
-TTL s3_first_seen_timestamp + INTERVAL 12 HOUR
-SETTINGS ttl_only_drop_parts = 1;
+-- The observations_batch_staging definition has been promoted to production
+-- CH migrations:
+--   packages/shared/clickhouse/migrations/{clustered,unclustered}/0037_add_observations_batch_staging_table.up.sql
+-- Do not duplicate the DDL here.
 
 -- The events_full + events_core + events_core_mv definitions have been promoted
 -- to production CH migrations:
