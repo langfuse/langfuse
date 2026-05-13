@@ -71,24 +71,13 @@ test.describe("Create project", () => {
     await page.fill('[data-testid="new-org-name-input"]', "e2e test org");
     await page.click('button[type="submit"]');
     await expect(page).toHaveURL(
-      /\/organization\/.*\/setup\?orgstep=invite-members/,
+      /\/organization\/.*\/setup\?orgstep=create-project/,
       {
         timeout: 15000,
       },
     );
 
     // Parse the organization ID from the URL using a simpler method
-    const url = new URL(page.url());
-    const organizationId = url.pathname.split("/")[2];
-    console.log("organization", organizationId);
-
-    // Skip add new members step
-    await page.isVisible('[data-testid="btn-skip-add-members"]');
-    await page.click('[data-testid="btn-skip-add-members"]');
-    expect(page.url()).toContain(
-      "/organization/" + organizationId + "/setup?orgstep=create-project",
-    );
-
     // Create project
     await expect(page.locator("data-testid=new-project-form")).toBeVisible();
     await page.fill(
@@ -103,11 +92,10 @@ test.describe("Create project", () => {
 
     // check that the project exists by navigating to its home screen
     await page.goto("/project/" + projectId);
-    await expect(page).toHaveURL(new RegExp(`/project/${projectId}`));
+    await expect(page).toHaveURL(new RegExp(`/project/${projectId}/traces`));
 
     await page.waitForTimeout(10000);
-    const headings = await page.locator("h2").allTextContents();
-    expect(headings).toContain("Home");
+    await checkPageHeaderTitle(page, "Tracing");
 
     // Check for console errors
     // expect(errors).toHaveLength(0);

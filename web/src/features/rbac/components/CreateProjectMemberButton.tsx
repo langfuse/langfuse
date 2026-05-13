@@ -50,9 +50,25 @@ const formSchema = z.object({
 export function CreateProjectMemberButton(props: {
   orgId: string;
   project?: { id: string; name: string };
+  defaultOpen?: boolean;
+  open?: boolean;
+  hideTrigger?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onSuccess?: () => void | Promise<void>;
 }) {
   const capture = usePostHogClientCapture();
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(
+    props.defaultOpen ?? false,
+  );
+  const isControlled = props.open !== undefined;
+  const open = isControlled ? props.open : uncontrolledOpen;
+  const setOpen = (nextOpen: boolean) => {
+    if (!isControlled) {
+      setUncontrolledOpen(nextOpen);
+    }
+
+    props.onOpenChange?.(nextOpen);
+  };
   const hasOrgAccess = useHasOrganizationAccess({
     organizationId: props.orgId,
     scope: "organizationMembers:CUD",
@@ -127,6 +143,7 @@ export function CreateProjectMemberButton(props: {
       })
       .then(() => {
         form.reset();
+        void props.onSuccess?.();
         setOpen(false);
       })
       .catch((error) => {
@@ -137,20 +154,22 @@ export function CreateProjectMemberButton(props: {
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <ActionButton
-            variant="secondary"
-            loading={mutCreateProjectMember.isPending}
-            hasAccess={hasOrgAccess || hasOnlySingleProjectAccess}
-            limit={orgMemberLimit}
-            limitValue={(orgMemberCount ?? 0) + (inviteCount ?? 0)}
-            icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
-          >
-            {hasOnlySingleProjectAccess
-              ? "Add project member"
-              : "Add new member"}
-          </ActionButton>
-        </DialogTrigger>
+        {!props.hideTrigger && (
+          <DialogTrigger asChild>
+            <ActionButton
+              variant="secondary"
+              loading={mutCreateProjectMember.isPending}
+              hasAccess={hasOrgAccess || hasOnlySingleProjectAccess}
+              limit={orgMemberLimit}
+              limitValue={(orgMemberCount ?? 0) + (inviteCount ?? 0)}
+              icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
+            >
+              {hasOnlySingleProjectAccess
+                ? "Add project member"
+                : "Add new member"}
+            </ActionButton>
+          </DialogTrigger>
+        )}
         <DialogContent>
           <DialogHeader>
             <DialogTitle>

@@ -55,6 +55,7 @@ import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/a
 import { surveysRouter } from "@/src/server/api/routers/surveys";
 import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
 import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
+import { onboardingRouter } from "@/src/features/onboarding/server/onboardingRouter";
 
 /**
  * This is the primary router for your server.
@@ -116,6 +117,7 @@ export const appRouter = createTRPCRouter({
   slack: slackRouter,
   plainRouter: plainRouter,
   surveys: surveysRouter,
+  onboarding: onboardingRouter,
   naturalLanguageFilters: naturalLanguageFilterRouter,
   notificationPreferences: notificationPreferencesRouter,
 });

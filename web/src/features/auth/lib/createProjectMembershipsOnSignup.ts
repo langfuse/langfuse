@@ -5,11 +5,14 @@ import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
+import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
 
 export async function createProjectMembershipsOnSignup(
   user: {
     id: string;
     email: string | null;
+    name?: string | null;
   },
   options?: { userWasJustCreated?: boolean },
 ) {
@@ -157,6 +160,13 @@ export async function createProjectMembershipsOnSignup(
     if (user.email) await processMembershipInvitations(user.email, user.id);
 
     if (isCloudDeployment && (options?.userWasJustCreated || isNewUser)) {
+      await provisionStarterOrganizationForNewUser({
+        prisma,
+        userId: user.id,
+        userName: user.name,
+        canCreateOrganizations: canCreateOrganizations(user.email),
+      });
+
       const userRolloutState = await prisma.user.findUnique({
         where: { id: user.id },
         select: {

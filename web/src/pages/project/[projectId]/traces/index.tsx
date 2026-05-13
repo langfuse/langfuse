@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
@@ -11,12 +12,80 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { CreateProjectMemberButton } from "@/src/features/rbac/components/CreateProjectMemberButton";
+import { shouldShowStarterProjectInvitePrompt } from "@/src/features/onboarding/lib/starterProjectMetadata";
 
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { data: session, update: updateSession } = useSession();
   const { isBetaEnabled, isInitializing } = useV4Beta();
-  const { project } = useQueryProject();
+  const { project, organization } = useQueryProject();
+  const [hasHandledStarterInvitePrompt, setHasHandledStarterInvitePrompt] =
+    useState(false);
+  const [isConsumingStarterInvitePrompt, setIsConsumingStarterInvitePrompt] =
+    useState(false);
+  const consumeStarterProjectInvitePrompt =
+    api.onboarding.consumeStarterProjectInvitePrompt.useMutation();
+  const shouldPromptForStarterProjectInvite =
+    !!project &&
+    !!organization &&
+    !!session?.user &&
+    shouldShowStarterProjectInvitePrompt({
+      metadata: project.metadata,
+      userId: session.user.id,
+    });
+  const showStarterProjectInvitePrompt =
+    shouldPromptForStarterProjectInvite && !hasHandledStarterInvitePrompt;
+
+  useEffect(() => {
+    if (shouldPromptForStarterProjectInvite) {
+      setHasHandledStarterInvitePrompt(false);
+      setIsConsumingStarterInvitePrompt(false);
+    }
+  }, [projectId, shouldPromptForStarterProjectInvite]);
+
+  const handleConsumeStarterProjectInvitePrompt = async () => {
+    if (
+      !shouldPromptForStarterProjectInvite ||
+      !projectId ||
+      isConsumingStarterInvitePrompt
+    ) {
+      return;
+    }
+
+    setIsConsumingStarterInvitePrompt(true);
+
+    try {
+      await consumeStarterProjectInvitePrompt.mutateAsync({
+        projectId,
+      });
+      setHasHandledStarterInvitePrompt(true);
+      await updateSession();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsConsumingStarterInvitePrompt(false);
+    }
+  };
+
+  const starterProjectInvitePrompt =
+    organization && project ? (
+      <CreateProjectMemberButton
+        orgId={organization.id}
+        project={{ id: project.id, name: project.name }}
+        hideTrigger
+        open={showStarterProjectInvitePrompt}
+        onOpenChange={(open) => {
+          if (!open) {
+            void handleConsumeStarterProjectInvitePrompt();
+          }
+        }}
+        onSuccess={() => {
+          void handleConsumeStarterProjectInvitePrompt();
+        }}
+      />
+    ) : null;
 
   // Check if the user has tracing configured
   // Skip polling entirely if the project flag is already set in the session
@@ -51,6 +120,7 @@ export default function Traces() {
         }}
         scrollable
       >
+        {starterProjectInvitePrompt}
         <TracesOnboarding projectId={projectId} />
       </Page>
     );
@@ -88,6 +158,7 @@ export default function Traces() {
               },
       }}
     >
+      {starterProjectInvitePrompt}
       {isInitializing ? (
         <>
           {/* Wait for the beta flag before mounting either table. Otherwise the
