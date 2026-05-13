@@ -7252,26 +7252,29 @@ components:
       title: BlobStorageExportSource
       type: string
       enum:
-        - LEGACY
-        - ENRICHED
-        - LEGACY_AND_ENRICHED
+        - LEGACY_TRACES_OBSERVATIONS
+        - OBSERVATIONS_V2
+        - LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS
       description: >-
         What data the integration exports.
 
-        - `LEGACY`: traces, observations, and scores tables with a fixed column
-        set. The `exportFieldGroups` field is not applicable.
+        - `LEGACY_TRACES_OBSERVATIONS`: traces, observations, and scores tables
+        with a fixed column set. The `exportFieldGroups` field is not
+        applicable.
 
-        - `ENRICHED`: same data model as the `/api/public/v2/observations`
-        endpoint, plus scores. Columns are controlled by `exportFieldGroups`.
+        - `OBSERVATIONS_V2`: same data model as the
+        `/api/public/v2/observations` endpoint, plus scores. Columns are
+        controlled by `exportFieldGroups`.
 
-        - `LEGACY_AND_ENRICHED`: both sets. For the `ENRICHED` portion, columns
-        are controlled by `exportFieldGroups`.
+        - `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS`: both sets. For the
+        `OBSERVATIONS_V2` portion, columns are controlled by
+        `exportFieldGroups`.
 
 
-        **Note:** `ENRICHED` and the enriched-observations portion of
-        `LEGACY_AND_ENRICHED` rely on the enriched observations table (Langfuse
-        Fast Preview / v4), which is currently available on Langfuse Cloud only.
-        See https://langfuse.com/docs/v4.
+        **Note:** `OBSERVATIONS_V2` and the enriched-observations portion of
+        `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` rely on the enriched
+        observations table (Langfuse Fast Preview / v4), which is currently
+        available on Langfuse Cloud only. See https://langfuse.com/docs/v4.
     BlobStorageExportFieldGroup:
       title: BlobStorageExportFieldGroup
       type: string
@@ -7287,7 +7290,7 @@ components:
         - metrics
         - tools
         - trace_context
-      description: Field group for the ENRICHED export.
+      description: Field group for the OBSERVATIONS_V2 export.
     CreateBlobStorageIntegrationRequest:
       title: CreateBlobStorageIntegrationRequest
       type: object
@@ -7355,8 +7358,9 @@ components:
           nullable: true
           description: >-
             Data to export. When omitted on update, the existing value is
-            preserved; when omitted on create, the column default (`LEGACY`)
-            applies. Required when `exportFieldGroups` is provided.
+            preserved; when omitted on create, the column default
+            (`LEGACY_TRACES_OBSERVATIONS`) applies. Required when
+            `exportFieldGroups` is provided.
         exportFieldGroups:
           type: array
           items:
@@ -7366,15 +7370,16 @@ components:
             Field groups to include in each exported row.
 
 
-            For exportSource `ENRICHED` or `LEGACY_AND_ENRICHED`: must include
-            `core` if provided. When omitted on create, the column default (all
-            groups) applies. When omitted on update, the existing value is
-            preserved.
+            For exportSource `OBSERVATIONS_V2` or
+            `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS`: must include `core` if
+            provided. When omitted on create, the column default (all groups)
+            applies. When omitted on update, the existing value is preserved.
 
 
-            For exportSource `LEGACY`: this field must be omitted or null.
-            Sending an array (including an empty array) returns 400, because
-            that source uses a fixed column set and does not honor field groups.
+            For exportSource `LEGACY_TRACES_OBSERVATIONS`: this field must be
+            omitted or null. Sending an array (including an empty array) returns
+            400, because that source uses a fixed column set and does not honor
+            field groups.
 
 
             `exportFieldGroups` requires `exportSource` to be provided in the
@@ -7435,10 +7440,11 @@ components:
             $ref: '#/components/schemas/BlobStorageExportFieldGroup'
           nullable: true
           description: >-
-            Field groups included in each exported row for `ENRICHED` /
-            `LEGACY_AND_ENRICHED` sources. Always `null` when exportSource is
-            `LEGACY` (the field does not apply to that source; any legacy DB
-            value is hidden from the public surface).
+            Field groups included in each exported row for `OBSERVATIONS_V2` /
+            `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` sources. Always `null`
+            when exportSource is `LEGACY_TRACES_OBSERVATIONS` (the field does
+            not apply to that source; any legacy DB value is hidden from the
+            public surface).
         nextSyncAt:
           type: string
           format: date-time

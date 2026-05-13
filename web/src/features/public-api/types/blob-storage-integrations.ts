@@ -34,15 +34,16 @@ export const BlobStorageExportMode = z.enum([
  * `toPublicExportSource`.
  */
 export const BlobStorageExportSource = z.enum([
-  "LEGACY",
-  "ENRICHED",
-  "LEGACY_AND_ENRICHED",
+  "LEGACY_TRACES_OBSERVATIONS",
+  "OBSERVATIONS_V2",
+  "LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS",
 ]);
 
 const PUBLIC_TO_INTERNAL_EXPORT_SOURCE = {
-  LEGACY: AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-  ENRICHED: AnalyticsIntegrationExportSource.EVENTS,
-  LEGACY_AND_ENRICHED:
+  LEGACY_TRACES_OBSERVATIONS:
+    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+  OBSERVATIONS_V2: AnalyticsIntegrationExportSource.EVENTS,
+  LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS:
     AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
 } as const satisfies Record<
   z.infer<typeof BlobStorageExportSource>,
@@ -50,10 +51,11 @@ const PUBLIC_TO_INTERNAL_EXPORT_SOURCE = {
 >;
 
 const INTERNAL_TO_PUBLIC_EXPORT_SOURCE = {
-  [AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS]: "LEGACY",
-  [AnalyticsIntegrationExportSource.EVENTS]: "ENRICHED",
+  [AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS]:
+    "LEGACY_TRACES_OBSERVATIONS",
+  [AnalyticsIntegrationExportSource.EVENTS]: "OBSERVATIONS_V2",
   [AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS]:
-    "LEGACY_AND_ENRICHED",
+    "LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS",
 } as const satisfies Record<
   AnalyticsIntegrationExportSource,
   z.infer<typeof BlobStorageExportSource>
@@ -126,11 +128,14 @@ export const CreateBlobStorageIntegrationRequest = z
       });
       return;
     }
-    if (data.exportSource === "LEGACY" && data.exportFieldGroups != null) {
+    if (
+      data.exportSource === "LEGACY_TRACES_OBSERVATIONS" &&
+      data.exportFieldGroups != null
+    ) {
       ctx.addIssue({
         code: "custom",
         message:
-          "exportFieldGroups is not applicable when exportSource is LEGACY",
+          "exportFieldGroups is not applicable when exportSource is LEGACY_TRACES_OBSERVATIONS",
         path: ["exportFieldGroups"],
       });
       return;
