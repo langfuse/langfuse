@@ -27,6 +27,7 @@ import {
 } from "../lib/tree-building";
 import { useViewPreferences } from "./ViewPreferencesContext";
 import { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
+import { type TraceMetadataFilterHandler } from "../lib/trace-metadata-filter";
 
 type TraceType = Omit<
   WithStringifiedMetadata<TraceDomain>,
@@ -47,6 +48,7 @@ interface TraceDataContextValue {
   searchItems: TraceSearchListItem[];
   hiddenObservationsCount: number;
   comments: Map<string, number>;
+  onTraceMetadataFilter?: TraceMetadataFilterHandler;
 }
 
 const TraceDataContext = createContext<TraceDataContextValue | null>(null);
@@ -65,6 +67,7 @@ interface TraceDataProviderProps {
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
   comments: Map<string, number>;
+  onTraceMetadataFilter?: TraceMetadataFilterHandler;
   children: ReactNode;
 }
 
@@ -78,6 +81,7 @@ export function TraceDataProvider({
   serverScores,
   corrections,
   comments,
+  onTraceMetadataFilter,
   children,
 }: TraceDataProviderProps) {
   const { minObservationLevel } = useViewPreferences();
@@ -137,6 +141,7 @@ export function TraceDataProvider({
       searchItems: filteredSearchItems,
       hiddenObservationsCount,
       comments,
+      onTraceMetadataFilter,
     }),
     [
       trace,
@@ -149,6 +154,7 @@ export function TraceDataProvider({
       hiddenObservationsCount,
       uiData.nodeMap,
       comments,
+      onTraceMetadataFilter,
     ],
   );
 

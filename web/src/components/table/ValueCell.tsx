@@ -159,10 +159,12 @@ export const ValueCell = memo(
     row,
     expandedCells,
     toggleCellExpansion,
+    rowActions,
   }: {
     row: Row<JsonTableRow>;
     expandedCells: Set<string>;
     toggleCellExpansion: (cellId: string) => void;
+    rowActions?: React.ReactNode;
   }) => {
     const { value, type } = row.original;
     const cellId = `${row.id}-value`;
@@ -292,21 +294,30 @@ export const ValueCell = memo(
           </div>
         )}
 
-        {/* Copy button - appears on hover */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="bg-background/80 hover:bg-background absolute top-0 right-0 h-5 w-5 border p-0.5 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100"
-          onClick={handleCopy}
-          title="Copy value"
-          aria-label="Copy cell value"
-        >
-          {showCopySuccess ? (
-            <Check className="h-2.5 w-2.5 text-green-600" />
-          ) : (
-            <Copy className="h-2.5 w-2.5" />
-          )}
-        </Button>
+        {rowActions ? (
+          <span
+            className="absolute top-0 right-0 inline-flex h-4 w-4 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-hover/json-table-row:opacity-100"
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            {rowActions}
+          </span>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="bg-background/80 hover:bg-background absolute top-0 right-0 h-5 w-5 border p-0.5 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100"
+            onClick={handleCopy}
+            title="Copy value"
+            aria-label="Copy cell value"
+          >
+            {showCopySuccess ? (
+              <Check className="h-2.5 w-2.5 text-green-600" />
+            ) : (
+              <Copy className="h-2.5 w-2.5" />
+            )}
+          </Button>
+        )}
       </div>
     );
   },

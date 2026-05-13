@@ -306,6 +306,12 @@ export interface JsonRowProps {
   className?: string;
 }
 
+export interface JsonRowActionRenderContext {
+  row: FlatJSONRow;
+  sectionKey?: string;
+  jsonPath?: string;
+}
+
 /**
  * Props for JsonValue component
  */

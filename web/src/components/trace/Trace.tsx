@@ -19,6 +19,7 @@ import { useTraceComments } from "./api/useTraceComments";
 import { useViewPreferences } from "./contexts/ViewPreferencesContext";
 import { useTraceGraphData } from "./contexts/TraceGraphDataContext";
 import { TraceGraphView } from "./components/TraceGraphView/TraceGraphView";
+import { type TraceMetadataFilterHandler } from "./lib/trace-metadata-filter";
 
 import { useMemo } from "react";
 
@@ -32,6 +33,7 @@ export type TraceProps = {
   corrections: ScoreDomain[];
   projectId: string;
   context?: "fullscreen" | "peek" | "annotation";
+  onTraceMetadataFilter?: TraceMetadataFilterHandler;
 };
 
 export function Trace({
@@ -41,6 +43,7 @@ export function Trace({
   corrections,
   projectId,
   context,
+  onTraceMetadataFilter,
 }: TraceProps) {
   // Fetch comment counts using existing hook
   const { observationCommentCounts, traceCommentCount } = useTraceComments({
@@ -65,6 +68,7 @@ export function Trace({
         serverScores={scores}
         corrections={corrections}
         comments={commentsMap}
+        onTraceMetadataFilter={onTraceMetadataFilter}
       >
         <TraceGraphDataProvider
           projectId={trace.projectId}

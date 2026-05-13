@@ -3,13 +3,16 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { Trace } from "@/src/components/trace/Trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useRouter } from "next/router";
+import { type TraceMetadataFilterHandler } from "@/src/components/trace/lib/trace-metadata-filter";
 
 export const PeekViewObservationDetail = ({
   peekId,
   trace,
+  onTraceMetadataFilter,
 }: {
   peekId: string | undefined;
   trace: ReturnType<typeof usePeekData>;
+  onTraceMetadataFilter?: TraceMetadataFilterHandler;
 }) => {
   if (!peekId || !trace.data) {
     return <Skeleton className="h-full w-full rounded-none" />;
@@ -24,6 +27,7 @@ export const PeekViewObservationDetail = ({
       projectId={trace.data.projectId}
       observations={trace.data.observations}
       context="peek"
+      onTraceMetadataFilter={onTraceMetadataFilter}
     />
   );
 };
@@ -34,11 +38,12 @@ export const TablePeekViewObservationDetail = (
     "children" | "title"
   > & {
     projectId: string;
+    onTraceMetadataFilter?: TraceMetadataFilterHandler;
   },
 ) => {
   const router = useRouter();
 
-  const { projectId } = props;
+  const { projectId, onTraceMetadataFilter } = props;
   const peekId = router.query.peek as string | undefined;
   const timestampParam = router.query.timestamp as string | undefined;
 
@@ -67,7 +72,11 @@ export const TablePeekViewObservationDetail = (
           : traceId
       }
     >
-      <PeekViewObservationDetail trace={trace} peekId={peekId} />
+      <PeekViewObservationDetail
+        trace={trace}
+        peekId={peekId}
+        onTraceMetadataFilter={onTraceMetadataFilter}
+      />
     </TablePeekView>
   );
 };
