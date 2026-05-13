@@ -825,7 +825,11 @@ export class IngestionService {
           )
         : convertJsonSchemaToRecord(normalizedMetadata as JsonNested);
 
-    // Extract tool definitions and calls from raw input/output
+    // Extract tool definitions and calls from raw input/output.
+    // TODO: Avoid reparsing normalized JSON-string inputs here after metadata
+    // tool definitions were already merged in moveToolDefinitionsFromMetadataToInput.
+    // Carry the parsed merged input separately for extraction while storing the
+    // stringified form in ClickHouse.
     try {
       const { toolDefinitions, toolArguments } = extractToolsFromObservation(
         normalizedToolInput.input,
