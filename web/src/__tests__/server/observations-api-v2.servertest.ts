@@ -539,6 +539,10 @@ describe("/api/public/v2/observations API Endpoint", () => {
       "promptId",
       "promptName",
       "promptVersion",
+      // trace_context
+      "traceName",
+      "tags",
+      "release",
     ] as const;
 
     let sharedObsId: string;

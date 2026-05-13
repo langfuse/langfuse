@@ -412,7 +412,7 @@ export function convertEventsObservation(
     sessionId: record.session_id ?? null,
     traceName: record.trace_name ?? null,
     release: record.release ?? null,
-    tags: record.tags ?? [],
+    tags: record.tags ?? null,
     bookmarked: record.bookmarked,
     public: record.public,
   };

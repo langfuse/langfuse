@@ -440,6 +440,11 @@ const APIObservationV2 = z
 
     // Enrichment fields
     modelId: z.string().nullable().optional(),
+
+    // Trace context fields (field group: trace_context)
+    traceName: z.string().nullable().optional(),
+    tags: z.array(z.string()).nullable().optional(),
+    release: z.string().nullable().optional(),
   })
   .loose();
 
