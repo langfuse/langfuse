@@ -31,6 +31,7 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import Link from "next/link";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { Badge } from "@/src/components/ui/badge";
@@ -336,7 +337,7 @@ export default function ExperimentsTable({
 
         return (
           <Link
-            href={`/project/${projectId}/datasets/${encodeURIComponent(datasetId)}`}
+            href={`/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}`}
             target="_blank"
             rel="noopener noreferrer"
           >

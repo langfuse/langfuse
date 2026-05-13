@@ -28,6 +28,7 @@ import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experi
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 function DatasetCompareInternal() {
   const router = useRouter();
@@ -132,7 +133,7 @@ function DatasetCompareInternal() {
             },
             {
               name: dataset.data?.name ?? datasetId,
-              href: `/project/${projectId}/datasets/${datasetId}`,
+              href: `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}`,
             },
           ],
           tabsProps: {
@@ -160,7 +161,7 @@ function DatasetCompareInternal() {
           },
           {
             name: dataset.data?.name ?? datasetId,
-            href: `/project/${projectId}/datasets/${datasetId}`,
+            href: `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}`,
           },
         ],
         help: {

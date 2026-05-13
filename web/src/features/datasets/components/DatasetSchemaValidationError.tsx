@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 type ValidationError = {
   datasetItemId: string;
@@ -68,7 +69,7 @@ export const DatasetSchemaValidationError: React.FC<
                       #{idx + 1}
                     </span>
                     <Link
-                      href={`/project/${projectId}/datasets/${datasetId}/items/${error.datasetItemId}`}
+                      href={`/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}/items/${error.datasetItemId}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-1 text-sm font-medium hover:underline"

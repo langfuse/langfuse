@@ -11,6 +11,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { withDefault, useQueryParam, StringParam } from "use-query-params";
@@ -144,7 +145,7 @@ export function DatasetsTable(props: { projectId: string }) {
 
         return (
           <TableLink
-            path={`/project/${props.projectId}/datasets/${encodeURIComponent(key.id)}`}
+            path={`/project/${props.projectId}/datasets/${encodeDatasetPathSegment(key.id)}`}
             value={key.name}
           />
         );

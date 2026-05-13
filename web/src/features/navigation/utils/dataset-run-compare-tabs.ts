@@ -1,4 +1,5 @@
 import { type ParsedUrlQuery } from "querystring";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 export const DATASET_RUN_COMPARE_TABS = {
   COMPARE: "compare",
@@ -15,13 +16,13 @@ export const getDatasetRunCompareTabs = (
   {
     value: DATASET_RUN_COMPARE_TABS.COMPARE,
     label: "Outputs",
-    href: `/project/${projectId}/datasets/${datasetId}/compare`,
+    href: `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}/compare`,
     querySelector: (query: ParsedUrlQuery) => ({ runs: query.runs }),
   },
   {
     value: DATASET_RUN_COMPARE_TABS.CHARTS,
     label: "Charts",
-    href: `/project/${projectId}/datasets/${datasetId}/compare/charts`,
+    href: `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}/compare/charts`,
     querySelector: (query: ParsedUrlQuery) => ({ runs: query.runs }),
   },
 ];
