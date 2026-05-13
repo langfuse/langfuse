@@ -244,6 +244,7 @@ export const env = createEnv({
     AUTH_IGNORE_ACCOUNT_FIELDS: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_SIGNUP: z.enum(["true", "false"]).optional(),
+    LANGFUSE_DISABLE_ORG_CREATION: z.enum(["true", "false"]).optional(),
     AUTH_SESSION_MAX_AGE: z.coerce
       .number()
       .int()
@@ -693,6 +694,7 @@ export const env = createEnv({
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
     AUTH_DISABLE_SIGNUP: process.env.AUTH_DISABLE_SIGNUP,
+    LANGFUSE_DISABLE_ORG_CREATION: process.env.LANGFUSE_DISABLE_ORG_CREATION,
     AUTH_SESSION_MAX_AGE: process.env.AUTH_SESSION_MAX_AGE,
     AUTH_HTTP_PROXY: process.env.AUTH_HTTP_PROXY,
     AUTH_HTTPS_PROXY: process.env.AUTH_HTTPS_PROXY,

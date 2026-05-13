@@ -40,7 +40,8 @@ export const VertexAIConfigSchema = z
 
 export type VertexAIConfig = z.infer<typeof VertexAIConfigSchema>;
 
-export const GCPServiceAccountKeySchema = z.object({
+// Standard GCP service account key format
+export const StandardServiceAccountKeySchema = z.object({
   type: z.literal("service_account"),
   project_id: z.string(),
   private_key_id: z.string(),
@@ -52,6 +53,22 @@ export const GCPServiceAccountKeySchema = z.object({
   auth_provider_x509_cert_url: z.string(),
   client_x509_cert_url: z.string(),
 });
+
+// Workload Identity Federation (WIF) external account format
+export const WorkloadIdentityFederationSchema = z.object({
+  type: z.literal("external_account"),
+  audience: z.string(),
+  subject_token_type: z.string(),
+  token_url: z.string(),
+  credential_source: z.object({}).passthrough(),
+  service_account_impersonation_url: z.string().optional(),
+}).passthrough(); // Allow additional fields for flexibility
+
+// Accept both standard service account and WIF formats
+export const GCPServiceAccountKeySchema = z.union([
+  StandardServiceAccountKeySchema,
+  WorkloadIdentityFederationSchema,
+]);
 
 export type GCPServiceAccountKey = z.infer<typeof GCPServiceAccountKeySchema>;
 export default GCPServiceAccountKeySchema;

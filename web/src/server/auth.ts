@@ -66,7 +66,18 @@ import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/sig
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
 import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 
-function canCreateOrganizations(userEmail: string | null): boolean {
+function canCreateOrganizations(
+  userEmail: string | null,
+  isAdmin: boolean = false,
+  orgRoles: string[] = [],
+): boolean {
+  if (env.LANGFUSE_DISABLE_ORG_CREATION === "true") {
+    // Allow site admins or users who are OWNER/ADMIN in any existing org
+    return (
+      isAdmin || orgRoles.some((role) => role === "OWNER" || role === "ADMIN")
+    );
+  }
+
   const instancePlan = getSelfHostedInstancePlanServerSide();
 
   // if no allowlist is set or no entitlement for self-host-allowed-organization-creators, allow all users to create organizations
@@ -150,7 +161,10 @@ const staticProviders: Provider[] = [
         image: dbUser.image,
         emailVerified: dbUser.emailVerified?.toISOString(),
         featureFlags: parseFlags(dbUser.featureFlags),
-        canCreateOrganizations: canCreateOrganizations(dbUser.email),
+        canCreateOrganizations: canCreateOrganizations(
+          dbUser.email,
+          dbUser.admin,
+        ),
         organizations: [],
       };
 
@@ -847,6 +861,8 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : false,
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,
+                      dbUser.admin,
+                      dbUser.organizationMemberships.map((m) => m.role),
                     ),
                     organizations: dbUser.organizationMemberships.map(
                       (orgMembership) => {
