@@ -10,20 +10,6 @@ minimumReleaseAge: 7200
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
 minimumReleaseAgeExclude:
-  - "next@16.2.6"
-  - "@next/env@16.2.6"
-  - "@next/swc-darwin-arm64@16.2.6"
-  - "@next/swc-darwin-x64@16.2.6"
-  - "@next/swc-linux-arm64-gnu@16.2.6"
-  - "@next/swc-linux-arm64-musl@16.2.6"
-  - "@next/swc-linux-x64-gnu@16.2.6"
-  - "@next/swc-linux-x64-musl@16.2.6"
-  - "@next/swc-win32-arm64-msvc@16.2.6"
-  - "@next/swc-win32-x64-msvc@16.2.6"
-  - "eslint-config-next@16.2.6"
-  - "@next/eslint-plugin-next@16.2.6"
-  - "fast-xml-builder@1.1.7"
-  - "fast-uri@3.1.2"
   - "turbo@2.9.12"
   - "eslint-config-turbo@2.9.12"
   - "eslint-plugin-turbo@2.9.12"
