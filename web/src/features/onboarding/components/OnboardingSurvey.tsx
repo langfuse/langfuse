@@ -44,7 +44,7 @@ export function OnboardingSurvey() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux) on referralSource step submits the form
+      // Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux) submits the text step
       if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
         if (currentQuestion?.id === "referralSource") {
           event.preventDefault();
@@ -89,7 +89,6 @@ export function OnboardingSurvey() {
   }, [currentQuestion?.id, form]);
 
   // Determine labeling/behavior of the primary (right) button
-  const roleValue = form.watch("role");
   const referralSourceValue = form.watch("referralSource");
 
   const currentFieldId = currentQuestion?.id as
@@ -102,7 +101,6 @@ export function OnboardingSurvey() {
   const isEmpty = (v: unknown) =>
     v == null || (typeof v === "string" && v.trim() === "");
   const allFields = {
-    role: roleValue,
     referralSource: referralSourceValue,
   } as const;
   const currentEmpty = isEmpty(currentValue);
