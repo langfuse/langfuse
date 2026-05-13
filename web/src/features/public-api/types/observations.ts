@@ -12,14 +12,19 @@ import {
   reduceUsageOrCostDetails,
   stringDateTime,
   type ObservationPriceFields,
-  OBSERVATION_FIELD_GROUPS,
-  type ObservationFieldGroup,
 } from "@langfuse/shared/src/server";
+import {
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
+  type ObservationFieldGroupPublicApi,
+} from "@langfuse/shared";
 import { z } from "zod";
 import { useEventsTableSchema } from "../../query/types";
 
 // Re-export for convenience
-export { OBSERVATION_FIELD_GROUPS, type ObservationFieldGroup };
+export {
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
+  type ObservationFieldGroupPublicApi,
+};
 
 /**
  * Objects
@@ -315,11 +320,13 @@ export const GetObservationsV2Query = z.object({
       return v
         .split(",")
         .map((f) => f.trim())
-        .filter((f): f is ObservationFieldGroup =>
-          OBSERVATION_FIELD_GROUPS.includes(f as ObservationFieldGroup),
+        .filter((f): f is ObservationFieldGroupPublicApi =>
+          OBSERVATION_FIELD_GROUPS_PUBLIC_API.includes(
+            f as ObservationFieldGroupPublicApi,
+          ),
         );
     })
-    .pipe(z.array(z.enum(OBSERVATION_FIELD_GROUPS)).nullable()),
+    .pipe(z.array(z.enum(OBSERVATION_FIELD_GROUPS_PUBLIC_API)).nullable()),
   // Metadata expansion keys (optional)
   // Comma-separated list of metadata keys to return non-truncated: expandMetadata=transcript,steps
   expandMetadata: z

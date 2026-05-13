@@ -11,7 +11,7 @@ import {
   QueueJobs,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
-import { BLOB_EXPORT_FIELD_GROUPS } from "@langfuse/shared";
+import { OBSERVATION_FIELD_GROUPS_FULL } from "@langfuse/shared";
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -363,7 +363,7 @@ describe("Blob Storage Integration tRPC Router", () => {
         where: { projectId: project.id },
       });
       expect(stored?.exportFieldGroups).toStrictEqual([
-        ...BLOB_EXPORT_FIELD_GROUPS,
+        ...OBSERVATION_FIELD_GROUPS_FULL,
       ]);
     });
 

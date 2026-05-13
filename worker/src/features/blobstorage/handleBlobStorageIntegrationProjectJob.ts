@@ -26,8 +26,8 @@ import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
   BlobStorageExportMode,
-  BLOB_EXPORT_FIELD_GROUPS,
-  type BlobExportFieldGroup,
+  OBSERVATION_FIELD_GROUPS_FULL,
+  type ObservationFieldGroupFull,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
@@ -40,7 +40,7 @@ export async function* enrichObservationStream(
   projectId: string,
   modelIdField: string,
   convertLatencyToSeconds: boolean,
-  fieldGroups?: BlobExportFieldGroup[],
+  fieldGroups?: ObservationFieldGroupFull[],
 ): AsyncGenerator<Record<string, unknown>> {
   const { getModel } = createModelCache(projectId);
 
@@ -225,7 +225,7 @@ const processBlobStorageExport = async (config: {
   fileType: BlobStorageIntegrationFileType;
   compressed: boolean;
   convertV4LatencyToSeconds: boolean;
-  exportFieldGroups?: BlobExportFieldGroup[];
+  exportFieldGroups?: ObservationFieldGroupFull[];
 }) => {
   logger.info(
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
@@ -265,7 +265,7 @@ const processBlobStorageExport = async (config: {
     const exportFieldGroups =
       config.exportFieldGroups && config.exportFieldGroups.length > 0
         ? config.exportFieldGroups
-        : [...BLOB_EXPORT_FIELD_GROUPS];
+        : [...OBSERVATION_FIELD_GROUPS_FULL];
 
     let dataStream: AsyncGenerator<Record<string, unknown>>;
 
@@ -457,7 +457,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       compressed: blobStorageIntegration.compressed,
       convertV4LatencyToSeconds,
       exportFieldGroups:
-        blobStorageIntegration.exportFieldGroups as BlobExportFieldGroup[],
+        blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
     };
 
     // Check if this project should only export traces (legacy behavior via env var)
