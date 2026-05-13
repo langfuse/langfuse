@@ -7248,8 +7248,8 @@ components:
         - hourly
         - daily
         - weekly
-    ExportSource:
-      title: ExportSource
+    BlobStorageExportSource:
+      title: BlobStorageExportSource
       type: string
       enum:
         - EVENTS
@@ -7273,8 +7273,8 @@ components:
         `TRACES_OBSERVATIONS_EVENTS` rely on the observations_v2 events table
         (Langfuse Fast Preview / v4), which is currently available on Langfuse
         Cloud only. See https://langfuse.com/docs/v4.
-    ExportFieldGroup:
-      title: ExportFieldGroup
+    BlobStorageExportFieldGroup:
+      title: BlobStorageExportFieldGroup
       type: string
       enum:
         - core
@@ -7352,7 +7352,7 @@ components:
             Enable gzip compression for exported files (.csv.gz, .json.gz,
             .jsonl.gz). Defaults to true.
         exportSource:
-          $ref: '#/components/schemas/ExportSource'
+          $ref: '#/components/schemas/BlobStorageExportSource'
           nullable: true
           description: >-
             Data to export. When omitted on update, the existing value is
@@ -7362,7 +7362,7 @@ components:
         exportFieldGroups:
           type: array
           items:
-            $ref: '#/components/schemas/ExportFieldGroup'
+            $ref: '#/components/schemas/BlobStorageExportFieldGroup'
           nullable: true
           description: >-
             Field groups to include in each exported row.
@@ -7431,11 +7431,11 @@ components:
         compressed:
           type: boolean
         exportSource:
-          $ref: '#/components/schemas/ExportSource'
+          $ref: '#/components/schemas/BlobStorageExportSource'
         exportFieldGroups:
           type: array
           items:
-            $ref: '#/components/schemas/ExportFieldGroup'
+            $ref: '#/components/schemas/BlobStorageExportFieldGroup'
           nullable: true
           description: >-
             Field groups included in each exported row for `EVENTS` /

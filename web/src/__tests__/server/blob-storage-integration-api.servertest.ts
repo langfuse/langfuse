@@ -22,7 +22,7 @@ const BlobStorageIntegrationResponseSchema = z.object({
   region: z.string(),
   accessKeyId: z.string().nullable(),
   prefix: z.string(),
-  exportFrequency: z.enum(["hourly", "daily", "weekly"]),
+  exportFrequency: z.enum(["every_20_minutes", "hourly", "daily", "weekly"]),
   enabled: z.boolean(),
   forcePathStyle: z.boolean(),
   fileType: z.enum(["JSON", "CSV", "JSONL"]),
@@ -1082,6 +1082,53 @@ describe("Blob Storage Integrations API", () => {
       expect(saved?.exportSource).toBe("EVENTS");
       expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
       expect(saved?.bucketName).toBe("updated-bucket");
+    });
+
+    it("PUT exportSource=null preserves existing EVENTS source and field groups", async () => {
+      // Pre-seed an EVENTS row with a custom field-group subset
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "initial-bucket",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "EVENTS",
+          exportFieldGroups: ["core", "io"],
+        },
+      });
+
+      // PUT with exportSource explicitly null — mirrors what an OpenAPI/SDK
+      // client would emit for a not-provided value
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportSource: null,
+        bucketName: "updated-bucket",
+      };
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(putResponse.status).toBe(200);
+      expect(putResponse.body.exportSource).toBe("EVENTS");
+      expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportSource).toBe("EVENTS");
+      expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
     });
 
     it("PUT exportSource=EVENTS without exportFieldGroups on existing EVENTS row preserves field groups", async () => {

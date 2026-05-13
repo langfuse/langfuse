@@ -182,7 +182,7 @@ async function handleUpsertBlobStorageIntegration(
       exportMode: validatedData.exportMode,
       exportStartDate: validatedData.exportStartDate ?? null,
       compressed: validatedData.compressed,
-      exportSource: validatedData.exportSource,
+      exportSource: validatedData.exportSource ?? undefined,
       exportFieldGroups: validatedData.exportFieldGroups ?? undefined,
     },
   });

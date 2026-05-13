@@ -58,7 +58,7 @@ export const CreateBlobStorageIntegrationRequest = z
     exportMode: BlobStorageExportMode,
     exportStartDate: z.coerce.date().nullable().optional(),
     compressed: z.boolean().optional().default(true),
-    exportSource: BlobStorageExportSource.optional(),
+    exportSource: BlobStorageExportSource.nullable().optional(),
     exportFieldGroups: z
       .array(BlobStorageExportFieldGroup)
       .nullable()
@@ -77,7 +77,7 @@ export const CreateBlobStorageIntegrationRequest = z
   )
   .superRefine(validateAzureContainerName)
   .superRefine((data, ctx) => {
-    if (data.exportSource === undefined && data.exportFieldGroups != null) {
+    if (data.exportSource == null && data.exportFieldGroups != null) {
       ctx.addIssue({
         code: "custom",
         message: "exportSource is required when exportFieldGroups is provided",
@@ -98,7 +98,7 @@ export const CreateBlobStorageIntegrationRequest = z
       });
       return;
     }
-    if (data.exportFieldGroups != null && data.exportSource !== undefined) {
+    if (data.exportFieldGroups != null && data.exportSource != null) {
       validateExportFieldGroups(
         {
           exportSource: data.exportSource,
