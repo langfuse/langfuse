@@ -8,7 +8,7 @@ import {
   PostDatasetRunItemsV1Body,
   PostDatasetRunItemsV1Response,
 } from "@/src/features/public-api/types/datasets";
-import { type JSONValue, LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
 import {
   eventTypes,
@@ -16,6 +16,7 @@ import {
   processEventBatch,
   getObservationById,
   getDatasetItemById,
+  resolveMetadata,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";
@@ -23,16 +24,6 @@ import {
   generateDatasetRunItemsForPublicApi,
   getDatasetRunItemsCountForPublicApi,
 } from "@/src/features/public-api/server/dataset-run-items";
-
-const resolveMetadata = (metadata: JSONValue): Record<string, unknown> => {
-  if (Array.isArray(metadata)) {
-    return { metadata: metadata };
-  }
-  if (typeof metadata === "object" && metadata !== null) {
-    return metadata as Record<string, unknown>;
-  }
-  return { metadata: metadata };
-};
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
