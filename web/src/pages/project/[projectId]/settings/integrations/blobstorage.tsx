@@ -243,7 +243,7 @@ const BlobStorageIntegrationSettingsForm = ({
   // Check if this is a self-hosted instance (no cloud region set)
   const isSelfHosted = !isLangfuseCloud;
 
-  // Post-cutoff Cloud projects may only use ENRICHED (EVENTS).
+  // Post-cutoff Cloud projects may only use OBSERVATIONS_V2 (EVENTS).
   const isPostCutoffCloud =
     isLangfuseCloud &&
     project?.createdAt != null &&

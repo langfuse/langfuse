@@ -1452,7 +1452,7 @@ describe("Blob Storage Integrations API", () => {
       vi.restoreAllMocks();
     });
 
-    it("Cloud + pre-cutoff project + LEGACY → 200", async () => {
+    it("Cloud + pre-cutoff project + LEGACY_TRACES_OBSERVATIONS → 200", async () => {
       const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
       try {
@@ -1466,7 +1466,7 @@ describe("Blob Storage Integrations API", () => {
           {
             ...basePayload,
             projectId: testProject1Id,
-            exportSource: "TRACES_OBSERVATIONS",
+            exportSource: "LEGACY_TRACES_OBSERVATIONS",
           },
           createBasicAuthHeader(testApiKey, testApiSecretKey),
         );
@@ -1479,7 +1479,7 @@ describe("Blob Storage Integrations API", () => {
       }
     });
 
-    it("Cloud + post-cutoff project + LEGACY → 400", async () => {
+    it("Cloud + post-cutoff project + LEGACY_TRACES_OBSERVATIONS → 400", async () => {
       const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
       try {
@@ -1493,12 +1493,12 @@ describe("Blob Storage Integrations API", () => {
           {
             ...basePayload,
             projectId: testProject1Id,
-            exportSource: "TRACES_OBSERVATIONS",
+            exportSource: "LEGACY_TRACES_OBSERVATIONS",
           },
           createBasicAuthHeader(testApiKey, testApiSecretKey),
         );
         expect(result.status).toBe(400);
-        expect(result.body.message).toContain("ENRICHED");
+        expect(result.body.message).toContain("OBSERVATIONS_V2");
       } finally {
         (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
         await prisma.project.update({
@@ -1508,7 +1508,7 @@ describe("Blob Storage Integrations API", () => {
       }
     });
 
-    it("Cloud + post-cutoff project + TRACES_OBSERVATIONS_EVENTS → 400", async () => {
+    it("Cloud + post-cutoff project + LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS → 400", async () => {
       const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
       try {
@@ -1522,12 +1522,12 @@ describe("Blob Storage Integrations API", () => {
           {
             ...basePayload,
             projectId: testProject1Id,
-            exportSource: "TRACES_OBSERVATIONS_EVENTS",
+            exportSource: "LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS",
           },
           createBasicAuthHeader(testApiKey, testApiSecretKey),
         );
         expect(result.status).toBe(400);
-        expect(result.body.message).toContain("ENRICHED");
+        expect(result.body.message).toContain("OBSERVATIONS_V2");
       } finally {
         (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
         await prisma.project.update({
@@ -1537,7 +1537,7 @@ describe("Blob Storage Integrations API", () => {
       }
     });
 
-    it("Cloud + post-cutoff project + EVENTS → 200", async () => {
+    it("Cloud + post-cutoff project + OBSERVATIONS_V2 → 200", async () => {
       const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
       try {
@@ -1548,7 +1548,11 @@ describe("Blob Storage Integrations API", () => {
         const result = await makeAPICall(
           "PUT",
           "/api/public/integrations/blob-storage",
-          { ...basePayload, projectId: testProject1Id, exportSource: "EVENTS" },
+          {
+            ...basePayload,
+            projectId: testProject1Id,
+            exportSource: "OBSERVATIONS_V2",
+          },
           createBasicAuthHeader(testApiKey, testApiSecretKey),
         );
         expect(result.status).toBe(200);
@@ -1564,7 +1568,7 @@ describe("Blob Storage Integrations API", () => {
       }
     });
 
-    it("self-hosted + post-cutoff project + LEGACY → 200 (bypass)", async () => {
+    it("self-hosted + post-cutoff project + LEGACY_TRACES_OBSERVATIONS → 200 (bypass)", async () => {
       const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
       try {
@@ -1578,7 +1582,7 @@ describe("Blob Storage Integrations API", () => {
           {
             ...basePayload,
             projectId: testProject1Id,
-            exportSource: "TRACES_OBSERVATIONS",
+            exportSource: "LEGACY_TRACES_OBSERVATIONS",
           },
           createBasicAuthHeader(testApiKey, testApiSecretKey),
         );

@@ -7363,6 +7363,15 @@ components:
             preserved; when omitted on create, the column default
             (`LEGACY_TRACES_OBSERVATIONS`) applies. Required when
             `exportFieldGroups` is provided.
+
+
+            **Cloud-only deprecation gate (effective 2026-05-20):** For projects
+            created on or after 2026-05-20 on Langfuse Cloud,
+            `LEGACY_TRACES_OBSERVATIONS` and
+            `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` are rejected with HTTP
+            400. Use `OBSERVATIONS_V2` for all new integrations. Projects
+            created before 2026-05-20 and self-hosted deployments are
+            unaffected.
         exportFieldGroups:
           type: array
           items:

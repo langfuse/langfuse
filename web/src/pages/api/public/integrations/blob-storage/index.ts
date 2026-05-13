@@ -163,7 +163,9 @@ async function handleUpsertBlobStorageIntegration(
   if (validatedData.exportSource) {
     assertLegacyBlobExportSourceAllowed({
       project,
-      nextInternalExportSource: validatedData.exportSource,
+      nextInternalExportSource: toInternalExportSource(
+        validatedData.exportSource,
+      ),
       isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
     });
   }
