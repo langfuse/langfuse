@@ -778,6 +778,27 @@ export function WidgetForm({
     experimentDatasetOptions: experimentDatasetIdOptions,
   });
 
+  // Helper to get valid filter column identifiers for a given view
+  const getValidFilterColumnIds = (
+    view: z.infer<typeof views>,
+  ): Set<string> => {
+    const columns = getWidgetFilterColumns({
+      selectedView: view,
+      viewVersion,
+      environmentOptions,
+      nameOptions,
+      tagsOptions,
+      modelOptions,
+      toolNamesOptions,
+      calledToolNamesOptions,
+      observationLevelOptions,
+      experimentNameOptions,
+      experimentDatasetOptions: experimentDatasetIdOptions,
+    });
+    // Include both column id and name since filters may use either
+    return new Set(columns.flatMap((col) => [col.id, col.name]));
+  };
+
   // When chart type does not support breakdown, wipe the breakdown dimension
   useEffect(() => {
     if (
@@ -1189,6 +1210,12 @@ export function WidgetForm({
       );
       setPivotDimensions(validDimensions);
     }
+
+    // Remove filters that are not valid for the new view
+    const validColumns = getValidFilterColumnIds(newView);
+    setUserFilterState((prev) =>
+      prev.filter((filter) => validColumns.has(filter.column)),
+    );
   };
 
   const handleSaveWidget = () => {
@@ -1410,8 +1437,10 @@ export function WidgetForm({
                               className="w-full justify-start"
                               variant="ghost"
                               onClick={() => {
-                                resetChartFieldsForView(preset.view);
-                                setSelectedView(preset.view);
+                                if (preset.view !== selectedView) {
+                                  resetChartFieldsForView(preset.view);
+                                  setSelectedView(preset.view);
+                                }
                                 setUserFilterState([...preset.filters]);
                               }}
                             >
@@ -1435,34 +1464,6 @@ export function WidgetForm({
                     const newView = value as z.infer<typeof views>;
                     if (newView !== selectedView) {
                       resetChartFieldsForView(newView);
-
-                      // Remove score-only filters when switching away from
-                      // scores-categorical or scores-numeric. The widget editor
-                      // state stores current UI labels such as "Score Value",
-                      // but older/canonical filters can still surface as ids
-                      // during transitions, so we need to clean up both
-                      // representations here.
-                      setUserFilterState((prev) =>
-                        prev.filter((filter) => {
-                          if (
-                            newView !== "scores-categorical" &&
-                            (filter.column === "stringValue" ||
-                              filter.column === "Score String Value")
-                          ) {
-                            return false;
-                          }
-
-                          if (
-                            newView !== "scores-numeric" &&
-                            (filter.column === "value" ||
-                              filter.column === "Score Value")
-                          ) {
-                            return false;
-                          }
-
-                          return true;
-                        }),
-                      );
                     }
                     setSelectedView(newView);
                   }}
