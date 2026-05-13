@@ -20,6 +20,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
+  # Keep the test job node-version matrices in sync. GitHub does not allow the
+  # env context in jobs.<job_id>.name, so matrix jobs use matrix.node-version
+  # for their display names.
   NODE_VERSION: 24
 
   # Disable CI cache restores for fork PRs.
@@ -284,9 +287,10 @@ jobs:
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-web (node${{ env.NODE_VERSION }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
+    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
+        node-version: [24]
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
@@ -310,17 +314,17 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-      - name: Use Node.js ${{ env.NODE_VERSION }}
+      - name: Use Node.js ${{ matrix.node-version }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: ${{ matrix.node-version }}
           package-manager-cache: false
-      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+      - name: Use Node.js ${{ matrix.node-version }} with pnpm cache
         if: env.CI_CACHE_ALLOWED == 'true'
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] test job dependency cache only; no released artifacts are built or published from this cached state
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: ${{ matrix.node-version }}
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -353,10 +357,10 @@ jobs:
           path: |
             ~/.npm
             ${{ github.workspace }}/web/.next/cache
-          key: ${{ runner.os }}-nextjs-web-${{ env.NODE_VERSION }}-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('web/**/*.js', 'web/**/*.jsx', 'web/**/*.ts', 'web/**/*.tsx') }}
+          key: ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('web/**/*.js', 'web/**/*.jsx', 'web/**/*.ts', 'web/**/*.tsx') }}
           restore-keys: |
-            ${{ runner.os }}-nextjs-web-${{ env.NODE_VERSION }}-${{ hashFiles('**/pnpm-lock.yaml') }}-
-            ${{ runner.os }}-nextjs-web-${{ env.NODE_VERSION }}-
+            ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-
       - name: Run dev containers
         run: |
           docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
@@ -415,9 +419,10 @@ jobs:
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-worker (node${{ env.NODE_VERSION }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
+    name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
+        node-version: [24]
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
@@ -433,17 +438,17 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-      - name: Use Node.js ${{ env.NODE_VERSION }}
+      - name: Use Node.js ${{ matrix.node-version }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: ${{ matrix.node-version }}
           package-manager-cache: false
-      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+      - name: Use Node.js ${{ matrix.node-version }} with pnpm cache
         if: env.CI_CACHE_ALLOWED == 'true'
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] worker test dependency cache only; no release artifacts are produced from this cache
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: ${{ matrix.node-version }}
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -502,7 +507,7 @@ jobs:
     needs:
       - pre-job
     if: startsWith(github.ref, 'refs/tags/') || (needs.pre-job.outputs.should_skip != 'true' && (needs.pre-job.outputs.llm_connections_changed == 'true' || github.event_name == 'workflow_dispatch'))
-    name: test-worker-llm-connections (node${{ env.NODE_VERSION }}, pg15)
+    name: test-worker-llm-connections (node24, pg15)
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
