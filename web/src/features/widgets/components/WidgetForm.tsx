@@ -75,7 +75,14 @@ import {
   Plus,
   X,
   AlertCircle,
+  Sparkles,
 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  PopoverClose,
+} from "@/src/components/ui/popover";
 import {
   buildWidgetName,
   buildWidgetDescription,
@@ -470,21 +477,6 @@ export function WidgetForm({
     () => mapWidgetUiTableFilterToView(selectedView, userFilterState),
     [selectedView, userFilterState],
   );
-
-  // Detect if we're in "experiments mode" - observations view with experiment filter
-  // Check both column id ("experimentId") and name ("Experiment ID") since filter builder may use either
-  const isExperimentsMode = useMemo(() => {
-    if (selectedView !== "observations") return false;
-    return userFilterState.some(
-      (f) =>
-        (f.column === "experimentId" || f.column === "Experiment ID") &&
-        f.type === "null" &&
-        f.operator === "is not null",
-    );
-  }, [selectedView, userFilterState]);
-
-  // Display view for the selector - shows "experiments" when in experiments mode
-  const displayView = isExperimentsMode ? "experiments" : selectedView;
 
   // When beta is toggled on while "traces" is selected (and not editing an
   // existing widget), auto-switch to "observations" and reset dependent fields.
@@ -1438,43 +1430,51 @@ export function WidgetForm({
             )}
             {/* Data Selection Section */}
             <div className="space-y-4">
-              <h3 className="text-lg font-bold">Data Selection</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold">Data Selection</h3>
+                {viewVersion === "v2" && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Presets
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-1" align="end">
+                      {Object.entries(WIDGET_FILTER_PRESETS).map(
+                        ([key, preset]) => (
+                          <PopoverClose key={key} asChild>
+                            <Button
+                              className="w-full justify-start"
+                              variant="ghost"
+                              onClick={() => {
+                                if (preset.view !== selectedView) {
+                                  resetChartFieldsForView(preset.view);
+                                  setSelectedView(preset.view);
+                                }
+                                setUserFilterState([...preset.filters]);
+                              }}
+                            >
+                              <preset.icon className="mr-2 h-4 w-4" />
+                              {preset.label}
+                            </Button>
+                          </PopoverClose>
+                        ),
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
 
               {/* View Selection */}
               <div className="space-y-2">
                 <Label htmlFor="view-select">View</Label>
                 <Select
-                  value={displayView}
-                  onValueChange={(displayValue) => {
-                    const newView = (
-                      displayValue === "experiments"
-                        ? "observations"
-                        : displayValue
-                    ) as z.infer<typeof views>;
-
+                  value={selectedView}
+                  onValueChange={(value) => {
+                    const newView = value as z.infer<typeof views>;
                     if (newView !== selectedView) {
                       resetChartFieldsForView(newView);
-                    }
-
-                    if (displayValue === "experiments") {
-                      setUserFilterState([
-                        ...WIDGET_FILTER_PRESETS.allExperimentData.filters,
-                      ]);
-                    } else if (
-                      displayValue === "observations" &&
-                      isExperimentsMode
-                    ) {
-                      setUserFilterState((prev) =>
-                        prev.filter(
-                          (f) =>
-                            !(
-                              (f.column === "experimentId" ||
-                                f.column === "Experiment ID") &&
-                              f.type === "null" &&
-                              f.operator === "is not null"
-                            ),
-                        ),
-                      );
                     }
                     setSelectedView(newView);
                   }}
@@ -1493,14 +1493,6 @@ export function WidgetForm({
                         }
                       />
                     ))}
-                    {viewVersion === "v2" && (
-                      <WidgetPropertySelectItem
-                        key="experiments"
-                        value="experiments"
-                        label="Experiment Items"
-                        description="Observations that were ingested as part of an experiment."
-                      />
-                    )}
                   </SelectContent>
                 </Select>
               </div>
