@@ -1160,6 +1160,37 @@ export function WidgetForm({
     viewVersion,
   ]);
 
+  // Resets chart fields and pivot table state when switching views
+  const resetChartFieldsForView = (newView: z.infer<typeof views>) => {
+    const newViewDeclaration = viewDeclarations[viewVersion][newView];
+
+    // Reset regular chart fields
+    setSelectedMeasure("count");
+    setSelectedAggregation("count");
+    setSelectedDimension("none");
+
+    // Handle pivot table cleanup
+    if (selectedChartType === "PIVOT_TABLE") {
+      const validMetrics = selectedMetrics.filter(
+        (metric) => metric.measure in newViewDeclaration.measures,
+      );
+      if (validMetrics.length === 0) {
+        validMetrics.push({
+          id: "count_count",
+          measure: "count",
+          aggregation: "count" as z.infer<typeof metricAggregations>,
+          label: "Count Count",
+        });
+      }
+      setSelectedMetrics(validMetrics);
+
+      const validDimensions = pivotDimensions.filter(
+        (dimension) => dimension in newViewDeclaration.dimensions,
+      );
+      setPivotDimensions(validDimensions);
+    }
+  };
+
   const handleSaveWidget = () => {
     if (!queryValidation.valid) {
       showErrorToast("Invalid query", queryValidation.reason);
@@ -1375,18 +1406,18 @@ export function WidgetForm({
                       {Object.entries(WIDGET_FILTER_PRESETS).map(
                         ([key, preset]) => (
                           <PopoverClose key={key} asChild>
-                            <button
-                              className="hover:bg-accent flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm"
+                            <Button
+                              className="w-full justify-start"
+                              variant="ghost"
                               onClick={() => {
-                                // Set view to preset's view
+                                resetChartFieldsForView(preset.view);
                                 setSelectedView(preset.view);
-                                // Clear existing filters and apply preset filters
                                 setUserFilterState([...preset.filters]);
                               }}
                             >
-                              <preset.icon className="h-4 w-4" />
+                              <preset.icon className="mr-2 h-4 w-4" />
                               {preset.label}
-                            </button>
+                            </Button>
                           </PopoverClose>
                         ),
                       )}
@@ -1401,44 +1432,9 @@ export function WidgetForm({
                 <Select
                   value={selectedView}
                   onValueChange={(value) => {
-                    if (value !== selectedView) {
-                      const newView = value as z.infer<typeof views>;
-                      const newViewDeclaration =
-                        viewDeclarations[viewVersion][newView];
-
-                      // Reset regular chart fields
-                      setSelectedMeasure("count");
-                      setSelectedAggregation("count");
-                      setSelectedDimension("none");
-
-                      // Handle pivot table metrics - filter out invalid measures for the new view
-                      if (selectedChartType === "PIVOT_TABLE") {
-                        const validMetrics = selectedMetrics.filter(
-                          (metric) =>
-                            metric.measure in newViewDeclaration.measures,
-                        );
-
-                        // Ensure we have at least one valid metric (count is always available)
-                        if (validMetrics.length === 0) {
-                          validMetrics.push({
-                            id: "count_count",
-                            measure: "count",
-                            aggregation: "count" as z.infer<
-                              typeof metricAggregations
-                            >,
-                            label: "Count Count",
-                          });
-                        }
-
-                        setSelectedMetrics(validMetrics);
-
-                        // Handle pivot table dimensions - filter out invalid dimensions for the new view
-                        const validDimensions = pivotDimensions.filter(
-                          (dimension) =>
-                            dimension in newViewDeclaration.dimensions,
-                        );
-                        setPivotDimensions(validDimensions);
-                      }
+                    const newView = value as z.infer<typeof views>;
+                    if (newView !== selectedView) {
+                      resetChartFieldsForView(newView);
 
                       // Remove score-only filters when switching away from
                       // scores-categorical or scores-numeric. The widget editor
@@ -1468,7 +1464,7 @@ export function WidgetForm({
                         }),
                       );
                     }
-                    setSelectedView(value as z.infer<typeof views>);
+                    setSelectedView(newView);
                   }}
                 >
                   <SelectTrigger id="view-select">
