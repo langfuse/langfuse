@@ -99,10 +99,13 @@ export default function EnterpriseSsoRequiredPage() {
       );
 
       if (response.ok) {
-        const { providerId } = (await response.json()) as {
-          providerId: string;
-        };
-        await signIn(providerId, {
+        const data = (await response.json().catch(() => null)) as {
+          providerId?: string;
+        } | null;
+        if (!data?.providerId) {
+          throw new Error("Invalid response from SSO check");
+        }
+        await signIn(data.providerId, {
           callbackUrl,
         });
         return;
