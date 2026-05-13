@@ -55,8 +55,11 @@ import {
   EXPORT_FIELD_GROUP_OPTIONS,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
+  LEGACY_BLOB_EXPORT_CUTOFF,
+  LEGACY_BLOB_EXPORT_SOURCES,
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Info, ExternalLink } from "lucide-react";
 
@@ -233,11 +236,30 @@ const BlobStorageIntegrationSettingsForm = ({
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { isBetaEnabled } = useV4Beta();
+  const { project } = useQueryProject();
   const [integrationType, setIntegrationType] =
     useState<BlobStorageIntegrationType>(BlobStorageIntegrationType.S3);
 
   // Check if this is a self-hosted instance (no cloud region set)
   const isSelfHosted = !isLangfuseCloud;
+
+  // Post-cutoff Cloud projects may only use ENRICHED (EVENTS).
+  const isPostCutoffCloud =
+    isLangfuseCloud &&
+    project?.createdAt != null &&
+    new Date(project.createdAt) >= LEGACY_BLOB_EXPORT_CUTOFF;
+
+  // Options shown in the dropdown. Legacy options are hidden for post-cutoff
+  // Cloud projects. Always include the currently-persisted value so the form
+  // stays consistent even if the project somehow ended up on a legacy source.
+  const availableExportSourceOptions = EXPORT_SOURCE_OPTIONS.filter(
+    (opt) =>
+      !isPostCutoffCloud ||
+      !(LEGACY_BLOB_EXPORT_SOURCES as ReadonlyArray<string>).includes(
+        opt.value,
+      ) ||
+      opt.value === state?.exportSource,
+  );
 
   const blobStorageForm = useForm({
     resolver: zodResolver(blobStorageIntegrationFormSchema),
@@ -261,7 +283,7 @@ const BlobStorageIntegrationSettingsForm = ({
       exportStartDate: state?.exportStartDate || null,
       exportSource:
         state?.exportSource ||
-        (isBetaEnabled
+        (isPostCutoffCloud || isBetaEnabled
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
       exportFieldGroups:
@@ -295,7 +317,7 @@ const BlobStorageIntegrationSettingsForm = ({
       exportStartDate: state?.exportStartDate || null,
       exportSource:
         state?.exportSource ||
-        (isBetaEnabled
+        (isPostCutoffCloud || isBetaEnabled
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
       exportFieldGroups:
@@ -714,17 +736,25 @@ const BlobStorageIntegrationSettingsForm = ({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {EXPORT_SOURCE_OPTIONS.map((option) => (
+                    {availableExportSourceOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <FormDescription>
-                  Choose which data sources to export to blob storage. Scores
-                  are always included.
-                </FormDescription>
+                {isPostCutoffCloud ? (
+                  <FormDescription>
+                    Legacy export sources are not available for projects created
+                    on or after May 20, 2026. Use &quot;Enriched
+                    observations&quot; instead.
+                  </FormDescription>
+                ) : (
+                  <FormDescription>
+                    Choose which data sources to export to blob storage. Scores
+                    are always included.
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}

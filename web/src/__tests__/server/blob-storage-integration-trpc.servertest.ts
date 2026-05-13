@@ -12,6 +12,7 @@ import {
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 import { OBSERVATION_FIELD_GROUPS_FULL } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -428,6 +429,99 @@ describe("Blob Storage Integration tRPC Router", () => {
         "io",
         "metrics",
       ]);
+    });
+  });
+
+  describe("legacy blob export source cutoff gate", () => {
+    const PRE_CUTOFF = new Date("2026-05-19T12:00:00.000Z");
+    const POST_CUTOFF = new Date("2026-05-21T12:00:00.000Z");
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("Cloud + pre-cutoff project + legacy source → allow", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("Cloud + post-cutoff project + legacy source → BAD_REQUEST", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("Cloud + post-cutoff project + EVENTS → allow", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "EVENTS" as const,
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("self-hosted + post-cutoff project + legacy source → allow (bypass)", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
     });
   });
 });

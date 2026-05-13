@@ -11,6 +11,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { OBSERVATION_FIELD_GROUPS_FULL } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
+import { env } from "@/src/env.mjs";
 
 // Schemas based on Fern schema definition
 const BlobStorageIntegrationResponseSchema = z.object({
@@ -1424,6 +1425,174 @@ describe("Blob Storage Integrations API", () => {
       );
       expect(result.status).toBe(405);
       expect(result.body.message).toContain("Method not allowed");
+    });
+  });
+
+  describe("legacy blob export source cutoff gate", () => {
+    const PRE_CUTOFF = new Date("2026-05-19T12:00:00.000Z");
+    const POST_CUTOFF = new Date("2026-05-21T12:00:00.000Z");
+
+    const basePayload = {
+      type: "S3" as const,
+      bucketName: "test-bucket",
+      endpoint: null,
+      region: "us-east-1",
+      accessKeyId: "AKIA123456789",
+      secretAccessKey: "secret123456789",
+      prefix: "exports/",
+      exportFrequency: "daily",
+      enabled: true,
+      forcePathStyle: false,
+      fileType: "JSONL",
+      exportMode: "FULL_HISTORY",
+      exportStartDate: null,
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("Cloud + pre-cutoff project + LEGACY → 200", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          {
+            ...basePayload,
+            projectId: testProject1Id,
+            exportSource: "TRACES_OBSERVATIONS",
+          },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(200);
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+        await prisma.blobStorageIntegration.deleteMany({
+          where: { projectId: testProject1Id },
+        });
+      }
+    });
+
+    it("Cloud + post-cutoff project + LEGACY → 400", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          {
+            ...basePayload,
+            projectId: testProject1Id,
+            exportSource: "TRACES_OBSERVATIONS",
+          },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(400);
+        expect(result.body.message).toContain("ENRICHED");
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+      }
+    });
+
+    it("Cloud + post-cutoff project + TRACES_OBSERVATIONS_EVENTS → 400", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          {
+            ...basePayload,
+            projectId: testProject1Id,
+            exportSource: "TRACES_OBSERVATIONS_EVENTS",
+          },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(400);
+        expect(result.body.message).toContain("ENRICHED");
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+      }
+    });
+
+    it("Cloud + post-cutoff project + EVENTS → 200", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          { ...basePayload, projectId: testProject1Id, exportSource: "EVENTS" },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(200);
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+        await prisma.blobStorageIntegration.deleteMany({
+          where: { projectId: testProject1Id },
+        });
+      }
+    });
+
+    it("self-hosted + post-cutoff project + LEGACY → 200 (bypass)", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          {
+            ...basePayload,
+            projectId: testProject1Id,
+            exportSource: "TRACES_OBSERVATIONS",
+          },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(200);
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+        await prisma.blobStorageIntegration.deleteMany({
+          where: { projectId: testProject1Id },
+        });
+      }
     });
   });
 });

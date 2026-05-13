@@ -133,6 +133,8 @@ types:
         docs: |
           Data to export. When omitted on update, the existing value is preserved; when omitted on create, the column default (`LEGACY_TRACES_OBSERVATIONS`) applies. Required when `exportFieldGroups` is provided.
 
+          **Cloud-only deprecation gate (effective 2026-05-20):** For projects created on or after 2026-05-20 on Langfuse Cloud, `LEGACY` and `LEGACY_AND_ENRICHED` are rejected with HTTP 400. Use `ENRICHED` for all new integrations. Projects created before 2026-05-20 and self-hosted deployments are unaffected.
+
       exportFieldGroups:
         type: optional<list<BlobStorageExportFieldGroup>>
         docs: |

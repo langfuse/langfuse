@@ -18,7 +18,9 @@ import {
   ForbiddenError,
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
+import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { env } from "@/src/env.mjs";
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrations,
@@ -152,10 +154,18 @@ async function handleUpsertBlobStorageIntegration(
   // Check if the project exists and belongs to the organization
   const project = await prisma.project.findUnique({
     where: { id: validatedData.projectId },
-    select: { id: true, orgId: true },
+    select: { id: true, orgId: true, createdAt: true },
   });
   if (!project || project.orgId !== authCheck.scope.orgId) {
     throw new LangfuseNotFoundError("Project not found");
+  }
+
+  if (validatedData.exportSource) {
+    assertLegacyBlobExportSourceAllowed({
+      project,
+      nextInternalExportSource: validatedData.exportSource,
+      isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+    });
   }
 
   await auditLog({
