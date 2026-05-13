@@ -12,6 +12,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
+import { deepParseJson } from "@langfuse/shared";
 
 const IOTableCellContent = ({
   data,
@@ -23,7 +24,9 @@ const IOTableCellContent = ({
   className?: string;
 }) => {
   const stringifiedJson =
-    data !== null && data !== undefined ? stringifyJsonNode(data) : undefined;
+    data !== null && data !== undefined
+      ? stringifyJsonNode(deepParseJson(data))
+      : undefined;
 
   // perf: truncate to IO_TABLE_CHAR_LIMIT characters as table becomes unresponsive attempting to render large JSONs with high levels of nesting
   const shouldTruncate =
