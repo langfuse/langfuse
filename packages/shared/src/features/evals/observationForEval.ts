@@ -63,6 +63,7 @@ export const observationForEvalSchema = z.object({
   experiment_dataset_id: z.string().nullish(),
   experiment_item_id: z.string().nullish(),
   experiment_item_expected_output: z.string().nullish(),
+  experiment_item_metadata: z.record(z.string(), z.unknown()).nullish(),
   experiment_item_root_span_id: z.string().nullish(),
 
   // Data - accepts any type (string, array, object) from different OTEL SDKs
@@ -80,11 +81,23 @@ export function convertEventRecordToObservationForEval(
     record.metadata_names,
     record.metadata_values,
   );
+  const experimentItemMetadata =
+    record.experiment_item_metadata_names.length > 0
+      ? record.experiment_item_metadata_names.reduce<
+          Record<string, string | null | undefined>
+        >((acc, name, i) => {
+          if (!(name in acc)) {
+            acc[name] = record.experiment_item_metadata_values[i];
+          }
+          return acc;
+        }, {})
+      : undefined;
 
   const toolCallNames = record.tool_call_names ?? [];
   return observationForEvalSchema.parse({
     ...record,
     metadata,
+    experiment_item_metadata: experimentItemMetadata,
     tool_call_count: toolCallNames.length,
   });
 }
@@ -111,7 +124,11 @@ export type ObservationEvalFilterColumnInternal =
 
 export type ObservationEvalMappingColumnInternal = keyof Pick<
   ObservationForEval,
-  "input" | "output" | "metadata" | "experiment_item_expected_output"
+  | "input"
+  | "output"
+  | "metadata"
+  | "experiment_item_expected_output"
+  | "experiment_item_metadata"
 >;
 
 export interface ObservationEvalVariableColumn {
@@ -158,6 +175,13 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
     name: "Expected Output",
     description: "Expected output from experiment item",
     internal: "experiment_item_expected_output",
+  },
+  {
+    id: "experimentItemMetadata",
+    name: "Experiment Item Metadata",
+    description: "Metadata from experiment item",
+    type: "stringObject",
+    internal: "experiment_item_metadata",
   },
 ];
 

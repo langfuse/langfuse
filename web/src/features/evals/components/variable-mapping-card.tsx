@@ -652,9 +652,45 @@ export const VariableMappingCard = ({
                                   ? observationEvalVariableColumns.filter(
                                       (col) =>
                                         col.id !==
-                                        "experimentItemExpectedOutput",
+                                          "experimentItemExpectedOutput" &&
+                                        col.id !== "experimentItemMetadata",
                                     )
                                   : observationEvalVariableColumns;
+                              const displayColumns = availableColumns.map(
+                                (column) => {
+                                  if (
+                                    form.watch("target") ===
+                                      EvalTargetObject.EXPERIMENT &&
+                                    column.id === "input"
+                                  ) {
+                                    return {
+                                      ...column,
+                                      name: "Observation Input",
+                                    };
+                                  }
+                                  if (
+                                    form.watch("target") ===
+                                      EvalTargetObject.EXPERIMENT &&
+                                    column.id === "output"
+                                  ) {
+                                    return {
+                                      ...column,
+                                      name: "Observation Output",
+                                    };
+                                  }
+                                  if (
+                                    form.watch("target") ===
+                                      EvalTargetObject.EXPERIMENT &&
+                                    column.id === "metadata"
+                                  ) {
+                                    return {
+                                      ...column,
+                                      name: "Observation Metadata",
+                                    };
+                                  }
+                                  return column;
+                                },
+                              );
 
                               return (
                                 <div className="flex items-center gap-2">
@@ -678,7 +714,7 @@ export const VariableMappingCard = ({
                                           <SelectValue placeholder="Select field" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {availableColumns.map((column) => (
+                                          {displayColumns.map((column) => (
                                             <SelectItem
                                               value={column.id}
                                               key={column.id}
@@ -695,14 +731,9 @@ export const VariableMappingCard = ({
                               );
                             }}
                           />
-                          {(form.watch(`mapping.${index}.selectedColumnId`) ===
-                            "metadata" ||
-                            form.watch(`mapping.${index}.selectedColumnId`) ===
-                              "input" ||
-                            form.watch(`mapping.${index}.selectedColumnId`) ===
-                              "output" ||
-                            form.watch(`mapping.${index}.selectedColumnId`) ===
-                              "experimentItemExpectedOutput") && (
+                          {fieldHasJsonSelectorOption(
+                            form.watch(`mapping.${index}.selectedColumnId`),
+                          ) && (
                             <FormField
                               control={form.control}
                               key={`${mappingField.id}-jsonSelector`}
