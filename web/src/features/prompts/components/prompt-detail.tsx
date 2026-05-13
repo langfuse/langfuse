@@ -169,6 +169,7 @@ export const PromptDetail = ({
     },
     {
       enabled: Boolean(projectId) && Boolean(prompt?.id),
+      meta: { silentHttpCodes: [404] },
     },
   );
 
