@@ -96,8 +96,8 @@ export function SetupPage() {
               <Header title="New Project" />
               <p className="text-muted-foreground mb-4 text-sm">
                 Projects are used to group traces, datasets, evals and prompts.
-                Multiple environments are best separated via tags within a
-                project.
+                Environments can be separated using the built-in environment
+                feature.
               </p>
               <NewProjectForm
                 orgId={organization.id}
