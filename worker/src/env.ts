@@ -417,18 +417,7 @@ const EnvSchema = z.object({
     .positive()
     .default(7200), // 2 hours to handle worst-case deletions
 
-  LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_ATTRIBUTES_KEY: z
-    .enum(["true", "false"])
-    .default("false"),
-
-  // Deprecated. Do not use!
-  LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
-    .enum(["true", "false"])
-    .default("false"),
   LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB: z
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES: z.coerce
