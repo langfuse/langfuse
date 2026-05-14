@@ -1,5 +1,5 @@
 /**
- * RED end-to-end tests for GitHub issue #11538 — "Full-text search fails for non-English text".
+ * Tests for GitHub issue #11538 — "Full-text search fails for non-English text".
  *
  * Walks the actual UI: signs in as the seed user, navigates to the Traces table with the search
  * box pre-populated (via the `search` / `searchType` query params the table syncs to), and
