@@ -240,9 +240,6 @@ export const addUserToSpan = (
     activeSpan.setAttribute("langfuse.org.plan", attributes.plan);
   }
   if (attributes.apiKeyId) {
-    baggage = baggage.setEntry("langfuse.api_key.id", {
-      value: attributes.apiKeyId,
-    });
     activeSpan.setAttribute("langfuse.api_key.id", attributes.apiKeyId);
   }
 
