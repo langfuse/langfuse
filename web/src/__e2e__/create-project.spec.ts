@@ -71,7 +71,7 @@ test.describe("Create project", () => {
     await page.fill('[data-testid="new-org-name-input"]', "e2e test org");
     await page.click('button[type="submit"]');
     await expect(page).toHaveURL(
-      /\/organization\/.*\/setup\?orgstep=invite-members/,
+      /\/organization\/.*\/setup\?orgstep=create-project/,
       {
         timeout: 15000,
       },
@@ -81,10 +81,6 @@ test.describe("Create project", () => {
     const url = new URL(page.url());
     const organizationId = url.pathname.split("/")[2];
     console.log("organization", organizationId);
-
-    // Skip add new members step
-    await page.isVisible('[data-testid="btn-skip-add-members"]');
-    await page.click('[data-testid="btn-skip-add-members"]');
     expect(page.url()).toContain(
       "/organization/" + organizationId + "/setup?orgstep=create-project",
     );
