@@ -9,8 +9,8 @@ reusable implementation guidance rather than runtime automation.
 For the shared agent config and generated shim model, start with
 [`../README.md`](../README.md).
 
-When Codex creates or edits a shared skill, first use the `skill-creator` skill
-if it is available, then apply the repo-specific rules in this file and
+When Codex creates or edits a shared skill, first use
+`skill-creator/SKILL.md`, then apply the repo-specific rules in this file and
 `agent-setup-maintenance/SKILL.md`.
 
 Claude discovers these shared skills through symlinks under `.claude/skills/`.
@@ -49,6 +49,17 @@ Use for:
 - install-time agent sync behavior and provider discovery paths
 
 Open: [agent-setup-maintenance/SKILL.md](agent-setup-maintenance/SKILL.md)
+
+### skill-creator
+
+Use for:
+- creating new shared skills under `.agents/skills/`
+- editing or refining existing shared skills
+- choosing when to use `SKILL.md`, `references/`, `scripts/`, `assets/`, and
+  `agents/openai.yaml`
+- validating skills with `scripts/quick_validate.py`
+
+Open: [skill-creator/SKILL.md](skill-creator/SKILL.md)
 
 ### analyze-cloud-costs
 
@@ -180,8 +191,8 @@ Open: [turborepo/SKILL.md](turborepo/SKILL.md)
 
 1. Codex may create or refine shared skills under `.agents/skills/` when a
    repo-specific workflow becomes repeated enough to justify durable guidance.
-2. Use the `skill-creator` skill when it is available; if not, follow these
-   rules and the shape of nearby skills.
+2. Start with [skill-creator/SKILL.md](skill-creator/SKILL.md); if it is not
+   available, follow these rules and the shape of nearby skills.
 3. Create a concise `.agents/skills/<skill-name>/SKILL.md`.
 4. Add `.agents/skills/<skill-name>/AGENTS.md` only when the skill benefits
    from a short router or checklist on top of `SKILL.md`.

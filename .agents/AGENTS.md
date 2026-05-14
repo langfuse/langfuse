@@ -34,7 +34,7 @@ evaluating, and debugging AI applications.
   `.agents/README.md`,
   `.agents/skills/agent-setup-maintenance/SKILL.md`
 - Creating, editing, or refining shared skills under `.agents/skills/**`:
-  use the `skill-creator` skill when available, then follow
+  `.agents/skills/skill-creator/SKILL.md`, then
   `.agents/skills/agent-setup-maintenance/SKILL.md` for repo sync/check
   requirements.
 - Langfuse Cloud cost structure, infra spend, AWS/ClickHouse cost splits, or
@@ -170,8 +170,9 @@ Minimum verification matrix:
 - Root `CLAUDE.md` is a compatibility symlink to `AGENTS.md`.
 - Shared agent/tool config lives in `.agents/config.json` and shared skills
   live in `.agents/skills/`.
-- When creating or editing `.agents/skills/**`, use the `skill-creator` skill
-  when available; keep skills concise with progressive disclosure, update
+- When creating or editing `.agents/skills/**`, use
+  `.agents/skills/skill-creator/SKILL.md`; keep skills concise with
+  progressive disclosure, update
   `.agents/skills/README.md`, and run the shared agent verification below.
 - Project-scoped provider discovery files are generated local artifacts. Edit
   the canonical files under `.agents/` instead of editing generated tool

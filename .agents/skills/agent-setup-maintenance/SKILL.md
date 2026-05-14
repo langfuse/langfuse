@@ -14,8 +14,9 @@ Use this skill when changing the shared agent setup for the repository.
 
 - Read [`../../README.md`](../../README.md) for the shared config and shim model.
 - Read root [`../../AGENTS.md`](../../AGENTS.md) for repo-level expectations.
-- When adding or editing shared skills, use the `skill-creator` skill when it is
-  available, then apply the repo-specific checks in this skill.
+- When adding or editing shared skills, use
+  [`../skill-creator/SKILL.md`](../skill-creator/SKILL.md), then apply the
+  repo-specific checks in this skill.
 - Inspect [`../../../scripts/agents/sync-agent-shims.mjs`](../../../scripts/agents/sync-agent-shims.mjs)
   before changing generated outputs or provider discovery behavior.
 - Inspect [`../../../scripts/postinstall.sh`](../../../scripts/postinstall.sh)
