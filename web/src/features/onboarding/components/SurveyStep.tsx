@@ -31,7 +31,9 @@ export function SurveyStep({
 
   const handleAutoAdvanceWithTimeout = (selectedValue?: string) => {
     if (onAutoAdvance) {
-      const shouldAutoAdvance = !isLast;
+      // For signupReason question, ignore isLast and let the hook decide
+      // For other questions, respect the isLast prop
+      const shouldAutoAdvance = question.id === "signupReason" || !isLast;
 
       if (shouldAutoAdvance) {
         setTimeout(() => {

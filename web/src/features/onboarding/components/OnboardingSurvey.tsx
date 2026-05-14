@@ -1,11 +1,9 @@
 import { useCallback, useEffect } from "react";
 import type { Path } from "react-hook-form";
 import { useRouter } from "next/router";
-import { useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { Form } from "@/src/components/ui/form";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
-import { api } from "@/src/utils/api";
 import { useSurveyForm } from "../hooks/useSurveyForm";
 import { SurveyProgress } from "./SurveyProgress";
 import { SurveyStep } from "./SurveyStep";
@@ -13,7 +11,6 @@ import type { SurveyFormData } from "../lib/surveyTypes";
 
 export function OnboardingSurvey() {
   const router = useRouter();
-  const { update: updateSession } = useSession();
   const {
     form,
     state,
@@ -26,20 +23,13 @@ export function OnboardingSurvey() {
     handleSubmit,
     totalSteps,
   } = useSurveyForm();
-  const completeOnboardingMutation = api.onboarding.complete.useMutation();
-
-  const finishOnboarding = useCallback(async () => {
-    const onboardingResult = await completeOnboardingMutation.mutateAsync();
-    await updateSession();
-    await router.push(onboardingResult.redirectTo);
-  }, [completeOnboardingMutation, router, updateSession]);
 
   const onSubmit = useCallback(
     async (data: SurveyFormData) => {
       await handleSubmit(data);
-      await finishOnboarding();
+      void router.push("/");
     },
-    [finishOnboarding, handleSubmit],
+    [handleSubmit, router],
   );
 
   useEffect(() => {
@@ -90,6 +80,7 @@ export function OnboardingSurvey() {
 
   // Determine labeling/behavior of the primary (right) button
   const roleValue = form.watch("role");
+  const signupReasonValue = form.watch("signupReason");
   const referralSourceValue = form.watch("referralSource");
 
   const currentFieldId = currentQuestion?.id as
@@ -103,17 +94,20 @@ export function OnboardingSurvey() {
     v == null || (typeof v === "string" && v.trim() === "");
   const allFields = {
     role: roleValue,
+    signupReason: signupReasonValue,
     referralSource: referralSourceValue,
   } as const;
+
   const currentEmpty = isEmpty(currentValue);
-  const otherFieldsEmpty = Object.entries(allFields)
+  const otherTwoEmpty = Object.entries(allFields)
     .filter(([key]) => key !== currentFieldId)
     .every(([, v]) => isEmpty(v));
-  const showSkip = isLastStep ? currentEmpty && otherFieldsEmpty : currentEmpty;
+  // showSkip: ghost button labeled "Skip" when skipping is the intended action
+  const showSkip = isLastStep ? currentEmpty && otherTwoEmpty : currentEmpty;
 
   const handleSkipButton = () => {
     if (isLastStep) {
-      void finishOnboarding();
+      void router.push("/");
     } else {
       goNext();
     }
@@ -157,7 +151,6 @@ export function OnboardingSurvey() {
                   onClick={handleSkipButton}
                   variant="ghost"
                   className="w-20"
-                  loading={completeOnboardingMutation.isPending}
                 >
                   Skip
                 </Button>
@@ -167,7 +160,6 @@ export function OnboardingSurvey() {
                   onClick={handleSubmitButton}
                   variant="default"
                   className="w-20"
-                  loading={completeOnboardingMutation.isPending}
                 >
                   {isLastStep ? "Finish" : "Next"}
                 </Button>
@@ -186,7 +178,6 @@ export function OnboardingSurvey() {
                   variant="ghost"
                   onClick={goBack}
                   className="w-20"
-                  disabled={completeOnboardingMutation.isPending}
                 >
                   Back
                 </Button>

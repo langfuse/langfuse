@@ -15,10 +15,23 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     ],
   },
   {
+    id: "signupReason",
+    type: "radio",
+    question: "Why are you signing up?",
+    options: [
+      "Invited by team",
+      "Just looking around",
+      "Evaluating / Testing Langfuse",
+      "Start using Langfuse",
+      "Migrating from other solution",
+      "Migrating from self-hosted",
+    ],
+  },
+  {
     id: "referralSource",
     type: "text",
     question: "Where did you hear about us?",
-    placeholder: "Colleague, Word of Mouth, X, Reddit, Event",
+    placeholder: "GitHub, X, Reddit, colleague etc.",
   },
 ];
 

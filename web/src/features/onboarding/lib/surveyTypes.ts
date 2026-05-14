@@ -30,6 +30,7 @@ export type SurveyAction =
 
 export interface SurveyFormData {
   role?: string;
+  signupReason?: string;
   referralSource?: string;
 }
 
