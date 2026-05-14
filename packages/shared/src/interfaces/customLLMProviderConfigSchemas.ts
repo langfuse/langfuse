@@ -55,14 +55,16 @@ export const StandardServiceAccountKeySchema = z.object({
 });
 
 // Workload Identity Federation (WIF) external account format
-export const WorkloadIdentityFederationSchema = z.object({
-  type: z.literal("external_account"),
-  audience: z.string(),
-  subject_token_type: z.string(),
-  token_url: z.string(),
-  credential_source: z.object({}).passthrough(),
-  service_account_impersonation_url: z.string().optional(),
-}).passthrough(); // Allow additional fields for flexibility
+export const WorkloadIdentityFederationSchema = z
+  .object({
+    type: z.literal("external_account"),
+    audience: z.string(),
+    subject_token_type: z.string(),
+    token_url: z.string(),
+    credential_source: z.object({}).loose(),
+    service_account_impersonation_url: z.string().optional(),
+  })
+  .loose(); // Allow additional fields for flexibility
 
 // Accept both standard service account and WIF formats
 export const GCPServiceAccountKeySchema = z.union([
