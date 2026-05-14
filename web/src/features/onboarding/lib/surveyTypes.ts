@@ -29,6 +29,7 @@ export type SurveyAction =
   | { type: "goToStep"; step: number };
 
 export interface SurveyFormData {
+  role?: string;
   referralSource?: string;
 }
 

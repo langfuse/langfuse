@@ -12,6 +12,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
+import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -21,7 +22,7 @@ export const NewProjectForm = ({
   onSuccess,
 }: {
   orgId: string;
-  onSuccess: (projectId: string) => void | Promise<void>;
+  onSuccess: (projectId: string) => void;
 }) => {
   const capture = usePostHogClientCapture();
   const { update: updateSession } = useSession();
@@ -32,7 +33,12 @@ export const NewProjectForm = ({
       name: "",
     },
   });
+  const router = useRouter();
   const createProjectMutation = api.projects.create.useMutation({
+    onSuccess: (newProject) => {
+      void updateSession();
+      void router.push(`/project/${newProject.id}/settings`);
+    },
     onError: (error) => form.setError("name", { message: error.message }),
   });
 
@@ -43,9 +49,8 @@ export const NewProjectForm = ({
         name: values.name,
         orgId,
       })
-      .then(async (project) => {
-        await updateSession();
-        await onSuccess(project.id);
+      .then((project) => {
+        onSuccess(project.id);
         form.reset();
       })
       .catch((error) => {
