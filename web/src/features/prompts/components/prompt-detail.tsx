@@ -70,7 +70,13 @@ const getPythonCode = (
   name: string,
   version: number,
   labels: string[],
-) => `from langfuse import Langfuse
+  variables: string[],
+) => {
+  const compileArgs =
+    variables.length > 0
+      ? variables.map((v) => `${v}="my_${v}"`).join(", ")
+      : `value1="myValue1", value2="myValue2"`;
+  return `from langfuse import Langfuse
 
 # Initialize Langfuse client
 langfuse = Langfuse()
@@ -84,13 +90,23 @@ ${labels.length > 0 ? labels.map((label) => `prompt = langfuse.get_prompt("${nam
 
 # Get by version number, usually not recommended as it requires code changes to deploy new prompt versions
 langfuse.get_prompt("${name}", version=${version})
+
+# Compile variables
+prompt.compile(${compileArgs})
 `;
+};
 
 const getJsCode = (
   name: string,
   version: number,
   labels: string[],
-) => `import { LangfuseClient } from "@langfuse/client";
+  variables: string[],
+) => {
+  const compileObj =
+    variables.length > 0
+      ? variables.map((v) => `${v}: "my_${v}"`).join(", ")
+      : `value1: "myValue1", value2: "myValue2"`;
+  return `import { LangfuseClient } from "@langfuse/client";
 
 // Initialize the Langfuse client
 const langfuse = new LangfuseClient();
@@ -104,7 +120,11 @@ ${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.promp
 
 // Get by version number, usually not recommended as it requires code changes to deploy new prompt versions
 await langfuse.prompt.get("${name}", { version: ${version} })
+
+// Compile variables
+prompt.compile({ ${compileObj} })
 `;
+};
 
 export const PromptDetail = ({
   promptName: promptNameProp,
@@ -259,13 +279,30 @@ export const PromptDetail = ({
       if (b === PRODUCTION_LABEL) return 1;
       return a.localeCompare(b);
     });
+    // get variables from prompt
+    const variables = extractVariables(
+      prompt.type === PromptType.Text
+        ? (prompt.prompt?.toString() ?? "")
+        : JSON.stringify(prompt.prompt),
+    );
 
     return {
-      pythonCode: getPythonCode(prompt.name, prompt.version, sortedLabels),
-      jsCode: getJsCode(prompt.name, prompt.version, sortedLabels),
+      pythonCode: getPythonCode(
+        prompt.name,
+        prompt.version,
+        sortedLabels,
+        variables,
+      ),
+      jsCode: getJsCode(prompt.name, prompt.version, sortedLabels, variables),
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prompt?.id]);
+  }, [
+    prompt?.id,
+    prompt?.type,
+    prompt?.prompt,
+    prompt?.name,
+    prompt?.version,
+    prompt?.labels,
+  ]);
 
   if (!promptHistory.data || !prompt) {
     return <div className="p-3">Loading...</div>;
