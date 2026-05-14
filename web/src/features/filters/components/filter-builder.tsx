@@ -601,6 +601,13 @@ function FilterBuilderForm({
                     (filter.column !== undefined &&
                       c.aliases?.includes(filter.column)),
                 );
+                const keyOptions =
+                  column?.type === "numberObject" ||
+                  column?.type === "stringObject"
+                    ? column.keyOptions?.filter(
+                        (o) => NonEmptyString.safeParse(o).success,
+                      )
+                    : undefined;
                 return (
                   <tr key={i}>
                     <td className="p-1 text-sm">{i === 0 ? "Where" : "And"}</td>
@@ -720,7 +727,7 @@ function FilterBuilderForm({
                         filter.type === "stringObject") &&
                       (column?.type === "numberObject" ||
                         column?.type === "stringObject") ? (
-                        column.keyOptions ? (
+                        keyOptions?.length ? (
                           // Case 1: object with keyOptions - selector of the key of the object
                           <Select
                             disabled={!filter.column}
@@ -733,15 +740,11 @@ function FilterBuilderForm({
                               <SelectValue placeholder="" />
                             </SelectTrigger>
                             <SelectContent>
-                              {column.keyOptions
-                                .filter(
-                                  (o) => NonEmptyString.safeParse(o).success,
-                                )
-                                .map((option) => (
-                                  <SelectItem key={option} value={option}>
-                                    {option}
-                                  </SelectItem>
-                                ))}
+                              {keyOptions.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         ) : (

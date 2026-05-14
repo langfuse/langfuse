@@ -1,0 +1,70 @@
+name: Security review
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  security-review:
+    name: Security review
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Checkout Claude Code security review action
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: anthropics/claude-code-security-review
+          ref: 0c6a49f1fa56a1d472575da86a94dbc1edb78eda
+          path: .github/actions/claude-code-security-review
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Patch Claude API validation model
+        shell: bash
+        run: |
+          python <<'PY'
+          import os
+          from pathlib import Path
+
+          action_path = (
+              Path(os.environ["GITHUB_WORKSPACE"])
+              / ".github"
+              / "actions"
+              / "claude-code-security-review"
+              / "claudecode"
+              / "claude_api_client.py"
+          )
+          if not action_path.exists():
+              raise SystemExit(f"Expected Claude API client not found at {action_path}")
+          source = action_path.read_text()
+          old = 'model="claude-3-5-haiku-20241022",'
+          new = "model=self.model,"
+          if old not in source:
+              raise SystemExit(f"Expected validation model not found in {action_path}")
+          action_path.write_text(source.replace(old, new))
+          PY
+
+      - name: Run Claude Code security review
+        uses: ./.github/actions/claude-code-security-review
+        with:
+          claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+          claude-model: claude-opus-4-1-20250805
+          comment-pr: true
+          run-every-commit: true

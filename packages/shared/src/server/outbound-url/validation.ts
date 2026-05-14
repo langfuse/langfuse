@@ -20,6 +20,13 @@ export interface ValidateOutboundUrlHostOptions {
   shouldSkipDnsCheckForLiteralIps: boolean;
 }
 
+interface ValidateOutboundResolvedIpOptions {
+  hostname: string;
+  ip: string;
+  whitelist: OutboundUrlValidationWhitelist;
+  logContext: string;
+}
+
 export async function resolveHost(hostname: string): Promise<string[]> {
   // Returns every A + AAAA address.
   const [v4, v6, lookup] = await Promise.allSettled([
@@ -93,12 +100,12 @@ export async function validateOutboundUrlHost({
   }
 
   if (isIPAddress(hostname)) {
-    if (isIPBlocked(hostname, whitelist.ips, whitelist.ip_ranges)) {
-      logger.warn(
-        `${logContext} validation blocked IP address in hostname: ${hostname}`,
-      );
-      throw new Error("Blocked IP address detected");
-    }
+    validateOutboundResolvedIp({
+      hostname,
+      ip: hostname,
+      whitelist,
+      logContext,
+    });
 
     if (shouldSkipDnsCheckForLiteralIps) return;
   }
@@ -110,12 +117,30 @@ export async function validateOutboundUrlHost({
   const ips = await resolveHost(hostname);
 
   for (const ip of ips) {
-    if (isIPBlocked(ip, whitelist.ips, whitelist.ip_ranges)) {
-      logger.warn(
-        `${logContext} validation blocked resolved IP address: ${ip} for hostname: ${hostname}`,
-      );
-      throw new Error("Blocked IP address detected");
-    }
+    validateOutboundResolvedIp({
+      hostname,
+      ip,
+      whitelist,
+      logContext,
+    });
+  }
+}
+
+export function validateOutboundResolvedIp({
+  hostname,
+  ip,
+  whitelist,
+  logContext,
+}: ValidateOutboundResolvedIpOptions): void {
+  if (whitelist.hosts.includes(hostname)) {
+    return;
+  }
+
+  if (isIPBlocked(ip, whitelist.ips, whitelist.ip_ranges)) {
+    logger.warn(
+      `${logContext} validation blocked resolved IP address: ${ip} for hostname: ${hostname}`,
+    );
+    throw new Error("Blocked IP address detected");
   }
 }
 

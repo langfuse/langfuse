@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { validateAzureContainerName } from "@/src/features/blobstorage-integration/validation";
+import {
+  AnalyticsIntegrationExportSource,
+  BLOB_EXPORT_FIELD_GROUPS,
+} from "@langfuse/shared";
+import {
+  validateAzureContainerName,
+  validateExportFieldGroups,
+} from "@/src/features/blobstorage-integration/validation";
 
 /**
  * Enums
@@ -18,6 +25,10 @@ export const BlobStorageExportMode = z.enum([
   "FROM_TODAY",
   "FROM_CUSTOM_DATE",
 ]);
+
+export const BlobStorageExportSource = z.enum(AnalyticsIntegrationExportSource);
+
+export const BlobStorageExportFieldGroup = z.enum(BLOB_EXPORT_FIELD_GROUPS);
 
 /**
  * Request/Response Types
@@ -47,6 +58,11 @@ export const CreateBlobStorageIntegrationRequest = z
     exportMode: BlobStorageExportMode,
     exportStartDate: z.coerce.date().nullable().optional(),
     compressed: z.boolean().optional().default(true),
+    exportSource: BlobStorageExportSource.nullable().optional(),
+    exportFieldGroups: z
+      .array(BlobStorageExportFieldGroup)
+      .nullable()
+      .optional(),
   })
   .strict()
   .refine(
@@ -59,7 +75,39 @@ export const CreateBlobStorageIntegrationRequest = z
       path: ["exportStartDate"],
     },
   )
-  .superRefine(validateAzureContainerName);
+  .superRefine(validateAzureContainerName)
+  .superRefine((data, ctx) => {
+    if (data.exportSource == null && data.exportFieldGroups != null) {
+      ctx.addIssue({
+        code: "custom",
+        message: "exportSource is required when exportFieldGroups is provided",
+        path: ["exportSource"],
+      });
+      return;
+    }
+    if (
+      data.exportSource ===
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS &&
+      data.exportFieldGroups != null
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "exportFieldGroups is not applicable when exportSource is TRACES_OBSERVATIONS",
+        path: ["exportFieldGroups"],
+      });
+      return;
+    }
+    if (data.exportFieldGroups != null && data.exportSource != null) {
+      validateExportFieldGroups(
+        {
+          exportSource: data.exportSource,
+          exportFieldGroups: data.exportFieldGroups,
+        },
+        ctx,
+      );
+    }
+  });
 
 export const BlobStorageIntegrationResponse = z
   .object({
@@ -78,6 +126,8 @@ export const BlobStorageIntegrationResponse = z
     exportMode: BlobStorageExportMode,
     exportStartDate: z.coerce.date().nullable(),
     compressed: z.boolean(),
+    exportSource: BlobStorageExportSource,
+    exportFieldGroups: z.array(BlobStorageExportFieldGroup).nullable(),
     nextSyncAt: z.coerce.date().nullable(),
     lastSyncAt: z.coerce.date().nullable(),
     lastError: z.string().nullable(),

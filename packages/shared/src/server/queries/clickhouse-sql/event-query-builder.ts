@@ -226,6 +226,8 @@ const FIELD_SETS = {
   io: ["input", "output"],
   metadata: ["metadata"],
   tools: ["toolDefinitions", "toolCalls", "toolCallNames"],
+  trace_context: ["tags", "release", "traceName", "usagePricingTierName"],
+  model_export: ["providedModelName", "modelId", "modelParameters"],
   eventTs: ["eventTs"],
 
   // getById field sets (reuse the same fields - all queries use `FROM events_<type> e`)

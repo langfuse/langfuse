@@ -64,6 +64,11 @@ import {
   useEvaluatorTableData,
 } from "@/src/features/evals/hooks/useEvaluatorTableData";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import {
+  TableBadgeLoadingCell,
+  TableIconButtonLoadingCell,
+  TableTextLoadingCell,
+} from "@/src/components/table/loading-cells";
 
 function LegacyBadgeCell({ status }: { status: string }) {
   return (
@@ -189,6 +194,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Status",
       id: "status",
       size: 80,
+      loadingCell: <TableBadgeLoadingCell />,
       cell: (row) => {
         const status = row.getValue();
         return (
@@ -233,6 +239,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Logs",
       id: "logs",
       size: 150,
+      loadingCell: <Skeleton className="h-6 w-16 rounded-md" />,
       cell: ({ row }) => {
         const id = row.original.id;
         return (
@@ -257,6 +264,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       id: "template",
       header: "Referenced Evaluator",
       size: 200,
+      loadingCell: (
+        <div className="flex items-center gap-2">
+          <TableTextLoadingCell className="w-32" />
+          <TableBadgeLoadingCell className="w-6" />
+        </div>
+      ),
       cell: ({ row }) => {
         const template = row.original.template;
         if (!template) return "template not found";
@@ -287,6 +300,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Eval Version",
       size: 180,
       enableHiding: true,
+      loadingCell: <TableBadgeLoadingCell />,
       cell: (row) => {
         const targetObject = row.row.original.target;
         const status = row.row.original.rawStatus;
@@ -354,6 +368,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Actions",
       id: "actions",
       size: 100,
+      loadingCell: <TableIconButtonLoadingCell />,
       cell: ({ row }) => {
         const id = row.original.id;
         return (

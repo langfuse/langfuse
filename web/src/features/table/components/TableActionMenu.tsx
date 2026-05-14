@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { X, Trash, LoaderCircle } from "lucide-react";
+import { X, Trash } from "lucide-react";
 import { Plus } from "lucide-react";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import {
   type TableAction,
   type CustomDialogTableAction,
@@ -67,7 +68,7 @@ export function TableActionMenu({
             {selectedCount !== null ? (
               <span> {`${numberFormatter(selectedCount, 0)} selected`}</span>
             ) : (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
+              <Spinner size="sm" />
             )}
           </div>
           <Button

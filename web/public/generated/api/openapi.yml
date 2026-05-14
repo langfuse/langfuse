@@ -5285,8 +5285,9 @@ paths:
         - name: limit
           in: query
           description: >-
-            Limit of items per page. If you encounter api issues due to too
-            large page sizes, try to reduce the limit.
+            Limit of items per page. Maximum 100. Defaults to 50. Requests with
+            a limit greater than 100 return HTTP 400. If you encounter api
+            issues due to too large page sizes, try to reduce the limit.
           required: false
           schema:
             type: integer
@@ -7243,9 +7244,51 @@ components:
       title: BlobStorageExportFrequency
       type: string
       enum:
+        - every_20_minutes
         - hourly
         - daily
         - weekly
+    BlobStorageExportSource:
+      title: BlobStorageExportSource
+      type: string
+      enum:
+        - EVENTS
+        - TRACES_OBSERVATIONS
+        - TRACES_OBSERVATIONS_EVENTS
+      description: >-
+        What data the integration exports.
+
+        - `TRACES_OBSERVATIONS`: legacy traces + observations + scores tables
+        with a fixed column set. The `exportFieldGroups` field is not
+        applicable.
+
+        - `EVENTS`: enriched observations_v2 events; columns are controlled by
+        `exportFieldGroups`.
+
+        - `TRACES_OBSERVATIONS_EVENTS`: both sets. For the `EVENTS` portion,
+        columns are controlled by `exportFieldGroups`.
+
+
+        **Note:** `EVENTS` and the events portion of
+        `TRACES_OBSERVATIONS_EVENTS` rely on the observations_v2 events table
+        (Langfuse Fast Preview / v4), which is currently available on Langfuse
+        Cloud only. See https://langfuse.com/docs/v4.
+    BlobStorageExportFieldGroup:
+      title: BlobStorageExportFieldGroup
+      type: string
+      enum:
+        - core
+        - basic
+        - time
+        - io
+        - metadata
+        - model
+        - usage
+        - prompt
+        - metrics
+        - tools
+        - trace_context
+      description: Field group for the EVENTS export.
     CreateBlobStorageIntegrationRequest:
       title: CreateBlobStorageIntegrationRequest
       type: object
@@ -7308,6 +7351,37 @@ components:
           description: >-
             Enable gzip compression for exported files (.csv.gz, .json.gz,
             .jsonl.gz). Defaults to true.
+        exportSource:
+          $ref: '#/components/schemas/BlobStorageExportSource'
+          nullable: true
+          description: >-
+            Data to export. When omitted on update, the existing value is
+            preserved; when omitted on create, the column default
+            (`TRACES_OBSERVATIONS`) applies. Required when `exportFieldGroups`
+            is provided.
+        exportFieldGroups:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlobStorageExportFieldGroup'
+          nullable: true
+          description: >-
+            Field groups to include in each exported row.
+
+
+            For exportSource `EVENTS` or `TRACES_OBSERVATIONS_EVENTS`: must
+            include `core` if provided. When omitted on create, the column
+            default (all groups) applies. When omitted on update, the existing
+            value is preserved.
+
+
+            For exportSource `TRACES_OBSERVATIONS`: this field must be omitted
+            or null. Sending an array (including an empty array) returns 400,
+            because that source uses a fixed column set and does not honor field
+            groups.
+
+
+            `exportFieldGroups` requires `exportSource` to be provided in the
+            same request.
       required:
         - projectId
         - type
@@ -7356,6 +7430,18 @@ components:
           nullable: true
         compressed:
           type: boolean
+        exportSource:
+          $ref: '#/components/schemas/BlobStorageExportSource'
+        exportFieldGroups:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlobStorageExportFieldGroup'
+          nullable: true
+          description: >-
+            Field groups included in each exported row for `EVENTS` /
+            `TRACES_OBSERVATIONS_EVENTS` sources. Always `null` when
+            exportSource is `TRACES_OBSERVATIONS` (the field does not apply to
+            that source; any legacy DB value is hidden from the public surface).
         nextSyncAt:
           type: string
           format: date-time
@@ -7390,6 +7476,7 @@ components:
         - fileType
         - exportMode
         - compressed
+        - exportSource
         - createdAt
         - updatedAt
     BlobStorageIntegrationsResponse:
@@ -7431,9 +7518,9 @@ components:
         Compare `lastSyncAt` against your
 
         ETL bookmark to determine if new data is available. Note that exports
-        run with a 30-minute lag buffer,
+        run with a 20-minute lag buffer,
 
-        so `lastSyncAt` will always be at least 30 minutes behind real-time.
+        so `lastSyncAt` will always be at least 20 minutes behind real-time.
     BlobStorageIntegrationStatusResponse:
       title: BlobStorageIntegrationStatusResponse
       type: object
