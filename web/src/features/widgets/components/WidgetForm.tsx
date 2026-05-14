@@ -164,6 +164,13 @@ const chartTypes: ChartType[] = [
   },
 ];
 
+const observationLevelOptions = ObservationLevelDomain.options.map((value) => ({
+  value,
+}));
+const observationTypeOptions = ObservationTypeDomain.options.map((value) => ({
+  value,
+}));
+
 /**
  * Pure function that resolves the correct aggregation and chart type given the
  * current selections and valid aggregation list. Returns null when no change is
@@ -681,13 +688,6 @@ export function WidgetForm({
   const toolNamesOptions = generationsFilterOptions.data?.toolNames || [];
   const calledToolNamesOptions =
     generationsFilterOptions.data?.calledToolNames || [];
-  const observationLevelOptions = ObservationLevelDomain.options.map(
-    (value) => ({ value }),
-  );
-  const observationTypeOptions = ObservationTypeDomain.options.map((value) => ({
-    value,
-  }));
-
   const filterColumns = getWidgetFilterColumns({
     selectedView,
     viewVersion,
