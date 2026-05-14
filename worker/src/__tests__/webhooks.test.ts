@@ -1489,6 +1489,19 @@ describe("Webhook Integration Tests", () => {
         email: testUser.email,
       });
       expect(payload.client_payload.user.id).toBeUndefined();
+      expect(payload.client_payload.prompt).toMatchObject({
+        id: promptId,
+        name: "test-prompt",
+        version: 1,
+        projectId,
+        labels: [],
+        tags: [],
+        type: "text",
+        createdBy: "test-user",
+        commitMessage: null,
+      });
+      expect(payload.client_payload.prompt.prompt).toBeUndefined();
+      expect(payload.client_payload.prompt.config).toBeUndefined();
       // Verify prompt is still the last field in client_payload
       const clientPayloadKeys = Object.keys(payload.client_payload);
       expect(clientPayloadKeys[clientPayloadKeys.length - 1]).toBe("prompt");
