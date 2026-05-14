@@ -2,7 +2,84 @@ import { JsonNested } from "./zod";
 import { parse, isSafeNumber, isNumber } from "lossless-json";
 
 // Dangerous keys that could lead to prototype pollution
-const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+export const DANGEROUS_JSON_KEYS = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
+
+const DANGEROUS_KEYS = DANGEROUS_JSON_KEYS;
+
+const appendPathSegment = (path: string, segment: string | number): string => {
+  if (typeof segment === "number") return `${path}[${segment}]`;
+  return path === "" ? segment : `${path}.${segment}`;
+};
+
+export const findDangerousJsonKeyPath = (
+  value: unknown,
+  path = "",
+): string | null => {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const dangerousPath = findDangerousJsonKeyPath(
+        value[i],
+        appendPathSegment(path, i),
+      );
+      if (dangerousPath) return dangerousPath;
+    }
+
+    return null;
+  }
+
+  if (typeof value !== "object" || value === null) return null;
+
+  for (const key of Object.keys(value)) {
+    const keyPath = appendPathSegment(path, key);
+    if (DANGEROUS_KEYS.has(key)) return keyPath;
+
+    const dangerousPath = findDangerousJsonKeyPath(
+      (value as Record<string, unknown>)[key],
+      keyPath,
+    );
+    if (dangerousPath) return dangerousPath;
+  }
+
+  return null;
+};
+
+export const stripDangerousJsonKeys = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    let changed = false;
+    const sanitized = value.map((item) => {
+      const sanitizedItem = stripDangerousJsonKeys(item);
+      if (sanitizedItem !== item) changed = true;
+      return sanitizedItem;
+    });
+
+    return (changed ? sanitized : value) as T;
+  }
+
+  if (typeof value !== "object" || value === null) return value;
+
+  const entries = Object.entries(value);
+  if (entries.length === 0) return value;
+
+  let changed = false;
+  const sanitized: Record<string, unknown> = {};
+
+  for (const [key, item] of entries) {
+    if (DANGEROUS_KEYS.has(key)) {
+      changed = true;
+      continue;
+    }
+
+    const sanitizedItem = stripDangerousJsonKeys(item);
+    if (sanitizedItem !== item) changed = true;
+    sanitized[key] = sanitizedItem;
+  }
+
+  return (changed ? sanitized : value) as T;
+};
 
 // attempts to parse Python dict/list string to JSON object
 // LangChain/LangGraph v1 tool calls are logged as python dicts for example
