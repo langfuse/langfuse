@@ -29,7 +29,6 @@ export function useSurveyForm() {
 
   const form = useForm<SurveyFormData>({
     defaultValues: {
-      role: undefined,
       referralSource: undefined,
     },
   });
@@ -61,7 +60,6 @@ export function useSurveyForm() {
   const handleSubmit = useCallback(
     async (data: SurveyFormData) => {
       const transformedResponse: Record<string, string> = {};
-      if (data.role) transformedResponse["role"] = data.role;
       if (data.referralSource)
         transformedResponse["referralSource"] = data.referralSource.trim();
 

@@ -79,9 +79,6 @@ export function OnboardingSurvey() {
   }, [currentQuestion?.id, form]);
 
   // Determine labeling/behavior of the primary (right) button
-  const roleValue = form.watch("role");
-  const referralSourceValue = form.watch("referralSource");
-
   const currentFieldId = currentQuestion?.id as
     | keyof SurveyFormData
     | undefined;
@@ -91,15 +88,8 @@ export function OnboardingSurvey() {
 
   const isEmpty = (v: unknown) =>
     v == null || (typeof v === "string" && v.trim() === "");
-  const allFields = {
-    role: roleValue,
-    referralSource: referralSourceValue,
-  } as const;
   const currentEmpty = isEmpty(currentValue);
-  const otherFieldsEmpty = Object.entries(allFields)
-    .filter(([key]) => key !== currentFieldId)
-    .every(([, v]) => isEmpty(v));
-  const showSkip = isLastStep ? currentEmpty && otherFieldsEmpty : currentEmpty;
+  const showSkip = currentEmpty;
 
   const handleSkipButton = () => {
     if (isLastStep) {
