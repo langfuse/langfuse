@@ -49,7 +49,11 @@ import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props
 import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { type FilterState } from "@langfuse/shared";
+import {
+  type FilterState,
+  ObservationLevelDomain,
+  ObservationTypeDomain,
+} from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
   validateQuery,
@@ -677,12 +681,12 @@ export function WidgetForm({
   const toolNamesOptions = generationsFilterOptions.data?.toolNames || [];
   const calledToolNamesOptions =
     generationsFilterOptions.data?.calledToolNames || [];
-  const observationLevelOptions = [
-    { value: "DEBUG" },
-    { value: "DEFAULT" },
-    { value: "WARNING" },
-    { value: "ERROR" },
-  ];
+  const observationLevelOptions = ObservationLevelDomain.options.map(
+    (value) => ({ value }),
+  );
+  const observationTypeOptions = ObservationTypeDomain.options.map((value) => ({
+    value,
+  }));
 
   const filterColumns = getWidgetFilterColumns({
     selectedView,
@@ -694,6 +698,7 @@ export function WidgetForm({
     toolNamesOptions,
     calledToolNamesOptions,
     observationLevelOptions,
+    observationTypeOptions,
   });
   const columnsWithCustomSelect = getWidgetColumnsWithCustomSelect({
     selectedView,
@@ -705,6 +710,7 @@ export function WidgetForm({
     toolNamesOptions,
     calledToolNamesOptions,
     observationLevelOptions,
+    observationTypeOptions,
   });
 
   // When chart type does not support breakdown, wipe the breakdown dimension
