@@ -61,6 +61,34 @@ types:
       - daily
       - weekly
 
+  BlobStorageExportSource:
+    docs: |
+      What data the integration exports.
+      - `TRACES_OBSERVATIONS`: legacy traces + observations + scores tables with a fixed column set. The `exportFieldGroups` field is not applicable.
+      - `EVENTS`: enriched observations_v2 events; columns are controlled by `exportFieldGroups`.
+      - `TRACES_OBSERVATIONS_EVENTS`: both sets. For the `EVENTS` portion, columns are controlled by `exportFieldGroups`.
+
+      **Note:** `EVENTS` and the events portion of `TRACES_OBSERVATIONS_EVENTS` rely on the observations_v2 events table (Langfuse Fast Preview / v4), which is currently available on Langfuse Cloud only. See https://langfuse.com/docs/v4.
+    enum:
+      - EVENTS
+      - TRACES_OBSERVATIONS
+      - TRACES_OBSERVATIONS_EVENTS
+
+  BlobStorageExportFieldGroup:
+    docs: Field group for the EVENTS export.
+    enum:
+      - core
+      - basic
+      - time
+      - io
+      - metadata
+      - model
+      - usage
+      - prompt
+      - metrics
+      - tools
+      - trace_context
+
   CreateBlobStorageIntegrationRequest:
     properties:
       projectId:
@@ -100,6 +128,21 @@ types:
       compressed:
         type: optional<boolean>
         docs: Enable gzip compression for exported files (.csv.gz, .json.gz, .jsonl.gz). Defaults to true.
+      exportSource:
+        type: optional<BlobStorageExportSource>
+        docs: |
+          Data to export. When omitted on update, the existing value is preserved; when omitted on create, the column default (`TRACES_OBSERVATIONS`) applies. Required when `exportFieldGroups` is provided.
+
+      exportFieldGroups:
+        type: optional<list<BlobStorageExportFieldGroup>>
+        docs: |
+          Field groups to include in each exported row.
+
+          For exportSource `EVENTS` or `TRACES_OBSERVATIONS_EVENTS`: must include `core` if provided. When omitted on create, the column default (all groups) applies. When omitted on update, the existing value is preserved.
+
+          For exportSource `TRACES_OBSERVATIONS`: this field must be omitted or null. Sending an array (including an empty array) returns 400, because that source uses a fixed column set and does not honor field groups.
+
+          `exportFieldGroups` requires `exportSource` to be provided in the same request.
 
   BlobStorageIntegrationResponse:
     properties:
@@ -118,6 +161,11 @@ types:
       exportMode: BlobStorageExportMode
       exportStartDate: nullable<datetime>
       compressed: boolean
+      exportSource: BlobStorageExportSource
+      exportFieldGroups:
+        type: nullable<list<BlobStorageExportFieldGroup>>
+        docs: |
+          Field groups included in each exported row for `EVENTS` / `TRACES_OBSERVATIONS_EVENTS` sources. Always `null` when exportSource is `TRACES_OBSERVATIONS` (the field does not apply to that source; any legacy DB value is hidden from the public surface).
       nextSyncAt: nullable<datetime>
       lastSyncAt: nullable<datetime>
       lastError: nullable<string>
