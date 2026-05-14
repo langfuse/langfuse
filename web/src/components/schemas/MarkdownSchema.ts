@@ -7,7 +7,7 @@ const MARKDOWN_PATTERNS = [
   "(^|\\s)[-+*]\\s", // Matches unordered lists that start with -, +, or *
   "^\\s*#{1,6}\\s", // Matches headers that start with # to ######
   "^>\\s+", // Matches blockquotes starting with >
-  "^\\d+\\.\\s", // Matches ordered lists starting with 1. or 2. etc
+  "^\\d+\\.\\s+", // Matches ordered lists starting with 1. or 2. etc, but not a lone marker like "2."
   "!\\[.*?\\]\\(.*?\\)", // Matches images ![Alt text](URL)
   "\\[.*?\\]\\(.*?\\)", // Matches links [Link text](URL)
 ].join("|");

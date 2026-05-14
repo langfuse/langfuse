@@ -63,6 +63,32 @@ type ReactMarkdownNodeChildren = Exclude<
 // html is rendered as plain text by default.
 const MemoizedReactMarkdown: FC<Options> = memo(ReactMarkdown);
 
+const STANDALONE_ORDERED_LIST_MARKER_REGEX = /^(\s*)(\d+)\.(\s*)$/gm;
+const FENCED_CODE_BLOCK_REGEX = /^\s*```/;
+
+const normalizeStandaloneOrderedListMarker = (markdown: string): string => {
+  let inFencedCodeBlock = false;
+
+  return markdown
+    .split("\n")
+    .map((line) => {
+      if (FENCED_CODE_BLOCK_REGEX.test(line)) {
+        inFencedCodeBlock = !inFencedCodeBlock;
+        return line;
+      }
+
+      if (inFencedCodeBlock) {
+        return line;
+      }
+
+      return line.replace(
+        STANDALONE_ORDERED_LIST_MARKER_REGEX,
+        "$1$2\\.$3",
+      );
+    })
+    .join("\n");
+};
+
 const getSafeUrl = (href: string | undefined | null): string | null => {
   if (!href || typeof href !== "string") return null;
 
@@ -410,7 +436,7 @@ function MarkdownRenderer({
             },
           }}
         >
-          {markdown}
+          {normalizeStandaloneOrderedListMarker(markdown)}
         </MemoizedReactMarkdown>
       </div>
     );
