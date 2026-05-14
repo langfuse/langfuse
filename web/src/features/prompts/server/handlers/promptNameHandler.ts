@@ -13,6 +13,22 @@ import { RateLimitService } from "@/src/features/public-api/server/RateLimitServ
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
 
+const normalizePromptName = (
+  promptName: string | string[] | undefined,
+): string | undefined => {
+  if (Array.isArray(promptName)) {
+    return promptName.join("/");
+  }
+
+  return promptName;
+};
+
+const parsePromptRequest = (req: NextApiRequest) =>
+  GetPromptByNameSchema.parse({
+    ...req.query,
+    promptName: normalizePromptName(req.query.promptName),
+  });
+
 const getPromptNameHandler = async (
   req: NextApiRequest,
   res: NextApiResponse,
@@ -28,9 +44,7 @@ const getPromptNameHandler = async (
     return rateLimitCheck.sendRestResponseIfLimited(res);
   }
 
-  const { promptName, version, label, resolve } = GetPromptByNameSchema.parse(
-    req.query,
-  );
+  const { promptName, version, label, resolve } = parsePromptRequest(req);
 
   const prompt = await getPromptByName({
     promptName: promptName,
@@ -73,7 +87,7 @@ const deletePromptNameHandler = async (
     return rateLimitCheck.sendRestResponseIfLimited(res);
   }
 
-  const { promptName, version, label } = GetPromptByNameSchema.parse(req.query);
+  const { promptName, version, label } = parsePromptRequest(req);
 
   // Fetch prompts for audit logging
   const where = {
