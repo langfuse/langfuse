@@ -130,7 +130,7 @@ describe("onboarding router", () => {
     });
     expect(organizationMembership?.organization.projects).toHaveLength(1);
     expect(organizationMembership?.organization.projects[0]?.name).toBe(
-      "Default Project",
+      "My Project",
     );
     expect(
       (

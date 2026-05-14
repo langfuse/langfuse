@@ -14,7 +14,7 @@ import {
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 
-const DEFAULT_STARTER_PROJECT_NAME = "Default Project";
+const DEFAULT_STARTER_PROJECT_NAME = "My Project";
 
 const realOrganizationMembershipInclude = {
   ProjectMemberships: true,

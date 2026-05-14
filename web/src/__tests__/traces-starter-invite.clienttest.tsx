@@ -91,8 +91,8 @@ vi.mock("@/src/features/navigation/utils/tracing-tabs", () => ({
   },
 }));
 
-import TracesPage from "./index";
 import { buildStarterProjectMetadata } from "@/src/features/onboarding/lib/starterProjectMetadata";
+import TracesPage from "@/src/pages/project/[projectId]/traces";
 
 describe("starter project invite prompt", () => {
   const updateSessionMock = vi.fn();

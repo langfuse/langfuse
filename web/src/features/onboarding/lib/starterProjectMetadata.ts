@@ -1,3 +1,4 @@
+import type { Prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 
 export const ONBOARDING_STARTER_PROJECT_METADATA_KEY =
@@ -18,9 +19,9 @@ export type StarterProjectMetadata = z.infer<
   typeof starterProjectMetadataSchema
 >;
 
-const asMetadataRecord = (metadata: unknown): Record<string, unknown> =>
+const asMetadataRecord = (metadata: unknown): Prisma.InputJsonObject =>
   metadata && typeof metadata === "object" && !Array.isArray(metadata)
-    ? (metadata as Record<string, unknown>)
+    ? (metadata as Prisma.InputJsonObject)
     : {};
 
 export const buildStarterOrganizationMetadata = ({
@@ -29,7 +30,7 @@ export const buildStarterOrganizationMetadata = ({
 }: {
   userId: string;
   metadata?: unknown;
-}) => ({
+}): Prisma.InputJsonObject => ({
   ...asMetadataRecord(metadata),
   [ONBOARDING_STARTER_ORG_METADATA_KEY]: starterOrgMetadataSchema.parse({
     createdByUserId: userId,
@@ -44,7 +45,7 @@ export const buildStarterProjectMetadata = ({
   userId: string;
   metadata?: unknown;
   showInviteMembersPrompt?: boolean;
-}) => ({
+}): Prisma.InputJsonObject => ({
   ...asMetadataRecord(metadata),
   [ONBOARDING_STARTER_PROJECT_METADATA_KEY]: starterProjectMetadataSchema.parse(
     {
@@ -85,7 +86,7 @@ export const clearStarterProjectInvitePrompt = ({
 }: {
   metadata: unknown;
   userId: string;
-}) => {
+}): Prisma.InputJsonObject => {
   const starterMetadata = getStarterProjectMetadata(metadata);
   const metadataRecord = asMetadataRecord(metadata);
 
