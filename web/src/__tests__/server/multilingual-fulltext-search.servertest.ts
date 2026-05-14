@@ -1,5 +1,5 @@
 /**
- * RED tests for GitHub issue #11538 — "Full-text search fails for non-English text".
+ * Tests for GitHub issue #11538 — "Full-text search fails for non-English text".
  *
  * Background
  * ----------
@@ -24,10 +24,6 @@
  * observations search, the issue's exact end-to-end scenario) and a few unit assertions on the
  * SQL builder. Testing-Trophy weighting: heavy on integration, light on unit; the e2e layer
  * lives in `web/src/__e2e__/multilingual-search.spec.ts`.
- *
- * NOTE: every assertion below is intentionally red — there are no regression / happy-path
- * assertions here. The ASCII path, the un-escaped-storage path, and "search returns nothing for
- * a string not present" are already covered by the existing suite and are deliberately omitted.
  */
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
