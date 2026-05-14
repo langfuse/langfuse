@@ -31,12 +31,3 @@ export type SurveyAction =
 export interface SurveyFormData {
   referralSource?: string;
 }
-
-export interface SurveyStepProps {
-  question: SurveyQuestion;
-  value: unknown;
-  onChange: (value: unknown) => void;
-  onNext?: () => void;
-  showNext?: boolean;
-  isLast?: boolean;
-}
