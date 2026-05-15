@@ -326,6 +326,17 @@ types:
         type: optional<nullable<string>>
         docs: The matched model ID
 
+      # Trace context fields (field group: trace_context)
+      traceName:
+        type: optional<nullable<string>>
+        docs: The name of the parent trace
+      tags:
+        type: optional<nullable<list<string>>>
+        docs: Tags from the parent trace (denormalized onto the observation)
+      release:
+        type: optional<nullable<string>>
+        docs: The release version of the parent trace
+
   Usage:
     docs: (Deprecated. Use usageDetails and costDetails instead.) Standard interface for usage and cost
     properties:

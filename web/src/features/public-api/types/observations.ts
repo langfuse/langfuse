@@ -156,6 +156,9 @@ export const transformDbToApiObservation = (
     // exclude trace name, this will only be available on events api
     traceName,
 
+    // exclude release, this will only be available on events api
+    release,
+
     // Exclude tags
     tags,
     traceTags,
@@ -440,6 +443,11 @@ const APIObservationV2 = z
 
     // Enrichment fields
     modelId: z.string().nullable().optional(),
+
+    // Trace context fields (field group: trace_context)
+    traceName: z.string().nullable().optional(),
+    tags: z.array(z.string()).nullable().optional(),
+    release: z.string().nullable().optional(),
   })
   .loose();
 

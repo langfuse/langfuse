@@ -136,6 +136,19 @@ const samplePayload = (domain: string) => ({
   },
 });
 
+const sampleCustomPayload = (domain: string, idToken: boolean) => ({
+  domain,
+  authProvider: "custom" as const,
+  authConfig: {
+    name: "Custom OIDC",
+    clientId: "client-123",
+    clientSecret: "super-secret-value",
+    issuer: "https://example.okta.com",
+    idToken,
+    allowDangerousEmailAccountLinking: false,
+  },
+});
+
 describe("ssoConfigRouter.save", () => {
   it("rejects when the domain has no verified VerifiedDomain row for the org", async () => {
     const { org, caller } = await prepare();
@@ -384,6 +397,115 @@ describe("ssoConfigRouter.save", () => {
     // Advanced fields the form doesn't carry are preserved.
     expect(cfg.tokenEndpointAuthMethod).toBe("private_key_jwt");
     expect(cfg.idTokenSignedResponseAlg).toBe("RS256");
+  });
+
+  it("persists custom idToken values", async () => {
+    const { org, caller } = await prepare();
+    const falseDomain = `custom-false-${uuidv4().slice(0, 8)}.com`;
+    const trueDomain = `custom-true-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, falseDomain);
+    await addVerifiedDomain(org.id, trueDomain);
+
+    await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: sampleCustomPayload(falseDomain, false),
+    });
+    await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: sampleCustomPayload(trueDomain, true),
+    });
+
+    const storedFalse = await prisma.ssoConfig.findUniqueOrThrow({
+      where: { domain: falseDomain },
+    });
+    const storedTrue = await prisma.ssoConfig.findUniqueOrThrow({
+      where: { domain: trueDomain },
+    });
+
+    expect((storedFalse.authConfig as Record<string, unknown>).idToken).toBe(
+      false,
+    );
+    expect((storedTrue.authConfig as Record<string, unknown>).idToken).toBe(
+      true,
+    );
+  });
+
+  it("normalizes the stored scope when custom idToken is false", async () => {
+    // The self-service form doesn't surface `scope`, so a fresh custom config
+    // with idToken: false would otherwise inherit the runtime default
+    // `openid email profile` and fail at sign-in with
+    // "id_token detected in the response..." Persist a stripped scope.
+    const { org, caller } = await prepare();
+    const domain = `scope-strip-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+
+    await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: sampleCustomPayload(domain, false),
+    });
+
+    const stored = await prisma.ssoConfig.findUniqueOrThrow({
+      where: { domain },
+    });
+    expect((stored.authConfig as Record<string, unknown>).scope).toBe(
+      "email profile",
+    );
+  });
+
+  it("keeps the OIDC scope when custom idToken is true", async () => {
+    const { org, caller } = await prepare();
+    const domain = `scope-keep-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+
+    await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: sampleCustomPayload(domain, true),
+    });
+
+    const stored = await prisma.ssoConfig.findUniqueOrThrow({
+      where: { domain },
+    });
+    // No `scope` should be set; NextAuth falls back to the OIDC default at runtime.
+    expect(
+      (stored.authConfig as Record<string, unknown>).scope,
+    ).toBeUndefined();
+  });
+
+  it("strips openid from a preserved legacy scope when idToken is flipped to false", async () => {
+    // Mirrors the production trigger: a config first written via the legacy
+    // admin endpoint with `scope: "openid email profile"`, then re-saved
+    // through the self-service UI with idToken toggled off. The merge keeps
+    // the legacy scope, so the normalizer has to strip `openid` from it.
+    const { org, caller } = await prepare();
+    const domain = `legacy-merge-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+
+    await prisma.ssoConfig.create({
+      data: {
+        domain,
+        authProvider: "custom",
+        authConfig: {
+          name: "Legacy Custom",
+          clientId: "legacy-client",
+          clientSecret: encrypt("legacy-secret"),
+          issuer: "https://example.okta.com",
+          scope: "openid email profile",
+          idToken: true,
+        },
+      },
+    });
+
+    await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: sampleCustomPayload(domain, false),
+    });
+
+    const stored = await prisma.ssoConfig.findUniqueOrThrow({
+      where: { domain },
+    });
+    const cfg = stored.authConfig as Record<string, unknown>;
+    expect(cfg.idToken).toBe(false);
+    expect(cfg.scope).toBe("email profile");
   });
 
   it("resets authConfig fields when the provider changes", async () => {
