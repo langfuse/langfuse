@@ -1346,6 +1346,13 @@ export const eventsObservationsView: ViewDeclarationType = {
       description:
         "Sum of token usage per category. The usageType dimension is auto-included to emit the ARRAY JOIN that brings usage_value into scope.",
     },
+    startTime: {
+      sql: "@@AGG@@(events_observations.start_time)",
+      aggs: { agg: "min" },
+      alias: "startTime",
+      type: "datetime",
+      description: "Earliest start time of the observations.",
+    },
   },
   tableRelations: {
     // No traces relation - userId, sessionId, tags are denormalized on events table
