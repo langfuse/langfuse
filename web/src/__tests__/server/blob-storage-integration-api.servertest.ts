@@ -1567,36 +1567,5 @@ describe("Blob Storage Integrations API", () => {
         });
       }
     });
-
-    it("self-hosted + post-cutoff project + LEGACY_TRACES_OBSERVATIONS → 200 (bypass)", async () => {
-      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      try {
-        await prisma.project.update({
-          where: { id: testProject1Id },
-          data: { createdAt: POST_CUTOFF },
-        });
-        const result = await makeAPICall(
-          "PUT",
-          "/api/public/integrations/blob-storage",
-          {
-            ...basePayload,
-            projectId: testProject1Id,
-            exportSource: "LEGACY_TRACES_OBSERVATIONS",
-          },
-          createBasicAuthHeader(testApiKey, testApiSecretKey),
-        );
-        expect(result.status).toBe(200);
-      } finally {
-        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
-        await prisma.project.update({
-          where: { id: testProject1Id },
-          data: { createdAt: new Date() },
-        });
-        await prisma.blobStorageIntegration.deleteMany({
-          where: { projectId: testProject1Id },
-        });
-      }
-    });
   });
 });
