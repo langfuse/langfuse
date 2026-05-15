@@ -26,6 +26,11 @@ export function OnboardingSurvey() {
 
   const onSubmit = useCallback(
     async (data: SurveyFormData) => {
+      if (!data.referralSource?.trim()) {
+        void router.push("/");
+        return;
+      }
+
       await handleSubmit(data);
       void router.push("/");
     },
@@ -34,16 +39,17 @@ export function OnboardingSurvey() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux) on referralSource step submits the form
-      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-        if (currentQuestion?.id === "referralSource") {
-          event.preventDefault();
-          form.handleSubmit(onSubmit)();
-          return;
-        }
+      if (
+        event.key === "Enter" &&
+        isLastStep &&
+        currentQuestion?.type === "text"
+      ) {
+        event.preventDefault();
+        form.handleSubmit(onSubmit)();
+        return;
       }
 
-      // Regular Enter advances to next step (existing behavior)
+      // Regular Enter advances radio steps before the final page.
       if (event.key === "Enter" && !isLastStep) {
         if (currentQuestion?.type !== "text") {
           goNext();
