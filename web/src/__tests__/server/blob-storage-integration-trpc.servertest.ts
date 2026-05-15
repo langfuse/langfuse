@@ -11,7 +11,7 @@ import {
   QueueJobs,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
-import { BLOB_EXPORT_FIELD_GROUPS } from "@langfuse/shared";
+import { OBSERVATION_FIELD_GROUPS_FULL } from "@langfuse/shared";
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -363,8 +363,46 @@ describe("Blob Storage Integration tRPC Router", () => {
         where: { projectId: project.id },
       });
       expect(stored?.exportFieldGroups).toStrictEqual([
-        ...BLOB_EXPORT_FIELD_GROUPS,
+        ...OBSERVATION_FIELD_GROUPS_FULL,
       ]);
+    });
+
+    it("rejects submission when core group is absent (exportSource EVENTS)", async () => {
+      const { caller, project } = await prepare();
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportFieldGroups: ["basic", "io"],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("rejects empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS_EVENTS", async () => {
+      const { caller, project } = await prepare();
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+          exportFieldGroups: [],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("accepts empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS", async () => {
+      const { caller, project } = await prepare();
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS" as const,
+          exportFieldGroups: [],
+        }),
+      ).resolves.not.toThrow();
     });
 
     it("overwrites stored subset when a new subset is submitted", async () => {

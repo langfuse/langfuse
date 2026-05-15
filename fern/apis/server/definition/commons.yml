@@ -298,6 +298,9 @@ types:
       totalCost:
         type: optional<nullable<double>>
         docs: The total cost of the observation in USD
+      usagePricingTierName:
+        type: optional<nullable<string>>
+        docs: The name of the pricing tier applied to this observation's usage costs
 
       # Prompt fields (field group: prompt)
       promptId:

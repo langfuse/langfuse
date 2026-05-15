@@ -55,6 +55,11 @@ import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type FilterState } from "@langfuse/shared";
+import {
+  type FilterState,
+  ObservationLevelDomain,
+  ObservationTypeDomain,
+} from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
   validateQuery,
@@ -165,6 +170,13 @@ const chartTypes: ChartType[] = [
     supportsBreakdown: true,
   },
 ];
+
+const observationLevelOptions = ObservationLevelDomain.options.map((value) => ({
+  value,
+}));
+const observationTypeOptions = ObservationTypeDomain.options.map((value) => ({
+  value,
+}));
 
 /**
  * Pure function that resolves the correct aggregation and chart type given the
@@ -698,6 +710,7 @@ export function WidgetForm({
     toolNamesOptions,
     calledToolNamesOptions,
     observationLevelOptions,
+    observationTypeOptions,
   });
   const columnsWithCustomSelect = getWidgetColumnsWithCustomSelect({
     selectedView,
@@ -709,6 +722,7 @@ export function WidgetForm({
     toolNamesOptions,
     calledToolNamesOptions,
     observationLevelOptions,
+    observationTypeOptions,
   });
 
   // When chart type does not support breakdown, wipe the breakdown dimension
