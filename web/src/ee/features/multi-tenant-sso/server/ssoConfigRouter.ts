@@ -33,6 +33,23 @@ const maskAuthConfig = (
   return rest;
 };
 
+// Drop the OIDC `openid` token from a scope string and fall back to a baseline
+// OAuth2 scope when stripping would otherwise leave the IdP with no claims to
+// release. See the call site in `save` for the full rationale.
+const withOauth2Scope = (
+  authConfig: Record<string, unknown>,
+): Record<string, unknown> => {
+  const requestedScope =
+    typeof authConfig.scope === "string"
+      ? authConfig.scope
+      : "openid email profile";
+  const stripped = requestedScope
+    .split(/\s+/)
+    .filter((token) => token.length > 0 && token !== "openid")
+    .join(" ");
+  return { ...authConfig, scope: stripped || "email profile" };
+};
+
 export const ssoConfigRouter = createTRPCRouter({
   get: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
@@ -118,7 +135,7 @@ export const ssoConfigRouter = createTRPCRouter({
       });
 
       // Preserve advanced authConfig fields the self-service form doesn't
-      // surface (scope, idToken, tokenEndpointAuthMethod, idTokenSignedResponseAlg)
+      // surface (scope, tokenEndpointAuthMethod, idTokenSignedResponseAlg)
       // when the admin re-saves the same provider — typically just to rotate a
       // secret. Without this merge, fields originally set via the legacy
       // support endpoint would silently disappear and break sign-in. Switching
@@ -135,11 +152,29 @@ export const ssoConfigRouter = createTRPCRouter({
             }
           : authConfig;
 
-      const encryptedAuthConfig = mergedAuthConfig
+      // NextAuth picks between client.callback() (OIDC) and
+      // client.oauthCallback() (OAuth2-only) based on the provider's
+      // `idToken` flag. openid-client's oauthCallback throws
+      //   "id_token detected in the response, you must use client.callback()
+      //    instead of client.oauthCallback()"
+      // mid-flow if the IdP returns an id_token — which any OIDC server does
+      // whenever `openid` is in scope. The self-service form only exposes
+      // `idToken` (not `scope`), so admins toggling `idToken: false` would
+      // otherwise pair it with our default `openid email profile` scope and
+      // hit this contradiction. Normalize the stored scope here so the
+      // runtime callback flow matches the IdP response shape.
+      const normalizedAuthConfig =
+        authProvider === "custom" &&
+        mergedAuthConfig &&
+        (mergedAuthConfig as { idToken?: unknown }).idToken === false
+          ? withOauth2Scope(mergedAuthConfig as Record<string, unknown>)
+          : mergedAuthConfig;
+
+      const encryptedAuthConfig = normalizedAuthConfig
         ? {
-            ...mergedAuthConfig,
+            ...normalizedAuthConfig,
             clientSecret: encrypt(
-              (mergedAuthConfig as { clientSecret: string }).clientSecret,
+              (normalizedAuthConfig as { clientSecret: string }).clientSecret,
             ),
           }
         : null;
