@@ -129,12 +129,11 @@ service:
               - `statusMessage` (string) - Status message
               - `version` (string) - Version tag
               - `userId` (string) - User ID
-              - `sessionId` (string) - Session ID
 
               ### Trace-Related Fields
               - `traceName` (string) - Name of the parent trace
               - `traceTags` (arrayOptions) - Tags from the parent trace
-              - `tags` (arrayOptions) - Alias for traceTags
+              - `sessionId` (string) - Session ID (sourced from parent trace)
 
               ### Performance Metrics
               - `latency` (number) - Latency in seconds (calculated: end_time - start_time)
