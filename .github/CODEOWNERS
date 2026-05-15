@@ -1,2 +1,5 @@
 # Currently inactive
 # * @langfuse/maintainers
+
+# Require maintainer review for GitHub configuration changes
+.github/ @langfuse/maintainers

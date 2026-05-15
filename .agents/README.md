@@ -204,6 +204,7 @@ Use them for durable, reusable guidance such as:
 
 Do not use skills for one-off task notes or tool runtime configuration.
 
+Use `skills/skill-creator/SKILL.md` when creating or editing shared skills.
 `pnpm run agents:sync` projects the shared skills into `.claude/skills/` so
 Claude can discover the same repo-owned skills.
 
