@@ -53,6 +53,7 @@ declare module "next-auth" {
         hasTraces: PrismaProject["hasTraces"];
         metadata: Record<string, unknown>;
         role: Role; // include only projects where user has a role
+        createdAt: string; // iso datetime string — JWT does not support Date objects
       }[];
     }[];
     featureFlags: Flags;
