@@ -1600,6 +1600,7 @@ describe("Blob Storage Integrations API", () => {
             type: "S3",
             bucketName: "test-bucket",
             region: "us-east-1",
+            prefix: "",
             exportFrequency: "daily",
             enabled: true,
             forcePathStyle: false,
