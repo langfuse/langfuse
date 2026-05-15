@@ -1,4 +1,8 @@
-import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  LangfuseNotFoundError,
+  LATEST_PROMPT_LABEL,
+} from "@langfuse/shared";
 import { prisma, type Prompt } from "@langfuse/shared/src/db";
 import { PromptService, redis } from "@langfuse/shared/src/server";
 
@@ -94,10 +98,10 @@ export const deletePrompt = async (params: DeletePromptParams) => {
   const promptService = new PromptService(prisma, redis);
 
   const deletingLatest = promptVersions.some((p) =>
-    p.labels.includes("latest"),
+    p.labels.includes(LATEST_PROMPT_LABEL),
   );
   const latestRemainsAfterDeletion = remainingVersions.some((v) =>
-    v.labels.includes("latest"),
+    v.labels.includes(LATEST_PROMPT_LABEL),
   );
 
   // reattach "latest" to highest remaining version
@@ -113,7 +117,9 @@ export const deletePrompt = async (params: DeletePromptParams) => {
     await prisma.prompt.update({
       where: { id: highestRemainingVersion.id },
       data: {
-        labels: [...new Set([...highestRemainingVersion.labels, "latest"])],
+        labels: [
+          ...new Set([...highestRemainingVersion.labels, LATEST_PROMPT_LABEL]),
+        ],
       },
     });
   }
