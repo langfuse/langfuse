@@ -4,6 +4,8 @@ import {
   getNestedProperty,
   stringifyToolResultContent,
   isRichToolResult,
+  normalizeToolDefinitionsForChatMl,
+  attachToolDefinitionsToMessages,
 } from "../helpers";
 import { z } from "zod";
 
@@ -110,42 +112,48 @@ function extractToolDefinitions(tools: unknown): Array<{
   description?: string;
   parameters?: Record<string, unknown>;
 }> {
-  if (!Array.isArray(tools)) return [];
-
-  const definitions: Array<{
+  return normalizeToolDefinitionsForChatMl(tools) as Array<{
     name: string;
     description?: string;
     parameters?: Record<string, unknown>;
-  }> = [];
+  }>;
+}
 
-  for (const tool of tools) {
-    if (!tool || typeof tool !== "object") continue;
-    const t = tool as Record<string, unknown>;
-
-    // Handle OpenAI-style tool definitions: {type: "function", function: {name, description, parameters}}
-    // intentionally not imported from openai for separation of concerns
-    if (t.type === "function" && t.function && typeof t.function === "object") {
-      const func = t.function as Record<string, unknown>;
-      const toolDef: Record<string, unknown> = {
-        name: func.name || "",
-      };
-      if (func.description !== null && func.description !== undefined) {
-        toolDef.description = func.description;
-      }
-      if (func.parameters !== null && func.parameters !== undefined) {
-        toolDef.parameters = func.parameters;
-      }
-      definitions.push(
-        toolDef as {
-          name: string;
-          description?: string;
-          parameters?: Record<string, unknown>;
-        },
-      );
-    }
+function extractToolDefinitionsFromData(
+  data: unknown,
+): Array<Record<string, unknown>> {
+  if (
+    data &&
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    "tools" in data
+  ) {
+    return normalizeToolDefinitionsForChatMl(
+      (data as Record<string, unknown>).tools,
+    );
   }
 
-  return definitions;
+  return [];
+}
+
+function extractToolDefinitionsFromMetadata(
+  metadata: unknown,
+): Array<Record<string, unknown>> {
+  const meta = parseMetadata(metadata);
+  const attributes = parseMetadata(getNestedProperty(meta, "attributes"));
+  return extractToolDefinitions(
+    getNestedProperty(attributes, "gen_ai.tool.definitions"),
+  );
+}
+
+function extractAvailableToolDefinitions(
+  data: unknown,
+  metadata: unknown,
+): Array<Record<string, unknown>> {
+  const inputTools = extractToolDefinitionsFromData(data);
+  return inputTools.length > 0
+    ? inputTools
+    : extractToolDefinitionsFromMetadata(metadata);
 }
 
 // Normalize a single Microsoft Agent message to our ChatML format
@@ -207,22 +215,9 @@ function preprocessData(data: unknown, ctx: NormalizerContext): unknown {
   if (Array.isArray(data)) {
     const normalized = normalizeMessages(data);
 
-    // extract tool definitions from metadata
-    const meta = parseMetadata(ctx.metadata);
-    const toolDefinitions = getNestedProperty(
-      meta,
-      "attributes",
-      "gen_ai.tool.definitions",
-    );
-
-    if (toolDefinitions) {
-      const tools = extractToolDefinitions(toolDefinitions);
-      if (tools.length > 0) {
-        return normalized.map((msg) => ({
-          ...(msg as Record<string, unknown>),
-          tools,
-        }));
-      }
+    const tools = extractAvailableToolDefinitions(data, ctx.metadata);
+    if (tools.length > 0) {
+      return attachToolDefinitionsToMessages(normalized, tools);
     }
 
     return normalized;
@@ -231,11 +226,17 @@ function preprocessData(data: unknown, ctx: NormalizerContext): unknown {
   // messages wrapper
   if (typeof data === "object" && "messages" in data) {
     const obj = data as Record<string, unknown>;
+    const normalizedMessages = Array.isArray(obj.messages)
+      ? normalizeMessages(obj.messages)
+      : obj.messages;
+    const tools = extractAvailableToolDefinitions(data, ctx.metadata);
+
     return {
       ...obj,
-      messages: Array.isArray(obj.messages)
-        ? normalizeMessages(obj.messages)
-        : obj.messages,
+      messages:
+        Array.isArray(normalizedMessages) && tools.length > 0
+          ? attachToolDefinitionsToMessages(normalizedMessages, tools)
+          : normalizedMessages,
     };
   }
 

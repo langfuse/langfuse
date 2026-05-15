@@ -316,6 +316,31 @@ describe("AI SDK Adapter", () => {
       expect(result.data?.[0].tools?.[0].parameters).toBeDefined();
     });
 
+    it("should attach provider tools without explicit names using their type", () => {
+      const input = {
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "text", text: "Search the web" }],
+          },
+        ],
+        tools: [
+          {
+            type: "web_search_preview",
+          },
+        ],
+      };
+
+      const result = normalizeInput(input, { framework: "aisdk" });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].tools).toHaveLength(1);
+      expect(result.data?.[0].tools?.[0]).toEqual({
+        name: "web_search_preview",
+        description: "",
+      });
+    });
+
     it("should stringify simple tool result objects (1-2 scalar keys)", () => {
       const input = {
         messages: [

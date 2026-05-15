@@ -227,6 +227,43 @@ describe("extractToolsFromObservation", () => {
         },
       });
     });
+
+    it("preserves unnamed provider tools in normalized input while extracting only named definitions", () => {
+      const input = [{ role: "user", content: "Need current weather" }];
+      const functionTool = {
+        type: "function",
+        name: "get_weather",
+        description: "Get weather.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            location: { type: "string" },
+          },
+        },
+      };
+      const providerTool = {
+        type: "web_search_preview",
+      };
+      const metadata = {
+        attributes: {
+          "ai.prompt.tools": [functionTool, providerTool],
+          "custom.attribute": "keep-me",
+        },
+      };
+
+      const result = normalizeToolsForObservation(input, null, metadata);
+
+      expect(result.input).toEqual({
+        messages: input,
+        tools: [functionTool, providerTool],
+      });
+      expect(result.metadata).toEqual({
+        attributes: {
+          "custom.attribute": "keep-me",
+        },
+      });
+      expect(Object.keys(result.toolDefinitions)).toEqual(["get_weather"]);
+    });
   });
 
   describe("Tool Definitions extraction", () => {

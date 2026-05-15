@@ -879,6 +879,40 @@ describe("Playground Jump Full Pipeline", () => {
     expect(firstMessage.tools![1].name).toBe("search_web");
   });
 
+  it("should extract AI SDK flat tools and provider tools from normalized input", () => {
+    const tools = extractTools({
+      messages: [{ role: "user", content: "Need weather and search" }],
+      tools: [
+        {
+          type: "function",
+          name: "get_weather",
+          description: "Get weather info",
+          inputSchema: {
+            type: "object",
+            properties: { city: { type: "string" } },
+          },
+        },
+        {
+          type: "web_search_preview",
+        },
+      ],
+    });
+
+    expect(tools).toHaveLength(2);
+    expect(tools[0]).toMatchObject({
+      name: "get_weather",
+      description: "Get weather info",
+      parameters: {
+        type: "object",
+        properties: { city: { type: "string" } },
+      },
+    });
+    expect(tools[1]).toMatchObject({
+      name: "web_search_preview",
+      description: "",
+    });
+  });
+
   it("should handle double-stringified messages array", () => {
     // ClickHouse can store messages as double-stringified:
     // { "messages": "[{\"role\":\"user\",\"content\":\"...\"}]" }

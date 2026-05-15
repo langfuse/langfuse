@@ -4,6 +4,8 @@ import {
   stringifyToolResultContent,
   isRichToolResult,
   getNestedProperty,
+  normalizeToolDefinitionsForChatMl,
+  attachToolDefinitionsToMessages,
 } from "../helpers";
 import { z } from "zod";
 
@@ -405,15 +407,27 @@ function preprocessData(data: unknown): unknown {
       messages.push(...contents);
 
       // Extract and attach tools if present
+      const inputTools = normalizeToolDefinitionsForChatMl(obj.tools);
       if ("tools" in config && Array.isArray(config.tools)) {
         const extractedTools = extractToolDeclarations(config.tools);
+        const tools: Array<Record<string, unknown>> = [
+          ...extractedTools,
+          ...inputTools,
+        ];
 
-        if (extractedTools.length > 0) {
-          return normalizeMessages(messages).map((msg) => ({
-            ...(msg as Record<string, unknown>),
-            tools: extractedTools,
-          }));
+        if (tools.length > 0) {
+          return attachToolDefinitionsToMessages(
+            normalizeMessages(messages),
+            tools,
+          );
         }
+      }
+
+      if (inputTools.length > 0) {
+        return attachToolDefinitionsToMessages(
+          normalizeMessages(messages),
+          inputTools,
+        );
       }
 
       // No tools, just normalize messages
@@ -427,7 +441,10 @@ function preprocessData(data: unknown): unknown {
   // {contents: [{parts, role}], model: "..."}
   if (GeminiRequestSchema.safeParse(data).success) {
     const obj = data as Record<string, unknown>;
-    return normalizeMessages(obj.contents as unknown[]);
+    return attachToolDefinitionsToMessages(
+      normalizeMessages(obj.contents as unknown[]),
+      normalizeToolDefinitionsForChatMl(obj.tools),
+    );
   }
 
   // ========================================
@@ -445,7 +462,10 @@ function preprocessData(data: unknown): unknown {
     return {
       ...obj,
       messages: Array.isArray(obj.messages)
-        ? normalizeMessages(obj.messages)
+        ? attachToolDefinitionsToMessages(
+            normalizeMessages(obj.messages),
+            normalizeToolDefinitionsForChatMl(obj.tools),
+          )
         : obj.messages,
     };
   }

@@ -1,19 +1,19 @@
-import { z } from "zod";
-import { OpenAIToolSchema, extractAdditionalInput } from "@langfuse/shared";
+import {
+  extractAdditionalInput,
+  normalizeToolDefinitionsForChatMl,
+} from "@langfuse/shared";
 import type { PlaygroundTool } from "@/src/features/playground/page/types";
 
 /**
- * Helper to map parsed OpenAI tool schemas to PlaygroundTool format.
+ * Helper to map normalized tool definitions to PlaygroundTool format.
  * Ensures description is always a string (never null/undefined).
  */
-function mapToolsToPlayground(
-  tools: z.infer<typeof OpenAIToolSchema>[],
-): PlaygroundTool[] {
-  return tools.map((tool) => ({
+function mapToolsToPlayground(tools: unknown): PlaygroundTool[] {
+  return normalizeToolDefinitionsForChatMl(tools).map((tool) => ({
     id: Math.random().toString(36).substring(2),
-    name: tool.function.name,
-    description: tool.function.description ?? "",
-    parameters: tool.function.parameters,
+    name: tool.name as string,
+    description: typeof tool.description === "string" ? tool.description : "",
+    parameters: tool.parameters,
   }));
 }
 
@@ -38,11 +38,9 @@ export function extractTools(
 
       // Microsoft Agent Framework: tools in "gen_ai.tool.definitions"
       const toolDefs = attributes["gen_ai.tool.definitions"];
-      if (toolDefs && Array.isArray(toolDefs)) {
-        const parsedTools = z.array(OpenAIToolSchema).safeParse(toolDefs);
-        if (parsedTools.success) {
-          return mapToolsToPlayground(parsedTools.data);
-        }
+      if (toolDefs) {
+        const tools = mapToolsToPlayground(toolDefs);
+        if (tools.length > 0) return tools;
       }
 
       // OpenTelemetry semantic convention: tools indexed as "llm.tools.{N}.tool.json_schema"
@@ -52,10 +50,8 @@ export function extractTools(
       );
       if (toolKeys.length > 0) {
         const toolDefs = toolKeys.map((key) => attributes[key]);
-        const parsedTools = z.array(OpenAIToolSchema).safeParse(toolDefs);
-        if (parsedTools.success) {
-          return mapToolsToPlayground(parsedTools.data);
-        }
+        const tools = mapToolsToPlayground(toolDefs);
+        if (tools.length > 0) return tools;
       }
     }
   }
@@ -74,35 +70,22 @@ export function extractTools(
         msg.tools.length > 0,
     );
     if (firstMessageWithTools && Array.isArray(firstMessageWithTools.tools)) {
-      return firstMessageWithTools.tools.map((tool: any) => ({
-        id: Math.random().toString(36).substring(2),
-        name: tool.name || tool.function?.name,
-        description: tool.description ?? tool.function?.description ?? "",
-        parameters: tool.parameters || tool.function?.parameters,
-      }));
+      return mapToolsToPlayground(firstMessageWithTools.tools);
     }
   }
 
   // LangChain format: tools in additional.tools field
   const additionalInput = extractAdditionalInput(input);
   if (additionalInput?.tools && Array.isArray(additionalInput.tools)) {
-    return additionalInput.tools.map((tool: any) => ({
-      id: Math.random().toString(36).substring(2),
-      name: tool.name || tool.function?.name,
-      description: tool.description ?? tool.function?.description ?? "",
-      parameters: tool.parameters || tool.function?.parameters,
-    }));
+    return mapToolsToPlayground(additionalInput.tools);
   }
 
   // OpenAI format: tools in input.tools field
   if (typeof input === "object" && input !== null && "tools" in input) {
-    const parsedTools = z
-      .array(OpenAIToolSchema)
-      .safeParse((input as Record<string, unknown>)["tools"]);
-
-    if (parsedTools.success) {
-      return mapToolsToPlayground(parsedTools.data);
-    }
+    const tools = mapToolsToPlayground(
+      (input as Record<string, unknown>)["tools"],
+    );
+    if (tools.length > 0) return tools;
   }
 
   // LangChain format: tool definitions embedded in messages array
@@ -119,11 +102,8 @@ export function extractTools(
 
     if (toolMessages.length > 0) {
       const toolDefs = toolMessages.map((msg: any) => msg.content);
-      const parsedTools = z.array(OpenAIToolSchema).safeParse(toolDefs);
-
-      if (parsedTools.success) {
-        return mapToolsToPlayground(parsedTools.data);
-      }
+      const tools = mapToolsToPlayground(toolDefs);
+      if (tools.length > 0) return tools;
     }
   }
 
@@ -147,11 +127,8 @@ export function extractTools(
 
     if (toolMessages.length > 0) {
       const toolDefs = toolMessages.map((msg: any) => msg.content);
-      const parsedTools = z.array(OpenAIToolSchema).safeParse(toolDefs);
-
-      if (parsedTools.success) {
-        return mapToolsToPlayground(parsedTools.data);
-      }
+      const tools = mapToolsToPlayground(toolDefs);
+      if (tools.length > 0) return tools;
     }
   }
 

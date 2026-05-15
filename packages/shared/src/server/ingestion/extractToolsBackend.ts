@@ -430,6 +430,17 @@ function isToolDefinitionLike(tool: unknown): boolean {
   return Boolean(flattenToolDefinition(tool).name);
 }
 
+function isToolMetadataEntryLike(tool: unknown): boolean {
+  const parsedTool = parseIfString(tool);
+  if (!isPlainRecord(parsedTool)) return false;
+
+  return (
+    isToolDefinitionLike(parsedTool) ||
+    typeof parsedTool.type === "string" ||
+    typeof parsedTool.id === "string"
+  );
+}
+
 function parseToolDefinitionArray(
   tools: unknown,
   options: { requireEveryItem?: boolean } = {},
@@ -440,22 +451,22 @@ function parseToolDefinitionArray(
   const normalizedTools = parsedTools.map(parseIfString);
   if (normalizedTools.length === 0) return [];
 
-  const toolDefinitions = normalizedTools.filter(isToolDefinitionLike);
+  const toolLikeEntries = normalizedTools.filter(isToolMetadataEntryLike);
   if (
     options.requireEveryItem &&
-    toolDefinitions.length !== normalizedTools.length
+    toolLikeEntries.length !== normalizedTools.length
   ) {
     return undefined;
   }
 
-  return toolDefinitions.length > 0 ? toolDefinitions : undefined;
+  return toolLikeEntries.length > 0 ? toolLikeEntries : undefined;
 }
 
 function dedupeToolDefinitions(tools: unknown[]): unknown[] {
   const seenToolNames = new Set<string>();
   return tools.filter((tool) => {
     const name = flattenToolDefinition(tool).name;
-    if (!name) return false;
+    if (!name) return true;
     if (seenToolNames.has(name)) return false;
     seenToolNames.add(name);
     return true;
