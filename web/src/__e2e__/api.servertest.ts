@@ -141,6 +141,7 @@ describe("Ingestion Pipeline", () => {
             }
           } catch {}
         }
+        expect(redisValue).not.toBeNull();
 
         const llmApiKey = OrgEnrichedApiKey.parse(JSON.parse(redisValue!));
         expect(llmApiKey.projectId).toBe(
