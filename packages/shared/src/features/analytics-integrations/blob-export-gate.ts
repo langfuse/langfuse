@@ -20,7 +20,7 @@ export const LEGACY_BLOB_EXPORT_SOURCES = [
 
 /**
  * Returns true when a project may use legacy blob export sources.
- * False means the project is post-cutoff Cloud and must use ENRICHED only.
+ * False means the project is post-cutoff Cloud and must use OBSERVATIONS_V2 (internal: EVENTS) only.
  *
  * Shared by the server guard (throws when false + legacy source) and the UI
  * (hides legacy dropdown options when false) so the predicate lives once.
