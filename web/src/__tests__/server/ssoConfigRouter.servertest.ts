@@ -136,10 +136,7 @@ const samplePayload = (domain: string) => ({
   },
 });
 
-const sampleCustomPayload = (
-  domain: string,
-  idToken: boolean,
-) => ({
+const sampleCustomPayload = (domain: string, idToken: boolean) => ({
   domain,
   authProvider: "custom" as const,
   authConfig: {

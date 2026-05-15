@@ -575,7 +575,8 @@ function SsoConfigDialog({
                               Use id_token claims only (skip userinfo)
                             </FormLabel>
                             <FormDescription>
-                              Leave off for IdPs that release email only via the userinfo endpoint.
+                              Leave off for IdPs that release email only via the
+                              userinfo endpoint.
                             </FormDescription>
                           </div>
                         </FormItem>
