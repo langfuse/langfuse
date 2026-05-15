@@ -136,6 +136,24 @@ const samplePayload = (domain: string) => ({
   },
 });
 
+const sampleCustomPayload = (
+  domain: string,
+  idToken: boolean,
+  scope = "openid email profile",
+) => ({
+  domain,
+  authProvider: "custom" as const,
+  authConfig: {
+    name: "Custom OIDC",
+    clientId: "client-123",
+    clientSecret: "super-secret-value",
+    issuer: "https://example.okta.com",
+    scope,
+    idToken,
+    allowDangerousEmailAccountLinking: false,
+  },
+});
+
 describe("ssoConfigRouter.save", () => {
   it("rejects when the domain has no verified VerifiedDomain row for the org", async () => {
     const { org, caller } = await prepare();
@@ -347,7 +365,7 @@ describe("ssoConfigRouter.save", () => {
   });
 
   it("preserves advanced authConfig fields on update for the same provider", async () => {
-    // Legacy support-endpoint configs may set scope, tokenEndpointAuthMethod,
+    // Legacy support-endpoint configs may set tokenEndpointAuthMethod,
     // idTokenSignedResponseAlg, etc. The self-service form doesn't surface
     // those fields, so a naive whole-row replace would silently wipe them
     // when the admin re-enters the secret. Merge instead.
@@ -384,6 +402,43 @@ describe("ssoConfigRouter.save", () => {
     // Advanced fields the form doesn't carry are preserved.
     expect(cfg.tokenEndpointAuthMethod).toBe("private_key_jwt");
     expect(cfg.idTokenSignedResponseAlg).toBe("RS256");
+  });
+
+  it("persists Custom OIDC scope and idToken values", async () => {
+    const { org, caller } = await prepare();
+    const falseDomain = `custom-false-${uuidv4().slice(0, 8)}.com`;
+    const trueDomain = `custom-true-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, falseDomain);
+    await addVerifiedDomain(org.id, trueDomain);
+
+    await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: sampleCustomPayload(falseDomain, false),
+    });
+    await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: sampleCustomPayload(trueDomain, true, "openid email"),
+    });
+
+    const storedFalse = await prisma.ssoConfig.findUniqueOrThrow({
+      where: { domain: falseDomain },
+    });
+    const storedTrue = await prisma.ssoConfig.findUniqueOrThrow({
+      where: { domain: trueDomain },
+    });
+
+    expect((storedFalse.authConfig as Record<string, unknown>).idToken).toBe(
+      false,
+    );
+    expect((storedFalse.authConfig as Record<string, unknown>).scope).toBe(
+      "openid email profile",
+    );
+    expect((storedTrue.authConfig as Record<string, unknown>).idToken).toBe(
+      true,
+    );
+    expect((storedTrue.authConfig as Record<string, unknown>).scope).toBe(
+      "openid email",
+    );
   });
 
   it("resets authConfig fields when the provider changes", async () => {
