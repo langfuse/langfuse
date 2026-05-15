@@ -102,7 +102,6 @@ const formSchema = z.object({
     // providers don't carry a stray field. The strict provider schema
     // enforces presence at submit for `custom`.
     name: z.string().optional(),
-    scope: z.string().optional(),
     idToken: z.boolean().optional(),
   }),
 });
@@ -116,7 +115,6 @@ type AuthConfigFormField = `authConfig.${
   | "tenantId"
   | "baseUrl"
   | "name"
-  | "scope"
   | "idToken"}`;
 
 type SsoConfigRow = {
@@ -307,7 +305,6 @@ function SsoConfigDialog({
         tenantId: typeof cfg.tenantId === "string" ? cfg.tenantId : "",
         baseUrl: enterprise?.baseUrl ?? "",
         name: typeof cfg.name === "string" ? cfg.name : "",
-        scope: typeof cfg.scope === "string" ? cfg.scope : "",
         idToken: typeof cfg.idToken === "boolean" ? cfg.idToken : true,
       },
     };
@@ -390,7 +387,6 @@ function SsoConfigDialog({
         "authConfig.tenantId",
         "authConfig.baseUrl",
         "authConfig.name",
-        "authConfig.scope",
         "authConfig.idToken",
       ];
       if (!FORM_FIELDS.includes(formField)) {
@@ -563,25 +559,6 @@ function SsoConfigDialog({
                   <>
                     <FormField
                       control={form.control}
-                      name="authConfig.scope"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Scope</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="openid email profile"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Optional. Leave empty to use the provider default.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
                       name="authConfig.idToken"
                       render={({ field }) => (
                         <FormItem className="flex flex-row items-start space-y-0 space-x-3 rounded-md border p-4">
@@ -598,8 +575,7 @@ function SsoConfigDialog({
                               Use id_token claims only (skip userinfo)
                             </FormLabel>
                             <FormDescription>
-                              Leave off for Shibboleth and IdPs that release
-                              email only via the userinfo endpoint.
+                              Leave off for IdPs that release email only via the userinfo endpoint.
                             </FormDescription>
                           </div>
                         </FormItem>
@@ -805,10 +781,7 @@ function buildSsoPayload(domain: string, values: FormValues) {
           ...base,
           issuer: authConfig.issuer ?? "",
           name: authConfig.name ?? "",
-          ...(authConfig.scope?.trim()
-            ? { scope: authConfig.scope.trim() }
-            : {}),
-          idToken: authConfig.idToken ?? false,
+          idToken: authConfig.idToken ?? true,
         },
       };
     default:

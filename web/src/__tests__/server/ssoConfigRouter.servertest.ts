@@ -139,7 +139,6 @@ const samplePayload = (domain: string) => ({
 const sampleCustomPayload = (
   domain: string,
   idToken: boolean,
-  scope = "openid email profile",
 ) => ({
   domain,
   authProvider: "custom" as const,
@@ -148,7 +147,6 @@ const sampleCustomPayload = (
     clientId: "client-123",
     clientSecret: "super-secret-value",
     issuer: "https://example.okta.com",
-    scope,
     idToken,
     allowDangerousEmailAccountLinking: false,
   },
@@ -365,7 +363,7 @@ describe("ssoConfigRouter.save", () => {
   });
 
   it("preserves advanced authConfig fields on update for the same provider", async () => {
-    // Legacy support-endpoint configs may set tokenEndpointAuthMethod,
+    // Legacy support-endpoint configs may set scope, tokenEndpointAuthMethod,
     // idTokenSignedResponseAlg, etc. The self-service form doesn't surface
     // those fields, so a naive whole-row replace would silently wipe them
     // when the admin re-enters the secret. Merge instead.
@@ -430,14 +428,8 @@ describe("ssoConfigRouter.save", () => {
     expect((storedFalse.authConfig as Record<string, unknown>).idToken).toBe(
       false,
     );
-    expect((storedFalse.authConfig as Record<string, unknown>).scope).toBe(
-      "openid email profile",
-    );
     expect((storedTrue.authConfig as Record<string, unknown>).idToken).toBe(
       true,
-    );
-    expect((storedTrue.authConfig as Record<string, unknown>).scope).toBe(
-      "openid email",
     );
   });
 
