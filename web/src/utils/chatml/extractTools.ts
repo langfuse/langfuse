@@ -4,6 +4,11 @@ import {
 } from "@langfuse/shared";
 import type { PlaygroundTool } from "@/src/features/playground/page/types";
 
+const EMPTY_TOOL_PARAMETERS = {
+  type: "object",
+  properties: {},
+} as const;
+
 /**
  * Helper to map normalized tool definitions to PlaygroundTool format.
  * Ensures description is always a string (never null/undefined).
@@ -13,7 +18,12 @@ function mapToolsToPlayground(tools: unknown): PlaygroundTool[] {
     id: Math.random().toString(36).substring(2),
     name: tool.name as string,
     description: typeof tool.description === "string" ? tool.description : "",
-    parameters: tool.parameters,
+    parameters:
+      tool.parameters &&
+      typeof tool.parameters === "object" &&
+      !Array.isArray(tool.parameters)
+        ? tool.parameters
+        : EMPTY_TOOL_PARAMETERS,
   }));
 }
 
