@@ -238,7 +238,7 @@ export function convertObservationPartial(
 
     // Model fields
     ...(record.provided_model_name !== undefined && {
-      providedModelName: record.provided_model_name ?? null,
+      model: record.provided_model_name ?? null,
     }),
     ...(record.internal_model_id !== undefined && {
       internalModelId: record.internal_model_id ?? null,
