@@ -19,7 +19,7 @@ export function assertLegacyBlobExportSourceAllowed({
       nextInternalExportSource,
     )
   )
-    return; // OBSERVATIONS_V2 (ENRICHED) is always allowed.
+    return; // OBSERVATIONS_V2 (internal: EVENTS) is always allowed.
 
   if (isLegacyBlobExportAllowed(project.createdAt, isCloud)) return;
 
