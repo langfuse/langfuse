@@ -118,7 +118,7 @@ export const ssoConfigRouter = createTRPCRouter({
       });
 
       // Preserve advanced authConfig fields the self-service form doesn't
-      // surface (scope, idToken, tokenEndpointAuthMethod, idTokenSignedResponseAlg)
+      // surface (scope, tokenEndpointAuthMethod, idTokenSignedResponseAlg)
       // when the admin re-saves the same provider — typically just to rotate a
       // secret. Without this merge, fields originally set via the legacy
       // support endpoint would silently disappear and break sign-in. Switching
