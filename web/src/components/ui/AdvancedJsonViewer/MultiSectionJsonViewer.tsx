@@ -12,6 +12,7 @@ import type {
   StringWrapMode,
   SectionContext,
   ExpansionState,
+  JsonRowActionRenderContext,
 } from "./types";
 import { useMultiSectionTreeState } from "./hooks/useMultiSectionTreeState";
 import { useJsonTheme } from "./hooks/useJsonTheme";
@@ -76,6 +77,9 @@ export interface MultiSectionJsonViewerProps {
   // Input accepts ExpansionState (boolean shorthand), callback receives Record (what exportExpansionState emits)
   externalExpansionState?: ExpansionState;
   onExpansionChange?: (state: Record<string, boolean>) => void;
+
+  /** Optional row actions rendered next to JSON key/value rows. */
+  renderRowActions?: (context: JsonRowActionRenderContext) => React.ReactNode;
 }
 
 /**
@@ -113,6 +117,7 @@ export const MultiSectionJsonViewer = forwardRef<
     commentedPathsByField,
     externalExpansionState,
     onExpansionChange,
+    renderRowActions,
   },
   ref,
 ) {
@@ -209,6 +214,7 @@ export const MultiSectionJsonViewer = forwardRef<
       scrollContainerRef,
       media,
       commentedPathsByField,
+      renderRowActions,
     }),
     [
       tree,
@@ -227,6 +233,7 @@ export const MultiSectionJsonViewer = forwardRef<
       scrollContainerRef,
       media,
       commentedPathsByField,
+      renderRowActions,
     ],
   );
 

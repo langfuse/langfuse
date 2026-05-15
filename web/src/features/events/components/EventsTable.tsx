@@ -96,6 +96,10 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import {
+  buildNewTracesTablePathWithMetadataFilter,
+  type TraceMetadataFilterRequest,
+} from "@/src/components/trace/lib/trace-metadata-filter";
 
 export type EventsTableRow = {
   // Identity fields
@@ -193,6 +197,8 @@ export default function ObservationsEventsTable({
   const peekContext = usePeekTableState();
   const router = useRouter();
   const { viewId } = router.query;
+  const isNewTracesTableRoute =
+    router.pathname === "/project/[projectId]/traces";
   const eventsFilterConfig = useMemo(
     () => getObservationEventsFilterConfig(omittedFilter),
     [omittedFilter],
@@ -1238,6 +1244,22 @@ export default function ObservationsEventsTable({
     allowBackendSystemPresets: true,
   });
 
+  const handleTraceMetadataFilter = useCallback(
+    (request: TraceMetadataFilterRequest) => {
+      void router.push(
+        buildNewTracesTablePathWithMetadataFilter({
+          currentPath: router.asPath,
+          projectId,
+          filters: queryFilterRef.current.explicitFilterState,
+          request,
+        }),
+        undefined,
+        { shallow: true },
+      );
+    },
+    [projectId, router],
+  );
+
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
     if (hideControls) return undefined;
     return {
@@ -1551,6 +1573,9 @@ export default function ObservationsEventsTable({
           <TablePeekViewObservationDetail
             {...peekConfig}
             projectId={projectId}
+            onTraceMetadataFilter={
+              isNewTracesTableRoute ? handleTraceMetadataFilter : undefined
+            }
           />
         )}
       </div>

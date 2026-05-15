@@ -29,6 +29,7 @@ export function TracePanelDetail() {
     observations,
     serverScores: scores,
     corrections,
+    onTraceMetadataFilter,
   } = useTraceData();
 
   // Memoize to prevent recreation when deps haven't changed
@@ -58,6 +59,7 @@ export function TracePanelDetail() {
           observation={observationData}
           projectId={trace.projectId}
           traceId={trace.id}
+          onTraceMetadataFilter={onTraceMetadataFilter}
         />
       );
     }
@@ -69,9 +71,18 @@ export function TracePanelDetail() {
         scores={scores}
         corrections={corrections}
         projectId={trace.projectId}
+        onTraceMetadataFilter={onTraceMetadataFilter}
       />
     );
-  }, [selectedNodeId, nodeMap, trace, observations, scores, corrections]);
+  }, [
+    selectedNodeId,
+    nodeMap,
+    trace,
+    observations,
+    scores,
+    corrections,
+    onTraceMetadataFilter,
+  ]);
 
   return (
     <div className="bg-background h-full w-full overflow-y-auto">{content}</div>

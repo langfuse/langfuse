@@ -48,6 +48,7 @@ import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/components/trace/config/trace-view-config";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+import { type TraceMetadataFilterHandler } from "@/src/components/trace/lib/trace-metadata-filter";
 
 export interface TraceDetailViewProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -59,6 +60,7 @@ export interface TraceDetailViewProps {
   corrections: ScoreDomain[];
   scores: WithStringifiedMetadata<ScoreDomain>[];
   projectId: string;
+  onTraceMetadataFilter?: TraceMetadataFilterHandler;
 }
 
 export function TraceDetailView({
@@ -67,6 +69,7 @@ export function TraceDetailView({
   scores,
   corrections,
   projectId,
+  onTraceMetadataFilter,
 }: TraceDetailViewProps) {
   // Tab and view state from URL (via SelectionContext)
   const { selectedTab, setSelectedTab } = useSelection();
@@ -425,6 +428,7 @@ export function TraceDetailView({
               projectId={projectId}
               traceId={trace.id}
               environment={trace.environment}
+              onTraceMetadataFilter={onTraceMetadataFilter}
             />
           </div>
         </TabsBarContent>

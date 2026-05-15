@@ -64,17 +64,20 @@ import {
   getDescendantIds,
 } from "@/src/components/trace/lib/trace-aggregation";
 import TagList from "@/src/features/tag/components/TagList";
+import { type TraceMetadataFilterHandler } from "@/src/components/trace/lib/trace-metadata-filter";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
   projectId: string;
   traceId: string;
+  onTraceMetadataFilter?: TraceMetadataFilterHandler;
 }
 
 export function ObservationDetailView({
   observation,
   projectId,
   traceId,
+  onTraceMetadataFilter,
 }: ObservationDetailViewProps) {
   // Tab and view state from URL (via SelectionContext)
   const {
@@ -513,6 +516,7 @@ export function ObservationDetailView({
               projectId={projectId}
               traceId={traceId}
               environment={observation.environment}
+              onTraceMetadataFilter={onTraceMetadataFilter}
             />
             {currentView !== "json-beta" && (
               <div className="h-4 w-full shrink-0" />

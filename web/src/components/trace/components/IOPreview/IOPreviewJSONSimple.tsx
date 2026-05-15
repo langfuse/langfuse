@@ -3,6 +3,14 @@ import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
+import {
+  getTraceMetadataFilterKeyFromRowId,
+  type TraceMetadataFilterHandler,
+} from "@/src/components/trace/lib/trace-metadata-filter";
+import {
+  shouldShowTraceMetadataFilterMenu,
+  TraceMetadataFilterMenu,
+} from "./components/TraceMetadataFilterMenu";
 
 export interface IOPreviewJSONSimpleProps {
   input?: Prisma.JsonValue;
@@ -31,6 +39,7 @@ export interface IOPreviewJSONSimpleProps {
   onOutputExpandedChange?: (expanded: boolean) => void;
   onMetadataExpandedChange?: (expanded: boolean) => void;
   showCorrections?: boolean;
+  onTraceMetadataFilter?: TraceMetadataFilterHandler;
 }
 
 /**
@@ -73,6 +82,7 @@ export function IOPreviewJSONSimple({
   traceId,
   environment = "default",
   showCorrections = true,
+  onTraceMetadataFilter,
 }: IOPreviewJSONSimpleProps) {
   // Parse data if not pre-parsed
   // IMPORTANT: Don't parse while isParsing=true to avoid double-parsing with different object references
@@ -157,6 +167,23 @@ export function IOPreviewJSONSimple({
               expansion: boolean | Record<string, boolean>,
             ) => void
           }
+          renderTableRowActions={(row) => {
+            const metadataKey = getTraceMetadataFilterKeyFromRowId(row.id);
+
+            return metadataKey &&
+              row.type !== "object" &&
+              shouldShowTraceMetadataFilterMenu({
+                metadataKey,
+                metadataValue: row.value,
+                onTraceMetadataFilter,
+              }) ? (
+              <TraceMetadataFilterMenu
+                metadataKey={metadataKey}
+                metadataValue={row.value}
+                onTraceMetadataFilter={onTraceMetadataFilter}
+              />
+            ) : null;
+          }}
         />
       )}
     </div>

@@ -500,6 +500,7 @@ const JsonTableRowComponent = memo(
         data-observation-id={row.id}
         {...rowClickProps}
         className={cn(
+          "group/json-table-row",
           isExpandable ? "cursor-pointer" : "",
           row.original.level === 0 && stickyTopLevelKey
             ? "bg-background sticky z-10 shadow-xs"
@@ -541,6 +542,7 @@ function JsonPrettyTable({
   toggleCellExpansion,
   stickyTopLevelKey = false,
   showObservationTypeBadge = false,
+  renderRowActions,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.RefObject<(() => void) | null>;
@@ -557,6 +559,7 @@ function JsonPrettyTable({
   toggleCellExpansion: (cellId: string) => void;
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
+  renderRowActions?: (row: JsonTableRow) => React.ReactNode;
 }) {
   const headerRef = useRef<HTMLTableRowElement>(null);
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
@@ -607,7 +610,6 @@ function JsonPrettyTable({
           (row.original.value as any).type
             ? ((row.original.value as any).type as LangfuseItemType)
             : null;
-
         const content = (
           <div className="flex items-start wrap-break-word">
             <div
@@ -682,6 +684,7 @@ function JsonPrettyTable({
           row={row}
           expandedCells={expandedCells}
           toggleCellExpansion={toggleCellExpansion}
+          rowActions={renderRowActions?.(row.original)}
         />
       ),
     },
@@ -875,6 +878,8 @@ export function PrettyJsonView(props: {
   showObservationTypeBadge?: boolean;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
+  /** Optional row actions for the formatted table view. */
+  renderTableRowActions?: (row: JsonTableRow) => React.ReactNode;
 }) {
   // Use pre-parsed data if available, otherwise parse on-demand
   const parsedJson = useMemo(() => {
@@ -1405,6 +1410,7 @@ export function PrettyJsonView(props: {
                   toggleCellExpansion={toggleCellExpansion}
                   stickyTopLevelKey={props.stickyTopLevelKey}
                   showObservationTypeBadge={props.showObservationTypeBadge}
+                  renderRowActions={props.renderTableRowActions}
                 />
               )}
             </div>

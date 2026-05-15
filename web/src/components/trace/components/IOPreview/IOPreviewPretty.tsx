@@ -8,6 +8,14 @@ import { ChatMessageList } from "./components/ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import { type ExpansionStateProps } from "./IOPreview";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
+import {
+  shouldShowTraceMetadataFilterMenu,
+  TraceMetadataFilterMenu,
+} from "./components/TraceMetadataFilterMenu";
+import {
+  getTraceMetadataFilterKeyFromRowId,
+  type TraceMetadataFilterHandler,
+} from "@/src/components/trace/lib/trace-metadata-filter";
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;
@@ -98,6 +106,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   traceId: string;
   environment?: string;
   showCorrections?: boolean;
+  onTraceMetadataFilter?: TraceMetadataFilterHandler;
 }
 
 /**
@@ -139,6 +148,7 @@ export function IOPreviewPretty({
   traceId,
   environment = "default",
   showCorrections = true,
+  onTraceMetadataFilter,
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
@@ -299,6 +309,23 @@ export function IOPreviewPretty({
             currentView="pretty"
             externalExpansionState={metadataExpansionState}
             onExternalExpansionChange={onMetadataExpansionChange}
+            renderTableRowActions={(row) => {
+              const metadataKey = getTraceMetadataFilterKeyFromRowId(row.id);
+
+              return metadataKey &&
+                row.type !== "object" &&
+                shouldShowTraceMetadataFilterMenu({
+                  metadataKey,
+                  metadataValue: row.value,
+                  onTraceMetadataFilter,
+                }) ? (
+                <TraceMetadataFilterMenu
+                  metadataKey={metadataKey}
+                  metadataValue={row.value}
+                  onTraceMetadataFilter={onTraceMetadataFilter}
+                />
+              ) : null;
+            }}
           />
         </div>
       )}

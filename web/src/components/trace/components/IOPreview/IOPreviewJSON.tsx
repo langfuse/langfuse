@@ -26,6 +26,14 @@ import { type CommentedPathsByField } from "@/src/components/ui/AdvancedJsonView
 import { type ExpansionState } from "@/src/components/ui/AdvancedJsonViewer/types";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
+import {
+  shouldShowTraceMetadataFilterMenu,
+  TraceMetadataFilterMenu,
+} from "./components/TraceMetadataFilterMenu";
+import {
+  getTraceMetadataFilterKeyFromPath,
+  type TraceMetadataFilterHandler,
+} from "@/src/components/trace/lib/trace-metadata-filter";
 
 const VIRTUALIZATION_THRESHOLD = 3333;
 
@@ -60,6 +68,7 @@ export interface IOPreviewJSONProps {
   expansionState?: ExpansionState;
   onExpansionChange?: (expansion: Record<string, boolean>) => void;
   showCorrections?: boolean;
+  onTraceMetadataFilter?: TraceMetadataFilterHandler;
 }
 
 /**
@@ -98,6 +107,7 @@ function IOPreviewJSONInner({
   expansionState,
   onExpansionChange,
   showCorrections = true,
+  onTraceMetadataFilter,
 }: IOPreviewJSONProps) {
   const selectionContext = useInlineCommentSelectionOptional();
 
@@ -346,6 +356,26 @@ function IOPreviewJSONInner({
       commentedPathsByField={commentedPathsByField}
       externalExpansionState={expansionState}
       onExpansionChange={onExpansionChange}
+      renderRowActions={({ row, sectionKey }) => {
+        const metadataKey =
+          sectionKey === "metadata"
+            ? getTraceMetadataFilterKeyFromPath(row.pathArray)
+            : null;
+
+        return metadataKey &&
+          row.type !== "object" &&
+          shouldShowTraceMetadataFilterMenu({
+            metadataKey,
+            metadataValue: row.value,
+            onTraceMetadataFilter,
+          }) ? (
+          <TraceMetadataFilterMenu
+            metadataKey={metadataKey}
+            metadataValue={row.value}
+            onTraceMetadataFilter={onTraceMetadataFilter}
+          />
+        ) : null;
+      }}
       theme={{
         fontSize: "0.7rem",
         lineHeight: 14,
