@@ -18,6 +18,7 @@ import {
   DEFAULT_RENDERING_PROPS,
   applyInputOutputRendering,
 } from "../utils/rendering";
+import { parseJsonPrioritised } from "../../utils/json";
 import { logger } from "../logger";
 import { prisma } from "../../db";
 import type { Model, Price } from "@prisma/client";
@@ -244,9 +245,12 @@ export function convertObservationPartial(
       internalModelId: record.internal_model_id ?? null,
     }),
     ...(record.model_parameters !== undefined && {
+      // ClickHouse stores model_parameters as a free-form string; SDKs can
+      // write non-JSON sentinels here, so fall back to the raw value instead
+      // of throwing for the whole row.
       modelParameters: record.model_parameters
         ? ((typeof record.model_parameters === "string"
-            ? JSON.parse(record.model_parameters)
+            ? parseJsonPrioritised(record.model_parameters)
             : record.model_parameters) ?? null)
         : null,
     }),
