@@ -11,7 +11,7 @@ vi.mock("@langfuse/shared/src/db", () => ({ prisma: {} }));
 import {
   type EventsObservationRecordReadType,
   convertEventsObservation,
-} from "@langfuse/shared/src/server/repositories/observations_converters";
+} from "@langfuse/shared/src/server";
 
 const TRACE_CONTEXT_FIELDS = [
   "userId",
