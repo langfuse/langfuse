@@ -107,14 +107,14 @@ jobs:
           package-manager-cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.3.0 # zizmor: ignore[cache-poisoning] lint job dependency cache only; no released artifacts are built or published from this cached state
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] lint job dependency cache only; no released artifacts are built or published from this cached state
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Setup Turbo cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.4 # zizmor: ignore[cache-poisoning] lint cache only; publish jobs rebuild artifacts and do not restore this cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] lint cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-lint-${{ github.sha }}
@@ -153,7 +153,7 @@ jobs:
           package-manager-cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.3.0 # zizmor: ignore[cache-poisoning] prettier check dependency cache only; no released artifacts are built or published from this cached state
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] prettier check dependency cache only; no released artifacts are built or published from this cached state
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
@@ -204,7 +204,7 @@ jobs:
           package-manager-cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.3.0 # zizmor: ignore[cache-poisoning] eslint-plugin test dependency cache only; no published artifacts are built from this cached state
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] eslint-plugin test dependency cache only; no published artifacts are built from this cached state
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
@@ -322,7 +322,7 @@ jobs:
           package-manager-cache: false
       - name: Use Node.js ${{ matrix.node-version }} with pnpm cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.3.0 # zizmor: ignore[cache-poisoning] test job dependency cache only; no released artifacts are built or published from this cached state
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] test job dependency cache only; no released artifacts are built or published from this cached state
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
@@ -344,7 +344,7 @@ jobs:
           echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true" >> .env
       - name: Setup Turbo cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.4 # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-${{ github.sha }}
@@ -352,7 +352,7 @@ jobs:
             ${{ runner.os }}-turbo-
       - name: Cache Next.js builds
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.4 # zizmor: ignore[cache-poisoning] test-only Next.js cache; not consumed by artifact publishing or release jobs
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] test-only Next.js cache; not consumed by artifact publishing or release jobs
         with:
           path: |
             ~/.npm
@@ -446,7 +446,7 @@ jobs:
           package-manager-cache: false
       - name: Use Node.js ${{ matrix.node-version }} with pnpm cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.3.0 # zizmor: ignore[cache-poisoning] worker test dependency cache only; no release artifacts are produced from this cache
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] worker test dependency cache only; no release artifacts are produced from this cache
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
@@ -600,7 +600,7 @@ jobs:
           package-manager-cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.3.0 # zizmor: ignore[cache-poisoning] e2e dependency cache only; release images are rebuilt later without restoring this cache
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] e2e dependency cache only; release images are rebuilt later without restoring this cache
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
@@ -613,7 +613,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Setup Turbo cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.4 # zizmor: ignore[cache-poisoning] e2e cache only; no published artifact path restores this cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] e2e cache only; no published artifact path restores this cache
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-e2e-${{ github.sha }}
@@ -622,7 +622,7 @@ jobs:
             ${{ runner.os }}-turbo-
       - name: Cache Next.js builds
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.4 # zizmor: ignore[cache-poisoning] e2e-only Next.js cache; not part of any artifact build or publishing flow
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] e2e-only Next.js cache; not part of any artifact build or publishing flow
         with:
           path: |
             ~/.npm
@@ -701,7 +701,7 @@ jobs:
           package-manager-cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.3.0 # zizmor: ignore[cache-poisoning] server e2e dependency cache only; release/publish steps rebuild separately
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] server e2e dependency cache only; release/publish steps rebuild separately
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
