@@ -3,8 +3,8 @@ import {
   BlobStorageExportMode,
   BlobStorageIntegrationType,
   InvalidRequestError,
+  AnalyticsIntegrationExportSource,
   type BlobStorageIntegrationFileType,
-  type AnalyticsIntegrationExportSource,
   type ObservationFieldGroupFull,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -52,6 +52,11 @@ export async function upsertBlobStorageIntegration(params: {
   prisma: PrismaClient;
   projectId: string;
   data: UpsertBlobStorageIntegrationInput;
+  // When true and no existing row is found inside the transaction, the CREATE
+  // branch uses EVENTS instead of the Prisma column default (TRACES_OBSERVATIONS).
+  // Evaluated inside the transaction so the row-state check and the INSERT are
+  // atomic — no TOCTOU window.
+  forceEventsOnCreate?: boolean;
 }) {
   const { prisma, projectId, data } = params;
 
@@ -110,10 +115,26 @@ export async function upsertBlobStorageIntegration(params: {
       ? encrypt(data.secretAccessKey)
       : null;
 
+    // exportSource for the CREATE payload. The !existing guard was previously
+    // here, but it created a residual TOCTOU: READ COMMITTED isolation means
+    // tx.findUnique and tx.upsert take independent snapshots, so a concurrent
+    // DELETE between the two could leave createExportSource = undefined and let
+    // Postgres apply the @default(TRACES_OBSERVATIONS) column default on INSERT.
+    // Dropping the guard is safe: ON CONFLICT atomically decides CREATE vs UPDATE
+    // at INSERT time regardless of what findUnique saw. UPDATE uses
+    // writeData.exportSource (undefined → Prisma omits the column → preserves
+    // the existing value), so the caller intent is always honored on both paths.
+    const createExportSource =
+      data.exportSource ??
+      (params.forceEventsOnCreate
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : undefined);
+
     return tx.blobStorageIntegration.upsert({
       where: { projectId },
       create: {
         ...writeData,
+        exportSource: createExportSource,
         projectId,
         secretAccessKey: encryptedSecret,
       },
