@@ -2,6 +2,12 @@
 // This is a client-safe file that can be imported from @langfuse/shared
 
 import { AnalyticsIntegrationExportSource } from "@prisma/client";
+import {
+  OBSERVATION_FIELD_GROUPS_FULL,
+  type ObservationFieldGroupFull,
+} from "../../domain/observation-field-groups";
+
+export * from "./blob-export-gate";
 
 export const EXPORT_SOURCE_OPTIONS: Array<{
   value: AnalyticsIntegrationExportSource;
@@ -31,24 +37,8 @@ export const EXPORT_SOURCE_OPTIONS: Array<{
 export type ExportSourceOption = (typeof EXPORT_SOURCE_OPTIONS)[number];
 export type ExportSourceValue = ExportSourceOption["value"];
 
-export const BLOB_EXPORT_FIELD_GROUPS = [
-  "core",
-  "basic",
-  "time",
-  "io",
-  "metadata",
-  "model",
-  "usage",
-  "prompt",
-  "metrics",
-  "tools",
-  "trace_context",
-] as const;
-
-export type BlobExportFieldGroup = (typeof BLOB_EXPORT_FIELD_GROUPS)[number];
-
-// Keyed by BlobExportFieldGroup so TypeScript errors if a group is added to
-// BLOB_EXPORT_FIELD_GROUPS without a corresponding label/description here.
+// Keyed by ObservationFieldGroupFull so TypeScript errors if a group is added
+// to OBSERVATION_FIELD_GROUPS_FULL without a corresponding label/description here.
 const EXPORT_FIELD_GROUP_LABELS = {
   core: {
     label: "Core",
@@ -79,7 +69,7 @@ const EXPORT_FIELD_GROUP_LABELS = {
   usage: {
     label: "Usage",
     description:
-      "usage_details, cost_details, total_cost, input_price, output_price, total_price",
+      "usage_details, cost_details, total_cost, input_price, output_price, total_price, usage_pricing_tier_name",
   },
   prompt: {
     label: "Prompt",
@@ -95,13 +85,13 @@ const EXPORT_FIELD_GROUP_LABELS = {
   },
   trace_context: {
     label: "Trace Context",
-    description: "tags, release, trace_name, usage_pricing_tier_name",
+    description: "tags, release, trace_name",
   },
 } satisfies Record<
-  BlobExportFieldGroup,
+  ObservationFieldGroupFull,
   { label: string; description: string }
 >;
 
-export const EXPORT_FIELD_GROUP_OPTIONS = BLOB_EXPORT_FIELD_GROUPS.map(
+export const EXPORT_FIELD_GROUP_OPTIONS = OBSERVATION_FIELD_GROUPS_FULL.map(
   (value) => ({ value, ...EXPORT_FIELD_GROUP_LABELS[value] }),
 );

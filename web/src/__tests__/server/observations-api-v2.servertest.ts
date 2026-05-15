@@ -534,10 +534,15 @@ describe("/api/public/v2/observations API Endpoint", () => {
       "usageDetails",
       "costDetails",
       "totalCost",
+      "usagePricingTierName",
       // prompt
       "promptId",
       "promptName",
       "promptVersion",
+      // trace_context
+      "traceName",
+      "tags",
+      "release",
     ] as const;
 
     let sharedObsId: string;
@@ -572,6 +577,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         model_parameters: '{"temperature":0.5}',
         usage_details: { input: 10, output: 20, total: 30 },
         cost_details: { input: 0.01, output: 0.02, total: 0.03 },
+        usage_pricing_tier_name: "contract-tier",
         prompt_id: randomUUID(),
         prompt_name: "contract-prompt",
         prompt_version: 2,
@@ -579,6 +585,9 @@ describe("/api/public/v2/observations API Endpoint", () => {
         output: "contract output",
         metadata_names: ["key"],
         metadata_values: ["val"],
+        trace_name: "contract-trace",
+        tags: ["tag-a", "tag-b"],
+        release: "1.2.3",
       });
 
       await createEventsCh([obs]);
@@ -603,6 +612,10 @@ describe("/api/public/v2/observations API Endpoint", () => {
       promptVersion: 2,
       input: "contract input",
       output: "contract output",
+      traceName: "contract-trace",
+      tags: ["tag-a", "tag-b"],
+      release: "1.2.3",
+      usagePricingTierName: "contract-tier",
     };
 
     const fieldsForGroup: Record<string, readonly string[]> = {
@@ -622,12 +635,18 @@ describe("/api/public/v2/observations API Endpoint", () => {
       metadata: ["metadata"],
       // "model" is the API response key for provided_model_name (see domain type)
       model: ["model", "internalModelId", "modelParameters"],
-      usage: ["usageDetails", "costDetails", "totalCost"],
+      usage: [
+        "usageDetails",
+        "costDetails",
+        "totalCost",
+        "usagePricingTierName",
+      ],
       prompt: ["promptId", "promptName", "promptVersion"],
       // latency and timeToFirstToken are always returned (computed from core start_time, completion_start_time,
       // end_time), but the metrics group is still defined for documentation and to verify these fields are indeed
       // present
       metrics: ["latency", "timeToFirstToken"],
+      trace_context: ["traceName", "tags", "release"],
     };
 
     for (const [group, expectedFields] of Object.entries(fieldsForGroup)) {
@@ -662,15 +681,14 @@ describe("/api/public/v2/observations API Endpoint", () => {
           }
         }
 
-        // Fields from other groups absent (null or undefined — API may serialize
-        // absent fields as null rather than omitting them from the JSON)
+        // Fields from other groups must be absent from the response
         const absentFields = ALL_NON_CORE_FIELDS.filter(
           (f) => !(expectedFields as readonly string[]).includes(f),
         );
         for (const field of absentFields) {
           expect(
-            obs[field] ?? undefined,
-            `expected field "${field}" to be null/undefined when only group "${group}" is requested`,
+            obs[field],
+            `expected field "${field}" to be absent when only group "${group}" is requested`,
           ).toBeUndefined();
         }
       });
