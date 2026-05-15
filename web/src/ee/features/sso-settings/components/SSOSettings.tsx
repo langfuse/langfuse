@@ -308,7 +308,7 @@ function SsoConfigDialog({
         baseUrl: enterprise?.baseUrl ?? "",
         name: typeof cfg.name === "string" ? cfg.name : "",
         scope: typeof cfg.scope === "string" ? cfg.scope : "",
-        idToken: typeof cfg.idToken === "boolean" ? cfg.idToken : false,
+        idToken: typeof cfg.idToken === "boolean" ? cfg.idToken : true,
       },
     };
   }, [existing]);
