@@ -402,7 +402,7 @@ describe("ssoConfigRouter.save", () => {
     expect(cfg.idTokenSignedResponseAlg).toBe("RS256");
   });
 
-  it("persists Custom OIDC scope and idToken values", async () => {
+  it("persists custom idToken values", async () => {
     const { org, caller } = await prepare();
     const falseDomain = `custom-false-${uuidv4().slice(0, 8)}.com`;
     const trueDomain = `custom-true-${uuidv4().slice(0, 8)}.com`;
