@@ -47,10 +47,7 @@ import {
   traceException,
   flattenJsonToPathArrays,
   getDatasetItemById,
-  extractToolsFromObservation,
-  moveToolDefinitionsFromMetadataToInput,
-  convertDefinitionsToMap,
-  convertCallsToArrays,
+  normalizeToolsForObservation,
   hasNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 
@@ -219,6 +216,12 @@ export class IngestionService {
       `Creating event record for project ${eventData.projectId} and span ${eventData.spanId}`,
     );
 
+    // processToEvent can keep normalized input/output as objects so tool data
+    // can be extracted before write time. EventRecordInsertType stores both
+    // fields as strings, so stringify at this schema boundary.
+    const input = this.stringify(eventData.input);
+    const output = this.stringify(eventData.output);
+
     // Perform lookups for prompt and model/usage enrichment
     const [prompt, generationUsage] = await Promise.all([
       // Lookup prompt by name and version
@@ -244,8 +247,8 @@ export class IngestionService {
               provided_model_name: eventData.modelName,
               provided_usage_details: eventData.providedUsageDetails ?? {},
               provided_cost_details: eventData.providedCostDetails ?? {},
-              input: eventData.input,
-              output: eventData.output,
+              input,
+              output,
             },
           })
         : null,
@@ -330,8 +333,8 @@ export class IngestionService {
       tool_call_names: eventData.toolCallNames ?? [],
 
       // I/O
-      input: eventData.input,
-      output: eventData.output,
+      input,
+      output,
 
       // Metadata
       metadata_names: metadataNames,
@@ -808,14 +811,15 @@ export class IngestionService {
     const rawOutput =
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
       clickhouseObservationRecord?.output;
-    const normalizedToolInput = moveToolDefinitionsFromMetadataToInput(
+    const normalizedTools = normalizeToolsForObservation(
       rawInput,
+      rawOutput,
       mergedObservationRecord.metadata,
     );
 
-    mergedObservationRecord.input = this.stringify(normalizedToolInput.input);
-    mergedObservationRecord.output = this.stringify(rawOutput);
-    const normalizedMetadata = normalizedToolInput.metadata ?? {};
+    mergedObservationRecord.input = this.stringify(normalizedTools.input);
+    mergedObservationRecord.output = this.stringify(normalizedTools.output);
+    const normalizedMetadata = normalizedTools.metadata ?? {};
     mergedObservationRecord.metadata =
       normalizedMetadata &&
       typeof normalizedMetadata === "object" &&
@@ -825,31 +829,14 @@ export class IngestionService {
           )
         : convertJsonSchemaToRecord(normalizedMetadata as JsonNested);
 
-    // Extract tool definitions and calls from raw input/output.
-    // TODO: Avoid reparsing normalized JSON-string inputs here after metadata
-    // tool definitions were already merged in moveToolDefinitionsFromMetadataToInput.
-    // Carry the parsed merged input separately for extraction while storing the
-    // stringified form in ClickHouse.
-    try {
-      const { toolDefinitions, toolArguments } = extractToolsFromObservation(
-        normalizedToolInput.input,
-        rawOutput,
-      );
+    if (Object.keys(normalizedTools.toolDefinitions).length > 0) {
+      mergedObservationRecord.tool_definitions =
+        normalizedTools.toolDefinitions;
+    }
 
-      if (toolDefinitions.length > 0) {
-        mergedObservationRecord.tool_definitions =
-          convertDefinitionsToMap(toolDefinitions);
-      }
-
-      if (toolArguments.length > 0) {
-        const { tool_calls, tool_call_names } =
-          convertCallsToArrays(toolArguments);
-        mergedObservationRecord.tool_calls = tool_calls;
-        mergedObservationRecord.tool_call_names = tool_call_names;
-      }
-    } catch (error) {
-      logger.error("Tool extraction failed", { error, projectId, entityId });
-      // Don't fail ingestion - just skip tool data
+    if (normalizedTools.toolCalls.length > 0) {
+      mergedObservationRecord.tool_calls = normalizedTools.toolCalls;
+      mergedObservationRecord.tool_call_names = normalizedTools.toolCallNames;
     }
 
     const generationUsage = await this.getGenerationUsage({

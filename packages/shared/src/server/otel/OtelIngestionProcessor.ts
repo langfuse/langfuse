@@ -18,9 +18,7 @@ import {
   instrumentSync,
   recordDistribution,
   UsageDetails,
-  extractToolsFromObservation,
-  convertDefinitionsToMap,
-  convertCallsToArrays,
+  normalizeToolsForObservation,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -301,6 +299,11 @@ export class OtelIngestionProcessor {
                   ...spanMetadata,
                   ...traceMetadata,
                 };
+                const normalizedTools = normalizeToolsForObservation(
+                  input,
+                  output,
+                  metadata,
+                );
 
                 // Extract instrumentation metadata
                 const serviceName = resourceAttributes?.["service.name"] as
@@ -361,23 +364,18 @@ export class OtelIngestionProcessor {
                   );
                 }
 
-                let toolDefinitions = undefined;
-                let toolCalls = undefined;
-                let toolCallNames = undefined;
-
-                const { toolDefinitions: rawToolDefinitions, toolArguments } =
-                  extractToolsFromObservation(input, output);
-
-                if (rawToolDefinitions.length > 0) {
-                  toolDefinitions = convertDefinitionsToMap(rawToolDefinitions);
-                }
-
-                if (toolArguments.length > 0) {
-                  const { tool_calls, tool_call_names } =
-                    convertCallsToArrays(toolArguments);
-                  toolCalls = tool_calls;
-                  toolCallNames = tool_call_names;
-                }
+                const toolDefinitions =
+                  Object.keys(normalizedTools.toolDefinitions).length > 0
+                    ? normalizedTools.toolDefinitions
+                    : undefined;
+                const toolCalls =
+                  normalizedTools.toolCalls.length > 0
+                    ? normalizedTools.toolCalls
+                    : undefined;
+                const toolCallNames =
+                  normalizedTools.toolCallNames.length > 0
+                    ? normalizedTools.toolCallNames
+                    : undefined;
 
                 events.push({
                   projectId: this.projectId,
@@ -471,11 +469,11 @@ export class OtelIngestionProcessor {
                     resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
                     null,
 
-                  input,
-                  output,
+                  input: normalizedTools.input,
+                  output: normalizedTools.output,
 
                   // Metadata
-                  metadata,
+                  metadata: normalizedTools.metadata,
 
                   // Instrumentation metadata
                   source: "otel",
@@ -978,6 +976,19 @@ export class OtelIngestionProcessor {
       source: "ingestion" as const,
     };
 
+    const metadata = {
+      ...resourceAttributeMetadata,
+      ...spanAttributeMetadata,
+      ...(isLangfuseSDKSpans ? {} : { attributes: filteredAttributes }),
+      resourceAttributes,
+      scope: { ...scopeSpan.scope, attributes: scopeAttributes },
+    };
+    const normalizedTools = normalizeToolsForObservation(
+      input,
+      output,
+      metadata,
+    );
+
     const observation = {
       id: this.parseId(span.spanId?.data ?? span.spanId),
       traceId,
@@ -990,13 +1001,7 @@ export class OtelIngestionProcessor {
         attributes,
         startTimeISO,
       ),
-      metadata: {
-        ...resourceAttributeMetadata,
-        ...spanAttributeMetadata,
-        ...(isLangfuseSDKSpans ? {} : { attributes: filteredAttributes }),
-        resourceAttributes,
-        scope: { ...scopeSpan.scope, attributes: scopeAttributes },
-      },
+      metadata: normalizedTools.metadata,
       level:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
         (span.status?.code === 2
@@ -1034,8 +1039,8 @@ export class OtelIngestionProcessor {
         observationContext,
       ),
       costDetails: this.extractCostDetails(attributes, observationContext),
-      input,
-      output,
+      input: normalizedTools.input,
+      output: normalizedTools.output,
     };
 
     const mappedObservationType = observationTypeMapper.mapToObservationType(

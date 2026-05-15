@@ -544,12 +544,25 @@ function collectAndRemoveToolDefinitionsFromMetadata(
 function appendToolsToInput(
   input: unknown,
   tools: unknown[],
-): { input: IngestionJsonValue; mapped: boolean } {
+): {
+  input: IngestionJsonValue;
+  mapped: boolean;
+  inputForExtraction?: unknown;
+} {
   const mergeTools = (
     value: unknown,
-  ): { input: IngestionJsonValue; mapped: boolean } => {
+  ): {
+    input: IngestionJsonValue;
+    mapped: boolean;
+    inputForExtraction?: unknown;
+  } => {
     if (Array.isArray(value)) {
-      return { input: { messages: value, tools }, mapped: true };
+      const mergedInput = { messages: value, tools };
+      return {
+        input: mergedInput,
+        mapped: true,
+        inputForExtraction: mergedInput,
+      };
     }
 
     if (isPlainRecord(value)) {
@@ -560,27 +573,41 @@ function appendToolsToInput(
           return { input: toIngestionJsonValue(input), mapped: false };
         }
 
+        const mergedInput = {
+          ...value,
+          tools: dedupeToolDefinitions(existingTools.concat(tools)),
+        };
         return {
-          input: {
-            ...value,
-            tools: dedupeToolDefinitions(existingTools.concat(tools)),
-          },
+          input: mergedInput,
           mapped: true,
+          inputForExtraction: mergedInput,
         };
       }
 
+      const mergedInput = { ...value, tools };
       return {
-        input: { ...value, tools },
+        input: mergedInput,
         mapped: true,
+        inputForExtraction: mergedInput,
       };
     }
 
     if (value == null) {
-      return { input: { tools }, mapped: true };
+      const mergedInput = { tools };
+      return {
+        input: mergedInput,
+        mapped: true,
+        inputForExtraction: mergedInput,
+      };
     }
 
     if (typeof value === "string") {
-      return { input: { prompt: value, tools }, mapped: true };
+      const mergedInput = { prompt: value, tools };
+      return {
+        input: mergedInput,
+        mapped: true,
+        inputForExtraction: mergedInput,
+      };
     }
 
     return { input: toIngestionJsonValue(input), mapped: false };
@@ -592,19 +619,29 @@ function appendToolsToInput(
       return {
         input: merged.mapped ? JSON.stringify(merged.input) : input,
         mapped: merged.mapped,
+        inputForExtraction: merged.inputForExtraction,
       };
     } catch {
-      return { input: { prompt: input, tools }, mapped: true };
+      const mergedInput = { prompt: input, tools };
+      return {
+        input: mergedInput,
+        mapped: true,
+        inputForExtraction: mergedInput,
+      };
     }
   }
 
   return mergeTools(input);
 }
 
-export function moveToolDefinitionsFromMetadataToInput(
+function normalizeMetadataToolsIntoInput(
   input: unknown,
   metadata: unknown,
-): { input: IngestionJsonValue; metadata: IngestionJsonValue } {
+): {
+  input: IngestionJsonValue;
+  metadata: IngestionJsonValue;
+  inputForExtraction?: unknown;
+} {
   const parsedMetadata = parseIfString(metadata);
   if (!isPlainRecord(parsedMetadata)) {
     return {
@@ -634,6 +671,7 @@ export function moveToolDefinitionsFromMetadataToInput(
   return {
     input: mappedInput.input,
     metadata: normalizedMetadata.metadata,
+    inputForExtraction: mappedInput.inputForExtraction,
   };
 }
 
@@ -653,28 +691,82 @@ export function extractToolsFromObservation(
   toolArguments: ClickhouseToolArgument[];
 } {
   try {
-    const toolDefinitions: ClickhouseToolDefinition[] = [];
-    const toolArguments: ClickhouseToolArgument[] = [];
-
-    const parsedInput = parseIfString(input);
-    const parsedOutput = parseIfString(output);
-
-    extractToolsFromRawInput(parsedInput, toolDefinitions);
-    extractToolCallsFromRawOutput(parsedOutput, toolArguments);
-
-    // Deduplicate tool arguments by id
-    const seenIds = new Set<string>();
-    const uniqueArgs = toolArguments.filter((arg) => {
-      const key = arg.id || `${arg.name}-${arg.arguments}`;
-      if (seenIds.has(key)) return false;
-      seenIds.add(key);
-      return true;
-    });
-
-    return { toolDefinitions, toolArguments: uniqueArgs };
+    return extractToolsFromParsedObservation(
+      parseIfString(input),
+      parseIfString(output),
+    );
   } catch (error) {
     console.error("Tool extraction error:", error);
     return { toolDefinitions: [], toolArguments: [] };
+  }
+}
+
+function extractToolsFromParsedObservation(
+  parsedInput: unknown,
+  parsedOutput: unknown,
+): {
+  toolDefinitions: ClickhouseToolDefinition[];
+  toolArguments: ClickhouseToolArgument[];
+} {
+  const toolDefinitions: ClickhouseToolDefinition[] = [];
+  const toolArguments: ClickhouseToolArgument[] = [];
+
+  extractToolsFromRawInput(parsedInput, toolDefinitions);
+  extractToolCallsFromRawOutput(parsedOutput, toolArguments);
+
+  // Deduplicate tool arguments by id
+  const seenIds = new Set<string>();
+  const uniqueArgs = toolArguments.filter((arg) => {
+    const key = arg.id || `${arg.name}-${arg.arguments}`;
+    if (seenIds.has(key)) return false;
+    seenIds.add(key);
+    return true;
+  });
+
+  return { toolDefinitions, toolArguments: uniqueArgs };
+}
+
+export function normalizeToolsForObservation(
+  input: unknown,
+  output: unknown,
+  metadata: unknown,
+): {
+  input: IngestionJsonValue;
+  output: IngestionJsonValue;
+  metadata: IngestionJsonValue;
+  toolDefinitions: Record<string, string>;
+  toolCalls: string[];
+  toolCallNames: string[];
+} {
+  const normalizedToolInput = normalizeMetadataToolsIntoInput(input, metadata);
+
+  try {
+    const { toolDefinitions, toolArguments } =
+      extractToolsFromParsedObservation(
+        normalizedToolInput.inputForExtraction ??
+          parseIfString(normalizedToolInput.input),
+        parseIfString(output),
+      );
+    const { tool_calls, tool_call_names } = convertCallsToArrays(toolArguments);
+
+    return {
+      input: normalizedToolInput.input,
+      output: toIngestionJsonValue(output),
+      metadata: normalizedToolInput.metadata,
+      toolDefinitions: convertDefinitionsToMap(toolDefinitions),
+      toolCalls: tool_calls,
+      toolCallNames: tool_call_names,
+    };
+  } catch (error) {
+    console.error("Tool extraction error:", error);
+    return {
+      input: normalizedToolInput.input,
+      output: toIngestionJsonValue(output),
+      metadata: normalizedToolInput.metadata,
+      toolDefinitions: {},
+      toolCalls: [],
+      toolCallNames: [],
+    };
   }
 }
 

@@ -1210,6 +1210,128 @@ describe("OTel Resource Span Mapping", () => {
       },
     };
 
+    const aiSdkWeatherToolInputSchema = {
+      type: "object",
+      properties: {
+        location: { type: "string" },
+        unit: { type: "string", enum: ["celsius", "fahrenheit"] },
+      },
+      required: ["location"],
+      additionalProperties: false,
+    };
+    const aiSdkWeatherTools = [
+      {
+        type: "function",
+        name: "get_weather",
+        description: "Get current weather for a location.",
+        inputSchema: aiSdkWeatherToolInputSchema,
+      },
+    ];
+
+    const buildAiSdkToolResourceSpan = ({
+      traceId,
+      spanId,
+      tools,
+    }: {
+      traceId: string;
+      spanId: string;
+      tools: unknown[];
+    }) => ({
+      resource: {
+        attributes: [
+          {
+            key: "service.name",
+            value: { stringValue: "otel-test-service" },
+          },
+        ],
+      },
+      scopeSpans: [
+        {
+          scope: {
+            name: "ai",
+            version: "6.0.0",
+          },
+          spans: [
+            {
+              traceId: Buffer.from(traceId, "hex"),
+              spanId: Buffer.from(spanId, "hex"),
+              name: "ai.generateText",
+              kind: 1,
+              startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+              endTimeUnixNano: {
+                low: 1000000,
+                high: 406528574,
+                unsigned: true,
+              },
+              attributes: [
+                {
+                  key: "ai.operationId",
+                  value: { stringValue: "ai.generateText.doGenerate" },
+                },
+                {
+                  key: "ai.model.id",
+                  value: { stringValue: "test-model" },
+                },
+                {
+                  key: "ai.prompt.messages",
+                  value: {
+                    stringValue: JSON.stringify([
+                      {
+                        role: "user",
+                        content: [
+                          {
+                            type: "text",
+                            text: "What is the weather in Berlin?",
+                          },
+                        ],
+                      },
+                    ]),
+                  },
+                },
+                {
+                  key: "ai.prompt.tools",
+                  value: { stringValue: JSON.stringify(tools) },
+                },
+                {
+                  key: "ai.telemetry.metadata.tools",
+                  value: { stringValue: JSON.stringify(tools) },
+                },
+                {
+                  key: "ai.telemetry.metadata.topic",
+                  value: { stringValue: "programming" },
+                },
+                {
+                  key: "ai.response.toolCalls",
+                  value: {
+                    stringValue: JSON.stringify([
+                      {
+                        type: "tool-call",
+                        toolCallId: "call_get_weather_1",
+                        toolName: "get_weather",
+                        input: {
+                          location: "Berlin",
+                          unit: "celsius",
+                        },
+                      },
+                    ]),
+                  },
+                },
+                {
+                  key: "custom.attribute",
+                  value: { stringValue: "keep-me" },
+                },
+                {
+                  key: "custom.unmapped",
+                  value: { stringValue: "still-metadata" },
+                },
+              ],
+              status: {},
+            },
+          ],
+        },
+      ],
+    });
+
     it("should interpret an empty buffer as an unset parentSpanId", async () => {
       // https://github.com/langchain4j/langchain4j/issues/2328#issuecomment-2686129552
       // Empty buffers where detected as truthy, i.e. behaved like they had a parent span.
@@ -4122,7 +4244,7 @@ describe("OTel Resource Span Mapping", () => {
       );
     });
 
-    it("should preserve gen_ai.tool.definitions in metadata for worker normalization", async () => {
+    it("should move gen_ai.tool.definitions from metadata to observation input", async () => {
       const traceId = "abcdef1234567890abcdef1234567892";
       const rootSpanId = "1234567890abcdeb";
       const tool = {
@@ -4206,124 +4328,57 @@ describe("OTel Resource Span Mapping", () => {
           ? JSON.parse(observation.body.input)
           : observation?.body.input;
 
-      expect(parsedInput).toEqual([
-        {
-          role: "user",
-          content: "What is 2 + 2?",
-        },
-      ]);
-      expect(
-        observation?.body.metadata?.attributes?.["gen_ai.tool.definitions"],
-      ).toBe(JSON.stringify([tool]));
-    });
-
-    it("should preserve AI SDK available tools in metadata for worker normalization", async () => {
-      const traceId = "abcdef1234567890abcdef1234567891";
-      const rootSpanId = "1234567890abcdea";
-      const tools = [
-        {
-          type: "function",
-          name: "get_weather",
-          description: "Get current weather for a location.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              location: { type: "string" },
-              unit: { type: "string", enum: ["celsius", "fahrenheit"] },
-            },
-            required: ["location"],
-            additionalProperties: false,
-          },
-        },
-      ];
-
-      const span = {
-        resource: {
-          attributes: [
-            {
-              key: "service.name",
-              value: { stringValue: "otel-test-service" },
-            },
-          ],
-        },
-        scopeSpans: [
+      expect(parsedInput).toEqual({
+        messages: [
           {
-            scope: {
-              name: "ai",
-              version: "6.0.0",
-            },
-            spans: [
-              {
-                traceId: Buffer.from(traceId, "hex"),
-                spanId: Buffer.from(rootSpanId, "hex"),
-                name: "ai.generateText",
-                kind: 1,
-                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
-                endTimeUnixNano: {
-                  low: 1000000,
-                  high: 406528574,
-                  unsigned: true,
-                },
-                attributes: [
-                  {
-                    key: "ai.operationId",
-                    value: { stringValue: "ai.generateText.doGenerate" },
-                  },
-                  {
-                    key: "ai.model.id",
-                    value: { stringValue: "test-model" },
-                  },
-                  {
-                    key: "ai.prompt.messages",
-                    value: {
-                      stringValue: JSON.stringify([
-                        {
-                          role: "user",
-                          content: [
-                            {
-                              type: "text",
-                              text: "What is the weather in Berlin?",
-                            },
-                          ],
-                        },
-                      ]),
-                    },
-                  },
-                  {
-                    key: "ai.prompt.tools",
-                    value: { stringValue: JSON.stringify(tools) },
-                  },
-                  {
-                    key: "ai.response.toolCalls",
-                    value: {
-                      stringValue: JSON.stringify([
-                        {
-                          type: "tool-call",
-                          toolCallId: "call_get_weather_1",
-                          toolName: "get_weather",
-                          input: {
-                            location: "Berlin",
-                            unit: "celsius",
-                          },
-                        },
-                      ]),
-                    },
-                  },
-                  {
-                    key: "custom.attribute",
-                    value: { stringValue: "keep-me" },
-                  },
-                  {
-                    key: "custom.unmapped",
-                    value: { stringValue: "still-metadata" },
-                  },
-                ],
-                status: {},
-              },
-            ],
+            role: "user",
+            content: "What is 2 + 2?",
           },
         ],
-      };
+        tools: [tool],
+      });
+      expect(
+        observation?.body.metadata?.attributes?.["gen_ai.tool.definitions"],
+      ).toBeUndefined();
+
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+      const eventInputs = processor.processToEvent([span]);
+      expect(eventInputs).toHaveLength(1);
+
+      const parsedEventInput =
+        typeof eventInputs[0].input === "string"
+          ? JSON.parse(eventInputs[0].input)
+          : eventInputs[0].input;
+
+      expect(parsedEventInput).toEqual({
+        messages: [
+          {
+            role: "user",
+            content: "What is 2 + 2?",
+          },
+        ],
+        tools: [tool],
+      });
+      expect(Object.keys(eventInputs[0].toolDefinitions ?? {})).toEqual([
+        "calculator",
+      ]);
+      expect(
+        eventInputs[0].metadata.attributes?.["gen_ai.tool.definitions"],
+      ).toBeUndefined();
+    });
+
+    it("should move AI SDK available tools from metadata to observation input", async () => {
+      const traceId = "abcdef1234567890abcdef1234567891";
+      const rootSpanId = "1234567890abcdea";
+      const tools = aiSdkWeatherTools;
+
+      const span = buildAiSdkToolResourceSpan({
+        traceId,
+        spanId: rootSpanId,
+        tools,
+      });
 
       const events = await convertOtelSpanToIngestionEvent(span, new Set());
 
@@ -4338,12 +4393,15 @@ describe("OTel Resource Span Mapping", () => {
           ? JSON.parse(observation.body.input)
           : observation?.body.input;
 
-      expect(parsedInput).toEqual([
-        {
-          role: "user",
-          content: [{ type: "text", text: "What is the weather in Berlin?" }],
-        },
-      ]);
+      expect(parsedInput).toEqual({
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "text", text: "What is the weather in Berlin?" }],
+          },
+        ],
+        tools,
+      });
 
       expect(observation?.body.output).toBeDefined();
       const parsedOutput =
@@ -4364,17 +4422,63 @@ describe("OTel Resource Span Mapping", () => {
       ]);
 
       expect(observation?.body.metadata?.tools).toBeUndefined();
-      expect(observation?.body.metadata?.attributes?.["ai.prompt.tools"]).toBe(
-        JSON.stringify(tools),
-      );
+      expect(
+        observation?.body.metadata?.attributes?.["ai.prompt.tools"],
+      ).toBeUndefined();
       expect(
         observation?.body.metadata?.attributes?.["ai.response.toolCalls"],
       ).toBeUndefined();
+      expect(observation?.body.metadata?.topic).toBe("programming");
       expect(observation?.body.metadata?.attributes?.["custom.attribute"]).toBe(
         "keep-me",
       );
       expect(observation?.body.metadata?.attributes?.["custom.unmapped"]).toBe(
         "still-metadata",
+      );
+    });
+
+    it("should extract AI SDK available tools after metadata normalization in processToEvent", () => {
+      const tools = aiSdkWeatherTools;
+      const resourceSpan = buildAiSdkToolResourceSpan({
+        traceId: "abcdef1234567890abcdef1234567893",
+        spanId: "1234567890abcdec",
+        tools,
+      });
+
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+      const eventInputs = processor.processToEvent([resourceSpan]);
+
+      expect(eventInputs).toHaveLength(1);
+      const eventInput = eventInputs[0];
+      const parsedInput =
+        typeof eventInput.input === "string"
+          ? JSON.parse(eventInput.input)
+          : eventInput.input;
+
+      expect(parsedInput).toEqual({
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "text", text: "What is the weather in Berlin?" }],
+          },
+        ],
+        tools,
+      });
+      expect(Object.keys(eventInput.toolDefinitions ?? {})).toEqual([
+        "get_weather",
+      ]);
+      expect(JSON.parse(eventInput.toolDefinitions.get_weather)).toEqual({
+        description: "Get current weather for a location.",
+        parameters: JSON.stringify(aiSdkWeatherToolInputSchema),
+      });
+      expect(eventInput.toolCallNames).toEqual(["get_weather"]);
+      expect(eventInput.metadata.tools).toBeUndefined();
+      expect(eventInput.metadata.attributes["ai.prompt.tools"]).toBeUndefined();
+      expect(eventInput.metadata.topic).toBe("programming");
+      expect(eventInput.metadata.attributes["custom.attribute"]).toBe(
+        "keep-me",
       );
     });
 

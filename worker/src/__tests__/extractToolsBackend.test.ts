@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   extractToolsFromObservation,
-  moveToolDefinitionsFromMetadataToInput,
+  normalizeToolsForObservation,
   convertDefinitionsToMap,
   convertCallsToArrays,
 } from "@langfuse/shared/src/server";
@@ -42,7 +42,7 @@ describe("extractToolsFromObservation", () => {
         },
       };
 
-      const result = moveToolDefinitionsFromMetadataToInput(input, metadata);
+      const result = normalizeToolsForObservation(input, null, metadata);
 
       expect(result.input).toEqual({
         messages: input,
@@ -76,7 +76,7 @@ describe("extractToolsFromObservation", () => {
         tools: [metadataTool],
       };
 
-      const result = moveToolDefinitionsFromMetadataToInput(input, metadata);
+      const result = normalizeToolsForObservation(input, null, metadata);
 
       expect(result.input).toEqual({
         messages: input.messages,
@@ -104,7 +104,7 @@ describe("extractToolsFromObservation", () => {
         }),
       };
 
-      const result = moveToolDefinitionsFromMetadataToInput(input, metadata);
+      const result = normalizeToolsForObservation(input, null, metadata);
 
       expect(result.input).toEqual({
         messages: input,
@@ -128,7 +128,7 @@ describe("extractToolsFromObservation", () => {
         "custom.attribute": "mentions model_request_parameters in the value",
       });
 
-      const result = moveToolDefinitionsFromMetadataToInput(input, {
+      const result = normalizeToolsForObservation(input, null, {
         tools: [metadataTool],
         attributes,
       });
@@ -161,8 +161,9 @@ describe("extractToolsFromObservation", () => {
         },
       };
 
-      const result = moveToolDefinitionsFromMetadataToInput(
+      const result = normalizeToolsForObservation(
         "What is the weather in Berlin?",
+        null,
         metadata,
       );
 
@@ -192,7 +193,7 @@ describe("extractToolsFromObservation", () => {
         },
       };
 
-      const result = moveToolDefinitionsFromMetadataToInput(input, metadata);
+      const result = normalizeToolsForObservation(input, null, metadata);
 
       expect(result.input).toEqual({
         messages: input,
@@ -273,7 +274,7 @@ describe("extractToolsFromObservation", () => {
         },
       };
 
-      const normalized = moveToolDefinitionsFromMetadataToInput(null, metadata);
+      const normalized = normalizeToolsForObservation(null, null, metadata);
       const { toolDefinitions } = extractToolsFromObservation(
         normalized.input,
         null,
@@ -297,7 +298,7 @@ describe("extractToolsFromObservation", () => {
         },
       };
 
-      const normalized = moveToolDefinitionsFromMetadataToInput(null, metadata);
+      const normalized = normalizeToolsForObservation(null, null, metadata);
       const { toolDefinitions } = extractToolsFromObservation(
         normalized.input,
         null,
@@ -1063,10 +1064,7 @@ describe("extractToolsFromObservation", () => {
         },
       };
 
-      const normalized = moveToolDefinitionsFromMetadataToInput(
-        input,
-        metadata,
-      );
+      const normalized = normalizeToolsForObservation(input, null, metadata);
       const result = extractToolsFromObservation(normalized.input, output);
 
       expect(result.toolDefinitions.map((t) => t.name)).toEqual([
@@ -1157,10 +1155,7 @@ describe("extractToolsFromObservation", () => {
         ],
       };
 
-      const normalized = moveToolDefinitionsFromMetadataToInput(
-        input,
-        metadata,
-      );
+      const normalized = normalizeToolsForObservation(input, null, metadata);
       const result = extractToolsFromObservation(normalized.input, output);
 
       // Should extract 3 available tools
