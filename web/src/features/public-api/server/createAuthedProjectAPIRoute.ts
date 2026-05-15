@@ -23,6 +23,8 @@ import {
   unstablePublicEvalsErrorContract,
   type PublicApiErrorContract,
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { Prisma } from "@prisma/client";
+
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
@@ -287,6 +289,18 @@ export const createAuthedProjectAPIRoute = <
         routeConfig.allowedAccessLevels || ["project"],
       );
     } catch (error: any) {
+      if (
+        error instanceof Prisma.PrismaClientInitializationError ||
+        error instanceof Prisma.PrismaClientUnknownRequestError ||
+        error instanceof Prisma.PrismaClientRustPanicError
+      ) {
+        res.status(503).json({ message: "Service Unavailable" });
+        return;
+      }
+      if (isPrismaException(error)) {
+        res.status(500).json({ message: "Internal Server Error" });
+        return;
+      }
       const statusCode = error.status || 401;
       const message = error.message || "Authentication failed";
 
