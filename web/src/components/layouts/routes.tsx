@@ -231,7 +231,7 @@ export const ROUTES: Route[] = [
     menuNode: <BookACallButton />,
   },
   {
-    title: "AI-Agent",
+    title: "AI Assistant",
     section: RouteSection.Secondary,
     pathname: "/project/[projectId]",
     featureFlag: "inAppAgent",

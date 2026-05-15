@@ -31,7 +31,7 @@ export const InAppAiAgentButton = () => {
       }}
     >
       <Bot className="h-4 w-4" />
-      AI-Assistant
+      AI Assistant
     </SidebarMenuButton>
   );
 };

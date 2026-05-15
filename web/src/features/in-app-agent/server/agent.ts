@@ -15,6 +15,7 @@ const ASSISTANT_SYSTEM_PROMPT = [
   "If you are not confident in the answer, say that directly instead of guessing.",
   "Use markdown when it improves clarity.",
 ].join(" ");
+const MAX_AGENT_BUDGET_USD = 5;
 
 type CreateAgUiStreamOptions = {
   resumeSessionId?: string;
@@ -40,6 +41,7 @@ export function createAgUiStream(params: {
     allowedTools: [],
     settingSources: [],
     additionalDirectories: [],
+    maxBudgetUsd: MAX_AGENT_BUDGET_USD,
     env: {
       CLAUDE_CODE_USE_BEDROCK: "1",
       CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1",
@@ -98,6 +100,11 @@ export function createAgUiStream(params: {
           }
         },
         error(error) {
+          if (closed || params.signal.aborted) {
+            closeController();
+            return;
+          }
+
           console.error("Error in agent execution:", error);
 
           const message =

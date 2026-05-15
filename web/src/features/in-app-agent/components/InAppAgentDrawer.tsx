@@ -189,7 +189,7 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
               aria-label="Ask about Langfuse"
               placeholder="Ask about Langfuse..."
               rows={1}
-              className="bg-background text-muted-foreground border-input max-h-40 min-h-10 flex-1 resize-none overflow-y-auto rounded-md px-3 py-2 text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60"
+              className="bg-background placeholder:text-muted-foreground border-input max-h-40 min-h-10 flex-1 resize-none overflow-y-auto rounded-md px-3 py-2 text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60"
             />
             <Button
               type="submit"

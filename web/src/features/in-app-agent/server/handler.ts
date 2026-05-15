@@ -22,6 +22,9 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { assertUnreachable } from "@/src/utils/types";
+
+const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
 
 export default async function handler(request: Request) {
   try {
@@ -54,8 +57,29 @@ export default async function handler(request: Request) {
       );
     }
 
-    const body = await request.json().catch(() => null);
-    const parsedInput = AgUiRunAgentInputSchema.safeParse(body);
+    const bodyResult = await readBoundedJsonBody(
+      request,
+      MAX_IN_APP_AGENT_INPUT_BYTES,
+    );
+
+    if (!bodyResult.success) {
+      if (bodyResult.error === "invalid_body") {
+        throw new InvalidRequestError("Invalid input");
+      }
+
+      if (bodyResult.error === "payload_too_large") {
+        throw new BaseError(
+          "PayloadTooLargeError",
+          413,
+          "Input payload is too large",
+          true,
+        );
+      }
+
+      assertUnreachable(bodyResult.error);
+    }
+
+    const parsedInput = AgUiRunAgentInputSchema.safeParse(bodyResult.data);
 
     if (!parsedInput.success) {
       throw new InvalidRequestError("Invalid input");
@@ -208,4 +232,52 @@ function getLastUserMessage(
     role: "user",
     content: text,
   };
+}
+
+type BoundedJsonBodyResult =
+  | { success: true; data: unknown }
+  | { success: false; error: "invalid_body" | "payload_too_large" };
+
+async function readBoundedJsonBody(
+  request: Request,
+  maxSizeBytes: number,
+): Promise<BoundedJsonBodyResult> {
+  const contentLength = Number(request.headers.get("content-length"));
+
+  if (Number.isFinite(contentLength) && contentLength > maxSizeBytes) {
+    return { success: false, error: "payload_too_large" };
+  }
+
+  const reader = request.body?.getReader();
+  const chunks: Uint8Array[] = [];
+  let receivedBytes = 0;
+
+  if (!reader) {
+    return { success: false, error: "invalid_body" };
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    receivedBytes += value.byteLength;
+
+    if (receivedBytes > maxSizeBytes) {
+      await reader.cancel().catch(() => undefined);
+      return { success: false, error: "payload_too_large" };
+    }
+
+    chunks.push(value);
+  }
+
+  const bodyText = new TextDecoder().decode(Buffer.concat(chunks));
+
+  try {
+    return { success: true, data: bodyText ? JSON.parse(bodyText) : null };
+  } catch {
+    return { success: false, error: "invalid_body" };
+  }
 }

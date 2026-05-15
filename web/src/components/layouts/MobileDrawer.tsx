@@ -46,7 +46,7 @@ export function MobileDrawer({
             </div>
             {/* sr-only for screen readers and accessibility */}
             <DrawerTitle className="sr-only">
-              {showAiAgent ? "AI-Agent" : "Support"}
+              {showAiAgent ? "AI Assistant" : "Support"}
             </DrawerTitle>
             <DrawerDescription className="sr-only">
               {showAiAgent
