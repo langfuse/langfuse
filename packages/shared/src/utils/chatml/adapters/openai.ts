@@ -4,8 +4,6 @@ import {
   stringifyToolResultContent,
   parseMetadata,
   isRichToolResult,
-  normalizeToolDefinitionsForChatMl,
-  attachToolDefinitionsToMessages,
   getNestedProperty,
 } from "../helpers";
 import { z } from "zod";
@@ -269,6 +267,25 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
   return normalized;
 }
 
+/**
+ * Flatten tool definition from nested or flat format to standard format
+ * Handles both Chat Completions {type, function: {name, ...}} and flat {name, ...}
+ */
+function flattenToolDefinition(tool: unknown): Record<string, unknown> {
+  if (typeof tool !== "object" || !tool) return {};
+
+  const t = tool as Record<string, unknown>;
+  // Handle nested {type, function: {name, ...}} or flat {name, ...}
+  const toolFunc = (t.function as Record<string, unknown> | undefined) ?? t;
+
+  const toolDef: Record<string, unknown> = {
+    name: toolFunc.name,
+    description: toolFunc.description ?? "",
+  };
+  if (toolFunc.parameters != null) toolDef.parameters = toolFunc.parameters;
+  return toolDef;
+}
+
 function preprocessData(data: unknown): unknown {
   if (!data) return data;
 
@@ -287,10 +304,10 @@ function preprocessData(data: unknown): unknown {
 
     if (Array.isArray(messagesArray) && Array.isArray(obj.tools)) {
       // Attach tools to all messages
-      return attachToolDefinitionsToMessages(
-        messagesArray.map(normalizeMessage),
-        normalizeToolDefinitionsForChatMl(obj.tools),
-      );
+      return messagesArray.map((msg) => ({
+        ...normalizeMessage(msg),
+        tools: (obj.tools as unknown[]).map(flattenToolDefinition),
+      }));
     }
   }
 

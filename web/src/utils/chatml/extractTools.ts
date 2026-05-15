@@ -9,6 +9,23 @@ const EMPTY_TOOL_PARAMETERS = {
   properties: {},
 } as const;
 
+function parseIfString(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  const parsed = parseIfString(value);
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>)
+    : null;
+}
+
 /**
  * Helper to map normalized tool definitions to PlaygroundTool format.
  * Ensures description is always a string (never null/undefined).
@@ -41,17 +58,28 @@ export function extractTools(
   metadata?: unknown,
 ): PlaygroundTool[] {
   // Check metadata for tool definitions
-  if (metadata && typeof metadata === "object" && metadata !== null) {
-    const meta = metadata as Record<string, unknown>;
-    if (meta.attributes && typeof meta.attributes === "object") {
-      const attributes = meta.attributes as Record<string, unknown>;
+  const meta = asRecord(metadata);
+  if (meta) {
+    const attributes = asRecord(meta.attributes);
+    if (attributes) {
+      // AI SDK OTel: tools in ai.prompt.tools
+      const aiSdkTools = mapToolsToPlayground(attributes["ai.prompt.tools"]);
+      if (aiSdkTools.length > 0) return aiSdkTools;
 
-      // Microsoft Agent Framework: tools in "gen_ai.tool.definitions"
-      const toolDefs = attributes["gen_ai.tool.definitions"];
-      if (toolDefs) {
-        const tools = mapToolsToPlayground(toolDefs);
-        if (tools.length > 0) return tools;
-      }
+      // Microsoft Agent Framework / OTel: tools in gen_ai.tool.definitions
+      const genAiTools = mapToolsToPlayground(
+        attributes["gen_ai.tool.definitions"],
+      );
+      if (genAiTools.length > 0) return genAiTools;
+
+      // pydantic-ai: tools in model_request_parameters.function_tools
+      const modelRequestParameters = asRecord(
+        attributes.model_request_parameters,
+      );
+      const pydanticTools = mapToolsToPlayground(
+        modelRequestParameters?.function_tools,
+      );
+      if (pydanticTools.length > 0) return pydanticTools;
 
       // OpenTelemetry semantic convention: tools indexed as "llm.tools.{N}.tool.json_schema"
       // Example: "llm.tools.0.tool.json_schema", "llm.tools.1.tool.json_schema", ...

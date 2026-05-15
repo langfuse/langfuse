@@ -974,6 +974,34 @@ describe("Playground Jump Full Pipeline", () => {
     });
   });
 
+  it("should extract tools from stringified metadata attributes", () => {
+    const metadataTools = extractTools(null, {
+      attributes: JSON.stringify({
+        "ai.prompt.tools": JSON.stringify([
+          {
+            type: "function",
+            name: "metadata_joke",
+            description: "Get a joke from metadata",
+            inputSchema: {
+              type: "object",
+              properties: { topic: { type: "string" } },
+            },
+          },
+        ]),
+      }),
+    });
+
+    expect(metadataTools).toHaveLength(1);
+    expect(metadataTools[0]).toMatchObject({
+      name: "metadata_joke",
+      description: "Get a joke from metadata",
+      parameters: {
+        type: "object",
+        properties: { topic: { type: "string" } },
+      },
+    });
+  });
+
   it("should handle double-stringified messages array", () => {
     // ClickHouse can store messages as double-stringified:
     // { "messages": "[{\"role\":\"user\",\"content\":\"...\"}]" }

@@ -1,8 +1,4 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
-import {
-  normalizeToolDefinitionsForChatMl,
-  attachToolDefinitionsToMessages,
-} from "../helpers";
 
 function normalizeGoogleMessage(msg: unknown): Record<string, unknown> {
   if (!msg || typeof msg !== "object") return {};
@@ -136,10 +132,7 @@ function preprocessData(data: unknown): unknown {
     return {
       ...obj,
       messages: Array.isArray(messages)
-        ? attachToolDefinitionsToMessages(
-            messages.map(normalizeGoogleMessage),
-            normalizeToolDefinitionsForChatMl(obj.tools),
-          )
+        ? messages.map(normalizeGoogleMessage)
         : messages,
     };
   }

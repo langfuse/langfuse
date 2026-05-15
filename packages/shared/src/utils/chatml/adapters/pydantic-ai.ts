@@ -3,7 +3,6 @@ import {
   removeNullFields,
   parseMetadata,
   getNestedProperty,
-  normalizeToolDefinitionsForChatMl,
   attachToolDefinitionsToMessages,
 } from "../helpers";
 import { z } from "zod";
@@ -114,41 +113,47 @@ function extractFromParts(parts: unknown[]): {
 }
 
 /**
+ * Normalize pydantic-ai tool definition to standard format
+ */
+function normalizeToolDefinition(tool: unknown): Record<string, unknown> {
+  if (!tool || typeof tool !== "object") return {};
+
+  const t = tool as Record<string, unknown>;
+  const normalized: Record<string, unknown> = {
+    name: t.name,
+    description: t.description || "",
+  };
+
+  // pydantic-ai uses parameters_json_schema instead of parameters
+  if (t.parameters_json_schema) {
+    normalized.parameters = t.parameters_json_schema;
+  }
+
+  return normalized;
+}
+
+/**
  * Extract tool definitions from pydantic-ai metadata
  * Tools are in: metadata.attributes.model_request_parameters.function_tools
  */
-function extractToolDefinitionsFromMetadata(
+function extractToolDefinitions(
   metadata: unknown,
 ): Array<Record<string, unknown>> {
   const meta = parseMetadata(metadata);
   if (!meta) return [];
 
-  const attributes = parseMetadata(getNestedProperty(meta, "attributes"));
-  const modelRequestParameters = parseMetadata(
-    getNestedProperty(attributes, "model_request_parameters"),
+  const tools = getNestedProperty(
+    meta,
+    "attributes",
+    "model_request_parameters",
+    "function_tools",
   );
-  const tools = getNestedProperty(modelRequestParameters, "function_tools");
 
-  return normalizeToolDefinitionsForChatMl(tools);
-}
-
-function extractToolDefinitions(
-  data: unknown,
-  metadata: unknown,
-): Array<Record<string, unknown>> {
-  if (
-    data &&
-    typeof data === "object" &&
-    !Array.isArray(data) &&
-    "tools" in data
-  ) {
-    const tools = normalizeToolDefinitionsForChatMl(
-      (data as Record<string, unknown>).tools,
-    );
-    if (tools.length > 0) return tools;
+  if (Array.isArray(tools)) {
+    return tools.map(normalizeToolDefinition);
   }
 
-  return extractToolDefinitionsFromMetadata(metadata);
+  return [];
 }
 
 /**
@@ -238,9 +243,8 @@ function preprocessData(data: unknown, ctx: NormalizerContext): unknown {
   if (Array.isArray(data)) {
     const normalized = normalizeMessages(data);
 
-    // Extract and attach tool definitions from normalized input first,
-    // falling back to the legacy metadata path for older observations.
-    const tools = extractToolDefinitions(data, ctx.metadata);
+    // Extract and attach tool definitions from metadata
+    const tools = extractToolDefinitions(ctx.metadata);
     if (tools.length > 0) {
       return attachToolDefinitionsToMessages(normalized, tools);
     }
@@ -251,17 +255,11 @@ function preprocessData(data: unknown, ctx: NormalizerContext): unknown {
   // messages wrapper
   if (typeof data === "object" && "messages" in data) {
     const obj = data as Record<string, unknown>;
-    const normalizedMessages = Array.isArray(obj.messages)
-      ? normalizeMessages(obj.messages)
-      : obj.messages;
-    const tools = extractToolDefinitions(data, ctx.metadata);
-
     return {
       ...obj,
-      messages:
-        Array.isArray(normalizedMessages) && tools.length > 0
-          ? attachToolDefinitionsToMessages(normalizedMessages, tools)
-          : normalizedMessages,
+      messages: Array.isArray(obj.messages)
+        ? normalizeMessages(obj.messages)
+        : obj.messages,
     };
   }
 

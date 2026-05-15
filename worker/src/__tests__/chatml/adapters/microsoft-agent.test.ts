@@ -193,7 +193,7 @@ describe("Microsoft Agent Framework Adapter", () => {
       expect(result.data?.[0].tools?.[0].name).toBe("get_weather");
     });
 
-    it("should attach tools from normalized input when metadata tool definitions were removed", () => {
+    it("should preserve wrapped messages with input tools without mutating ChatML", () => {
       const input = {
         messages: [
           {
@@ -238,8 +238,7 @@ describe("Microsoft Agent Framework Adapter", () => {
       expect(result.data?.[0].content).toBe(
         "What's the weather like in Portland?",
       );
-      expect(result.data?.[0].tools).toHaveLength(1);
-      expect(result.data?.[0].tools?.[0].name).toBe("get_weather");
+      expect(result.data?.[0].tools).toBeUndefined();
     });
 
     it("should handle output with multiple parts", () => {

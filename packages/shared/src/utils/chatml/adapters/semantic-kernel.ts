@@ -1,11 +1,5 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
-import {
-  parseMetadata,
-  getNestedProperty,
-  removeNullFields,
-  normalizeToolDefinitionsForChatMl,
-  attachToolDefinitionsToMessages,
-} from "../helpers";
+import { parseMetadata, getNestedProperty, removeNullFields } from "../helpers";
 
 /**
  * Semantic Kernel Adapter
@@ -123,10 +117,7 @@ function preprocessData(data: unknown, _ctx: NormalizerContext): unknown {
     return {
       ...obj,
       messages: Array.isArray(obj.messages)
-        ? attachToolDefinitionsToMessages(
-            normalizeMessages(obj.messages),
-            normalizeToolDefinitionsForChatMl(obj.tools),
-          )
+        ? normalizeMessages(obj.messages)
         : obj.messages,
     };
   }
