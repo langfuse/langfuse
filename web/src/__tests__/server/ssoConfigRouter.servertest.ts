@@ -412,7 +412,7 @@ describe("ssoConfigRouter.save", () => {
     });
     await caller.ssoConfig.save({
       orgId: org.id,
-      payload: sampleCustomPayload(trueDomain, true, "openid email"),
+      payload: sampleCustomPayload(trueDomain, true),
     });
 
     const storedFalse = await prisma.ssoConfig.findUniqueOrThrow({
