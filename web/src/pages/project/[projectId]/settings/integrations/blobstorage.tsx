@@ -53,8 +53,8 @@ import {
   type BlobStorageIntegration,
   EXPORT_SOURCE_OPTIONS,
   EXPORT_FIELD_GROUP_OPTIONS,
-  BLOB_EXPORT_FIELD_GROUPS,
-  type BlobExportFieldGroup,
+  OBSERVATION_FIELD_GROUPS_FULL,
+  type ObservationFieldGroupFull,
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
@@ -265,8 +265,8 @@ const BlobStorageIntegrationSettingsForm = ({
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
       exportFieldGroups:
-        (state?.exportFieldGroups as BlobExportFieldGroup[]) ?? [
-          ...BLOB_EXPORT_FIELD_GROUPS,
+        (state?.exportFieldGroups as ObservationFieldGroupFull[]) ?? [
+          ...OBSERVATION_FIELD_GROUPS_FULL,
         ],
       compressed: state?.compressed ?? true,
     },
@@ -299,8 +299,8 @@ const BlobStorageIntegrationSettingsForm = ({
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
       exportFieldGroups:
-        (state?.exportFieldGroups as BlobExportFieldGroup[]) ?? [
-          ...BLOB_EXPORT_FIELD_GROUPS,
+        (state?.exportFieldGroups as ObservationFieldGroupFull[]) ?? [
+          ...OBSERVATION_FIELD_GROUPS_FULL,
         ],
       compressed: state?.compressed ?? true,
     });
@@ -778,7 +778,7 @@ const BlobStorageIntegrationSettingsForm = ({
                                           ? current
                                           : [...current, option.value]
                                         : current.filter(
-                                            (v: BlobExportFieldGroup) =>
+                                            (v: ObservationFieldGroupFull) =>
                                               v !== option.value,
                                           );
                                     field.onChange(next);

@@ -6,11 +6,13 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   CreateBlobStorageIntegrationRequest,
+  toInternalExportSource,
+  toPublicExportSource,
   type BlobStorageIntegrationResponseType,
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
   AnalyticsIntegrationExportSource,
-  type BlobExportFieldGroup,
+  type ObservationFieldGroupFull,
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
@@ -89,12 +91,12 @@ async function handleGetBlobStorageIntegrations(
       exportMode: integration.exportMode,
       exportStartDate: integration.exportStartDate,
       compressed: integration.compressed,
-      exportSource: integration.exportSource,
+      exportSource: toPublicExportSource(integration.exportSource),
       exportFieldGroups:
         integration.exportSource ===
         AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
           ? null
-          : (integration.exportFieldGroups as BlobExportFieldGroup[]),
+          : (integration.exportFieldGroups as ObservationFieldGroupFull[]),
       nextSyncAt: integration.nextSyncAt,
       lastSyncAt: integration.lastSyncAt,
       lastError: integration.lastError,
@@ -182,7 +184,10 @@ async function handleUpsertBlobStorageIntegration(
       exportMode: validatedData.exportMode,
       exportStartDate: validatedData.exportStartDate ?? null,
       compressed: validatedData.compressed,
-      exportSource: validatedData.exportSource ?? undefined,
+      exportSource:
+        validatedData.exportSource != null
+          ? toInternalExportSource(validatedData.exportSource)
+          : undefined,
       exportFieldGroups: validatedData.exportFieldGroups ?? undefined,
     },
   });
@@ -204,12 +209,12 @@ async function handleUpsertBlobStorageIntegration(
     exportMode: integration.exportMode,
     exportStartDate: integration.exportStartDate,
     compressed: integration.compressed,
-    exportSource: integration.exportSource,
+    exportSource: toPublicExportSource(integration.exportSource),
     exportFieldGroups:
       integration.exportSource ===
       AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
         ? null
-        : (integration.exportFieldGroups as BlobExportFieldGroup[]),
+        : (integration.exportFieldGroups as ObservationFieldGroupFull[]),
     nextSyncAt: integration.nextSyncAt,
     lastSyncAt: integration.lastSyncAt,
     lastError: integration.lastError,
