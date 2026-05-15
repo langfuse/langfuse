@@ -913,6 +913,67 @@ describe("Playground Jump Full Pipeline", () => {
     });
   });
 
+  it("should extract tools from legacy metadata, normalized input, and output", () => {
+    const metadataTools = extractTools(null, {
+      attributes: {
+        "llm.tools.0.tool.json_schema": {
+          type: "function",
+          function: {
+            name: "metadata_search",
+            description: "Search from metadata",
+            parameters: {
+              type: "object",
+              properties: { query: { type: "string" } },
+            },
+          },
+        },
+      },
+    });
+
+    expect(metadataTools).toHaveLength(1);
+    expect(metadataTools[0]).toMatchObject({
+      name: "metadata_search",
+      description: "Search from metadata",
+    });
+
+    const inputTools = extractTools({
+      messages: [{ role: "user", content: "Need a joke" }],
+      tools: [
+        {
+          type: "function",
+          name: "input_joke",
+          description: "Get a joke from normalized input",
+          inputSchema: { type: "object" },
+        },
+      ],
+    });
+
+    expect(inputTools).toHaveLength(1);
+    expect(inputTools[0]).toMatchObject({
+      name: "input_joke",
+      description: "Get a joke from normalized input",
+      parameters: { type: "object" },
+    });
+
+    const outputTools = extractTools({
+      output: [{ role: "assistant", content: "Done" }],
+      tools: [
+        {
+          type: "function",
+          name: "output_tool",
+          description: "Tool carried by output",
+          inputSchema: { type: "object" },
+        },
+      ],
+    });
+
+    expect(outputTools).toHaveLength(1);
+    expect(outputTools[0]).toMatchObject({
+      name: "output_tool",
+      description: "Tool carried by output",
+    });
+  });
+
   it("should handle double-stringified messages array", () => {
     // ClickHouse can store messages as double-stringified:
     // { "messages": "[{\"role\":\"user\",\"content\":\"...\"}]" }
