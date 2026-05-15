@@ -1,6 +1,8 @@
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
+  type QueryType,
   type ViewVersion,
+  type viewsV2,
   type metricAggregations,
 } from "@/src/features/query";
 import { type z } from "zod";
@@ -14,12 +16,13 @@ type MetricAggregation = z.infer<typeof metricAggregations>;
 
 type ExperimentWidgetConfig = {
   // Query fields
-  view: "observations";
+  view: z.infer<typeof viewsV2>;
   dimensions: WidgetDimensionConfig[];
   metrics: (WidgetMetricConfig & { aggregation: MetricAggregation })[];
   timeDimension: null;
   entityDimension: { field: string };
   orderBy: { field: string; direction: "asc" | "desc" }[];
+  filters?: QueryType["filters"];
   // Widget display fields
   version: ViewVersion;
   chartType: DashboardWidgetChartType;
@@ -75,3 +78,69 @@ export const EXPERIMENT_WIDGET_CONFIGS = [
   EXPERIMENT_COST_WIDGET_CONFIG,
   EXPERIMENT_LATENCY_WIDGET_CONFIG,
 ];
+
+export function createNumericExperimentScoreWidgetConfig(params: {
+  scoreName: string;
+  schedulerId?: string;
+  name?: string;
+  description?: string;
+}): ExperimentWidgetConfig {
+  return {
+    view: "scores-numeric",
+    dimensions: [],
+    metrics: [{ measure: "value", agg: "avg", aggregation: "avg" }],
+    timeDimension: null,
+    entityDimension: { field: "experimentName" },
+    orderBy: [{ field: "entity_dimension", direction: "asc" }],
+    filters: [
+      {
+        column: "name",
+        operator: "=",
+        value: params.scoreName,
+        type: "string",
+      },
+    ],
+    version: "v2",
+    chartType: "LINE_TIME_SERIES",
+    chartConfig: { type: "LINE_TIME_SERIES" },
+    schedulerId:
+      params.schedulerId ?? `experiments:score-numeric:${params.scoreName}`,
+    name: params.name ?? `${params.scoreName} by Experiment`,
+    description:
+      params.description ??
+      `Average numeric score '${params.scoreName}' grouped by experiment`,
+  };
+}
+
+export function createCategoricalExperimentScoreWidgetConfig(params: {
+  scoreName: string;
+  schedulerId?: string;
+  name?: string;
+  description?: string;
+}): ExperimentWidgetConfig {
+  return {
+    view: "scores-categorical",
+    dimensions: [{ field: "stringValue" }],
+    metrics: [{ measure: "count", agg: "count", aggregation: "count" }],
+    timeDimension: null,
+    entityDimension: { field: "experimentName" },
+    orderBy: [{ field: "entity_dimension", direction: "asc" }],
+    filters: [
+      {
+        column: "name",
+        operator: "=",
+        value: params.scoreName,
+        type: "string",
+      },
+    ],
+    version: "v2",
+    chartType: "BAR_TIME_SERIES",
+    chartConfig: { type: "BAR_TIME_SERIES" },
+    schedulerId:
+      params.schedulerId ?? `experiments:score-categorical:${params.scoreName}`,
+    name: params.name ?? `${params.scoreName} by Experiment`,
+    description:
+      params.description ??
+      `Categorical score counts for '${params.scoreName}' grouped by experiment`,
+  };
+}

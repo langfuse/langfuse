@@ -43,6 +43,7 @@ export function ExperimentCharts({
         entityDimension: config.entityDimension,
         orderBy: config.orderBy,
         filters: [
+          ...(config.filters ?? []),
           {
             column: "experimentId",
             operator: "any of" as const,
