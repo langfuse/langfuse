@@ -1567,5 +1567,31 @@ describe("Blob Storage Integrations API", () => {
         });
       }
     });
+    it("Cloud + post-cutoff project + no exportSource → defaults to OBSERVATIONS_V2", async () => {
+      // The server runs in Cloud mode in CI, so no env mutation is needed.
+      // Set createdAt to a past post-cutoff date so the gate applies.
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          { ...basePayload, projectId: testProject1Id },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(200);
+        expect(result.body.exportSource).toBe("OBSERVATIONS_V2");
+      } finally {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+        await prisma.blobStorageIntegration.deleteMany({
+          where: { projectId: testProject1Id },
+        });
+      }
+    });
   });
 });

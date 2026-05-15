@@ -16,6 +16,7 @@ import {
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
+  isLegacyBlobExportAllowed,
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
@@ -160,15 +161,27 @@ async function handleUpsertBlobStorageIntegration(
     throw new LangfuseNotFoundError("Project not found");
   }
 
+  const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
   if (validatedData.exportSource) {
     assertLegacyBlobExportSourceAllowed({
       project,
       nextInternalExportSource: toInternalExportSource(
         validatedData.exportSource,
       ),
-      isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+      isCloud,
     });
   }
+
+  // When exportSource is omitted, post-cutoff Cloud projects must not fall back
+  // to the Prisma column default (TRACES_OBSERVATIONS — a legacy source). Force
+  // EVENTS so the row is created with the correct non-legacy source.
+  const exportSourceInternal =
+    validatedData.exportSource != null
+      ? toInternalExportSource(validatedData.exportSource)
+      : !isLegacyBlobExportAllowed(project.createdAt, isCloud)
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : undefined;
 
   await auditLog({
     action: "update",
@@ -196,10 +209,7 @@ async function handleUpsertBlobStorageIntegration(
       exportMode: validatedData.exportMode,
       exportStartDate: validatedData.exportStartDate ?? null,
       compressed: validatedData.compressed,
-      exportSource:
-        validatedData.exportSource != null
-          ? toInternalExportSource(validatedData.exportSource)
-          : undefined,
+      exportSource: exportSourceInternal,
       exportFieldGroups: validatedData.exportFieldGroups ?? undefined,
     },
   });
