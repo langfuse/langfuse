@@ -18,6 +18,21 @@ export const LEGACY_BLOB_EXPORT_SOURCES = [
   AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
 ] as const satisfies ReadonlyArray<AnalyticsIntegrationExportSource>;
 
+/**
+ * Returns true when a project may use legacy blob export sources.
+ * False means the project is post-cutoff Cloud and must use ENRICHED only.
+ *
+ * Shared by the server guard (throws when false + legacy source) and the UI
+ * (hides legacy dropdown options when false) so the predicate lives once.
+ */
+export function isLegacyBlobExportAllowed(
+  projectCreatedAt: Date,
+  isCloud: boolean,
+): boolean {
+  if (!isCloud) return true;
+  return projectCreatedAt < LEGACY_BLOB_EXPORT_CUTOFF;
+}
+
 export const EXPORT_SOURCE_OPTIONS: Array<{
   value: AnalyticsIntegrationExportSource;
   label: string;

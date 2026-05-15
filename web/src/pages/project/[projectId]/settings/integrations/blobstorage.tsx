@@ -55,8 +55,8 @@ import {
   EXPORT_FIELD_GROUP_OPTIONS,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
-  LEGACY_BLOB_EXPORT_CUTOFF,
   LEGACY_BLOB_EXPORT_SOURCES,
+  isLegacyBlobExportAllowed,
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -245,9 +245,8 @@ const BlobStorageIntegrationSettingsForm = ({
 
   // Post-cutoff Cloud projects may only use OBSERVATIONS_V2 (EVENTS).
   const isPostCutoffCloud =
-    isLangfuseCloud &&
     project?.createdAt != null &&
-    new Date(project.createdAt) >= LEGACY_BLOB_EXPORT_CUTOFF;
+    !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
 
   // Options shown in the dropdown. Legacy options are hidden for post-cutoff
   // Cloud projects. Always include the currently-persisted value so the form

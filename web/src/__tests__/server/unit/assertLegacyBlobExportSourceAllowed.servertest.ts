@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
+import { isLegacyBlobExportAllowed } from "@langfuse/shared";
 
 const PRE_CUTOFF = new Date("2026-05-19T23:59:59.999Z");
 const AT_CUTOFF = new Date("2026-05-20T00:00:00.000Z");
@@ -94,5 +95,25 @@ describe("assertLegacyBlobExportSourceAllowed", () => {
         isCloud: true,
       }),
     ).toThrow();
+  });
+});
+
+describe("isLegacyBlobExportAllowed predicate", () => {
+  it("self-hosted always returns true", () => {
+    expect(isLegacyBlobExportAllowed(POST_CUTOFF, false)).toBe(true);
+    expect(isLegacyBlobExportAllowed(AT_CUTOFF, false)).toBe(true);
+    expect(isLegacyBlobExportAllowed(PRE_CUTOFF, false)).toBe(true);
+  });
+
+  it("Cloud + pre-cutoff → true (grandfathered)", () => {
+    expect(isLegacyBlobExportAllowed(PRE_CUTOFF, true)).toBe(true);
+  });
+
+  it("Cloud + post-cutoff → false", () => {
+    expect(isLegacyBlobExportAllowed(POST_CUTOFF, true)).toBe(false);
+  });
+
+  it("Cloud + exactly at cutoff → false (>= semantics)", () => {
+    expect(isLegacyBlobExportAllowed(AT_CUTOFF, true)).toBe(false);
   });
 });
