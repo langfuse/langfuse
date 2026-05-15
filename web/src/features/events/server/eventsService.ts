@@ -75,6 +75,7 @@ interface GetObservationsFilterOptionsParams {
   projectId: string;
   startTimeFilter?: TimeFilter[];
   hasParentObservation?: boolean;
+  observationType?: string;
 }
 
 /**
@@ -218,13 +219,26 @@ export async function getEventCount(params: GetObservationsCountParams) {
   return { totalCount };
 }
 
+const toFilterValueOptions = <
+  TKey extends string,
+  TItem extends Record<TKey, string | null> & { count: number },
+>(
+  items: TItem[],
+  key: TKey,
+) =>
+  items.flatMap((item) => {
+    const value = item[key];
+    return value === null ? [] : [{ value, count: item.count }];
+  });
+
 /**
  * Get all available filter options for events table
  */
 export async function getEventFilterOptions(
   params: GetObservationsFilterOptionsParams,
 ) {
-  const { projectId, startTimeFilter, hasParentObservation } = params;
+  const { projectId, startTimeFilter, hasParentObservation, observationType } =
+    params;
 
   // Build filter with optional hasParentObservation for scoping filter options
   const eventsFilter: FilterState = [
@@ -236,6 +250,16 @@ export async function getEventFilterOptions(
             type: "boolean" as const,
             operator: "=" as const,
             value: hasParentObservation,
+          },
+        ]
+      : []),
+    ...(observationType
+      ? [
+          {
+            column: "type" as const,
+            type: "string" as const,
+            operator: "=" as const,
+            value: observationType,
           },
         ]
       : []),
@@ -326,95 +350,34 @@ export async function getEventFilterOptions(
   );
 
   return {
-    providedModelName: providedModelName
-      .filter((i) => i.model !== null)
-      .map((i) => ({ value: i.model as string, count: i.count })),
-    modelId: modelId
-      .filter((i) => i.modelId !== null)
-      .map((i) => ({
-        value: i.modelId as string,
-        count: i.count,
-      })),
-    name: name
-      .filter((i) => i.name !== null)
-      .map((i) => ({ value: i.name as string, count: i.count })),
+    providedModelName: toFilterValueOptions(providedModelName, "model"),
+    modelId: toFilterValueOptions(modelId, "modelId"),
+    name: toFilterValueOptions(name, "name"),
     scores_avg: numericScoreNames.map((score) => score.name),
     score_categories: categoricalScoreNames,
     trace_scores_avg: traceNumericScoreNames,
     trace_score_categories: categoricalScoreNames.filter((score) =>
       traceCategoricalScoreNames.has(score.label),
     ),
-    promptName: promptNames
-      .filter((i) => i.promptName !== null)
-      .map((i) => ({
-        value: i.promptName as string,
-        count: i.count,
-      })),
+    promptName: toFilterValueOptions(promptNames, "promptName"),
     traceTags: traceTags
       .filter((i) => i.tag !== null)
       .map((i) => ({
-        value: i.tag as string,
+        value: i.tag,
       })),
-    traceName: traceNames
-      .filter((i) => i.traceName !== null)
-      .map((i) => ({
-        value: i.traceName as string,
-        count: i.count,
-      })),
-    type: types
-      .filter((i) => i.type !== null)
-      .map((i) => ({
-        value: i.type as string,
-        count: i.count,
-      })),
-    userId: userIds
-      .filter((i) => i.userId !== null)
-      .map((i) => ({
-        value: i.userId as string,
-        count: i.count,
-      })),
-    version: versions
-      .filter((i) => i.version !== null)
-      .map((i) => ({
-        value: i.version as string,
-        count: i.count,
-      })),
-    sessionId: sessionIds
-      .filter((i) => i.sessionId !== null)
-      .map((i) => ({
-        value: i.sessionId as string,
-        count: i.count,
-      })),
-    level: levels
-      .filter((i) => i.level !== null)
-      .map((i) => ({
-        value: i.level as string,
-        count: i.count,
-      })),
-    environment: environments
-      .filter((i) => i.environment !== null)
-      .map((i) => ({
-        value: i.environment as string,
-        count: i.count,
-      })),
-    experimentDatasetId: experimentDatasetIds
-      .filter((i) => i.experimentDatasetId !== null)
-      .map((i) => ({
-        value: i.experimentDatasetId as string,
-        count: i.count,
-      })),
-    experimentId: experimentIds
-      .filter((i) => i.experimentId !== null)
-      .map((i) => ({
-        value: i.experimentId as string,
-        count: i.count,
-      })),
-    experimentName: experimentNames
-      .filter((i) => i.experimentName !== null)
-      .map((i) => ({
-        value: i.experimentName as string,
-        count: i.count,
-      })),
+    traceName: toFilterValueOptions(traceNames, "traceName"),
+    type: toFilterValueOptions(types, "type"),
+    userId: toFilterValueOptions(userIds, "userId"),
+    version: toFilterValueOptions(versions, "version"),
+    sessionId: toFilterValueOptions(sessionIds, "sessionId"),
+    level: toFilterValueOptions(levels, "level"),
+    environment: toFilterValueOptions(environments, "environment"),
+    experimentDatasetId: toFilterValueOptions(
+      experimentDatasetIds,
+      "experimentDatasetId",
+    ),
+    experimentId: toFilterValueOptions(experimentIds, "experimentId"),
+    experimentName: toFilterValueOptions(experimentNames, "experimentName"),
     hasParentObservation: hasParentObservationResults.map((i) => ({
       // ClickHouse returns UInt8 (0/1) for computed boolean; normalize to "true"/"false"
       value: i.hasParentObservation ? "true" : "false",
@@ -422,10 +385,10 @@ export async function getEventFilterOptions(
     })),
     toolNames: toolNames
       .filter((i) => i.toolName !== null)
-      .map((i) => ({ value: i.toolName as string })),
+      .map((i) => ({ value: i.toolName })),
     calledToolNames: calledToolNames
       .filter((i) => i.calledToolName !== null)
-      .map((i) => ({ value: i.calledToolName as string })),
+      .map((i) => ({ value: i.calledToolName })),
   };
 }
 
