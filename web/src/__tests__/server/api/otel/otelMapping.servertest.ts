@@ -4452,6 +4452,7 @@ describe("OTel Resource Span Mapping", () => {
 
       expect(eventInputs).toHaveLength(1);
       const eventInput = eventInputs[0];
+      expect(typeof eventInput.input).toBe("object");
       const parsedInput =
         typeof eventInput.input === "string"
           ? JSON.parse(eventInput.input)

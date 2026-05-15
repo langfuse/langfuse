@@ -19,6 +19,7 @@ import {
   recordDistribution,
   UsageDetails,
   normalizeToolsForObservation,
+  normalizeToolMetadataForObservation,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -983,9 +984,8 @@ export class OtelIngestionProcessor {
       resourceAttributes,
       scope: { ...scopeSpan.scope, attributes: scopeAttributes },
     };
-    const normalizedTools = normalizeToolsForObservation(
+    const normalizedToolMetadata = normalizeToolMetadataForObservation(
       input,
-      output,
       metadata,
     );
 
@@ -1001,7 +1001,7 @@ export class OtelIngestionProcessor {
         attributes,
         startTimeISO,
       ),
-      metadata: normalizedTools.metadata,
+      metadata: normalizedToolMetadata.metadata,
       level:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
         (span.status?.code === 2
@@ -1039,8 +1039,8 @@ export class OtelIngestionProcessor {
         observationContext,
       ),
       costDetails: this.extractCostDetails(attributes, observationContext),
-      input: normalizedTools.input,
-      output: normalizedTools.output,
+      input: normalizedToolMetadata.input,
+      output,
     };
 
     const mappedObservationType = observationTypeMapper.mapToObservationType(

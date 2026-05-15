@@ -617,7 +617,7 @@ function appendToolsToInput(
     try {
       const merged = mergeTools(JSON.parse(input));
       return {
-        input: merged.mapped ? JSON.stringify(merged.input) : input,
+        input: merged.mapped ? merged.input : input,
         mapped: merged.mapped,
         inputForExtraction: merged.inputForExtraction,
       };
@@ -634,7 +634,7 @@ function appendToolsToInput(
   return mergeTools(input);
 }
 
-function normalizeMetadataToolsIntoInput(
+export function normalizeToolMetadataForObservation(
   input: unknown,
   metadata: unknown,
 ): {
@@ -738,7 +738,10 @@ export function normalizeToolsForObservation(
   toolCalls: string[];
   toolCallNames: string[];
 } {
-  const normalizedToolInput = normalizeMetadataToolsIntoInput(input, metadata);
+  const normalizedToolInput = normalizeToolMetadataForObservation(
+    input,
+    metadata,
+  );
 
   try {
     const { toolDefinitions, toolArguments } =

@@ -178,6 +178,27 @@ describe("extractToolsFromObservation", () => {
       });
     });
 
+    it("keeps normalized JSON-string input parsed after moving tools", () => {
+      const input = JSON.stringify([{ role: "user", content: "Need weather" }]);
+      const tool = {
+        type: "function",
+        name: "get_weather",
+        description: "Get weather.",
+      };
+      const metadata = {
+        attributes: {
+          "ai.prompt.tools": [tool],
+        },
+      };
+
+      const result = normalizeToolsForObservation(input, null, metadata);
+
+      expect(result.input).toEqual({
+        messages: [{ role: "user", content: "Need weather" }],
+        tools: [tool],
+      });
+    });
+
     it("preserves user metadata.tools arrays that are not tool definitions", () => {
       const input = [{ role: "user", content: "Need weather" }];
       const tool = {
