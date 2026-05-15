@@ -33,23 +33,6 @@ const maskAuthConfig = (
   return rest;
 };
 
-// Drop the OIDC `openid` token from a scope string and fall back to a baseline
-// OAuth2 scope when stripping would otherwise leave the IdP with no claims to
-// release. See the call site in `save` for the full rationale.
-const withOauth2Scope = (
-  authConfig: Record<string, unknown>,
-): Record<string, unknown> => {
-  const requestedScope =
-    typeof authConfig.scope === "string"
-      ? authConfig.scope
-      : "openid email profile";
-  const stripped = requestedScope
-    .split(/\s+/)
-    .filter((token) => token.length > 0 && token !== "openid")
-    .join(" ");
-  return { ...authConfig, scope: stripped || "email profile" };
-};
-
 export const ssoConfigRouter = createTRPCRouter({
   get: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
@@ -152,29 +135,11 @@ export const ssoConfigRouter = createTRPCRouter({
             }
           : authConfig;
 
-      // NextAuth picks between client.callback() (OIDC) and
-      // client.oauthCallback() (OAuth2-only) based on the provider's
-      // `idToken` flag. openid-client's oauthCallback throws
-      //   "id_token detected in the response, you must use client.callback()
-      //    instead of client.oauthCallback()"
-      // mid-flow if the IdP returns an id_token — which any OIDC server does
-      // whenever `openid` is in scope. The self-service form only exposes
-      // `idToken` (not `scope`), so admins toggling `idToken: false` would
-      // otherwise pair it with our default `openid email profile` scope and
-      // hit this contradiction. Normalize the stored scope here so the
-      // runtime callback flow matches the IdP response shape.
-      const normalizedAuthConfig =
-        authProvider === "custom" &&
-        mergedAuthConfig &&
-        (mergedAuthConfig as { idToken?: unknown }).idToken === false
-          ? withOauth2Scope(mergedAuthConfig as Record<string, unknown>)
-          : mergedAuthConfig;
-
-      const encryptedAuthConfig = normalizedAuthConfig
+      const encryptedAuthConfig = mergedAuthConfig
         ? {
-            ...normalizedAuthConfig,
+            ...mergedAuthConfig,
             clientSecret: encrypt(
-              (normalizedAuthConfig as { clientSecret: string }).clientSecret,
+              (mergedAuthConfig as { clientSecret: string }).clientSecret,
             ),
           }
         : null;
