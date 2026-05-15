@@ -771,6 +771,35 @@ export class QueryBuilder {
     return `${wrappedSql} as time_dimension`;
   }
 
+  /**
+   * Builds entity dimension SQL for categorical bucketing (e.g., by experimentName).
+   *
+   * IMPORTANT: Unlike timeDimension (which has implicit bucket limits like 24 hours/day),
+   * entityDimension has NO cardinality guarantee. The caller MUST ensure the dataset is
+   * filtered in WHERE before GROUP BY runs (e.g., filter by experimentId with max ~50 items).
+   * Without pre-filtering, GROUP BY on high-cardinality columns causes slow queries or OOM.
+   */
+  private buildEntityDimensionSql(
+    view: ViewDeclarationType,
+    query: QueryType,
+    wrapInAgg?: string,
+  ): string {
+    if (!query.entityDimension) {
+      return "";
+    }
+
+    const dim = view.dimensions[query.entityDimension.field];
+    if (!dim) {
+      throw new InvalidRequestError(
+        `Invalid entity dimension: ${query.entityDimension.field}. Must be one of ${Object.keys(view.dimensions)}`,
+      );
+    }
+
+    const baseSql = dim.sql;
+    const sql = wrapInAgg ? `${wrapInAgg}(${baseSql})` : baseSql;
+    return `${sql} as entity_dimension`;
+  }
+
   private buildInnerDimensionsPart(
     appliedDimensions: AppliedDimensionType[],
     query: QueryType,
@@ -811,6 +840,12 @@ export class QueryBuilder {
     const timeDimensionSql = this.buildTimeDimensionSql(view, query, "any");
     if (timeDimensionSql) {
       dimensions += `${timeDimensionSql},`;
+    }
+
+    // Add entity dimension if specified - reuse unified builder with any() wrapper
+    const entityDimensionSql = this.buildEntityDimensionSql(view, query, "any");
+    if (entityDimensionSql) {
+      dimensions += `${entityDimensionSql},`;
     }
 
     return dimensions;
@@ -879,6 +914,7 @@ export class QueryBuilder {
   private buildOuterDimensionsPart(
     appliedDimensions: AppliedDimensionType[],
     hasTimeDimension: boolean,
+    hasEntityDimension: boolean,
   ) {
     let dimensions = "";
 
@@ -897,6 +933,11 @@ export class QueryBuilder {
       dimensions += `time_dimension,`;
     }
 
+    // Add entity dimension if it exists
+    if (hasEntityDimension) {
+      dimensions += `entity_dimension,`;
+    }
+
     return dimensions;
   }
 
@@ -909,6 +950,7 @@ export class QueryBuilder {
   private buildGroupByClause(
     appliedDimensions: AppliedDimensionType[],
     hasTimeDimension: boolean,
+    hasEntityDimension: boolean,
   ) {
     const dimensions = [];
 
@@ -926,6 +968,11 @@ export class QueryBuilder {
       dimensions.push("time_dimension");
     }
 
+    // Add entity dimension if it exists
+    if (hasEntityDimension) {
+      dimensions.push("entity_dimension");
+    }
+
     return dimensions.length > 0 ? `GROUP BY ${dimensions.join(",\n")}` : "";
   }
 
@@ -938,12 +985,14 @@ export class QueryBuilder {
     timeDimension: {
       granularity: z.infer<typeof granularities>;
     } | null,
+    entityDimension: { field: string } | null | undefined,
     fromTimestamp: string,
     toTimestamp: string,
     orderBy: Array<{ field: string; direction: string }> | null,
     parameters: Record<string, unknown>,
   ): string {
-    if (!timeDimension) {
+    // No fill for entity dimensions - they're categorical, not temporal
+    if (!timeDimension || entityDimension) {
       return "";
     }
 
@@ -1075,6 +1124,12 @@ export class QueryBuilder {
       dimensionsPart += `${timeDimensionSql},\n`;
     }
 
+    // Add entity dimension if specified (no wrapper for single-level)
+    const entityDimensionSql = this.buildEntityDimensionSql(view, query);
+    if (entityDimensionSql) {
+      dimensionsPart += `${entityDimensionSql},\n`;
+    }
+
     return dimensionsPart;
   }
 
@@ -1118,11 +1173,14 @@ export class QueryBuilder {
     appliedDimensions: AppliedDimensionType[],
     appliedMetrics: AppliedMetricType[],
     hasTimeDimension: boolean,
+    hasEntityDimension: boolean,
   ): Array<{ field: string; direction: string }> {
     if (!orderBy || orderBy.length === 0) {
-      // Default order: time dimension if available, otherwise first metric, otherwise first dimension
+      // Default order: time dimension > entity dimension > first metric > first dimension
       if (hasTimeDimension) {
         return [{ field: "time_dimension", direction: "asc" }];
+      } else if (hasEntityDimension) {
+        return [{ field: "entity_dimension", direction: "asc" }];
       } else if (appliedMetrics.length > 0) {
         const firstMetric = appliedMetrics[0];
         return [
@@ -1147,6 +1205,11 @@ export class QueryBuilder {
     return orderBy.map((item) => {
       // Check if the field is a time dimension
       if (hasTimeDimension && item.field === "time_dimension") {
+        return item;
+      }
+
+      // Check if the field is an entity dimension
+      if (hasEntityDimension && item.field === "entity_dimension") {
         return item;
       }
 
@@ -1395,6 +1458,7 @@ export class QueryBuilder {
     const groupByClause = this.buildGroupByClause(
       appliedDimensions,
       !!query.timeDimension,
+      !!query.entityDimension,
     );
 
     // Process and validate orderBy fields
@@ -1403,6 +1467,7 @@ export class QueryBuilder {
       appliedDimensions,
       appliedMetrics,
       !!query.timeDimension,
+      !!query.entityDimension,
     );
 
     // Build ORDER BY clause
@@ -1411,6 +1476,7 @@ export class QueryBuilder {
     // Build WITH FILL clause for time dimension to fill gaps in timeseries
     const withFillClause = this.buildWithFillClause(
       query.timeDimension,
+      query.entityDimension,
       query.fromTimestamp,
       query.toTimestamp,
       query.orderBy,
@@ -1458,6 +1524,7 @@ export class QueryBuilder {
       const outerDimensionsPart = this.buildOuterDimensionsPart(
         appliedDimensions,
         !!query.timeDimension,
+        !!query.entityDimension,
       );
       const outerMetricsPart = this.buildOuterMetricsPart(appliedMetrics);
 

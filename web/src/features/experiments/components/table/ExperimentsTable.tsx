@@ -53,6 +53,7 @@ import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { ExperimentCharts } from "../ExperimentCharts";
 
 export default function ExperimentsTable({
   projectId,
@@ -501,6 +502,11 @@ export default function ExperimentsTable({
       : [];
   }, [experiments]);
 
+  // Get all experiment IDs from the current query result (for charts)
+  const allExperimentIds = useMemo(() => {
+    return rows.map((row) => row.id);
+  }, [rows]);
+
   // Get selected experiment IDs in the order they appear in the table
   const selectedExperimentIds = useMemo(() => {
     const selectedIds = Object.keys(selectedRows).filter((id) =>
@@ -644,6 +650,19 @@ export default function ExperimentsTable({
                 : undefined
             }
           />
+
+          {/* Cost chart for all experiments in current view */}
+          {tableDateRange && (
+            <div className="border-b p-4">
+              <ExperimentCharts
+                projectId={projectId}
+                experimentIds={allExperimentIds}
+                fromTimestamp={tableDateRange.from}
+                toTimestamp={tableDateRange.to ?? new Date()}
+                isExternalLoading={experiments.status === "loading"}
+              />
+            </div>
+          )}
 
           {/* Content area with sidebar and table */}
           <ResizableFilterLayout>
