@@ -11,7 +11,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { OBSERVATION_FIELD_GROUPS_FULL } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
-import { env } from "@/src/env.mjs";
 
 // Schemas based on Fern schema definition
 const BlobStorageIntegrationResponseSchema = z.object({
@@ -1452,9 +1451,13 @@ describe("Blob Storage Integrations API", () => {
       vi.restoreAllMocks();
     });
 
+    // All REST cutoff-gate tests rely on the CI server already running in Cloud
+    // mode (NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is set in .env.dev.example). The
+    // makeAPICall goes over HTTP to a separate process whose env is frozen at
+    // boot, so any (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION mutation in
+    // the test process never reaches the server and would be dead code.
+
     it("Cloud + pre-cutoff project + LEGACY_TRACES_OBSERVATIONS → 200", async () => {
-      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
       try {
         await prisma.project.update({
           where: { id: testProject1Id },
@@ -1472,7 +1475,6 @@ describe("Blob Storage Integrations API", () => {
         );
         expect(result.status).toBe(200);
       } finally {
-        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
         await prisma.blobStorageIntegration.deleteMany({
           where: { projectId: testProject1Id },
         });
@@ -1480,8 +1482,6 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("Cloud + post-cutoff project + LEGACY_TRACES_OBSERVATIONS → 400", async () => {
-      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
       try {
         await prisma.project.update({
           where: { id: testProject1Id },
@@ -1500,7 +1500,6 @@ describe("Blob Storage Integrations API", () => {
         expect(result.status).toBe(400);
         expect(result.body.message).toContain("OBSERVATIONS_V2");
       } finally {
-        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
         await prisma.project.update({
           where: { id: testProject1Id },
           data: { createdAt: new Date() },
@@ -1509,8 +1508,6 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("Cloud + post-cutoff project + LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS → 400", async () => {
-      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
       try {
         await prisma.project.update({
           where: { id: testProject1Id },
@@ -1529,7 +1526,6 @@ describe("Blob Storage Integrations API", () => {
         expect(result.status).toBe(400);
         expect(result.body.message).toContain("OBSERVATIONS_V2");
       } finally {
-        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
         await prisma.project.update({
           where: { id: testProject1Id },
           data: { createdAt: new Date() },
@@ -1538,8 +1534,6 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("Cloud + post-cutoff project + OBSERVATIONS_V2 → 200", async () => {
-      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
       try {
         await prisma.project.update({
           where: { id: testProject1Id },
@@ -1557,7 +1551,6 @@ describe("Blob Storage Integrations API", () => {
         );
         expect(result.status).toBe(200);
       } finally {
-        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
         await prisma.project.update({
           where: { id: testProject1Id },
           data: { createdAt: new Date() },
