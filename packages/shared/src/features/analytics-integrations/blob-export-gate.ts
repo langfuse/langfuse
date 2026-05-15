@@ -13,9 +13,10 @@ export const LEGACY_BLOB_EXPORT_CUTOFF =
     ? _override
     : new Date("2026-05-20T00:00:00.000Z");
 
-// Internal enum values that are considered "legacy". satisfies ensures TypeScript
-// errors if a new AnalyticsIntegrationExportSource variant is added without
-// reconsidering whether it belongs here.
+// Internal enum values that are considered "legacy". satisfies ensures each
+// element remains a valid AnalyticsIntegrationExportSource — catches renames or
+// removals at compile time. Adding a new enum variant does NOT automatically
+// produce an error here; the list must be reviewed manually.
 export const LEGACY_BLOB_EXPORT_SOURCES = [
   AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
   AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
