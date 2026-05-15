@@ -1,28 +1,15 @@
-import { useCallback, useEffect } from "react";
-import type { Path } from "react-hook-form";
+import { useCallback } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import { Form } from "@/src/components/ui/form";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { useSurveyForm } from "../hooks/useSurveyForm";
-import { SurveyProgress } from "./SurveyProgress";
 import { SurveyStep } from "./SurveyStep";
 import type { SurveyFormData } from "../lib/surveyTypes";
 
 export function OnboardingSurvey() {
   const router = useRouter();
-  const {
-    form,
-    state,
-    currentQuestion,
-    isLastStep,
-    isFirstStep,
-    goNext,
-    goBack,
-    handleAutoAdvance,
-    handleSubmit,
-    totalSteps,
-  } = useSurveyForm();
+  const { form, question, handleSubmit } = useSurveyForm();
 
   const onSubmit = useCallback(
     async (data: SurveyFormData) => {
@@ -37,60 +24,7 @@ export function OnboardingSurvey() {
     [handleSubmit, router],
   );
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.key === "Enter" &&
-        isLastStep &&
-        currentQuestion?.type === "text"
-      ) {
-        event.preventDefault();
-        form.handleSubmit(onSubmit)();
-        return;
-      }
-
-      // Regular Enter advances radio steps before the final page.
-      if (event.key === "Enter" && !isLastStep) {
-        if (currentQuestion?.type !== "text") {
-          goNext();
-        }
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [
-    isLastStep,
-    currentQuestion?.type,
-    currentQuestion?.id,
-    goNext,
-    form,
-    onSubmit,
-  ]);
-
-  // Auto-focus the first form control of the current step
-  useEffect(() => {
-    if (!currentQuestion?.id) return;
-    const field = currentQuestion.id as Path<SurveyFormData>;
-    const raf = requestAnimationFrame(() => {
-      try {
-        form.setFocus(field, { shouldSelect: true });
-      } catch {
-        // ignore if the control cannot be focused
-      }
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [currentQuestion?.id, form]);
-
-  // Determine labeling/behavior of the primary (right) button
-  const currentFieldId = currentQuestion?.id as
-    | keyof SurveyFormData
-    | undefined;
-  const currentValue = currentFieldId
-    ? form.watch(currentFieldId as Path<SurveyFormData>)
-    : undefined;
+  const currentValue = form.watch("referralSource");
 
   const isEmpty = (v: unknown) =>
     v == null || (typeof v === "string" && v.trim() === "");
@@ -98,19 +32,7 @@ export function OnboardingSurvey() {
   const showSkip = currentEmpty;
 
   const handleSkipButton = () => {
-    if (isLastStep) {
-      void router.push("/");
-    } else {
-      goNext();
-    }
-  };
-
-  const handleSubmitButton = () => {
-    if (isLastStep) {
-      form.handleSubmit(onSubmit)();
-    } else {
-      goNext();
-    }
+    void router.push("/");
   };
 
   return (
@@ -124,19 +46,18 @@ export function OnboardingSurvey() {
           <form
             className="flex h-full flex-col"
             onSubmit={form.handleSubmit(onSubmit)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && currentEmpty) {
+                event.preventDefault();
+                void router.push("/");
+              }
+            }}
           >
             <div className="flex-1">
-              {currentQuestion && (
-                <SurveyStep
-                  question={currentQuestion}
-                  control={form.control}
-                  onAutoAdvance={handleAutoAdvance}
-                  isLast={isLastStep}
-                />
-              )}
+              <SurveyStep question={question} control={form.control} />
             </div>
 
-            <div className="flex flex-row-reverse items-center justify-between pt-6">
+            <div className="flex justify-end pt-6">
               {showSkip ? (
                 <Button
                   type="button"
@@ -147,34 +68,9 @@ export function OnboardingSurvey() {
                   Skip
                 </Button>
               ) : (
-                <Button
-                  type="button"
-                  onClick={handleSubmitButton}
-                  variant="default"
-                  className="w-20"
-                >
-                  {isLastStep ? "Finish" : "Next"}
+                <Button type="submit" variant="default" className="w-20">
+                  Finish
                 </Button>
-              )}
-
-              <div className="basis-40 px-4">
-                <SurveyProgress
-                  currentStep={state.currentStep}
-                  totalSteps={totalSteps}
-                />
-              </div>
-
-              {!isFirstStep ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={goBack}
-                  className="w-20"
-                >
-                  Back
-                </Button>
-              ) : (
-                <div className="w-20" />
               )}
             </div>
           </form>
