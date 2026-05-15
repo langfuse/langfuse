@@ -628,6 +628,23 @@ describe("Blob Storage Integrations API", () => {
   });
 
   describe("PUT/GET exportSource + exportFieldGroups behavior", () => {
+    // Pin projects to a pre-cutoff date so legacy-source tests remain valid
+    // after 2026-05-20 (when CI starts rejecting LEGACY_TRACES_OBSERVATIONS for
+    // projects created on or after the cutoff).
+    beforeAll(async () => {
+      await prisma.project.updateMany({
+        where: { id: { in: [testProject1Id, testProject2Id] } },
+        data: { createdAt: new Date("2026-05-01T00:00:00.000Z") },
+      });
+    });
+
+    afterAll(async () => {
+      await prisma.project.updateMany({
+        where: { id: { in: [testProject1Id, testProject2Id] } },
+        data: { createdAt: new Date() },
+      });
+    });
+
     afterEach(async () => {
       await prisma.blobStorageIntegration.deleteMany({
         where: {

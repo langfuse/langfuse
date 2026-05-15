@@ -382,6 +382,10 @@ describe("Blob Storage Integration tRPC Router", () => {
 
     it("rejects empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS_EVENTS", async () => {
       const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: new Date("2026-05-01T00:00:00.000Z") },
+      });
 
       await expect(
         caller.blobStorageIntegration.update({
@@ -395,6 +399,10 @@ describe("Blob Storage Integration tRPC Router", () => {
 
     it("accepts empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS", async () => {
       const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: new Date("2026-05-01T00:00:00.000Z") },
+      });
 
       await expect(
         caller.blobStorageIntegration.update({
