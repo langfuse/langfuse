@@ -79,13 +79,33 @@ describe("OTEL ingestion tenant isolation", () => {
     await waitForExpect(
       async () => {
         const rowsA = await queryClickhouse<{ count: string }>({
-          query: `SELECT count() as count FROM observations WHERE project_id = {projectId: String} AND id = {spanId: String}`,
+          // ReplacingMergeTree: dedup with `LIMIT 1 BY id, project_id` so a
+          // retry-induced duplicate insert (the OtelIngestionQueue is
+          // configured with attempts: 6) cannot inflate the count and make
+          // the strict toBe(1) fail for a non-isolation reason.
+          query: `SELECT count() as count FROM (
+            SELECT id
+            FROM observations
+            WHERE project_id = {projectId: String} AND id = {spanId: String}
+            ORDER BY event_ts DESC
+            LIMIT 1 BY id, project_id
+          )`,
           params: { projectId: projectA.projectId, spanId: spanIdHex },
         });
         expect(Number(rowsA[0]?.count)).toBe(1);
 
         const rowsB = await queryClickhouse<{ count: string }>({
-          query: `SELECT count() as count FROM observations WHERE project_id = {projectId: String} AND id = {spanId: String}`,
+          // ReplacingMergeTree: dedup with `LIMIT 1 BY id, project_id` so a
+          // retry-induced duplicate insert (the OtelIngestionQueue is
+          // configured with attempts: 6) cannot inflate the count and make
+          // the strict toBe(1) fail for a non-isolation reason.
+          query: `SELECT count() as count FROM (
+            SELECT id
+            FROM observations
+            WHERE project_id = {projectId: String} AND id = {spanId: String}
+            ORDER BY event_ts DESC
+            LIMIT 1 BY id, project_id
+          )`,
           params: { projectId: projectB.projectId, spanId: spanIdHex },
         });
         expect(Number(rowsB[0]?.count)).toBe(0);
