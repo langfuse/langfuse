@@ -12,7 +12,7 @@ import {
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
   AnalyticsIntegrationExportSource,
-  type BlobExportFieldGroup,
+  type ObservationFieldGroupFull,
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
@@ -96,7 +96,7 @@ async function handleGetBlobStorageIntegrations(
         integration.exportSource ===
         AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
           ? null
-          : (integration.exportFieldGroups as BlobExportFieldGroup[]),
+          : (integration.exportFieldGroups as ObservationFieldGroupFull[]),
       nextSyncAt: integration.nextSyncAt,
       lastSyncAt: integration.lastSyncAt,
       lastError: integration.lastError,
@@ -214,7 +214,7 @@ async function handleUpsertBlobStorageIntegration(
       integration.exportSource ===
       AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
         ? null
-        : (integration.exportFieldGroups as BlobExportFieldGroup[]),
+        : (integration.exportFieldGroups as ObservationFieldGroupFull[]),
     nextSyncAt: integration.nextSyncAt,
     lastSyncAt: integration.lastSyncAt,
     lastError: integration.lastError,

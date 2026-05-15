@@ -9,7 +9,7 @@ import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
-import { BLOB_EXPORT_FIELD_GROUPS } from "@langfuse/shared";
+import { OBSERVATION_FIELD_GROUPS_FULL } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 
 // Schemas based on Fern schema definition
@@ -34,7 +34,7 @@ const BlobStorageIntegrationResponseSchema = z.object({
     "OBSERVATIONS_V2",
     "LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS",
   ]),
-  exportFieldGroups: z.array(z.enum(BLOB_EXPORT_FIELD_GROUPS)).nullable(),
+  exportFieldGroups: z.array(z.enum(OBSERVATION_FIELD_GROUPS_FULL)).nullable(),
   nextSyncAt: z.coerce.date().nullable(),
   lastSyncAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
@@ -721,10 +721,10 @@ describe("Blob Storage Integrations API", () => {
       expect(integration?.exportSource).toBe("OBSERVATIONS_V2");
       expect(integration?.exportFieldGroups).toBeDefined();
       expect(integration?.exportFieldGroups).toHaveLength(
-        BLOB_EXPORT_FIELD_GROUPS.length,
+        OBSERVATION_FIELD_GROUPS_FULL.length,
       );
       expect(new Set(integration?.exportFieldGroups)).toStrictEqual(
-        new Set(BLOB_EXPORT_FIELD_GROUPS),
+        new Set(OBSERVATION_FIELD_GROUPS_FULL),
       );
     });
 
@@ -759,10 +759,10 @@ describe("Blob Storage Integrations API", () => {
       expect(integration).toBeDefined();
       expect(integration?.exportFieldGroups).toBeDefined();
       expect(integration?.exportFieldGroups).toHaveLength(
-        BLOB_EXPORT_FIELD_GROUPS.length,
+        OBSERVATION_FIELD_GROUPS_FULL.length,
       );
       expect(new Set(integration?.exportFieldGroups)).toStrictEqual(
-        new Set(BLOB_EXPORT_FIELD_GROUPS),
+        new Set(OBSERVATION_FIELD_GROUPS_FULL),
       );
     });
 
