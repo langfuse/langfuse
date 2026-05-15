@@ -1,10 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
-import { isLegacyBlobExportAllowed } from "@langfuse/shared";
+import {
+  isLegacyBlobExportAllowed,
+  LEGACY_BLOB_EXPORT_CUTOFF,
+} from "@langfuse/shared";
 
-const PRE_CUTOFF = new Date("2026-05-19T23:59:59.999Z");
-const AT_CUTOFF = new Date("2026-05-20T00:00:00.000Z");
-const POST_CUTOFF = new Date("2026-05-21T00:00:00.000Z");
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
+const AT_CUTOFF = LEGACY_BLOB_EXPORT_CUTOFF;
+const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
 
 describe("assertLegacyBlobExportSourceAllowed", () => {
   it("Cloud + EVENTS + pre-cutoff → allow", () => {

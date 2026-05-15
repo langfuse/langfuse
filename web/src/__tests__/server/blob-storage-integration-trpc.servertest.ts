@@ -11,8 +11,15 @@ import {
   QueueJobs,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
-import { OBSERVATION_FIELD_GROUPS_FULL } from "@langfuse/shared";
+import {
+  OBSERVATION_FIELD_GROUPS_FULL,
+  LEGACY_BLOB_EXPORT_CUTOFF,
+} from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
+const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -384,7 +391,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       const { caller, project } = await prepare();
       await prisma.project.update({
         where: { id: project.id },
-        data: { createdAt: new Date("2026-05-01T00:00:00.000Z") },
+        data: { createdAt: PRE_CUTOFF },
       });
 
       await expect(
@@ -401,7 +408,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       const { caller, project } = await prepare();
       await prisma.project.update({
         where: { id: project.id },
-        data: { createdAt: new Date("2026-05-01T00:00:00.000Z") },
+        data: { createdAt: PRE_CUTOFF },
       });
 
       await expect(
@@ -441,9 +448,6 @@ describe("Blob Storage Integration tRPC Router", () => {
   });
 
   describe("legacy blob export source cutoff gate", () => {
-    const PRE_CUTOFF = new Date("2026-05-19T12:00:00.000Z");
-    const POST_CUTOFF = new Date("2026-05-21T12:00:00.000Z");
-
     afterEach(() => {
       vi.restoreAllMocks();
     });

@@ -9,8 +9,15 @@ import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
-import { OBSERVATION_FIELD_GROUPS_FULL } from "@langfuse/shared";
+import {
+  OBSERVATION_FIELD_GROUPS_FULL,
+  LEGACY_BLOB_EXPORT_CUTOFF,
+} from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
+const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
 
 // Schemas based on Fern schema definition
 const BlobStorageIntegrationResponseSchema = z.object({
@@ -629,12 +636,13 @@ describe("Blob Storage Integrations API", () => {
 
   describe("PUT/GET exportSource + exportFieldGroups behavior", () => {
     // Pin projects to a pre-cutoff date so legacy-source tests remain valid
-    // after 2026-05-20 (when CI starts rejecting LEGACY_TRACES_OBSERVATIONS for
-    // projects created on or after the cutoff).
+    // once the clock crosses LEGACY_BLOB_EXPORT_CUTOFF (CI runs with
+    // NEXT_PUBLIC_LANGFUSE_CLOUD_REGION set, so the gate would otherwise
+    // reject LEGACY_TRACES_OBSERVATIONS for projects created at now()).
     beforeAll(async () => {
       await prisma.project.updateMany({
         where: { id: { in: [testProject1Id, testProject2Id] } },
-        data: { createdAt: new Date("2026-05-01T00:00:00.000Z") },
+        data: { createdAt: PRE_CUTOFF },
       });
     });
 
@@ -1445,9 +1453,6 @@ describe("Blob Storage Integrations API", () => {
   });
 
   describe("legacy blob export source cutoff gate", () => {
-    const PRE_CUTOFF = new Date("2026-05-19T12:00:00.000Z");
-    const POST_CUTOFF = new Date("2026-05-21T12:00:00.000Z");
-
     const basePayload = {
       type: "S3" as const,
       bucketName: "test-bucket",
