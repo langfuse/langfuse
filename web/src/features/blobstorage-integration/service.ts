@@ -3,8 +3,8 @@ import {
   BlobStorageExportMode,
   BlobStorageIntegrationType,
   InvalidRequestError,
+  AnalyticsIntegrationExportSource,
   type BlobStorageIntegrationFileType,
-  type AnalyticsIntegrationExportSource,
   type ObservationFieldGroupFull,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -52,6 +52,11 @@ export async function upsertBlobStorageIntegration(params: {
   prisma: PrismaClient;
   projectId: string;
   data: UpsertBlobStorageIntegrationInput;
+  // When true and no existing row is found inside the transaction, the CREATE
+  // branch uses EVENTS instead of the Prisma column default (TRACES_OBSERVATIONS).
+  // Evaluated inside the transaction so the row-state check and the INSERT are
+  // atomic — no TOCTOU window.
+  forceEventsOnCreate?: boolean;
 }) {
   const { prisma, projectId, data } = params;
 
@@ -110,10 +115,21 @@ export async function upsertBlobStorageIntegration(params: {
       ? encrypt(data.secretAccessKey)
       : null;
 
+    // For CREATE only: when the caller signals that the project must not receive
+    // a legacy source default, substitute EVENTS for the column default.
+    // Evaluated here (inside the transaction) so the row-absence check that
+    // determines isCreate is atomic with the INSERT that follows.
+    const createExportSource =
+      data.exportSource ??
+      (!existing && params.forceEventsOnCreate
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : undefined);
+
     return tx.blobStorageIntegration.upsert({
       where: { projectId },
       create: {
         ...writeData,
+        exportSource: createExportSource,
         projectId,
         secretAccessKey: encryptedSecret,
       },

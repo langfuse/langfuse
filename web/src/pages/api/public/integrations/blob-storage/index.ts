@@ -173,25 +173,6 @@ async function handleUpsertBlobStorageIntegration(
     });
   }
 
-  // Detect CREATE vs UPDATE so we can apply the correct default when
-  // exportSource is omitted.
-  const existingIntegration = await prisma.blobStorageIntegration.findUnique({
-    where: { projectId: validatedData.projectId },
-    select: { projectId: true },
-  });
-  const isCreate = existingIntegration === null;
-
-  // On UPDATE with no exportSource the existing value is preserved (pass
-  // undefined so the upsert leaves the column alone). On CREATE, post-cutoff
-  // Cloud projects must not fall back to the Prisma column default
-  // (TRACES_OBSERVATIONS — a legacy source); force EVENTS instead.
-  const exportSourceInternal =
-    validatedData.exportSource != null
-      ? toInternalExportSource(validatedData.exportSource)
-      : isCreate && !isLegacyBlobExportAllowed(project.createdAt, isCloud)
-        ? AnalyticsIntegrationExportSource.EVENTS
-        : undefined;
-
   await auditLog({
     action: "update",
     resourceType: "blobStorageIntegration",
@@ -203,6 +184,12 @@ async function handleUpsertBlobStorageIntegration(
   const integration = await upsertBlobStorageIntegration({
     prisma,
     projectId: validatedData.projectId,
+    // When exportSource is absent and the project is post-cutoff Cloud, have
+    // the service substitute EVENTS on CREATE inside its own transaction —
+    // eliminating the TOCTOU window that a pre-flight findUnique would create.
+    forceEventsOnCreate:
+      validatedData.exportSource == null &&
+      !isLegacyBlobExportAllowed(project.createdAt, isCloud),
     data: {
       type: validatedData.type,
       bucketName: validatedData.bucketName,
@@ -218,7 +205,10 @@ async function handleUpsertBlobStorageIntegration(
       exportMode: validatedData.exportMode,
       exportStartDate: validatedData.exportStartDate ?? null,
       compressed: validatedData.compressed,
-      exportSource: exportSourceInternal,
+      exportSource:
+        validatedData.exportSource != null
+          ? toInternalExportSource(validatedData.exportSource)
+          : undefined,
       exportFieldGroups: validatedData.exportFieldGroups ?? undefined,
     },
   });
