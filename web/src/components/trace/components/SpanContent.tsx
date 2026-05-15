@@ -93,6 +93,8 @@ export function SpanContent({
             (s) => s.observationId === node.id || s.observationId === null,
           )
         : mergedScores.filter((s) => s.observationId === node.id);
+  const showTraceLevelScoreIcon =
+    node.type !== "TRACE" && isTopLevelTreeNode && !hasTraceNode;
 
   return (
     <button
@@ -208,7 +210,11 @@ export function SpanContent({
         {/* Scores row */}
         {showScores && nodeScores.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            <GroupedScoreBadges compact scores={nodeScores} />
+            <GroupedScoreBadges
+              compact
+              scores={nodeScores}
+              showTraceLevelIcon={showTraceLevelScoreIcon}
+            />
           </div>
         )}
       </div>
