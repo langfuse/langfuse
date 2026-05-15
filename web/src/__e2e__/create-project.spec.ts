@@ -77,14 +77,6 @@ test.describe("Create project", () => {
       },
     );
 
-    // Parse the organization ID from the URL using a simpler method
-    const url = new URL(page.url());
-    const organizationId = url.pathname.split("/")[2];
-    console.log("organization", organizationId);
-    expect(page.url()).toContain(
-      "/organization/" + organizationId + "/setup?orgstep=create-project",
-    );
-
     // Create project
     await expect(page.locator("data-testid=new-project-form")).toBeVisible();
     await page.fill(

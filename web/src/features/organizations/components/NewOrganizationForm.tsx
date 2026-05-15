@@ -13,7 +13,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
-import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
+import { organizationFormSchema } from "@/src/features/organizations/utils/organizationNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const NewOrganizationForm = ({
@@ -24,7 +24,7 @@ export const NewOrganizationForm = ({
   const { update: updateSession } = useSession();
 
   const form = useForm({
-    resolver: zodResolver(organizationNameSchema),
+    resolver: zodResolver(organizationFormSchema),
     defaultValues: {
       name: "",
     },
@@ -34,7 +34,7 @@ export const NewOrganizationForm = ({
     onError: (error) => form.setError("name", { message: error.message }),
   });
 
-  function onSubmit(values: z.infer<typeof organizationNameSchema>) {
+  function onSubmit(values: z.infer<typeof organizationFormSchema>) {
     capture("organizations:new_form_submit");
     createOrgMutation
       .mutateAsync({
