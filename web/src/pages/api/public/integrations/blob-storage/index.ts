@@ -173,13 +173,22 @@ async function handleUpsertBlobStorageIntegration(
     });
   }
 
-  // When exportSource is omitted, post-cutoff Cloud projects must not fall back
-  // to the Prisma column default (TRACES_OBSERVATIONS — a legacy source). Force
-  // EVENTS so the row is created with the correct non-legacy source.
+  // Detect CREATE vs UPDATE so we can apply the correct default when
+  // exportSource is omitted.
+  const existingIntegration = await prisma.blobStorageIntegration.findUnique({
+    where: { projectId: validatedData.projectId },
+    select: { projectId: true },
+  });
+  const isCreate = existingIntegration === null;
+
+  // On UPDATE with no exportSource the existing value is preserved (pass
+  // undefined so the upsert leaves the column alone). On CREATE, post-cutoff
+  // Cloud projects must not fall back to the Prisma column default
+  // (TRACES_OBSERVATIONS — a legacy source); force EVENTS instead.
   const exportSourceInternal =
     validatedData.exportSource != null
       ? toInternalExportSource(validatedData.exportSource)
-      : !isLegacyBlobExportAllowed(project.createdAt, isCloud)
+      : isCreate && !isLegacyBlobExportAllowed(project.createdAt, isCloud)
         ? AnalyticsIntegrationExportSource.EVENTS
         : undefined;
 

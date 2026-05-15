@@ -1560,13 +1560,53 @@ describe("Blob Storage Integrations API", () => {
         });
       }
     });
-    it("Cloud + post-cutoff project + no exportSource → defaults to OBSERVATIONS_V2", async () => {
-      // The server runs in Cloud mode in CI, so no env mutation is needed.
-      // Set createdAt to a past post-cutoff date so the gate applies.
+    it("Cloud + post-cutoff project + no exportSource + CREATE → defaults to OBSERVATIONS_V2", async () => {
+      // No existing row → CREATE path: handler forces EVENTS (OBSERVATIONS_V2).
       try {
         await prisma.project.update({
           where: { id: testProject1Id },
           data: { createdAt: POST_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          { ...basePayload, projectId: testProject1Id },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(200);
+        expect(result.body.exportSource).toBe("OBSERVATIONS_V2");
+      } finally {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+        await prisma.blobStorageIntegration.deleteMany({
+          where: { projectId: testProject1Id },
+        });
+      }
+    });
+
+    it("Cloud + post-cutoff project + no exportSource + UPDATE → preserves existing value", async () => {
+      // Existing row with OBSERVATIONS_V2 → UPDATE path: omitting exportSource
+      // must not overwrite the persisted value.
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId: testProject1Id,
+            type: "S3",
+            bucketName: "test-bucket",
+            region: "us-east-1",
+            exportFrequency: "daily",
+            enabled: true,
+            forcePathStyle: false,
+            fileType: "JSONL",
+            exportMode: "FULL_HISTORY",
+            exportSource: "EVENTS",
+          },
         });
         const result = await makeAPICall(
           "PUT",
