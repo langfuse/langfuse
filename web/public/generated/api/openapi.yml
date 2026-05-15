@@ -7290,7 +7290,9 @@ components:
         - metrics
         - tools
         - trace_context
-      description: Field group for the OBSERVATIONS_V2 export.
+      description: >-
+        Field group for the OBSERVATIONS_V2 and
+        LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS export.
     CreateBlobStorageIntegrationRequest:
       title: CreateBlobStorageIntegrationRequest
       type: object

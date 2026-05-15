@@ -75,7 +75,7 @@ types:
       - LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS
 
   BlobStorageExportFieldGroup:
-    docs: Field group for the OBSERVATIONS_V2 export.
+    docs: Field group for the OBSERVATIONS_V2 and LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS export.
     enum:
       - core
       - basic
