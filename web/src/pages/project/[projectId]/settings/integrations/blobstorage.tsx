@@ -248,16 +248,14 @@ const BlobStorageIntegrationSettingsForm = ({
     project?.createdAt != null &&
     !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
 
-  // Options shown in the dropdown. Legacy options are hidden for post-cutoff
-  // Cloud projects. Always include the currently-persisted value so the form
-  // stays consistent even if the project somehow ended up on a legacy source.
+  // Options shown in the dropdown. Legacy options are always hidden for
+  // post-cutoff Cloud projects, including any previously-persisted value.
   const availableExportSourceOptions = EXPORT_SOURCE_OPTIONS.filter(
     (opt) =>
       !isPostCutoffCloud ||
       !(LEGACY_BLOB_EXPORT_SOURCES as ReadonlyArray<string>).includes(
         opt.value,
-      ) ||
-      opt.value === state?.exportSource,
+      ),
   );
 
   const blobStorageForm = useForm({
@@ -280,11 +278,12 @@ const BlobStorageIntegrationSettingsForm = ({
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
-      exportSource:
-        state?.exportSource ||
-        (isPostCutoffCloud || isBetaEnabled
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportSource: isPostCutoffCloud
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : state?.exportSource ||
+          (isBetaEnabled
+            ? AnalyticsIntegrationExportSource.EVENTS
+            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
       exportFieldGroups:
         (state?.exportFieldGroups as ObservationFieldGroupFull[]) ?? [
           ...OBSERVATION_FIELD_GROUPS_FULL,
@@ -314,11 +313,12 @@ const BlobStorageIntegrationSettingsForm = ({
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
-      exportSource:
-        state?.exportSource ||
-        (isPostCutoffCloud || isBetaEnabled
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportSource: isPostCutoffCloud
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : state?.exportSource ||
+          (isBetaEnabled
+            ? AnalyticsIntegrationExportSource.EVENTS
+            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
       exportFieldGroups:
         (state?.exportFieldGroups as ObservationFieldGroupFull[]) ?? [
           ...OBSERVATION_FIELD_GROUPS_FULL,
