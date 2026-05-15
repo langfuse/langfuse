@@ -2,13 +2,25 @@ import {
   createOrgProjectAndApiKey,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 import waitForExpect from "wait-for-expect";
 import { randomBytes } from "crypto";
+import { afterAll } from "vitest";
 
 describe("OTEL ingestion tenant isolation", () => {
+  const createdOrgIds: string[] = [];
+
+  afterAll(async () => {
+    if (createdOrgIds.length === 0) return;
+    await prisma.organization.deleteMany({
+      where: { id: { in: createdOrgIds } },
+    });
+  });
+
   it("span posted with project A's key lands only in project A's observations", async () => {
     const projectA = await createOrgProjectAndApiKey();
     const projectB = await createOrgProjectAndApiKey();
+    createdOrgIds.push(projectA.orgId, projectB.orgId);
 
     const traceId = randomBytes(16);
     const spanId = randomBytes(8);
