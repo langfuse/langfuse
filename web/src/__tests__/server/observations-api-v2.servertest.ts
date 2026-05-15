@@ -681,15 +681,14 @@ describe("/api/public/v2/observations API Endpoint", () => {
           }
         }
 
-        // Fields from other groups absent (null or undefined — API may serialize
-        // absent fields as null rather than omitting them from the JSON)
+        // Fields from other groups must be absent from the response
         const absentFields = ALL_NON_CORE_FIELDS.filter(
           (f) => !(expectedFields as readonly string[]).includes(f),
         );
         for (const field of absentFields) {
           expect(
-            obs[field] ?? undefined,
-            `expected field "${field}" to be null/undefined when only group "${group}" is requested`,
+            obs[field],
+            `expected field "${field}" to be absent when only group "${group}" is requested`,
           ).toBeUndefined();
         }
       });
