@@ -12,7 +12,9 @@ import {
   validateExportFieldGroups,
 } from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
+import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
 import { TRPCError } from "@trpc/server";
+import { env } from "@/src/env.mjs";
 import {
   logger,
   BlobStorageIntegrationProcessingQueue,
@@ -83,6 +85,19 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "integrations:CRUD",
         });
+
+        if (input.exportSource) {
+          const project = await ctx.prisma.project.findUniqueOrThrow({
+            where: { id: input.projectId },
+            select: { createdAt: true },
+          });
+          assertLegacyBlobExportSourceAllowed({
+            project,
+            nextInternalExportSource: input.exportSource,
+            isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+          });
+        }
+
         await auditLog({
           session: ctx.session,
           action: "update",

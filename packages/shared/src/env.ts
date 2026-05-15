@@ -3,6 +3,10 @@ import { removeEmptyEnvVariables } from "./utils/environment";
 
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
+  // Dev-only override: set to an ISO datetime string to shift the legacy blob
+  // export cutoff for local testing (e.g. "2020-01-01T00:00:00.000Z" makes
+  // every project post-cutoff; "2099-01-01T00:00:00.000Z" grandfathers all).
+  NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
