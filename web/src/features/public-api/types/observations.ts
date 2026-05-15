@@ -156,6 +156,9 @@ export const transformDbToApiObservation = (
     // exclude trace name, this will only be available on events api
     traceName,
 
+    // exclude release, this will only be available on events api
+    release,
+
     // Exclude tags
     tags,
     traceTags,
