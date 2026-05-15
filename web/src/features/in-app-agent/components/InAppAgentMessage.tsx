@@ -21,7 +21,7 @@ export function InAppAgentMessage({ role, content }: InAppAgentMessageProps) {
   return (
     <div
       className={cn(
-        "rounded-2xl px-4 py-3 text-sm shadow-xs",
+        "rounded-2xl px-3.5 py-2.5 text-sm shadow-xs",
         isUser
           ? "bg-primary text-primary-foreground"
           : "bg-card text-card-foreground border-border border",
@@ -44,12 +44,39 @@ function MessageText({
   text: string;
 }) {
   if (role === "user") {
-    return <p className="leading-6 whitespace-pre-wrap">{text}</p>;
+    return <p className="leading-5.5 whitespace-pre-wrap">{text}</p>;
   }
 
   return (
-    <div className="assistant-streamdown text-sm leading-6">
-      <Streamdown>{text}</Streamdown>
+    <div className="prose prose-sm text-foreground prose-headings:my-2.5 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-1 prose-ol:my-1.5 prose-strong:text-inherit prose-blockquote:my-2.5 prose-pre:my-2.5 prose-pre:bg-muted prose-pre:text-foreground prose-code:text-foreground prose-table:my-2.5 max-w-none leading-5.5">
+      <Streamdown
+        // Remove all default classNames so that tailwind's prose styling can be applied without conflicts
+        components={{
+          h1: ({ children }) => <h1>{children}</h1>,
+          h2: ({ children }) => <h2>{children}</h2>,
+          h3: ({ children }) => <h3>{children}</h3>,
+          h4: ({ children }) => <h4>{children}</h4>,
+          h5: ({ children }) => <h5>{children}</h5>,
+          h6: ({ children }) => <h6>{children}</h6>,
+          p: ({ children }) => <p>{children}</p>,
+          a: ({ children, href }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer">
+              {children}
+            </a>
+          ),
+          ul: ({ children }) => <ul>{children}</ul>,
+          ol: ({ children }) => <ol>{children}</ol>,
+          li: ({ children }) => <li>{children}</li>,
+          b: ({ children }) => <b>{children}</b>,
+          strong: ({ children }) => <strong>{children}</strong>,
+          i: ({ children }) => <i>{children}</i>,
+          em: ({ children }) => <em>{children}</em>,
+          code: ({ children }) => <code>{children}</code>,
+          pre: ({ children }) => <pre>{children}</pre>,
+        }}
+      >
+        {text}
+      </Streamdown>
     </div>
   );
 }

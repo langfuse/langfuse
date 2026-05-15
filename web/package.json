@@ -177,6 +177,7 @@
     "@storybook/nextjs-vite": "^10.3.6",
     "@tailwindcss/forms": "^0.5.11",
     "@tailwindcss/postcss": "^4.2.2",
+    "@tailwindcss/typography": "^0.5.19",
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^15.0.7",
     "@types/bcryptjs": "^2.4.6",

@@ -1,4 +1,5 @@
 @import "tailwindcss" source("..");
+@plugin "@tailwindcss/typography";
 
 @source "../../node_modules/@ferrucc-io/emoji-picker/dist";
 @source "../../node_modules/streamdown/dist/*.js";

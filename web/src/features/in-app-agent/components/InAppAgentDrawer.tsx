@@ -1,7 +1,7 @@
 "use client";
 
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
-import { Bot, PanelRightClose, SendHorizontal } from "lucide-react";
+import { PanelRightClose, SendHorizontal } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -84,13 +84,10 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
 
   return (
     <section className="bg-background flex h-full min-w-0 flex-col">
-      <header className="bg-background flex h-11.25 shrink-0 items-center justify-between border-b px-4">
+      <header className="bg-background flex h-11.25 shrink-0 items-center justify-between border-b px-3">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="bg-muted text-foreground flex h-6 w-6 items-center justify-center rounded-xl">
-            <Bot className="h-3 w-3" />
-          </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">AI-Agent</p>
+            <p className="truncate text-sm font-semibold">AI Assistant</p>
           </div>
         </div>
         {props.showCloseButton !== false && (
@@ -117,9 +114,9 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
             };
           }}
         >
-          <div className="flex w-full flex-col gap-4 px-4 py-4">
+          <div className="flex w-full flex-col gap-4 px-3 py-4">
             {messages.length === 0 ? (
-              <div className="border-border rounded-2xl border border-dashed px-4 py-5">
+              <div className="border-border rounded-2xl border border-dashed px-4 py-3">
                 <p className="text-muted-foreground text-sm">
                   Ask about Langfuse
                 </p>
@@ -192,12 +189,12 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
               aria-label="Ask about Langfuse"
               placeholder="Ask about Langfuse..."
               rows={1}
-              className="bg-background max-h-40 min-h-10 flex-1 resize-none overflow-y-auto rounded-xl px-3 py-2 text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60"
+              className="bg-background text-muted-foreground border-input max-h-40 min-h-10 flex-1 resize-none overflow-y-auto rounded-md px-3 py-2 text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60"
             />
             <Button
               type="submit"
               size="icon"
-              className="h-10 w-10 rounded-xl"
+              className="h-10 w-10 rounded-md"
               aria-label="Send message"
               disabled={isRunning || !input.trim()}
             >
