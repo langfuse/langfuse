@@ -70,11 +70,11 @@ service:
         - `level` (string) - Log level (DEBUG, DEFAULT, WARNING, ERROR)
         - `statusMessage` (string) - Status message
         - `version` (string) - Version tag
-        - `userId` (string) - User ID
 
         #### Trace-Related Fields
         - `traceName` (string) - Name of the parent trace
         - `traceTags` (arrayOptions) - Tags from the parent trace
+        - `userId` (string) - User ID (sourced from parent trace)
         - `sessionId` (string) - Session ID (sourced from parent trace)
 
         #### Performance Metrics
@@ -93,12 +93,12 @@ service:
         - `totalCost` (number) - Total cost in USD
 
         #### Model Information
-        - `model` (string) - Provided model name (alias: `providedModelName`)
+        - `model` (string) - Provided model name
         - `promptName` (string) - Associated prompt name
         - `promptVersion` (number) - Associated prompt version
 
         #### Structured Data
-        - `metadata` (stringObject/numberObject/categoryOptions) - Metadata key-value pairs. Requires the `key` parameter to target a specific metadata key.
+        - `metadata` (stringObject) - Metadata key-value pairs. Requires the `key` parameter to target a specific metadata key.
 
         ### Filter Examples
         ```json

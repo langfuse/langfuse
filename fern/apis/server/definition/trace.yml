@@ -77,7 +77,7 @@ service:
         - `bookmarked` (boolean) - Bookmark status
 
         #### Structured Data
-        - `metadata` (stringObject/numberObject/categoryOptions) - Metadata key-value pairs. Requires the `key` parameter to target a specific metadata key.
+        - `metadata` (stringObject) - Metadata key-value pairs. Requires the `key` parameter to target a specific metadata key.
 
         #### Aggregated Metrics (from observations)
         These metrics are aggregated from all observations within the trace:
@@ -98,7 +98,7 @@ service:
         - `debugCount` (number) - Count of DEBUG level observations
 
         #### Scores (requires join with scores table)
-        - `scores_avg` (number) - Average of numeric scores (alias: `scores`)
+        - `scores_avg` (numberObject) - Numeric scores by key. Requires the `key` parameter naming the score (e.g. `"quality"`). Alias: `scores`.
         - `score_categories` (categoryOptions) - Categorical score values
 
         ### Filter Examples
