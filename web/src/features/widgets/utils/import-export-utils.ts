@@ -21,7 +21,6 @@ import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
-export { observationLevelOptions } from "@/src/features/widgets/utils/filter-config";
 
 const dashboardWidgetChartTypeSchema = z.enum(DashboardWidgetChartType);
 const widgetMetricSchema = MetricSchema.extend({

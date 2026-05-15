@@ -7,10 +7,7 @@ import {
   CardFooter,
 } from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
-import {
-  importWidgetFile,
-  observationLevelOptions,
-} from "@/src/features/widgets/utils/import-export-utils";
+import { importWidgetFile } from "@/src/features/widgets/utils/import-export-utils";
 import {
   type metricAggregations,
   getValidAggregationsForMeasureType,
@@ -54,7 +51,6 @@ import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { type FilterState } from "@langfuse/shared";
 import {
   type FilterState,
   ObservationLevelDomain,
