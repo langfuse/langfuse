@@ -1,9 +1,11 @@
 import { useCallback, useEffect } from "react";
 import type { Path } from "react-hook-form";
 import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { Form } from "@/src/components/ui/form";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { api } from "@/src/utils/api";
 import { useSurveyForm } from "../hooks/useSurveyForm";
 import { SurveyProgress } from "./SurveyProgress";
 import { SurveyStep } from "./SurveyStep";
@@ -11,6 +13,7 @@ import type { SurveyFormData } from "../lib/surveyTypes";
 
 export function OnboardingSurvey() {
   const router = useRouter();
+  const { update: updateSession } = useSession();
   const {
     form,
     state,
@@ -23,13 +26,20 @@ export function OnboardingSurvey() {
     handleSubmit,
     totalSteps,
   } = useSurveyForm();
+  const completeOnboardingMutation = api.onboarding.complete.useMutation();
+
+  const finishOnboarding = useCallback(async () => {
+    const onboardingResult = await completeOnboardingMutation.mutateAsync();
+    await updateSession();
+    await router.push(onboardingResult.redirectTo);
+  }, [completeOnboardingMutation, router, updateSession]);
 
   const onSubmit = useCallback(
     async (data: SurveyFormData) => {
       await handleSubmit(data);
-      void router.push("/");
+      await finishOnboarding();
     },
-    [handleSubmit, router],
+    [finishOnboarding, handleSubmit],
   );
 
   useEffect(() => {
@@ -107,7 +117,7 @@ export function OnboardingSurvey() {
 
   const handleSkipButton = () => {
     if (isLastStep) {
-      void router.push("/");
+      void finishOnboarding();
     } else {
       goNext();
     }

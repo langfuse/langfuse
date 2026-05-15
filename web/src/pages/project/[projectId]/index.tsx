@@ -1,4 +1,6 @@
+import { type GetServerSideProps } from "next";
 import { useRouter } from "next/router";
+import { prisma } from "@langfuse/shared/src/db";
 import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
 import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBarListChart";
@@ -40,6 +42,7 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
+import { getServerAuthSession } from "@/src/server/auth";
 
 const HOME_DASHBOARD_CARD_IDS = {
   traces: "home:traces",
@@ -354,3 +357,74 @@ export default function Dashboard() {
     </DashboardQuerySchedulerProvider>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const projectId =
+    typeof context.params?.projectId === "string"
+      ? context.params.projectId
+      : null;
+
+  if (!projectId) {
+    return {
+      notFound: true,
+    };
+  }
+
+  const session = await getServerAuthSession({
+    req: context.req,
+    res: context.res,
+  });
+
+  if (!session?.user) {
+    return {
+      props: {},
+    };
+  }
+
+  const sessionOrganization = session.user.organizations.find((organization) =>
+    organization.projects.some((project) => project.id === projectId),
+  );
+
+  const sessionProject = sessionOrganization?.projects.find(
+    (project) => project.id === projectId,
+  );
+
+  if (!sessionProject || !sessionOrganization) {
+    return {
+      notFound: true,
+    };
+  }
+
+  const persistedProject = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      orgId: sessionOrganization.id,
+      deletedAt: null,
+    },
+    select: {
+      hasTraces: true,
+    },
+  });
+
+  if (!persistedProject) {
+    return {
+      notFound: true,
+    };
+  }
+
+  const projectHasTraces =
+    sessionProject.hasTraces || persistedProject.hasTraces;
+
+  if (!projectHasTraces) {
+    return {
+      redirect: {
+        destination: `/project/${projectId}/traces`,
+        permanent: false,
+      },
+    };
+  }
+
+  return {
+    props: {},
+  };
+};

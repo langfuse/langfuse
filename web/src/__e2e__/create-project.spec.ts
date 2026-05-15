@@ -80,7 +80,6 @@ test.describe("Create project", () => {
     // Parse the organization ID from the URL using a simpler method
     const url = new URL(page.url());
     const organizationId = url.pathname.split("/")[2];
-    console.log("organization", organizationId);
 
     // Skip add new members step
     await page.isVisible('[data-testid="btn-skip-add-members"]');
@@ -103,11 +102,12 @@ test.describe("Create project", () => {
 
     // check that the project exists by navigating to its home screen
     await page.goto("/project/" + projectId);
-    await expect(page).toHaveURL(new RegExp(`/project/${projectId}`));
+    await expect(page).toHaveURL(
+      (url) => url.pathname === `/project/${projectId}/traces`,
+    );
 
     await page.waitForTimeout(10000);
-    const headings = await page.locator("h2").allTextContents();
-    expect(headings).toContain("Home");
+    await checkPageHeaderTitle(page, "Tracing");
 
     // Check for console errors
     // expect(errors).toHaveLength(0);
