@@ -24,6 +24,6 @@ export function assertLegacyBlobExportSourceAllowed({
   if (isLegacyBlobExportAllowed(project.createdAt, isCloud)) return;
 
   throw new InvalidRequestError(
-    "Legacy export sources (TRACES_OBSERVATIONS, TRACES_OBSERVATIONS_EVENTS) are not available for projects created on or after 2026-05-20. Use 'OBSERVATIONS_V2' ('EVENTS') instead.",
+    "Legacy export sources are not available for Cloud projects created on or after 2026-05-20. Use 'OBSERVATIONS_V2' instead.",
   );
 }
