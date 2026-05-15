@@ -8,8 +8,8 @@
  * - OBSERVATION_FIELD_GROUPS_PUBLIC_API: v2 public API contract — the groups that the
  *   v2 observations endpoint can return.
  * - OBSERVATION_FIELD_GROUPS_FULL: the complete set of column groups the
- *   events repository can project, including denormalized trace context and
- *   tool fields that the public API does not currently expose.
+ *   events repository can project, including tool fields that the public API
+ *   does not currently expose.
  *
  * Defined in the client-safe domain layer (not inside the server-only
  * repository file) so frontend forms and Zod enums can reference the values
@@ -26,6 +26,7 @@ export const OBSERVATION_FIELD_GROUPS_PUBLIC_API = [
   "usage", // usageDetails, costDetails, totalCost, usagePricingTierName
   "prompt", // promptId, promptName, promptVersion
   "metrics", // latency, timeToFirstToken
+  "trace_context", // tags, release, traceName (denormalized trace metadata)
 ] as const;
 
 export type ObservationFieldGroupPublicApi =
@@ -34,7 +35,6 @@ export type ObservationFieldGroupPublicApi =
 export const OBSERVATION_FIELD_GROUPS_FULL = [
   ...OBSERVATION_FIELD_GROUPS_PUBLIC_API,
   "tools", // toolDefinitions, toolCalls, toolCallNames
-  "trace_context", // tags, release, traceName (denormalized trace metadata)
 ] as const;
 
 export type ObservationFieldGroupFull =

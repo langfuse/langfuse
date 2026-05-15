@@ -539,6 +539,10 @@ describe("/api/public/v2/observations API Endpoint", () => {
       "promptId",
       "promptName",
       "promptVersion",
+      // trace_context
+      "traceName",
+      "tags",
+      "release",
     ] as const;
 
     let sharedObsId: string;
@@ -581,6 +585,9 @@ describe("/api/public/v2/observations API Endpoint", () => {
         output: "contract output",
         metadata_names: ["key"],
         metadata_values: ["val"],
+        trace_name: "contract-trace",
+        tags: ["tag-a", "tag-b"],
+        release: "1.2.3",
       });
 
       await createEventsCh([obs]);
@@ -605,6 +612,9 @@ describe("/api/public/v2/observations API Endpoint", () => {
       promptVersion: 2,
       input: "contract input",
       output: "contract output",
+      traceName: "contract-trace",
+      tags: ["tag-a", "tag-b"],
+      release: "1.2.3",
       usagePricingTierName: "contract-tier",
     };
 
@@ -636,6 +646,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       // end_time), but the metrics group is still defined for documentation and to verify these fields are indeed
       // present
       metrics: ["latency", "timeToFirstToken"],
+      trace_context: ["traceName", "tags", "release"],
     };
 
     for (const [group, expectedFields] of Object.entries(fieldsForGroup)) {
