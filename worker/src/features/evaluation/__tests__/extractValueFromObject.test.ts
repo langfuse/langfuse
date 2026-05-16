@@ -3,6 +3,16 @@ import { extractValueFromObject } from "@langfuse/shared";
 
 describe("extractValueFromObject", () => {
   describe("JSONPath slice expressions returning multiple elements", () => {
+    it("should return the last element for negative slice syntax $[-1:]", () => {
+      const obj = {
+        data: JSON.stringify(["first", "second", "third"]),
+      };
+
+      const result = extractValueFromObject(obj, "data", "$[-1:]");
+      expect(result.value).toBe("third");
+      expect(result.error).toBeNull();
+    });
+
     it("should return full slice result for $[1:]", () => {
       const obj = {
         data: JSON.stringify([
@@ -77,6 +87,34 @@ describe("extractValueFromObject", () => {
   });
 
   describe("empty result handling", () => {
+    it("should return a clear error for unsupported root negative index syntax", () => {
+      const obj = {
+        data: JSON.stringify(["first", "second", "third"]),
+      };
+
+      const result = extractValueFromObject(obj, "data", "$[-1]");
+      expect(result.value).toBe(JSON.stringify(["first", "second", "third"]));
+      expect(result.error?.message).toBe(
+        "JSONPath negative indexing like [-1] is not supported by jsonpath-plus. Use slice syntax instead (e.g. [-1:] for the last element).",
+      );
+    });
+
+    it("should return a clear error for unsupported nested negative index syntax", () => {
+      const obj = {
+        data: JSON.stringify({
+          messages: ["first", "second", "third"],
+        }),
+      };
+
+      const result = extractValueFromObject(obj, "data", "$.messages[-1]");
+      expect(result.value).toBe(
+        JSON.stringify({ messages: ["first", "second", "third"] }),
+      );
+      expect(result.error?.message).toBe(
+        "JSONPath negative indexing like [-1] is not supported by jsonpath-plus. Use slice syntax instead (e.g. [-1:] for the last element).",
+      );
+    });
+
     it("should return empty string for non-matching JSONPath", () => {
       const obj = {
         data: JSON.stringify({ name: "Alice" }),

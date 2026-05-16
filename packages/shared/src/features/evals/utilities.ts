@@ -1,5 +1,8 @@
 import { JSONPath } from "jsonpath-plus";
 
+const UNSUPPORTED_JSONPATH_NEGATIVE_INDEX_ERROR_MESSAGE =
+  "JSONPath negative indexing like [-1] is not supported by jsonpath-plus. Use slice syntax instead (e.g. [-1:] for the last element).";
+
 /**
  * Parses an unknown value to a string representation
  * This is used for any evaluation variable that needs string conversion
@@ -52,7 +55,56 @@ function parseMultiEncodedJson(value: unknown): unknown {
   }
 }
 
+function stripJsonPathStringLiterals(selector: string): string {
+  let strippedSelector = "";
+  let quote: string | null = null;
+  let escaped = false;
+
+  for (const char of selector) {
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+        strippedSelector += " ";
+        continue;
+      }
+
+      if (char === "\\") {
+        escaped = true;
+        strippedSelector += " ";
+        continue;
+      }
+
+      if (char === quote) {
+        quote = null;
+        strippedSelector += char;
+        continue;
+      }
+
+      strippedSelector += " ";
+      continue;
+    }
+
+    if (char === '"' || char === "'" || char === "`") {
+      quote = char;
+      strippedSelector += char;
+      continue;
+    }
+
+    strippedSelector += char;
+  }
+
+  return strippedSelector;
+}
+
+function validateJsonPath(selector: string) {
+  if (/\[\s*-\d+\s*\]/.test(stripJsonPathStringLiterals(selector))) {
+    throw new Error(UNSUPPORTED_JSONPATH_NEGATIVE_INDEX_ERROR_MESSAGE);
+  }
+}
+
 function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
+  validateJsonPath(jsonSelector);
+
   // JSONPath can only query objects/arrays — return primitives as-is
   if (typeof selectedColumn !== "object" || selectedColumn === null) {
     return selectedColumn;
