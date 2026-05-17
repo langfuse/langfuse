@@ -71,7 +71,20 @@ describe("StorageService", () => {
     });
 
     // Then
-    expect(result.signedUrl).toContain(`${baseUrl}/${fileName}`);
+    if (env.LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE !== "true") {
+      expect(result.signedUrl).toContain(`${baseUrl}/${fileName}`);
+    } else {
+      expect(result.signedUrl).toMatch(/^https:\/\/.+oraclecloud\.com/);
+      expect(result.signedUrl).toContain("/p/");
+      expect(result.signedUrl).toContain("/o/");
+
+      // extract the object path after /o/ and decode (works whether the object name was percent-encoded)
+      const objMatch = result.signedUrl.match(/\/o\/(.+?)(?:$|[?#])/);
+      expect(objMatch).toBeTruthy();
+      const decodedObjPath = objMatch ? decodeURIComponent(objMatch[1]) : "";
+      expect(decodedObjPath).toContain(fileName);
+    }
+
     const file = await storageService.download(fileName);
     expect(file).toBe(data);
   });
@@ -143,7 +156,12 @@ describe("StorageService", () => {
     );
 
     // Then
-    expect(signedUrl).toContain(env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT);
+    if (env.LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE !== "true") {
+      expect(signedUrl).toContain(env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT);
+    } else {
+      expect(signedUrl).toMatch(/^https:\/\/.+oraclecloud\.com/);
+      expect(new URL(signedUrl).hostname).toContain("objectstorage");
+    }
     expect(signedUrl).not.toContain("external-endpoint.example.com");
   });
 
@@ -168,7 +186,12 @@ describe("StorageService", () => {
     );
 
     // Then
-    expect(signedUrl).toContain(env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT);
+    if (env.LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE !== "true") {
+      expect(signedUrl).toContain(env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT);
+    } else {
+      expect(signedUrl).toMatch(/^https:\/\/.+oraclecloud\.com/);
+      expect(new URL(signedUrl).hostname).toContain("objectstorage");
+    }
     expect(signedUrl).not.toContain("external-endpoint.example.com");
   });
 
@@ -215,7 +238,13 @@ describe("StorageService", () => {
     });
 
     // Then
-    expect(signedUrl).toContain(env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT);
+
+    if (env.LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE !== "true") {
+      expect(signedUrl).toContain(env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT);
+    } else {
+      expect(signedUrl).toMatch(/^https:\/\/.+oraclecloud\.com/);
+      expect(new URL(signedUrl).hostname).toContain("objectstorage");
+    }
     expect(signedUrl).not.toContain("external-endpoint.example.com");
   });
 

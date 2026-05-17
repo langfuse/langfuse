@@ -331,7 +331,6 @@ export function DataTableControls({
 interface BaseFacetProps {
   label: string;
   tooltip?: string;
-  children?: React.ReactNode;
   filterKey: string;
   filterKeyShort?: string | null;
   expanded?: boolean;
@@ -350,8 +349,8 @@ interface CategoricalFacetProps extends BaseFacetProps {
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
   renderIcon?: (value: string) => React.ReactNode;
-  operator?: "any of" | "all of";
-  onOperatorChange?: (operator: "any of" | "all of") => void;
+  operator?: "any of" | "all of" | "none of";
+  onOperatorChange?: (operator: "any of" | "all of" | "none of") => void;
   textFilters?: TextFilterEntry[];
   onTextFilterAdd?: (
     operator: "contains" | "does not contain",
@@ -598,11 +597,14 @@ export function CategoricalFacet({
   );
 
   const MAX_VISIBLE_OPTIONS = 12;
-  const hasMoreOptions = options.length > MAX_VISIBLE_OPTIONS;
+  const visibleOptionValues = Array.from(
+    new Set([...options, ...value.filter((option) => option.length > 0)]),
+  );
+  const hasMoreOptions = visibleOptionValues.length > MAX_VISIBLE_OPTIONS;
 
   // Filter options by search query (check both raw value and display label)
   const filteredOptions = searchQuery
-    ? options.filter((option) => {
+    ? visibleOptionValues.filter((option) => {
         const search = searchQuery.toLowerCase();
         const displayLabel = displayByValue?.get(option) ?? option;
         return (
@@ -610,7 +612,7 @@ export function CategoricalFacet({
           displayLabel.toLowerCase().includes(search)
         );
       })
-    : options;
+    : visibleOptionValues;
 
   const hasMoreFilteredOptions = filteredOptions.length > MAX_VISIBLE_OPTIONS;
   const visibleOptions = showAll
@@ -637,23 +639,26 @@ export function CategoricalFacet({
         {/* SELECT MODE: Checkboxes with optional counts */}
         {filterMode === "select" && (
           <div className="px-2">
-            {/* SOME/ALL Operator Toggle for arrayOptions filters
+            {/* SOME/ALL/NONE operator toggle for arrayOptions filters
 
                 This toggle appears for multi-valued array columns (arrayOptions) like tags.
-                It allows switching between OR and AND logic:
+                It allows switching between the supported array matching modes:
                 - SOME: Match items with ANY selected value (OR logic)
                 - ALL: Match items with ALL selected values (AND logic)
+                - NONE: Exclude items with ANY selected value
 
-                The toggle is automatically enabled by useSidebarFilterState for any
-                arrayOptions column when selections exist. Other filter types (stringOptions,
-                boolean, numeric) don't get this toggle as "ALL" wouldn't be semantically meaningful.
+                The toggle is shown whenever useSidebarFilterState exposes operator controls
+                for an arrayOptions column, including before any values are selected so users
+                can persist an operator preference first. Other filter types (stringOptions,
+                boolean, numeric) don't get this toggle because these array-specific modes
+                are not semantically meaningful there.
 
                 Currently enabled for:
                 - Traces: tags
                 - Sessions: userIds, tags
                 - Prompts: labels, tags
             */}
-            {onOperatorChange && value.length > 0 && (
+            {onOperatorChange && (
               <div className="mb-1.5 flex items-center gap-1.5 px-2">
                 <span className="text-muted-foreground/80 text-[10px]">
                   Match:
@@ -674,13 +679,25 @@ export function CategoricalFacet({
                   <button
                     onClick={() => onOperatorChange("all of")}
                     className={cn(
-                      "rounded-r px-1.5 py-0.5 transition-colors",
+                      "px-1.5 py-0.5 transition-colors",
                       operator === "all of"
                         ? "bg-accent text-accent-foreground font-medium"
                         : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     ALL
+                  </button>
+                  <div className="bg-border/50 w-px" />
+                  <button
+                    onClick={() => onOperatorChange("none of")}
+                    className={cn(
+                      "rounded-r px-1.5 py-0.5 transition-colors",
+                      operator === "none of"
+                        ? "bg-accent text-accent-foreground font-medium"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    NONE
                   </button>
                 </div>
               </div>
@@ -701,7 +718,7 @@ export function CategoricalFacet({
                   </div>
                 ))}
               </>
-            ) : options.length === 0 ? (
+            ) : visibleOptionValues.length === 0 ? (
               <div className="text-muted-foreground py-1 text-xs">
                 {filterKey === "sessionId" ? (
                   <span>
@@ -802,8 +819,8 @@ export function CategoricalFacet({
                   </>
                 )}
                 {filterKey === "environment" &&
-                options.length === 1 &&
-                options[0]?.toLowerCase() === "default" ? (
+                visibleOptionValues.length === 1 &&
+                visibleOptionValues[0]?.toLowerCase() === "default" ? (
                   <div className="text-muted-foreground mt-2 px-2 text-xs">
                     <a
                       href="https://langfuse.com/docs/observability/features/environments"

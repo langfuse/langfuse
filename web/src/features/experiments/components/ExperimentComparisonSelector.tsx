@@ -14,9 +14,7 @@ type ExperimentComparisonSelectorProps = {
   baselineExperimentId?: string;
   selectedIds: string[];
   onSelectedIdsChange: (ids: string[]) => void;
-  isLoading?: boolean;
   maxSelections?: number;
-  disabled?: boolean;
 };
 
 export function ExperimentComparisonSelector({

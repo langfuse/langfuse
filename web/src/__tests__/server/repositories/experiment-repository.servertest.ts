@@ -333,7 +333,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       const now = new Date().getTime();
 
       // Trace 1: Multiple events with timing data to test latency calculation
-      // Latency should be: earliest start_time to latest end_time
+      // Latency is calculated from ROOT SPAN only (span_id = experiment_item_root_span_id)
       const trace1Id = randomUUID();
       const rootSpanId = randomUUID();
       const event1 = createEvent({
@@ -351,8 +351,8 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: rootSpanId,
-        start_time: (now - 3500) * 1000, // Earliest start: now - 3500ms (convert to microseconds)
-        end_time: (now - 2500) * 1000, // End: now - 2500ms (convert to microseconds)
+        start_time: (now - 3500) * 1000, // Root span start (convert to microseconds)
+        end_time: (now - 2500) * 1000, // Root span end: latency = 1000ms (convert to microseconds)
       });
 
       const childSpan1Id = randomUUID();
@@ -394,7 +394,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_version: null,
         experiment_item_root_span_id: event1.experiment_item_root_span_id,
         start_time: (now - 3000) * 1000,
-        end_time: (now - 1500) * 1000, // Latest end: now - 1500ms (convert to microseconds)
+        end_time: (now - 1500) * 1000, // Child spans are NOT included in latency calculation
       });
 
       // Trace 2: Single event with known latency (1000ms)
@@ -415,8 +415,8 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: rootSpan2Id,
-        start_time: (now - 2500) * 1000, // Start: now - 2500ms (convert to microseconds)
-        end_time: (now - 1500) * 1000, // End: now - 1500ms (latency = 1000ms, convert to microseconds)
+        start_time: (now - 2500) * 1000, // Root span start (convert to microseconds)
+        end_time: (now - 1500) * 1000, // Root span end: latency = 1000ms (convert to microseconds)
       });
 
       await createEventsCh([event1, event2, event3, event4]);
@@ -433,7 +433,8 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(metric.latencyAvg).toBeDefined();
       expect(typeof metric.latencyAvg).toBe("number");
 
-      expect(metric.latencyAvg).toBeCloseTo(1500, -1); // Within 10ms tolerance
+      // Latency avg = (1000ms + 1000ms) / 2 = 1000ms (only root spans count)
+      expect(metric.latencyAvg).toBeCloseTo(1000, -1); // Within 10ms tolerance
     });
 
     it("should handle cost calculations correctly", async () => {

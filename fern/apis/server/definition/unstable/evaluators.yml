@@ -1,0 +1,250 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+  errors: ./errors.yml
+  pagination: ../utils/pagination.yml
+
+service:
+  auth: true
+  base-path: /api/public/unstable
+  endpoints:
+    create:
+      docs: |
+        Create an evaluator in the authenticated project.
+
+        Use evaluators to define **how** Langfuse should score data: the prompt, the expected structured output, and the optional model configuration.
+
+        Naming behavior:
+        - If this is a new evaluator name in your project, Langfuse creates version `1`.
+        - If the name already exists in your project, Langfuse creates the next version and returns it.
+        - When a new project version is created, existing evaluation rules in that project automatically move to the newest version for that evaluator name.
+
+        Recommended workflow:
+        1. Create the evaluator.
+        2. Read the returned `variables` array.
+        3. Read the returned `outputDefinition.dataType` so the client knows whether future scores will be numeric, boolean, or categorical.
+        4. Create one or more evaluation rules that reference the returned evaluator family using `name` and `scope`.
+
+        Recovery guidance:
+        - `422` with `code=evaluator_preflight_failed`: the evaluator cannot run with the resolved model configuration. Add a valid explicit `modelConfig`, or configure the project's default evaluation model, then retry the same request.
+        - `400` with `code=invalid_body`: the request shape is malformed. Use the structured `details.issues` array to fix the specific fields and retry.
+        - `400` with `code=invalid_body` on `outputDefinition`: send `dataType`, `reasoning.description`, and `score.description`. Do not send `version`; it is not part of the public request shape.
+
+        Unstable API note:
+        - This surface may evolve while the underlying evaluation data model is being redesigned.
+      method: POST
+      path: /evaluators
+      request: CreateEvaluatorRequest
+      response: Evaluator
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.MethodNotAllowedError
+        - errors.ConflictError
+        - errors.UnprocessableContentError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+      examples:
+        - name: CreateEvaluatorVersion
+          docs: Create a new version of an evaluator named `answer-correctness`.
+          request:
+            name: answer-correctness
+            prompt: |
+              You are grading an answer.
+
+              Input:
+              {{input}}
+
+              Output:
+              {{output}}
+
+              Return a score between 0 and 1.
+            outputDefinition:
+              dataType: NUMERIC
+              reasoning:
+                description: Explain why the score was assigned.
+              score:
+                description: Correctness score between 0 and 1.
+            modelConfig:
+              provider: openai
+              model: gpt-4.1-mini
+          response:
+            body:
+              id: evaltmpl_123
+              name: answer-correctness
+              version: 2
+              scope: project
+              type: llm_as_judge
+              prompt: |
+                You are grading an answer.
+
+                Input:
+                {{input}}
+
+                Output:
+                {{output}}
+
+                Return a score between 0 and 1.
+              variables:
+                - input
+                - output
+              outputDefinition:
+                dataType: NUMERIC
+                reasoning:
+                  description: Explain why the score was assigned.
+                score:
+                  description: Correctness score between 0 and 1.
+              modelConfig:
+                provider: openai
+                model: gpt-4.1-mini
+              evaluationRuleCount: 0
+              createdAt: "2026-03-30T09:00:00.000Z"
+              updatedAt: "2026-03-30T09:00:00.000Z"
+
+    list:
+      docs: |
+        List the evaluators available to the authenticated project.
+
+        Important behavior:
+        - This endpoint returns the latest version of each available evaluator.
+        - Results can include evaluators from your project and Langfuse-managed evaluators.
+        - If the same evaluator name exists in both places, both are returned as separate items with different `scope` values.
+      method: GET
+      path: /evaluators
+      request:
+        name: ListEvaluatorsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: 1-based page number. Defaults to `1`.
+          limit:
+            type: optional<integer>
+            docs: Maximum number of items per page. Defaults to `50`.
+      response: Evaluators
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    get:
+      docs: |
+        Get one evaluator by `id`.
+
+        Use this endpoint when you want the prompt, output definition, model configuration, and derived variables for the evaluator you plan to use in an evaluation rule.
+      method: GET
+      path: /evaluators/{evaluatorId}
+      path-parameters:
+        evaluatorId:
+          type: string
+          docs: Evaluator identifier returned by the evaluator endpoints.
+      response: Evaluator
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+types:
+  Evaluator:
+    docs: |
+      One evaluator that can be used for scoring.
+
+      An evaluator describes **how** to score data:
+      - prompt
+      - extracted prompt variables
+      - output schema
+      - optional explicit model configuration
+
+      It does not define **which** live objects are evaluated. That is the job of `evaluation-rules`.
+
+      For agent clients, the most important fields are:
+      - `variables`: use these exact names when building the evaluation-rule `mapping` array
+      - `outputDefinition`: tells you the expected score type and the evaluator's response instructions
+      - `modelConfig`: tells you whether the evaluator uses the project default model (`null`) or an explicit provider/model
+
+      Versioning behavior:
+      - `GET /evaluators` returns the latest version of each available evaluator.
+      - `GET /evaluators/{id}` can return an older version.
+      - Evaluation rules always run against the latest version for the selected evaluator name within the same source (`project` or `managed`).
+    properties:
+      id:
+        type: string
+        docs: Identifier of this evaluator.
+      name:
+        type: string
+        docs: Evaluator name.
+      version:
+        type: integer
+        docs: Version number of this evaluator.
+      scope:
+        type: commons.EvaluatorScope
+        docs: "Where this evaluator comes from: your project or Langfuse-managed defaults."
+      type:
+        type: commons.EvaluatorType
+        docs: Evaluator engine type. Currently always `llm_as_judge`.
+      prompt:
+        type: string
+        docs: Prompt template used during evaluation.
+      variables:
+        type: list<string>
+        docs: |
+          Variables extracted from the evaluator prompt.
+
+          Every variable in this list must be mapped exactly once when creating an evaluation rule.
+      outputDefinition:
+        type: commons.PublicEvaluatorOutputDefinition
+        docs: |
+          Structured output schema returned by this evaluator.
+
+          Responses always include `dataType` and omit the internal output-definition `version`.
+          Use `dataType` to decide how future scores should be interpreted.
+      modelConfig:
+        type: nullable<commons.EvaluatorModelConfig>
+        docs: Explicit model configuration, or `null` when the project default evaluation model is used.
+      evaluationRuleCount:
+        type: integer
+        docs: Number of evaluation rules in the project that currently use this evaluator version.
+      createdAt:
+        type: datetime
+        docs: Timestamp when this evaluator was created.
+      updatedAt:
+        type: datetime
+        docs: Timestamp when this evaluator was last updated.
+
+  Evaluators:
+    properties:
+      data:
+        type: list<Evaluator>
+      meta:
+        type: pagination.MetaResponse
+
+  CreateEvaluatorRequest:
+    docs: |
+      Request body for creating an evaluator.
+
+      If the same `name` already exists in your project, Langfuse creates the next version and returns it.
+      Existing evaluation rules in the same project are then moved to that new latest version automatically.
+    properties:
+      name:
+        type: string
+        docs: Evaluator name within the authenticated project.
+      prompt:
+        type: string
+        docs: Prompt template used by the evaluator.
+      outputDefinition:
+        type: commons.EvaluatorOutputDefinition
+        docs: |
+          Structured output schema the evaluator must return.
+
+          Always send `dataType`.
+          Do not send `version`; it is an internal storage detail and not part of the public request contract.
+      modelConfig:
+        type: optional<nullable<commons.EvaluatorModelConfig>>
+        docs: Optional explicit model configuration. Omit or set to `null` to use the project default evaluation model.

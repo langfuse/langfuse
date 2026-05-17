@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/router";
 import {
   createBooleanEvalOutputDefinition,

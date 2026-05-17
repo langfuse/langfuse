@@ -59,10 +59,12 @@ import {
   PersistedEvalOutputDefinitionSchema,
   ScoreDataTypeEnum,
   validateEvalOutputResult,
+  extractValueFromObject,
+  validateEvaluatorFiltersForTarget,
 } from "@langfuse/shared";
+import { env } from "../../env";
 import { prisma } from "@langfuse/shared/src/db";
 import { createW3CTraceId } from "../utils";
-import { JSONPath } from "jsonpath-plus";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
 import {
@@ -262,6 +264,7 @@ export const createEvalJobs = async ({
               : new Date(jobTimestamp),
         clickhouseFeatureTag: "eval-create",
         excludeInputOutput: true,
+        excludeMetadata: false, // Metadata needed for in-memory filter evaluation
       });
 
       recordIncrement("langfuse.evaluation-execution.trace_cache_fetch", 1, {
@@ -368,6 +371,25 @@ export const createEvalJobs = async ({
     if (config.status === JobConfigState.INACTIVE) {
       logger.debug(`Skipping inactive config ${config.id}`);
       continue;
+    }
+
+    // Self-hosted only: Skip trace-level evaluators with invalid filters.
+    // A bug (ff4b03c0b, Feb 2026) allowed score filters on trace evaluators, which the worker doesn't support.
+    // Cloud deployments are fixed; self-hosters need this runtime check.
+    if (
+      !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+      config.targetObject === EvalTargetObject.TRACE
+    ) {
+      const filterValidation = validateEvaluatorFiltersForTarget({
+        targetObject: EvalTargetObject.TRACE,
+        filter: config.filter,
+      });
+      if (!filterValidation.isValid) {
+        logger.debug(
+          `Skipping trace evaluator ${config.id} with invalid filters: ${filterValidation.issues[0]?.message}`,
+        );
+        continue;
+      }
     }
 
     logger.debug("Creating eval job for config", config.id);
@@ -1322,7 +1344,6 @@ const snakeToCamel = (s: string) =>
 
 export const parseDatabaseRowToString = (
   dbRow: Record<string, unknown>,
-
   mapping: z.infer<typeof variableMapping>,
 ): string => {
   // Prisma returns camelCase keys, but selectedColumnId may be snake_case
@@ -1330,38 +1351,26 @@ export const parseDatabaseRowToString = (
     dbRow[mapping.selectedColumnId] ??
     dbRow[snakeToCamel(mapping.selectedColumnId)];
 
-  let jsonSelectedColumn;
-
-  if (mapping.jsonSelector) {
-    if (logger.isLevelEnabled("debug")) {
-      logger.debug(
-        `Parsing JSON for json selector ${mapping.jsonSelector} from ${JSON.stringify(selectedColumn)}`,
-      );
-    }
-
-    try {
-      jsonSelectedColumn = JSONPath({
-        path: mapping.jsonSelector,
-
-        json:
-          typeof selectedColumn === "string"
-            ? JSON.parse(selectedColumn)
-            : selectedColumn,
-      });
-    } catch (error) {
-      logger.error(
-        `Error parsing JSON for json selector ${mapping.jsonSelector}. Falling back to original value.`,
-
-        error,
-      );
-
-      jsonSelectedColumn = selectedColumn;
-    }
-  } else {
-    jsonSelectedColumn = selectedColumn;
+  if (logger.isLevelEnabled("debug") && mapping.jsonSelector) {
+    logger.debug(
+      `Parsing JSON for json selector ${mapping.jsonSelector} from ${JSON.stringify(selectedColumn)}`,
+    );
   }
 
-  return parseUnknownToString(jsonSelectedColumn);
+  const { value, error } = extractValueFromObject(
+    { [mapping.selectedColumnId]: selectedColumn },
+    mapping.selectedColumnId,
+    mapping.jsonSelector ?? undefined,
+  );
+
+  if (error) {
+    logger.error(
+      `Error parsing JSON for json selector ${mapping.jsonSelector}. Falling back to original value.`,
+      error,
+    );
+  }
+
+  return value;
 };
 
 export const parseUnknownToString = (value: unknown): string => {

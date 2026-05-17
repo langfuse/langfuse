@@ -89,10 +89,11 @@ export const GetTracesV1Query = z.object({
     .nullish()
     .transform((v) => {
       if (!v) return null;
-      return v
+      const parsed = v
         .split(",")
         .map((f) => f.trim())
         .filter((f) => TRACE_FIELD_GROUPS.includes(f as TraceFieldGroup));
+      return parsed.length > 0 ? parsed : null;
     })
     .pipe(z.array(z.enum(TRACE_FIELD_GROUPS)).nullable()),
   useEventsTable: useEventsTableSchema,
@@ -125,6 +126,18 @@ export const PostTracesV1Response = z.object({ id: z.string() });
 // GET /api/public/traces/{traceId}
 export const GetTraceV1Query = z.object({
   traceId: z.string(),
+  fields: z
+    .string()
+    .nullish()
+    .transform((v) => {
+      if (!v) return null;
+      const parsed = v
+        .split(",")
+        .map((f) => f.trim())
+        .filter((f) => TRACE_FIELD_GROUPS.includes(f as TraceFieldGroup));
+      return parsed.length > 0 ? parsed : null;
+    })
+    .pipe(z.array(z.enum(TRACE_FIELD_GROUPS)).nullable()),
 });
 export const GetTraceV1Response = APIExtendedTrace.extend({
   scores: z.array(APIScoreSchemaV1),

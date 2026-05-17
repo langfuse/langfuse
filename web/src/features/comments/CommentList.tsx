@@ -30,7 +30,8 @@ import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
-import { ArrowUpToLine, LoaderCircle, Search, Trash, X } from "lucide-react";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { ArrowUpToLine, Search, Trash, X } from "lucide-react";
 import { useSession } from "next-auth/react";
 import React, {
   useCallback,
@@ -476,7 +477,9 @@ export function CommentList({
           className,
         )}
       >
-        <LoaderCircle className="text-muted-foreground mr-1.5 h-4 w-4 animate-spin" />
+        <span className="mr-1.5 inline-flex">
+          <Spinner size="sm" variant="muted" />
+        </span>
         <span className="text-muted-foreground text-sm opacity-60">
           Loading comments...
         </span>
@@ -525,7 +528,7 @@ export function CommentList({
                 {!searchQuery && (
                   <kbd className="bg-muted text-muted-foreground pointer-events-none absolute top-1/2 right-1 h-5 -translate-y-1/2 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-50 select-none sm:inline-flex">
                     {typeof navigator !== "undefined" &&
-                    navigator.platform.toLowerCase().includes("mac") ? (
+                    navigator.userAgent.includes("Macintosh") ? (
                       <>
                         <span className="text-xs">⌘</span>F
                       </>

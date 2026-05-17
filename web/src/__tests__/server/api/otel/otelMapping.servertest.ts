@@ -1885,6 +1885,211 @@ describe("OTel Resource Span Mapping", () => {
       expect(metadataAttributes).not.toHaveProperty("pydantic_ai.all_messages");
     });
 
+    it("should normalize current Pydantic AI cache usage fields into Langfuse usage details", async () => {
+      const traceId = "abcdef1234567890abcdef1234567891";
+
+      const pydanticAiRootSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "telemetry.sdk.name",
+              value: { stringValue: "opentelemetry" },
+            },
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "1.66.0",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("80854cd6bd218bf6", "hex"),
+                name: "pydantic-cache-test",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 120, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 40, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 30, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_creation.input_tokens",
+                    value: { intValue: { low: 10, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.details.input_audio_tokens",
+                    value: { intValue: { low: 5, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.details.cache_audio_read_tokens",
+                    value: { intValue: { low: 2, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.details.output_audio_tokens",
+                    value: { intValue: { low: 7, high: 0, unsigned: false } },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiRootSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find((e) => e.type === "span-create");
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(80);
+      expect(observationEvent?.body.usageDetails.output).toBe(40);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(30);
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(10);
+      expect(observationEvent?.body.usageDetails.input_audio_tokens).toBe(5);
+      expect(observationEvent?.body.usageDetails.cache_audio_read_tokens).toBe(
+        2,
+      );
+      expect(observationEvent?.body.usageDetails.output_audio_tokens).toBe(7);
+    });
+
+    it("should extract OpenInference llm.token_count.prompt_details.cache_read/cache_write into input_cached_tokens / input_cache_creation", async () => {
+      // OpenInference semantic conventions (used by openinference-instrumentation-{openai,anthropic,agno,...})
+      // emit cache token counts under llm.token_count.prompt_details.cache_read and
+      // llm.token_count.prompt_details.cache_write. Langfuse must recognize these
+      // canonical names alongside the existing details.cache_read_* / cache_creation_* aliases.
+      const traceId = "abcdef0123456789abcdef0123456789";
+
+      const openinferenceCacheSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "service.name",
+              value: { stringValue: "test-agno" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference.instrumentation.agno",
+              version: "0.1.27",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("a1b2c3d4e5f60718", "hex"),
+                name: "openinference-cache-test",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "llm.token_count.prompt",
+                    value: {
+                      intValue: { low: 50000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "llm.token_count.completion",
+                    value: {
+                      intValue: { low: 200, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "llm.token_count.prompt_details.cache_read",
+                    value: {
+                      intValue: { low: 40000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "llm.token_count.prompt_details.cache_write",
+                    value: {
+                      intValue: { low: 5000, high: 0, unsigned: false },
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        openinferenceCacheSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find((e) => e.type === "span-create");
+
+      expect(observationEvent).toBeDefined();
+      // input must be the uncached remainder: prompt - cache_read - cache_write
+      // = 50000 - 40000 - 5000 = 5000
+      expect(observationEvent?.body.usageDetails.input).toBe(5000);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(
+        40000,
+      );
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+        5000,
+      );
+      // The raw OpenInference keys must NOT be passed through after normalization
+      // (otherwise they would double-count in the UI breakdown).
+      expect(
+        observationEvent?.body.usageDetails["prompt_details.cache_read"],
+      ).toBeUndefined();
+      expect(
+        observationEvent?.body.usageDetails["prompt_details.cache_write"],
+      ).toBeUndefined();
+    });
+
     it("should prepend gen_ai.system_instructions to pydantic_ai.all_messages input when system message is absent", async () => {
       const traceId = "9d7aa9a729def1eadc0b2063ca4ebeb4";
 
@@ -6202,6 +6407,92 @@ describe("OTel Resource Span Mapping", () => {
     });
   });
 
+  describe("GenAI usage normalization", () => {
+    it("should normalize official gen_ai cache usage into Langfuse canonical keys", async () => {
+      const traceId = "abcdef1234567890abcdef1234567892";
+
+      const genAiSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "gen_ai",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde1", "hex"),
+                name: "normalized-genai-usage",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 40, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.total_tokens",
+                    value: { intValue: { low: 140, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 20, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_creation.input_tokens",
+                    value: { intValue: { low: 10, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_audio_tokens",
+                    value: { intValue: { low: 5, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        genAiSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(70);
+      expect(observationEvent?.body.usageDetails.output).toBe(40);
+      expect(observationEvent?.body.usageDetails.total).toBe(140);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(20);
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(10);
+      expect(observationEvent?.body.usageDetails.output_audio_tokens).toBe(5);
+    });
+  });
+
   describe("Vercel AI SDK Usage details", () => {
     it("should extract usage details from both provider metadata and 'ai.usage'", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";
@@ -7277,6 +7568,75 @@ describe("OTel Resource Span Mapping", () => {
       expect(observation?.body.metadata?.attributes?.custom_field).toBe(
         "custom-value",
       );
+    });
+  });
+
+  describe("Prototype pollution protection", () => {
+    const publicKey = "pk-lf-1234567890";
+
+    it("should not pollute Object.prototype via __proto__ in gen_ai.prompt attributes", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const spanId = "abcdef1234567890";
+
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "langfuse-sdk",
+              version: "2.0.0",
+              attributes: [
+                {
+                  key: "public_key",
+                  value: { stringValue: publicKey },
+                },
+              ],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex").toJSON(),
+                spanId: Buffer.from(spanId, "hex").toJSON(),
+                name: "pollution-test",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000000, high: 0, unsigned: true },
+                endTimeUnixNano: { low: 2000000000, high: 0, unsigned: true },
+                attributes: [
+                  {
+                    key: "gen_ai.prompt.role",
+                    value: { stringValue: "user" },
+                  },
+                  {
+                    key: "gen_ai.prompt.content",
+                    value: { stringValue: "hello" },
+                  },
+                  {
+                    key: "gen_ai.prompt.__proto__.POLLUTED",
+                    value: { stringValue: "SUCCESS" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set([traceId]),
+        publicKey,
+      );
+
+      // Verify Object.prototype was NOT polluted
+      expect(({} as any).POLLUTED).toBeUndefined();
+      expect(Object.prototype.hasOwnProperty("POLLUTED" as any)).toBe(false);
     });
   });
 });

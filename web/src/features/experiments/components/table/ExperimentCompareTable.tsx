@@ -46,6 +46,7 @@ type ExperimentCompareTableProps = {
   rowHeight: RowHeight;
   peekView?: DataTablePeekViewProps;
   noResultsMessage?: ReactNode;
+  highlightAllRows?: boolean;
 };
 
 export const ExperimentCompareTable = ({
@@ -66,6 +67,7 @@ export const ExperimentCompareTable = ({
   rowHeight,
   peekView,
   noResultsMessage,
+  highlightAllRows,
 }: ExperimentCompareTableProps) => {
   return (
     <DataTable
@@ -101,6 +103,7 @@ export const ExperimentCompareTable = ({
       rowHeight={rowHeight}
       customRowHeights={LIST_VIEW_ROW_HEIGHTS}
       topAlignCells
+      highlightAllRows={highlightAllRows}
     />
   );
 };

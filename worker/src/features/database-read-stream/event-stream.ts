@@ -9,7 +9,6 @@
 
 import {
   FilterCondition,
-  ScoreDataTypeEnum,
   type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
@@ -198,7 +197,7 @@ export const getEventsStream = async (props: {
         }[]
       | undefined;
     score_categories: string[] | undefined;
-    score_categories_tuples: [string, string | null][] | undefined;
+    score_categories_tuples: [string, string | null, string][] | undefined;
   };
 
   const asyncGenerator = queryClickhouseStream<EventRow>({
@@ -228,10 +227,10 @@ export const getEventsStream = async (props: {
 
     // Process categorical scores (tuples from ClickHouse)
     const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
-      (cat) => ({
+      (cat: [string, string | null, string]) => ({
         name: cat[0],
         value: null,
-        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        dataType: cat[2],
         stringValue: cat[1],
       }),
     );
@@ -452,6 +451,9 @@ export const getEventsStreamForEval = async (props: {
     input: unknown;
     output: unknown;
     metadata: Record<string, unknown> | null;
+    experiment_id: string | null;
+    experiment_item_root_span_id: string | null;
+    experiment_item_expected_output: string | null;
   };
 
   const asyncGenerator = queryClickhouseStream<EvalEventRow>({
@@ -595,6 +597,112 @@ export const getEventsStreamForDataset = async (props: {
           input: row.input,
           output: row.output,
           metadata: row.metadata,
+        };
+      }
+    })(),
+  );
+};
+
+/**
+ * Lightweight event stream for batch add-to-annotation-queue.
+ * Only fetches the fields needed for annotation queue item creation:
+ * id, traceId.
+ */
+export const getEventsStreamForAnnotationQueue = async (props: {
+  projectId: string;
+  cutoffCreatedAt: Date;
+  filter: FilterCondition[] | null;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  rowLimit?: number;
+}): Promise<Readable> => {
+  const {
+    projectId,
+    cutoffCreatedAt,
+    filter = [],
+    searchQuery,
+    searchType,
+    rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
+  } = props;
+
+  const eventOnlyFilters = (filter ?? []).filter((f) => {
+    const columnDef = eventsTableUiColumnDefinitions.find(
+      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    );
+
+    return (
+      columnDef?.clickhouseTableName !== "scores" &&
+      columnDef?.clickhouseTableName !== "comments"
+    );
+  });
+
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      [
+        ...eventOnlyFilters,
+        {
+          column: "startTime",
+          operator: "<" as const,
+          value: cutoffCreatedAt,
+          type: "datetime" as const,
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    ),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
+    "span_id",
+    "name",
+    "trace_name",
+    "user_id",
+    "session_id",
+    "trace_id",
+  ]);
+
+  const eventsQuery = new EventsQueryBuilder({ projectId })
+    .selectFieldSet("core")
+    .where(appliedEventsFilter)
+    .where(search)
+    .whereRaw("e.is_deleted = 0")
+    .orderByDefault()
+    .limitBy("e.span_id", "e.project_id")
+    .limit(rowLimit);
+
+  const { query, params: queryParams } = eventsQuery.buildWithParams();
+
+  type AnnotationQueueEventRow = {
+    id: string;
+    trace_id: string;
+  };
+
+  const asyncGenerator = queryClickhouseStream<AnnotationQueueEventRow>({
+    query,
+    params: queryParams,
+    clickhouseConfigs: {
+      request_timeout: 180_000,
+      clickhouse_settings: {
+        http_send_timeout: 300,
+        http_receive_timeout: 300,
+      },
+    },
+    tags: {
+      feature: "batch-add-to-annotation-queue",
+      type: "event",
+      kind: "annotation",
+      projectId,
+    },
+  });
+
+  return Readable.from(
+    (async function* () {
+      for await (const row of asyncGenerator) {
+        yield {
+          id: row.id,
+          traceId: row.trace_id,
         };
       }
     })(),

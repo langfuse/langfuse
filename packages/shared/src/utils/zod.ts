@@ -106,7 +106,7 @@ export const StringNoHTMLNonEmpty = z
  * @param object - The object to be validated.
  * @returns The parsed object if validation is successful.
  */
-export const validateZodSchema = <T extends z.ZodTypeAny>(
+export const validateZodSchema = <T extends z.ZodType>(
   schema: T,
   object: z.infer<T>,
 ): z.infer<T> => {
@@ -116,7 +116,7 @@ export const validateZodSchema = <T extends z.ZodTypeAny>(
 // JSON Schema validation
 export const JSONPrimitiveValueSchema = z.union([
   z.string(),
-  z.number().finite(),
+  z.number(),
   z.boolean(),
 ]);
 

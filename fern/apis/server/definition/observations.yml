@@ -22,9 +22,10 @@ service:
         - `io` - input, output
         - `metadata` - metadata (truncated to 200 chars by default, use `expandMetadata` to get full values)
         - `model` - providedModelName, internalModelId, modelParameters
-        - `usage` - usageDetails, costDetails, totalCost
+        - `usage` - usageDetails, costDetails, totalCost, usagePricingTierName
         - `prompt` - promptId, promptName, promptVersion
         - `metrics` - latency, timeToFirstToken
+        - `trace_context` - tags, release, traceName
 
         If not specified, `core` and `basic` field groups are returned.
 
@@ -40,7 +41,7 @@ service:
             type: optional<string>
             docs: |
               Comma-separated list of field groups to include in the response.
-              Available groups: core, basic, time, io, metadata, model, usage, prompt, metrics.
+              Available groups: core, basic, time, io, metadata, model, usage, prompt, metrics, trace_context.
               If not specified, `core` and `basic` field groups are returned.
               Example: "basic,usage,model"
           expandMetadata:

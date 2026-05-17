@@ -47,6 +47,7 @@ yarn-error.log*
 !.env.dev-redis-cluster.example
 !.env.prod.example
 !.env.test.example
+!.env.dev-oci.example
 
 # vercel
 .vercel
@@ -92,3 +93,7 @@ web/test-results/*
 
 # Refactoring planning files (local only)
 **/.refactor/
+**/.pi-lens/
+
+# Serena MCP server config (local only)
+.serena/

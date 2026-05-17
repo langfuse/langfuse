@@ -29,7 +29,7 @@ import { areStringSetsEqual } from "../lib/stringSetUtils";
 import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import type { FilterConfig } from "../lib/filter-config";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 /**
  * Decodes filters from URL query string and normalizes display names to column IDs.
@@ -148,14 +148,15 @@ export interface CategoricalUIFilter extends BaseUIFilter {
    * Current operator for arrayOptions columns (tags, labels, etc.)
    * - "any of": OR logic - match if item has ANY selected value
    * - "all of": AND logic - match if item has ALL selected values
+   * - "none of": exclude items with ANY selected value
    * undefined for non-arrayOptions columns
    */
-  operator?: "any of" | "all of";
+  operator?: "any of" | "all of" | "none of";
   /**
    * Callback to change the operator. Only provided for arrayOptions columns.
    * When called, updates the filter to use the specified operator.
    */
-  onOperatorChange?: (operator: "any of" | "all of") => void;
+  onOperatorChange?: (operator: "any of" | "all of" | "none of") => void;
   /**
    * Active text filters (contains/does not contain) for this column
    * Mutually exclusive with checkbox selections
@@ -248,6 +249,51 @@ export type UIFilter =
 
 const EMPTY_MAP: Map<string, number> = new Map();
 
+const mergeUniqueStrings = (...lists: (string[] | undefined)[]): string[] =>
+  Array.from(
+    new Set(
+      lists.flatMap((list) => (list ?? []).filter((value) => value.length > 0)),
+    ),
+  );
+
+const resolveKnownKeyOptions = (
+  facetKeyOptions: string[] | undefined,
+  availableKeys:
+    | (string | SingleValueOption)[]
+    | Record<string, string[]>
+    | undefined,
+  activeKeys: string[],
+): string[] | undefined => {
+  if (facetKeyOptions !== undefined) {
+    return mergeUniqueStrings(facetKeyOptions, activeKeys);
+  }
+
+  if (!Array.isArray(availableKeys)) {
+    return undefined;
+  }
+
+  return mergeUniqueStrings(
+    availableKeys.map((option) =>
+      typeof option === "string" ? option : option.value,
+    ),
+    activeKeys,
+  );
+};
+
+const mergeAvailableValuesWithActiveFilters = (
+  availableValues: Record<string, string[]>,
+  activeFilters: KeyValueFilterEntry[],
+): Record<string, string[]> => {
+  const merged: Record<string, string[]> = { ...availableValues };
+
+  for (const filter of activeFilters) {
+    if (!filter.key) continue;
+    merged[filter.key] = mergeUniqueStrings(merged[filter.key], filter.value);
+  }
+
+  return merged;
+};
+
 // extract values and counts from options array
 // for both string[] and SingleValueOption[]
 function processOptions(options: (string | SingleValueOption)[]): {
@@ -289,26 +335,29 @@ type UpdateFilter = (
   operator?: "any of" | "none of" | "all of",
 ) => void;
 
-type UseSidebarFilterStateOptions = {
+type BaseUseSidebarFilterStateOptions = {
   loading?: boolean;
-  /**
-   * If true, prevents filter state from being persisted to/read from URL query params.
-   * Use this for embedded tables (e.g., preview tables in forms) to avoid polluting
-   * the parent page's URL with filters that don't apply to the parent context.
-   */
-  disableUrlPersistence?: boolean;
-  /**
-   * If true, prevents filter state from being persisted to/read from session storage.
-   * URL persistence remains active. Use this when you want filters in the URL but
-   * don't want them to persist across page navigations within the same session.
-   */
-  disableSessionPersistence?: boolean;
-  /**
-   * Optional context identifier (for example projectId) to guard against
-   * carrying persisted filters across contexts.
-   */
-  sessionFilterContextId?: string | null;
   implicitDefaultConfig?: ManagedEnvironmentPolicyInput;
+};
+
+export type UseSidebarFilterStateOptions =
+  | (BaseUseSidebarFilterStateOptions & {
+      stateLocation: "peekContext";
+      context: PeekTableStateContextValue;
+    })
+  | (BaseUseSidebarFilterStateOptions & {
+      stateLocation: "urlAndSessionStorage";
+      /**
+       * Optional context identifier (for example projectId) to guard against
+       * carrying persisted filters across contexts.
+       */
+      sessionFilterContextId?: string | null;
+    })
+  | (BaseUseSidebarFilterStateOptions & { stateLocation: "url" })
+  | (BaseUseSidebarFilterStateOptions & { stateLocation: "memory" });
+
+const DEFAULT_HOOK_OPTIONS: UseSidebarFilterStateOptions = {
+  stateLocation: "urlAndSessionStorage",
 };
 
 /**
@@ -318,8 +367,10 @@ type UseSidebarFilterStateOptions = {
  * For arrayOptions (e.g., tags), "none of" inversion is NOT semantically
  * equivalent because a single trace can have multiple tags. For example,
  * a trace with tags [tag-1, tag-3] matches "any of [tag-1, tag-2]" but does NOT match
- * "none of [tag-3, tag-4, tag-5]" (because it contains tag-3). So we always use positive
- * matching ("any of" / "all of") for array columns.
+ * "none of [tag-3, tag-4, tag-5]" (because it contains tag-3). Because of that, we never
+ * derive array filters by inverting the deselected set. Instead, we keep the user's explicit
+ * array operator when one already exists ("all of" / "none of"), and otherwise default new
+ * checkbox selections to positive matching ("any of").
  *
  * For stringOptions (e.g., environment), each row has a single value,
  * so "none of [deselected]" is semantically equivalent to "any of [selected]".
@@ -336,12 +387,17 @@ export function resolveCheckboxOperator(params: {
   const { colType, existingFilter, values, availableValues } = params;
 
   if (colType === "arrayOptions") {
-    // For array columns, always use positive matching.
     if (
       existingFilter?.operator === "all of" &&
       existingFilter.type === "arrayOptions"
     ) {
       return { finalOperator: "all of", finalValues: values };
+    }
+    if (
+      existingFilter?.operator === "none of" &&
+      existingFilter.type === "arrayOptions"
+    ) {
+      return { finalOperator: "none of", finalValues: values };
     }
     return { finalOperator: "any of", finalValues: values };
   }
@@ -367,16 +423,13 @@ export function useSidebarFilterState(
     string,
     (string | SingleValueOption)[] | Record<string, string[]> | undefined
   >,
-  hookOptions: UseSidebarFilterStateOptions = {},
+  hookOptions: UseSidebarFilterStateOptions = DEFAULT_HOOK_OPTIONS,
 ) {
-  const {
-    loading,
-    disableUrlPersistence,
-    disableSessionPersistence,
-    sessionFilterContextId,
-    implicitDefaultConfig,
-  } = hookOptions;
-  const peekContext = usePeekTableState();
+  const { loading, implicitDefaultConfig } = hookOptions;
+  const stateLocationType = hookOptions.stateLocation;
+  const peekContext =
+    stateLocationType === "peekContext" ? hookOptions.context : undefined;
+  const setPeekTableState = peekContext?.setTableState;
 
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
@@ -395,7 +448,10 @@ export function useSidebarFilterState(
     [setExpandedString],
   );
 
-  const normalizedSessionFilterContextId = sessionFilterContextId ?? null;
+  const normalizedSessionFilterContextId =
+    stateLocationType === "urlAndSessionStorage"
+      ? (hookOptions.sessionFilterContextId ?? null)
+      : null;
   const FILTER_QUERY_SESSION_STORAGE_KEY = buildSidebarFilterQueryStorageKey({
     tableName: config.tableName,
     contextId: normalizedSessionFilterContextId,
@@ -434,24 +490,52 @@ export function useSidebarFilterState(
   const [pendingFiltersQuery, setPendingFiltersQuery] = useState<string | null>(
     null,
   );
-  const filtersQuery = disableUrlPersistence
-    ? ""
-    : (pendingFiltersQuery ??
-      urlFiltersQuery ??
-      (disableSessionPersistence ? "" : storedFiltersQuery));
+  const [memoryFilterState, setMemoryFilterState] = useState<FilterState>([]);
+
   const urlFilterState: FilterState = useMemo(() => {
-    // If URL persistence is disabled, return empty filter state
-    if (disableUrlPersistence) return [];
-    return decodeAndNormalizeFilters(filtersQuery, config.columnDefinitions);
-  }, [filtersQuery, config.columnDefinitions, disableUrlPersistence]);
+    if (
+      stateLocationType !== "url" &&
+      stateLocationType !== "urlAndSessionStorage"
+    ) {
+      return [];
+    }
+
+    const rawQuery = (() => {
+      if (pendingFiltersQuery !== null) {
+        return pendingFiltersQuery;
+      }
+
+      if (typeof urlFiltersQuery === "string") {
+        return urlFiltersQuery;
+      }
+
+      if (stateLocationType === "urlAndSessionStorage") {
+        return storedFiltersQuery;
+      }
+
+      return "";
+    })();
+
+    return decodeAndNormalizeFilters(rawQuery, config.columnDefinitions);
+  }, [
+    config.columnDefinitions,
+    stateLocationType,
+    pendingFiltersQuery,
+    urlFiltersQuery,
+    storedFiltersQuery,
+  ]);
+
   const canonicalFiltersQuery = useMemo(
     () => encodeFiltersGeneric(urlFilterState),
     [urlFilterState],
   );
 
-  const rawFilterState: FilterState = peekContext
-    ? peekContext.tableState.filters
-    : urlFilterState;
+  const explicitFilterState: FilterState =
+    stateLocationType === "peekContext"
+      ? hookOptions.context.tableState.filters
+      : stateLocationType === "memory"
+        ? memoryFilterState
+        : urlFilterState;
 
   const managedEnvironmentPolicyConfig = useMemo(
     () => buildManagedEnvironmentPolicyConfig(implicitDefaultConfig),
@@ -469,8 +553,6 @@ export function useSidebarFilterState(
     );
   }, [options, managedEnvironmentColumn]);
 
-  const explicitFilterState: FilterState = rawFilterState;
-
   const effectiveEnvironmentFilterState: FilterState = useMemo(
     () =>
       buildEffectiveEnvironmentFilter({
@@ -481,12 +563,10 @@ export function useSidebarFilterState(
   );
 
   const filterState: FilterState = useMemo(
-    () => [
-      ...explicitFilterState.filter(
-        (filter) => filter.column !== managedEnvironmentColumn,
-      ),
-      ...effectiveEnvironmentFilterState,
-    ],
+    () =>
+      explicitFilterState
+        .filter((filter) => filter.column !== managedEnvironmentColumn)
+        .concat(effectiveEnvironmentFilterState),
     [
       explicitFilterState,
       effectiveEnvironmentFilterState,
@@ -502,30 +582,31 @@ export function useSidebarFilterState(
         config: managedEnvironmentPolicyConfig,
       });
 
-      if (peekContext) {
-        peekContext.setTableState({
-          ...peekContext.tableState,
+      if (stateLocationType === "peekContext" && setPeekTableState) {
+        setPeekTableState((current) => ({
+          ...current,
           filters: explicitFilters,
-        });
+        }));
         return;
       }
 
-      // Don't modify URL if persistence is disabled
-      if (disableUrlPersistence) return;
+      if (stateLocationType === "memory") {
+        setMemoryFilterState(explicitFilters);
+        return;
+      }
 
       const encoded = encodeFiltersGeneric(explicitFilters);
       setPendingFiltersQuery(encoded);
       setUrlFiltersQuery(encoded || null);
-      if (!disableSessionPersistence) {
+      if (stateLocationType === "urlAndSessionStorage") {
         setStoredFiltersQuery(encoded);
       }
     },
     [
+      stateLocationType,
+      setPeekTableState,
       setUrlFiltersQuery,
       setStoredFiltersQuery,
-      disableUrlPersistence,
-      disableSessionPersistence,
-      peekContext,
       managedEnvironmentPolicyConfig,
       availableEnvironmentValues,
     ],
@@ -533,20 +614,19 @@ export function useSidebarFilterState(
 
   // Drop optimistic override once URL catches up to the requested value.
   useEffect(() => {
-    if (disableUrlPersistence) return;
-    if (peekContext) return;
+    if (
+      stateLocationType !== "url" &&
+      stateLocationType !== "urlAndSessionStorage"
+    ) {
+      return;
+    }
     if (pendingFiltersQuery === null) return;
 
     const normalizedUrlFiltersQuery = urlFiltersQuery ?? "";
     if (normalizedUrlFiltersQuery === pendingFiltersQuery) {
       setPendingFiltersQuery(null);
     }
-  }, [
-    disableUrlPersistence,
-    peekContext,
-    pendingFiltersQuery,
-    urlFiltersQuery,
-  ]);
+  }, [stateLocationType, pendingFiltersQuery, urlFiltersQuery]);
 
   // Sanitize stale or outdated filter queries in URL/session state.
   // TODO(2026-04-15): Remove this entire effect once stale
@@ -555,8 +635,13 @@ export function useSidebarFilterState(
   // stale-positionInTrace migration tests in sidebarFilterSessionPersistence
   // / filter-integration when this is no longer needed.
   useEffect(() => {
-    if (disableUrlPersistence) return;
-    if (peekContext) return;
+    if (
+      stateLocationType !== "url" &&
+      stateLocationType !== "urlAndSessionStorage"
+    ) {
+      return;
+    }
+
     if (pendingFiltersQuery !== null) return;
 
     if (typeof urlFiltersQuery === "string") {
@@ -566,7 +651,7 @@ export function useSidebarFilterState(
       }
 
       if (
-        !disableSessionPersistence &&
+        stateLocationType === "urlAndSessionStorage" &&
         storedFiltersQuery !== canonicalFiltersQuery
       ) {
         setStoredFiltersQuery(canonicalFiltersQuery);
@@ -575,15 +660,13 @@ export function useSidebarFilterState(
     }
 
     if (
-      !disableSessionPersistence &&
+      stateLocationType === "urlAndSessionStorage" &&
       storedFiltersQuery !== canonicalFiltersQuery
     ) {
       setStoredFiltersQuery(canonicalFiltersQuery);
     }
   }, [
-    disableUrlPersistence,
-    disableSessionPersistence,
-    peekContext,
+    stateLocationType,
     pendingFiltersQuery,
     urlFiltersQuery,
     storedFiltersQuery,
@@ -594,9 +677,7 @@ export function useSidebarFilterState(
 
   // Mirror explicit URL filter state into session fallback storage.
   useEffect(() => {
-    if (disableUrlPersistence) return;
-    if (disableSessionPersistence) return;
-    if (peekContext) return;
+    if (stateLocationType !== "urlAndSessionStorage") return;
     if (pendingFiltersQuery !== null) return;
     if (typeof urlFiltersQuery !== "string") return;
     if (!urlFiltersQuery) return;
@@ -606,9 +687,7 @@ export function useSidebarFilterState(
     // previously saved state when URL has no `filter` parameter.
     setStoredFiltersQuery(urlFiltersQuery);
   }, [
-    disableUrlPersistence,
-    disableSessionPersistence,
-    peekContext,
+    stateLocationType,
     pendingFiltersQuery,
     urlFiltersQuery,
     storedFiltersQuery,
@@ -690,6 +769,11 @@ export function useSidebarFilterState(
       // Determine operator and values based on context
       let finalOperator: "any of" | "none of" | "all of";
       let finalValues: string[];
+      const existingFilter = current.find((f) => f.column === column);
+      const preserveArrayNoneOfOperator =
+        colType === "arrayOptions" &&
+        existingFilter?.type === "arrayOptions" &&
+        existingFilter.operator === "none of";
 
       if (operator !== undefined) {
         // Explicit operator provided (e.g., from "Only" button or operator toggle) - use as-is
@@ -699,9 +783,10 @@ export function useSidebarFilterState(
         // If all items selected or none selected, remove filter
         // (only for implicit/checkbox-based selection, not when operator is explicitly set)
         if (
-          values.length === 0 ||
-          (values.length === availableValues.length &&
-            availableValues.every((v) => values.includes(v)))
+          !preserveArrayNoneOfOperator &&
+          (values.length === 0 ||
+            (values.length === availableValues.length &&
+              availableValues.every((v) => values.includes(v))))
         ) {
           const isManagedEnvironmentColumn =
             column === managedEnvironmentColumn &&
@@ -722,7 +807,6 @@ export function useSidebarFilterState(
           return other;
         }
         // Checkbox interaction - smart operator selection
-        const existingFilter = current.find((f) => f.column === column);
         ({ finalOperator, finalValues } = resolveCheckboxOperator({
           colType,
           existingFilter,
@@ -799,19 +883,35 @@ export function useSidebarFilterState(
       // Only apply for array-type options (not nested objects)
       const optionValue = options[column];
       if (!Array.isArray(optionValue)) return;
-      updateFilter(column, [value], "any of");
+      const columnType = config.columnDefinitions.find(
+        (columnDefinition) => columnDefinition.id === column,
+      )?.type;
+      const existingFilter = filterState.find((f) => f.column === column);
+      const operator =
+        columnType === "arrayOptions" &&
+        existingFilter?.type === "arrayOptions" &&
+        (existingFilter.operator === "any of" ||
+          existingFilter.operator === "all of" ||
+          existingFilter.operator === "none of")
+          ? existingFilter.operator
+          : "any of";
+      updateFilter(column, [value], operator);
     },
-    [config.facets, options, updateFilter],
+    [
+      config.columnDefinitions,
+      config.facets,
+      filterState,
+      options,
+      updateFilter,
+    ],
   );
 
   const updateOperator = useCallback(
-    (column: string, newOperator: "any of" | "all of") => {
+    (column: string, newOperator: "any of" | "all of" | "none of") => {
       // Find the existing filter for this column
       const existingFilter = filterState.find((f) => f.column === column);
       if (!existingFilter) {
-        // Create a filter with the operator and empty values
-        // important so users set the operator preference before selecting values,
-        // in case for ALL on TAGS filter
+        // Without selected values there is no valid persisted filter yet.
         updateFilter(column, [], newOperator);
         return;
       }
@@ -835,9 +935,12 @@ export function useSidebarFilterState(
 
       let currentValues: string[];
       if (existingFilter.operator === "none of") {
-        // Convert "none of [excluded]" to selected values
-        const excluded = new Set(existingFilter.value);
-        currentValues = availableValues.filter((v) => !excluded.has(v));
+        currentValues =
+          existingFilter.type === "arrayOptions"
+            ? existingFilter.value
+            : availableValues.filter(
+                (v) => !new Set(existingFilter.value).has(v),
+              );
       } else {
         currentValues = existingFilter.value;
       }
@@ -1088,14 +1191,22 @@ export function useSidebarFilterState(
 
           // Get available values from options
           const availableValues = options[facet.column] ?? {};
+          const mergedAvailableValues =
+            typeof availableValues === "object" &&
+            !Array.isArray(availableValues)
+              ? mergeAvailableValuesWithActiveFilters(
+                  availableValues as Record<string, string[]>,
+                  activeFilters,
+                )
+              : ({} as Record<string, string[]>);
 
           // Extract key options from availableValues if not defined in facet
           const keyOptions =
             facet.keyOptions ??
-            (typeof availableValues === "object" &&
-            !Array.isArray(availableValues)
-              ? Object.keys(availableValues as Record<string, string[]>)
-              : undefined);
+            mergeUniqueStrings(
+              Object.keys(mergedAvailableValues),
+              activeFilters.map((filter) => filter.key),
+            );
 
           return {
             type: "keyValue",
@@ -1105,11 +1216,7 @@ export function useSidebarFilterState(
 
             value: activeFilters,
             keyOptions,
-            availableValues:
-              typeof availableValues === "object" &&
-              !Array.isArray(availableValues)
-                ? (availableValues as Record<string, string[]>)
-                : ({} as Record<string, string[]>),
+            availableValues: mergedAvailableValues,
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
@@ -1178,13 +1285,11 @@ export function useSidebarFilterState(
 
           // Get available keys from options (should be array of score names)
           const availableKeys = options[facet.column];
-          const keyOptions =
-            facet.keyOptions ??
-            (Array.isArray(availableKeys)
-              ? availableKeys.map((opt) =>
-                  typeof opt === "string" ? opt : opt.value,
-                )
-              : undefined);
+          const keyOptions = resolveKnownKeyOptions(
+            facet.keyOptions,
+            availableKeys,
+            activeFilters.map((filter) => filter.key),
+          );
 
           return {
             type: "numericKeyValue",
@@ -1262,13 +1367,11 @@ export function useSidebarFilterState(
 
           // Get available keys from options
           const availableKeys = options[facet.column];
-          const keyOptions =
-            facet.keyOptions ??
-            (Array.isArray(availableKeys)
-              ? availableKeys.map((opt) =>
-                  typeof opt === "string" ? opt : opt.value,
-                )
-              : undefined);
+          const keyOptions = resolveKnownKeyOptions(
+            facet.keyOptions,
+            availableKeys,
+            activeFilters.map((filter) => filter.key),
+          );
 
           return {
             type: "stringKeyValue",
@@ -1447,13 +1550,14 @@ export function useSidebarFilterState(
         // - "any of" (OR logic): match if item has ANY selected value
         // - "all of" (AND logic): match if item has ALL selected values
         // This operator is persisted in the filter state and URL
-        let currentOperator: "any of" | "all of" | undefined;
+        let currentOperator: "any of" | "all of" | "none of" | undefined;
         if (
           checkboxFilter &&
           (checkboxFilter.type === "arrayOptions" ||
             checkboxFilter.type === "stringOptions") &&
           (checkboxFilter.operator === "any of" ||
-            checkboxFilter.operator === "all of")
+            checkboxFilter.operator === "all of" ||
+            checkboxFilter.operator === "none of")
         ) {
           currentOperator = checkboxFilter.operator;
         } else if (isArrayOptions && selectedValues.length > 0) {
@@ -1477,6 +1581,14 @@ export function useSidebarFilterState(
           }));
 
         const hasTextFilters = textFilters.length > 0;
+        const hasExplicitCheckboxFilter =
+          !!checkboxFilter &&
+          Array.isArray(checkboxFilter.value) &&
+          checkboxFilter.value.length > 0;
+        const hasExplicitCheckboxFilterWhileLoading =
+          hasExplicitCheckboxFilter &&
+          selectedValues.length === 0 &&
+          availableValues.length === 0;
         const hasCheckboxSelections =
           selectedValues.length > 0 &&
           selectedValues.length !== availableValues.length;
@@ -1505,8 +1617,12 @@ export function useSidebarFilterState(
           (isManagedEnvironmentFacet
             ? hasManagedEnvironmentSelectionOverride
             : (currentOperator === "all of" &&
-                selectedValues.length === availableValues.length) ||
-              hasCheckboxSelections);
+                (selectedValues.length === availableValues.length ||
+                  hasExplicitCheckboxFilterWhileLoading)) ||
+              (currentOperator === "none of" &&
+                hasExplicitCheckboxFilterWhileLoading) ||
+              hasCheckboxSelections ||
+              hasExplicitCheckboxFilterWhileLoading);
         const disableState = getFacetDisabledState(facet);
 
         return {
@@ -1555,7 +1671,8 @@ export function useSidebarFilterState(
           // Only add operator toggle for arrayOptions columns
           operator: isArrayOptions ? currentOperator : undefined,
           onOperatorChange: isArrayOptions
-            ? (op: "any of" | "all of") => updateOperator(facet.column, op)
+            ? (op: "any of" | "all of" | "none of") =>
+                updateOperator(facet.column, op)
             : undefined,
           // Text filter support - ONLY for stringOptions, NOT arrayOptions or boolean
           textFilters: !isArrayOptions ? textFilters : undefined,
