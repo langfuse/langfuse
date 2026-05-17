@@ -217,7 +217,7 @@ describe("default-model-prices.json", () => {
     );
     expect(claudeModel).toBeDefined();
     expect(claudeModel!.modelName).toBe("claude-sonnet-4-5-20250929");
-    expect(claudeModel!.pricingTiers.length).toBe(2);
+    expect(claudeModel!.pricingTiers.length).toBe(1);
 
     // Convert to PricingTierWithPrices format
     const tiers: PricingTierWithPrices[] = claudeModel!.pricingTiers.map(
@@ -234,7 +234,7 @@ describe("default-model-prices.json", () => {
       }),
     );
 
-    // Test standard pricing (input <= 200K)
+    // Test standard pricing
     const standardResult = matchPricingTier(tiers, {
       input: 150000,
       output: 5000,
@@ -243,14 +243,14 @@ describe("default-model-prices.json", () => {
     expect(standardResult?.pricingTierName).toBe("Standard");
     expect(standardResult?.prices.input.toNumber()).toBe(0.000003);
 
-    // Test large context pricing (input > 200K)
-    const largeContextResult = matchPricingTier(tiers, {
+    // Large Context tier was removed — input > 200K should still match Standard
+    // (no tier condition matches, falls back to default)
+    const largeInputResult = matchPricingTier(tiers, {
       input: 250000,
       output: 5000,
     });
-    expect(largeContextResult).not.toBeNull();
-    expect(largeContextResult?.pricingTierName).toBe("Large Context");
-    expect(largeContextResult?.prices.input.toNumber()).toBe(0.000006);
+    expect(largeInputResult).not.toBeNull();
+    expect(largeInputResult?.pricingTierName).toBe("Standard");
   });
 });
 
