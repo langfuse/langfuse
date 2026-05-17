@@ -400,12 +400,15 @@ export function normalizeEventEvalFilterCondition(
   filter: FilterCondition,
 ): FilterCondition {
   const column = findEventEvalFilterColumn(filter.column);
+  if (!column) {
+    return filter;
+  }
+
   if (
-    !column ||
     filter.type !== "stringOptions" ||
     (column.internal !== "type" && column.internal !== "level")
   ) {
-    return filter;
+    return { ...filter, column: column.id };
   }
 
   return {

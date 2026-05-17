@@ -288,6 +288,31 @@ describe("scheduleObservationEvals", () => {
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
     });
 
+    it("should process config when legacy lowercase level filter matches canonical observation level", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation({ level: "DEFAULT" });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            filter: [
+              {
+                column: "level",
+                type: "stringOptions",
+                operator: "any of",
+                value: ["default"],
+              },
+            ],
+          }),
+        ],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalled();
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
+    });
+
     it("should process config when filter is empty (matches all)", async () => {
       const schedulerDeps = createMockSchedulerDeps();
       const observation = createMockObservation();
