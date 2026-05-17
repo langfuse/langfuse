@@ -142,6 +142,11 @@ const LIVEKIT_DEBUG_SPAN_NAMES = new Set([
 export class OtelIngestionProcessor {
   private static readonly OTEL_CONVERSION_FAILURE_METRIC =
     "langfuse.ingestion.otel.conversion_failure";
+  private static readonly DANGEROUS_KEYS = new Set([
+    "__proto__",
+    "constructor",
+    "prototype",
+  ]);
 
   private seenTraces: Set<string> = new Set();
   private isInitialized = false;
@@ -1287,7 +1292,9 @@ export class OtelIngestionProcessor {
     }
     if (value.kvlistValue && value.kvlistValue.values !== undefined) {
       return value.kvlistValue.values.reduce((acc: any, kv: any) => {
-        acc[kv.key] = this.convertValueToPlainJavascript(kv.value);
+        if (!OtelIngestionProcessor.DANGEROUS_KEYS.has(kv.key)) {
+          acc[kv.key] = this.convertValueToPlainJavascript(kv.value);
+        }
         return acc;
       }, {});
     }
@@ -1317,7 +1324,9 @@ export class OtelIngestionProcessor {
 
     return (
       event.attributes?.reduce((acc: any, attr: any) => {
-        acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+        if (!OtelIngestionProcessor.DANGEROUS_KEYS.has(attr.key)) {
+          acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+        }
         return acc;
       }, {}) ?? {}
     );
@@ -1335,7 +1344,7 @@ export class OtelIngestionProcessor {
     const useArray = keys.some((key) => key.match(/^\d+\./));
 
     // Blocklist to prevent prototype pollution via crafted OTel attribute keys
-    const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+    const DANGEROUS_KEYS = OtelIngestionProcessor.DANGEROUS_KEYS;
 
     // Helper function to set a value at a nested path
     const setNestedValue = (obj: any, path: string[], value: unknown): void => {

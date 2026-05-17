@@ -7709,6 +7709,16 @@ describe("OTel Resource Span Mapping", () => {
 
   describe("Prototype pollution protection", () => {
     const publicKey = "pk-lf-1234567890";
+    const otelString = (stringValue: string) => ({ stringValue });
+    const otelArray = (values: any[]) => ({ arrayValue: { values } });
+    const otelObject = (value: Record<string, any>) => ({
+      kvlistValue: {
+        values: Object.entries(value).map(([key, entryValue]) => ({
+          key,
+          value: entryValue,
+        })),
+      },
+    });
 
     it("should not pollute Object.prototype via __proto__ in gen_ai.prompt attributes", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";
@@ -7771,6 +7781,181 @@ describe("OTel Resource Span Mapping", () => {
       );
 
       // Verify Object.prototype was NOT polluted
+      expect(({} as any).POLLUTED).toBeUndefined();
+      expect(Object.prototype.hasOwnProperty("POLLUTED" as any)).toBe(false);
+    });
+
+    it("should ignore dangerous keys in GenAI operation detail event attributes", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const spanId = "abcdef1234567890";
+
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "otel-test-scope",
+              version: "1.0.0",
+              attributes: [
+                {
+                  key: "public_key",
+                  value: { stringValue: publicKey },
+                },
+              ],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex").toJSON(),
+                spanId: Buffer.from(spanId, "hex").toJSON(),
+                name: "event-attribute-pollution-test",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000000, high: 0, unsigned: true },
+                endTimeUnixNano: { low: 2000000000, high: 0, unsigned: true },
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "gpt-4o-mini" },
+                  },
+                ],
+                events: [
+                  {
+                    name: "gen_ai.client.inference.operation.details",
+                    attributes: [
+                      {
+                        key: "__proto__",
+                        value: otelObject({
+                          "gen_ai.input.messages": otelArray([
+                            otelObject({
+                              role: otelString("user"),
+                              parts: otelArray([
+                                otelObject({
+                                  type: otelString("text"),
+                                  content: otelString("polluted"),
+                                }),
+                              ]),
+                            }),
+                          ]),
+                        }),
+                      },
+                    ],
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set([traceId]),
+        publicKey,
+      );
+
+      const observation = events.find((e) => e.type === "generation-create");
+
+      expect(observation?.body.input).toBeNull();
+      expect(({} as any).POLLUTED).toBeUndefined();
+      expect(Object.prototype.hasOwnProperty("POLLUTED" as any)).toBe(false);
+    });
+
+    it("should ignore dangerous keys in nested OTEL kvlist values", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const spanId = "abcdef1234567890";
+
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "otel-test-scope",
+              version: "1.0.0",
+              attributes: [
+                {
+                  key: "public_key",
+                  value: { stringValue: publicKey },
+                },
+              ],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex").toJSON(),
+                spanId: Buffer.from(spanId, "hex").toJSON(),
+                name: "kvlist-pollution-test",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000000, high: 0, unsigned: true },
+                endTimeUnixNano: { low: 2000000000, high: 0, unsigned: true },
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "gpt-4o-mini" },
+                  },
+                ],
+                events: [
+                  {
+                    name: "gen_ai.client.inference.operation.details",
+                    attributes: [
+                      {
+                        key: "gen_ai.input.messages",
+                        value: otelArray([
+                          otelObject({
+                            role: otelString("user"),
+                            parts: otelArray([
+                              otelObject({
+                                type: otelString("text"),
+                                content: otelString("hello"),
+                              }),
+                            ]),
+                            ["__proto__"]: otelObject({
+                              POLLUTED: otelString("SUCCESS"),
+                            }),
+                          }),
+                        ]),
+                      },
+                    ],
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set([traceId]),
+        publicKey,
+      );
+
+      const observation = events.find((e) => e.type === "generation-create");
+      const input = observation?.body.input as any[];
+
+      expect(input[0].role).toBe("user");
+      expect(input[0].POLLUTED).toBeUndefined();
       expect(({} as any).POLLUTED).toBeUndefined();
       expect(Object.prototype.hasOwnProperty("POLLUTED" as any)).toBe(false);
     });
