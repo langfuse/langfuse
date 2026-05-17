@@ -30,6 +30,7 @@ import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersi
 import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
+import { getSourceTraceHref } from "@/src/features/datasets/utils/sourceTraceHref";
 
 export const DatasetItemDetailPage = ({
   activeTab,
@@ -191,7 +192,11 @@ export const DatasetItemDetailPage = ({
             {item.data?.sourceTraceId && (
               <Button variant="ghost" size="icon-xs" asChild>
                 <Link
-                  href={`/project/${projectId}/traces/${item.data.sourceTraceId}`}
+                  href={getSourceTraceHref({
+                    projectId,
+                    sourceTraceId: item.data.sourceTraceId,
+                    sourceObservationId: item.data.sourceObservationId,
+                  })}
                   title={`View source ${item.data.sourceObservationId ? "observation" : "trace"}`}
                 >
                   <ListTree className="h-4 w-4" />
