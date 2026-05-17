@@ -4,7 +4,9 @@ import {
   logger,
   OtelIngestionProcessor,
   markProjectAsOtelUser,
+  filterOversizedSpans,
 } from "@langfuse/shared/src/server";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { z } from "zod";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import { gunzip } from "node:zlib";
@@ -158,6 +160,28 @@ export default withMiddlewares({
         };
       }
 
+      // Drop individual spans whose string content exceeds the configured limit.
+      // Remaining spans proceed normally; the response signals partial success.
+      const { resourceSpans: filteredSpans, rejectedCount } =
+        filterOversizedSpans(
+          resourceSpans,
+          sharedEnv.LANGFUSE_OTEL_MAX_SPAN_BYTES,
+          auth.scope.projectId,
+        );
+
+      // Early return if nothing left to process.
+      if (filteredSpans.length === 0) {
+        if (rejectedCount > 0) {
+          return {
+            partialSuccess: {
+              rejectedSpans: rejectedCount,
+              errorMessage: `${rejectedCount} span(s) exceeded size limit and were dropped`,
+            },
+          };
+        }
+        return {};
+      }
+
       // Extract headers to propagate for ingestion masking
       const propagatedHeaderNames =
         env.LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS;
@@ -182,9 +206,20 @@ export default withMiddlewares({
         ingestionVersion,
       });
 
-      // At this point, we have the raw OpenTelemetry Span body. We upload the full batch to S3
+      // At this point, we have the raw OpenTelemetry Span body. We upload the filtered batch to S3
       // and the OtelIngestionProcessor logic will handle processing in the worker container.
-      return processor.publishToOtelIngestionQueue(resourceSpans);
+      await processor.publishToOtelIngestionQueue(filteredSpans);
+
+      if (rejectedCount > 0) {
+        return {
+          partialSuccess: {
+            rejectedSpans: rejectedCount,
+            errorMessage: `${rejectedCount} span(s) exceeded size limit and were dropped`,
+          },
+        };
+      }
+
+      return {};
     },
   }),
 });
