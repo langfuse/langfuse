@@ -3975,6 +3975,142 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
+    it("should map GenAI operation details event messages to input and output", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+      const otelString = (stringValue: string) => ({ stringValue });
+      const otelArray = (values: any[]) => ({ arrayValue: { values } });
+      const otelObject = (value: Record<string, any>) => ({
+        kvlistValue: {
+          values: Object.entries(value).map(([key, entryValue]) => ({
+            key,
+            value: entryValue,
+          })),
+        },
+      });
+      const otelTextPart = (content: string) =>
+        otelObject({
+          type: otelString("text"),
+          content: otelString(content),
+        });
+      const otelMessage = (
+        role: string,
+        content: string,
+        finishReason?: string,
+      ) =>
+        otelObject({
+          role: otelString(role),
+          parts: otelArray([otelTextPart(content)]),
+          ...(finishReason ? { finish_reason: otelString(finishReason) } : {}),
+        });
+
+      const span = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "otel-test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "otel-test-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "chat gpt-4o-mini",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "gpt-4o-mini" },
+                  },
+                ],
+                events: [
+                  {
+                    timeUnixNano: {
+                      low: 1000000,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    name: "gen_ai.client.inference.operation.details",
+                    attributes: [
+                      {
+                        key: "gen_ai.operation.name",
+                        value: { stringValue: "chat" },
+                      },
+                      {
+                        key: "gen_ai.input.messages",
+                        value: otelArray([
+                          otelMessage("user", "Which traces failed?"),
+                        ]),
+                      },
+                      {
+                        key: "gen_ai.output.messages",
+                        value: otelArray([
+                          otelMessage(
+                            "assistant",
+                            "The failed trace is trace-123.",
+                            "stop",
+                          ),
+                        ]),
+                      },
+                    ],
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(span, new Set());
+
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      expect(observation?.body.input).toEqual([
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              content: "Which traces failed?",
+            },
+          ],
+        },
+      ]);
+      expect(observation?.body.output).toEqual([
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              content: "The failed trace is trace-123.",
+            },
+          ],
+          finish_reason: "stop",
+        },
+      ]);
+    });
+
     it("should map llm.input_messages and llm.output_messages to input/output and filter from metadata", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";
       const rootSpanId = "1234567890abcdef";

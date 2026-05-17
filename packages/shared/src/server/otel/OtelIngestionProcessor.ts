@@ -1285,6 +1285,12 @@ export class OtelIngestionProcessor {
         this.convertValueToPlainJavascript(v),
       );
     }
+    if (value.kvlistValue && value.kvlistValue.values !== undefined) {
+      return value.kvlistValue.values.reduce((acc: any, kv: any) => {
+        acc[kv.key] = this.convertValueToPlainJavascript(kv.value);
+        return acc;
+      }, {});
+    }
     if (value.intValue && value.intValue.high === 0) {
       return value.intValue.low;
     }
@@ -1302,6 +1308,19 @@ export class OtelIngestionProcessor {
       return value.intValue.high * Math.pow(2, 32) + value.intValue.low;
     }
     return JSON.stringify(value);
+  }
+
+  private extractEventAttributes(
+    event?: Record<string, any>,
+  ): Record<string, unknown> | null {
+    if (!event) return null;
+
+    return (
+      event.attributes?.reduce((acc: any, attr: any) => {
+        acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+        return acc;
+      }, {}) ?? {}
+    );
   }
 
   private convertKeyPathToNestedObject(
@@ -1606,6 +1625,35 @@ export class OtelIngestionProcessor {
             : processedOutput,
         filteredAttributes, // No attribute keys used, events are used instead
       };
+    }
+
+    // OpenTelemetry GenAI operation details event
+    // https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/
+    const operationDetailsAttributes = this.extractEventAttributes(
+      events.find(
+        (event: Record<string, unknown>) =>
+          event.name === "gen_ai.client.inference.operation.details",
+      ),
+    );
+    if (operationDetailsAttributes) {
+      input = operationDetailsAttributes["gen_ai.input.messages"];
+      output = operationDetailsAttributes["gen_ai.output.messages"];
+      if (input && operationDetailsAttributes["gen_ai.system_instructions"]) {
+        input = this.prependSystemInstructions(
+          input,
+          operationDetailsAttributes["gen_ai.system_instructions"],
+        );
+      }
+      if (input || output) {
+        return {
+          input: this.appendOtelToolDefinitionsToInput(
+            input,
+            operationDetailsAttributes,
+          ),
+          output,
+          filteredAttributes,
+        };
+      }
     }
 
     // Legacy semantic kernel event definitions
