@@ -100,6 +100,32 @@ export class BackgroundMigrationManager {
           continue;
         }
 
+        // Env-gate check: a migration row may declare `args.envGate = "<ENV_VAR>"`
+        // to remain dormant until the operator opts in by setting that env var to "true".
+        // When the gate is off, release the lock and stop the run loop without writing
+        // finishedAt/failedAt so the migration is rechecked on the next worker startup.
+        // This lets us ship migrations dormant on a v3 release and activate on v4 (or opt-in).
+        const envGate = BackgroundMigrationManager.activeMigration.args
+          ?.envGate as string | undefined;
+        if (envGate && process.env[envGate] !== "true") {
+          logger.info(
+            `[Background Migration] Skipping background migration ${BackgroundMigrationManager.activeMigration.name}: env gate ${envGate} is not "true". Will recheck on next worker startup.`,
+          );
+          await prisma.backgroundMigration.update({
+            where: {
+              id: BackgroundMigrationManager.activeMigration.id,
+              workerId: BackgroundMigrationManager.workerId,
+            },
+            data: {
+              lockedAt: null,
+              workerId: null,
+            },
+          });
+          BackgroundMigrationManager.activeMigration = undefined;
+          migrationToRun = false;
+          continue;
+        }
+
         // Initiate heartbeats every couple seconds
         await BackgroundMigrationManager.heartBeat();
 
