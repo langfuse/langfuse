@@ -14,7 +14,9 @@ import { getServerAuthSession } from "@/src/server/auth";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  prepareExecuteQuery,
   query as customQuery,
+  toClickhouseQueryOpts,
   validateQuery,
   viewVersions,
 } from "@langfuse/shared/query";

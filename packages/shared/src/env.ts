@@ -99,20 +99,18 @@ const EnvSchema = z.object({
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])
     .default("auto"),
-  CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
-    .number()
-    .default(32_000_000_000), // ~32GB
-  CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
-    .enum(["true", "false"])
-    .default("false"),
-
   // Workaround for a 25.12 bug where lightweight updates/deletes interact
   // incorrectly with lazy materialization. Remove after ClickHouse 26.4, or
   // earlier if the fix is backported.
   CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
     .enum(["true", "false"])
     .default("false"),
-
+  CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
+    .number()
+    .default(32_000_000_000), // ~32GB
+  CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
     .enum(["true", "false"])
     .default("false"),
