@@ -1,4 +1,5 @@
 export const availableFlags = [
+  "inAppAgent",
   "templateFlag",
   "excludeClickhouseRead",
   "v4BetaToggleVisible",
