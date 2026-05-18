@@ -5,6 +5,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import {
+  assertLLMAsJudgeEvalTemplate,
   observationForEvalSchema,
   observationVariableMappingList,
   isJobConfigExecutable,
@@ -119,6 +120,12 @@ export async function processObservationEval({
     });
 
     return;
+  }
+
+  try {
+    assertLLMAsJudgeEvalTemplate(evalJobConfig.evalTemplate);
+  } catch (e) {
+    throw new UnrecoverableError(e instanceof Error ? e.message : String(e));
   }
 
   // Download observation data from S3

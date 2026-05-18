@@ -1,4 +1,43 @@
+import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
+  type EvalTemplate,
+} from "@prisma/client";
 import z from "zod";
+
+export type EvalTemplateLlmAsAJudge = EvalTemplate & {
+  type: typeof EvalTemplateType.LLM_AS_JUDGE;
+  prompt: string;
+  outputDefinition: NonNullable<EvalTemplate["outputDefinition"]>;
+  sourceCode: null;
+  sourceCodeLanguage: null;
+};
+
+export type EvalTemplateCodeBased = EvalTemplate & {
+  type: typeof EvalTemplateType.CODE;
+  prompt: null;
+  outputDefinition: null;
+  sourceCode: string;
+  sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
+};
+
+export type EvalTemplateWithType =
+  | EvalTemplateLlmAsAJudge
+  | EvalTemplateCodeBased;
+
+export const assertLLMAsJudgeEvalTemplate = (
+  template: EvalTemplate,
+): asserts template is EvalTemplateLlmAsAJudge => {
+  if (
+    template.type !== EvalTemplateType.LLM_AS_JUDGE ||
+    template.prompt === null ||
+    template.outputDefinition === null ||
+    template.sourceCode != null ||
+    template.sourceCodeLanguage != null
+  ) {
+    throw new Error("Expected LLM-as-judge evaluation template");
+  }
+};
 
 export const EvalTargetObject = {
   TRACE: "trace",

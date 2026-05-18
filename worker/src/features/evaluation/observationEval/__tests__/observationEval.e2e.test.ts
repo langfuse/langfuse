@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { JobExecutionStatus, type Prisma } from "@prisma/client";
+import {
+  EvalTemplateType,
+  JobExecutionStatus,
+  type Prisma,
+} from "@prisma/client";
 import { randomUUID } from "crypto";
 import { scheduleObservationEvals } from "../scheduleObservationEvals";
 import { processObservationEval } from "../observationEvalProcessor";
@@ -9,7 +13,7 @@ import {
   createTestEvalConfig,
   createFullyMockedEvalPipeline,
 } from "./fixtures";
-import { type ObservationForEval, EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject } from "@langfuse/shared";
 
 // Mock prisma for processObservationEval
 vi.mock("@langfuse/shared/src/db", () => ({
@@ -97,7 +101,7 @@ describe("Observation Eval E2E Pipeline", () => {
       let capturedJobExecutionId: string | undefined;
       const mockCreateJobExecution = vi
         .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
-        .mockImplementation(async (params) => {
+        .mockImplementation(async () => {
           capturedJobExecutionId = `job-exec-${randomUUID()}`;
           return { id: capturedJobExecutionId };
         });
@@ -159,6 +163,7 @@ describe("Observation Eval E2E Pipeline", () => {
         projectId,
         name: "Accuracy Evaluator",
         version: 1,
+        type: EvalTemplateType.LLM_AS_JUDGE,
         prompt: "Evaluate the accuracy of: {{output}}",
         model: "gpt-4",
         provider: "openai",
@@ -167,6 +172,8 @@ describe("Observation Eval E2E Pipeline", () => {
           score: "A number between 0 and 1",
           reasoning: "Explanation",
         },
+        sourceCode: null,
+        sourceCodeLanguage: null,
         vars: ["output"],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -388,11 +395,14 @@ describe("Observation Eval E2E Pipeline", () => {
         projectId,
         name: "Test Eval",
         version: 1,
+        type: EvalTemplateType.LLM_AS_JUDGE,
         prompt: "Q: {{question}} A: {{answer}}",
         model: "gpt-4",
         provider: "openai",
         modelParams: {},
         outputDefinition: { score: "0-1", reasoning: "Why" },
+        sourceCode: null,
+        sourceCodeLanguage: null,
         vars: ["question", "answer"],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -488,11 +498,14 @@ describe("Observation Eval E2E Pipeline", () => {
         projectId,
         name: "Test Eval",
         version: 1,
+        type: EvalTemplateType.LLM_AS_JUDGE,
         prompt: "Compare {{generated}} to {{expected}}",
         model: "gpt-4",
         provider: "openai",
         modelParams: {},
         outputDefinition: { score: "0-1", reasoning: "Why" },
+        sourceCode: null,
+        sourceCodeLanguage: null,
         vars: ["generated", "expected"],
         createdAt: new Date(),
         updatedAt: new Date(),

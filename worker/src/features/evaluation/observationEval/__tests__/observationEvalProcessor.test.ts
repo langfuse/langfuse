@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { JobExecutionStatus } from "@prisma/client";
+import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
+  JobExecutionStatus,
+} from "@prisma/client";
 import {
   processObservationEval,
   type ObservationEvalProcessorDeps,
@@ -145,6 +149,47 @@ describe("processObservationEval", () => {
         id: "config-123",
         projectId,
         blockedAt: new Date(),
+      });
+
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
+      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
+
+      const deps = createMockProcessorDeps();
+
+      await processObservationEval({ event: baseEvent, deps });
+
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: job.id,
+          projectId,
+        },
+        data: {
+          status: JobExecutionStatus.CANCELLED,
+          endTime: expect.any(Date),
+        },
+      });
+      expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
+      expect(executeLLMAsJudgeEvaluation).not.toHaveBeenCalled();
+    });
+
+    it("should cancel blocked jobs before validating the evaluator template type", async () => {
+      const job = createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status: JobExecutionStatus.PENDING,
+        jobConfigurationId: "config-123",
+      });
+      const config = createMockJobConfiguration({
+        id: "config-123",
+        projectId,
+        blockedAt: new Date(),
+        evalTemplate: createMockEvalTemplate({
+          type: EvalTemplateType.CODE,
+          prompt: null,
+          outputDefinition: null,
+          sourceCode: "def evaluate(): pass",
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.PYTHON,
+        }),
       });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);

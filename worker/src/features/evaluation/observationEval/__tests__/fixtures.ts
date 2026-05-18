@@ -1,6 +1,10 @@
 import { vi, type Mock } from "vitest";
 import { randomUUID } from "crypto";
-import { type Prisma } from "@langfuse/shared/src/db";
+import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
+  type Prisma,
+} from "@langfuse/shared/src/db";
 import { type ObservationForEval, EvalTargetObject } from "@langfuse/shared";
 import {
   type ObservationEvalConfig,
@@ -281,11 +285,14 @@ export function createMockEvalTemplate(
     projectId: string | null;
     name: string;
     version: number;
-    prompt: string;
+    type: EvalTemplateType;
+    prompt: string | null;
     model: string;
     provider: string;
     modelParams: Record<string, unknown>;
-    outputDefinition: Record<string, string>;
+    outputDefinition: Record<string, string> | null;
+    sourceCode: string | null;
+    sourceCodeLanguage: EvalTemplateSourceCodeLanguage | null;
     vars: string[];
     createdAt: Date;
     updatedAt: Date;
@@ -293,19 +300,27 @@ export function createMockEvalTemplate(
 ) {
   return {
     id: overrides.id ?? `template-${randomUUID()}`,
-    projectId: overrides.projectId ?? "test-project-123",
+    projectId:
+      "projectId" in overrides ? overrides.projectId : "test-project-123",
     name: overrides.name ?? "Test Evaluator",
     version: overrides.version ?? 1,
+    type: overrides.type ?? EvalTemplateType.LLM_AS_JUDGE,
     prompt:
-      overrides.prompt ??
-      "Evaluate the following output: {{output}}. Score 0-1.",
+      "prompt" in overrides
+        ? overrides.prompt
+        : "Evaluate the following output: {{output}}. Score 0-1.",
     model: overrides.model ?? "gpt-4",
     provider: overrides.provider ?? "openai",
     modelParams: overrides.modelParams ?? {},
-    outputDefinition: overrides.outputDefinition ?? {
-      score: "A number between 0 and 1",
-      reasoning: "Explain your reasoning",
-    },
+    outputDefinition:
+      "outputDefinition" in overrides
+        ? overrides.outputDefinition
+        : {
+            score: "A number between 0 and 1",
+            reasoning: "Explain your reasoning",
+          },
+    sourceCode: overrides.sourceCode ?? null,
+    sourceCodeLanguage: overrides.sourceCodeLanguage ?? null,
     vars: overrides.vars ?? ["output"],
     createdAt: overrides.createdAt ?? new Date(),
     updatedAt: overrides.updatedAt ?? new Date(),

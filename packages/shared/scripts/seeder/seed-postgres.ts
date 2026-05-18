@@ -4,6 +4,7 @@ import { hash } from "bcryptjs";
 import { v4 } from "uuid";
 import { encrypt } from "../../src/encryption";
 import {
+  EvalTemplateType,
   type JobConfiguration,
   JobExecutionStatus,
   PrismaClient,
@@ -299,10 +300,11 @@ async function main() {
     for (const evalTemplate of SEED_EVALUATOR_TEMPLATES) {
       await prisma.evalTemplate.upsert({
         where: {
-          projectId_name_version: {
+          projectId_name_version_type: {
             projectId: project1.id,
             name: evalTemplate.name,
             version: 1,
+            type: EvalTemplateType.LLM_AS_JUDGE,
           },
         },
         create: {

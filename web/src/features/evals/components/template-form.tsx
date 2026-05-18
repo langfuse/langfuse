@@ -60,10 +60,8 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 
-type PartialEvalTemplate = Omit<
-  EvalTemplate,
-  "id" | "version" | "createdAt" | "updatedAt"
-> & { id?: string };
+type PartialEvalTemplate = Partial<EvalTemplate> &
+  Pick<EvalTemplate, "name" | "prompt" | "vars" | "outputDefinition">;
 
 export const EvalTemplateForm = (props: {
   projectId: string;
@@ -93,7 +91,7 @@ export const EvalTemplateForm = (props: {
           props.existingEvalTemplate
             ? {
                 name: props.existingEvalTemplate.name,
-                prompt: props.existingEvalTemplate.prompt,
+                prompt: props.existingEvalTemplate.prompt ?? "",
                 vars: props.existingEvalTemplate.vars,
                 outputDefinition: props.existingEvalTemplate
                   .outputDefinition as PersistedEvalOutputDefinition,
