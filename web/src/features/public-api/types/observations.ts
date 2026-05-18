@@ -6,19 +6,17 @@ import {
   publicApiPaginationZod,
   singleFilter,
   InvalidRequestError,
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
+  type ObservationFieldGroupPublicApi,
 } from "@langfuse/shared";
-
 import {
   reduceUsageOrCostDetails,
   stringDateTime,
   type ObservationPriceFields,
 } from "@langfuse/shared/src/server";
-import {
-  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
-  type ObservationFieldGroupPublicApi,
-} from "@langfuse/shared";
+
 import { z } from "zod";
-import { useEventsTableSchema } from "@langfuse/shared";
+import { useEventsTableSchema } from "@langfuse/shared/src/features/query/types";
 
 // Re-export for convenience
 export {

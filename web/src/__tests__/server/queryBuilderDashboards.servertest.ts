@@ -5,8 +5,8 @@ import {
   createObservation,
   createObservationsCh,
 } from "@langfuse/shared/src/server";
-import { type QueryType } from "@langfuse/shared";
-import { executeQuery } from "@langfuse/shared/src/server";
+import { type QueryType } from "@langfuse/shared/src/features/query/types";
+import { executeQuery } from "@langfuse/shared/src/features/query/queryExecutor";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 describe("selfServeDashboards", () => {

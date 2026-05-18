@@ -11,7 +11,10 @@ import {
 } from "@/src/utils/date-range-utils";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { type QueryType, type ViewVersion } from "@langfuse/shared";
+import {
+  type QueryType,
+  type ViewVersion,
+} from "@langfuse/shared/src/features/query/types";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";

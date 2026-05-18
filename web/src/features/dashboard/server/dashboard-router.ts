@@ -6,6 +6,7 @@ import {
 import {
   filterInterface,
   sqlInterface,
+  type DatabaseRow,
 } from "@/src/server/api/services/sqlInterface";
 import { createHistogramData } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { TRPCError } from "@trpc/server";
@@ -19,12 +20,12 @@ import {
   DashboardService,
   DashboardDefinitionSchema,
 } from "@langfuse/shared/src/server";
-import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+
 import {
   type QueryType,
   query as customQuery,
   viewVersions,
-} from "@langfuse/shared";
+} from "@langfuse/shared/src/features/query/types";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import {
   paginationZod,
@@ -35,7 +36,8 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { executeQuery, validateQuery } from "@langfuse/shared/src/server";
+import { executeQuery } from "@langfuse/shared/src/features/query/queryExecutor";
+import { validateQuery } from "@langfuse/shared/src/features/query/validateQuery";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({

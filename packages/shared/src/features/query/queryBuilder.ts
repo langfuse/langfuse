@@ -54,19 +54,18 @@ type MappedFilters = {
 export class QueryBuilder {
   private chartConfig?: { bins?: number; row_limit?: number };
   private version: ViewVersion;
-  // Test seam: when undefined, falls back to env at build() time. Tests pass
-  // an explicit value instead of mutating env across the package boundary.
-  private rootEventConditionMaxWindowHoursOverride?: number;
+  private rootEventConditionMaxWindowHours: number;
 
   constructor(
     chartConfig?: { bins?: number; row_limit?: number },
     version: ViewVersion = "v1",
-    options?: { rootEventConditionMaxWindowHours?: number },
+    {
+      rootEventConditionMaxWindowHours = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS,
+    }: { rootEventConditionMaxWindowHours?: number } = {},
   ) {
     this.chartConfig = chartConfig;
     this.version = version;
-    this.rootEventConditionMaxWindowHoursOverride =
-      options?.rootEventConditionMaxWindowHours;
+    this.rootEventConditionMaxWindowHours = rootEventConditionMaxWindowHours;
   }
 
   private translateAggregation(metric: AppliedMetricType): string {
@@ -91,20 +90,14 @@ export class QueryBuilder {
         return `quantile(0.95)(${metric.alias || metric.sql})`;
       case "p99":
         return `quantile(0.99)(${metric.alias || metric.sql})`;
-      case "histogram": {
-        // Get histogram bins from chart config, fallback to 10
-        const bins = this.chartConfig?.bins ?? 10;
-        return `histogram(${bins})(toFloat64(${metric.alias || metric.sql}))`;
-      }
+      case "histogram":
+        return `histogram(${this.chartConfig?.bins ?? 10})(toFloat64(${metric.alias || metric.sql}))`;
       case "uniq":
         return `uniq(${metric.alias || metric.sql})`;
-      default: {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const exhaustiveCheck: never = metric.aggregation;
+      default:
         throw new InvalidRequestError(
-          `Invalid aggregation: ${metric.aggregation}`,
+          `Invalid aggregation: ${metric.aggregation satisfies never}`,
         );
-      }
     }
   }
 
@@ -724,13 +717,10 @@ export class QueryBuilder {
         throw new Error(
           `Granularity 'auto' is not supported for getTimeDimensionSql`,
         );
-      default: {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const exhaustiveCheck: never = granularity;
+      default:
         throw new InvalidRequestError(
-          `Invalid time granularity: ${granularity}. Must be one of minute, hour, day, week, month`,
+          `Invalid time granularity: ${granularity satisfies never}. Must be one of minute, hour, day, week, month`,
         );
-      }
     }
   }
 
@@ -1359,9 +1349,7 @@ export class QueryBuilder {
         new Date(query.toTimestamp).getTime() -
         new Date(query.fromTimestamp).getTime();
       const windowHours = windowMs / (1000 * 60 * 60);
-      const thresholdHours =
-        this.rootEventConditionMaxWindowHoursOverride ??
-        env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
+      const thresholdHours = this.rootEventConditionMaxWindowHours;
 
       if (thresholdHours === 0 || windowHours <= thresholdHours) {
         // Falls back gracefully: if no root events exist in the window at all

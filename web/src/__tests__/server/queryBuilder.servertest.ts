@@ -1,10 +1,11 @@
-import { QueryBuilder } from "@langfuse/shared/src/server";
+import { QueryBuilder } from "@langfuse/shared/src/features/query/queryBuilder";
 import {
   type QueryType,
   getValidAggregationsForMeasureType,
   metricAggregations,
-} from "@langfuse/shared";
-import { executeQuery, validateQuery } from "@langfuse/shared/src/server";
+} from "@langfuse/shared/src/features/query/types";
+import { executeQuery } from "@langfuse/shared/src/features/query/queryExecutor";
+import { validateQuery } from "@langfuse/shared/src/features/query/validateQuery";
 import { env } from "@/src/env.mjs";
 import {
   createTrace,

@@ -5,7 +5,10 @@ import { WidgetForm } from "@/src/features/widgets/components/WidgetForm";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { type views, type metricAggregations } from "@langfuse/shared";
+import {
+  type views,
+  type metricAggregations,
+} from "@langfuse/shared/src/features/query/types";
 import { type z } from "zod";
 import { type WidgetChartConfig } from "@/src/features/widgets/utils";
 

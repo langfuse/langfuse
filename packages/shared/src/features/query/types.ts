@@ -80,8 +80,6 @@ export const viewDeclaration = z.object({
     .optional(),
 });
 
-// Local-only: stricter than the shared utils/typeChecks `stringDateTime` (which
-// is `.nullish()`). Used only by `query` below for required from/to timestamps.
 const stringDateTime = z.iso.datetime({ offset: true });
 
 export const views = z.enum([

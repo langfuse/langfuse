@@ -3,7 +3,12 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { orderBy, singleFilter, optionalPaginationZod } from "@langfuse/shared";
+import {
+  orderBy,
+  singleFilter,
+  optionalPaginationZod,
+  LangfuseConflictError,
+} from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   DashboardWidgetChartType,
@@ -15,11 +20,13 @@ import {
   MetricSchema,
   ChartConfigSchema,
 } from "@langfuse/shared/src/server";
-import { views, getValidAggregationsForMeasureType } from "@langfuse/shared";
-import { getViewDeclaration } from "@langfuse/shared";
+import {
+  views,
+  getValidAggregationsForMeasureType,
+} from "@langfuse/shared/src/features/query/types";
+import { getViewDeclaration } from "@langfuse/shared/src/features/query/dataModel";
 import { TRPCError } from "@trpc/server";
-import type { ViewVersion } from "@langfuse/shared";
-import { LangfuseConflictError } from "@langfuse/shared";
+import type { ViewVersion } from "@langfuse/shared/src/features/query/types";
 
 const CreateDashboardWidgetInput = z.object({
   projectId: z.string(),

@@ -11,8 +11,15 @@ import {
   type metricAggregations,
   getValidAggregationsForMeasureType,
   type QueryType,
+  views,
+  viewsV2,
+  type ViewVersion,
+} from "@langfuse/shared/src/features/query/types";
+import {
   getResultUnit,
-} from "@langfuse/shared";
+  viewDeclarations,
+  requiresV2,
+} from "@langfuse/shared/src/features/query/dataModel";
 import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
@@ -31,10 +38,9 @@ import {
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { Label } from "@/src/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { viewDeclarations, requiresV2 } from "@langfuse/shared";
+
 import { type z } from "zod";
-import { views, viewsV2 } from "@langfuse/shared";
-import { type ViewVersion } from "@langfuse/shared";
+
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
@@ -55,13 +61,12 @@ import {
   type FilterState,
   ObservationLevelDomain,
   ObservationTypeDomain,
-} from "@langfuse/shared";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import {
-  validateQuery,
   isV2BreakdownChart,
   buildWidgetOrderBy,
 } from "@langfuse/shared";
+import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+
+import { validateQuery } from "@langfuse/shared/src/features/query/validateQuery";
 import {
   BarChart,
   PieChart,
@@ -80,6 +85,7 @@ import {
   formatMetricName,
   getWidgetMetricPresentation,
   sanitizePivotTableDefaultSort,
+  type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
@@ -102,8 +108,6 @@ type ChartType = {
   icon: React.ElementType;
   supportsBreakdown: boolean;
 };
-
-import { type WidgetChartConfig } from "@/src/features/widgets/utils";
 
 type ChartConfig = WidgetChartConfig;
 
