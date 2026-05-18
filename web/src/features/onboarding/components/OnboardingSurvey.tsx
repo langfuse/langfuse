@@ -1,27 +1,38 @@
 import { useCallback } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
-import { Form } from "@/src/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/src/components/ui/form";
+import { Input } from "@/src/components/ui/input";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { useSurveyForm } from "../hooks/useSurveyForm";
-import { SurveyStep } from "./SurveyStep";
 import type { SurveyFormData } from "../lib/surveyTypes";
 
 export function OnboardingSurvey() {
   const router = useRouter();
-  const { form, question, handleSubmit } = useSurveyForm();
+  const { form, handleSubmit } = useSurveyForm();
+
+  const handleSkipButton = useCallback(() => {
+    void router.push("/");
+  }, [router]);
 
   const onSubmit = useCallback(
     async (data: SurveyFormData) => {
       if (!data.referralSource?.trim()) {
-        void router.push("/");
+        handleSkipButton();
         return;
       }
 
       await handleSubmit(data);
       void router.push("/");
     },
-    [handleSubmit, router],
+    [handleSkipButton, handleSubmit, router],
   );
 
   const currentValue = form.watch("referralSource");
@@ -30,10 +41,6 @@ export function OnboardingSurvey() {
     v == null || (typeof v === "string" && v.trim() === "");
   const currentEmpty = isEmpty(currentValue);
   const showSkip = currentEmpty;
-
-  const handleSkipButton = () => {
-    void router.push("/");
-  };
 
   return (
     <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-start sm:px-6 sm:py-12 lg:px-8">
@@ -49,12 +56,31 @@ export function OnboardingSurvey() {
             onKeyDown={(event) => {
               if (event.key === "Enter" && currentEmpty) {
                 event.preventDefault();
-                void router.push("/");
+                handleSkipButton();
               }
             }}
           >
             <div className="flex-1">
-              <SurveyStep question={question} control={form.control} />
+              <FormField
+                control={form.control}
+                name="referralSource"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col gap-2">
+                    <FormLabel className="text-xl font-semibold">
+                      Where did you hear about us?
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        autoFocus
+                        placeholder="Colleague, Word of Mouth, X, Reddit, Event"
+                        {...field}
+                        value={field.value ?? ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <div className="flex justify-end pt-6">

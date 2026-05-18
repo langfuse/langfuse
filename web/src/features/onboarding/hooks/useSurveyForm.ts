@@ -1,7 +1,6 @@
 import { useForm } from "react-hook-form";
 import { useCallback } from "react";
 import type { SurveyFormData } from "../lib/surveyTypes";
-import { SURVEY_QUESTION } from "../lib/questions";
 import { api } from "@/src/utils/api";
 import { SurveyName } from "@prisma/client";
 import { useSession } from "next-auth/react";
@@ -53,7 +52,6 @@ export function useSurveyForm() {
 
   return {
     form,
-    question: SURVEY_QUESTION,
     handleSubmit,
   };
 }
