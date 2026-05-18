@@ -517,6 +517,7 @@ export class QueryBuilder {
     appliedDimensions: AppliedDimensionType[],
     appliedMetrics: AppliedMetricType[],
     filters: FilterList,
+    query: QueryType,
   ) {
     const relationTables = new Set<string>();
     const actualTableName = this.actualTableName(view);
@@ -531,6 +532,12 @@ export class QueryBuilder {
         relationTables.add(metric.relationTable);
       }
     });
+    if (query.entityDimension) {
+      const entityDim = view.dimensions[query.entityDimension.field];
+      if (entityDim?.relationTable) {
+        relationTables.add(entityDim.relationTable);
+      }
+    }
     filters.forEach((filter) => {
       // Only add as relation table if it's not the base table
       if (
@@ -1384,6 +1391,7 @@ export class QueryBuilder {
       appliedDimensions,
       appliedMetrics,
       filterList,
+      query,
     );
     if (relationTables.size > 0) {
       const relationJoins = this.buildJoins(
