@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { JobExecutionStatus } from "@prisma/client";
+import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
+  JobExecutionStatus,
+} from "@prisma/client";
 import {
   processObservationEval,
   type ObservationEvalProcessorDeps,
@@ -180,11 +184,11 @@ describe("processObservationEval", () => {
         projectId,
         blockedAt: new Date(),
         evalTemplate: createMockEvalTemplate({
-          type: "CODE",
+          type: EvalTemplateType.CODE,
           prompt: null,
           outputDefinition: null,
           sourceCode: "def evaluate(): pass",
-          sourceCodeLanguage: "PYTHON",
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.PYTHON,
         }),
       });
 
