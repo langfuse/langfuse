@@ -43,6 +43,9 @@ vi.mock("@langfuse/shared/src/server", async () => ({
 }));
 
 vi.mock("@langfuse/shared/src/db", () => ({
+  EvalTemplateType: {
+    LLM_AS_JUDGE: "LLM_AS_JUDGE",
+  },
   Prisma: {
     PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {
       code: string;
@@ -256,6 +259,7 @@ describe("unstable public eval services", () => {
       where: {
         projectId: "project_123",
         name: "Answer correctness",
+        type: "LLM_AS_JUDGE",
       },
       select: {
         id: true,
@@ -342,6 +346,11 @@ describe("unstable public eval services", () => {
         projectId: "project_123",
         evalTemplateId: {
           in: ["tmpl_project_v2", "tmpl_project_v1"],
+        },
+        evalTemplate: {
+          is: {
+            type: "LLM_AS_JUDGE",
+          },
         },
       },
       select: {

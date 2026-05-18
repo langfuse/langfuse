@@ -296,20 +296,25 @@ export function createMockEvalTemplate(
 ) {
   return {
     id: overrides.id ?? `template-${randomUUID()}`,
-    projectId: overrides.projectId ?? "test-project-123",
+    projectId:
+      "projectId" in overrides ? overrides.projectId : "test-project-123",
     name: overrides.name ?? "Test Evaluator",
     version: overrides.version ?? 1,
     type: overrides.type ?? "LLM_AS_JUDGE",
     prompt:
-      overrides.prompt ??
-      "Evaluate the following output: {{output}}. Score 0-1.",
+      "prompt" in overrides
+        ? overrides.prompt
+        : "Evaluate the following output: {{output}}. Score 0-1.",
     model: overrides.model ?? "gpt-4",
     provider: overrides.provider ?? "openai",
     modelParams: overrides.modelParams ?? {},
-    outputDefinition: overrides.outputDefinition ?? {
-      score: "A number between 0 and 1",
-      reasoning: "Explain your reasoning",
-    },
+    outputDefinition:
+      "outputDefinition" in overrides
+        ? overrides.outputDefinition
+        : {
+            score: "A number between 0 and 1",
+            reasoning: "Explain your reasoning",
+          },
     sourceCode: overrides.sourceCode ?? null,
     sourceCodeLanguage: overrides.sourceCodeLanguage ?? null,
     vars: overrides.vars ?? ["output"],
