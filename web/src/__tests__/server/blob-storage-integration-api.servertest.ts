@@ -9,8 +9,15 @@ import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
-import { OBSERVATION_FIELD_GROUPS_FULL } from "@langfuse/shared";
+import {
+  OBSERVATION_FIELD_GROUPS_FULL,
+  LEGACY_BLOB_EXPORT_CUTOFF,
+} from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
+const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
 
 // Schemas based on Fern schema definition
 const BlobStorageIntegrationResponseSchema = z.object({
@@ -628,6 +635,24 @@ describe("Blob Storage Integrations API", () => {
   });
 
   describe("PUT/GET exportSource + exportFieldGroups behavior", () => {
+    // Pin projects to a pre-cutoff date so legacy-source tests remain valid
+    // once the clock crosses LEGACY_BLOB_EXPORT_CUTOFF (CI runs with
+    // NEXT_PUBLIC_LANGFUSE_CLOUD_REGION set, so the gate would otherwise
+    // reject LEGACY_TRACES_OBSERVATIONS for projects created at now()).
+    beforeAll(async () => {
+      await prisma.project.updateMany({
+        where: { id: { in: [testProject1Id, testProject2Id] } },
+        data: { createdAt: PRE_CUTOFF },
+      });
+    });
+
+    afterAll(async () => {
+      await prisma.project.updateMany({
+        where: { id: { in: [testProject1Id, testProject2Id] } },
+        data: { createdAt: new Date() },
+      });
+    });
+
     afterEach(async () => {
       await prisma.blobStorageIntegration.deleteMany({
         where: {
@@ -1424,6 +1449,205 @@ describe("Blob Storage Integrations API", () => {
       );
       expect(result.status).toBe(405);
       expect(result.body.message).toContain("Method not allowed");
+    });
+  });
+
+  describe("legacy blob export source cutoff gate", () => {
+    const basePayload = {
+      type: "S3" as const,
+      bucketName: "test-bucket",
+      endpoint: null,
+      region: "us-east-1",
+      accessKeyId: "AKIA123456789",
+      secretAccessKey: "secret123456789",
+      prefix: "exports/",
+      exportFrequency: "daily",
+      enabled: true,
+      forcePathStyle: false,
+      fileType: "JSONL",
+      exportMode: "FULL_HISTORY",
+      exportStartDate: null,
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    // All REST cutoff-gate tests rely on the CI server already running in Cloud
+    // mode (NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is set in .env.dev.example). The
+    // makeAPICall goes over HTTP to a separate process whose env is frozen at
+    // boot, so any (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION mutation in
+    // the test process never reaches the server and would be dead code.
+
+    it("Cloud + pre-cutoff project + LEGACY_TRACES_OBSERVATIONS → 200", async () => {
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          {
+            ...basePayload,
+            projectId: testProject1Id,
+            exportSource: "LEGACY_TRACES_OBSERVATIONS",
+          },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(200);
+      } finally {
+        await prisma.blobStorageIntegration.deleteMany({
+          where: { projectId: testProject1Id },
+        });
+      }
+    });
+
+    it("Cloud + post-cutoff project + LEGACY_TRACES_OBSERVATIONS → 400", async () => {
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          {
+            ...basePayload,
+            projectId: testProject1Id,
+            exportSource: "LEGACY_TRACES_OBSERVATIONS",
+          },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(400);
+        expect(result.body.message).toContain("OBSERVATIONS_V2");
+      } finally {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+      }
+    });
+
+    it("Cloud + post-cutoff project + LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS → 400", async () => {
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          {
+            ...basePayload,
+            projectId: testProject1Id,
+            exportSource: "LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS",
+          },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(400);
+        expect(result.body.message).toContain("OBSERVATIONS_V2");
+      } finally {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+      }
+    });
+
+    it("Cloud + post-cutoff project + OBSERVATIONS_V2 → 200", async () => {
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          {
+            ...basePayload,
+            projectId: testProject1Id,
+            exportSource: "OBSERVATIONS_V2",
+          },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(200);
+      } finally {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+        await prisma.blobStorageIntegration.deleteMany({
+          where: { projectId: testProject1Id },
+        });
+      }
+    });
+    it("Cloud + post-cutoff project + no exportSource + CREATE → defaults to OBSERVATIONS_V2", async () => {
+      // No existing row → CREATE path: handler forces EVENTS (OBSERVATIONS_V2).
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          { ...basePayload, projectId: testProject1Id },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(200);
+        expect(result.body.exportSource).toBe("OBSERVATIONS_V2");
+      } finally {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+        await prisma.blobStorageIntegration.deleteMany({
+          where: { projectId: testProject1Id },
+        });
+      }
+    });
+
+    it("Cloud + post-cutoff project + no exportSource + UPDATE → preserves existing value", async () => {
+      // Existing row with OBSERVATIONS_V2 → UPDATE path: omitting exportSource
+      // must not overwrite the persisted value.
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId: testProject1Id,
+            type: "S3",
+            bucketName: "test-bucket",
+            region: "us-east-1",
+            prefix: "",
+            exportFrequency: "daily",
+            enabled: true,
+            forcePathStyle: false,
+            fileType: "JSONL",
+            exportMode: "FULL_HISTORY",
+            exportSource: "EVENTS",
+          },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          { ...basePayload, projectId: testProject1Id },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(200);
+        expect(result.body.exportSource).toBe("OBSERVATIONS_V2");
+      } finally {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+        await prisma.blobStorageIntegration.deleteMany({
+          where: { projectId: testProject1Id },
+        });
+      }
     });
   });
 });
