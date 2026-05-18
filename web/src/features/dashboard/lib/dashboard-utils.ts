@@ -4,7 +4,7 @@ import {
   type QueryType,
   type ViewVersion,
   mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+} from "@langfuse/shared";
 
 // traces do not have a startTime or endTime column, so we need to map these to the timestamp column
 export const createTracesTimeFilter = (

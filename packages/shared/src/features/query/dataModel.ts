@@ -1,11 +1,11 @@
-import type z from "zod";
-import type {
-  ViewVersion,
-  ViewDeclarationType,
-  DimensionsDeclarationType,
-  views,
-} from "@/src/features/query/types";
-import { InvalidRequestError } from "@langfuse/shared";
+import { z } from "zod";
+import {
+  type ViewVersion,
+  type ViewDeclarationType,
+  type DimensionsDeclarationType,
+  type views,
+} from "./types";
+import { InvalidRequestError } from "../../errors";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update ./dashboardUiTableToViewMapping.ts if you make changes
@@ -1437,3 +1437,18 @@ export function getResultUnit(
   if (aggregation === "count" || aggregation === "uniq") return "integer";
   return getMeasureUnit(viewName, measureName, version);
 }
+
+// Zod enum of every measure name declared across all views and versions.
+// Derived from `viewDeclarations` so it stays in sync with the data model.
+// Per-view validity is enforced separately via `getViewDeclaration().measures[name]`.
+const measureNamesSet = new Set<string>();
+for (const versionViews of Object.values(viewDeclarations)) {
+  for (const view of Object.values(versionViews)) {
+    Object.keys(view.measures).forEach((m) => measureNamesSet.add(m));
+  }
+}
+const measureNames = Array.from(measureNamesSet).sort() as [
+  string,
+  ...string[],
+];
+export const measures = z.enum(measureNames);

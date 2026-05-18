@@ -14,7 +14,7 @@ import {
   type QueryType,
   type ViewVersion,
   mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+} from "@langfuse/shared";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 export const LatencyTables = ({

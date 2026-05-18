@@ -13,7 +13,7 @@ import {
   type QueryType,
   type ViewVersion,
   mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+} from "@langfuse/shared";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";

@@ -32,7 +32,7 @@ import {
   useEnvironmentFilter,
 } from "@/src/hooks/useEnvironmentFilter";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { type ViewVersion } from "@/src/features/query";
+import { type ViewVersion } from "@langfuse/shared";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {

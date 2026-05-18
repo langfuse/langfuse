@@ -8,7 +8,7 @@ import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import {
   type ViewVersion,
   mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+} from "@langfuse/shared";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 type UseAllModelsOptions = {

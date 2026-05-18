@@ -4,7 +4,7 @@ import {
   type FilterState,
   type ScoreDataTypeType,
 } from "@langfuse/shared";
-import { type ViewVersion } from "@/src/features/query";
+import { type ViewVersion } from "@langfuse/shared";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import React from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";

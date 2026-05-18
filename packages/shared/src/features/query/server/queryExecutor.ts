@@ -3,17 +3,14 @@ import {
   measureAndReturn,
   type ClickhouseQueryOpts,
   type PreferredClickhouseService,
-} from "@langfuse/shared/src/server";
-import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
-import { type QueryType, type ViewVersion } from "@/src/features/query/types";
-import { getViewDeclaration } from "@/src/features/query/dataModel";
-import { env } from "@/src/env.mjs";
+} from "../../../server";
+import { QueryBuilder } from "./queryBuilder";
+import { type QueryType, type ViewVersion } from "../types";
+import { getViewDeclaration } from "../dataModel";
+import { env } from "../../../env";
 
 // Re-export validation logic (shared between server and client)
-export {
-  validateQuery,
-  type QueryValidationResult,
-} from "@/src/features/query/validateQuery";
+export { validateQuery, type QueryValidationResult } from "../validateQuery";
 
 export type PreparedQuery = {
   compiledQuery: string;

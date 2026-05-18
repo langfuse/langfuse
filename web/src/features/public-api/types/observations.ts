@@ -18,7 +18,7 @@ import {
   type ObservationFieldGroupPublicApi,
 } from "@langfuse/shared";
 import { z } from "zod";
-import { useEventsTableSchema } from "../../query/types";
+import { useEventsTableSchema } from "@langfuse/shared";
 
 // Re-export for convenience
 export {

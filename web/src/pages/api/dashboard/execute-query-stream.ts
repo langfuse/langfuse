@@ -13,12 +13,12 @@ import { logger } from "@langfuse/shared/src/server";
 import { getServerAuthSession } from "@/src/server/auth";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 import { prisma } from "@langfuse/shared/src/db";
-import { query as customQuery, viewVersions } from "@/src/features/query/types";
+import { query as customQuery, viewVersions } from "@langfuse/shared";
 import {
   prepareExecuteQuery,
   toClickhouseQueryOpts,
   validateQuery,
-} from "@/src/features/query/server/queryExecutor";
+} from "@langfuse/shared/src/server";
 
 export type SSEEvent =
   | { type: "progress"; progress: object }

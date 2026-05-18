@@ -2,8 +2,8 @@ import {
   type ColumnDefinition,
   type SingleValueOption,
 } from "@langfuse/shared";
-import { type views } from "@/src/features/query/types";
-import { type ViewVersion } from "@/src/features/query";
+import { type views } from "@langfuse/shared";
+import { type ViewVersion } from "@langfuse/shared";
 import { type z } from "zod";
 
 type GetWidgetFilterColumnsParams = {

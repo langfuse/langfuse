@@ -16,7 +16,7 @@ import { NumericScoreHistogram } from "@/src/features/dashboard/components/score
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { type ViewVersion } from "@/src/features/query";
+import { type ViewVersion } from "@langfuse/shared";
 import {
   convertScoreColumnsToAnalyticsData,
   getScoreDataTypeIcon,

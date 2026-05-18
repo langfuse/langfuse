@@ -6,7 +6,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
   getResultUnit,
-} from "@/src/features/query";
+} from "@langfuse/shared";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
@@ -33,15 +33,15 @@ import {
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { type ViewVersion } from "@/src/features/query";
+import { type ViewVersion } from "@langfuse/shared";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 import {
   validateQuery,
   toQueryChartConfig,
   isV2BreakdownChart,
   buildWidgetOrderBy,
-} from "@/src/features/query/validateQuery";
-import { requiresV2 } from "@/src/features/query/dataModel";
+} from "@langfuse/shared";
+import { requiresV2 } from "@langfuse/shared";
 
 export interface WidgetPlacement {
   id: string;

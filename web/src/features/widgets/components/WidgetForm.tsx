@@ -15,7 +15,7 @@ import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
   partitionWidgetUiTableFiltersToView,
-} from "@/src/features/query";
+} from "@langfuse/shared";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Select,
@@ -29,10 +29,10 @@ import {
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { Label } from "@/src/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { viewDeclarations, requiresV2 } from "@/src/features/query/dataModel";
+import { viewDeclarations, requiresV2 } from "@langfuse/shared";
 import { type z } from "zod";
-import { views, viewsV2 } from "@/src/features/query/types";
-import { type ViewVersion } from "@/src/features/query";
+import { views, viewsV2 } from "@langfuse/shared";
+import { type ViewVersion } from "@langfuse/shared";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
@@ -59,7 +59,7 @@ import {
   validateQuery,
   isV2BreakdownChart,
   buildWidgetOrderBy,
-} from "@/src/features/query/validateQuery";
+} from "@langfuse/shared";
 import {
   BarChart,
   PieChart,

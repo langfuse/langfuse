@@ -1,6 +1,6 @@
 import { v4 } from "uuid";
-import { type QueryType } from "@/src/features/query/types";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import { type QueryType } from "@langfuse/shared";
+import { executeQuery } from "@langfuse/shared/src/server";
 import {
   createOrgProjectAndApiKey,
   createTrace,

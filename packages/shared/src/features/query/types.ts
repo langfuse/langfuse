@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { singleFilter } from "@langfuse/shared";
+import { singleFilter } from "../../interfaces/filters";
 
 export type ViewDeclarationType = z.infer<typeof viewDeclaration>;
 export type DimensionsDeclarationType = z.infer<
@@ -80,7 +80,9 @@ export const viewDeclaration = z.object({
     .optional(),
 });
 
-export const stringDateTime = z.iso.datetime({ offset: true });
+// Local-only: stricter than the shared utils/typeChecks `stringDateTime` (which
+// is `.nullish()`). Used only by `query` below for required from/to timestamps.
+const stringDateTime = z.iso.datetime({ offset: true });
 
 export const views = z.enum([
   "traces",

@@ -11,7 +11,7 @@ import {
   type QueryType,
   type ViewVersion,
   mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+} from "@langfuse/shared";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";

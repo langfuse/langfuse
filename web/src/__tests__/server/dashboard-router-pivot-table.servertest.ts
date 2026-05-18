@@ -23,13 +23,13 @@ import {
   createObservation,
   createObservationsCh,
 } from "@langfuse/shared/src/server";
-import { type QueryType } from "@/src/features/query/types";
+import { type QueryType } from "@langfuse/shared";
 import {
   transformToPivotTable,
   type DatabaseRow,
 } from "@/src/features/widgets/utils/pivot-table-utils";
-import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import { QueryBuilder } from "@langfuse/shared/src/server";
+import { executeQuery } from "@langfuse/shared/src/server";
 
 describe("Dashboard Router - Pivot Table Integration", () => {
   // Single project ID for all tests

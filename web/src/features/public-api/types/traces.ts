@@ -9,7 +9,7 @@ import {
 } from "@langfuse/shared";
 import { stringDateTime, TraceBody } from "@langfuse/shared/src/server";
 import { z } from "zod";
-import { useEventsTableSchema } from "../../query";
+import { useEventsTableSchema } from "@langfuse/shared";
 
 /**
  * Field groups for selective field fetching

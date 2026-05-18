@@ -19,7 +19,7 @@ import {
   type QueryType,
   type ViewVersion,
   mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+} from "@langfuse/shared";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";

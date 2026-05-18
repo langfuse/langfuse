@@ -136,3 +136,8 @@ export * from "./utils/formatAuthProvider";
 export * from "./traceDeletionProcessor";
 export * from "./deletionGuard";
 export * from "./analytics-integrations/types";
+
+// query (dashboard / monitor data model — server-only)
+export * from "../features/query/server/queryBuilder";
+export * from "../features/query/server/queryExecutor";
+export { NULL_IF_EMPTY_RE } from "../features/query/server/nullIfEmptyFilter";

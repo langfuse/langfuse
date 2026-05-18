@@ -15,13 +15,10 @@ import {
   MetricSchema,
   ChartConfigSchema,
 } from "@langfuse/shared/src/server";
-import {
-  views,
-  getValidAggregationsForMeasureType,
-} from "@/src/features/query";
-import { getViewDeclaration } from "@/src/features/query/dataModel";
+import { views, getValidAggregationsForMeasureType } from "@langfuse/shared";
+import { getViewDeclaration } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
-import type { ViewVersion } from "@/src/features/query";
+import type { ViewVersion } from "@langfuse/shared";
 import { LangfuseConflictError } from "@langfuse/shared";
 
 const CreateDashboardWidgetInput = z.object({
