@@ -663,6 +663,25 @@ describe("unstable public eval services", () => {
       'An evaluation rule named "answer_quality" already exists in this project.',
     );
 
+    expect(mockedPrisma.jobConfiguration.findFirst).toHaveBeenCalledWith({
+      where: {
+        projectId: "project_123",
+        jobType: "EVAL",
+        targetObject: {
+          in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+        },
+        scoreName: "answer_quality",
+        evalTemplate: {
+          is: {
+            type: EvalTemplateType.LLM_AS_JUDGE,
+            OR: [{ projectId: "project_123" }, { projectId: null }],
+          },
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
     expect(mockLoadEvaluatorForEvaluationRule).not.toHaveBeenCalled();
     expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
   });
