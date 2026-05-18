@@ -33,7 +33,7 @@ export async function handleInstallPath(
     const installOptions = {
       scopes: [...SLACK_BOT_SCOPES],
       metadata: JSON.stringify({ projectId: projectId }),
-      redirectUri: `${env.NEXTAUTH_URL}/api/public/slack/oauth`,
+      redirectUri: `${env.NEXTAUTH_URL?.replace(/\/api\/auth$/, "")}/api/public/slack/oauth`,
     };
 
     // hack because nextjs dev server support for https is experimental
@@ -114,7 +114,7 @@ export async function handleCallback(
           }
 
           // Redirect to project-specific Slack settings page
-          const redirectUrl = `/project/${projectId}/settings/integrations/slack?success=true&team_name=${encodeURIComponent(installation.team?.name || "")}`;
+          const redirectUrl = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/settings/integrations/slack?success=true&team_name=${encodeURIComponent(installation.team?.name || "")}`;
           res.redirect(redirectUrl);
         },
 
