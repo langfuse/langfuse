@@ -8,7 +8,7 @@ import {
   GetMetricsV1Query,
   GetMetricsV1Response,
 } from "@/src/features/public-api/types/metrics";
-import { executeQuery } from "@langfuse/shared/query";
+import { executeQuery } from "@langfuse/shared/query/server";
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({

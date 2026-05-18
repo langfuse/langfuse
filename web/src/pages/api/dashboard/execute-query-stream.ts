@@ -15,8 +15,10 @@ import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   prepareExecuteQuery,
-  query as customQuery,
   toClickhouseQueryOpts,
+} from "@langfuse/shared/query/server";
+import {
+  query as customQuery,
   validateQuery,
   viewVersions,
 } from "@langfuse/shared/query";

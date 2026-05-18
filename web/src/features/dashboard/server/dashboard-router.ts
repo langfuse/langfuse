@@ -20,8 +20,8 @@ import {
   DashboardDefinitionSchema,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { executeQuery } from "@langfuse/shared/query/server";
 import {
-  executeQuery,
   query as customQuery,
   validateQuery,
   viewVersions,
