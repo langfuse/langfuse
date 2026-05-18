@@ -12,11 +12,10 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { WidgetContent } from "@/src/features/widgets/components/InlineWidget";
 import { type QueryType } from "@/src/features/query";
-import {
-  type MetricOption,
-  buildWidgetConfigFromId,
-} from "../hooks/useExperimentChartsGridSelection";
+import type { MetricOption } from "../types/charts";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { buildWidgetConfigFromId } from "@/src/features/experiments/utils/charts";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 type ExperimentChartSlotProps = {
   chartIndex: number;
@@ -48,10 +47,14 @@ export function ExperimentChartSlot({
   toTimestamp,
   isExternalLoading = false,
 }: ExperimentChartSlotProps) {
-  // Build widget config from selected metric ID
-  const widgetConfig = useMemo(
-    () => buildWidgetConfigFromId(selectedMetricId),
-    [selectedMetricId],
+  const { selectedMetricOption, widgetConfig } = useMemo(
+    () => ({
+      selectedMetricOption: availableMetricOptions.find(
+        (opt) => opt.id === selectedMetricId,
+      ),
+      widgetConfig: buildWidgetConfigFromId(selectedMetricId),
+    }),
+    [availableMetricOptions, selectedMetricId],
   );
 
   // Build query from widget config
@@ -60,27 +63,43 @@ export function ExperimentChartSlot({
 
     return {
       view: widgetConfig.view,
-      dimensions: widgetConfig.dimensions,
-      metrics: widgetConfig.metrics.map((m) => ({
-        measure: m.measure,
-        aggregation: m.aggregation,
-      })),
+      dimensions: [...widgetConfig.dimensions],
+      orderBy: widgetConfig.orderBy ? [...widgetConfig.orderBy] : null,
       timeDimension: widgetConfig.timeDimension,
       entityDimension: widgetConfig.entityDimension,
-      orderBy: widgetConfig.orderBy,
+      metrics: widgetConfig.metrics.map((m) => ({
+        measure: m.measure,
+        aggregation: m.agg,
+      })),
       filters: [
         ...(widgetConfig.filters ?? []),
         {
-          column: "experimentId",
+          column: "experimentId" as const,
           operator: "any of" as const,
           value: experimentIds,
           type: "stringOptions" as const,
         },
+        ...(selectedMetricOption?.id.includes("experiment:")
+          ? [
+              {
+                column: "datasetRunId" as const,
+                operator: "any of" as const,
+                value: experimentIds,
+                type: "stringOptions" as const,
+              },
+            ]
+          : []),
       ],
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
     };
-  }, [widgetConfig, experimentIds, fromTimestamp, toTimestamp]);
+  }, [
+    widgetConfig,
+    experimentIds,
+    fromTimestamp,
+    toTimestamp,
+    selectedMetricOption,
+  ]);
 
   // Group options by their group for the dropdown
   const groupedOptions = useMemo(() => {
@@ -96,12 +115,22 @@ export function ExperimentChartSlot({
   }, [availableMetricOptions]);
 
   // Get the selected option label for display
+  // If not in available options, extract label from ID (for stale selections)
   const selectedLabel = useMemo(() => {
-    const option = availableMetricOptions.find(
-      (opt) => opt.id === selectedMetricId,
-    );
-    return option?.label ?? "Select metric...";
-  }, [availableMetricOptions, selectedMetricId]);
+    if (selectedMetricOption) {
+      return selectedMetricOption.label;
+    }
+    // Extract label from ID for stale selections
+    if (selectedMetricId.startsWith("base:")) {
+      return selectedMetricId === "base:cost" ? "Cost ($)" : "Latency (ms)";
+    }
+    // Score IDs like "obs-score-numeric:helpfulness" -> "helpfulness"
+    const scoreName = selectedMetricId.split(":").pop();
+    return scoreName ?? selectedMetricId;
+  }, [selectedMetricOption, selectedMetricId]);
+
+  // Check if metric is available for current experiments
+  const isMetricAvailable = Boolean(selectedMetricOption);
 
   const isEnabled = experimentIds.length > 0;
 
@@ -147,18 +176,20 @@ export function ExperimentChartSlot({
       {/* Chart content area */}
       <div className="mt-1 flex h-56 flex-col">
         {isExternalLoading ? (
-          <Skeleton className="h-full w-full" />
+          <Skeleton className="h-[190px] w-full" />
+        ) : !isMetricAvailable ? (
+          <NoDataOrLoading isLoading={false} className="h-[190px]" />
         ) : widgetConfig && query ? (
           <WidgetContent
             projectId={projectId}
             query={query}
-            version={widgetConfig.version}
+            version={widgetConfig.minVersion}
             chartType={widgetConfig.chartType}
             chartConfig={widgetConfig.chartConfig}
-            metrics={widgetConfig.metrics}
-            dimensions={widgetConfig.dimensions}
+            metrics={[...widgetConfig.metrics]}
+            dimensions={[...widgetConfig.dimensions]}
             view={widgetConfig.view}
-            schedulerId={`chart-slot-${chartIndex}-${widgetConfig.schedulerId}`}
+            schedulerId={`chart-slot-${chartIndex}-${selectedMetricId}`}
             isExternalLoading={isExternalLoading || !isEnabled}
             layoutHint="compact"
           />

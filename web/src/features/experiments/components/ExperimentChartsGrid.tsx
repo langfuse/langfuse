@@ -1,9 +1,7 @@
 import { Plus } from "lucide-react";
 import { ExperimentChartSlot } from "./ExperimentChartSlot";
-import {
-  useExperimentChartsGridSelection,
-  type ScoreFilterOptions,
-} from "../hooks/useExperimentChartsGridSelection";
+import { useExperimentChartsGridSelection } from "../hooks/useExperimentChartsGridSelection";
+import type { ScoreFilterOptions } from "../types/charts";
 
 type ExperimentChartsGridProps = {
   projectId: string;
