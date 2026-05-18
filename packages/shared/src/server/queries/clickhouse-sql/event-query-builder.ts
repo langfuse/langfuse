@@ -140,6 +140,22 @@ const EVENTS_FIELDS = {
     "if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time)) as \"time_to_first_token\"",
 } as const;
 
+export const OBSERVATION_FIELD_GROUPS = [
+  "core",
+  "basic",
+  "time",
+  "io",
+  "metadata",
+  "model",
+  "usage",
+  "prompt",
+  "metrics",
+  "tools",
+  "trace_context",
+] as const;
+
+export type ObservationFieldGroup = (typeof OBSERVATION_FIELD_GROUPS)[number];
+
 /**
  * Predefined field sets for common query patterns
  * Maps set names to arrays of field keys from EVENTS_FIELDS
@@ -398,6 +414,12 @@ const FIELD_SETS = {
 } as const;
 
 export type FieldSetName = keyof typeof FIELD_SETS;
+
+export const OBSERVATION_FIELD_GROUP_FIELD_NAMES = Object.fromEntries(
+  OBSERVATION_FIELD_GROUPS.map((group) => [group, FIELD_SETS[group]]),
+) as {
+  [K in ObservationFieldGroup]: (typeof FIELD_SETS)[K];
+};
 
 /**
  * Aggregation fields for trace-level queries
