@@ -183,7 +183,6 @@ export function WidgetContent({
           skipBatch: true,
         },
       },
-      // todo: pass queryId as prop
       queryId: schedulerId ?? `inline-widget:${Date.now()}`,
       meta: {
         silentHttpCodes: [422],
@@ -193,7 +192,6 @@ export function WidgetContent({
         isV4Enabled: isBetaEnabled,
         version,
       }),
-      // todo: query validation?
       enabled: !isExternalLoading,
     },
   );
