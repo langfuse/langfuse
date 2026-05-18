@@ -135,6 +135,10 @@ export function getValidAggregationsForMeasureType(
   ) {
     return [...metricAggregations.options];
   }
+  // datetime supports min/max for earliest/latest timestamps
+  if (measureType === "datetime") {
+    return ["min", "max", "count", "uniq"];
+  }
   return ["count", "uniq"];
 }
 
@@ -167,6 +171,16 @@ export const query = z
         granularity: granularities,
       })
       .nullable(),
+    // Entity dimension for bucketing by a categorical field (e.g., experimentName).
+    // IMPORTANT: Unlike timeDimension which has implicit bucket limits (24 hours/day),
+    // entityDimension has NO cardinality guarantee. Callers MUST filter the dataset
+    // in WHERE before GROUP BY runs (e.g., filter by experimentId list of max ~50 items).
+    // Without this pre-filtering, GROUP BY on high-cardinality columns will be slow/OOM.
+    entityDimension: z
+      .object({
+        field: z.string(), // e.g., "experimentName"
+      })
+      .nullish(),
     fromTimestamp: stringDateTime,
     toTimestamp: stringDateTime,
     orderBy: z
@@ -190,6 +204,13 @@ export const query = z
     (query) =>
       // Ensure fromTimestamp is before toTimestamp
       new Date(query.fromTimestamp) < new Date(query.toTimestamp),
+    { message: "fromTimestamp must be before toTimestamp" },
+  )
+  .refine(
+    (query) =>
+      // timeDimension and entityDimension are mutually exclusive
+      !(query.timeDimension && query.entityDimension),
+    { message: "timeDimension and entityDimension are mutually exclusive" },
   );
 
 export const useEventsTableSchema = z

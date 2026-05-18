@@ -60,6 +60,7 @@ import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ExperimentCompareTable } from "./ExperimentCompareTable";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
+import { useExperimentItemsFilterOptions } from "@/src/features/experiments/hooks/useExperimentItemsFilterOptions";
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 import { useRouter } from "next/router";
@@ -252,6 +253,13 @@ export default function ExperimentItemsTable({
         : comparisonIds,
     [comparisonIds, fallbackBaselineId],
   );
+  // All experiment IDs (base first, then comparisons)
+  const allExperimentIds = useMemo(() => {
+    return fallbackBaselineId
+      ? [fallbackBaselineId, ...comparisonIdsWithoutFallbackBaseline]
+      : [];
+  }, [fallbackBaselineId, comparisonIdsWithoutFallbackBaseline]);
+
   const defaultFilterTargetExperimentId = getDefaultExperimentFilterTarget({
     baselineId,
     comparisonIds,
@@ -290,11 +298,19 @@ export default function ExperimentItemsTable({
     order: "DESC",
   });
 
+  // Fetch score filter options scoped to selected experiments
+  const { filterOptions: scoreFilterOptions } = useExperimentItemsFilterOptions(
+    {
+      projectId,
+      experimentIds: allExperimentIds,
+    },
+  );
+
   // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
   // This is the single source of truth for filters
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
-    {},
+    scoreFilterOptions,
     { stateLocation: "url" },
   );
 
@@ -476,12 +492,6 @@ export default function ExperimentItemsTable({
     },
   );
 
-  // All experiment IDs for color coding (base first, then comparisons)
-  const allExperimentIds = useMemo(() => {
-    return fallbackBaselineId
-      ? [fallbackBaselineId, ...comparisonIdsWithoutFallbackBaseline]
-      : [];
-  }, [fallbackBaselineId, comparisonIdsWithoutFallbackBaseline]);
   const colorExperimentIds = useMemo(
     () => (hasBaseline ? allExperimentIds : []),
     [hasBaseline, allExperimentIds],

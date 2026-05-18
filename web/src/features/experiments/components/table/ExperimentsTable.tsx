@@ -53,6 +53,15 @@ import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/src/components/ui/accordion";
+import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
+import { useExperimentItemsFilterOptions } from "../../hooks/useExperimentItemsFilterOptions";
+import useSessionStorage from "@/src/components/useSessionStorage";
 
 export default function ExperimentsTable({
   projectId,
@@ -501,6 +510,25 @@ export default function ExperimentsTable({
       : [];
   }, [experiments]);
 
+  // Get all experiment IDs from the current query result (for charts)
+  const allExperimentIds = useMemo(() => {
+    return rows.map((row) => row.id);
+  }, [rows]);
+
+  // Fetch score filter options for charts (scoped to experiments in view)
+  const {
+    filterOptions: scoreFilterOptions,
+    isLoading: isScoreFilterOptionsLoading,
+  } = useExperimentItemsFilterOptions({
+    projectId,
+    experimentIds: allExperimentIds,
+  });
+
+  // Charts accordion collapsed state (persisted in session storage)
+  const [chartsAccordionValue, setChartsAccordionValue] = useSessionStorage<
+    string | undefined
+  >(`experiment-charts-accordion-${projectId}`, "charts");
+
   // Get selected experiment IDs in the order they appear in the table
   const selectedExperimentIds = useMemo(() => {
     const selectedIds = Object.keys(selectedRows).filter((id) =>
@@ -620,8 +648,8 @@ export default function ExperimentsTable({
             setRowHeight={setRowHeight}
             timeRange={timeRange}
             setTimeRange={setTimeRange}
-            actionButtons={
-              shouldShowActions
+            actionButtons={[
+              ...(shouldShowActions
                 ? [
                     <TableActionMenu
                       key="experiments-multi-select-actions"
@@ -641,9 +669,40 @@ export default function ExperimentsTable({
                       }}
                     />,
                   ]
-                : undefined
-            }
+                : []),
+            ]}
           />
+
+          {/* Charts section - Collapsible Accordion */}
+          {tableDateRange && (
+            <Accordion
+              type="single"
+              collapsible
+              value={chartsAccordionValue}
+              onValueChange={setChartsAccordionValue}
+            >
+              <AccordionItem value="charts" className="border-t">
+                <AccordionTrigger className="px-3 pt-2 pb-1 hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Charts</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1">
+                  <ExperimentChartsGrid
+                    projectId={projectId}
+                    experimentIds={allExperimentIds}
+                    fromTimestamp={tableDateRange.from}
+                    toTimestamp={tableDateRange.to}
+                    scoreFilterOptions={scoreFilterOptions}
+                    isExternalLoading={
+                      experiments.status === "loading" ||
+                      isScoreFilterOptionsLoading
+                    }
+                  />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
 
           {/* Content area with sidebar and table */}
           <ResizableFilterLayout>
