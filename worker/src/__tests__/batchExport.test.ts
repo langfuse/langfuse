@@ -4272,6 +4272,8 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     expect(row.trace_name).toBe("");
 
     // --- Nullable columns (NULL when unset) ---
+    // usage_pricing_tier_id is Nullable(String) in events_core
+    expect(row.usage_pricing_tier_id).toBeNull();
     // usage_pricing_tier_name is Nullable(String) in events_core
     expect(row.usage_pricing_tier_name).toBeNull();
 
@@ -4356,6 +4358,7 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
       "tool_definitions",
       "tool_calls",
       "tool_call_names",
+      "usage_pricing_tier_id",
       "usage_pricing_tier_name",
       "input",
       "output",
