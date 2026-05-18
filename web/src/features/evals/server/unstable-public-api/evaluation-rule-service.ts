@@ -1,5 +1,5 @@
 import { invalidateProjectEvalConfigCaches } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
+import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import { EvalTargetObject, JobConfigState } from "@langfuse/shared";
 import type {
   PatchUnstableEvaluationRuleBodyType,
@@ -79,6 +79,12 @@ export async function createPublicEvaluationRule(params: {
         in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
       },
       scoreName: params.input.name,
+      evalTemplate: {
+        is: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          OR: [{ projectId: params.projectId }, { projectId: null }],
+        },
+      },
     },
     select: {
       id: true,
