@@ -50,9 +50,9 @@ export interface WidgetContentProps {
    */
   isExternalLoading?: boolean;
   /**
-   * Unique ID for query scheduling. Defaults to a generated ID if not provided.
+   * Unique ID for query scheduling.
    */
-  schedulerId?: string;
+  schedulerId: string;
   /**
    * Layout hint for loading state display. Affects spacing and text size.
    */
@@ -183,7 +183,7 @@ export function WidgetContent({
           skipBatch: true,
         },
       },
-      queryId: schedulerId ?? `inline-widget:${Date.now()}`,
+      queryId: schedulerId,
       meta: {
         silentHttpCodes: [422],
       },
