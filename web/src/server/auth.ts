@@ -886,6 +886,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                                     string,
                                     unknown
                                   >) ?? {},
+                                createdAt: project.createdAt.toISOString(),
                               };
                             })
                             // Only include projects where the user has the required role
