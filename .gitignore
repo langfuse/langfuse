@@ -98,3 +98,6 @@ web/test-results/*
 
 # Serena MCP server config (local only)
 .serena/
+
+# Local overrides for AGENTS.md
+**/AGENTS.override.md

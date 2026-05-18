@@ -105,6 +105,14 @@ const EnvSchema = z.object({
   CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
     .enum(["true", "false"])
     .default("false"),
+
+  // Workaround for a 25.12 bug where lightweight updates/deletes interact
+  // incorrectly with lazy materialization. Remove after ClickHouse 26.4, or
+  // earlier if the fix is backported.
+  CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
+    .enum(["true", "false"])
+    .default("false"),
+
   LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
     .enum(["true", "false"])
     .default("false"),
@@ -113,7 +121,6 @@ const EnvSchema = z.object({
     .int()
     .nonnegative()
     .default(168), // 7 days
-
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
     .nonnegative()

@@ -1,9 +1,11 @@
 import { LifeBuoy } from "lucide-react";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 export const SupportButton = () => {
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
+  const { setOpen: setAiAgentOpen } = useInAppAiAgent();
   const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
 
   return (
@@ -14,6 +16,7 @@ export const SupportButton = () => {
         }
         setTimeout(() => {
           // push to next tick to avoid flickering when hiding sidebar on mobile
+          setAiAgentOpen(false);
           setSupportDrawerOpen(true);
         }, 1);
       }}

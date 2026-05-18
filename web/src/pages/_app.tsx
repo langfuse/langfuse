@@ -28,6 +28,7 @@ import "core-js/features/array/to-spliced";
 import "core-js/features/array/to-sorted";
 
 import "react18-json-view/src/style.css";
+import "streamdown/styles.css";
 
 // Polyfill to prevent React crashes when Google Translate modifies the DOM.
 // Google Translate wraps text nodes in <font> elements, which breaks React's
@@ -74,6 +75,7 @@ import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
+import { InAppAiAgentProvider } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
@@ -150,10 +152,12 @@ const MyApp: AppType<{ session: Session | null }> = ({
                     <ScoreCacheProvider>
                       <CorrectionCacheProvider>
                         <SupportDrawerProvider defaultOpen={false}>
-                          <AppLayout>
-                            <Component {...pageProps} />
-                            <UserTracking />
-                          </AppLayout>
+                          <InAppAiAgentProvider defaultOpen={false}>
+                            <AppLayout>
+                              <Component {...pageProps} />
+                              <UserTracking />
+                            </AppLayout>
+                          </InAppAiAgentProvider>
                         </SupportDrawerProvider>
                       </CorrectionCacheProvider>
                     </ScoreCacheProvider>
