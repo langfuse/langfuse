@@ -7,6 +7,7 @@ import {
   CardFooter,
 } from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
+import { importWidgetFile } from "@/src/features/widgets/utils/import-export-utils";
 import {
   type metricAggregations,
   getValidAggregationsForMeasureType,
@@ -49,6 +50,7 @@ import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props
 import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   type FilterState,
   ObservationLevelDomain,
@@ -71,6 +73,7 @@ import {
   Plus,
   X,
   AlertCircle,
+  Upload,
 } from "lucide-react";
 import {
   buildWidgetName,
@@ -302,6 +305,7 @@ export function WidgetForm({
 
   // Disables further auto-updates once the user edits name or description
   const [autoLocked, setAutoLocked] = useState<boolean>(isExistingWidget);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedView, setSelectedView] = useState<z.infer<typeof views>>(
     initialValues.view,
@@ -321,12 +325,15 @@ export function WidgetForm({
     })) ?? [{ measure: initialValues.measure }],
     filters: initialValues.filters ?? [],
   });
+  const [widgetMinVersion, setWidgetMinVersion] = useState<number>(
+    initialWidgetRequiresV2 ? 2 : (initialValues.minVersion ?? 1),
+  );
   const viewVersion: ViewVersion =
-    initialWidgetRequiresV2 || (initialValues.minVersion ?? 1) >= 2
+    initialWidgetRequiresV2 ||
+    widgetMinVersion >= 2 ||
+    (isBetaEnabled && selectedView !== "traces")
       ? "v2"
-      : isBetaEnabled && selectedView !== "traces"
-        ? "v2"
-        : "v1";
+      : "v1";
   const availableViewOptions = viewVersion === "v2" ? viewsV2 : views;
 
   // For regular charts: single metric selection
@@ -688,6 +695,7 @@ export function WidgetForm({
   const toolNamesOptions = generationsFilterOptions.data?.toolNames || [];
   const calledToolNamesOptions =
     generationsFilterOptions.data?.calledToolNames || [];
+
   const filterColumns = getWidgetFilterColumns({
     selectedView,
     viewVersion,
@@ -1077,6 +1085,92 @@ export function WidgetForm({
     ],
   );
 
+  const handleImportWidget = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    const showMalformedImportToast = () =>
+      showErrorToast(
+        "Malformed input",
+        "This operation can't be done due to the malformed input",
+        "WARNING",
+      );
+
+    try {
+      const result = await importWidgetFile({
+        file,
+        optionSets: {
+          environmentValues: environmentFilterOptions.data?.map(
+            (option) => option.environment,
+          ),
+          traceNames: traceFilterOptions.data
+            ? normalizeSingleValueOptions(traceFilterOptions.data.name).map(
+                (option) => option.value,
+              )
+            : undefined,
+          tags: traceFilterOptions.data
+            ? traceFilterOptions.data.tags.map((option) => option.value)
+            : undefined,
+          toolNames: generationsFilterOptions.data
+            ? generationsFilterOptions.data.toolNames.map(
+                (option) => option.value,
+              )
+            : undefined,
+          calledToolNames: generationsFilterOptions.data
+            ? generationsFilterOptions.data.calledToolNames.map(
+                (option) => option.value,
+              )
+            : undefined,
+          modelNames: generationsFilterOptions.data
+            ? generationsFilterOptions.data.model.map((option) => option.value)
+            : undefined,
+          observationLevels: observationLevelOptions.map(
+            (option) => option.value,
+          ),
+        },
+        isBetaEnabled,
+      });
+
+      setAutoLocked(true);
+      setWidgetMinVersion(result.snapshot.widgetMinVersion);
+      setWidgetName(result.snapshot.widgetName);
+      setWidgetDescription(result.snapshot.widgetDescription);
+      setSelectedView(result.snapshot.selectedView);
+      setSelectedChartType(result.snapshot.selectedChartType);
+      setSelectedMeasure(result.snapshot.selectedMeasure);
+      setSelectedAggregation(result.snapshot.selectedAggregation);
+      setSelectedMetrics(result.snapshot.selectedMetrics);
+      setSelectedDimension(result.snapshot.selectedDimension);
+      setPivotDimensions(result.snapshot.pivotDimensions);
+      setUserFilterState(result.snapshot.userFilterState);
+      setRowLimit(result.snapshot.rowLimit);
+      setHistogramBins(result.snapshot.histogramBins);
+      setDefaultSortColumn(result.snapshot.defaultSortColumn);
+      setDefaultSortOrder(result.snapshot.defaultSortOrder);
+
+      showSuccessToast({
+        title: "Widget uploaded successfully",
+        description: "Widget configuration has been loaded.",
+      });
+
+      if (result.removedValues || result.removedFilters) {
+        showErrorToast(
+          "Widget filters were adjusted",
+          "Some imported filters or filter values were removed because they are not available in this project.",
+          "WARNING",
+        );
+      }
+    } catch {
+      showMalformedImportToast();
+    }
+  };
+
   const chartPresentation = useMemo(() => {
     if (selectedChartType === "PIVOT_TABLE") {
       return undefined;
@@ -1272,7 +1366,28 @@ export function WidgetForm({
       <div className="h-full w-1/3 min-w-[430px]">
         <Card className="flex h-full flex-col">
           <CardHeader>
-            <CardTitle>Widget Configuration</CardTitle>
+            <div className="flex items-start justify-between gap-3">
+              <CardTitle>Widget Configuration</CardTitle>
+              {!widgetId && isBetaEnabled && (
+                <>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept="application/json,.json"
+                    className="hidden"
+                    onChange={handleImportWidget}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => importInputRef.current?.click()}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    Import
+                  </Button>
+                </>
+              )}
+            </div>
             <CardDescription>
               Configure your widget by selecting data and visualization options
             </CardDescription>

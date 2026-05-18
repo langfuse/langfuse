@@ -275,6 +275,25 @@ const buildFilterMappings = (
 const currentWidgetFilterMappings = buildFilterMappings("current");
 const legacyDashboardFilterMappings = buildFilterMappings("legacy");
 
+export const getWidgetImportFilterConfig = (
+  view: z.infer<typeof views>,
+): {
+  allowedColumns: Set<string>;
+  columnAliases: Record<string, string>;
+} => {
+  const allowedColumns = new Set(
+    currentWidgetFilterMappings[view].map((mapping) => mapping.viewName),
+  );
+
+  const columnAliases: Record<string, string> = {};
+
+  if (view === "observations") {
+    columnAliases.observationModelName = "providedModelName";
+  }
+
+  return { allowedColumns, columnAliases };
+};
+
 const allWidgetFilterMappings = [
   ...Object.values(currentWidgetFilterMappings).flat(),
   ...Object.values(legacyDashboardFilterMappings).flat(),
