@@ -79,6 +79,56 @@ export type ScoreQueryType = {
   advancedFilters?: FilterState;
 };
 
+// Build the latest score-version view first. Callers filter is_deleted after
+// deduplication so tombstones do not resurrect older live score versions.
+const buildPublicApiScoresVersionedQuery = ({
+  selectClause,
+  needsTraceJoin,
+  scoreScope,
+  appliedScoresFilterQuery,
+  appliedTracesFilterQuery,
+  hasTraceFilters,
+}: {
+  selectClause: string;
+  needsTraceJoin: boolean;
+  scoreScope: "traces_only" | "all";
+  appliedScoresFilterQuery?: string;
+  appliedTracesFilterQuery?: string;
+  hasTraceFilters: boolean;
+}) => `
+      SELECT
+          ${selectClause}
+      FROM
+          scores s
+          ${needsTraceJoin ? "LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
+      WHERE
+          s.project_id = {projectId: String}
+          AND (
+            ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
+            (s.trace_id IS NOT NULL AND (${needsTraceJoin ? "t.id, t.project_id" : "s.trace_id, s.project_id"}) IN (
+              SELECT
+                ${needsTraceJoin ? "trace_id, project_id" : "s.trace_id, s.project_id"}
+              FROM
+                scores s
+              WHERE
+                s.project_id = {projectId: String}
+                ${appliedScoresFilterQuery ? `AND ${appliedScoresFilterQuery}` : ""}
+                ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
+              ORDER BY
+                s.timestamp desc, s.event_ts desc
+              LIMIT
+                1 BY s.id, s.project_id
+                ))
+          )
+          ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
+          ${appliedScoresFilterQuery ? `AND ${appliedScoresFilterQuery}` : ""}
+          ${hasTraceFilters && appliedTracesFilterQuery ? `AND ${appliedTracesFilterQuery}` : ""}
+      ORDER BY
+          s.timestamp desc, s.event_ts desc
+      LIMIT
+          1 BY s.id, s.project_id
+`;
+
 /**
  * @internal
  * Internal utility function for getting scores by ID.
@@ -106,12 +156,14 @@ export const _handleGenerateScoresForPublicApi = async ({
     tracesFilter.length(),
   );
 
-  const query = `
-      SELECT
+  const versionedScoresQuery = buildPublicApiScoresVersionedQuery({
+    selectClause: `
           ${needsTraceJoin ? "t.user_id as user_id, t.tags as tags, t.environment as trace_environment, t.session_id as trace_session_id," : ""}
           s.id as id,
           s.project_id as project_id,
           s.timestamp as timestamp,
+          s.event_ts as event_ts,
+          s.is_deleted as is_deleted,
           s.environment as environment,
           s.name as name,
           s.value as value,
@@ -130,36 +182,23 @@ export const _handleGenerateScoresForPublicApi = async ({
           s.trace_id as trace_id,
           s.observation_id as observation_id,
           s.session_id as session_id,
-          s.dataset_run_id as dataset_run_id
-      FROM
-          scores s
-          ${needsTraceJoin ? "LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
+          s.dataset_run_id as dataset_run_id`,
+    needsTraceJoin,
+    scoreScope,
+    appliedScoresFilterQuery: appliedScoresFilter.query,
+    appliedTracesFilterQuery: appliedTracesFilter.query,
+    hasTraceFilters: tracesFilter.length() > 0,
+  });
+
+  const query = `
+      SELECT *
+      FROM (
+        ${versionedScoresQuery}
+      )
       WHERE
-          s.project_id = {projectId: String}
-          AND (
-            ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
-            (s.trace_id IS NOT NULL AND (${needsTraceJoin ? "t.id, t.project_id" : "s.trace_id, s.project_id"}) IN (
-              SELECT
-                ${needsTraceJoin ? "trace_id, project_id" : "s.trace_id, s.project_id"}
-              FROM
-                scores s
-              WHERE
-                s.project_id = {projectId: String}
-                ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-                ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
-              ORDER BY
-                s.timestamp desc
-              LIMIT
-                1 BY s.id, s.project_id
-                ))
-          )
-          ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
-          ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-          ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
+          is_deleted = 0
       ORDER BY
-          s.timestamp desc, s.event_ts desc
-      LIMIT
-          1 BY s.id, s.project_id
+          timestamp desc, event_ts desc
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
@@ -247,33 +286,26 @@ export const _handleGetScoresCountForPublicApi = async ({
     tracesFilter.length(),
   );
 
+  const versionedScoresQuery = buildPublicApiScoresVersionedQuery({
+    selectClause: `
+          s.id as id,
+          s.project_id as project_id,
+          s.is_deleted as is_deleted`,
+    needsTraceJoin,
+    scoreScope,
+    appliedScoresFilterQuery: appliedScoresFilter.query,
+    appliedTracesFilterQuery: appliedTracesFilter.query,
+    hasTraceFilters: tracesFilter.length() > 0,
+  });
+
   const query = `
       SELECT
         count() as count
-      FROM
-        scores s
-          ${needsTraceJoin ? "LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
-      WHERE
-        s.project_id = {projectId: String}
-      AND (
-        ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
-        (s.trace_id IS NOT NULL AND (${needsTraceJoin ? "t.id, t.project_id" : "s.trace_id, s.project_id"}) IN (
-          SELECT
-            ${needsTraceJoin ? "trace_id, project_id" : "s.trace_id, s.project_id"}
-          FROM
-            scores s
-          WHERE
-            s.project_id = {projectId: String}
-            ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-            ${scoreScope === "traces_only" ? "AND s.session_id IS NULL" : ""}
-          ORDER BY
-            s.timestamp desc
-          LIMIT
-            1 BY s.id, s.project_id
-        ))
+      FROM (
+        ${versionedScoresQuery}
       )
-      ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-      ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
+      WHERE
+        is_deleted = 0
       `;
 
   return measureAndReturn({
