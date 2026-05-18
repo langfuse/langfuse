@@ -4,9 +4,9 @@ import {
   type views,
   type metricAggregations,
   type QueryType,
-  mapLegacyUiTableFilterToView,
   getResultUnit,
 } from "@langfuse/shared";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";

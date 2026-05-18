@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { singleFilter } from "../../interfaces/filters";
-import { type views } from "./types";
+import { singleFilter, type views } from "@langfuse/shared";
 
 // Exported to silence @typescript-eslint/no-unused-vars v8 warning
 // (used for type extraction via typeof, which is a legitimate pattern)

@@ -5,10 +5,8 @@ export type TimeSeriesChartDataPoint = {
   values: { label: string; value?: number }[];
 };
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import {
-  type ViewVersion,
-  mapLegacyUiTableFilterToView,
-} from "@langfuse/shared";
+import { type ViewVersion } from "@langfuse/shared";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 type UseAllModelsOptions = {

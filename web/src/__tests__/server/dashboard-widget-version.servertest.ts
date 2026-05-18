@@ -7,10 +7,8 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { Session } from "next-auth";
 import { requiresV2 } from "@langfuse/shared";
-import {
-  mapLegacyUiTableFilterToView,
-  mapWidgetUiTableFilterToView,
-} from "@langfuse/shared";
+import { mapWidgetUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 describe("dashboard widget minVersion", () => {
   let projectId: string;

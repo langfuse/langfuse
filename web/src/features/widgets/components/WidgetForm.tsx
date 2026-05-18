@@ -12,10 +12,12 @@ import {
   getValidAggregationsForMeasureType,
   type QueryType,
   getResultUnit,
+} from "@langfuse/shared";
+import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
   partitionWidgetUiTableFiltersToView,
-} from "@langfuse/shared";
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Select,

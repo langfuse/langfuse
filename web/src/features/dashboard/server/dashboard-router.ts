@@ -25,7 +25,7 @@ import {
   query as customQuery,
   viewVersions,
 } from "@langfuse/shared";
-import { mapLegacyUiTableFilterToView } from "@langfuse/shared";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import {
   paginationZod,
   orderBy,

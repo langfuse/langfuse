@@ -103,5 +103,4 @@ export * from "./features/analytics-integrations";
 // query (dashboard / monitor data model)
 export * from "./features/query/types";
 export * from "./features/query/dataModel";
-export * from "./features/query/dashboardUiTableToViewMapping";
 export * from "./features/query/validateQuery";

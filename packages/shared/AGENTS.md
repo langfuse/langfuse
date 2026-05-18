@@ -30,7 +30,7 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
-- Dashboard/monitor query data model: `src/features/query/{types,dataModel,validateQuery,dashboardUiTableToViewMapping}.ts`
+- Dashboard/monitor query data model: `src/features/query/{types,dataModel,validateQuery}.ts`
 - Dashboard/monitor query builder and executor (server-only): `src/features/query/server/*`
 - Postgres schema: `prisma/schema.prisma`
 - For unstable public eval APIs, the public `evaluatorId` is currently the
