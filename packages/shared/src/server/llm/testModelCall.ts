@@ -31,7 +31,7 @@ export const testModelCall = async ({
       {
         role: ChatMessageRole.User,
         content:
-          'Extract a score (1-5) and reasoning from this text: "This is a test. It worked perfectly because it matched all passing criteria."',
+          'Extract a numeric score (1-5) and reasoning from this text: "This is a test. It worked perfectly because it matched all passing criteria."',
         type: ChatMessageType.User,
       },
     ],
@@ -44,7 +44,7 @@ export const testModelCall = async ({
     structuredOutputSchema:
       structuredOutputSchema ??
       z.object({
-        score: z.string(),
+        score: z.number(),
         reasoning: z.string(),
       }),
   });
