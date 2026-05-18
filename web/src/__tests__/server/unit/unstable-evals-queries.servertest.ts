@@ -148,6 +148,12 @@ describe("unstable public eval queries", () => {
         },
         status: "ACTIVE",
         blockedAt: null,
+        evalTemplate: {
+          is: {
+            type: "LLM_AS_JUDGE",
+            OR: [{ projectId: "project_123" }, { projectId: null }],
+          },
+        },
       },
     });
     expect(result).toBe(17);
@@ -172,6 +178,7 @@ describe("unstable public eval queries", () => {
       where: {
         projectId: "project_123",
         name: "Answer correctness",
+        type: "LLM_AS_JUDGE",
       },
       orderBy: {
         version: "desc",
@@ -200,6 +207,7 @@ describe("unstable public eval queries", () => {
       where: {
         projectId: null,
         name: "Answer correctness",
+        type: "LLM_AS_JUDGE",
       },
       orderBy: {
         version: "desc",

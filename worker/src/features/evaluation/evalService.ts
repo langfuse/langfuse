@@ -5,7 +5,6 @@ import {
   JobExecutionStatus,
   type JobExecution,
   type JobConfiguration,
-  type EvalTemplate,
 } from "@prisma/client";
 import {
   QueueJobs,
@@ -53,9 +52,11 @@ import {
   Observation,
   EvalTargetObject,
   EvaluatorBlockReason,
+  assertLLMAsJudgeEvalTemplate,
   getEvaluatorBlockMetadata,
   getBlockReasonForInvalidModelConfig,
   isJobConfigExecutable,
+  type EvalTemplateLlmAsAJudge,
   PersistedEvalOutputDefinitionSchema,
   ScoreDataTypeEnum,
   validateEvalOutputResult,
@@ -740,7 +741,7 @@ export async function executeLLMAsJudgeEvaluation({
   jobExecutionId: string;
   job: JobExecution;
   config: JobConfiguration;
-  template: EvalTemplate;
+  template: EvalTemplateLlmAsAJudge;
   extractedVariables: ExtractedVariable[];
   environment: string;
   deps?: EvalExecutionDeps;
@@ -1100,6 +1101,7 @@ export const evaluate = async ({
       `Evaluation template ${config.evalTemplateId} not found`,
     );
   }
+  assertLLMAsJudgeEvalTemplate(template);
 
   // Extract variables from tracing data
   const parsedVariableMapping = variableMappingList.parse(

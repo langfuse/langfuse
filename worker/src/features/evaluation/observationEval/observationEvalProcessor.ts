@@ -5,6 +5,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import {
+  assertLLMAsJudgeEvalTemplate,
   observationForEvalSchema,
   observationVariableMappingList,
   isJobConfigExecutable,
@@ -101,6 +102,7 @@ export async function processObservationEval({
       `Job configuration or template not found for job ${job.id}`,
     );
   }
+  assertLLMAsJudgeEvalTemplate(evalJobConfig.evalTemplate);
 
   if (!isJobConfigExecutable(evalJobConfig)) {
     logger.debug(
