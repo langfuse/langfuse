@@ -1,5 +1,4 @@
-// This page is currently only shown to Langfuse cloud users.
-// It might be expanded to everyone in the future when it does not only ask for the referral source.
+// This page is part of the cloud signup flow and can also be opened directly for local testing.
 
 import Head from "next/head";
 import { OnboardingSurvey } from "@/src/features/onboarding/components/OnboardingSurvey";
