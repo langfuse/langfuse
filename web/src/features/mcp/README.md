@@ -1,6 +1,6 @@
 # Langfuse MCP Server
 
-Model Context Protocol (MCP) server for Langfuse, enabling AI assistants to interact with your Langfuse prompts programmatically.
+Model Context Protocol (MCP) server for Langfuse, enabling AI assistants to interact with Langfuse prompts and read observation data programmatically.
 
 ## Quick Start (Local Development)
 
@@ -37,14 +37,24 @@ Model Context Protocol (MCP) server for Langfuse, enabling AI assistants to inte
        --header "Authorization: Basic {your-base64-token}"
    ```
 
-4. **Verify**
+4. **Verify prompt tools**
    In Claude Code: `List all prompts in the project`
+
+5. **Verify observation tools**
+   Observation tools are feature-gated. Enable both flags, restart the web app, then ask Claude Code: `List recent Langfuse observations`.
+
+   ```bash
+   LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS=true
+   LANGFUSE_ENABLE_MCP_OBSERVATION_TOOLS=true
+   ```
 
 ---
 
 ## Available Tools
 
-The MCP server provides 6 tools for prompt management:
+The MCP server provides prompt-management tools and optional read-only observation tools.
+
+### Prompt Tools
 
 - **`getPrompt`** - Fetch a specific prompt by name with optional label or version (fully resolved with dependencies)
 - **`getPromptUnresolved`** - Fetch a specific prompt WITHOUT resolving dependencies (useful for prompt composition analysis)
@@ -53,7 +63,19 @@ The MCP server provides 6 tools for prompt management:
 - **`createChatPrompt`** - Create a new chat prompt version (OpenAI-style messages)
 - **`updatePromptLabels`** - Add/move labels across prompt versions
 
-**Implementation:** See [`/web/src/features/mcp/features/prompts/tools/`](/web/src/features/mcp/features/prompts/tools/) for detailed schemas, parameters, and examples for each tool.
+**Implementation:** See [`/web/src/features/mcp/features/prompts/tools/`](/web/src/features/mcp/features/prompts/tools/) for detailed schemas, parameters, and examples for each prompt tool.
+
+### Observation Tools
+
+Observation tools read from the events table v2 and are project-scoped to the authenticated API key.
+
+- **`listObservations`** - Find observations in the current project with filters, field projection, and cursor pagination
+- **`getObservation`** - Fetch one observation by observation ID
+- **`getObservationFieldSchema`** - List fields that can be requested from `listObservations` and `getObservation`
+- **`getObservationFilterSchema`** - List fields and operators that can be used in `listObservations` advanced filters
+- **`getObservationFilterValues`** - Discover available values for supported filter fields, such as names, types, levels, environments, model names, tags, users, or sessions
+
+**Implementation:** See [`/web/src/features/mcp/features/observations/tools/`](/web/src/features/mcp/features/observations/tools/) for detailed schemas and handlers.
 
 ### Prompt Resolution: `getPrompt` vs `getPromptUnresolved`
 
@@ -84,6 +106,25 @@ Langfuse supports **prompt composition** where prompts can reference other promp
 - Debugging dependency chains before execution
 - Analyzing prompt structure and references
 - Building tools that manage prompt composition
+
+### Observation Inspection
+
+Observation tools let MCP clients inspect traces at the observation level: generations, spans, events, agent steps, tool calls, model usage, cost, latency, payloads, and metadata.
+
+Typical workflow:
+
+1. **Discover fields**: call `getObservationFieldSchema`
+2. **Discover filters**: call `getObservationFilterSchema`
+3. **Find observations**: call `listObservations` with time, trace, type, level, environment, or advanced filters
+4. **Inspect one observation**: call `getObservation` with the returned observation ID
+
+Field projection controls response size:
+
+- Omit `fields` for compact defaults
+- Use `fields: ["*"]` for all available fields
+- Pass explicit fields such as `["id", "name", "type", "latency", "totalCost"]` for focused responses
+
+Payload and metadata fields can be large and may contain sensitive application data. MCP clients should request `input`, `output`, `metadata`, and `modelParameters` only when needed.
 
 ---
 
@@ -138,8 +179,8 @@ This design:
 
 Tools include hints for clients about their behavior:
 
-- **`readOnly: true`**: Safe operations that don't modify data (getPrompt, listPrompts)
-- **`destructive: true`**: Operations that create/modify data (createTextPrompt, createChatPrompt, updatePromptLabels)
+- **`readOnlyHint: true`**: Safe operations that don't modify data (getPrompt, getPromptUnresolved, listPrompts, all observation tools)
+- **`destructiveHint: true`**: Operations that create/modify data (createTextPrompt, createChatPrompt, updatePromptLabels)
 
 Clients like Claude Code can use these annotations to:
 
@@ -148,7 +189,7 @@ Clients like Claude Code can use these annotations to:
 
 ### Audit Logging
 
-All write operations (createTextPrompt, createChatPrompt, updatePromptLabels) automatically create audit log entries with before/after snapshots.
+All write operations (createTextPrompt, createChatPrompt, updatePromptLabels) automatically create audit log entries with before/after snapshots. Observation tools are read-only and do not create audit log entries.
 
 ---
 
