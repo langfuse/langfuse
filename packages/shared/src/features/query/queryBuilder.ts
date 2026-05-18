@@ -21,11 +21,7 @@ import {
 } from "./types";
 import { getViewDeclaration } from "./dataModel";
 import { InvalidRequestError } from "../../errors";
-// Self-import via the package's own subpath export instead of a relative path.
-// Tests in `web/` mutate this env var via `@langfuse/shared/src/env`; using the
-// same specifier here keeps the module instance shared under Vitest's inlined
-// resolution so the mutation is visible to the builder.
-import { env } from "@langfuse/shared/src/env";
+import { env } from "../../env";
 import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
 
 type AppliedDimensionType = {
@@ -1348,7 +1344,16 @@ export class QueryBuilder {
         new Date(query.toTimestamp).getTime() -
         new Date(query.fromTimestamp).getTime();
       const windowHours = windowMs / (1000 * 60 * 60);
-      const thresholdHours = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
+      // Read from process.env so tests can mutate at runtime. The parsed `env`
+      // schema is captured at module init and isn't reachable from tests across
+      // the Vitest package boundary (separate module instances).
+      const rawThreshold =
+        // eslint-disable-next-line turbo/no-undeclared-env-vars
+        process.env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
+      const thresholdHours =
+        rawThreshold !== undefined && rawThreshold !== ""
+          ? Number(rawThreshold)
+          : env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
 
       if (thresholdHours === 0 || windowHours <= thresholdHours) {
         // Falls back gracefully: if no root events exist in the window at all
