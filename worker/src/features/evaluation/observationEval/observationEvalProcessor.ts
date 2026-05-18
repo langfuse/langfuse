@@ -40,6 +40,7 @@ export type ObservationEvalExecutionBaseParams = {
   config: JobConfiguration;
   extractedVariables: ExtractedVariable[];
   environment: string;
+  deps: EvalExecutionDeps;
 };
 
 export type ObservationEvalExecutionParams<TTemplate extends EvalTemplate> =
@@ -220,6 +221,7 @@ export async function processObservationEval<TTemplate extends EvalTemplate>(
     config: evalJobConfig,
     extractedVariables,
     environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
+    deps: deps.evalExecutionDeps,
   };
 
   const executionResult = await params.executor({
@@ -234,7 +236,7 @@ export async function processObservationEval<TTemplate extends EvalTemplate>(
     observationId: executionParams.job.jobInputObservationId,
     scoreName: executionParams.config.scoreName,
     environment: executionParams.environment,
-    deps: deps.evalExecutionDeps,
+    deps: executionParams.deps,
     ...executionResult,
   });
 }

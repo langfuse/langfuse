@@ -735,7 +735,7 @@ export async function runLLMAsJudgeEvaluation({
   config,
   template,
   extractedVariables,
-  deps = createProductionEvalExecutionDeps(),
+  deps,
 }: {
   projectId: string;
   jobExecutionId: string;
@@ -744,7 +744,7 @@ export async function runLLMAsJudgeEvaluation({
   template: EvalTemplateLlmAsAJudge;
   extractedVariables: ExtractedVariable[];
   environment: string;
-  deps?: EvalExecutionDeps;
+  deps: EvalExecutionDeps;
 }): Promise<EvalExecutionResult> {
   return instrumentAsync(
     { name: "eval.execute-llm-as-judge" },
@@ -971,7 +971,9 @@ export async function runLLMAsJudgeEvaluation({
 }
 
 export async function executeLLMAsJudgeEvaluation(
-  params: Parameters<typeof runLLMAsJudgeEvaluation>[0],
+  params: Omit<Parameters<typeof runLLMAsJudgeEvaluation>[0], "deps"> & {
+    deps?: EvalExecutionDeps;
+  },
 ): Promise<void> {
   const deps = params.deps ?? createProductionEvalExecutionDeps();
   const result = await runLLMAsJudgeEvaluation({ ...params, deps });
