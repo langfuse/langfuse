@@ -160,6 +160,7 @@ model Project {
   triggers                  Trigger[]
   automationExecutions      AutomationExecution[]
   Automation                Automation[]
+  monitors                  Monitor[]
   DefaultLlmModel           DefaultLlmModel[]
   Price                     Price[]
   SlackIntegration          SlackIntegration?
@@ -1575,6 +1576,76 @@ model AutomationExecution {
   @@index([actionId])
   @@index([projectId])
   @@map("automation_executions")
+}
+
+enum MonitorThresholdOperator {
+  GT
+  GTE
+  LT
+  LTE
+  EQ
+  NEQ
+}
+
+enum MonitorSeverity {
+  OK
+  WARNING
+  ALERT
+  NO_DATA
+}
+
+// Scheduler evaluates only ACTIVE; any other state is skipped.
+enum MonitorStatus {
+  ACTIVE
+  PAUSED
+  ERROR_BAD_QUERY
+}
+
+model Monitor {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdBy String?  @map("created_by")
+  updatedBy String?  @map("updated_by")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // === Query shape (mirrors DashboardWidget) ===
+  view    DashboardWidgetViews
+  filters Json
+  metric  Json
+
+  // === Monitor Evaluation ===
+  windowMs          BigInt                   @map("window_ms")
+  cadenceMs         BigInt                   @map("cadence_ms")
+  thresholdOperator MonitorThresholdOperator @map("threshold_operator")
+  alertThreshold    Decimal                  @map("alert_threshold")
+  warningThreshold  Decimal?                 @map("warning_threshold")
+
+  severity          MonitorSeverity @default(OK)
+  severityChangedAt DateTime?       @map("severity_changed_at")
+
+  noData   Json @map("no_data")
+  renotify Json
+
+  // === Scheduling ===
+  status             MonitorStatus @default(ACTIVE)
+  schedulerBatchId   BigInt        @map("scheduler_batch_id")
+  nextRunAt          DateTime      @map("next_run_at")
+  lastPublishedRunAt DateTime?     @map("last_published_run_at")
+  lastCompletedRunAt DateTime?     @map("last_completed_run_at")
+
+  // === Alerts ===
+  name      String
+  message   String    @default("")
+  tags      String[]  @default([])
+  alertedAt DateTime? @map("alerted_at")
+
+  @@index([projectId])
+  @@index([schedulerBatchId])
+  @@index([nextRunAt, schedulerBatchId], map: "monitors_scheduler_tick_idx")
+  @@map("monitors")
 }
 
 // Slack Integration: Stores centralized Slack workspace connection for each project
