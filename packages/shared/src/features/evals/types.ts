@@ -39,6 +39,20 @@ export const assertLLMAsJudgeEvalTemplate = (
   }
 };
 
+export const assertCodeBasedEvalTemplate = (
+  template: EvalTemplate,
+): asserts template is EvalTemplateCodeBased => {
+  if (
+    template.type !== EvalTemplateType.CODE ||
+    template.prompt !== null ||
+    template.outputDefinition !== null ||
+    template.sourceCode === null ||
+    template.sourceCodeLanguage === null
+  ) {
+    throw new Error("Expected code-based evaluation template");
+  }
+};
+
 export const EvalTargetObject = {
   TRACE: "trace",
   DATASET: "dataset",
