@@ -2,6 +2,9 @@ import type { Mock } from "vitest";
 
 vi.mock("@langfuse/shared/src/db", () => {
   return {
+    EvalTemplateType: {
+      LLM_AS_JUDGE: "LLM_AS_JUDGE",
+    },
     Prisma: {
       sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
         strings,
