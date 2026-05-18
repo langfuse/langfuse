@@ -64,6 +64,7 @@ export class QueryBuilder {
   }
 
   private translateAggregation(metric: AppliedMetricType): string {
+    const bins = this.chartConfig?.bins ?? 10;
     switch (metric.aggregation) {
       case "sum":
         return `sum(${metric.alias || metric.sql})`;
@@ -86,7 +87,7 @@ export class QueryBuilder {
       case "p99":
         return `quantile(0.99)(${metric.alias || metric.sql})`;
       case "histogram":
-        return `histogram(${this.chartConfig?.bins ?? 10})(toFloat64(${metric.alias || metric.sql}))`;
+        return `histogram(${bins})(toFloat64(${metric.alias || metric.sql}))`;
       case "uniq":
         return `uniq(${metric.alias || metric.sql})`;
       default:
@@ -1344,16 +1345,15 @@ export class QueryBuilder {
         new Date(query.toTimestamp).getTime() -
         new Date(query.fromTimestamp).getTime();
       const windowHours = windowMs / (1000 * 60 * 60);
-      // Read from process.env so tests can mutate at runtime. The parsed `env`
-      // schema is captured at module init and isn't reachable from tests across
-      // the Vitest package boundary (separate module instances).
-      const rawThreshold =
-        // eslint-disable-next-line turbo/no-undeclared-env-vars
-        process.env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
-      const thresholdHours =
-        rawThreshold !== undefined && rawThreshold !== ""
-          ? Number(rawThreshold)
-          : env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
+      // Read from process.env (with the parsed env's default as a fallback)
+      // so tests can mutate the threshold at runtime — the parsed `env` object
+      // is captured at module init and isn't reachable from tests across the
+      // Vitest package boundary.
+      // eslint-disable-next-line turbo/no-undeclared-env-vars
+      const raw = process.env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
+      const thresholdHours = raw
+        ? Number(raw)
+        : env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
 
       if (thresholdHours === 0 || windowHours <= thresholdHours) {
         // Falls back gracefully: if no root events exist in the window at all

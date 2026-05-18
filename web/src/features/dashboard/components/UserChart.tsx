@@ -10,7 +10,7 @@ import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
   type ViewVersion,
-} from "@langfuse/shared/src/features/query/types";
+} from "@langfuse/shared/features/query/types";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";

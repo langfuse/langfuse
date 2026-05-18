@@ -16,7 +16,7 @@ import {
 import { useAllModels } from "@/src/features/dashboard/components/hooks";
 import { cn } from "@/src/utils/tailwind";
 import { type FilterState } from "@langfuse/shared";
-import { type ViewVersion } from "@langfuse/shared/src/features/query/types";
+import { type ViewVersion } from "@langfuse/shared/features/query/types";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useEffect, useState } from "react";
 

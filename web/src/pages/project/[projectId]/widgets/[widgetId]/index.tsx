@@ -8,7 +8,7 @@ import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   type views,
   type metricAggregations,
-} from "@langfuse/shared/src/features/query/types";
+} from "@langfuse/shared/features/query/types";
 import { type z } from "zod";
 import { type WidgetChartConfig } from "@/src/features/widgets/utils";
 

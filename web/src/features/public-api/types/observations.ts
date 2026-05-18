@@ -16,7 +16,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { z } from "zod";
-import { useEventsTableSchema } from "@langfuse/shared/src/features/query/types";
+import { useEventsTableSchema } from "@langfuse/shared/features/query/types";
 
 // Re-export for convenience
 export {

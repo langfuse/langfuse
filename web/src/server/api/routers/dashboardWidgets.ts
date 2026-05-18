@@ -23,10 +23,10 @@ import {
 import {
   views,
   getValidAggregationsForMeasureType,
-} from "@langfuse/shared/src/features/query/types";
-import { getViewDeclaration } from "@langfuse/shared/src/features/query/dataModel";
+} from "@langfuse/shared/features/query/types";
+import { getViewDeclaration } from "@langfuse/shared/features/query/dataModel";
 import { TRPCError } from "@trpc/server";
-import type { ViewVersion } from "@langfuse/shared/src/features/query/types";
+import type { ViewVersion } from "@langfuse/shared/features/query/types";
 
 const CreateDashboardWidgetInput = z.object({
   projectId: z.string(),

@@ -5,11 +5,11 @@ import {
   type metricAggregations,
   type QueryType,
   type ViewVersion,
-} from "@langfuse/shared/src/features/query/types";
+} from "@langfuse/shared/features/query/types";
 import {
   getResultUnit,
   requiresV2,
-} from "@langfuse/shared/src/features/query/dataModel";
+} from "@langfuse/shared/features/query/dataModel";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
@@ -46,7 +46,7 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
-import { validateQuery } from "@langfuse/shared/src/features/query/validateQuery";
+import { validateQuery } from "@langfuse/shared/features/query/validateQuery";
 
 export interface WidgetPlacement {
   id: string;

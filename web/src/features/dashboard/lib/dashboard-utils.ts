@@ -3,7 +3,7 @@ import { type FilterState, type singleFilter } from "@langfuse/shared";
 import {
   type QueryType,
   type ViewVersion,
-} from "@langfuse/shared/src/features/query/types";
+} from "@langfuse/shared/features/query/types";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 // traces do not have a startTime or endTime column, so we need to map these to the timestamp column

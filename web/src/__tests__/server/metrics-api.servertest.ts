@@ -12,7 +12,7 @@ import {
   createTracesCh,
   createObservationsCh,
 } from "@langfuse/shared/src/server";
-import { type QueryType } from "@langfuse/shared/src/features/query/types";
+import { type QueryType } from "@langfuse/shared/features/query/types";
 
 describe("/api/public/metrics API Endpoint", () => {
   // Test setup variables

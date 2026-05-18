@@ -18,9 +18,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   query as customQuery,
   viewVersions,
-} from "@langfuse/shared/src/features/query/types";
+} from "@langfuse/shared/features/query/types";
 
-import { validateQuery } from "@langfuse/shared/src/features/query/validateQuery";
+import { validateQuery } from "@langfuse/shared/features/query/validateQuery";
 
 export type SSEEvent =
   | { type: "progress"; progress: object }

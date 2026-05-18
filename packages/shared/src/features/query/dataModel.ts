@@ -1438,9 +1438,6 @@ export function getResultUnit(
   return getMeasureUnit(viewName, measureName, version);
 }
 
-// Zod enum of every measure name declared across all views and versions.
-// Derived from `viewDeclarations` so it stays in sync with the data model.
-// Per-view validity is enforced separately via `getViewDeclaration().measures[name]`.
 const measureNamesSet = new Set<string>();
 for (const versionViews of Object.values(viewDeclarations)) {
   for (const view of Object.values(versionViews)) {

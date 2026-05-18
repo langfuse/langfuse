@@ -7,8 +7,8 @@ import {
   GetMetricsV2Response,
 } from "@/src/features/public-api/types/metrics";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
-import { executeQuery } from "@langfuse/shared/src/features/query/queryExecutor";
-import { validateQuery } from "@langfuse/shared/src/features/query/validateQuery";
+import { executeQuery } from "@langfuse/shared/features/query/queryExecutor";
+import { validateQuery } from "@langfuse/shared/features/query/validateQuery";
 
 const DEFAULT_ROW_LIMIT = 100;
 
