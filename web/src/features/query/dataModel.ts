@@ -936,6 +936,13 @@ function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
         type: "number",
         description: "Value of the score.",
       },
+      timestamp: {
+        sql: "@@AGG@@(scores_numeric.timestamp)",
+        aggs: { agg: "min" },
+        alias: "timestamp",
+        type: "datetime",
+        description: "Earliest score timestamp in the group.",
+      },
     },
     tableRelations: createScoreTableRelations(version),
     segments: [
@@ -977,6 +984,13 @@ function scoresCategoricalViewBase(version: "v1" | "v2"): ViewDeclarationType {
         type: "integer",
         description: "Total number of scores.",
         unit: "scores",
+      },
+      timestamp: {
+        sql: "@@AGG@@(scores_categorical.timestamp)",
+        aggs: { agg: "min" },
+        alias: "timestamp",
+        type: "datetime",
+        description: "Earliest score timestamp in the group.",
       },
     },
     tableRelations: createScoreTableRelations(version),

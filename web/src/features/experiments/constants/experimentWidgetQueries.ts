@@ -88,10 +88,13 @@ export function createNumericExperimentScoreWidgetConfig(params: {
   return {
     view: "scores-numeric",
     dimensions: [],
-    metrics: [{ measure: "value", agg: "avg", aggregation: "avg" }],
+    metrics: [
+      { measure: "value", agg: "avg", aggregation: "avg" },
+      { measure: "timestamp", agg: "min", aggregation: "min" }, // for ordering
+    ],
     timeDimension: null,
     entityDimension: { field: "experimentName" },
-    orderBy: [{ field: "entity_dimension", direction: "asc" }],
+    orderBy: [{ field: "min_timestamp", direction: "desc" }],
     filters: [
       {
         column: "name",
@@ -121,10 +124,13 @@ export function createCategoricalExperimentScoreWidgetConfig(params: {
   return {
     view: "scores-categorical",
     dimensions: [{ field: "stringValue" }],
-    metrics: [{ measure: "count", agg: "count", aggregation: "count" }],
+    metrics: [
+      { measure: "count", agg: "count", aggregation: "count" },
+      { measure: "timestamp", agg: "min", aggregation: "min" }, // for ordering
+    ],
     timeDimension: null,
     entityDimension: { field: "experimentName" },
-    orderBy: [{ field: "entity_dimension", direction: "asc" }],
+    orderBy: [{ field: "min_timestamp", direction: "desc" }],
     filters: [
       {
         column: "name",
@@ -159,10 +165,13 @@ export function createNumericExperimentRunScoreWidgetConfig(params: {
   return {
     view: "scores-numeric",
     dimensions: [],
-    metrics: [{ measure: "value", agg: "avg", aggregation: "avg" }],
+    metrics: [
+      { measure: "value", agg: "avg", aggregation: "avg" },
+      { measure: "timestamp", agg: "min", aggregation: "min" }, // for ordering
+    ],
     timeDimension: null,
     entityDimension: { field: "datasetRunId" },
-    orderBy: [{ field: "entity_dimension", direction: "asc" }],
+    orderBy: [{ field: "min_timestamp", direction: "desc" }],
     filters: [
       {
         column: "name",
@@ -203,10 +212,13 @@ export function createCategoricalExperimentRunScoreWidgetConfig(params: {
   return {
     view: "scores-categorical",
     dimensions: [{ field: "stringValue" }],
-    metrics: [{ measure: "count", agg: "count", aggregation: "count" }],
+    metrics: [
+      { measure: "count", agg: "count", aggregation: "count" },
+      { measure: "timestamp", agg: "min", aggregation: "min" }, // for ordering
+    ],
     timeDimension: null,
     entityDimension: { field: "datasetRunId" },
-    orderBy: [{ field: "entity_dimension", direction: "asc" }],
+    orderBy: [{ field: "min_timestamp", direction: "desc" }],
     filters: [
       {
         column: "name",
