@@ -26,6 +26,8 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useRouter } from "next/router";
 import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import { type metricAggregations } from "@/src/features/query";
+import { type z } from "zod";
 
 type WidgetTableRow = {
   id: string;
@@ -139,7 +141,10 @@ function ShareWidgetButton({ widgetId }: { widgetId: string }) {
             description: widget.description,
             view: widget.view,
             dimensions: widget.dimensions,
-            metrics: widget.metrics,
+            metrics: widget.metrics.map((metric) => ({
+              measure: metric.measure,
+              agg: metric.agg as z.infer<typeof metricAggregations>,
+            })),
             filters: widget.filters,
             chartType: widget.chartType,
             chartConfig: widget.chartConfig,
