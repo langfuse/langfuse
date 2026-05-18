@@ -108,6 +108,7 @@ export * from "./utils/rendering";
 export * from "./utils/sqlLike";
 export * from "./redis/evalExecutionQueue";
 export * from "./redis/llmAsJudgeExecutionQueue";
+export * from "./redis/codeEvalExecutionQueue";
 export * from "./services/sessions-ui-table-service";
 export * from "./services/sessions-ui-table-events-service";
 export * from "./services/DashboardService";

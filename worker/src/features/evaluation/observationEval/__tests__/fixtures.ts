@@ -1,11 +1,12 @@
 import { vi, type Mock } from "vitest";
 import { randomUUID } from "crypto";
+import { type Prisma } from "@langfuse/shared/src/db";
 import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
-  type Prisma,
-} from "@langfuse/shared/src/db";
-import { type ObservationForEval, EvalTargetObject } from "@langfuse/shared";
+  type ObservationForEval,
+  EvalTargetObject,
+} from "@langfuse/shared";
 import {
   type ObservationEvalConfig,
   type ObservationEvalSchedulerDeps,
@@ -28,6 +29,7 @@ type MockProcessorDeps = ObservationEvalProcessorDeps & {
   downloadObservationFromS3: Mock<
     ObservationEvalProcessorDeps["downloadObservationFromS3"]
   >;
+  evalExecutionDeps: EvalExecutionDeps;
 };
 
 /**
@@ -112,6 +114,7 @@ export function createTestEvalConfig(
     filter: [],
     sampling: { toNumber: () => 1 } as unknown as Prisma.Decimal,
     evalTemplateId: `template-${randomUUID()}`,
+    evalTemplate: { type: EvalTemplateType.LLM_AS_JUDGE },
     scoreName: "test-score",
     status: "ACTIVE",
     blockedAt: null,
@@ -165,6 +168,7 @@ export function createMockProcessorDeps(
     downloadObservationFromS3: Mock<
       ObservationEvalProcessorDeps["downloadObservationFromS3"]
     >;
+    evalExecutionDeps: EvalExecutionDeps;
   }> = {},
 ): MockProcessorDeps {
   const defaultObservation = createTestObservation();
@@ -175,6 +179,8 @@ export function createMockProcessorDeps(
       vi
         .fn<ObservationEvalProcessorDeps["downloadObservationFromS3"]>()
         .mockResolvedValue(JSON.stringify(defaultObservation)),
+    evalExecutionDeps:
+      overrides.evalExecutionDeps ?? createMockEvalExecutionDeps(),
   };
 }
 
@@ -359,18 +365,6 @@ export function createFullyMockedEvalPipeline(
       .mockResolvedValue(undefined),
   };
 
-  const processorDeps: MockProcessorDeps = {
-    downloadObservationFromS3: vi
-      .fn<ObservationEvalProcessorDeps["downloadObservationFromS3"]>()
-      .mockImplementation(async (path) => {
-        const data = uploadedData.get(path);
-        if (data) {
-          return JSON.stringify(data);
-        }
-        return JSON.stringify(observation);
-      }),
-  };
-
   const executionDeps: EvalExecutionDeps = createMockEvalExecutionDeps({
     callLLM: vi
       .fn()
@@ -390,6 +384,19 @@ export function createFullyMockedEvalPipeline(
     enqueueScoreIngestion: vi.fn().mockResolvedValue(undefined),
     updateJobExecution: vi.fn().mockResolvedValue(undefined),
   });
+
+  const processorDeps: MockProcessorDeps = {
+    downloadObservationFromS3: vi
+      .fn<ObservationEvalProcessorDeps["downloadObservationFromS3"]>()
+      .mockImplementation(async (path) => {
+        const data = uploadedData.get(path);
+        if (data) {
+          return JSON.stringify(data);
+        }
+        return JSON.stringify(observation);
+      }),
+    evalExecutionDeps: executionDeps,
+  };
 
   return {
     schedulerDeps,
