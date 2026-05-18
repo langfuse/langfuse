@@ -360,6 +360,47 @@ describe("Clickhouse Events Repository Test", () => {
       expect(resultWithIO[0]?.input).toBeDefined();
       expect(resultWithoutIO[0]?.output).toBeDefined();
     });
+
+    it("should not throw when model_parameters is not valid JSON", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "poisoned-model-parameters",
+        provided_model_name: "gpt-5-mini",
+        model_parameters: "<not serializable object of type: dict>",
+      });
+
+      await createEventsCh([event]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(generationId)],
+        limit: 1000,
+        offset: 0,
+        selectIOAndMetadata: true,
+      });
+
+      const observation = result.find((o) => o.id === generationId);
+      expect(observation).toBeDefined();
+      expect(observation?.modelParameters).toBe(
+        "<not serializable object of type: dict>",
+      );
+
+      const byId = await getObservationByIdFromEventsTable({
+        id: generationId,
+        projectId,
+        fetchWithInputOutput: true,
+      });
+      expect(byId?.modelParameters).toBe(
+        "<not serializable object of type: dict>",
+      );
+    });
   });
 
   maybe("getObservationsCountFromEventsTable", () => {

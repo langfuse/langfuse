@@ -94,3 +94,9 @@ web/test-results/*
 # Refactoring planning files (local only)
 **/.refactor/
 **/.pi-lens/
+
+# Serena MCP server config (local only)
+.serena/
+
+# Local overrides for AGENTS.md
+**/AGENTS.override.md

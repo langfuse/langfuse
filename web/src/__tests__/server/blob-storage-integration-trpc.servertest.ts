@@ -11,7 +11,15 @@ import {
   QueueJobs,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
-import { BLOB_EXPORT_FIELD_GROUPS } from "@langfuse/shared";
+import {
+  OBSERVATION_FIELD_GROUPS_FULL,
+  LEGACY_BLOB_EXPORT_CUTOFF,
+} from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
+const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -363,8 +371,54 @@ describe("Blob Storage Integration tRPC Router", () => {
         where: { projectId: project.id },
       });
       expect(stored?.exportFieldGroups).toStrictEqual([
-        ...BLOB_EXPORT_FIELD_GROUPS,
+        ...OBSERVATION_FIELD_GROUPS_FULL,
       ]);
+    });
+
+    it("rejects submission when core group is absent (exportSource EVENTS)", async () => {
+      const { caller, project } = await prepare();
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportFieldGroups: ["basic", "io"],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("rejects empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS_EVENTS", async () => {
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+          exportFieldGroups: [],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("accepts empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS", async () => {
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS" as const,
+          exportFieldGroups: [],
+        }),
+      ).resolves.not.toThrow();
     });
 
     it("overwrites stored subset when a new subset is submitted", async () => {
@@ -390,6 +444,96 @@ describe("Blob Storage Integration tRPC Router", () => {
         "io",
         "metrics",
       ]);
+    });
+  });
+
+  describe("legacy blob export source cutoff gate", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("Cloud + pre-cutoff project + legacy source → allow", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("Cloud + post-cutoff project + legacy source → BAD_REQUEST", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("Cloud + post-cutoff project + EVENTS → allow", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "EVENTS" as const,
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("self-hosted + post-cutoff project + legacy source → allow (bypass)", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
     });
   });
 });

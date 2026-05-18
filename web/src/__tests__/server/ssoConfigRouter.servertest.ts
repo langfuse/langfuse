@@ -136,6 +136,19 @@ const samplePayload = (domain: string) => ({
   },
 });
 
+const sampleCustomPayload = (domain: string, idToken: boolean) => ({
+  domain,
+  authProvider: "custom" as const,
+  authConfig: {
+    name: "Custom OIDC",
+    clientId: "client-123",
+    clientSecret: "super-secret-value",
+    issuer: "https://example.okta.com",
+    idToken,
+    allowDangerousEmailAccountLinking: false,
+  },
+});
+
 describe("ssoConfigRouter.save", () => {
   it("rejects when the domain has no verified VerifiedDomain row for the org", async () => {
     const { org, caller } = await prepare();
@@ -384,6 +397,37 @@ describe("ssoConfigRouter.save", () => {
     // Advanced fields the form doesn't carry are preserved.
     expect(cfg.tokenEndpointAuthMethod).toBe("private_key_jwt");
     expect(cfg.idTokenSignedResponseAlg).toBe("RS256");
+  });
+
+  it("persists custom idToken values", async () => {
+    const { org, caller } = await prepare();
+    const falseDomain = `custom-false-${uuidv4().slice(0, 8)}.com`;
+    const trueDomain = `custom-true-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, falseDomain);
+    await addVerifiedDomain(org.id, trueDomain);
+
+    await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: sampleCustomPayload(falseDomain, false),
+    });
+    await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: sampleCustomPayload(trueDomain, true),
+    });
+
+    const storedFalse = await prisma.ssoConfig.findUniqueOrThrow({
+      where: { domain: falseDomain },
+    });
+    const storedTrue = await prisma.ssoConfig.findUniqueOrThrow({
+      where: { domain: trueDomain },
+    });
+
+    expect((storedFalse.authConfig as Record<string, unknown>).idToken).toBe(
+      false,
+    );
+    expect((storedTrue.authConfig as Record<string, unknown>).idToken).toBe(
+      true,
+    );
   });
 
   it("resets authConfig fields when the provider changes", async () => {

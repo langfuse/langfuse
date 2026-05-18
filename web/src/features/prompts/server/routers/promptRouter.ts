@@ -1158,6 +1158,7 @@ export const promptRouter = createTRPCRouter({
           version: true,
           type: true,
           prompt: true,
+          config: true,
           labels: true,
         },
         where: {

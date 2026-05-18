@@ -71,8 +71,11 @@ Linear.
 
 Before querying Datadog, load the relevant Datadog MCP guidance for logs,
 traces, metrics, and visualizations. Use the existing
-[`debug-issue-with-datadog`](../debug-issue-with-datadog/SKILL.md) playbook
-when you need query syntax, repo mapping, or trace drill-down patterns.
+[`datadog-query-recipes`](../datadog-query-recipes/SKILL.md) skill for query
+syntax, production environment coverage, tenant/public API usage, and queue
+consumer measurements. Use
+[`debug-issue-with-datadog`](../debug-issue-with-datadog/SKILL.md) when a
+candidate regression becomes an incident-style root-cause analysis.
 
 For each environment, check:
 
