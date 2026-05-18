@@ -210,7 +210,15 @@ const ListObservationsBaseSchema = z.object({
   traceId: z.string().optional(),
   version: z.string().optional(),
   parentObservationId: z.string().optional(),
-  environment: z.union([z.array(z.string()), z.string()]).optional(),
+  // TODO: Re-enable string[] once the public observations API correctly
+  // applies allow-multiple environment filters instead of dropping arrays.
+  // see: https://linear.app/langfuse/issue/LFE-9852/bug-observations-api-accepts-multiple-environment-params-but-ignores
+  environment: z
+    .string()
+    .optional()
+    .describe(
+      "Environment to filter by. Multiple environments are temporarily unsupported until the public observations API applies allow-multiple environment filters correctly.",
+    ),
   fromStartTime: z.iso.datetime({ offset: true }).optional(),
   toStartTime: z.iso.datetime({ offset: true }).optional(),
   filter: z
