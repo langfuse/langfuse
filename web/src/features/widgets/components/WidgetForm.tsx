@@ -8,18 +8,19 @@ import {
 } from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
 import {
-  type metricAggregations,
+  buildWidgetOrderBy,
+  getResultUnit,
   getValidAggregationsForMeasureType,
-  type QueryType,
+  isV2BreakdownChart,
+  requiresV2,
+  validateQuery,
+  viewDeclarations,
   views,
   viewsV2,
+  type QueryType,
   type ViewVersion,
-} from "@langfuse/shared/src/features/query/types";
-import {
-  getResultUnit,
-  viewDeclarations,
-  requiresV2,
-} from "@langfuse/shared/src/features/query/dataModel";
+  type metricAggregations,
+} from "@langfuse/shared/query";
 import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
@@ -63,11 +64,6 @@ import {
   ObservationTypeDomain,
 } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import {
-  validateQuery,
-  isV2BreakdownChart,
-  buildWidgetOrderBy,
-} from "@langfuse/shared/src/features/query/validateQuery";
 import {
   BarChart,
   PieChart,

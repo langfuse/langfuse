@@ -8,10 +8,7 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TotalMetric } from "./TotalMetric";
 import { costFormatter } from "@/src/utils/numbers";
 import { truncate } from "@/src/utils/string";
-import {
-  type QueryType,
-  type ViewVersion,
-} from "@langfuse/shared/src/features/query/types";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 

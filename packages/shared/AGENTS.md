@@ -55,6 +55,7 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
   schema/accessors used by backend runtimes and scripts.
 - `@langfuse/shared/encryption` via `src/encryption/index.ts`: encryption and
   signature helpers for secrets and signed payloads.
+- `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
   `@langfuse/shared/src/server/ee/ingestionMasking`, and

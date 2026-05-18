@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import {
-  type views,
-  type metricAggregations,
+  buildWidgetOrderBy,
+  getResultUnit,
+  isV2BreakdownChart,
+  requiresV2,
+  toQueryChartConfig,
+  validateQuery,
   type QueryType,
   type ViewVersion,
-} from "@langfuse/shared/src/features/query/types";
-import {
-  getResultUnit,
-  requiresV2,
-} from "@langfuse/shared/src/features/query/dataModel";
+  type metricAggregations,
+  type views,
+} from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
@@ -38,12 +40,6 @@ import {
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
-import {
-  validateQuery,
-  toQueryChartConfig,
-  isV2BreakdownChart,
-  buildWidgetOrderBy,
-} from "@langfuse/shared/src/features/query/validateQuery";
 
 export interface WidgetPlacement {
   id: string;

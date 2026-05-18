@@ -16,12 +16,12 @@ import {
   ChartConfigSchema,
 } from "@langfuse/shared/src/server";
 import {
-  views,
   getValidAggregationsForMeasureType,
-} from "@langfuse/shared/src/features/query/types";
-import { getViewDeclaration } from "@langfuse/shared/src/features/query/dataModel";
+  getViewDeclaration,
+  views,
+  type ViewVersion,
+} from "@langfuse/shared/query";
 import { TRPCError } from "@trpc/server";
-import type { ViewVersion } from "@langfuse/shared/src/features/query/types";
 import { LangfuseConflictError } from "@langfuse/shared";
 
 const CreateDashboardWidgetInput = z.object({

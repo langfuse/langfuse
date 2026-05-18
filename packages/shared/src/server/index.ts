@@ -136,7 +136,3 @@ export * from "./utils/formatAuthProvider";
 export * from "./traceDeletionProcessor";
 export * from "./deletionGuard";
 export * from "./analytics-integrations/types";
-
-// query (dashboard / monitor data model — server-only)
-export * from "../features/query/queryBuilder";
-export * from "../features/query/queryExecutor";

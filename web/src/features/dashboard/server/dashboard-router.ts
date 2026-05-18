@@ -21,10 +21,12 @@ import {
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import {
-  type QueryType,
+  executeQuery,
   query as customQuery,
+  validateQuery,
   viewVersions,
-} from "@langfuse/shared/src/features/query/types";
+  type QueryType,
+} from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import {
   paginationZod,
@@ -35,8 +37,6 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { executeQuery } from "@langfuse/shared/src/features/query/queryExecutor";
-import { validateQuery } from "@langfuse/shared/src/features/query/validateQuery";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({

@@ -15,11 +15,9 @@ import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   query as customQuery,
+  validateQuery,
   viewVersions,
-} from "@langfuse/shared/src/features/query/types";
-
-import { validateQuery } from "@langfuse/shared/src/features/query/validateQuery";
-
+} from "@langfuse/shared/query";
 export type SSEEvent =
   | { type: "progress"; progress: object }
   | { type: "row"; row: Record<string, unknown> }

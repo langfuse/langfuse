@@ -2,10 +2,10 @@ import startCase from "lodash/startCase";
 import { type FilterState } from "@langfuse/shared";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
-  type ViewVersion,
+  getViewDeclaration,
   views,
-} from "@langfuse/shared/src/features/query/types";
-import { getViewDeclaration } from "@langfuse/shared/src/features/query/dataModel";
+  type ViewVersion,
+} from "@langfuse/shared/query";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { type MetricFormatterFunction } from "@/src/features/widgets/chart-library/chart-props";
 

@@ -2,10 +2,7 @@ import {
   type ColumnDefinition,
   type SingleValueOption,
 } from "@langfuse/shared";
-import {
-  type views,
-  type ViewVersion,
-} from "@langfuse/shared/src/features/query/types";
+import { type ViewVersion, type views } from "@langfuse/shared/query";
 
 import { type z } from "zod";
 

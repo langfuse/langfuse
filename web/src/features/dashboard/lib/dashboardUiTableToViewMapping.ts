@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { singleFilter } from "@langfuse/shared";
-import { type views } from "@langfuse/shared/src/features/query/types";
+import { type views } from "@langfuse/shared/query";
 
 // Exported to silence @typescript-eslint/no-unused-vars v8 warning
 // (used for type extraction via typeof, which is a legitimate pattern)

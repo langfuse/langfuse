@@ -9,9 +9,6 @@ import { type QueryType, type ViewVersion } from "./types";
 import { getViewDeclaration } from "./dataModel";
 import { env } from "../../env";
 
-// Re-export validation logic (shared between server and client)
-export { validateQuery, type QueryValidationResult } from "./validateQuery";
-
 export type PreparedQuery = {
   compiledQuery: string;
   parameters: Record<string, unknown>;

@@ -1,4 +1,4 @@
-import { NULL_IF_EMPTY_RE } from "@langfuse/shared/src/features/query/nullIfEmptyFilter";
+import { NULL_IF_EMPTY_RE } from "@langfuse/shared/query";
 import {
   StringFilter,
   StringOptionsFilter,
