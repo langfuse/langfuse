@@ -54,13 +54,19 @@ type MappedFilters = {
 export class QueryBuilder {
   private chartConfig?: { bins?: number; row_limit?: number };
   private version: ViewVersion;
+  // Test seam: when undefined, falls back to env at build() time. Tests pass
+  // an explicit value instead of mutating env across the package boundary.
+  private rootEventConditionMaxWindowHoursOverride?: number;
 
   constructor(
     chartConfig?: { bins?: number; row_limit?: number },
     version: ViewVersion = "v1",
+    options?: { rootEventConditionMaxWindowHours?: number },
   ) {
     this.chartConfig = chartConfig;
     this.version = version;
+    this.rootEventConditionMaxWindowHoursOverride =
+      options?.rootEventConditionMaxWindowHours;
   }
 
   private translateAggregation(metric: AppliedMetricType): string {
@@ -1353,7 +1359,9 @@ export class QueryBuilder {
         new Date(query.toTimestamp).getTime() -
         new Date(query.fromTimestamp).getTime();
       const windowHours = windowMs / (1000 * 60 * 60);
-      const thresholdHours = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
+      const thresholdHours =
+        this.rootEventConditionMaxWindowHoursOverride ??
+        env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
 
       if (thresholdHours === 0 || windowHours <= thresholdHours) {
         // Falls back gracefully: if no root events exist in the window at all
