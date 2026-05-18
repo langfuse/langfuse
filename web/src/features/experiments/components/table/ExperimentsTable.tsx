@@ -692,7 +692,7 @@ export default function ExperimentsTable({
                     projectId={projectId}
                     experimentIds={allExperimentIds}
                     fromTimestamp={tableDateRange.from}
-                    toTimestamp={tableDateRange.to ?? new Date()}
+                    toTimestamp={tableDateRange.to}
                     scoreFilterOptions={scoreFilterOptions}
                     isExternalLoading={
                       experiments.status === "loading" ||
