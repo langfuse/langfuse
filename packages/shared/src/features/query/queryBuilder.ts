@@ -54,6 +54,8 @@ type MappedFilters = {
 export class QueryBuilder {
   private chartConfig?: { bins?: number; row_limit?: number };
   private version: ViewVersion;
+  private rootEventConditionMaxWindowHours: number =
+    env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
 
   constructor(
     chartConfig?: { bins?: number; row_limit?: number },
@@ -61,6 +63,10 @@ export class QueryBuilder {
   ) {
     this.chartConfig = chartConfig;
     this.version = version;
+  }
+
+  setRootEventConditionMaxWindowHours(hours: number): void {
+    this.rootEventConditionMaxWindowHours = hours;
   }
 
   private translateAggregation(metric: AppliedMetricType): string {
@@ -1353,7 +1359,7 @@ export class QueryBuilder {
         new Date(query.toTimestamp).getTime() -
         new Date(query.fromTimestamp).getTime();
       const windowHours = windowMs / (1000 * 60 * 60);
-      const thresholdHours = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
+      const thresholdHours = this.rootEventConditionMaxWindowHours;
 
       if (thresholdHours === 0 || windowHours <= thresholdHours) {
         // Falls back gracefully: if no root events exist in the window at all
