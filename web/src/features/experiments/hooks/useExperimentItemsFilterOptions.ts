@@ -30,6 +30,8 @@ export const useExperimentItemsFilterOptions = ({
         obs_score_categories: undefined,
         trace_scores_avg: undefined,
         trace_score_categories: undefined,
+        run_scores_avg: undefined,
+        run_score_categories: undefined,
       };
     }
 
@@ -52,6 +54,10 @@ export const useExperimentItemsFilterOptions = ({
       trace_scores_avg: filterOptions.data.trace_scores_avg,
       trace_score_categories: processCategoricalScores(
         filterOptions.data.trace_score_categories,
+      ),
+      run_scores_avg: filterOptions.data.run_scores_avg,
+      run_score_categories: processCategoricalScores(
+        filterOptions.data.run_score_categories,
       ),
     };
   }, [filterOptions.data]);

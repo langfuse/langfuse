@@ -846,6 +846,16 @@ const createScoreSpecificDimensions = (
     description: "Identifier of the observation associated with the score.",
     ...(isV2 && { highCardinality: true }),
   },
+  ...(isV2 && {
+    datasetRunId: {
+      sql: `nullIf(${tableAlias}.dataset_run_id, '')`,
+      alias: "datasetRunId",
+      type: "string",
+      description: "Identifier of the dataset run (experiment) for the score.",
+      highCardinality: true,
+      uiHidden: true,
+    },
+  }),
 });
 
 // Shared table relations factory

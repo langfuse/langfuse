@@ -486,6 +486,43 @@ type ScoreFilterOptionsRow = {
 
 const SCORE_FILTER_OPTIONS_LIMIT = 1000;
 
+// Whitelist of score data types to include
+const ALLOWED_SCORE_DATA_TYPES = ["NUMERIC", "CATEGORICAL", "BOOLEAN"] as const;
+
+/**
+ * Build query for experiment-run-level scores (scores with dataset_run_id matching experiment IDs).
+ * These are scores directly attached to the experiment/dataset run, not to traces or observations.
+ */
+const buildExperimentRunScoreFilterOptionsQuery = (params: {
+  projectId: string;
+  experimentIds: string[];
+}): { query: string; params: Record<string, unknown> } => {
+  const { projectId, experimentIds } = params;
+
+  // Simple query on scores table filtering by dataset_run_id
+  const query = `
+    SELECT
+      name AS name,
+      data_type AS data_type,
+      groupUniqArrayIf(string_value, data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS values
+    FROM scores
+    WHERE project_id = {projectId: String}
+      AND dataset_run_id IN ({experimentIds: Array(String)})
+      AND data_type IN ({allowedDataTypes: Array(String)})
+    GROUP BY name, data_type
+    LIMIT ${SCORE_FILTER_OPTIONS_LIMIT}
+  `;
+
+  return {
+    query,
+    params: {
+      projectId,
+      experimentIds,
+      allowedDataTypes: ALLOWED_SCORE_DATA_TYPES,
+    },
+  };
+};
+
 const buildScoreFilterOptionsQuery = (params: {
   projectId: string;
   experimentIds: string[];
@@ -515,6 +552,7 @@ const buildScoreFilterOptionsQuery = (params: {
       : "ON s.project_id = ee.project_id AND s.trace_id = ee.trace_id AND s.observation_id = ee.span_id";
 
   // Compose the full query using CTEQueryBuilder
+  // Excludes CORRECTION scores by whitelisting allowed data types
   const queryBuilder = new CTEQueryBuilder()
     .withCTE("experiment_events", {
       ...experimentEventsCTE,
@@ -523,6 +561,9 @@ const buildScoreFilterOptionsQuery = (params: {
     .withCTE("scores", scoresCTE)
     .from("experiment_events", "ee")
     .innerJoin("scores", "s", joinCondition)
+    .whereRaw(`s.data_type IN ({allowedDataTypes: Array(String)})`, {
+      allowedDataTypes: ALLOWED_SCORE_DATA_TYPES,
+    })
     .select(
       "s.name AS name",
       "s.data_type AS data_type",
@@ -561,6 +602,8 @@ export const getExperimentItemsFilterOptions = async (
   obs_score_categories: Array<{ label: string; values: string[] }>;
   trace_scores_avg: string[];
   trace_score_categories: Array<{ label: string; values: string[] }>;
+  run_scores_avg: string[];
+  run_score_categories: Array<{ label: string; values: string[] }>;
 }> => {
   const { projectId, experimentIds } = props;
 
@@ -570,10 +613,12 @@ export const getExperimentItemsFilterOptions = async (
       obs_score_categories: [],
       trace_scores_avg: [],
       trace_score_categories: [],
+      run_scores_avg: [],
+      run_score_categories: [],
     };
   }
 
-  // Build queries for both levels
+  // Build queries for all three levels
   const traceQuery = buildScoreFilterOptionsQuery({
     projectId,
     experimentIds,
@@ -586,8 +631,13 @@ export const getExperimentItemsFilterOptions = async (
     level: "observation",
   });
 
-  // Run both queries in parallel
-  const [traceResults, obsResults] = await Promise.all([
+  const runQuery = buildExperimentRunScoreFilterOptionsQuery({
+    projectId,
+    experimentIds,
+  });
+
+  // Run all queries in parallel
+  const [traceResults, obsResults, runResults] = await Promise.all([
     queryClickhouse<ScoreFilterOptionsRow>({
       query: traceQuery.query,
       params: traceQuery.params,
@@ -608,17 +658,30 @@ export const getExperimentItemsFilterOptions = async (
         projectId,
       },
     }),
+    queryClickhouse<ScoreFilterOptionsRow>({
+      query: runQuery.query,
+      params: runQuery.params,
+      tags: {
+        feature: "experiments",
+        type: "filter-options",
+        kind: "run-scores",
+        projectId,
+      },
+    }),
   ]);
 
   // Process results to split by data_type
   const traceScores = processScoreFilterOptionsResults(traceResults);
   const obsScores = processScoreFilterOptionsResults(obsResults);
+  const runScores = processScoreFilterOptionsResults(runResults);
 
   return {
     obs_scores_avg: obsScores.numeric,
     obs_score_categories: obsScores.categorical,
     trace_scores_avg: traceScores.numeric,
     trace_score_categories: traceScores.categorical,
+    run_scores_avg: runScores.numeric,
+    run_score_categories: runScores.categorical,
   };
 };
 
