@@ -1,9 +1,6 @@
 import { randomUUID } from "crypto";
-import {
-  QueryBuilder,
-  executeQuery,
-  type QueryType,
-} from "@langfuse/shared/query";
+import { QueryBuilder, executeQuery } from "@langfuse/shared/query/server";
+import { type QueryType } from "@langfuse/shared/query";
 import { InvalidRequestError } from "@langfuse/shared";
 
 /**

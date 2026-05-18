@@ -1,6 +1,5 @@
+import { QueryBuilder, executeQuery } from "@langfuse/shared/query/server";
 import {
-  QueryBuilder,
-  executeQuery,
   getValidAggregationsForMeasureType,
   metricAggregations,
   validateQuery,
