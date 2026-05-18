@@ -1,4 +1,13 @@
-import { expect, it, describe, beforeAll, beforeEach, afterEach } from "vitest";
+import {
+  expect,
+  it,
+  describe,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  afterAll,
+} from "vitest";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { env } from "../env";
 import { randomUUID } from "crypto";
 import {
@@ -42,6 +51,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   let storageService: StorageService;
   let s3StorageService: StorageService;
   let s3Prefix: string | null = null;
+  let originalSharedCloudRegion: typeof sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const bucketName = env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET || "";
   const accessKeyId = env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID || "";
   const secretAccessKey = env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY || "";
@@ -52,6 +62,12 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   const minioEndpoint = "http://localhost:9090";
 
   beforeAll(async () => {
+    // These tests exercise self-hosted blob exports against local MinIO/Azurite
+    // endpoints. CI may set a Cloud region globally, which would reject those
+    // HTTP test endpoints before the export behavior under test can run.
+    originalSharedCloudRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
     storageService = StorageServiceFactory.getInstance({
       accessKeyId,
       secretAccessKey,
@@ -69,6 +85,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       forcePathStyle: true,
       useAzureBlob: false,
     });
+  });
+
+  afterAll(() => {
+    sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalSharedCloudRegion;
   });
 
   afterEach(async () => {
