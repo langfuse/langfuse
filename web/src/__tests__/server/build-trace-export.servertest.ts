@@ -13,6 +13,7 @@ const {
   mockGetObservationsForTraceFromEventsTable,
   mockGetScoresAndCorrectionsForTraces,
   mockTraceSessionFindFirst,
+  mockProjectFindFirst,
   mockSendAdminAccessWebhook,
 } = vi.hoisted(() => ({
   mockGetTraceById: vi.fn(),
@@ -20,6 +21,7 @@ const {
   mockGetObservationsForTraceFromEventsTable: vi.fn(),
   mockGetScoresAndCorrectionsForTraces: vi.fn(),
   mockTraceSessionFindFirst: vi.fn(),
+  mockProjectFindFirst: vi.fn(),
   mockSendAdminAccessWebhook: vi.fn(),
 }));
 
@@ -38,6 +40,9 @@ vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
     traceSession: {
       findFirst: (...args: unknown[]) => mockTraceSessionFindFirst(...args),
+    },
+    project: {
+      findFirst: (...args: unknown[]) => mockProjectFindFirst(...args),
     },
   },
 }));
@@ -172,6 +177,7 @@ describe("buildTraceExport", () => {
     });
     mockGetScoresAndCorrectionsForTraces.mockResolvedValue([makeScore()]);
     mockTraceSessionFindFirst.mockResolvedValue(null);
+    mockProjectFindFirst.mockResolvedValue({ orgId: "org-1" });
   });
 
   afterAll(() => {
@@ -442,6 +448,7 @@ describe("buildTraceExport", () => {
     expect(mockSendAdminAccessWebhook).toHaveBeenCalledWith({
       email: "test@example.com",
       projectId,
+      orgId: "org-1",
     });
   });
 });

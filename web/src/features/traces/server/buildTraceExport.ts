@@ -142,9 +142,15 @@ async function getAuthorizedTrace(params: {
   }
 
   if (isAdmin) {
+    const dbProject = await prisma.project.findFirst({
+      where: { id: projectId, deletedAt: null },
+      select: { orgId: true },
+    });
+
     await sendAdminAccessWebhook({
       email: session.user.email,
       projectId,
+      orgId: dbProject?.orgId,
     });
   }
 
