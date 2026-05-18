@@ -1153,14 +1153,14 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "experimentName",
       type: "string",
       description: "Name of the experiment this observation belongs to.",
-      // highCardinality: true,
+      highCardinality: true,
     },
     experimentDatasetId: {
       sql: "nullIf(events_observations.experiment_dataset_id, '')",
       alias: "experimentDatasetId",
       type: "string",
       description: "Dataset used in the experiment.",
-      // highCardinality: true,
+      highCardinality: true,
     },
     experimentId: {
       sql: "nullIf(events_observations.experiment_id, '')",
