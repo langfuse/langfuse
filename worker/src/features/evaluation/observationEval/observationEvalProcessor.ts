@@ -102,7 +102,11 @@ export async function processObservationEval({
       `Job configuration or template not found for job ${job.id}`,
     );
   }
-  assertLLMAsJudgeEvalTemplate(evalJobConfig.evalTemplate);
+  try {
+    assertLLMAsJudgeEvalTemplate(evalJobConfig.evalTemplate);
+  } catch (e) {
+    throw new UnrecoverableError(e instanceof Error ? e.message : String(e));
+  }
 
   if (!isJobConfigExecutable(evalJobConfig)) {
     logger.debug(

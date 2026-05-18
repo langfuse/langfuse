@@ -281,11 +281,14 @@ export function createMockEvalTemplate(
     projectId: string | null;
     name: string;
     version: number;
-    prompt: string;
+    type: "LLM_AS_JUDGE" | "CODE";
+    prompt: string | null;
     model: string;
     provider: string;
     modelParams: Record<string, unknown>;
-    outputDefinition: Record<string, string>;
+    outputDefinition: Record<string, string> | null;
+    sourceCode: string | null;
+    sourceCodeLanguage: "PYTHON" | "TYPESCRIPT" | null;
     vars: string[];
     createdAt: Date;
     updatedAt: Date;
@@ -296,6 +299,7 @@ export function createMockEvalTemplate(
     projectId: overrides.projectId ?? "test-project-123",
     name: overrides.name ?? "Test Evaluator",
     version: overrides.version ?? 1,
+    type: overrides.type ?? "LLM_AS_JUDGE",
     prompt:
       overrides.prompt ??
       "Evaluate the following output: {{output}}. Score 0-1.",
@@ -306,6 +310,8 @@ export function createMockEvalTemplate(
       score: "A number between 0 and 1",
       reasoning: "Explain your reasoning",
     },
+    sourceCode: overrides.sourceCode ?? null,
+    sourceCodeLanguage: overrides.sourceCodeLanguage ?? null,
     vars: overrides.vars ?? ["output"],
     createdAt: overrides.createdAt ?? new Date(),
     updatedAt: overrides.updatedAt ?? new Date(),
