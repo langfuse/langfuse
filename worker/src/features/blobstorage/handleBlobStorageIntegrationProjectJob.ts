@@ -393,13 +393,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
     return;
   }
 
-  // Preflight the persisted integration endpoint once per job. The
-  // StorageService connection-time validation remains the DNS-rebinding defense
-  // for each SDK connection.
-  if (blobStorageIntegration.endpoint) {
-    await validateBlobStorageEndpoint(blobStorageIntegration.endpoint);
-  }
-
   // Sync between lastSyncAt and now - 30 minutes
   // Cap the export to one frequency period to enable chunked historic exports
   const minTimestamp = await getMinTimestampForExport(
@@ -443,6 +436,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 
   try {
+    // Preflight the persisted integration endpoint once per job inside the
+    // export error path. StorageService connection-time validation remains the
+    // DNS-rebinding defense for each SDK connection.
+    if (blobStorageIntegration.endpoint) {
+      await validateBlobStorageEndpoint(blobStorageIntegration.endpoint);
+    }
+
     // Process the export based on the integration configuration
     // Convert v4 (events table) latency/time_to_first_token from ms to seconds
     // for integrations created on or after 2026-04-01. Before this date, v4 blob

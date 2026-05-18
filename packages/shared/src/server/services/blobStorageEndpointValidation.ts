@@ -43,6 +43,12 @@ export async function validateBlobStorageEndpoint(
     throw new Error("Only HTTP and HTTPS protocols are allowed");
   }
 
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && url.protocol !== "https:") {
+    throw new Error(
+      "Only HTTPS blob storage endpoints are allowed on Langfuse Cloud",
+    );
+  }
+
   try {
     await validateOutboundUrlHost({
       url,
@@ -56,12 +62,6 @@ export async function validateBlobStorageEndpoint(
     const message =
       error instanceof Error ? error.message : "Validation failed";
     throw new Error(`${message}${getSelfHostedWhitelistGuidance()}`);
-  }
-
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && url.protocol !== "https:") {
-    throw new Error(
-      "Only HTTPS blob storage endpoints are allowed on Langfuse Cloud",
-    );
   }
 }
 
