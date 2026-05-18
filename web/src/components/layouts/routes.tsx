@@ -233,7 +233,7 @@ export const ROUTES: Route[] = [
   {
     title: "AI Assistant",
     section: RouteSection.Secondary,
-    pathname: "/project/[projectId]",
+    pathname: "",
     featureFlag: "inAppAgent",
     show: ({ organization }) => organization?.aiFeaturesEnabled === true,
     menuNode: <InAppAiAgentButton />,

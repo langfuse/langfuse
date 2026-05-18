@@ -39,6 +39,7 @@ const getEmptySession = (projectId: string): PersistentInAppAiAgentSession => ({
 });
 
 const NOOP_CONTEXT: InAppAiAgentContextType = {
+  isAvailable: false,
   open: false,
   setOpen: () => undefined,
   isRunning: false,
@@ -50,6 +51,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
 type InAppAiAgentMessage = Extract<AgUiMessage, { role: "user" | "assistant" }>;
 
 type InAppAiAgentContextType = {
+  isAvailable: boolean;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
   isRunning: boolean;
@@ -318,6 +320,7 @@ function InAppAiAgentProviderInner({
 
   const value = useMemo<InAppAiAgentContextType>(
     () => ({
+      isAvailable: true,
       open,
       setOpen,
       isRunning,

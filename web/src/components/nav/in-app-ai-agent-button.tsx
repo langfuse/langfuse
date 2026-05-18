@@ -5,9 +5,13 @@ import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiA
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 
 export const InAppAiAgentButton = () => {
-  const { setOpen } = useInAppAiAgent();
+  const { isAvailable, setOpen } = useInAppAiAgent();
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
+
+  if (!isAvailable) {
+    return null;
+  }
 
   const toggleInAppAiAgent = () => {
     setSupportDrawerOpen(false);
