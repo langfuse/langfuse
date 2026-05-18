@@ -42,50 +42,53 @@ vi.mock("@langfuse/shared/src/server", async () => ({
   },
 }));
 
-vi.mock("@langfuse/shared/src/db", () => ({
-  EvalTemplateType: {
-    LLM_AS_JUDGE: "LLM_AS_JUDGE",
-  },
-  Prisma: {
-    PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {
-      code: string;
-      clientVersion: string;
+vi.mock("@langfuse/shared/src/db", async () => {
+  const { EvalTemplateType } =
+    await vi.importActual<typeof import("@prisma/client")>("@prisma/client");
 
-      constructor(
-        message: string,
-        {
-          code,
-          clientVersion,
-        }: {
-          code: string;
-          clientVersion: string;
-        },
-      ) {
-        super(message);
-        this.code = code;
-        this.clientVersion = clientVersion;
-      }
+  return {
+    EvalTemplateType,
+    Prisma: {
+      PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {
+        code: string;
+        clientVersion: string;
+
+        constructor(
+          message: string,
+          {
+            code,
+            clientVersion,
+          }: {
+            code: string;
+            clientVersion: string;
+          },
+        ) {
+          super(message);
+          this.code = code;
+          this.clientVersion = clientVersion;
+        }
+      },
     },
-  },
-  prisma: {
-    $transaction: vi.fn(),
-    dataset: {
-      findMany: vi.fn(),
+    prisma: {
+      $transaction: vi.fn(),
+      dataset: {
+        findMany: vi.fn(),
+      },
+      jobConfiguration: {
+        findFirst: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+      },
     },
-    jobConfiguration: {
-      findFirst: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-    },
-  },
-}));
+  };
+});
 
 import {
   createNumericEvalOutputDefinition,
   EvalTargetObject,
   JobConfigState,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import {
   createPublicEvaluationRule,
@@ -259,7 +262,7 @@ describe("unstable public eval services", () => {
       where: {
         projectId: "project_123",
         name: "Answer correctness",
-        type: "LLM_AS_JUDGE",
+        type: EvalTemplateType.LLM_AS_JUDGE,
       },
       select: {
         id: true,
@@ -349,7 +352,7 @@ describe("unstable public eval services", () => {
         },
         evalTemplate: {
           is: {
-            type: "LLM_AS_JUDGE",
+            type: EvalTemplateType.LLM_AS_JUDGE,
           },
         },
       },

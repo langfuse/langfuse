@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { JobExecutionStatus, type Prisma } from "@prisma/client";
+import {
+  EvalTemplateType,
+  JobExecutionStatus,
+  type Prisma,
+} from "@prisma/client";
 import { randomUUID } from "crypto";
 import { scheduleObservationEvals } from "../scheduleObservationEvals";
 import { processObservationEval } from "../observationEvalProcessor";
@@ -159,7 +163,7 @@ describe("Observation Eval E2E Pipeline", () => {
         projectId,
         name: "Accuracy Evaluator",
         version: 1,
-        type: "LLM_AS_JUDGE",
+        type: EvalTemplateType.LLM_AS_JUDGE,
         prompt: "Evaluate the accuracy of: {{output}}",
         model: "gpt-4",
         provider: "openai",
@@ -391,7 +395,7 @@ describe("Observation Eval E2E Pipeline", () => {
         projectId,
         name: "Test Eval",
         version: 1,
-        type: "LLM_AS_JUDGE",
+        type: EvalTemplateType.LLM_AS_JUDGE,
         prompt: "Q: {{question}} A: {{answer}}",
         model: "gpt-4",
         provider: "openai",
@@ -494,7 +498,7 @@ describe("Observation Eval E2E Pipeline", () => {
         projectId,
         name: "Test Eval",
         version: 1,
-        type: "LLM_AS_JUDGE",
+        type: EvalTemplateType.LLM_AS_JUDGE,
         prompt: "Compare {{generated}} to {{expected}}",
         model: "gpt-4",
         provider: "openai",

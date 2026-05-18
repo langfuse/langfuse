@@ -1,6 +1,10 @@
 import { vi, type Mock } from "vitest";
 import { randomUUID } from "crypto";
-import { type Prisma } from "@langfuse/shared/src/db";
+import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
+  type Prisma,
+} from "@langfuse/shared/src/db";
 import { type ObservationForEval, EvalTargetObject } from "@langfuse/shared";
 import {
   type ObservationEvalConfig,
@@ -281,14 +285,14 @@ export function createMockEvalTemplate(
     projectId: string | null;
     name: string;
     version: number;
-    type: "LLM_AS_JUDGE" | "CODE";
+    type: EvalTemplateType;
     prompt: string | null;
     model: string;
     provider: string;
     modelParams: Record<string, unknown>;
     outputDefinition: Record<string, string> | null;
     sourceCode: string | null;
-    sourceCodeLanguage: "PYTHON" | "TYPESCRIPT" | null;
+    sourceCodeLanguage: EvalTemplateSourceCodeLanguage | null;
     vars: string[];
     createdAt: Date;
     updatedAt: Date;
@@ -300,7 +304,7 @@ export function createMockEvalTemplate(
       "projectId" in overrides ? overrides.projectId : "test-project-123",
     name: overrides.name ?? "Test Evaluator",
     version: overrides.version ?? 1,
-    type: overrides.type ?? "LLM_AS_JUDGE",
+    type: overrides.type ?? EvalTemplateType.LLM_AS_JUDGE,
     prompt:
       "prompt" in overrides
         ? overrides.prompt
