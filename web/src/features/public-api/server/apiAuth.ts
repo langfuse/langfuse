@@ -197,6 +197,7 @@ export class ApiAuthService {
                 scope: finalApiKey.scope,
                 publicKey,
                 isIngestionSuspended: finalApiKey.isIngestionSuspended,
+                isInAppAgentKey: finalApiKey.isInAppAgentKey,
               },
             };
           }
@@ -236,6 +237,7 @@ export class ApiAuthService {
                 apiKeyId: dbKey.id,
                 scope: dbKey.scope,
                 publicKey,
+                isInAppAgentKey: dbKey.isInAppAgentKey,
                 isIngestionSuspended:
                   cloudFreeTierUsageThresholdState === "BLOCKED",
               },

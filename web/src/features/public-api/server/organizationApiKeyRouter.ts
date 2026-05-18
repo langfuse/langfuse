@@ -27,6 +27,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         where: {
           orgId: input.orgId,
           scope: "ORGANIZATION",
+          isInAppAgentKey: false,
         },
         select: {
           id: true,
