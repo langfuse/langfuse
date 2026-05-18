@@ -3,6 +3,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
+import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server";
 
 describe("organization API keys trpc", () => {
   const organizationId = "seed-org-id";
@@ -119,6 +120,25 @@ describe("organization API keys trpc", () => {
       expect(newKey?.note).toBe("Test API Key");
       expect(newKey?.publicKey).toBe(apiKeyResult.publicKey);
       expect(newKey?.displaySecretKey).toBeDefined();
+    });
+
+    it("filters in-app agent API keys", async () => {
+      const inAppAgentKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: organizationId,
+        scope: "ORGANIZATION",
+        note: "In-app agent key hidden from org UI",
+        isInAppAgentKey: true,
+      });
+
+      const apiKeys = await ownerCaller.organizationApiKeys.byOrganizationId({
+        orgId: organizationId,
+      });
+
+      expect(apiKeys.map((key) => key.id)).not.toContain(inAppAgentKey.id);
+      expect(apiKeys.map((key) => key.note)).not.toContain(
+        "In-app agent key hidden from org UI",
+      );
     });
 
     it("regular member cannot fetch organization API keys", async () => {

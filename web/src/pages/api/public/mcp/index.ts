@@ -122,6 +122,7 @@ export default async function handler(
       apiKeyId: authCheck.scope.apiKeyId,
       accessLevel: "project",
       publicKey: authCheck.scope.publicKey,
+      isInAppAgentKey: authCheck.scope.isInAppAgentKey === true,
     };
 
     logger.info("MCP request authenticated", {

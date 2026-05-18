@@ -59,6 +59,11 @@ export type AuthedProjectAPIRouteConfig<
    * (which receives accessLevel "scores").
    */
   allowedAccessLevels?: RouteAccessLevel[];
+  /**
+   * Whether in-app agent API keys can call this route without additional confirmation. Defaults to false.
+   * Only set this to true on non-mutating (GET) routes that should be callable by the in-app agent.
+   */
+  allowInAppAgentKey?: boolean;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -223,6 +228,7 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
       apiKeyId: "ADMIN_API_KEY", // Special identifier for audit logging
       publicKey: "ADMIN_API_KEY",
       isIngestionSuspended: false,
+      isInAppAgentKey: false,
     },
   };
 }
@@ -298,6 +304,18 @@ export const createAuthedProjectAPIRoute = <
       }
 
       res.status(statusCode).json({ message });
+
+      return;
+    }
+
+    if (
+      routeConfig.allowInAppAgentKey !== true &&
+      auth.scope.isInAppAgentKey === true
+    ) {
+      res.status(403).json({
+        message:
+          "Access denied - in-app agent keys are not allowed for this endpoint",
+      });
 
       return;
     }

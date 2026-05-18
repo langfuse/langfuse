@@ -21,6 +21,7 @@ export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
       name: "Get Observation",
+      allowInAppAgentKey: true,
       querySchema: GetObservationV1Query,
       responseSchema: GetObservationV1Response,
       fn: async ({ query, auth }) => {
