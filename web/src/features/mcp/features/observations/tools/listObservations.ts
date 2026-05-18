@@ -1,9 +1,18 @@
 import { SpanKind } from "@opentelemetry/api";
 import {
   OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS,
+  booleanFilter,
+  eventsTableCols,
+  filterOperators,
+  numberFilter,
   ObservationLevelDomain,
   ObservationTypeDomain,
   singleFilter,
+  stringFilter,
+  stringObjectFilter,
+  stringOptionsFilter,
+  timeFilter,
+  type ColumnDefinition,
 } from "@langfuse/shared";
 import {
   getObservationsV2FromEventsTableForPublicApi,
@@ -31,6 +40,164 @@ const ObservationCursorSchema =
     "Cursor returned by a previous listObservations call",
   );
 
+const OBSERVATION_MCP_FILTER_COLUMN_TYPES = new Map(
+  eventsTableCols
+    .filter((column) =>
+      OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS.has(column.id),
+    )
+    .map((column) => [
+      column.id === "traceTags" ? "tags" : column.id,
+      column.type,
+    ]),
+);
+
+const OBSERVATION_MCP_FILTER_COLUMN_DEFINITIONS = eventsTableCols
+  .filter((column) =>
+    OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS.has(column.id),
+  )
+  .map((column) => ({
+    column: column.id === "traceTags" ? "tags" : column.id,
+    type: column.type,
+  }));
+
+const OBSERVATION_MCP_FILTER_EXAMPLE = {
+  column: "totalCost",
+  operator: ">",
+  value: 0.0029,
+} satisfies Omit<z.infer<typeof numberFilter>, "type">;
+
+const OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE = {
+  type: "number",
+  ...OBSERVATION_MCP_FILTER_EXAMPLE,
+} satisfies z.infer<typeof numberFilter>;
+
+const OBSERVATION_MCP_FILTER_EXAMPLE_JSON = JSON.stringify(
+  OBSERVATION_MCP_FILTER_EXAMPLE,
+);
+
+const OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE_JSON = JSON.stringify(
+  OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE,
+);
+
+const OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE = {
+  datetime: (column: string, requireType = false) =>
+    timeFilter.omit({ type: true, column: true }).extend({
+      type: requireType
+        ? z.literal("datetime")
+        : z.literal("datetime").optional(),
+      column: z.literal(column),
+    }),
+  string: (column: string, requireType = false) =>
+    stringFilter.omit({ type: true, column: true }).extend({
+      type: requireType ? z.literal("string") : z.literal("string").optional(),
+      column: z.literal(column),
+    }),
+  stringOptions: (column: string, requireType = false) =>
+    stringOptionsFilter.omit({ type: true, column: true }).extend({
+      type: requireType
+        ? z.literal("stringOptions")
+        : z.literal("stringOptions").optional(),
+      column: z.literal(column),
+    }),
+  arrayOptions: (column: string, requireType = false) =>
+    z.object({
+      operator: z.enum(filterOperators.arrayOptions),
+      value: z.array(z.string()),
+      type: requireType
+        ? z.literal("arrayOptions")
+        : z.literal("arrayOptions").optional(),
+      column: z.literal(column),
+    }),
+  number: (column: string, requireType = false) =>
+    numberFilter.omit({ type: true, column: true }).extend({
+      type: requireType ? z.literal("number") : z.literal("number").optional(),
+      column: z.literal(column),
+    }),
+  stringObject: (column: string, requireType = false) =>
+    stringObjectFilter.omit({ type: true, column: true }).extend({
+      type: requireType
+        ? z.literal("stringObject")
+        : z.literal("stringObject").optional(),
+      column: z.literal(column),
+    }),
+  boolean: (column: string, requireType = false) =>
+    booleanFilter.omit({ type: true, column: true }).extend({
+      type: requireType
+        ? z.literal("boolean")
+        : z.literal("boolean").optional(),
+      column: z.literal(column),
+    }),
+} satisfies Partial<
+  Record<
+    ColumnDefinition["type"],
+    (column: string, requireType?: boolean) => z.ZodType
+  >
+>;
+
+type ObservationMcpFilterType =
+  keyof typeof OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE;
+
+const isObservationMcpFilterType = (
+  type: string,
+): type is ObservationMcpFilterType =>
+  type in OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE;
+
+const OBSERVATION_MCP_FILTER_SCHEMAS =
+  OBSERVATION_MCP_FILTER_COLUMN_DEFINITIONS.flatMap(({ column, type }) =>
+    isObservationMcpFilterType(type)
+      ? [OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](column)]
+      : [],
+  );
+
+const OBSERVATION_MCP_EXPLICIT_FILTER_SCHEMAS =
+  OBSERVATION_MCP_FILTER_COLUMN_DEFINITIONS.flatMap(({ column }) =>
+    (
+      Object.keys(
+        OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE,
+      ) as ObservationMcpFilterType[]
+    ).map((type) => OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](column, true)),
+  );
+
+const ObservationMcpFilterShapeSchema = z
+  .union([
+    ...OBSERVATION_MCP_FILTER_SCHEMAS,
+    ...OBSERVATION_MCP_EXPLICIT_FILTER_SCHEMAS,
+  ] as [
+    (typeof OBSERVATION_MCP_FILTER_SCHEMAS)[number],
+    (typeof OBSERVATION_MCP_FILTER_SCHEMAS)[number],
+    ...(
+      | (typeof OBSERVATION_MCP_FILTER_SCHEMAS)[number]
+      | (typeof OBSERVATION_MCP_EXPLICIT_FILTER_SCHEMAS)[number]
+    )[],
+  ])
+  .describe(
+    `Advanced observation filter object. Example: ${OBSERVATION_MCP_FILTER_EXAMPLE_JSON}. The explicit form ${OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE_JSON} is also accepted.`,
+  );
+
+const ObservationMcpFilterSchema = z
+  .object({ column: z.string() })
+  .loose()
+  .superRefine((filter, ctx) => {
+    if (!OBSERVATION_MCP_FILTER_COLUMN_TYPES.has(filter.column)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["column"],
+        message: `Invalid observation filter column "${filter.column}". Call getObservationFilterSchema for accepted columns.`,
+      });
+    }
+  })
+  .pipe(ObservationMcpFilterShapeSchema)
+  .transform((filter) => {
+    const type =
+      filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
+
+    return singleFilter.parse(
+      filter.column === "tags"
+        ? { ...filter, type, column: "traceTags" }
+        : { ...filter, type },
+    );
+  });
+
 const ListObservationsBaseSchema = z.object({
   fields: ObservationFieldsSchema,
   expandMetadataKeys: ExpandMetadataKeysSchema,
@@ -47,27 +214,23 @@ const ListObservationsBaseSchema = z.object({
   fromStartTime: z.iso.datetime({ offset: true }).optional(),
   toStartTime: z.iso.datetime({ offset: true }).optional(),
   filter: z
-    .array(singleFilter)
+    .array(ObservationMcpFilterShapeSchema)
     .optional()
-    .superRefine((filters, ctx) => {
-      if (!filters) return;
-
-      filters.forEach((filter, index) => {
-        if (filter.column === "tags") return;
-        if (filter.column !== "traceTags") {
-          for (const allowedColumn of OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS) {
-            if (allowedColumn === filter.column) return;
-          }
-        }
-
-        ctx.addIssue({
-          code: "custom",
-          path: [index, "column"],
-          message: `Invalid observation filter column "${filter.column}". Call getObservationFilterSchema for accepted columns.`,
-        });
-      });
-    }),
+    .describe(
+      "Advanced filters. Each item must be an object with column, operator, value, and optional type. Type is inferred from getObservationFilterSchema columns when omitted.",
+    ),
 });
+
+const ListObservationsInputSchema = ListObservationsBaseSchema.extend({
+  filter: z
+    .array(ObservationMcpFilterSchema)
+    .optional()
+    .describe(
+      "Advanced filters. Each item must be an object with column, operator, value, and optional type. Type is inferred from getObservationFilterSchema columns when omitted.",
+    ),
+});
+
+type ListObservationsInput = z.infer<typeof ListObservationsInputSchema>;
 
 export const [listObservationsTool, handleListObservations] = defineTool({
   name: "listObservations",
@@ -77,8 +240,8 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     "",
     'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
   ].join("\n"),
-  baseSchema: ListObservationsBaseSchema,
-  inputSchema: ListObservationsBaseSchema,
+  baseSchema: ListObservationsBaseSchema as z.ZodType<ListObservationsInput>,
+  inputSchema: ListObservationsInputSchema,
   handler: async (input, context) => {
     return await instrumentAsync(
       { name: "mcp.observations.list", spanKind: SpanKind.INTERNAL },
@@ -95,12 +258,6 @@ export const [listObservationsTool, handleListObservations] = defineTool({
           "mcp.field_groups": fieldGroups.join(","),
         });
 
-        const advancedFilters = input.filter?.map((filter) =>
-          filter.column === "tags"
-            ? { ...filter, column: "traceTags" }
-            : filter,
-        );
-
         const items = await getObservationsV2FromEventsTableForPublicApi({
           projectId: context.projectId,
           page: 0,
@@ -115,7 +272,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
           fromStartTime: input.fromStartTime,
           toStartTime: input.toStartTime,
           version: input.version,
-          advancedFilters,
+          advancedFilters: input.filter,
           cursor: input.cursor
             ? EncodedObservationsCursorV2.parse(input.cursor)
             : undefined,

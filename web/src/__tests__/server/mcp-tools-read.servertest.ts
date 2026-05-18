@@ -78,6 +78,7 @@ const createObservationEvent = (params: {
   tags?: string[];
   userId?: string;
   sessionId?: string;
+  totalCost?: number;
 }) => {
   const observationId = params.observationId ?? randomUUID();
   const startTime = params.startTime ?? new Date();
@@ -100,6 +101,9 @@ const createObservationEvent = (params: {
     metadata_names: metadataKeys,
     metadata_values: metadataKeys.map((key) => metadata[key]),
     provided_model_name: params.providedModelName ?? "gpt-4o-mini",
+    ...(params.totalCost === undefined
+      ? {}
+      : { cost_details: { total: params.totalCost } }),
     tags: params.tags ?? [],
     user_id: params.userId ?? null,
     session_id: params.sessionId ?? null,
@@ -189,6 +193,61 @@ describe("MCP Read Tools", () => {
   maybeEventsTable("listObservations tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(listObservationsTool, { readOnlyHint: true });
+    });
+
+    it("should expose object-shaped advanced filters in the tool schema", () => {
+      const filterSchema = listObservationsTool.inputSchema.properties
+        .filter as
+        | {
+            type?: string;
+            items?: {
+              anyOf?: Array<{
+                type?: string;
+                properties?: Record<
+                  string,
+                  {
+                    const?: unknown;
+                    enum?: unknown[];
+                    type?: string;
+                  }
+                >;
+                required?: string[];
+              }>;
+              oneOf?: Array<{
+                type?: string;
+                properties?: Record<
+                  string,
+                  {
+                    const?: unknown;
+                    enum?: unknown[];
+                    type?: string;
+                  }
+                >;
+                required?: string[];
+              }>;
+            };
+          }
+        | undefined;
+
+      expect(filterSchema?.type).toBe("array");
+      const filterVariants =
+        filterSchema?.items?.anyOf ?? filterSchema?.items?.oneOf;
+      const totalCostSchema = filterVariants?.find(
+        (schema) =>
+          schema.properties?.column?.const === "totalCost" ||
+          schema.properties?.column?.enum?.includes("totalCost"),
+      );
+
+      expect(totalCostSchema?.type).toBe("object");
+      expect(totalCostSchema?.required).toEqual(
+        expect.arrayContaining(["column", "operator", "value"]),
+      );
+      expect(totalCostSchema?.required).not.toContain("type");
+      expect(totalCostSchema?.properties?.type?.const).toBe("number");
+      expect(totalCostSchema?.properties?.operator?.enum).toEqual(
+        expect.arrayContaining([">", "<", ">=", "<="]),
+      );
+      expect(totalCostSchema?.properties?.value?.type).toBe("number");
     });
 
     it("should list observations with compact default projection", async () => {
@@ -325,6 +384,43 @@ describe("MCP Read Tools", () => {
 
       expect(result.data).toEqual([
         { name: matchingName, id: expect.any(String) },
+      ]);
+    });
+
+    it("should infer advanced filter type from the column", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const matchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-filter-infer-match-${nanoid()}`,
+        totalCost: 0.003,
+      });
+
+      await createEventsCh([
+        matchingObservation,
+        createObservationEvent({
+          projectId,
+          traceId,
+          name: `mcp-filter-infer-miss-${nanoid()}`,
+          totalCost: 0.001,
+        }),
+      ]);
+
+      const result = (await handleListObservations(
+        {
+          traceId,
+          filter: [
+            { column: "totalCost", operator: ">", value: 0.0029 } as any,
+          ],
+          fields: ["id", "name"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string; name: string }> };
+
+      expect(result.data).toEqual([
+        { id: matchingObservation.id, name: matchingObservation.name },
       ]);
     });
 
@@ -667,7 +763,7 @@ describe("MCP Read Tools", () => {
 
       await expect(
         handleGetObservationFilterValues(
-          { column: "input", limit: 100 },
+          { column: "input", limit: 100 } as any,
           context,
         ),
       ).rejects.toThrow(/validation failed/i);
