@@ -28,6 +28,7 @@ export const projectApiKeysRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
           scope: "PROJECT",
+          isInAppAgentKey: false,
         },
         select: {
           id: true,
