@@ -53,4 +53,10 @@ CREATE INDEX "monitors_scheduler_batch_id_idx" ON "monitors"("scheduler_batch_id
 CREATE INDEX "monitors_scheduler_tick_idx" ON "monitors"("next_run_at", "scheduler_batch_id");
 
 -- AddForeignKey
+ALTER TABLE "monitors" ADD CONSTRAINT "monitors_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "monitors" ADD CONSTRAINT "monitors_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "monitors" ADD CONSTRAINT "monitors_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
