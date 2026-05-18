@@ -19,6 +19,16 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { validateOrderBy, validateFilters } from "../validation";
 import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
 
+function firstRouterQueryString(
+  value: string | string[] | undefined,
+): string | undefined {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && value.length > 0 && typeof value[0] === "string") {
+    return value[0];
+  }
+  return undefined;
+}
+
 interface TableStateUpdaters {
   setColumnOrder: (columnOrder: string[]) => void;
   setColumnVisibility: (columnVisibility: VisibilityState) => void;
@@ -161,6 +171,18 @@ export function useTableViewManager({
       return;
     }
 
+    // URL `filter` is the shareable source of truth for sidebar filters. If it
+    // is present without a `viewId`, do not bootstrap a saved view from
+    // session/default — that would call setFilters and overwrite the URL
+    // filters (e.g. opening a copied link in a new tab while session still holds
+    // a last-used viewId).
+    const explicitFilterQuery = firstRouterQueryString(router.query.filter);
+    if (explicitFilterQuery && explicitFilterQuery.length > 0 && !selectedViewId) {
+      setIsInitialized(true);
+      setIsLoading(false);
+      return;
+    }
+
     // Priority 1: Session storage (from a previous visit to this table)
     if (
       storedViewId &&
@@ -198,6 +220,7 @@ export function useTableViewManager({
     handleSetViewId,
     setStoredViewId,
     setSelectedViewId,
+    router.query.filter,
   ]);
 
   // Method to apply state from a view
