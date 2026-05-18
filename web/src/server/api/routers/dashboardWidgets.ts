@@ -17,7 +17,6 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   views,
-  metricAggregations,
   getValidAggregationsForMeasureType,
 } from "@/src/features/query";
 import { getViewDeclaration } from "@/src/features/query/dataModel";
@@ -83,10 +82,6 @@ const reverseViewMapping: Record<
   [DashboardWidgetViews.SCORES_NUMERIC]: "scores-numeric",
   [DashboardWidgetViews.SCORES_CATEGORICAL]: "scores-categorical",
 };
-
-const clientMetricSchema = MetricSchema.extend({
-  agg: metricAggregations,
-});
 
 function validateMetricAggregations(params: {
   view: string;
@@ -216,9 +211,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
       return {
         ...widget,
         view: reverseViewMapping[widget.view],
-        metrics: widget.metrics.map((metric) =>
-          clientMetricSchema.parse(metric),
-        ),
+        metrics: widget.metrics,
         owner: widget.owner,
       };
     }),

@@ -393,6 +393,17 @@ export function toImportedWidgetFormSnapshot(
   };
 }
 
+function normalizeImportedWidgetVersion(widget: WidgetImport): WidgetImport {
+  if (widget.view !== "traces") {
+    return widget;
+  }
+
+  return {
+    ...widget,
+    minVersion: 1,
+  };
+}
+
 export async function importWidgetFile(params: {
   file: File;
   optionSets: WidgetImportOptionSets;
@@ -414,20 +425,21 @@ export async function importWidgetFile(params: {
     allowedValuesByColumn,
   });
 
-  const importedMinVersion = importedWidget.minVersion ?? 1;
+  const normalizedWidget = normalizeImportedWidgetVersion(importedWidget);
+  const importedMinVersion = normalizedWidget.minVersion ?? 1;
   const importedViewVersion: ViewVersion =
-    (params.isBetaEnabled && importedWidget.view !== "traces") ||
+    (params.isBetaEnabled && normalizedWidget.view !== "traces") ||
     importedMinVersion >= 2
       ? "v2"
       : "v1";
 
   validateImportedWidget({
-    widget: importedWidget,
+    widget: normalizedWidget,
     importedViewVersion,
   });
 
   return {
-    snapshot: toImportedWidgetFormSnapshot(importedWidget),
+    snapshot: toImportedWidgetFormSnapshot(normalizedWidget),
     removedValues,
     removedFilters,
   };

@@ -1,5 +1,6 @@
 import {
   buildWidgetImportAllowedValues,
+  importWidgetFile,
   parseAndNormalizeImportedWidget,
 } from "./import-export-utils";
 
@@ -98,5 +99,25 @@ describe("parseAndNormalizeImportedWidget", () => {
     expect(result.widget.filters).toEqual([]);
     expect(result.removedValues).toBe(true);
     expect(result.removedFilters).toBe(false);
+  });
+
+  it("normalizes imported traces widgets with minVersion 2 back to v1", async () => {
+    const result = await importWidgetFile({
+      file: {
+        text: async () =>
+          JSON.stringify({
+            ...baseWidget,
+            filters: [],
+            minVersion: 2,
+          }),
+      } as File,
+      optionSets: {
+        observationLevels: [],
+      },
+      isBetaEnabled: true,
+    });
+
+    expect(result.snapshot.selectedView).toBe("traces");
+    expect(result.snapshot.widgetMinVersion).toBe(1);
   });
 });
