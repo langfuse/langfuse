@@ -39,6 +39,7 @@ export async function fetchObservationEvalConfigs(
       },
       status: JobConfigState.ACTIVE,
       blockedAt: null,
+      evalTemplateId: { not: null },
     },
     select: {
       id: true,
@@ -51,6 +52,11 @@ export async function fetchObservationEvalConfigs(
       blockedAt: true,
       targetObject: true,
       variableMapping: true,
+      evalTemplate: {
+        select: {
+          type: true,
+        },
+      },
     },
   });
 
@@ -68,5 +74,8 @@ export async function fetchObservationEvalConfigs(
     `Found ${configs.length} observation eval configs for project ${projectId}`,
   );
 
-  return configs;
+  return configs.map((config) => ({
+    ...config,
+    evalTemplate: config.evalTemplate!,
+  }));
 }

@@ -144,6 +144,7 @@ async function processMatchingConfig(
     projectId: observation.project_id,
     observationS3Path,
     delay: 0,
+    evalTemplateType: matchingConfig.evalTemplate.type,
   });
 
   logger.debug("Scheduled observation eval job", {

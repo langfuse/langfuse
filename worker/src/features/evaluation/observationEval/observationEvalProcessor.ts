@@ -1,20 +1,31 @@
 import { z } from "zod";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
-  LLMAsJudgeExecutionEventSchema,
+  ObservationEvalExecutionEventSchema,
   logger,
 } from "@langfuse/shared/src/server";
 import {
-  assertLLMAsJudgeEvalTemplate,
   observationForEvalSchema,
   observationVariableMappingList,
   isJobConfigExecutable,
+  type EvalTemplate,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
+import { type JobConfiguration, type JobExecution } from "@prisma/client";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
-import { extractObservationVariables } from "./extractObservationVariables";
-import { executeLLMAsJudgeEvaluation } from "../evalService";
+import {
+  extractObservationVariables,
+  type ExtractedVariable,
+} from "./extractObservationVariables";
+import {
+  completeEvalExecution,
+  type EvalExecutionResult,
+} from "../evalCompletion";
+import {
+  createProductionEvalExecutionDeps,
+  type EvalExecutionDeps,
+} from "../evalExecutionDeps";
 import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationForEval } from "./types";
 
@@ -22,8 +33,32 @@ import { type ObservationForEval } from "./types";
  * Dependencies for processing observation evals.
  * Allows S3 operations to be injected for testability.
  */
+export type ObservationEvalExecutionBaseParams = {
+  projectId: string;
+  jobExecutionId: string;
+  job: JobExecution;
+  config: JobConfiguration;
+  extractedVariables: ExtractedVariable[];
+  environment: string;
+  deps: EvalExecutionDeps;
+};
+
+export type ObservationEvalExecutionParams<TTemplate extends EvalTemplate> =
+  ObservationEvalExecutionBaseParams & {
+    template: TTemplate;
+  };
+
+export type ObservationEvalExecutor<TTemplate extends EvalTemplate> = (
+  params: ObservationEvalExecutionParams<TTemplate>,
+) => Promise<EvalExecutionResult>;
+
+export type ObservationEvalTemplateValidator<TTemplate extends EvalTemplate> = (
+  template: EvalTemplate,
+) => TTemplate;
+
 export interface ObservationEvalProcessorDeps {
   downloadObservationFromS3: (path: string) => Promise<string>;
+  evalExecutionDeps: EvalExecutionDeps;
 }
 
 /**
@@ -36,25 +71,31 @@ export function createObservationEvalProcessorDeps(): ObservationEvalProcessorDe
 
       return s3Client.download(path);
     },
+    evalExecutionDeps: createProductionEvalExecutionDeps(),
   };
 }
 
 /**
- * Processes an observation-level LLM-as-a-judge evaluation job.
+ * Processes an observation-level evaluation job.
  *
  * This function:
  * 1. Fetches and validates job execution, config, and template
  * 2. Downloads observation data from S3 (stored during scheduling)
  * 3. Extracts variables from the observation
- * 4. Calls the shared executeLLMAsJudgeEvaluation() for LLM call and score persistence
+ * 4. Executes the evaluator-specific implementation
+ * 5. Completes the eval execution with shared score persistence
  */
-export async function processObservationEval({
-  event,
-  deps = createObservationEvalProcessorDeps(),
-}: {
-  event: z.infer<typeof LLMAsJudgeExecutionEventSchema>;
+type ProcessObservationEvalParams<TTemplate extends EvalTemplate> = {
+  event: z.infer<typeof ObservationEvalExecutionEventSchema>;
+  validateTemplate: ObservationEvalTemplateValidator<TTemplate>;
+  executor: ObservationEvalExecutor<TTemplate>;
   deps?: ObservationEvalProcessorDeps;
-}): Promise<void> {
+};
+
+export async function processObservationEval<TTemplate extends EvalTemplate>(
+  params: ProcessObservationEvalParams<TTemplate>,
+): Promise<void> {
+  const { event, deps = createObservationEvalProcessorDeps() } = params;
   logger.debug(
     `Processing observation eval job ${event.jobExecutionId} for project ${event.projectId}`,
   );
@@ -122,8 +163,9 @@ export async function processObservationEval({
     return;
   }
 
+  let evalTemplate: TTemplate;
   try {
-    assertLLMAsJudgeEvalTemplate(evalJobConfig.evalTemplate);
+    evalTemplate = params.validateTemplate(evalJobConfig.evalTemplate);
   } catch (e) {
     throw new UnrecoverableError(e instanceof Error ? e.message : String(e));
   }
@@ -172,14 +214,29 @@ export async function processObservationEval({
     `Extracted ${extractedVariables.length} variables for job ${job.id}`,
   );
 
-  // Execute the shared LLM-as-a-judge evaluation
-  await executeLLMAsJudgeEvaluation({
+  const executionParams = {
     projectId: event.projectId,
     jobExecutionId: event.jobExecutionId,
     job,
     config: evalJobConfig,
-    template: evalJobConfig.evalTemplate,
     extractedVariables,
     environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
+    deps: deps.evalExecutionDeps,
+  };
+
+  const executionResult = await params.executor({
+    ...executionParams,
+    template: evalTemplate,
+  });
+
+  await completeEvalExecution({
+    projectId: executionParams.projectId,
+    jobExecutionId: executionParams.jobExecutionId,
+    traceId: executionParams.job.jobInputTraceId,
+    observationId: executionParams.job.jobInputObservationId,
+    scoreName: executionParams.config.scoreName,
+    environment: executionParams.environment,
+    deps: executionParams.deps,
+    ...executionResult,
   });
 }

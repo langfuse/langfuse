@@ -393,6 +393,7 @@ export const handleBatchActionJob = async (
         where: {
           id: { in: selectedEvaluatorIds },
           projectId,
+          evalTemplateId: { not: null },
           // Preserve the selected evaluators as-is. Executability is checked
           // later when each scheduling attempt runs.
         },
@@ -400,6 +401,11 @@ export const handleBatchActionJob = async (
           id: true,
           projectId: true,
           evalTemplateId: true,
+          evalTemplate: {
+            select: {
+              type: true,
+            },
+          },
           scoreName: true,
           targetObject: true,
           variableMapping: true,
@@ -413,6 +419,7 @@ export const handleBatchActionJob = async (
       // sampling=1 to ensure every streamed observation is evaluated.
       evaluators = rawEvaluators.map((e) => ({
         ...e,
+        evalTemplate: e.evalTemplate!,
         filter: [] as [],
         sampling: new Decimal(1),
       }));

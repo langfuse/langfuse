@@ -1,5 +1,10 @@
 import { Job, Processor } from "bullmq";
-import { JobExecutionStatus } from "@langfuse/shared";
+import {
+  assertLLMAsJudgeEvalTemplate,
+  JobExecutionStatus,
+  type EvalTemplate,
+  type EvalTemplateLlmAsAJudge,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueName,
@@ -13,7 +18,11 @@ import {
   getCurrentSpan,
   isLLMCompletionError,
 } from "@langfuse/shared/src/server";
-import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
+import {
+  createEvalJobs,
+  evaluate,
+  runLLMAsJudgeEvaluation,
+} from "../features/evaluation/evalService";
 import { processObservationEval } from "../features/evaluation/observationEval";
 import { delayInMs } from "./utils/delays";
 import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
@@ -296,7 +305,11 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         );
       }
 
-      await processObservationEval({ event: job.data.payload });
+      await processObservationEval({
+        event: job.data.payload,
+        validateTemplate: validateLLMAsJudgeTemplate,
+        executor: runLLMAsJudgeEvaluation,
+      });
       return true;
     } catch (e) {
       const executionTraceId = createW3CTraceId(
@@ -359,3 +372,10 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
       throw e;
     }
   };
+
+const validateLLMAsJudgeTemplate = (
+  template: EvalTemplate,
+): EvalTemplateLlmAsAJudge => {
+  assertLLMAsJudgeEvalTemplate(template);
+  return template;
+};
