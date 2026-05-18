@@ -14,7 +14,7 @@ import { type WidgetChartConfig } from "@/src/features/widgets/utils";
 
 type MetricAggregation = z.infer<typeof metricAggregations>;
 
-type ExperimentWidgetConfig = {
+export type ExperimentWidgetConfig = {
   // Query fields
   view: z.infer<typeof viewsV2>;
   dimensions: WidgetDimensionConfig[];
@@ -142,5 +142,94 @@ export function createCategoricalExperimentScoreWidgetConfig(params: {
     description:
       params.description ??
       `Categorical score counts for '${params.scoreName}' grouped by experiment`,
+  };
+}
+
+/**
+ * Create widget config for experiment-run-level numeric scores.
+ * These scores are attached directly to the experiment run (dataset_run_id).
+ * Uses datasetRunId as entity dimension since these scores don't go through events.
+ */
+export function createNumericExperimentRunScoreWidgetConfig(params: {
+  scoreName: string;
+  schedulerId?: string;
+  name?: string;
+  description?: string;
+}): ExperimentWidgetConfig {
+  return {
+    view: "scores-numeric",
+    dimensions: [],
+    metrics: [{ measure: "value", agg: "avg", aggregation: "avg" }],
+    timeDimension: null,
+    entityDimension: { field: "datasetRunId" },
+    orderBy: [{ field: "entity_dimension", direction: "asc" }],
+    filters: [
+      {
+        column: "name",
+        operator: "=",
+        value: params.scoreName,
+        type: "string",
+      },
+      {
+        column: "datasetRunId",
+        operator: "is not null",
+        value: "",
+        type: "null",
+      },
+    ],
+    version: "v2",
+    chartType: "LINE_TIME_SERIES",
+    chartConfig: { type: "LINE_TIME_SERIES" },
+    schedulerId:
+      params.schedulerId ?? `experiments:run-score-numeric:${params.scoreName}`,
+    name: params.name ?? `Run: ${params.scoreName}`,
+    description:
+      params.description ??
+      `Average experiment-run score '${params.scoreName}' grouped by experiment`,
+  };
+}
+
+/**
+ * Create widget config for experiment-run-level categorical scores.
+ * These scores are attached directly to the experiment run (dataset_run_id).
+ * Uses datasetRunId as entity dimension since these scores don't go through events.
+ */
+export function createCategoricalExperimentRunScoreWidgetConfig(params: {
+  scoreName: string;
+  schedulerId?: string;
+  name?: string;
+  description?: string;
+}): ExperimentWidgetConfig {
+  return {
+    view: "scores-categorical",
+    dimensions: [{ field: "stringValue" }],
+    metrics: [{ measure: "count", agg: "count", aggregation: "count" }],
+    timeDimension: null,
+    entityDimension: { field: "datasetRunId" },
+    orderBy: [{ field: "entity_dimension", direction: "asc" }],
+    filters: [
+      {
+        column: "name",
+        operator: "=",
+        value: params.scoreName,
+        type: "string",
+      },
+      {
+        column: "datasetRunId",
+        operator: "is not null",
+        value: "",
+        type: "null",
+      },
+    ],
+    version: "v2",
+    chartType: "BAR_TIME_SERIES",
+    chartConfig: { type: "BAR_TIME_SERIES" },
+    schedulerId:
+      params.schedulerId ??
+      `experiments:run-score-categorical:${params.scoreName}`,
+    name: params.name ?? `Run: ${params.scoreName}`,
+    description:
+      params.description ??
+      `Categorical experiment-run score counts for '${params.scoreName}' grouped by experiment`,
   };
 }
