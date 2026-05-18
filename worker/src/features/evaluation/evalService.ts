@@ -1101,7 +1101,11 @@ export const evaluate = async ({
       `Evaluation template ${config.evalTemplateId} not found`,
     );
   }
-  assertLLMAsJudgeEvalTemplate(template);
+  try {
+    assertLLMAsJudgeEvalTemplate(template);
+  } catch (e) {
+    throw new UnrecoverableError(e instanceof Error ? e.message : String(e));
+  }
 
   // Extract variables from tracing data
   const parsedVariableMapping = variableMappingList.parse(
