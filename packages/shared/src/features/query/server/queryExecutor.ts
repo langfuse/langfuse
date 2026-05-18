@@ -1,7 +1,3 @@
-// Import from source modules (not ../../../server barrel) to keep the
-// dependency direction explicit: features/query/server -> server/*, never
-// back through server/index.ts. Avoids a circular barrel that would silently
-// return `undefined` for any symbol added below the re-exports in server/index.ts.
 import {
   queryClickhouse,
   type ClickhouseQueryOpts,

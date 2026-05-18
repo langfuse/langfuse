@@ -1,9 +1,5 @@
 import { randomUUID } from "crypto";
 import { type z } from "zod";
-// Import from source modules (not ../../../server barrel) to keep the
-// dependency direction explicit: features/query/server -> server/*, never
-// back through server/index.ts. Avoids a circular barrel that would silently
-// return `undefined` for any symbol added below the re-exports in server/index.ts.
 import { convertDateToClickhouseDateTime } from "../../../server/clickhouse/client";
 import { shouldSkipObservationsFinal } from "../../../server/queries/clickhouse-sql/query-options";
 import {
