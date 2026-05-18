@@ -9,6 +9,7 @@ import {
   BracesIcon,
   MessageCircleMoreIcon,
   ExternalLinkIcon,
+  ListTreeIcon,
 } from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import Link from "next/link";
@@ -46,6 +47,13 @@ const hasMetadata = (
   }
 };
 
+const TRACE_LEVEL_SCORE_TITLE =
+  "This score is attached to the trace, not the observation.";
+
+const isTraceLevelScore = (
+  score: WithStringifiedMetadata<ScoreDomain> | LastUserScore,
+) => Boolean(score.traceId) && score.observationId == null;
+
 const ScoreGroupBadge = <
   T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
 >({
@@ -53,11 +61,13 @@ const ScoreGroupBadge = <
   scores,
   compact,
   badgeClassName,
+  showTraceLevelIcon,
 }: {
   name: string;
   scores: T[];
   compact?: boolean;
   badgeClassName?: string;
+  showTraceLevelIcon?: boolean;
 }) => {
   const projectId = useProjectIdFromURL();
 
@@ -74,49 +84,57 @@ const ScoreGroupBadge = <
         {name}:
       </div>
       <div className="flex min-w-0 items-center gap-1 text-nowrap">
-        {scores.map((s, i) => (
-          <span
-            key={i}
-            className="group/score ml-1 flex min-w-0 items-center gap-1 rounded-sm first:ml-0"
-          >
-            <span className="truncate">
-              {s.stringValue ?? s.value?.toFixed(2) ?? ""}
+        {scores.map((s, i) => {
+          const isTraceLevel = showTraceLevelIcon && isTraceLevelScore(s);
+
+          return (
+            <span
+              key={i}
+              title={isTraceLevel ? TRACE_LEVEL_SCORE_TITLE : undefined}
+              className="group/score ml-1 flex min-w-0 items-center gap-1 rounded-sm first:ml-0"
+            >
+              {isTraceLevel && (
+                <ListTreeIcon className="text-dark-green mb-0.25 size-3! shrink-0" />
+              )}
+              <span className="truncate">
+                {s.stringValue ?? s.value?.toFixed(2) ?? ""}
+              </span>
+              {s.comment && (
+                <HoverCard>
+                  <HoverCardTrigger className="inline-block shrink-0">
+                    <MessageCircleMoreIcon className="mb-0.25 size-3!" />
+                  </HoverCardTrigger>
+                  <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
+                    <p className="whitespace-pre-wrap">{s.comment}</p>
+                    {"executionTraceId" in s &&
+                      s.executionTraceId &&
+                      projectId && (
+                        <Link
+                          href={`/project/${projectId}/traces/${encodeURIComponent(s.executionTraceId)}`}
+                          className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+                          target="_blank"
+                        >
+                          <ExternalLinkIcon className="h-3 w-3" />
+                          View execution trace
+                        </Link>
+                      )}
+                  </HoverCardContent>
+                </HoverCard>
+              )}
+              {hasMetadata(s) && (
+                <HoverCard>
+                  <HoverCardTrigger className="inline-block shrink-0">
+                    <BracesIcon className="mb-0.25 size-3!" />
+                  </HoverCardTrigger>
+                  <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
+                    <JSONView codeClassName="rounded-md!" json={s.metadata} />
+                  </HoverCardContent>
+                </HoverCard>
+              )}
+              <span className="group-last/score:hidden">,</span>
             </span>
-            {s.comment && (
-              <HoverCard>
-                <HoverCardTrigger className="inline-block shrink-0">
-                  <MessageCircleMoreIcon className="mb-0.25 size-3!" />
-                </HoverCardTrigger>
-                <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
-                  <p className="whitespace-pre-wrap">{s.comment}</p>
-                  {"executionTraceId" in s &&
-                    s.executionTraceId &&
-                    projectId && (
-                      <Link
-                        href={`/project/${projectId}/traces/${encodeURIComponent(s.executionTraceId)}`}
-                        className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
-                        target="_blank"
-                      >
-                        <ExternalLinkIcon className="h-3 w-3" />
-                        View execution trace
-                      </Link>
-                    )}
-                </HoverCardContent>
-              </HoverCard>
-            )}
-            {hasMetadata(s) && (
-              <HoverCard>
-                <HoverCardTrigger className="inline-block shrink-0">
-                  <BracesIcon className="mb-0.25 size-3!" />
-                </HoverCardTrigger>
-                <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
-                  <JSONView codeClassName="rounded-md!" json={s.metadata} />
-                </HoverCardContent>
-              </HoverCard>
-            )}
-            <span className="group-last/score:hidden">,</span>
-          </span>
-        ))}
+          );
+        })}
       </div>
     </Badge>
   );
@@ -129,11 +147,13 @@ export const GroupedScoreBadges = <
   maxVisible,
   compact,
   badgeClassName,
+  showTraceLevelIcon,
 }: {
   scores: T[];
   maxVisible?: number;
   compact?: boolean;
   badgeClassName?: string;
+  showTraceLevelIcon?: boolean;
 }) => {
   const groupedScores = scores.reduce<Record<string, T[]>>((acc, score) => {
     if (!acc[score.name] || !Array.isArray(acc[score.name])) {
@@ -158,6 +178,7 @@ export const GroupedScoreBadges = <
           scores={scores}
           compact={compact}
           badgeClassName={badgeClassName}
+          showTraceLevelIcon={showTraceLevelIcon}
         />
       ))}
       {Boolean(hiddenScores.length) && (
@@ -179,6 +200,7 @@ export const GroupedScoreBadges = <
                   scores={scores}
                   compact={compact}
                   badgeClassName={badgeClassName}
+                  showTraceLevelIcon={showTraceLevelIcon}
                 />
               ))}
             </div>
