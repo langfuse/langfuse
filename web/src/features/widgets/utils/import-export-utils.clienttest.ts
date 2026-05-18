@@ -101,6 +101,34 @@ describe("parseAndNormalizeImportedWidget", () => {
     expect(result.removedFilters).toBe(false);
   });
 
+  it("marks unsupported cross-view filters as removed", () => {
+    const result = parseAndNormalizeImportedWidget({
+      parsedJson: {
+        ...baseWidget,
+        filters: [
+          {
+            column: "level",
+            operator: "any of",
+            value: ["ERROR"],
+            type: "stringOptions",
+          },
+        ],
+      },
+      allowedValuesByColumn: buildWidgetImportAllowedValues(
+        {
+          observationLevels: [],
+        },
+        {
+          ...baseWidget,
+          filters: [],
+        },
+      ),
+    });
+
+    expect(result.widget.filters).toEqual([]);
+    expect(result.removedFilters).toBe(true);
+  });
+
   it("normalizes imported traces widgets with minVersion 2 back to v1", async () => {
     const result = await importWidgetFile({
       file: {

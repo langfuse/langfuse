@@ -3,8 +3,8 @@ import { views, metricAggregations } from "@/src/features/query/types";
 import {
   getWidgetImportFilterConfig,
   getValidAggregationsForMeasureType,
-  mapLegacyUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
+  partitionStoredUiTableFiltersToView,
   type ViewVersion,
 } from "@/src/features/query";
 import { viewDeclarations } from "@/src/features/query/dataModel";
@@ -203,10 +203,12 @@ export function normalizeImportedFilters(params: {
   let removedValues = false;
   let removedFilters = false;
 
-  const normalizedLegacyFilters = mapLegacyUiTableFilterToView(
-    params.view,
-    params.filters,
-  );
+  const { mappedFilters: normalizedLegacyFilters, unsupportedFilters } =
+    partitionStoredUiTableFiltersToView(params.view, params.filters);
+
+  if (unsupportedFilters.length > 0) {
+    removedFilters = true;
+  }
 
   const { allowedColumns, columnAliases } = getWidgetImportFilterConfig(
     params.view,
