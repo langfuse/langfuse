@@ -83,10 +83,12 @@ export function getSecureOutboundHttpAgents(
       const lookup = createSecureOutboundLookup(validationOptions);
       return {
         httpAgent: new HttpAgent({
+          keepAlive: true,
           lookup,
           maxSockets: options.maxSockets,
         }),
         httpsAgent: new HttpsAgent({
+          keepAlive: true,
           lookup,
           maxSockets: options.maxSockets,
         }),
