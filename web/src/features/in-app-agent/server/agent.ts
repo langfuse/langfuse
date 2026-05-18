@@ -83,7 +83,21 @@ export function createAgUiStream(params: {
         closeController();
       };
 
-      const subscription = adapter.run(adapterInput).subscribe({
+      let subscription: { unsubscribe: () => void } | undefined;
+
+      const handleAbort = () => {
+        subscription?.unsubscribe();
+        abort();
+      };
+
+      if (params.signal.aborted) {
+        abort();
+        return;
+      }
+
+      params.signal.addEventListener("abort", handleAbort, { once: true });
+
+      subscription = adapter.run(adapterInput).subscribe({
         next(event) {
           if (closed || params.signal.aborted) {
             abort();
@@ -124,15 +138,6 @@ export function createAgUiStream(params: {
           closeController();
         },
       });
-
-      params.signal.addEventListener(
-        "abort",
-        () => {
-          subscription.unsubscribe();
-          abort();
-        },
-        { once: true },
-      );
     },
   });
 }
