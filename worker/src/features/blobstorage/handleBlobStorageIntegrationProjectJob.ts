@@ -21,6 +21,8 @@ import {
   getProjectAdminEmails,
   enrichObservationWithModelData,
   createModelCache,
+  blobStorageEndpointConnectionValidationOptions,
+  validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
 import {
   BlobStorageIntegrationType,
@@ -243,6 +245,9 @@ const processBlobStorageExport = async (config: {
     awsSse: undefined,
     awsSseKmsKeyId: undefined,
     useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
+    useGoogleCloudStorage: false, // Not supported in blob storage integration
+    useOCIObjectStorage: false, // Not supported in blob storage integration
+    connectionValidation: blobStorageEndpointConnectionValidationOptions(),
   });
 
   try {
@@ -386,6 +391,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
       `[BLOB INTEGRATION] Blob storage integration is disabled for project ${projectId}`,
     );
     return;
+  }
+
+  // Preflight the persisted integration endpoint once per job. The
+  // StorageService connection-time validation remains the DNS-rebinding defense
+  // for each SDK connection.
+  if (blobStorageIntegration.endpoint) {
+    await validateBlobStorageEndpoint(blobStorageIntegration.endpoint);
   }
 
   // Sync between lastSyncAt and now - 30 minutes

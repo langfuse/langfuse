@@ -1,5 +1,8 @@
 import dns from "node:dns";
-import { Agent } from "undici";
+import { Agent as HttpAgent } from "node:http";
+import { Agent as HttpsAgent } from "node:https";
+import type { LookupFunction } from "node:net";
+import { Agent as UndiciAgent } from "undici";
 import type { OutboundUrlValidationWhitelist } from "./validation";
 import { validateOutboundResolvedIp } from "./validation";
 
@@ -16,27 +19,16 @@ const DEFAULT_OUTBOUND_URL_VALIDATION_WHITELIST: OutboundUrlValidationWhitelist 
     ip_ranges: [],
   };
 
-type DnsLookupCallback = (
-  err: NodeJS.ErrnoException | null,
-  address: string | dns.LookupAddress[],
-  family?: number,
-) => void;
-type DnsLookup = (
-  hostname: string,
-  options: dns.LookupOptions,
-  callback: DnsLookupCallback,
-) => void;
-
 export interface OutboundUrlConnectionValidationOptions {
   whitelist?: OutboundUrlValidationWhitelist;
   logContext?: string;
 }
 
-type RequestInitWithUndiciDispatcher = RequestInit & {
-  dispatcher?: Agent;
-};
-
-const secureOutboundDispatchersByPolicy = new Map<string, Agent>();
+const secureOutboundDispatchersByPolicy = new Map<string, UndiciAgent>();
+const secureOutboundHttpAgentsByPolicy = new Map<
+  string,
+  { httpAgent: HttpAgent; httpsAgent: HttpsAgent }
+>();
 
 export function addSecureOutboundConnectionValidation(
   options: RequestInit,
@@ -45,13 +37,13 @@ export function addSecureOutboundConnectionValidation(
   return {
     ...options,
     dispatcher: getSecureOutboundDispatcher(validationOptions),
-  } as RequestInitWithUndiciDispatcher;
+  } as RequestInit & { dispatcher: UndiciAgent };
 }
 
-function createSecureOutboundLookup(
+export function createSecureOutboundLookup(
   validationOptions: OutboundUrlConnectionValidationOptions,
-  lookup: typeof dns.lookup = dns.lookup,
-): DnsLookup {
+  lookup: LookupFunction = dns.lookup,
+): LookupFunction {
   return (hostname, options, callback) => {
     lookup(hostname, options, (err, address, family) => {
       if (err) {
@@ -75,33 +67,75 @@ function createSecureOutboundLookup(
   };
 }
 
+export function getSecureOutboundHttpAgents(
+  validationOptions: OutboundUrlConnectionValidationOptions,
+  options: { maxSockets?: number } = {},
+) {
+  const policyKey = JSON.stringify({
+    validation: getConnectionValidationPolicyKey(validationOptions),
+    maxSockets: options.maxSockets,
+  });
+  return getOrCreatePolicyResource(
+    secureOutboundHttpAgentsByPolicy,
+    policyKey,
+    "HTTP agent",
+    () => {
+      const lookup = createSecureOutboundLookup(validationOptions);
+      return {
+        httpAgent: new HttpAgent({
+          lookup,
+          maxSockets: options.maxSockets,
+        }),
+        httpsAgent: new HttpsAgent({
+          lookup,
+          maxSockets: options.maxSockets,
+        }),
+      };
+    },
+  );
+}
+
 function getSecureOutboundDispatcher(
   validationOptions: OutboundUrlConnectionValidationOptions,
-): Agent {
+): UndiciAgent {
   const policyKey = getConnectionValidationPolicyKey(validationOptions);
-  const existingDispatcher = secureOutboundDispatchersByPolicy.get(policyKey);
-  if (existingDispatcher) return existingDispatcher;
+  return getOrCreatePolicyResource(
+    secureOutboundDispatchersByPolicy,
+    policyKey,
+    "connection",
+    () =>
+      new UndiciAgent({
+        connect: {
+          // This lookup runs at socket connection time, so DNS rebinding between
+          // the earlier URL validation and the actual HTTP connection is blocked.
+          lookup: createSecureOutboundLookup(validationOptions),
+        },
+      }),
+  );
+}
 
-  if (secureOutboundDispatchersByPolicy.size >= OUTBOUND_AGENT_POLICY_LIMIT) {
-    // Do not evict existing Agents: they own socket pools and may still have
-    // in-flight streaming responses. Evicting without closing leaks resources,
-    // while closing/destroying can break unrelated requests. Exceeding this
-    // small policy count is unexpected and should fail closed.
+function getOrCreatePolicyResource<T>(
+  cache: Map<string, T>,
+  policyKey: string,
+  resourceName: string,
+  createResource: () => T,
+): T {
+  const existingResource = cache.get(policyKey);
+  if (existingResource) return existingResource;
+
+  if (cache.size >= OUTBOUND_AGENT_POLICY_LIMIT) {
+    // Do not evict existing resources: Agents/Dispatchers own socket pools and
+    // may still have in-flight streaming responses. Evicting without closing
+    // leaks resources, while closing/destroying can break unrelated requests.
+    // Exceeding this small policy count is unexpected and should fail closed.
     throw new Error(
-      `Maximum secure outbound connection policy count (${OUTBOUND_AGENT_POLICY_LIMIT}) exceeded`,
+      `Maximum secure outbound ${resourceName} policy count (${OUTBOUND_AGENT_POLICY_LIMIT}) exceeded`,
     );
   }
 
-  const dispatcher = new Agent({
-    connect: {
-      // This lookup runs at socket connection time, so DNS rebinding between
-      // the earlier URL validation and the actual HTTP connection is blocked.
-      lookup: createSecureOutboundLookup(validationOptions),
-    },
-  });
-
-  secureOutboundDispatchersByPolicy.set(policyKey, dispatcher);
-  return dispatcher;
+  const resource = createResource();
+  cache.set(policyKey, resource);
+  return resource;
 }
 
 function validateConnectionTimeLookupResult(
