@@ -109,7 +109,7 @@ export function deriveEvaluatorVariables(
 }
 
 export function parseStoredOutputDefinition(
-  template: Pick<StoredPublicEvaluatorTemplate, "outputDefinition">,
+  template: Pick<StoredPublicEvaluatorTemplate, "id" | "outputDefinition">,
 ): PublicEvaluatorOutputDefinitionType {
   const parsed = PersistedEvalOutputDefinitionSchema.safeParse(
     template.outputDefinition,
