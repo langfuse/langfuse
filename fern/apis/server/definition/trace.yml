@@ -99,7 +99,7 @@ service:
 
         #### Scores (requires join with scores table)
         - `scores_avg` (numberObject) - Numeric scores by key. Requires the `key` parameter naming the score (e.g. `"quality"`). Alias: `scores`.
-        - `score_categories` (categoryOptions) - Categorical score values
+        - `score_categories` (categoryOptions) - Categorical score values. Requires the `key` parameter naming the score (e.g. `"language"`).
 
         ### Filter Examples
         ```json
