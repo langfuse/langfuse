@@ -240,6 +240,7 @@ function InAppAiAgentProviderInner({
 
             const freshAgent = new HttpAgent({
               url: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/in-app-agent`,
+              threadId: agent.threadId,
               initialMessages: agent.messages.filter(
                 isAgentConversationMessage,
               ),
