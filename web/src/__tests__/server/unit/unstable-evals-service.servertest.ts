@@ -1,3 +1,4 @@
+import type * as PrismaClientModule from "@prisma/client";
 import type { Mock } from "vitest";
 
 const mockEvalTemplateCreate = vi.fn();
@@ -44,7 +45,7 @@ vi.mock("@langfuse/shared/src/server", async () => ({
 
 vi.mock("@langfuse/shared/src/db", async () => {
   const { EvalTemplateType } =
-    await vi.importActual<typeof import("@prisma/client")>("@prisma/client");
+    await vi.importActual<typeof PrismaClientModule>("@prisma/client");
 
   return {
     EvalTemplateType,
