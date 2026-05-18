@@ -1,4 +1,5 @@
 import { env } from "../../env";
+import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
@@ -478,16 +479,19 @@ type ExperimentItemsFilterOptionsInput = {
   experimentIds: string[];
 };
 
+// Whitelist of score data types to include
+const ALLOWED_SCORE_DATA_TYPES = ["NUMERIC", "CATEGORICAL", "BOOLEAN"] as const;
+type ExperimentChartableScoreDataType =
+  (typeof ALLOWED_SCORE_DATA_TYPES)[number];
+
 type ScoreFilterOptionsRow = {
   name: string;
-  data_type: string;
+  source: ScoreSourceType;
+  data_type: ExperimentChartableScoreDataType;
   values: string[];
 };
 
 const SCORE_FILTER_OPTIONS_LIMIT = 1000;
-
-// Whitelist of score data types to include
-const ALLOWED_SCORE_DATA_TYPES = ["NUMERIC", "CATEGORICAL", "BOOLEAN"] as const;
 
 /**
  * Build query for experiment-run-level scores (scores with dataset_run_id matching experiment IDs).
@@ -581,18 +585,26 @@ const processScoreFilterOptionsResults = (
   numeric: string[];
   categorical: Array<{ label: string; values: string[] }>;
 } => {
-  const numeric: string[] = [];
-  const categorical: Array<{ label: string; values: string[] }> = [];
+  const numeric = new Set<string>();
+  const categorical = new Map<string, Set<string>>();
 
   for (const row of rows) {
     if (row.data_type === "NUMERIC" || row.data_type === "BOOLEAN") {
-      numeric.push(row.name);
+      numeric.add(row.name);
     } else if (row.data_type === "CATEGORICAL") {
-      categorical.push({ label: row.name, values: row.values });
+      const existingValues = categorical.get(row.name) ?? new Set<string>();
+      row.values.forEach((value) => existingValues.add(value));
+      categorical.set(row.name, existingValues);
     }
   }
 
-  return { numeric, categorical };
+  return {
+    numeric: Array.from(numeric),
+    categorical: Array.from(categorical.entries()).map(([label, values]) => ({
+      label,
+      values: Array.from(values),
+    })),
+  };
 };
 
 export const getExperimentItemsFilterOptions = async (
@@ -602,8 +614,8 @@ export const getExperimentItemsFilterOptions = async (
   obs_score_categories: Array<{ label: string; values: string[] }>;
   trace_scores_avg: string[];
   trace_score_categories: Array<{ label: string; values: string[] }>;
-  run_scores_avg: string[];
-  run_score_categories: Array<{ label: string; values: string[] }>;
+  experiment_scores_avg: string[];
+  experiment_score_categories: Array<{ label: string; values: string[] }>;
 }> => {
   const { projectId, experimentIds } = props;
 
@@ -613,8 +625,8 @@ export const getExperimentItemsFilterOptions = async (
       obs_score_categories: [],
       trace_scores_avg: [],
       trace_score_categories: [],
-      run_scores_avg: [],
-      run_score_categories: [],
+      experiment_scores_avg: [],
+      experiment_score_categories: [],
     };
   }
 
@@ -680,8 +692,8 @@ export const getExperimentItemsFilterOptions = async (
     obs_score_categories: obsScores.categorical,
     trace_scores_avg: traceScores.numeric,
     trace_score_categories: traceScores.categorical,
-    run_scores_avg: runScores.numeric,
-    run_score_categories: runScores.categorical,
+    experiment_scores_avg: runScores.numeric,
+    experiment_score_categories: runScores.categorical,
   };
 };
 
