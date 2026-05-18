@@ -393,6 +393,7 @@ export const handleBatchActionJob = async (
         where: {
           id: { in: selectedEvaluatorIds },
           projectId,
+          evalTemplateId: { not: null },
           // Preserve the selected evaluators as-is. Executability is checked
           // later when each scheduling attempt runs.
         },

@@ -39,6 +39,7 @@ export async function fetchObservationEvalConfigs(
       },
       status: JobConfigState.ACTIVE,
       blockedAt: null,
+      evalTemplateId: { not: null },
     },
     select: {
       id: true,
