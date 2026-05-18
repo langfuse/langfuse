@@ -3,6 +3,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
+import superjson from "superjson";
 import { v4 } from "uuid";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
@@ -68,6 +69,88 @@ describe("datasets trpc", () => {
       where: {
         id: { in: orgIds },
       },
+    });
+  });
+
+  describe("datasets JSON prototype pollution guards", () => {
+    it("rejects dangerous keys in dataset metadata", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.datasets.createDataset({
+          projectId: project.id,
+          name: `dangerous-metadata-${v4()}`,
+          metadata: JSON.stringify({
+            safe: true,
+            nested: JSON.parse('{"prototype":"polluted"}') as unknown,
+          }),
+        }),
+      ).rejects.toThrow(
+        /Dataset metadata contains unsupported key at nested\.prototype/,
+      );
+    });
+
+    it("rejects dangerous keys in dataset schemas", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.datasets.createDataset({
+          projectId: project.id,
+          name: `dangerous-schema-${v4()}`,
+          inputSchema: {
+            type: "object",
+            properties: JSON.parse('{"prototype":{"type":"string"}}') as Record<
+              string,
+              unknown
+            >,
+          },
+        }),
+      ).rejects.toThrow(
+        /Dataset inputSchema contains unsupported key at properties\.prototype/,
+      );
+    });
+
+    it("strips dangerous keys from existing rows before allDatasets is serialized", async () => {
+      const { project, caller } = await prepare();
+      const datasetId = v4();
+
+      await prisma.dataset.create({
+        data: {
+          id: datasetId,
+          projectId: project.id,
+          name: `legacy-dangerous-row-${datasetId}`,
+          metadata: JSON.parse(
+            '{"safe":true,"nested":{"prototype":"polluted"}}',
+          ),
+          inputSchema: {
+            type: "object",
+            properties: JSON.parse(
+              '{"safe":{"type":"string"},"prototype":{"type":"string"}}',
+            ),
+          },
+        },
+      });
+
+      const result = await caller.datasets.allDatasets({
+        projectId: project.id,
+        searchQuery: "legacy-dangerous-row",
+        pathPrefix: "",
+        page: 0,
+        limit: 50,
+      });
+
+      expect(() => superjson.serialize(result)).not.toThrow();
+      expect(result.datasets).toHaveLength(1);
+      expect(result.datasets[0]?.metadata).toEqual({
+        safe: true,
+        nested: {},
+      });
+      expect(result.datasets[0]?.inputSchema).toEqual({
+        type: "object",
+        properties: {
+          safe: { type: "string" },
+        },
+      });
     });
   });
 

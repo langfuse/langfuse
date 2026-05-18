@@ -19,6 +19,7 @@ import {
   optionalPaginationZod,
   LangfuseConflictError,
   LangfuseNotFoundError,
+  stripDangerousJsonKeys,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
@@ -296,7 +297,7 @@ export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      return ctx.prisma.dataset.findMany({
+      const datasets = await ctx.prisma.dataset.findMany({
         where: {
           projectId: input.projectId,
         },
@@ -307,6 +308,8 @@ export const datasetRouter = createTRPCRouter({
           expectedOutputSchema: true,
         },
       });
+
+      return stripDangerousJsonKeys(datasets);
     }),
   allDatasets: protectedProjectProcedure
     .input(
@@ -372,7 +375,7 @@ export const datasetRouter = createTRPCRouter({
       ]);
 
       return {
-        datasets,
+        datasets: stripDangerousJsonKeys(datasets),
         totalDatasets:
           datasetCount.length > 0 ? Number(datasetCount[0]?.totalCount) : 0,
       };

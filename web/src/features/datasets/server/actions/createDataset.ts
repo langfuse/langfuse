@@ -1,5 +1,6 @@
 import {
   DatasetNameSchema,
+  findDangerousJsonKeyPath,
   InvalidRequestError,
   Prisma,
 } from "@langfuse/shared";
@@ -31,6 +32,28 @@ type UpdateDatasetInput = {
   expectedOutputSchema?: DatasetJson;
 };
 
+const assertNoDangerousDatasetJsonKeys = (
+  input: Pick<
+    UpsertDatasetInput & UpdateDatasetInput,
+    "metadata" | "inputSchema" | "expectedOutputSchema"
+  >,
+) => {
+  const fields = [
+    ["metadata", input.metadata],
+    ["inputSchema", input.inputSchema],
+    ["expectedOutputSchema", input.expectedOutputSchema],
+  ] as const;
+
+  for (const [field, value] of fields) {
+    const dangerousPath = findDangerousJsonKeyPath(value);
+    if (dangerousPath) {
+      throw new InvalidRequestError(
+        `Dataset ${field} contains unsupported key at ${dangerousPath}. Remove "__proto__", "constructor", and "prototype" keys before saving.`,
+      );
+    }
+  }
+};
+
 export const upsertDataset = async ({
   input,
   projectId,
@@ -44,6 +67,8 @@ export const upsertDataset = async ({
       "Dataset name not valid. " + validation.error.message,
     );
   }
+
+  assertNoDangerousDatasetJsonKeys(input);
 
   // Check if dataset exists (for UPDATE path)
   const existingDataset = await prisma.dataset.findUnique({
@@ -155,6 +180,8 @@ export const updateDataset = async ({
       );
     }
   }
+
+  assertNoDangerousDatasetJsonKeys(input);
 
   return await prisma.dataset.update({
     where: {
