@@ -52,7 +52,6 @@ import { useObservationIOLoadedCount } from "./useLogViewObservationIO";
 import { useLogViewPreferences } from "./useLogViewPreferences";
 import { useLogViewDownload } from "./useLogViewDownload";
 import { useLogViewColumns } from "./useLogViewColumns";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 export interface TraceLogViewProps {
   traceId: string;
@@ -76,7 +75,6 @@ export const TraceLogView = ({
   projectId,
   currentView = "pretty",
 }: TraceLogViewProps) => {
-  const { isBetaEnabled } = useV4Beta();
   const { roots, observations } = useTraceData();
   const { logViewMode, logViewTreeStyle } = useViewPreferences();
   const { formattedExpansion, setFormattedFieldExpansion } = useJsonExpansion();
@@ -248,19 +246,16 @@ export const TraceLogView = ({
   });
 
   // Download and copy handlers
-  const {
-    handleCopyJson,
-    handleDownloadJson,
-    isActionLoading: isCopyOrDownloadLoading,
-  } = useLogViewDownload({
-    traceId,
-    isCacheOnly: isCopyOrDownloadCacheOnly,
-    allObservationsData: allObservationsIO.data,
-    isLoadingAllData: allObservationsIO.isLoading,
-    failedObservationIds: allObservationsIO.failedObservationIds,
-    loadAllData: allObservationsIO.loadAllData,
-    buildDataFromCache: allObservationsIO.buildDataFromCache,
-  });
+  const { handleCopyJson, isActionLoading: isCopyOrDownloadLoading } =
+    useLogViewDownload({
+      traceId,
+      isCacheOnly: isCopyOrDownloadCacheOnly,
+      allObservationsData: allObservationsIO.data,
+      isLoadingAllData: allObservationsIO.isLoading,
+      failedObservationIds: allObservationsIO.failedObservationIds,
+      loadAllData: allObservationsIO.loadAllData,
+      buildDataFromCache: allObservationsIO.buildDataFromCache,
+    });
 
   // Toggle JSON view collapse
   const handleToggleJsonCollapse = useCallback(() => {
@@ -291,7 +286,6 @@ export const TraceLogView = ({
         onToggleIndent={() => setIndentEnabled(!indentEnabledPref)}
         showMilliseconds={showMilliseconds}
         onToggleMilliseconds={() => setShowMilliseconds(!showMilliseconds)}
-        onDownloadJson={isBetaEnabled ? undefined : handleDownloadJson}
       />
 
       {/* Empty states */}
