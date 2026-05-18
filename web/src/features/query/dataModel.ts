@@ -690,6 +690,16 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     description: "Identifier of the session.",
     highCardinality: true,
   },
+  // Run-level scores (dataset_run_id on scores table). Used by experiment
+  // widgets via entityDimension + filters.
+  datasetRunId: {
+    sql: "nullIf(scores.dataset_run_id, '')",
+    alias: "datasetRunId",
+    type: "string",
+    description: "Identifier of the dataset run (experiment) for the score.",
+    highCardinality: true,
+    uiHidden: true,
+  },
   // Trace metadata on events table (accessed via events_traces JOIN)
   traceName: {
     sql: "COALESCE(nullIf(events_traces.trace_name, ''), nullIf(events_traces.name, ''))",
@@ -846,16 +856,6 @@ const createScoreSpecificDimensions = (
     description: "Identifier of the observation associated with the score.",
     ...(isV2 && { highCardinality: true }),
   },
-  ...(isV2 && {
-    datasetRunId: {
-      sql: `nullIf(${tableAlias}.dataset_run_id, '')`,
-      alias: "datasetRunId",
-      type: "string",
-      description: "Identifier of the dataset run (experiment) for the score.",
-      highCardinality: true,
-      uiHidden: true,
-    },
-  }),
 });
 
 // Shared table relations factory
