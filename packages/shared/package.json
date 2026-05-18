@@ -46,6 +46,14 @@
     "./src/server/ee/ingestionMasking": {
       "import": "./dist/src/server/ee/ingestionMasking/index.js",
       "require": "./dist/src/server/ee/ingestionMasking/index.js"
+    },
+    "./query": {
+      "import": "./dist/src/features/query/index.js",
+      "require": "./dist/src/features/query/index.js"
+    },
+    "./query/server": {
+      "import": "./dist/src/features/query/server/index.js",
+      "require": "./dist/src/features/query/server/index.js"
     }
   },
   "scripts": {
