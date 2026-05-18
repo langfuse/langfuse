@@ -3295,7 +3295,7 @@
     "modelName": "claude-sonnet-4-6",
     "matchPattern": "(?i)^(anthropic\\/)?(claude-sonnet-4-6|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4-6(-v1(:0)?)?|claude-sonnet-4-6)$",
     "createdAt": "2026-02-18T00:00:00.000Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-04-26T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -3317,33 +3317,6 @@
           "cache_read_input_tokens": 3e-7,
           "input_cached_tokens": 3e-7,
           "input_cache_read": 3e-7
-        }
-      },
-      {
-        "id": "7830bfc2-c464-4ffe-b9a2-6e741f6c5486",
-        "name": "Large Context",
-        "isDefault": false,
-        "priority": 1,
-        "conditions": [
-          {
-            "usageDetailPattern": "input",
-            "operator": "gt",
-            "value": 200000,
-            "caseSensitive": false
-          }
-        ],
-        "prices": {
-          "input": 6e-6,
-          "input_tokens": 6e-6,
-          "output": 22.5e-6,
-          "output_tokens": 22.5e-6,
-          "cache_creation_input_tokens": 7.5e-6,
-          "input_cache_creation": 7.5e-6,
-          "input_cache_creation_5m": 7.5e-6,
-          "input_cache_creation_1h": 12e-6,
-          "cache_read_input_tokens": 6e-7,
-          "input_cached_tokens": 6e-7,
-          "input_cache_read": 6e-7
         }
       }
     ]
