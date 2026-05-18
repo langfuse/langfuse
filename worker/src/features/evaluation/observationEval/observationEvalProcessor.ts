@@ -102,11 +102,6 @@ export async function processObservationEval({
       `Job configuration or template not found for job ${job.id}`,
     );
   }
-  try {
-    assertLLMAsJudgeEvalTemplate(evalJobConfig.evalTemplate);
-  } catch (e) {
-    throw new UnrecoverableError(e instanceof Error ? e.message : String(e));
-  }
 
   if (!isJobConfigExecutable(evalJobConfig)) {
     logger.debug(
@@ -125,6 +120,12 @@ export async function processObservationEval({
     });
 
     return;
+  }
+
+  try {
+    assertLLMAsJudgeEvalTemplate(evalJobConfig.evalTemplate);
+  } catch (e) {
+    throw new UnrecoverableError(e instanceof Error ? e.message : String(e));
   }
 
   // Download observation data from S3

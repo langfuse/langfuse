@@ -13,3 +13,7 @@ ADD COLUMN "source_code_language" "EvalTemplateSourceCodeLanguage";
 ALTER TABLE "eval_templates"
 ALTER COLUMN "prompt" DROP NOT NULL,
 ALTER COLUMN "output_schema" DROP NOT NULL;
+
+-- AlterIndex
+DROP INDEX "eval_templates_project_id_name_version_key";
+CREATE UNIQUE INDEX "eval_templates_project_id_name_version_type_key" ON "eval_templates"("project_id", "name", "version", "type");

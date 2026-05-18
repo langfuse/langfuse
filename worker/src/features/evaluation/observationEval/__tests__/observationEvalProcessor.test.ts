@@ -167,6 +167,47 @@ describe("processObservationEval", () => {
       expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
       expect(executeLLMAsJudgeEvaluation).not.toHaveBeenCalled();
     });
+
+    it("should cancel blocked jobs before validating the evaluator template type", async () => {
+      const job = createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status: JobExecutionStatus.PENDING,
+        jobConfigurationId: "config-123",
+      });
+      const config = createMockJobConfiguration({
+        id: "config-123",
+        projectId,
+        blockedAt: new Date(),
+        evalTemplate: createMockEvalTemplate({
+          type: "CODE",
+          prompt: null,
+          outputDefinition: null,
+          sourceCode: "def evaluate(): pass",
+          sourceCodeLanguage: "PYTHON",
+        }),
+      });
+
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
+      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
+
+      const deps = createMockProcessorDeps();
+
+      await processObservationEval({ event: baseEvent, deps });
+
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: job.id,
+          projectId,
+        },
+        data: {
+          status: JobExecutionStatus.CANCELLED,
+          endTime: expect.any(Date),
+        },
+      });
+      expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
+      expect(executeLLMAsJudgeEvaluation).not.toHaveBeenCalled();
+    });
   });
 
   describe("S3 download", () => {
