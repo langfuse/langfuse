@@ -1,16 +1,16 @@
 import {
   queryClickhouse,
   type ClickhouseQueryOpts,
-} from "../../../server/repositories/clickhouse";
-import { measureAndReturn } from "../../../server/clickhouse/measureAndReturn";
-import { type PreferredClickhouseService } from "../../../server/clickhouse/client";
+} from "../../server/repositories/clickhouse";
+import { measureAndReturn } from "../../server/clickhouse/measureAndReturn";
+import { type PreferredClickhouseService } from "../../server/clickhouse/client";
 import { QueryBuilder } from "./queryBuilder";
-import { type QueryType, type ViewVersion } from "../types";
-import { getViewDeclaration } from "../dataModel";
-import { env } from "../../../env";
+import { type QueryType, type ViewVersion } from "./types";
+import { getViewDeclaration } from "./dataModel";
+import { env } from "../../env";
 
 // Re-export validation logic (shared between server and client)
-export { validateQuery, type QueryValidationResult } from "../validateQuery";
+export { validateQuery, type QueryValidationResult } from "./validateQuery";
 
 export type PreparedQuery = {
   compiledQuery: string;

@@ -1,12 +1,12 @@
 import { randomUUID } from "crypto";
 import { type z } from "zod";
-import { convertDateToClickhouseDateTime } from "../../../server/clickhouse/client";
-import { shouldSkipObservationsFinal } from "../../../server/queries/clickhouse-sql/query-options";
+import { convertDateToClickhouseDateTime } from "../../server/clickhouse/client";
+import { shouldSkipObservationsFinal } from "../../server/queries/clickhouse-sql/query-options";
 import {
   FilterList,
   type Filter,
-} from "../../../server/queries/clickhouse-sql/clickhouse-filter";
-import { createFilterFromFilterState } from "../../../server/queries/clickhouse-sql/factory";
+} from "../../server/queries/clickhouse-sql/clickhouse-filter";
+import { createFilterFromFilterState } from "../../server/queries/clickhouse-sql/factory";
 import type {
   QueryType,
   ViewDeclarationType,
@@ -14,14 +14,14 @@ import type {
   granularities,
   ViewVersion,
   views,
-} from "../types";
+} from "./types";
 import {
   query as queryModel,
   getValidAggregationsForMeasureType,
-} from "../types";
-import { getViewDeclaration } from "../dataModel";
-import { InvalidRequestError } from "../../../errors";
-import { env } from "../../../env";
+} from "./types";
+import { getViewDeclaration } from "./dataModel";
+import { InvalidRequestError } from "../../errors";
+import { env } from "../../env";
 import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
 
 type AppliedDimensionType = {
