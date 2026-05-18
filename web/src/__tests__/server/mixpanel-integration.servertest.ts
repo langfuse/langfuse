@@ -45,48 +45,7 @@ const buildSession = (orgId: string, projectId: string): Session => ({
   environment: {} as any,
 });
 
-describe("PostHog Integration SSRF Protection", () => {
-  const originalEncryptionKey = process.env.ENCRYPTION_KEY;
-  let projectId: string;
-  let orgId: string;
-  let caller: ReturnType<typeof appRouter.createCaller>;
-
-  beforeAll(() => {
-    // Set a test encryption key (64 hex characters = 32 bytes)
-    process.env.ENCRYPTION_KEY =
-      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-  });
-
-  afterAll(() => {
-    // Restore original environment
-    process.env.ENCRYPTION_KEY = originalEncryptionKey;
-  });
-
-  beforeEach(async () => {
-    const setup = await createOrgProjectAndApiKey();
-    projectId = setup.projectId;
-    orgId = setup.orgId;
-
-    const ctx = createInnerTRPCContext({
-      session: buildSession(orgId, projectId),
-      headers: {},
-    });
-    caller = appRouter.createCaller({ ...ctx, prisma });
-  });
-
-  it("should reject private IPs and localhost in PostHog hostname", async () => {
-    await expect(
-      caller.posthogIntegration.update({
-        projectId,
-        posthogHostname: "http://localhost",
-        posthogProjectApiKey: "phc_test_key_12345",
-        enabled: true,
-      }),
-    ).rejects.toThrow(/Invalid PostHog hostname.*Blocked/);
-  });
-});
-
-describe("PostHog Integration legacy export source cutoff gate", () => {
+describe("Mixpanel Integration legacy export source cutoff gate", () => {
   const originalEncryptionKey = process.env.ENCRYPTION_KEY;
 
   beforeAll(() => {
@@ -102,12 +61,9 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
     vi.restoreAllMocks();
   });
 
-  // PostHog uses webhook URL validation that rejects private IPs — including
-  // public DNS hosts the test container can reach is overkill for unit-testing
-  // the cutoff gate. We exercise the gate against a stable public hostname.
   const baseConfig = {
-    posthogHostname: "https://us.posthog.com",
-    posthogProjectApiKey: "phc_test_key_12345",
+    mixpanelRegion: "api" as const,
+    mixpanelProjectToken: "test_token_12345",
     enabled: true,
   };
 
@@ -131,7 +87,7 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
         data: { createdAt: PRE_CUTOFF },
       });
       await expect(
-        caller.posthogIntegration.update({
+        caller.mixpanelIntegration.update({
           projectId: project.id,
           ...baseConfig,
           exportSource: "TRACES_OBSERVATIONS" as const,
@@ -152,7 +108,7 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
         data: { createdAt: POST_CUTOFF },
       });
       await expect(
-        caller.posthogIntegration.update({
+        caller.mixpanelIntegration.update({
           projectId: project.id,
           ...baseConfig,
           exportSource: "TRACES_OBSERVATIONS" as const,
@@ -173,7 +129,7 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
         data: { createdAt: POST_CUTOFF },
       });
       await expect(
-        caller.posthogIntegration.update({
+        caller.mixpanelIntegration.update({
           projectId: project.id,
           ...baseConfig,
           exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
@@ -194,7 +150,7 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
         data: { createdAt: POST_CUTOFF },
       });
       await expect(
-        caller.posthogIntegration.update({
+        caller.mixpanelIntegration.update({
           projectId: project.id,
           ...baseConfig,
           exportSource: "EVENTS" as const,
@@ -215,7 +171,7 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
         data: { createdAt: POST_CUTOFF },
       });
       await expect(
-        caller.posthogIntegration.update({
+        caller.mixpanelIntegration.update({
           projectId: project.id,
           ...baseConfig,
           exportSource: "TRACES_OBSERVATIONS" as const,
