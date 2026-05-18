@@ -21,7 +21,11 @@ import {
 } from "./types";
 import { getViewDeclaration } from "./dataModel";
 import { InvalidRequestError } from "../../errors";
-import { env } from "../../env";
+// Self-import via the package's own subpath export instead of a relative path.
+// Tests in `web/` mutate this env var via `@langfuse/shared/src/env`; using the
+// same specifier here keeps the module instance shared under Vitest's inlined
+// resolution so the mutation is visible to the builder.
+import { env } from "@langfuse/shared/src/env";
 import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
 
 type AppliedDimensionType = {
@@ -54,18 +58,13 @@ type MappedFilters = {
 export class QueryBuilder {
   private chartConfig?: { bins?: number; row_limit?: number };
   private version: ViewVersion;
-  private rootEventConditionMaxWindowHours: number;
 
   constructor(
     chartConfig?: { bins?: number; row_limit?: number },
     version: ViewVersion = "v1",
-    {
-      rootEventConditionMaxWindowHours = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS,
-    }: { rootEventConditionMaxWindowHours?: number } = {},
   ) {
     this.chartConfig = chartConfig;
     this.version = version;
-    this.rootEventConditionMaxWindowHours = rootEventConditionMaxWindowHours;
   }
 
   private translateAggregation(metric: AppliedMetricType): string {
@@ -1349,7 +1348,7 @@ export class QueryBuilder {
         new Date(query.toTimestamp).getTime() -
         new Date(query.fromTimestamp).getTime();
       const windowHours = windowMs / (1000 * 60 * 60);
-      const thresholdHours = this.rootEventConditionMaxWindowHours;
+      const thresholdHours = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
 
       if (thresholdHours === 0 || windowHours <= thresholdHours) {
         // Falls back gracefully: if no root events exist in the window at all
