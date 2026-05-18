@@ -64,7 +64,6 @@ export class QueryBuilder {
   }
 
   private translateAggregation(metric: AppliedMetricType): string {
-    const bins = this.chartConfig?.bins ?? 10;
     switch (metric.aggregation) {
       case "sum":
         return `sum(${metric.alias || metric.sql})`;
@@ -86,14 +85,20 @@ export class QueryBuilder {
         return `quantile(0.95)(${metric.alias || metric.sql})`;
       case "p99":
         return `quantile(0.99)(${metric.alias || metric.sql})`;
-      case "histogram":
+      case "histogram": {
+        // Get histogram bins from chart config, fallback to 10
+        const bins = this.chartConfig?.bins ?? 10;
         return `histogram(${bins})(toFloat64(${metric.alias || metric.sql}))`;
+      }
       case "uniq":
         return `uniq(${metric.alias || metric.sql})`;
-      default:
+      default: {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const exhaustiveCheck: never = metric.aggregation;
         throw new InvalidRequestError(
           `Invalid aggregation: ${metric.aggregation satisfies never}`,
         );
+      }
     }
   }
 
@@ -713,10 +718,13 @@ export class QueryBuilder {
         throw new Error(
           `Granularity 'auto' is not supported for getTimeDimensionSql`,
         );
-      default:
+      default: {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const exhaustiveCheck: never = granularity;
         throw new InvalidRequestError(
-          `Invalid time granularity: ${granularity satisfies never}. Must be one of minute, hour, day, week, month`,
+          `Invalid time granularity: ${granularity}. Must be one of minute, hour, day, week, month`,
         );
+      }
     }
   }
 
@@ -1345,15 +1353,7 @@ export class QueryBuilder {
         new Date(query.toTimestamp).getTime() -
         new Date(query.fromTimestamp).getTime();
       const windowHours = windowMs / (1000 * 60 * 60);
-      // Read from process.env (with the parsed env's default as a fallback)
-      // so tests can mutate the threshold at runtime — the parsed `env` object
-      // is captured at module init and isn't reachable from tests across the
-      // Vitest package boundary.
-      // eslint-disable-next-line turbo/no-undeclared-env-vars
-      const raw = process.env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
-      const thresholdHours = raw
-        ? Number(raw)
-        : env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
+      const thresholdHours = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
 
       if (thresholdHours === 0 || windowHours <= thresholdHours) {
         // Falls back gracefully: if no root events exist in the window at all

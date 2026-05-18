@@ -10,7 +10,7 @@ import { type ScoreData } from "@/src/features/scores/types";
 import {
   type QueryType,
   type ViewVersion,
-} from "@langfuse/shared/features/query/types";
+} from "@langfuse/shared/src/features/query/types";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";

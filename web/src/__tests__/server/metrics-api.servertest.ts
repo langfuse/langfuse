@@ -5,14 +5,14 @@ import {
   makeAPICall,
 } from "@/src/__tests__/test-utils";
 import { GetMetricsV1Response } from "@/src/features/public-api/types/metrics";
+import { createBasicAuthHeader } from "@langfuse/shared/src/server";
+import { type QueryType } from "@langfuse/shared/src/features/query/types";
 import {
-  createBasicAuthHeader,
   createTrace,
   createObservation,
   createTracesCh,
   createObservationsCh,
 } from "@langfuse/shared/src/server";
-import { type QueryType } from "@langfuse/shared/features/query/types";
 
 describe("/api/public/metrics API Endpoint", () => {
   // Test setup variables

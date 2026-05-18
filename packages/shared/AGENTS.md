@@ -57,9 +57,8 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
   signature helpers for secrets and signed payloads.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
-  `@langfuse/shared/src/server/ee/ingestionMasking`,
-  `@langfuse/shared/src/utils/chatml`, and the `@langfuse/shared/features/*`
-  wildcard (e.g. `@langfuse/shared/features/query/queryBuilder`).
+  `@langfuse/shared/src/server/ee/ingestionMasking`, and
+  `@langfuse/shared/src/utils/chatml`.
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel
 file (`src/index.ts`, `src/server/index.ts`, etc.), and this guide aligned in
@@ -110,8 +109,8 @@ the same PR.
    set), fetch the latest published docs and check for discrepancies:
    - https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage
    - https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields
-   Surface any mismatches in field names, types, nullability, or filter
-   descriptions so they can be addressed in the docs repo.
+     Surface any mismatches in field names, types, nullability, or filter
+     descriptions so they can be addressed in the docs repo.
 
 ### Queue payload contract change
 

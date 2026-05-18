@@ -14,12 +14,12 @@ import {
   views,
   viewsV2,
   type ViewVersion,
-} from "@langfuse/shared/features/query/types";
+} from "@langfuse/shared/src/features/query/types";
 import {
   getResultUnit,
   viewDeclarations,
   requiresV2,
-} from "@langfuse/shared/features/query/dataModel";
+} from "@langfuse/shared/src/features/query/dataModel";
 import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
@@ -61,12 +61,13 @@ import {
   type FilterState,
   ObservationLevelDomain,
   ObservationTypeDomain,
-  isV2BreakdownChart,
-  buildWidgetOrderBy,
 } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-
-import { validateQuery } from "@langfuse/shared/features/query/validateQuery";
+import {
+  validateQuery,
+  isV2BreakdownChart,
+  buildWidgetOrderBy,
+} from "@langfuse/shared/src/features/query/validateQuery";
 import {
   BarChart,
   PieChart,

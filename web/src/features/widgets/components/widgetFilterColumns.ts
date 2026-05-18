@@ -5,7 +5,7 @@ import {
 import {
   type views,
   type ViewVersion,
-} from "@langfuse/shared/features/query/types";
+} from "@langfuse/shared/src/features/query/types";
 
 import { type z } from "zod";
 

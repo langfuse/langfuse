@@ -1,11 +1,11 @@
-import { QueryBuilder } from "@langfuse/shared/features/query/queryBuilder";
+import { QueryBuilder } from "@langfuse/shared/src/features/query/queryBuilder";
 import {
   type QueryType,
   getValidAggregationsForMeasureType,
   metricAggregations,
 } from "@langfuse/shared/features/query/types";
-import { executeQuery } from "@langfuse/shared/features/query/queryExecutor";
-import { validateQuery } from "@langfuse/shared/features/query/validateQuery";
+import { executeQuery } from "@langfuse/shared/src/features/query/queryExecutor";
+import { validateQuery } from "@langfuse/shared/src/features/query/validateQuery";
 import { env } from "@/src/env.mjs";
 import {
   createTrace,
@@ -4808,46 +4808,39 @@ describe("query builder measure-aggregation validation", () => {
       orderBy: null,
     };
 
-    const ENV_KEY = "LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS";
-    const setEnv = (value: string | undefined) => {
-      if (value === undefined) {
-        delete process.env[ENV_KEY];
-      } else {
-        process.env[ENV_KEY] = value;
-      }
-    };
-
     it("should include rootEventCondition subquery when window is within threshold", async () => {
-      const original = process.env[ENV_KEY];
+      const originalValue = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
       try {
         // 168 hours (7 days) threshold, 72-hour window → should include subquery
-        setEnv("168");
+        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = 168;
         const builder = new QueryBuilder(undefined, "v2");
         const { query: sql } = await builder.build(tracesV2Query, randomUUID());
         expect(sql).toContain("IN (SELECT trace_id");
       } finally {
-        setEnv(original);
+        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
+          originalValue;
       }
     });
 
     it("should skip rootEventCondition subquery when window exceeds threshold", async () => {
-      const original = process.env[ENV_KEY];
+      const originalValue = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
       try {
         // 24-hour threshold, 72-hour window → should skip subquery
-        setEnv("24");
+        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = 24;
         const builder = new QueryBuilder(undefined, "v2");
         const { query: sql } = await builder.build(tracesV2Query, randomUUID());
         expect(sql).not.toContain("IN (SELECT trace_id");
       } finally {
-        setEnv(original);
+        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
+          originalValue;
       }
     });
 
     it("should always include rootEventCondition subquery when threshold is 0", async () => {
-      const original = process.env[ENV_KEY];
+      const originalValue = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
       try {
         // 0 = always apply, even for a very wide window
-        setEnv("0");
+        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = 0;
         const builder = new QueryBuilder(undefined, "v2");
         const { query: sql } = await builder.build(
           {
@@ -4859,7 +4852,8 @@ describe("query builder measure-aggregation validation", () => {
         );
         expect(sql).toContain("IN (SELECT trace_id");
       } finally {
-        setEnv(original);
+        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
+          originalValue;
       }
     });
   });

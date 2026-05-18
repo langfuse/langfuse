@@ -5,7 +5,7 @@ import {
   type ScoreSourceType,
   type FilterState,
 } from "@langfuse/shared";
-import { type ViewVersion } from "@langfuse/shared/features/query/types";
+import { type ViewVersion } from "@langfuse/shared/src/features/query/types";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { RightAlignedCell } from "./RightAlignedCell";

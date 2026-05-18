@@ -7,13 +7,13 @@ import {
 } from "@/src/features/dashboard/components/hooks";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { costFormatter, compactNumberFormatter } from "@/src/utils/numbers";
+import { costFormatter } from "@/src/utils/numbers";
 import { api } from "@/src/utils/api";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
-
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import {
   ModelSelectorPopover,
@@ -22,7 +22,7 @@ import {
 import {
   type QueryType,
   type ViewVersion,
-} from "@langfuse/shared/features/query/types";
+} from "@langfuse/shared/src/features/query/types";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";

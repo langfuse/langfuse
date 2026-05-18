@@ -1,18 +1,15 @@
 import { v4 as uuidv4 } from "uuid";
-import {
-  createOrgProjectAndApiKey,
-  DashboardService,
-} from "@langfuse/shared/src/server";
-
-import { DashboardWidgetViews, prisma } from "@langfuse/shared/src/db";
-
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { DashboardService } from "@langfuse/shared/src/server";
+import { DashboardWidgetViews } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { Session } from "next-auth";
-import { requiresV2 } from "@langfuse/shared/features/query/dataModel";
+import { requiresV2 } from "@langfuse/shared/src/features/query/dataModel";
 import {
-  mapWidgetUiTableFilterToView,
   mapLegacyUiTableFilterToView,
+  mapWidgetUiTableFilterToView,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 describe("dashboard widget minVersion", () => {

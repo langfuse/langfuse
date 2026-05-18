@@ -5,21 +5,15 @@ import {
   type metricAggregations,
   type QueryType,
   type ViewVersion,
-} from "@langfuse/shared/features/query/types";
+} from "@langfuse/shared/src/features/query/types";
 import {
   getResultUnit,
   requiresV2,
-} from "@langfuse/shared/features/query/dataModel";
+} from "@langfuse/shared/src/features/query/dataModel";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import {
-  type FilterState,
-  type OrderByState,
-  toQueryChartConfig,
-  isV2BreakdownChart,
-  buildWidgetOrderBy,
-} from "@langfuse/shared";
+import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
   PencilIcon,
@@ -43,10 +37,13 @@ import {
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
-
-import { validateQuery } from "@langfuse/shared/features/query/validateQuery";
+import {
+  validateQuery,
+  toQueryChartConfig,
+  isV2BreakdownChart,
+  buildWidgetOrderBy,
+} from "@langfuse/shared/src/features/query/validateQuery";
 
 export interface WidgetPlacement {
   id: string;

@@ -6,11 +6,9 @@ import {
   isException,
   ClickHouseResourceError,
   queryClickhouseWithProgress,
-  logger,
-  prepareExecuteQuery,
-  toClickhouseQueryOpts,
 } from "@langfuse/shared/src/server";
 import { RESOURCE_LIMIT_ERROR_MESSAGE } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
@@ -18,9 +16,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   query as customQuery,
   viewVersions,
-} from "@langfuse/shared/features/query/types";
+} from "@langfuse/shared/src/features/query/types";
 
-import { validateQuery } from "@langfuse/shared/features/query/validateQuery";
+import { validateQuery } from "@langfuse/shared/src/features/query/validateQuery";
 
 export type SSEEvent =
   | { type: "progress"; progress: object }

@@ -140,4 +140,3 @@ export * from "./analytics-integrations/types";
 // query (dashboard / monitor data model — server-only)
 export * from "../features/query/queryBuilder";
 export * from "../features/query/queryExecutor";
-export { NULL_IF_EMPTY_RE } from "../features/query/nullIfEmptyFilter";

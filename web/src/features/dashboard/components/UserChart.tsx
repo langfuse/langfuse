@@ -1,16 +1,16 @@
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { compactNumberFormatter, costFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
-
+import { costFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
   type ViewVersion,
-} from "@langfuse/shared/features/query/types";
+} from "@langfuse/shared/src/features/query/types";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
