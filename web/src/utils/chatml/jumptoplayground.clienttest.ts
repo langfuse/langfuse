@@ -879,6 +879,129 @@ describe("Playground Jump Full Pipeline", () => {
     expect(firstMessage.tools![1].name).toBe("search_web");
   });
 
+  it("should extract AI SDK flat tools and provider tools from normalized input", () => {
+    const tools = extractTools({
+      messages: [{ role: "user", content: "Need weather and search" }],
+      tools: [
+        {
+          type: "function",
+          name: "get_weather",
+          description: "Get weather info",
+          inputSchema: {
+            type: "object",
+            properties: { city: { type: "string" } },
+          },
+        },
+        {
+          type: "web_search_preview",
+        },
+      ],
+    });
+
+    expect(tools).toHaveLength(2);
+    expect(tools[0]).toMatchObject({
+      name: "get_weather",
+      description: "Get weather info",
+      parameters: {
+        type: "object",
+        properties: { city: { type: "string" } },
+      },
+    });
+    expect(tools[1]).toMatchObject({
+      name: "web_search_preview",
+      description: "",
+    });
+  });
+
+  it("should extract tools from legacy metadata, normalized input, and output", () => {
+    const metadataTools = extractTools(null, {
+      attributes: {
+        "llm.tools.0.tool.json_schema": {
+          type: "function",
+          function: {
+            name: "metadata_search",
+            description: "Search from metadata",
+            parameters: {
+              type: "object",
+              properties: { query: { type: "string" } },
+            },
+          },
+        },
+      },
+    });
+
+    expect(metadataTools).toHaveLength(1);
+    expect(metadataTools[0]).toMatchObject({
+      name: "metadata_search",
+      description: "Search from metadata",
+    });
+
+    const inputTools = extractTools({
+      messages: [{ role: "user", content: "Need a joke" }],
+      tools: [
+        {
+          type: "function",
+          name: "input_joke",
+          description: "Get a joke from normalized input",
+          inputSchema: { type: "object" },
+        },
+      ],
+    });
+
+    expect(inputTools).toHaveLength(1);
+    expect(inputTools[0]).toMatchObject({
+      name: "input_joke",
+      description: "Get a joke from normalized input",
+      parameters: { type: "object" },
+    });
+
+    const outputTools = extractTools({
+      output: [{ role: "assistant", content: "Done" }],
+      tools: [
+        {
+          type: "function",
+          name: "output_tool",
+          description: "Tool carried by output",
+          inputSchema: { type: "object" },
+        },
+      ],
+    });
+
+    expect(outputTools).toHaveLength(1);
+    expect(outputTools[0]).toMatchObject({
+      name: "output_tool",
+      description: "Tool carried by output",
+    });
+  });
+
+  it("should extract tools from stringified metadata attributes", () => {
+    const metadataTools = extractTools(null, {
+      attributes: JSON.stringify({
+        "ai.prompt.tools": JSON.stringify([
+          {
+            type: "function",
+            name: "metadata_joke",
+            description: "Get a joke from metadata",
+            inputSchema: {
+              type: "object",
+              properties: { topic: { type: "string" } },
+            },
+          },
+        ]),
+      }),
+    });
+
+    expect(metadataTools).toHaveLength(1);
+    expect(metadataTools[0]).toMatchObject({
+      name: "metadata_joke",
+      description: "Get a joke from metadata",
+      parameters: {
+        type: "object",
+        properties: { topic: { type: "string" } },
+      },
+    });
+  });
+
   it("should handle double-stringified messages array", () => {
     // ClickHouse can store messages as double-stringified:
     // { "messages": "[{\"role\":\"user\",\"content\":\"...\"}]" }

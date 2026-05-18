@@ -4,6 +4,7 @@ import {
   stringifyToolResultContent,
   parseMetadata,
   isRichToolResult,
+  attachToolDefinitionsToMessages,
 } from "../helpers";
 import { z } from "zod";
 
@@ -225,10 +226,10 @@ function preprocessData(data: unknown): unknown {
 
     if (extractedTools.length > 0) {
       // Attach tools to all messages
-      return normalizedMessages.map((msg) => ({
-        ...(msg as Record<string, unknown>),
-        tools: extractedTools,
-      }));
+      return attachToolDefinitionsToMessages(
+        normalizedMessages,
+        extractedTools,
+      );
     }
 
     return normalizedMessages;
@@ -244,10 +245,10 @@ function preprocessData(data: unknown): unknown {
       if (extractedTools.length > 0) {
         return {
           ...obj,
-          messages: normalizedMessages.map((msg) => ({
-            ...(msg as Record<string, unknown>),
-            tools: extractedTools,
-          })),
+          messages: attachToolDefinitionsToMessages(
+            normalizedMessages,
+            extractedTools,
+          ),
         };
       }
 

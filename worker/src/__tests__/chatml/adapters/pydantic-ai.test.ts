@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   pydanticAIAdapter,
   selectAdapter,
-  SimpleChatMlArraySchema,
+  mapToChatMl,
   type NormalizerContext,
 } from "@langfuse/shared";
 
@@ -14,7 +14,7 @@ function normalizeInput(input: unknown, ctx: NormalizerContext = {}) {
     data: input,
   });
   const preprocessed = adapter.preprocess(input, "input", ctx);
-  return SimpleChatMlArraySchema.safeParse(preprocessed);
+  return mapToChatMl(preprocessed);
 }
 
 describe("Pydantic AI Adapter", () => {
@@ -198,6 +198,50 @@ describe("Pydantic AI Adapter", () => {
       expect(result.data?.[0].thinking?.[0].content).toContain("NYC");
       expect(result.data?.[0].tool_calls?.[0].name).toBe("get_weather");
       expect(result.data?.[0].tools?.[0].name).toBe("get_weather");
+    });
+
+    it("should preserve wrapped messages with input tools without mutating ChatML", () => {
+      const input = {
+        messages: [
+          {
+            role: "user",
+            parts: [
+              {
+                type: "text",
+                content: "Tell me a joke about programming.",
+              },
+            ],
+          },
+        ],
+        tools: [
+          {
+            name: "get_pun_suggestion",
+            description: "Get a pun-style joke suggestion",
+            parameters_json_schema: {
+              type: "object",
+              properties: {
+                topic: { type: "string" },
+              },
+            },
+          },
+        ],
+      };
+
+      const result = normalizeInput(input, {
+        metadata: {
+          scope: {
+            name: "pydantic-ai",
+            version: "1.26.0",
+          },
+          attributes: {},
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].content).toBe(
+        "Tell me a joke about programming.",
+      );
+      expect(result.data?.[0].tools).toBeUndefined();
     });
   });
 });

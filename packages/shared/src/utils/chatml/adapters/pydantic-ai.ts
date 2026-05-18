@@ -1,5 +1,10 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
-import { removeNullFields, parseMetadata, getNestedProperty } from "../helpers";
+import {
+  removeNullFields,
+  parseMetadata,
+  getNestedProperty,
+  attachToolDefinitionsToMessages,
+} from "../helpers";
 import { z } from "zod";
 
 /**
@@ -241,10 +246,7 @@ function preprocessData(data: unknown, ctx: NormalizerContext): unknown {
     // Extract and attach tool definitions from metadata
     const tools = extractToolDefinitions(ctx.metadata);
     if (tools.length > 0) {
-      return normalized.map((msg) => ({
-        ...(msg as Record<string, unknown>),
-        tools,
-      }));
+      return attachToolDefinitionsToMessages(normalized, tools);
     }
 
     return normalized;
