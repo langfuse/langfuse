@@ -142,6 +142,11 @@ const LIVEKIT_DEBUG_SPAN_NAMES = new Set([
 export class OtelIngestionProcessor {
   private static readonly OTEL_CONVERSION_FAILURE_METRIC =
     "langfuse.ingestion.otel.conversion_failure";
+  private static readonly DANGEROUS_KEYS = new Set([
+    "__proto__",
+    "constructor",
+    "prototype",
+  ]);
 
   private seenTraces: Set<string> = new Set();
   private isInitialized = false;
@@ -1285,6 +1290,14 @@ export class OtelIngestionProcessor {
         this.convertValueToPlainJavascript(v),
       );
     }
+    if (value.kvlistValue && value.kvlistValue.values !== undefined) {
+      return value.kvlistValue.values.reduce((acc: any, kv: any) => {
+        if (!OtelIngestionProcessor.DANGEROUS_KEYS.has(kv.key)) {
+          acc[kv.key] = this.convertValueToPlainJavascript(kv.value);
+        }
+        return acc;
+      }, {});
+    }
     if (value.intValue && value.intValue.high === 0) {
       return value.intValue.low;
     }
@@ -1304,6 +1317,21 @@ export class OtelIngestionProcessor {
     return JSON.stringify(value);
   }
 
+  private extractEventAttributes(
+    event?: Record<string, any>,
+  ): Record<string, unknown> | null {
+    if (!event) return null;
+
+    return (
+      event.attributes?.reduce((acc: any, attr: any) => {
+        if (!OtelIngestionProcessor.DANGEROUS_KEYS.has(attr.key)) {
+          acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+        }
+        return acc;
+      }, {}) ?? {}
+    );
+  }
+
   private convertKeyPathToNestedObject(
     input: Record<string, unknown>,
     prefix: string,
@@ -1316,7 +1344,7 @@ export class OtelIngestionProcessor {
     const useArray = keys.some((key) => key.match(/^\d+\./));
 
     // Blocklist to prevent prototype pollution via crafted OTel attribute keys
-    const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+    const DANGEROUS_KEYS = OtelIngestionProcessor.DANGEROUS_KEYS;
 
     // Helper function to set a value at a nested path
     const setNestedValue = (obj: any, path: string[], value: unknown): void => {
@@ -1606,6 +1634,35 @@ export class OtelIngestionProcessor {
             : processedOutput,
         filteredAttributes, // No attribute keys used, events are used instead
       };
+    }
+
+    // OpenTelemetry GenAI operation details event
+    // https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/
+    const operationDetailsAttributes = this.extractEventAttributes(
+      events.find(
+        (event: Record<string, unknown>) =>
+          event.name === "gen_ai.client.inference.operation.details",
+      ),
+    );
+    if (operationDetailsAttributes) {
+      input = operationDetailsAttributes["gen_ai.input.messages"];
+      output = operationDetailsAttributes["gen_ai.output.messages"];
+      if (input && operationDetailsAttributes["gen_ai.system_instructions"]) {
+        input = this.prependSystemInstructions(
+          input,
+          operationDetailsAttributes["gen_ai.system_instructions"],
+        );
+      }
+      if (input || output) {
+        return {
+          input: this.appendOtelToolDefinitionsToInput(
+            input,
+            operationDetailsAttributes,
+          ),
+          output,
+          filteredAttributes,
+        };
+      }
     }
 
     // Legacy semantic kernel event definitions
