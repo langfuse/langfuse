@@ -2,6 +2,9 @@
 CREATE TYPE "MonitorThresholdOperator" AS ENUM ('GT', 'GTE', 'LT', 'LTE', 'EQ', 'NEQ');
 
 -- CreateEnum
+CREATE TYPE "MonitorView" AS ENUM ('OBSERVATIONS', 'SCORES_NUMERIC', 'SCORES_CATEGORICAL');
+
+-- CreateEnum
 CREATE TYPE "MonitorSeverity" AS ENUM ('UNKNOWN', 'OK', 'WARNING', 'ALERT', 'NO_DATA');
 
 -- CreateEnum
@@ -15,7 +18,7 @@ CREATE TABLE "monitors" (
     "created_by" TEXT,
     "updated_by" TEXT,
     "project_id" TEXT NOT NULL,
-    "view" "DashboardWidgetViews" NOT NULL,
+    "view" "MonitorView" NOT NULL,
     "filters" JSONB NOT NULL,
     "metric" JSONB NOT NULL,
     "window_ms" BIGINT NOT NULL,
