@@ -3975,7 +3975,7 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
-    it("should map GenAI operation details event messages to input and output", async () => {
+    it("should map GenAI operation details event messages with system instructions and tools", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";
       const rootSpanId = "1234567890abcdef";
       const otelString = (stringValue: string) => ({ stringValue });
@@ -4070,6 +4070,30 @@ describe("OTel Resource Span Mapping", () => {
                           ),
                         ]),
                       },
+                      {
+                        key: "gen_ai.system_instructions",
+                        value: otelArray([
+                          otelTextPart("Answer with trace IDs only."),
+                        ]),
+                      },
+                      {
+                        key: "gen_ai.tool.definitions",
+                        value: {
+                          stringValue: JSON.stringify([
+                            {
+                              type: "function",
+                              name: "lookup_trace",
+                              description: "Look up a trace by ID",
+                              parameters: {
+                                type: "object",
+                                properties: {
+                                  trace_id: { type: "string" },
+                                },
+                              },
+                            },
+                          ]),
+                        },
+                      },
                     ],
                   },
                 ],
@@ -4086,17 +4110,36 @@ describe("OTel Resource Span Mapping", () => {
         (e) => e.type.endsWith("-create") && e.type !== "trace-create",
       );
 
-      expect(observation?.body.input).toEqual([
-        {
-          role: "user",
-          parts: [
-            {
-              type: "text",
-              content: "Which traces failed?",
+      expect(observation?.body.input).toEqual({
+        messages: [
+          {
+            role: "system",
+            content: "Answer with trace IDs only.",
+          },
+          {
+            role: "user",
+            parts: [
+              {
+                type: "text",
+                content: "Which traces failed?",
+              },
+            ],
+          },
+        ],
+        tools: [
+          {
+            type: "function",
+            name: "lookup_trace",
+            description: "Look up a trace by ID",
+            parameters: {
+              type: "object",
+              properties: {
+                trace_id: { type: "string" },
+              },
             },
-          ],
-        },
-      ]);
+          },
+        ],
+      });
       expect(observation?.body.output).toEqual([
         {
           role: "assistant",
