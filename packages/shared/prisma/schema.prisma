@@ -1588,6 +1588,7 @@ enum MonitorThresholdOperator {
 }
 
 enum MonitorSeverity {
+  UNKNOWN
   OK
   WARNING
   ALERT
@@ -1623,7 +1624,7 @@ model Monitor {
   alertThreshold    Decimal                  @map("alert_threshold")
   warningThreshold  Decimal?                 @map("warning_threshold")
 
-  severity          MonitorSeverity @default(OK)
+  severity          MonitorSeverity @default(UNKNOWN)
   severityChangedAt DateTime?       @map("severity_changed_at")
 
   noData   Json @map("no_data")

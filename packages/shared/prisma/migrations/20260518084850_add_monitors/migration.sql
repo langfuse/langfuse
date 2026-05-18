@@ -2,7 +2,7 @@
 CREATE TYPE "MonitorThresholdOperator" AS ENUM ('GT', 'GTE', 'LT', 'LTE', 'EQ', 'NEQ');
 
 -- CreateEnum
-CREATE TYPE "MonitorSeverity" AS ENUM ('OK', 'WARNING', 'ALERT', 'NO_DATA');
+CREATE TYPE "MonitorSeverity" AS ENUM ('UNKNOWN', 'OK', 'WARNING', 'ALERT', 'NO_DATA');
 
 -- CreateEnum
 CREATE TYPE "MonitorStatus" AS ENUM ('ACTIVE', 'PAUSED', 'ERROR_BAD_QUERY');
@@ -23,7 +23,7 @@ CREATE TABLE "monitors" (
     "threshold_operator" "MonitorThresholdOperator" NOT NULL,
     "alert_threshold" DECIMAL(65,30) NOT NULL,
     "warning_threshold" DECIMAL(65,30),
-    "severity" "MonitorSeverity" NOT NULL DEFAULT 'OK',
+    "severity" "MonitorSeverity" NOT NULL DEFAULT 'UNKNOWN',
     "severity_changed_at" TIMESTAMP(3),
     "no_data" JSONB NOT NULL,
     "renotify" JSONB NOT NULL,
