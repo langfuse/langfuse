@@ -215,6 +215,39 @@ describe("withMiddlewares error handling", () => {
       expect(jsonData["error"]).toBe("Request timed out");
     });
 
+    it("should include tags from the error in the warn log", async () => {
+      const originalError = new Error("Memory limit exceeded");
+      const resourceError = new ClickHouseResourceError(
+        "MEMORY_LIMIT",
+        originalError,
+        { type: "events", kind: "publicApiRows" },
+      );
+
+      const handler = withMiddlewares({
+        GET: async () => {
+          throw resourceError;
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        headers: {
+          "x-langfuse-public-key": "test-key",
+        },
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(422);
+      expect(logger.warn).toHaveBeenCalledWith(
+        "ClickHouse resource limit exceeded",
+        expect.objectContaining({
+          errorType: "MEMORY_LIMIT",
+          tags: { type: "events", kind: "publicApiRows" },
+        }),
+      );
+    });
+
     it("should handle ClickHouseResourceError with custom advice", async () => {
       const originalError = new Error("Timeout exceeded");
       const resourceError = new ClickHouseResourceError(
