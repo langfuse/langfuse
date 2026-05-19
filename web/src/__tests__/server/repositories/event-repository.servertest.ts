@@ -359,6 +359,47 @@ describe("Clickhouse Events Repository Test", () => {
       expect(resultWithIO[0]?.input).toBeDefined();
       expect(resultWithoutIO[0]?.output).toBeDefined();
     });
+
+    it("should not throw when model_parameters is not valid JSON", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "poisoned-model-parameters",
+        provided_model_name: "gpt-5-mini",
+        model_parameters: "<not serializable object of type: dict>",
+      });
+
+      await createEventsCh([event]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(generationId)],
+        limit: 1000,
+        offset: 0,
+        selectIOAndMetadata: true,
+      });
+
+      const observation = result.find((o) => o.id === generationId);
+      expect(observation).toBeDefined();
+      expect(observation?.modelParameters).toBe(
+        "<not serializable object of type: dict>",
+      );
+
+      const byId = await getObservationByIdFromEventsTable({
+        id: generationId,
+        projectId,
+        fetchWithInputOutput: true,
+      });
+      expect(byId?.modelParameters).toBe(
+        "<not serializable object of type: dict>",
+      );
+    });
   });
 
   maybe("getObservationsCountFromEventsTable", () => {
@@ -2231,6 +2272,14 @@ describe("Clickhouse Events Repository Test", () => {
 
       const nowMicro = Date.now() * 1000;
       const timestamp = new Date(nowMicro / 1000);
+      const observation3Input = JSON.stringify({
+        prototype: "input",
+        safeKey: "input-value",
+      });
+      const observation3Output = JSON.stringify({
+        prototype: "output",
+        safeKey: "output-value",
+      });
 
       // Create events with different I/O content and metadata
       const events = [
@@ -2267,8 +2316,8 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: traceId,
           type: "GENERATION",
           name: "test-observation-3",
-          input: "This is input for observation 3",
-          output: "This is output for observation 3",
+          input: observation3Input,
+          output: observation3Output,
           metadata_names: ["key3"],
           metadata_values: ["value3"],
           start_time: nowMicro + 2000,
@@ -2313,8 +2362,16 @@ describe("Clickhouse Events Repository Test", () => {
       // Check observation 3
       const io3 = result.find((r) => r.id === observation3Id);
       expect(io3).toBeDefined();
-      expect(io3?.input).toBe("This is input for observation 3");
-      expect(io3?.output).toBe("This is output for observation 3");
+      expect(io3?.input).toBe(observation3Input);
+      expect(io3?.output).toBe(observation3Output);
+      expect(JSON.parse(io3?.input ?? "{}")).toEqual({
+        prototype: "input",
+        safeKey: "input-value",
+      });
+      expect(JSON.parse(io3?.output ?? "{}")).toEqual({
+        prototype: "output",
+        safeKey: "output-value",
+      });
       expect(io3?.metadata).toBeDefined();
       expect(io3?.metadata?.key3).toBe("value3");
     });

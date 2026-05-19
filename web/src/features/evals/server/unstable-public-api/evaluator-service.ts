@@ -1,4 +1,5 @@
 import {
+  EvalTargetObject,
   extractVariables,
   InternalServerError,
   observationVariableMappingList,
@@ -6,7 +7,6 @@ import {
 } from "@langfuse/shared";
 import { invalidateProjectEvalConfigCaches } from "@langfuse/shared/src/server";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
-import { z } from "zod";
 import type { PostUnstableEvaluatorBodyType } from "@/src/features/public-api/types/unstable-evaluators";
 import {
   toApiEvaluator,
@@ -25,12 +25,16 @@ import type { StoredPublicEvaluatorTemplate } from "./types";
 
 function prepareVariableMappingForEvaluatorUpgrade(params: {
   scoreName: string;
+  targetObject: string;
   variableMapping: unknown;
   nextVariables: string[];
 }) {
-  const mappingParseResult = z
-    .union([observationVariableMappingList, variableMappingList])
-    .safeParse(params.variableMapping);
+  const mappingSchema =
+    params.targetObject === EvalTargetObject.EVENT ||
+    params.targetObject === EvalTargetObject.EXPERIMENT
+      ? observationVariableMappingList
+      : variableMappingList;
+  const mappingParseResult = mappingSchema.safeParse(params.variableMapping);
 
   if (!mappingParseResult.success) {
     throw new InternalServerError("Evaluation rule mapping is corrupted");
@@ -158,6 +162,7 @@ export async function createPublicEvaluator(params: {
                 select: {
                   id: true,
                   scoreName: true,
+                  targetObject: true,
                   variableMapping: true,
                 },
               })
@@ -166,6 +171,7 @@ export async function createPublicEvaluator(params: {
           id: config.id,
           variableMapping: prepareVariableMappingForEvaluatorUpgrade({
             scoreName: config.scoreName,
+            targetObject: config.targetObject,
             variableMapping: config.variableMapping,
             nextVariables,
           }),

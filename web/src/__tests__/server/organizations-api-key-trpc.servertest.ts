@@ -59,11 +59,40 @@ describe("organization API keys trpc", () => {
     environment: {} as any,
   };
 
+  const adminSession: Session = {
+    expires: "1",
+    user: {
+      id: "user-3",
+      canCreateOrganizations: true,
+      name: "Admin User",
+      organizations: [
+        {
+          id: organizationId,
+          name: "Test Organization",
+          role: "ADMIN",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          metadata: {},
+          projects: [],
+        },
+      ],
+      featureFlags: {
+        excludeClickhouseRead: false,
+        templateFlag: true,
+      },
+      admin: false,
+    },
+    environment: {} as any,
+  };
+
   const ownerCtx = createInnerTRPCContext({ session: ownerSession });
   const ownerCaller = appRouter.createCaller({ ...ownerCtx, prisma });
 
   const memberCtx = createInnerTRPCContext({ session: memberSession });
   const memberCaller = appRouter.createCaller({ ...memberCtx, prisma });
+
+  const adminCtx = createInnerTRPCContext({ session: adminSession });
+  const adminCaller = appRouter.createCaller({ ...adminCtx, prisma });
 
   const unAuthedCtx = createInnerTRPCContext({ session: null });
   const unAuthedCaller = appRouter.createCaller({ ...unAuthedCtx, prisma });
@@ -100,6 +129,14 @@ describe("organization API keys trpc", () => {
       ).rejects.toThrow(TRPCError);
     });
 
+    it("admin cannot fetch organization API keys", async () => {
+      await expect(
+        adminCaller.organizationApiKeys.byOrganizationId({
+          orgId: organizationId,
+        }),
+      ).rejects.toThrow(TRPCError);
+    });
+
     it("unauthenticated user cannot fetch organization API keys", async () => {
       await expect(
         unAuthedCaller.organizationApiKeys.byOrganizationId({
@@ -125,6 +162,15 @@ describe("organization API keys trpc", () => {
     it("regular member cannot create organization API keys", async () => {
       await expect(
         memberCaller.organizationApiKeys.create({
+          orgId: organizationId,
+          note: "Test API Key",
+        }),
+      ).rejects.toThrow(TRPCError);
+    });
+
+    it("admin cannot create organization API keys", async () => {
+      await expect(
+        adminCaller.organizationApiKeys.create({
           orgId: organizationId,
           note: "Test API Key",
         }),
@@ -182,6 +228,23 @@ describe("organization API keys trpc", () => {
         }),
       ).rejects.toThrow(TRPCError);
     });
+
+    it("admin cannot update API key note", async () => {
+      // Create a key as owner
+      const apiKeyResult = await ownerCaller.organizationApiKeys.create({
+        orgId: organizationId,
+        note: "Original Note",
+      });
+
+      // Try to update as admin
+      await expect(
+        adminCaller.organizationApiKeys.updateNote({
+          orgId: organizationId,
+          keyId: apiKeyResult.id,
+          note: "Updated Note",
+        }),
+      ).rejects.toThrow(TRPCError);
+    });
   });
 
   describe("organizationApiKeys.delete", () => {
@@ -217,6 +280,22 @@ describe("organization API keys trpc", () => {
       // Try to delete as member
       await expect(
         memberCaller.organizationApiKeys.delete({
+          orgId: organizationId,
+          id: apiKeyResult.id,
+        }),
+      ).rejects.toThrow(TRPCError);
+    });
+
+    it("admin cannot delete API key", async () => {
+      // Create a key as owner
+      const apiKeyResult = await ownerCaller.organizationApiKeys.create({
+        orgId: organizationId,
+        note: "To Be Deleted",
+      });
+
+      // Try to delete as admin
+      await expect(
+        adminCaller.organizationApiKeys.delete({
           orgId: organizationId,
           id: apiKeyResult.id,
         }),

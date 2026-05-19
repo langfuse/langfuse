@@ -7,6 +7,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { hashPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { z } from "zod";
 import { type Role } from "@langfuse/shared";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default async function handler(
   req: NextApiRequest,
@@ -182,11 +183,15 @@ export default async function handler(
         role = parsedRoles.data[0];
       }
 
-      // Check if user already exists
+      // Check if user already exists. Normalize the email to lowercase to
+      // stay consistent with the upsert below; otherwise a case-variant
+      // userName slips past the duplicate check and the upsert can collide
+      // with an existing user row.
+      const normalizedEmail = userName.toLowerCase();
       const existingUser = await prisma.organizationMembership.findMany({
         where: {
           user: {
-            email: userName,
+            email: normalizedEmail,
           },
           orgId: authCheck.scope.orgId,
         },
@@ -206,21 +211,29 @@ export default async function handler(
       // Create the user
       const user = await prisma.user.upsert({
         where: {
-          email: userName.toLowerCase(),
+          email: normalizedEmail,
         },
         create: {
-          email: userName.toLowerCase(),
+          email: normalizedEmail,
           name: name?.formatted || displayName,
           password: password ? await hashPassword(password) : undefined,
         },
         update: {},
       });
-      await prisma.organizationMembership.create({
+      const orgMembership = await prisma.organizationMembership.create({
         data: {
           userId: user.id,
           orgId: authCheck.scope.orgId,
           role,
         },
+      });
+      await auditLog({
+        resourceType: "orgMembership",
+        resourceId: orgMembership.id,
+        action: "create",
+        after: orgMembership,
+        apiKeyId: authCheck.scope.apiKeyId,
+        orgId: authCheck.scope.orgId,
       });
       logger.info(
         `[SCIM] Assigned user ${user.id} to org ${authCheck.scope.orgId} with role ${role}`,

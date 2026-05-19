@@ -1,9 +1,6 @@
 # The node alpine image is available here: https://github.com/nodejs/docker-node
 FROM --platform=${TARGETPLATFORM:-linux/amd64} edge.fkinternal.com/docker-external/node:24-alpine AS alpine
 
-# Inject Flipkart corporate CA so all HTTPS calls (apk, npm, go, prisma) work
-COPY flipkart-ca.pem /usr/local/share/ca-certificates/flipkart-ca.crt
-RUN apk add --no-cache --allow-untrusted ca-certificates && update-ca-certificates
 
 # It's important to update the index before installing packages to ensure you're getting the latest versions.
 RUN apk add --no-cache libc6-compat
@@ -22,11 +19,9 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 RUN rm -rf /usr/local/lib/node_modules/corepack && \
     rm -f /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
-FROM --platform=${BUILDPLATFORM} edge.fkinternal.com/docker-external/golang:1.24 AS migrate-builder
+FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder
 ARG TARGETOS
 ARG TARGETARCH
-COPY flipkart-ca.pem /usr/local/share/ca-certificates/flipkart-ca.crt
-RUN update-ca-certificates
 ENV CGO_ENABLED=0 \
     GOBIN=/out \
     GOOS=${TARGETOS} \

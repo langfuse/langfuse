@@ -226,6 +226,8 @@ const FIELD_SETS = {
   io: ["input", "output"],
   metadata: ["metadata"],
   tools: ["toolDefinitions", "toolCalls", "toolCallNames"],
+  trace_context: ["tags", "release", "traceName"],
+  model_export: ["providedModelName", "modelId", "modelParameters"],
   eventTs: ["eventTs"],
 
   // getById field sets (reuse the same fields - all queries use `FROM events_<type> e`)
@@ -291,7 +293,7 @@ const FIELD_SETS = {
   ],
   time: ["completionStartTime", "createdAt", "updatedAt"],
   model: ["providedModelName", "internalModelId", "modelParameters"],
-  usage: ["usageDetails", "costDetails", "totalCost"],
+  usage: ["usageDetails", "costDetails", "totalCost", "usagePricingTierName"],
   prompt: ["promptId", "promptName", "promptVersion"],
   metrics: ["latency", "timeToFirstToken"],
 

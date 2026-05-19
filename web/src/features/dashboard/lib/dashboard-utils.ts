@@ -1,6 +1,5 @@
 import { type z } from "zod";
 import { type FilterState, type singleFilter } from "@langfuse/shared";
-import { usdFormatter } from "@/src/utils/numbers";
 import {
   type QueryType,
   type ViewVersion,
@@ -22,14 +21,6 @@ export const createTracesTimeFilter = (
       return f;
     }
   });
-};
-
-export const totalCostDashboardFormatted = (totalCost?: number) => {
-  return totalCost
-    ? totalCost < 5
-      ? usdFormatter(totalCost, 2, 6)
-      : usdFormatter(totalCost, 2, 2)
-    : usdFormatter(0);
 };
 
 /** Filter to exclude events with empty trace_name (observations view only). */

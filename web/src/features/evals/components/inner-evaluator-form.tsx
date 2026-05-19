@@ -1,5 +1,5 @@
 import { type UseFormReturn, useForm } from "react-hook-form";
-import { AlertDescription } from "@/src/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -24,6 +24,8 @@ import {
   type ColumnDefinition,
   type availableDatasetEvalVariables,
   JobConfigState,
+  validateEvaluatorFiltersForTarget,
+  evalTraceTableCols,
 } from "@langfuse/shared";
 import { z } from "zod";
 import { useEffect, useMemo, useState, memo } from "react";
@@ -38,6 +40,7 @@ import {
   observationVariableMapping,
 } from "@langfuse/shared";
 import { useRouter } from "next/router";
+import { toast } from "sonner";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -52,7 +55,7 @@ import {
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { validateAndTransformVariableMapping } from "@/src/features/evals/utils/variable-mapping-validation";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
-import { EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject, EvalTargetObjectSchema } from "@langfuse/shared";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
 import { Suspense, lazy } from "react";
 import {
@@ -336,26 +339,43 @@ export const InnerEvaluatorForm = (props: {
 
   const targetState = useEvaluatorTargetState();
 
+  // Check if existing trace evaluator has invalid filters (e.g., score filters added by bug ff4b03c0b)
+  const hasInvalidTraceFilters = useMemo(() => {
+    if (
+      !props.existingEvaluator?.filter ||
+      props.existingEvaluator.targetObject !== EvalTargetObject.TRACE
+    ) {
+      return false;
+    }
+    const validation = validateEvaluatorFiltersForTarget({
+      targetObject: EvalTargetObject.TRACE,
+      filter: props.existingEvaluator.filter,
+    });
+    return !validation.isValid;
+  }, [props.existingEvaluator?.filter, props.existingEvaluator?.targetObject]);
+
+  const defaultTargetResult = EvalTargetObjectSchema.safeParse(
+    props.existingEvaluator?.targetObject ??
+      props.defaultTarget ??
+      EvalTargetObject.EVENT,
+  );
+  const defaultTarget = defaultTargetResult.success
+    ? defaultTargetResult.data
+    : EvalTargetObject.EVENT;
+
   const form = useForm({
     resolver: zodResolver(evalConfigFormSchema),
     disabled: props.disabled,
     defaultValues: {
       scoreName:
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
-      target:
-        props.existingEvaluator?.targetObject ??
-        props.defaultTarget ??
-        EvalTargetObject.EVENT,
+      target: defaultTarget,
       filter: props.existingEvaluator?.filter
         ? z.array(singleFilter).parse(props.existingEvaluator.filter)
-        : (props.existingEvaluator?.targetObject ??
-              props.defaultTarget ??
-              EvalTargetObject.EVENT) === EvalTargetObject.TRACE
+        : defaultTarget === EvalTargetObject.TRACE
           ? // For new trace evaluators, exclude internal environments by default
             DEFAULT_TRACE_FILTER
-          : (props.existingEvaluator?.targetObject ??
-                props.defaultTarget ??
-                EvalTargetObject.EVENT) === EvalTargetObject.EVENT
+          : defaultTarget === EvalTargetObject.EVENT
             ? // For new observation evaluators, default to GENERATION type
               DEFAULT_OBSERVATION_FILTER
             : [],
@@ -456,11 +476,17 @@ export const InnerEvaluatorForm = (props: {
   const utils = api.useUtils();
   const createJobMutation = api.evals.createJob.useMutation({
     onSuccess: () => utils.models.invalidate(),
-    onError: (error) => setFormError(error.message),
+    onError: (error) => {
+      setFormError(error.message);
+      toast.error(error.message);
+    },
   });
   const updateJobMutation = api.evals.updateEvalJob.useMutation({
     onSuccess: () => utils.evals.invalidate(),
-    onError: (error) => setFormError(error.message),
+    onError: (error) => {
+      setFormError(error.message);
+      toast.error(error.message);
+    },
   });
   const [availableVariables, setAvailableVariables] = useState<
     typeof availableTraceEvalVariables | typeof availableDatasetEvalVariables
@@ -690,6 +716,17 @@ export const InnerEvaluatorForm = (props: {
       />
       {!props.hideTargetSection && (
         <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
+          {hasInvalidTraceFilters && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Unsupported filter detected</AlertTitle>
+              <AlertDescription>
+                This evaluator has a filter that is not supported for
+                trace-level evaluators. It is effectively paused. Please remove
+                all filters and re-add them from scratch to resume execution.
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="flex flex-col gap-4">
             {!props.hideTargetSelection && (
               <FormField
@@ -1009,7 +1046,10 @@ export const InnerEvaluatorForm = (props: {
                           allowPropagationFilters,
                         );
                       } else if (isTraceTarget(target)) {
-                        return tracesTableColsWithOptions(traceFilterOptions);
+                        return tracesTableColsWithOptions(
+                          traceFilterOptions,
+                          evalTraceTableCols,
+                        );
                       } else if (isExperimentTarget(target)) {
                         // Experiment evaluators - only dataset filter
                         return experimentEvalFilterColsWithOptions(
