@@ -187,6 +187,7 @@ export const MonitorSchema = z
     message: ErrorInvalidWarningAlertOrdering,
     path: ["warningThreshold"],
   });
+export type Monitor = z.infer<typeof MonitorSchema>;
 
 /**
  * MonitorQueueEventSchema represents a batch of monitors that can be evaluated

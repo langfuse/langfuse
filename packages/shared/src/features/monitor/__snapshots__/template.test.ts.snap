@@ -1,0 +1,92 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MonitorTemplateRenderer > snapshots per scenario (covers every flag) > renders a fresh alert (OK → ALERT) 1`] = `
+"value=5,432ms
+threshold=100ms
+warn_threshold=50ms
+comparator=>
+window=last 5 minutes
+permalink=https://cloud.langfuse.com/project/proj_01/monitors/mon_01
+is_ok=false is_alert=true is_warning=false is_no_data=false is_unknown=false
+was_ok=true was_alert=false was_warning=false was_no_data=false was_unknown=false
+is_recovery=false is_escalation=true is_renotify=false
+last_triggered_at=2026-05-19T12:00:00.000Z last_triggered_at_epoch=1779192000000"
+`;
+
+exports[`MonitorTemplateRenderer > snapshots per scenario (covers every flag) > renders a fresh no-data (OK → NO_DATA) 1`] = `
+"value=5,432ms
+threshold=100ms
+warn_threshold=50ms
+comparator=>
+window=last 5 minutes
+permalink=https://cloud.langfuse.com/project/proj_01/monitors/mon_01
+is_ok=false is_alert=false is_warning=false is_no_data=true is_unknown=false
+was_ok=true was_alert=false was_warning=false was_no_data=false was_unknown=false
+is_recovery=false is_escalation=true is_renotify=false
+last_triggered_at=2026-05-19T12:00:00.000Z last_triggered_at_epoch=1779192000000"
+`;
+
+exports[`MonitorTemplateRenderer > snapshots per scenario (covers every flag) > renders a fresh warning (OK → WARNING) 1`] = `
+"value=5,432ms
+threshold=100ms
+warn_threshold=50ms
+comparator=>
+window=last 5 minutes
+permalink=https://cloud.langfuse.com/project/proj_01/monitors/mon_01
+is_ok=false is_alert=false is_warning=true is_no_data=false is_unknown=false
+was_ok=true was_alert=false was_warning=false was_no_data=false was_unknown=false
+is_recovery=false is_escalation=true is_renotify=false
+last_triggered_at=2026-05-19T12:00:00.000Z last_triggered_at_epoch=1779192000000"
+`;
+
+exports[`MonitorTemplateRenderer > snapshots per scenario (covers every flag) > renders a recovery (ALERT → OK) 1`] = `
+"value=5,432ms
+threshold=100ms
+warn_threshold=50ms
+comparator=>
+window=last 5 minutes
+permalink=https://cloud.langfuse.com/project/proj_01/monitors/mon_01
+is_ok=true is_alert=false is_warning=false is_no_data=false is_unknown=false
+was_ok=false was_alert=true was_warning=false was_no_data=false was_unknown=false
+is_recovery=true is_escalation=false is_renotify=false
+last_triggered_at=2026-05-19T12:00:00.000Z last_triggered_at_epoch=1779192000000"
+`;
+
+exports[`MonitorTemplateRenderer > snapshots per scenario (covers every flag) > renders a sustained-alert renotify 1`] = `
+"value=5,432ms
+threshold=100ms
+warn_threshold=50ms
+comparator=>
+window=last 5 minutes
+permalink=https://cloud.langfuse.com/project/proj_01/monitors/mon_01
+is_ok=false is_alert=true is_warning=false is_no_data=false is_unknown=false
+was_ok=false was_alert=true was_warning=false was_no_data=false was_unknown=false
+is_recovery=false is_escalation=false is_renotify=true
+last_triggered_at=2026-05-19T12:00:00.000Z last_triggered_at_epoch=1779192000000"
+`;
+
+exports[`MonitorTemplateRenderer > snapshots per scenario (covers every flag) > renders a warning → alert escalation 1`] = `
+"value=5,432ms
+threshold=100ms
+warn_threshold=50ms
+comparator=>
+window=last 5 minutes
+permalink=https://cloud.langfuse.com/project/proj_01/monitors/mon_01
+is_ok=false is_alert=true is_warning=false is_no_data=false is_unknown=false
+was_ok=false was_alert=false was_warning=true was_no_data=false was_unknown=false
+is_recovery=false is_escalation=true is_renotify=false
+last_triggered_at=2026-05-19T12:00:00.000Z last_triggered_at_epoch=1779192000000"
+`;
+
+exports[`MonitorTemplateRenderer > snapshots per scenario (covers every flag) > renders the initial unknown state (from=null, to=UNKNOWN) 1`] = `
+"value=5,432ms
+threshold=100ms
+warn_threshold=50ms
+comparator=>
+window=last 5 minutes
+permalink=https://cloud.langfuse.com/project/proj_01/monitors/mon_01
+is_ok=false is_alert=false is_warning=false is_no_data=false is_unknown=true
+was_ok=false was_alert=false was_warning=false was_no_data=false was_unknown=false
+is_recovery=false is_escalation=false is_renotify=false
+last_triggered_at= last_triggered_at_epoch="
+`;
