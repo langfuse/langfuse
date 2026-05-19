@@ -117,6 +117,10 @@ export const ObservationDetailViewHeader = memo(
               observationType={observation.type}
               projectId={projectId}
               spanName={observation.name ?? ""}
+              webCallback={{
+                traceId,
+                observationId: observation.id,
+              }}
             />
           </div>
           {/* Action buttons */}

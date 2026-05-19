@@ -15,6 +15,7 @@ import {
 } from "@/src/features/events/lib/eventsTablePaths";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
+import { WebCallbackMenuItem } from "@/src/features/web-callbacks/components/WebCallbackMenuItem";
 
 type IdItem = {
   name: string;
@@ -26,6 +27,10 @@ type DetailHeaderActionsMenuProps = {
   observationType?: ObservationType;
   projectId: string;
   spanName?: string;
+  webCallback?: {
+    traceId: string;
+    observationId?: string | null;
+  };
 };
 
 export function DetailHeaderActionsMenu({
@@ -33,6 +38,7 @@ export function DetailHeaderActionsMenu({
   observationType,
   projectId,
   spanName,
+  webCallback,
 }: DetailHeaderActionsMenuProps) {
   const router = useRouter();
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -77,6 +83,16 @@ export function DetailHeaderActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
+        {webCallback && (
+          <>
+            <WebCallbackMenuItem
+              projectId={projectId}
+              traceId={webCallback.traceId}
+              observationId={webCallback.observationId}
+              withSeparator
+            />
+          </>
+        )}
         {(href || typeHref) && (
           <>
             {href && (

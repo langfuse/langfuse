@@ -138,6 +138,7 @@ model Project {
   PosthogIntegration        PosthogIntegration[]
   MixpanelIntegration       MixpanelIntegration[]
   BlobStorageIntegration    BlobStorageIntegration[]
+  webCallbackEndpoints      WebCallbackEndpoint[]
   scoreConfig               ScoreConfig[]
   BatchExport               BatchExport[]
   BatchAction               BatchAction[]
@@ -1155,6 +1156,27 @@ model BlobStorageIntegration {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("blob_storage_integrations")
+}
+
+model WebCallbackEndpoint {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name           String  @default("Default")
+  url            String
+  enabled        Boolean @default(true)
+  toastMessage   String  @default("Callback sent") @map("toast_message")
+  timeoutMs      Int     @default(10000) @map("timeout_ms")
+  requestHeaders Json?   @map("request_headers")
+  displayHeaders Json?   @map("display_headers")
+
+  @@index([projectId])
+  @@index([projectId, enabled])
+  @@map("web_callback_endpoints")
 }
 
 enum BlobStorageIntegrationFileType {
