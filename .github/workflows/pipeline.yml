@@ -180,8 +180,14 @@ jobs:
           if git diff --quiet --exit-code --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css'; then
             echo "No JS/TS/CSS files changed - skipping prettier check"
           else
+            # --experimental-cli is intentionally omitted: its glob resolver treats bracket characters
+            # in Next.js dynamic-route paths (e.g. [projectId]) as glob character classes, causing
+            # "No files matching the given patterns were found" (exit 123) for any PR that touches a
+            # file inside a bracket-named directory. Standard prettier resolves explicit paths correctly.
+            # Parallelism and the ephemeral cache (the only extras --experimental-cli adds) provide no
+            # benefit when checking a handful of per-PR changed files.
             git diff --name-only -z --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' \
-              | xargs -0 --no-run-if-empty pnpm prettier --check --experimental-cli --
+              | xargs -0 --no-run-if-empty pnpm prettier --check --
           fi
 
   tests-eslint-plugin:
