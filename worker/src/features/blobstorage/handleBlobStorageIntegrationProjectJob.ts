@@ -58,13 +58,6 @@ export async function* enrichObservationStream(
       enriched.input_price = pricing.inputPrice;
       enriched.output_price = pricing.outputPrice;
       enriched.total_price = pricing.totalPrice;
-    } else {
-      // model_export columns (provided_model_name, model_id, model_parameters)
-      // are only fetched when model is requested. Drop them when the model
-      // group was not selected so they don't leak into the output.
-      delete enriched[modelIdField];
-      delete enriched.provided_model_name;
-      delete enriched.model_parameters;
     }
 
     // ClickHouse returns {} for Map columns even when not SELECTed — drop it
