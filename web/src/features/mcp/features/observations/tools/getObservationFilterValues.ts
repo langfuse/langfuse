@@ -42,7 +42,7 @@ const GetObservationFilterValuesBaseSchema = z.object({
 });
 
 type FilterOption = {
-  value: string;
+  value: string | boolean;
   count?: number;
 };
 
@@ -73,18 +73,36 @@ const buildStartTimeFilter = (params: {
   return filters;
 };
 
-const normalizeFilterOptions = (values: unknown[]): FilterOption[] => {
+const normalizeFilterOptions = (
+  values: unknown[],
+  column: z.infer<typeof FilterValueColumnSchema>,
+): FilterOption[] => {
+  const normalizeValue = (value: unknown): string | boolean | null => {
+    if (typeof value === "string") {
+      // Special handling for the "hasParentObservation" column to convert "true"/"false" strings to boolean values.
+      if (column === "hasParentObservation") {
+        if (value === "true") return true;
+        if (value === "false") return false;
+      }
+      return value;
+    }
+
+    if (typeof value === "boolean") return value;
+
+    return null;
+  };
+
   return values
     .map((value): FilterOption | null => {
-      if (typeof value === "string") return { value };
-      if (
-        typeof value === "object" &&
-        value !== null &&
-        "value" in value &&
-        typeof value.value === "string"
-      ) {
+      const normalizedPrimitive = normalizeValue(value);
+      if (normalizedPrimitive !== null) return { value: normalizedPrimitive };
+
+      if (typeof value === "object" && value !== null && "value" in value) {
+        const normalizedObjectValue = normalizeValue(value.value);
+        if (normalizedObjectValue === null) return null;
+
         return {
-          value: value.value,
+          value: normalizedObjectValue,
           count:
             "count" in value && typeof value.count === "number"
               ? value.count
@@ -94,7 +112,7 @@ const normalizeFilterOptions = (values: unknown[]): FilterOption[] => {
       return null;
     })
     .filter((value): value is FilterOption => value !== null)
-    .sort((a, b) => a.value.localeCompare(b.value));
+    .sort((a, b) => String(a.value).localeCompare(String(b.value)));
 };
 
 const decodeObservationFilterValueCursor = (
@@ -165,7 +183,7 @@ export const [
           );
         }
 
-        const normalizedValues = normalizeFilterOptions(values);
+        const normalizedValues = normalizeFilterOptions(values, input.column);
 
         const offset = decodeObservationFilterValueCursor(input.cursor);
         const page = normalizedValues.slice(offset, offset + input.limit);

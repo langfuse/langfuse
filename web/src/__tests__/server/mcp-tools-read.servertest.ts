@@ -719,6 +719,39 @@ describe("MCP Read Tools", () => {
       );
     });
 
+    it("should return boolean values for hasParentObservation", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-has-parent-${nanoid()}`,
+          parentObservationId: randomUUID(),
+        }),
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-root-${nanoid()}`,
+          parentObservationId: null,
+        }),
+      ]);
+
+      const result = (await handleGetObservationFilterValues(
+        { column: "hasParentObservation", limit: 100 },
+        context,
+      )) as {
+        column: string;
+        values: Array<{ value: boolean; count?: number }>;
+      };
+
+      expect(result.column).toBe("hasParentObservation");
+      expect(result.values).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ value: false }),
+          expect.objectContaining({ value: true }),
+        ]),
+      );
+    });
+
     it("should paginate filter values with an opaque cursor", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const firstName = `mcp-filter-page-a-${nanoid()}`;
