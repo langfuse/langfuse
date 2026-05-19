@@ -4,7 +4,7 @@ import {
   BlobStorageIntegrationFileType,
   BlobStorageExportMode,
   AnalyticsIntegrationExportSource,
-  BLOB_EXPORT_FIELD_GROUPS,
+  OBSERVATION_FIELD_GROUPS_FULL,
 } from "@langfuse/shared";
 import {
   validateAzureContainerName,
@@ -39,8 +39,8 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
     .enum(AnalyticsIntegrationExportSource)
     .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
   exportFieldGroups: z
-    .array(z.enum(BLOB_EXPORT_FIELD_GROUPS))
-    .default([...BLOB_EXPORT_FIELD_GROUPS]),
+    .array(z.enum(OBSERVATION_FIELD_GROUPS_FULL))
+    .default([...OBSERVATION_FIELD_GROUPS_FULL]),
   compressed: z.boolean().default(true),
 });
 

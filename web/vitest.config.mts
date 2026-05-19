@@ -1,7 +1,12 @@
+import { config } from "dotenv";
+import { expand } from "dotenv-expand";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { VitestCiReporter } from "../scripts/vitest/ci-reporter";
+
+expand(config({ path: "../.env.test" }));
+expand(config({ path: "../.env" }));
 
 const sharedExclude = [
   "**/node_modules/**",

@@ -50,6 +50,12 @@ import {
   RenderingProps,
 } from "../utils/rendering";
 import {
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
+  OBSERVATION_FIELD_GROUPS_FULL,
+  type ObservationFieldGroupPublicApi,
+  type ObservationFieldGroupFull,
+} from "../../domain/observation-field-groups";
+import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
@@ -121,7 +127,7 @@ async function enrichObservationsWithModelData(
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
   projectId: string,
   parseIoAsJson: boolean,
-  requestedFields: ObservationFieldGroup[],
+  requestedFields: ObservationFieldGroupPublicApi[],
 ): Promise<Array<EventsObservationPublic>>;
 async function enrichObservationsWithModelData(
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
@@ -133,7 +139,7 @@ async function enrichObservationsWithModelData(
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
   projectId: string,
   parseIoAsJson: boolean,
-  requestedFields: ObservationFieldGroup[] | null,
+  requestedFields: ObservationFieldGroupPublicApi[] | null,
 ): Promise<
   Array<(EventsObservation & ObservationPriceFields) | EventsObservationPublic>
 > {
@@ -336,8 +342,16 @@ export const getObservationsForTraceFromEventsTable = async (params: {
   projectId: string;
   traceId: string;
   timestamp?: Date;
+  selectIOAndMetadata?: boolean;
+  selectToolData?: boolean;
 }): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
-  const { projectId, traceId, timestamp } = params;
+  const {
+    projectId,
+    traceId,
+    timestamp,
+    selectIOAndMetadata = false,
+    selectToolData = false,
+  } = params;
 
   const filter: FilterState = [
     {
@@ -367,7 +381,8 @@ export const getObservationsForTraceFromEventsTable = async (params: {
         limit: MAX_OBSERVATIONS_PER_TRACE + 1,
         offset: 0,
         select: "rows",
-        selectToolData: false,
+        selectIOAndMetadata,
+        selectToolData,
         tags: { kind: "byTraceId" },
       },
     );
@@ -857,28 +872,6 @@ export const getTraceByIdFromEventsTable = async ({
   return res.shift();
 };
 
-/**
- * Field groups for selective field fetching in v2 observations API
- *
- * - core: Always included (cursor-required fields)
- * - basic, time, io, metadata, model, usage, prompt, metrics: Optional groups
- */
-export const OBSERVATION_FIELD_GROUPS = [
-  "core", // Always included: id, traceId, startTime, endTime, projectId, parentObservationId, type
-  "basic", // name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId
-  "time", // completionStartTime, createdAt, updatedAt
-  "io", // input, output
-  "metadata", // metadata
-  "model", // providedModelName, internalModelId, modelParameters
-  "usage", // usageDetails, costDetails, totalCost
-  "prompt", // promptId, promptName, promptVersion
-  "metrics", // latency, timeToFirstToken
-  "tools", // toolDefinitions, toolCalls, toolCallNames
-  "trace_context", // tags, release, traceName, usagePricingTierName
-] as const;
-
-export type ObservationFieldGroup = (typeof OBSERVATION_FIELD_GROUPS)[number];
-
 type PublicApiObservationsQuery = {
   projectId: string;
   page: number;
@@ -900,7 +893,7 @@ type PublicApiObservationsQuery = {
     lastTraceId: string;
     lastId: string;
   };
-  fields?: ObservationFieldGroup[] | null;
+  fields?: ObservationFieldGroupPublicApi[] | null;
   /**
    * Metadata keys to expand (return full non-truncated values).
    * - null/undefined: use truncated metadata (default behavior)
@@ -1123,7 +1116,7 @@ export const getObservationsFromEventsTableForPublicApi = async (
     applyOrderByForObservationsQuery(buildObservationsQueryBase(opts)),
   );
 
-  OBSERVATION_FIELD_GROUPS.forEach((fieldGroup) => {
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API.forEach((fieldGroup) => {
     queryBuilder.selectFieldSet(fieldGroup);
   });
 
@@ -1154,7 +1147,9 @@ export const getObservationsFromEventsTableForPublicApi = async (
  * This avoids expensive full-table scans on events_full.
  */
 export const getObservationsV2FromEventsTableForPublicApi = async (
-  opts: PublicApiObservationsQuery & { fields: ObservationFieldGroup[] },
+  opts: PublicApiObservationsQuery & {
+    fields: ObservationFieldGroupPublicApi[];
+  },
 ): Promise<Array<EventsObservationPublic>> => {
   const { projectId, expandMetadataKeys } = opts;
 
@@ -2984,14 +2979,14 @@ export const getEventsForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-  fieldGroups: ObservationFieldGroup[] = [...OBSERVATION_FIELD_GROUPS],
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
 ) {
   const queryBuilder = new EventsQueryBuilder({ projectId });
 
   // core is always required (provides id, trace_id, start/end_time used for cursor and deduplication)
   const effectiveGroups = fieldGroups.includes("core")
     ? fieldGroups
-    : (["core", ...fieldGroups] as ObservationFieldGroup[]);
+    : (["core", ...fieldGroups] as ObservationFieldGroupFull[]);
 
   // model_export must be selected whenever model or usage is requested:
   // - model group: include model identification fields in the output

@@ -8,14 +8,24 @@ import {
 } from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
 import {
-  type metricAggregations,
-  getValidAggregationsForMeasureType,
-  type QueryType,
+  buildWidgetOrderBy,
   getResultUnit,
+  getValidAggregationsForMeasureType,
+  isV2BreakdownChart,
+  requiresV2,
+  validateQuery,
+  viewDeclarations,
+  views,
+  viewsV2,
+  type QueryType,
+  type ViewVersion,
+  type metricAggregations,
+} from "@langfuse/shared/query";
+import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
   partitionWidgetUiTableFiltersToView,
-} from "@/src/features/query";
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Select,
@@ -29,10 +39,9 @@ import {
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { Label } from "@/src/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { viewDeclarations, requiresV2 } from "@/src/features/query/dataModel";
+
 import { type z } from "zod";
-import { views, viewsV2 } from "@/src/features/query/types";
-import { type ViewVersion } from "@/src/features/query";
+
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
@@ -56,11 +65,6 @@ import {
 } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
-  validateQuery,
-  isV2BreakdownChart,
-  buildWidgetOrderBy,
-} from "@/src/features/query/validateQuery";
-import {
   BarChart,
   PieChart,
   LineChart,
@@ -78,6 +82,7 @@ import {
   formatMetricName,
   getWidgetMetricPresentation,
   sanitizePivotTableDefaultSort,
+  type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
@@ -100,8 +105,6 @@ type ChartType = {
   icon: React.ElementType;
   supportsBreakdown: boolean;
 };
-
-import { type WidgetChartConfig } from "@/src/features/widgets/utils";
 
 type ChartConfig = WidgetChartConfig;
 
