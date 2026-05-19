@@ -12,6 +12,7 @@ import { GetObservationsV2Response } from "@/src/features/public-api/types/obser
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
+import { prisma } from "@langfuse/shared/src/db";
 
 let projectId: string;
 let auth: string;
@@ -694,6 +695,90 @@ describe("/api/public/v2/observations API Endpoint", () => {
       });
     }
   });
+
+  maybe(
+    "Model enrichment gate: usage field group triggers price lookup",
+    () => {
+      it("fields=usage without model returns inputPrice/outputPrice/totalPrice", async () => {
+        const traceId = randomUUID();
+        const obsId = randomUUID();
+        const now = new Date();
+        const timeValue = now.getTime() * 1000;
+
+        const model = await prisma.model.create({
+          data: {
+            projectId,
+            modelName: `price-gate-test-${obsId}`,
+            matchPattern: `^price-gate-test-${obsId}`,
+            unit: "TOKENS",
+          },
+        });
+        const tier = await prisma.pricingTier.create({
+          data: {
+            modelId: model.id,
+            name: "Default",
+            isDefault: true,
+            priority: 0,
+            conditions: [],
+          },
+        });
+        await prisma.price.createMany({
+          data: [
+            {
+              modelId: model.id,
+              pricingTierId: tier.id,
+              usageType: "input",
+              price: 0.001,
+            },
+            {
+              modelId: model.id,
+              pricingTierId: tier.id,
+              usageType: "output",
+              price: 0.002,
+            },
+            {
+              modelId: model.id,
+              pricingTierId: tier.id,
+              usageType: "total",
+              price: 0.003,
+            },
+          ],
+        });
+
+        const obs = createEvent({
+          id: obsId,
+          span_id: obsId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "price-gate-test",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue,
+          model_id: model.id,
+          usage_details: { input: 5, output: 10, total: 15 },
+        });
+        await createEventsCh([obs]);
+
+        const response = await getObservations(
+          `/api/public/v2/observations?fields=usage&traceId=${traceId}`,
+        );
+
+        expect(response.status).toBe(200);
+        const observation = response.body.data.find((o: any) => o.id === obsId);
+        expect(observation).toBeDefined();
+        if (!observation) return;
+
+        // Prices are serialized as Decimal → toJSON() → string on the wire;
+        // assert non-null (the core of this fix) and numeric equality via coercion.
+        expect(observation.inputPrice).not.toBeNull();
+        expect(observation.outputPrice).not.toBeNull();
+        expect(observation.totalPrice).not.toBeNull();
+        expect(Number(observation.inputPrice)).toBeCloseTo(0.001);
+        expect(Number(observation.outputPrice)).toBeCloseTo(0.002);
+        expect(Number(observation.totalPrice)).toBeCloseTo(0.003);
+      });
+    },
+  );
 
   maybe("Metadata expansion with expandMetadata parameter", () => {
     it("should return full metadata values when expandMetadata is specified", async () => {

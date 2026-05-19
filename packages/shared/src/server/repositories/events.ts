@@ -148,8 +148,11 @@ async function enrichObservationsWithModelData(
 
   // Determine if model enrichment is needed
   // V1 API: always enrich
-  // V2 API: only enrich if "model" field group is requested
-  const shouldEnrichModel = !isV2 || requestedFields.includes("model");
+  // V2 API: enrich if "model" or "usage" field group is requested
+  const shouldEnrichModel =
+    !isV2 ||
+    requestedFields.includes("model") ||
+    requestedFields.includes("usage");
 
   // Fetch model data if needed
   const models = shouldEnrichModel
@@ -1180,6 +1183,16 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     .filter((fg) => !excludeFromBase.has(fg))
     .forEach((fg) => baseBuilder.selectFieldSet(fg));
 
+  // Price enrichment needs `internal_model_id` from ClickHouse. That column is
+  // part of the `model` field set. When `usage` is requested without `model`,
+  // we add the `model` field set purely for enrichment and strip the model-group
+  // response fields afterwards to preserve the field-group contract.
+  const needsModelFieldsForEnrichment =
+    requestedFields.includes("usage") && !requestedFields.includes("model");
+  if (needsModelFieldsForEnrichment) {
+    baseBuilder.selectFieldSet("model");
+  }
+
   applyOrderByForObservationsQuery(baseBuilder);
   applyCursorPagination(opts, baseBuilder);
 
@@ -1207,12 +1220,26 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
       builder,
     );
 
-  return await enrichObservationsWithModelData(
+  const enriched = await enrichObservationsWithModelData(
     records,
     projectId,
     false, // V2 API: IO fields are always returned as raw strings
     opts.fields, // V2 API: field groups specified, return partial observations
   );
+
+  if (needsModelFieldsForEnrichment) {
+    // Strip model-group fields that were fetched only for enrichment.
+    return enriched.map(
+      ({
+        model: _model,
+        internalModelId: _internalModelId,
+        modelParameters: _modelParameters,
+        ...rest
+      }) => rest,
+    );
+  }
+
+  return enriched;
 };
 
 /**
