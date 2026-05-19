@@ -450,9 +450,6 @@ export const env = createEnv({
     LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS: z
       .enum(["true", "false"])
       .default("false"),
-    LANGFUSE_ENABLE_MCP_OBSERVATION_TOOLS: z
-      .enum(["true", "false"])
-      .default("false"),
 
     // Blocked users for chat completion API (userId:reason format)
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
@@ -869,8 +866,6 @@ export const env = createEnv({
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
     LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS,
-    LANGFUSE_ENABLE_MCP_OBSERVATION_TOOLS:
-      process.env.LANGFUSE_ENABLE_MCP_OBSERVATION_TOOLS,
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
       process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },

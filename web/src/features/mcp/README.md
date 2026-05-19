@@ -41,18 +41,13 @@ Model Context Protocol (MCP) server for Langfuse, enabling AI assistants to inte
    In Claude Code: `List all prompts in the project`
 
 5. **Verify observation tools**
-   Observation tools are feature-gated. Enable both flags, restart the web app, then ask Claude Code: `List recent Langfuse observations`.
-
-   ```bash
-   LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS=true
-   LANGFUSE_ENABLE_MCP_OBSERVATION_TOOLS=true
-   ```
+   In Claude Code: `List recent Langfuse observations`
 
 ---
 
 ## Available Tools
 
-The MCP server provides prompt-management tools and optional read-only observation tools.
+The MCP server provides prompt-management tools and read-only observation tools.
 
 ### Prompt Tools
 
@@ -82,6 +77,7 @@ Observation tools read from the events table v2 and are project-scoped to the au
 Langfuse supports **prompt composition** where prompts can reference other prompts via dependency tags like `@@@langfusePrompt:name=xxx|label=yyy@@@`. The MCP server provides two tools for fetching prompts with different resolution behaviors:
 
 #### `getPrompt` (Fully Resolved)
+
 - **Use when**: You want the final, executable prompt ready to send to an LLM
 - **Behavior**: Recursively resolves all dependency tags by fetching and inserting referenced prompts
 - **Returns**: Final prompt content with all dependencies replaced
@@ -92,6 +88,7 @@ Langfuse supports **prompt composition** where prompts can reference other promp
   ```
 
 #### `getPromptUnresolved` (Raw)
+
 - **Use when**: You want to analyze prompt composition, debug dependencies, or understand the prompt structure
 - **Behavior**: Returns raw prompt content with dependency tags intact
 - **Returns**: Original prompt content with `@@@langfusePrompt:...@@@` tags preserved
@@ -102,6 +99,7 @@ Langfuse supports **prompt composition** where prompts can reference other promp
   ```
 
 **Use Cases for `getPromptUnresolved`**:
+
 - Understanding how prompts compose together (prompt stacking)
 - Debugging dependency chains before execution
 - Analyzing prompt structure and references
