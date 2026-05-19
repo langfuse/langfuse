@@ -68,6 +68,8 @@ export function OnboardingSurvey() {
   );
 
   const currentValue = form.watch("referralSource");
+  const isSubmittingSurvey = form.formState.isSubmitting;
+  const isBusy = isFinishingOnboarding || isSubmittingSurvey;
 
   const isEmpty = (v: unknown) =>
     v == null || (typeof v === "string" && v.trim() === "");
@@ -144,7 +146,7 @@ export function OnboardingSurvey() {
                   onClick={handleSkipButton}
                   variant="ghost"
                   className="w-20"
-                  disabled={isFinishingOnboarding}
+                  disabled={isBusy}
                 >
                   Skip
                 </Button>
@@ -153,7 +155,7 @@ export function OnboardingSurvey() {
                   type="submit"
                   variant="default"
                   className="w-20"
-                  disabled={isFinishingOnboarding}
+                  disabled={isBusy}
                 >
                   Finish
                 </Button>
