@@ -613,9 +613,12 @@ describe("/api/public/v2/observations API Endpoint", () => {
       "output",
       // metadata
       "metadata",
-      // model — note: the API response uses "model" for the provided model name,
-      // not "providedModelName" (the domain type maps provided_model_name → model)
+      // model group exposes both keys for backward compat:
+      // - "model" has always been the wire-format key
+      // - "providedModelName" was declared in the published spec from day one
+      // v3 will consolidate. See LFE-9859.
       "model",
+      "providedModelName",
       "internalModelId",
       "modelParameters",
       // usage
@@ -697,6 +700,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       userId: "test-user",
       sessionId: "test-session",
       model: "gpt-4",
+      providedModelName: "gpt-4",
       modelParameters: { temperature: 0.5 },
       promptName: "contract-prompt",
       promptVersion: 2,
@@ -724,8 +728,12 @@ describe("/api/public/v2/observations API Endpoint", () => {
       time: ["completionStartTime", "createdAt", "updatedAt"],
       io: ["input", "output"],
       metadata: ["metadata"],
-      // "model" is the API response key for provided_model_name (see domain type)
-      model: ["model", "internalModelId", "modelParameters"],
+      model: [
+        "model",
+        "providedModelName",
+        "internalModelId",
+        "modelParameters",
+      ],
       usage: [
         "usageDetails",
         "costDetails",

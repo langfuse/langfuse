@@ -278,11 +278,14 @@ types:
         docs: Additional metadata of the observation
 
       # Model fields (field group: model)
-      # Note: the wire-format key is "model" (maps from provided_model_name); "providedModelName"
-      # is the human-readable alias used in documentation.
+      # Both keys are present for backward compatibility. "model" has always been the wire-format
+      # key; "providedModelName" was declared in the spec from day one. v3 will consolidate.
       model:
         type: optional<nullable<string>>
-        docs: The model name as provided by the user (wire key is "model", not "providedModelName")
+        docs: The provided model name. Identical to providedModelName; both keys are present for backward compatibility.
+      providedModelName:
+        type: optional<nullable<string>>
+        docs: The provided model name. Identical to model; both keys are present for backward compatibility.
       internalModelId:
         type: optional<nullable<string>>
         docs: The internal model ID matched by Langfuse
@@ -327,7 +330,7 @@ types:
         docs: The time to first token in seconds
 
       # Enrichment fields (always present on v2 responses; null when model group not requested).
-      # Prices are decimal strings (e.g. "0.0001") for backward compatibility — see LFE-9859.
+      # Prices are decimal strings (e.g. "0.0001") for backward compatibility — see
       modelId:
         type: nullable<string>
         docs: The matched model ID. Null when the `model` field group is not requested.

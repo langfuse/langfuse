@@ -422,9 +422,13 @@ const APIObservationV2 = z
     metadata: z.any().optional(),
 
     // Model fields (field group: model)
-    // Note: the wire-format key is "model" (maps from provided_model_name in ClickHouse),
-    // matching the domain Observation type. "providedModelName" is the Fern/docs alias.
+    // Both keys are present for backward compatibility:
+    // - "model" has always been the actual wire-format key (domain type maps provided_model_name → model)
+    // - "providedModelName" was declared in the published openapi/Fern spec from the start;
+    //   it was never in the JSON before (always undefined), but SDK clients were typed against it.
+    // v3 should consolidate to one name
     model: z.string().nullable().optional(),
+    providedModelName: z.string().nullable().optional(),
     internalModelId: z.string().nullable().optional(),
     modelParameters: z.any().optional(),
 
@@ -447,7 +451,7 @@ const APIObservationV2 = z
     // Enrichment fields (always present on v2 responses; null when model group not requested).
     // Prices are strings (Prisma Decimal serialisation) to preserve backward compatibility —
     // statically-typed language clients (Go, Java, C#) built structs against the original
-    // string wire format and cannot safely migrate to numbers on v2. See LFE-9859.
+    // string wire format and cannot safely migrate to numbers on v2
     modelId: z.string().nullable(),
     inputPrice: z.string().nullable(),
     outputPrice: z.string().nullable(),

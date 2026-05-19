@@ -83,7 +83,18 @@ export default withMiddlewares({
             item.parentObservationId === "" ? null : item.parentObservationId,
           // Enrichment fields: always present (null when model group not requested).
           // Prices serialised as strings (Decimal.toString()) for backward compat — v2
-          // wire format has always been string; see LFE-9859.
+          // wire format has always been string; see
+          // Both "model" and "providedModelName" are exposed when the model group is requested.
+          // "model" has always been the actual wire-format key (domain type maps
+          // provided_model_name → model). "providedModelName" was declared in the published
+          // Fern/openapi spec from day one so SDK clients built against it; expose both for
+          // backward compat. Only set when the model group was selected (undefined otherwise).
+          ...((item as typeof item & { model?: string | null }).model !==
+            undefined && {
+            model: (item as typeof item & { model?: string | null }).model,
+            providedModelName: (item as typeof item & { model?: string | null })
+              .model,
+          }),
           modelId: item.modelId ?? null,
           inputPrice: item.inputPrice?.toString() ?? null,
           outputPrice: item.outputPrice?.toString() ?? null,
