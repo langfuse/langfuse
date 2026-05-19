@@ -68,6 +68,7 @@ const createObservationData = (
       // Propagate trace-level fields to events
       user_id: trace?.user_id ?? null,
       tags: trace?.tags ?? [],
+      release: trace?.release ?? null,
     });
   } else {
     // For observations table: milliseconds, simpler structure
@@ -577,6 +578,50 @@ describe("/api/public/observations API Endpoint", () => {
     runTestSuite(true); // with events table
   }
   runTestSuite(false); // with observations table
+
+  // Regression: v1 events-table path must return `release` to callers.
+  // #13620 added `release` to the strip-list in `transformDbToApiObservation`,
+  // dropping the field from v1 responses on the events-table path. See LFE-9863.
+  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+    describe("GET /api/public/observations with events table - release field", () => {
+      it("returns `release` on the v1 events-table path", async () => {
+        const traceId = randomUUID();
+        const timestamp = new Date();
+        const timeValue = timestamp.getTime() * 1000;
+
+        const createdTrace = createTrace({
+          id: traceId,
+          project_id: projectId,
+          timestamp: timestamp.getTime(),
+          release: "release-9863",
+        });
+
+        await createAndInsertObservations(true, createdTrace, [
+          {
+            trace_id: traceId,
+            project_id: projectId,
+            name: "release-observation",
+            type: "SPAN",
+            level: "DEFAULT",
+            start_time: timeValue,
+            end_time: timeValue + 1000 * 1000,
+          },
+        ]);
+
+        const response = await makeZodVerifiedAPICall(
+          GetObservationsV1Response,
+          "GET",
+          `/api/public/observations?useEventsTable=true&traceId=${traceId}`,
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.data.length).toBe(1);
+        expect(response.body.data[0]?.release).toBe("release-9863");
+      });
+    });
+  }
 
   // Advanced Filtering Tests
   describe("Advanced Filtering", () => {
