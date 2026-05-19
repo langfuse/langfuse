@@ -6,40 +6,9 @@ packages:
   - "ee"
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
-# TODO: remove exclusions below!
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
-minimumReleaseAgeExclude:
-  - "turbo@2.9.12"
-  - "eslint-config-turbo@2.9.12"
-  - "eslint-plugin-turbo@2.9.12"
-  - "@turbo/darwin-arm64@2.9.12"
-  - "@turbo/darwin-64@2.9.12"
-  - "@turbo/windows-64@2.9.12"
-  - "@turbo/linux-64@2.9.12"
-  - "@turbo/linux-arm64@2.9.12"
-  - "@turbo/windows-arm64@2.9.12"
-  - "@opentelemetry/api-logs@0.218.0"
-  - "@opentelemetry/configuration@0.218.0"
-  - "@opentelemetry/exporter-logs-otlp-grpc@0.218.0"
-  - "@opentelemetry/exporter-logs-otlp-http@0.218.0"
-  - "@opentelemetry/exporter-logs-otlp-proto@0.218.0"
-  - "@opentelemetry/exporter-metrics-otlp-grpc@0.218.0"
-  - "@opentelemetry/exporter-metrics-otlp-http@0.218.0"
-  - "@opentelemetry/exporter-metrics-otlp-proto@0.218.0"
-  - "@opentelemetry/exporter-prometheus@0.218.0"
-  - "@opentelemetry/exporter-trace-otlp-grpc@0.218.0"
-  - "@opentelemetry/exporter-trace-otlp-http@0.218.0"
-  - "@opentelemetry/exporter-trace-otlp-proto@0.218.0"
-  - "@opentelemetry/instrumentation@0.218.0"
-  - "@opentelemetry/instrumentation-http@0.218.0"
-  - "@opentelemetry/otlp-exporter-base@0.218.0"
-  - "@opentelemetry/otlp-grpc-exporter-base@0.218.0"
-  - "@opentelemetry/otlp-transformer@0.218.0"
-  - "@opentelemetry/sdk-logs@0.218.0"
-  - "@opentelemetry/sdk-node@0.218.0"
-  - "mermaid@11.15.0"
-  - "@mermaid-js/parser@1.1.1"
+# minimumReleaseAgeExclude:
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
@@ -56,23 +25,23 @@ allowBuilds:
   msw: false
   prisma: false
   protobufjs: false
-  '@datadog/pprof': false
+  "@datadog/pprof": false
 overrides:
   zod: 4.3.6
   nanoid: ^3.3.8
   katex: ^0.16.21
   tar-fs: ^2.1.2
   rollup@^4.0.0: ^4.22.4
-  '@types/node-fetch': ^2.6.13
-  '@types/react-dom': 19.2.3
+  "@types/node-fetch": ^2.6.13
+  "@types/react-dom": 19.2.3
   fast-xml-builder: 1.1.7
   glob: ^10.5.0
   qs: 6.14.1
   path-to-regexp@0.1.12: 0.1.13
   ip-address@10.1.0: 10.2.0
-  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/sdk': 0.95.1
+  "@anthropic-ai/claude-agent-sdk>@anthropic-ai/sdk": 0.95.1
 patchedDependencies:
   next-auth@4.24.13: patches/next-auth@4.24.13.patch
 publicHoistPattern:
-  - '*prisma*'
-  - '@aws-sdk/client-s3'
+  - "*prisma*"
+  - "@aws-sdk/client-s3"
