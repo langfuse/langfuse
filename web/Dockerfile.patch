@@ -28,6 +28,7 @@ COPY --from=pruner /app/out/json/ .
 RUN NODE_TLS_REJECT_UNAUTHORIZED=0 pnpm install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .
 RUN rm -f ./web/src/middleware.ts
+ENV DOCKER_BUILD=1
 
 # CRITICAL: CPUS=1 forces sequential build instead of worker threads
 # This prevents QEMU segfaults on multi-threaded Next.js compilation
@@ -40,3 +41,6 @@ FROM edge.fkinternal.com/docker-external/langfuse/langfuse:3
 COPY --from=builder --chown=1001:1001 /app/node_modules /app/node_modules
 COPY --from=builder --chown=1001:1001 /app/web/node_modules /app/web/node_modules
 COPY --from=builder --chown=1001:1001 /app/web/.next /app/web/.next
+# Unique label per build so the manifest SHA is never reused across tags
+ARG BUILD_ID
+LABEL build.id="$BUILD_ID"
