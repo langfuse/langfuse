@@ -244,7 +244,7 @@ export type MonitorAlert = z.infer<typeof MonitorAlertSchema>;
  */
 export const MonitorWebhookQueueEventSchema = z.object({
   type: z.literal("monitor-alert"),
-  version: z.literal("v1"),
+  apiVersion: z.literal("v1"),
   payload: MonitorAlertSchema,
 });
 export type MonitorWebhookQueueEvent = z.infer<

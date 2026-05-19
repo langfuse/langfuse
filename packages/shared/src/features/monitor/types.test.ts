@@ -516,7 +516,7 @@ describe("MonitorAlertSchema", () => {
 describe("MonitorWebhookQueueEventSchema", () => {
   const validEnvelope = {
     type: "monitor-alert" as const,
-    version: "v1" as const,
+    apiVersion: "v1" as const,
     payload: {
       monitorId: "mon_01",
       projectId: "proj_01",
@@ -545,11 +545,11 @@ describe("MonitorWebhookQueueEventSchema", () => {
     ).toBe(false);
   });
 
-  it("rejects a wrong version literal", () => {
+  it("rejects a wrong apiVersion literal", () => {
     expect(
       MonitorWebhookQueueEventSchema.safeParse({
         ...validEnvelope,
-        version: "v2",
+        apiVersion: "v2",
       }).success,
     ).toBe(false);
   });

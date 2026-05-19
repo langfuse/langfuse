@@ -26,7 +26,7 @@ describe("WebhookOutboundEnvelopeSchema", () => {
 
   const validMonitorEnvelope = {
     type: "monitor-alert" as const,
-    version: "v1" as const,
+    apiVersion: "v1" as const,
     payload: {
       monitorId: "mon_01",
       projectId: "proj_01",
