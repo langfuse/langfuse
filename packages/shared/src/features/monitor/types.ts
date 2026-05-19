@@ -35,7 +35,7 @@ export const ErrorInvalidMonitorTemplate =
 
 /**
  * MonitorWindow contains the list of allowed Monitor evaluation windows.
- * Adding a tier requires updating `monitorWindowCadenceMs`.
+ * Adding a tier requires updating `calculateMonitorWindowCadenceMillis`.
  */
 export const MonitorWindow = {
   FIVE_MIN: 5n * MINUTE,
@@ -51,7 +51,7 @@ export const MonitorWindow = {
 } as const;
 
 /**
- * calculateMonitorWindowCadenceMs derives a Monitor's scheduler cadence from its evaluation window.
+ * calculateMonitorWindowCadenceMillis derives a Monitor's scheduler cadence from its evaluation window.
  */
 export function calculateMonitorWindowCadenceMillis(
   windowMillis: bigint,

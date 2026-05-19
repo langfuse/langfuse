@@ -806,6 +806,7 @@ jobs:
         lint,
         prettier-check,
         tests-eslint-plugin,
+        tests-shared,
         tests-web,
         tests-worker,
         test-worker-llm-connections,
