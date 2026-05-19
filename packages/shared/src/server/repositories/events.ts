@@ -1566,7 +1566,9 @@ export const getEventsGroupedByModel = async (
     .whereRaw(
       "e.provided_model_name IS NOT NULL AND length(e.provided_model_name) > 0",
     )
-    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC")
+    .orderBy(
+      opts?.orderBy ?? "ORDER BY count() DESC, e.provided_model_name ASC",
+    )
     .limit(opts?.limit ?? 1000, opts?.offset ?? 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -1611,7 +1613,7 @@ export const getEventsGroupedByModelId = async (
   })
     .where(appliedEventsFilter)
     .whereRaw("e.model_id IS NOT NULL AND length(e.model_id) > 0")
-    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC")
+    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC, e.model_id ASC")
     .limit(opts?.limit ?? 1000, opts?.offset ?? 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -1656,7 +1658,7 @@ export const getEventsGroupedByName = async (
   })
     .where(appliedEventsFilter)
     .whereRaw("e.name IS NOT NULL AND length(e.name) > 0")
-    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC")
+    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC, e.name ASC")
     .limit(opts?.limit ?? 1000, opts?.offset ?? 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -1701,7 +1703,7 @@ export const getEventsGroupedByTraceName = async (
   })
     .where(appliedEventsFilter)
     .whereRaw("e.trace_name IS NOT NULL AND length(e.trace_name) > 0")
-    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC")
+    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC, e.trace_name ASC")
     .limit(opts?.limit ?? 1000, opts?.offset ?? 0);
 
   if (opts?.extraWhereRaw) queryBuilder.whereRaw(opts.extraWhereRaw);
@@ -1820,7 +1822,7 @@ export const getEventsGroupedByPromptName = async (
     .whereRaw("e.type = 'GENERATION'")
     .whereRaw("e.prompt_name IS NOT NULL AND e.prompt_name != ''")
     .where(appliedEventsFilter)
-    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC")
+    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC, e.prompt_name ASC")
     .limit(opts?.limit ?? 1000, opts?.offset ?? 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -1866,7 +1868,7 @@ export const getEventsGroupedByType = async (
   })
     .where(appliedEventsFilter)
     .whereRaw("e.type IS NOT NULL AND length(e.type) > 0")
-    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC")
+    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC, e.type ASC")
     .limit(opts?.limit ?? 1000, opts?.offset ?? 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -1913,7 +1915,7 @@ export const getEventsGroupedByUserId = async (
   })
     .where(appliedEventsFilter)
     .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
-    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC")
+    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC, e.user_id ASC")
     .limit(opts?.limit ?? 1000, opts?.offset ?? 0);
 
   if (opts?.extraWhereRaw) queryBuilder.whereRaw(opts.extraWhereRaw);
@@ -1962,7 +1964,7 @@ export const getEventsGroupedByVersion = async (
   })
     .where(appliedEventsFilter)
     .whereRaw("e.version IS NOT NULL AND length(e.version) > 0")
-    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC")
+    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC, e.version ASC")
     .limit(opts?.limit ?? 1000, opts?.offset ?? 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -2009,7 +2011,7 @@ export const getEventsGroupedBySessionId = async (
   })
     .where(appliedEventsFilter)
     .whereRaw("e.session_id IS NOT NULL AND length(e.session_id) > 0")
-    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC")
+    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC, e.session_id ASC")
     .limit(opts?.limit ?? 1000, opts?.offset ?? 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -2056,7 +2058,7 @@ export const getEventsGroupedByLevel = async (
   })
     .where(appliedEventsFilter)
     .whereRaw("e.level IS NOT NULL AND length(e.level) > 0")
-    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC")
+    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC, e.level ASC")
     .limit(opts?.limit ?? 1000, opts?.offset ?? 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -2103,7 +2105,7 @@ export const getEventsGroupedByEnvironment = async (
   })
     .where(appliedEventsFilter)
     .whereRaw("e.environment IS NOT NULL AND length(e.environment) > 0")
-    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC")
+    .orderBy(opts?.orderBy ?? "ORDER BY count() DESC, e.environment ASC")
     .limit(opts?.limit ?? 1000, opts?.offset ?? 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -2150,7 +2152,7 @@ export const getEventsGroupedByExperimentDatasetId = async (
     .whereRaw(
       "e.experiment_dataset_id IS NOT NULL AND length(e.experiment_dataset_id) > 0",
     )
-    .orderBy("ORDER BY count() DESC")
+    .orderBy("ORDER BY count() DESC, e.experiment_dataset_id ASC")
     .limit(1000, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -2197,7 +2199,7 @@ export const getEventsGroupedByExperimentId = async (
   })
     .where(appliedEventsFilter)
     .whereRaw("e.experiment_id IS NOT NULL AND length(e.experiment_id) > 0")
-    .orderBy("ORDER BY count() DESC")
+    .orderBy("ORDER BY count() DESC, e.experiment_id ASC")
     .limit(1000, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -2241,7 +2243,7 @@ export const getEventsGroupedByExperimentName = async (
   })
     .where(appliedEventsFilter)
     .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
-    .orderBy("ORDER BY count() DESC")
+    .orderBy("ORDER BY count() DESC, e.experiment_name ASC")
     .limit(1000, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -2330,7 +2332,7 @@ export const getEventsGroupedByToolName = async (
   })
     .where(appliedEventsFilter)
     .whereRaw("length(mapKeys(e.tool_definitions)) > 0")
-    .orderBy("ORDER BY count() DESC")
+    .orderBy("ORDER BY count() DESC, toolName ASC")
     .limit(1000, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -2375,7 +2377,7 @@ export const getEventsGroupedByCalledToolName = async (
   })
     .where(appliedEventsFilter)
     .whereRaw("length(e.tool_call_names) > 0")
-    .orderBy("ORDER BY count() DESC")
+    .orderBy("ORDER BY count() DESC, calledToolName ASC")
     .limit(1000, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
