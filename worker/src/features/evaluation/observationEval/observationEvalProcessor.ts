@@ -18,6 +18,7 @@ import {
   extractObservationVariables,
   type ExtractedVariable,
 } from "./extractObservationVariables";
+import { buildEvalExecutionMetadata } from "../evalRuntime";
 import {
   completeEvalExecution,
   type EvalExecutionResult,
@@ -40,6 +41,7 @@ export type ObservationEvalExecutionBaseParams = {
   config: JobConfiguration;
   extractedVariables: ExtractedVariable[];
   environment: string;
+  metadata: Record<string, string>;
   deps: EvalExecutionDeps;
 };
 
@@ -221,6 +223,13 @@ export async function processObservationEval<TTemplate extends EvalTemplate>(
     config: evalJobConfig,
     extractedVariables,
     environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
+    metadata: buildEvalExecutionMetadata({
+      jobExecutionId: event.jobExecutionId,
+      jobConfigurationId: job.jobConfigurationId,
+      targetTraceId: job.jobInputTraceId,
+      targetObservationId: job.jobInputObservationId,
+      targetDatasetItemId: job.jobInputDatasetItemId,
+    }),
     deps: deps.evalExecutionDeps,
   };
 
@@ -236,6 +245,7 @@ export async function processObservationEval<TTemplate extends EvalTemplate>(
     observationId: executionParams.job.jobInputObservationId,
     scoreName: executionParams.config.scoreName,
     environment: executionParams.environment,
+    metadata: executionParams.metadata,
     deps: executionParams.deps,
     ...executionResult,
   });

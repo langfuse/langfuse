@@ -8,7 +8,6 @@ export type EvalExecutionResult = {
   outputResult: EvalOutputResult;
   primaryScoreId: string;
   executionTraceId: string;
-  metadata: Record<string, string>;
 };
 
 export async function completeEvalExecution({
