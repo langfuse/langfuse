@@ -353,7 +353,6 @@ export async function getEventFilterValuePage(
   };
 
   if (column === "hasParentObservation") {
-    // Trace tags do not support counting right now
     return createResultFromGroupedQuery(
       getEventsGroupedByHasParentObservation,
       (item) => (item.hasParentObservation ? "true" : "false"),
