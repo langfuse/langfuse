@@ -60,6 +60,10 @@ def handler(event, context):
     }
 
     try:
+        # Executing user-supplied evaluator code is the entire purpose of this
+        # runner; isolation is provided by the per-invocation Lambda sandbox,
+        # not by avoiding `exec`.
+        # nosemgrep: python.aws-lambda.security.tainted-code-exec.tainted-code-exec,python.lang.security.audit.exec-detected.exec-detected
         exec(event["code"]["source"], namespace)
     except Exception as error:
         return runner_error(
