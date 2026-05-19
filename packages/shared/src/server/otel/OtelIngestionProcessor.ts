@@ -459,6 +459,14 @@ export class OtelIngestionProcessor {
                   // Properties
                   tags: this.extractTags(spanAttributes),
                   public: this.extractPublic(spanAttributes),
+                  isAppRoot:
+                    typeof spanAttributes[
+                      LangfuseOtelSpanAttributes.IS_APP_ROOT
+                    ] === "boolean"
+                      ? (spanAttributes[
+                          LangfuseOtelSpanAttributes.IS_APP_ROOT
+                        ] as boolean)
+                      : null,
                   traceName:
                     spanAttributes?.[LangfuseOtelSpanAttributes.TRACE_NAME] ??
                     null,

@@ -280,6 +280,7 @@ export class IngestionService {
       tags: eventData.tags ?? [],
       bookmarked: eventData.bookmarked ?? false,
       public: eventData.public ?? false,
+      is_app_root: eventData.isAppRoot ?? null,
 
       // Trace-level attributes: Name/User/session
       trace_name: eventData.traceName,

@@ -159,6 +159,7 @@ CREATE TABLE IF NOT EXISTS events_full
       -- Updateable properties
       bookmarked Bool DEFAULT false,
       public Bool DEFAULT false,
+      is_app_root Nullable(Bool),
 
       -- Prompt
       prompt_id String,
@@ -294,6 +295,7 @@ CREATE TABLE IF NOT EXISTS events_core
     -- Updateable properties
     bookmarked Bool DEFAULT false,
     public Bool DEFAULT false,
+    is_app_root Nullable(Bool),
 
     -- Prompt
     prompt_id String,
@@ -411,6 +413,7 @@ SELECT
     completion_start_time,
     bookmarked,
     public,
+    is_app_root,
     prompt_id,
     prompt_name,
     prompt_version,

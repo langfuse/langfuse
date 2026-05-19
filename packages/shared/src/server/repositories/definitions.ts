@@ -656,6 +656,7 @@ export const eventRecordBaseSchema = z.object({
   tags: z.array(z.string()).default([]),
   bookmarked: z.boolean().optional(),
   public: z.boolean().optional(),
+  is_app_root: z.boolean().nullish(),
 
   level: z.string(),
   status_message: z.string().nullish(),
