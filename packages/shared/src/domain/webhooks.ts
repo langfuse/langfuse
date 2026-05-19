@@ -53,12 +53,21 @@ export type GitHubDispatchWebhookOutput = z.infer<
   typeof GitHubDispatchWebhookOutboundSchema
 >;
 
+// `apiVersion` (not `version`) matches PromptWebhookOutboundSchema —
+// `version` on MonitorWebhookQueueEventSchema is the queue-envelope
+// version and is intentionally separate from the outbound API version.
+//
+// `payload.window` is stringified here because the rest of the system
+// keeps `window` as a `bigint` (cheap arithmetic, exact ms) and `bigint`
+// has no JSON representation.
 export const MonitorAlertWebhookOutboundSchema = z.object({
   id: z.string(),
   timestamp: z.coerce.date(),
   type: z.literal("monitor-alert"),
   apiVersion: z.literal("v1"),
-  payload: MonitorAlertSchema,
+  payload: MonitorAlertSchema.omit({ window: true }).extend({
+    window: z.bigint().transform((v) => v.toString()),
+  }),
 });
 
 export type MonitorAlertWebhookOutput = z.infer<

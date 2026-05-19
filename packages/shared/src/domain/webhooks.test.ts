@@ -32,6 +32,17 @@ describe("MonitorAlertWebhookOutboundSchema", () => {
     }
   });
 
+  it("stringifies the bigint window for JSON serialization", () => {
+    const parsed = MonitorAlertWebhookOutboundSchema.safeParse(validOutbound);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.payload.window).toBe(
+        MonitorWindow.FIVE_MIN.toString(),
+      );
+      expect(() => JSON.stringify(parsed.data)).not.toThrow();
+    }
+  });
+
   it("rejects a wrong type discriminator", () => {
     expect(
       MonitorAlertWebhookOutboundSchema.safeParse({

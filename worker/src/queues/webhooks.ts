@@ -591,6 +591,12 @@ async function executeSlackAction({
       );
     }
 
+    if (input.payload.type !== "prompt-version") {
+      throw new InternalServerError(
+        `Unsupported webhook payload type ${input.payload.type}`,
+      );
+    }
+
     const slackConfig = actionConfig.config;
 
     // Build message blocks using predefined formats or custom template
