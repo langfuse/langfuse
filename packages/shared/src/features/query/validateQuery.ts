@@ -1,5 +1,5 @@
-import { type QueryType, type ViewVersion } from "@/src/features/query/types";
-import { getViewDeclaration } from "@/src/features/query/dataModel";
+import { type QueryType, type ViewVersion } from "./types";
+import { getViewDeclaration } from "./dataModel";
 
 /**
  * Result of query validation.
