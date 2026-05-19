@@ -8127,6 +8127,27 @@ components:
           type: string
           nullable: true
           description: The matched model ID
+        inputPrice:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            The price per input unit (USD) from the matched model. Populated
+            when the `model` or `usage` field group is requested.
+        outputPrice:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            The price per output unit (USD) from the matched model. Populated
+            when the `model` or `usage` field group is requested.
+        totalPrice:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            The price per total unit (USD) from the matched model. Populated
+            when the `model` or `usage` field group is requested.
         traceName:
           type: string
           nullable: true
