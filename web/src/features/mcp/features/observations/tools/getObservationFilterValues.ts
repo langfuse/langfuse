@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared";
 import { z } from "zod";
 import { instrumentAsync } from "@langfuse/shared/src/server";
-import { getEventFilterOptions } from "@/src/features/events/server/eventsService";
+import { getEventFilterValuePage } from "@/src/features/events/server/eventsService";
 import { defineTool } from "../../../core/define-tool";
 import {
   ObservationLimitSchema,
@@ -111,10 +111,11 @@ const normalizeFilterOptions = (
       }
       return null;
     })
-    .filter((value): value is FilterOption => value !== null)
-    .sort((a, b) => String(a.value).localeCompare(String(b.value)));
+    .filter((value): value is FilterOption => value !== null);
 };
 
+// The cursor is just a base64-encoded JSON string containing the offset for pagination.
+// Therefore we need to encode and decode it when sending to and receiving from the client.
 const decodeObservationFilterValueCursor = (
   cursor: string | undefined,
 ): number => {
@@ -137,6 +138,8 @@ const decodeObservationFilterValueCursor = (
   throw new InvalidRequestError("Invalid cursor format");
 };
 
+// The cursor is just a base64-encoded JSON string containing the offset for pagination.
+// Therefore we need to encode and decode it when sending to and receiving from the client.
 const encodeObservationFilterValueCursor = (offset: number): string => {
   return Buffer.from(JSON.stringify({ offset })).toString("base64");
 };
@@ -167,34 +170,39 @@ export const [
           toStartTime: input.toStartTime,
         });
 
-        const options = await getEventFilterOptions({
+        const offset = decodeObservationFilterValueCursor(input.cursor);
+
+        // The `tags` column is stored in the database as `traceTags`
+        const eventsColumn =
+          input.column === "tags" ? "traceTags" : input.column;
+
+        const page = await getEventFilterValuePage({
+          column: eventsColumn,
           projectId: context.projectId,
           startTimeFilter,
           hasParentObservation: input.hasParentObservation,
           observationType: input.observationType,
+          limit: input.limit,
+          offset,
         });
 
-        const optionKey = input.column === "tags" ? "traceTags" : input.column;
-        const values = options[optionKey];
-
-        if (!Array.isArray(values)) {
+        if (!Array.isArray(page.values)) {
           throw new InvalidRequestError(
             `Filter values are not available for column ${input.column}`,
           );
         }
 
-        const normalizedValues = normalizeFilterOptions(values, input.column);
-
-        const offset = decodeObservationFilterValueCursor(input.cursor);
-        const page = normalizedValues.slice(offset, offset + input.limit);
-        const nextOffset = offset + page.length;
+        const normalizedValues = normalizeFilterOptions(
+          page.values,
+          input.column,
+        );
 
         return {
           column: input.column,
-          values: page,
+          values: normalizedValues,
           meta:
-            nextOffset < normalizedValues.length
-              ? { cursor: encodeObservationFilterValueCursor(nextOffset) }
+            page.nextOffset !== undefined
+              ? { cursor: encodeObservationFilterValueCursor(page.nextOffset) }
               : {},
         };
       },

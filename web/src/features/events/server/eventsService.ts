@@ -35,6 +35,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { type timeFilter, type FilterState } from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { assertUnreachable } from "@/src/utils/types";
 
 type TimeFilter = z.infer<typeof timeFilter>;
 
@@ -77,6 +78,18 @@ interface GetObservationsFilterOptionsParams {
   hasParentObservation?: boolean;
   observationType?: string;
 }
+
+type EventFilterValueOption = {
+  value: string;
+  count?: number;
+};
+
+type GroupedEventsFilterOptions = {
+  extraWhereRaw?: string;
+  limit?: number;
+  offset?: number;
+  orderBy?: string;
+};
 
 /**
  * Get paginated list of events
@@ -231,14 +244,10 @@ const toFilterValueOptions = <
     return value === null ? [] : [{ value, count: item.count }];
   });
 
-/**
- * Get all available filter options for events table
- */
-export async function getEventFilterOptions(
+const getEventFilterOptionsScope = (
   params: GetObservationsFilterOptionsParams,
-) {
-  const { projectId, startTimeFilter, hasParentObservation, observationType } =
-    params;
+) => {
+  const { startTimeFilter, hasParentObservation, observationType } = params;
 
   // Build filter with optional hasParentObservation for scoping filter options
   const eventsFilter: FilterState = [
@@ -284,6 +293,170 @@ export async function getEventFilterOptions(
           type: "datetime",
         }))
       : [];
+
+  return {
+    eventsFilter,
+    traceTimestampFilters,
+    traceScoreTimestampFilters,
+  };
+};
+
+export async function getEventFilterValuePage(
+  params: GetObservationsFilterOptionsParams & {
+    column:
+      | "traceTags"
+      | "hasParentObservation"
+      | "providedModelName"
+      | "modelId"
+      | "name"
+      | "traceName"
+      | "type"
+      | "userId"
+      | "version"
+      | "sessionId"
+      | "level"
+      | "environment"
+      | "promptName";
+    limit: number;
+    offset: number;
+  },
+) {
+  const { projectId, column, limit, offset } = params;
+  const { eventsFilter } = getEventFilterOptionsScope(params);
+  const queryLimit = limit + 1;
+
+  const createResultFromGroupedQuery = async <T>(
+    query: (
+      projectId: string,
+      filter: FilterState,
+      opts?: GroupedEventsFilterOptions,
+    ) => Promise<Array<T & { count?: number }>>,
+    valueGetter: (item: T) => string,
+  ) => {
+    const values = await query(projectId, eventsFilter, {
+      limit: queryLimit,
+      offset,
+    }).then((items) =>
+      items.map(
+        (item) =>
+          ({
+            value: valueGetter(item),
+            count: item.count,
+          }) satisfies EventFilterValueOption,
+      ),
+    );
+
+    return {
+      values: values.slice(0, limit),
+      nextOffset: values.length > limit ? offset + limit : undefined,
+    };
+  };
+
+  if (column === "hasParentObservation") {
+    // Trace tags do not support counting right now
+    return createResultFromGroupedQuery(
+      getEventsGroupedByHasParentObservation,
+      (item) => (item.hasParentObservation ? "true" : "false"),
+    );
+  }
+
+  if (column === "traceTags") {
+    // Trace tags do not support counting right now
+    return createResultFromGroupedQuery(
+      getEventsGroupedByTraceTags,
+      (item) => item.tag,
+    );
+  }
+
+  if (column === "providedModelName") {
+    return createResultFromGroupedQuery(
+      getEventsGroupedByModel,
+      (item) => item.model,
+    );
+  }
+
+  if (column === "modelId") {
+    return createResultFromGroupedQuery(
+      getEventsGroupedByModelId,
+      (item) => item.modelId,
+    );
+  }
+
+  if (column === "name") {
+    return createResultFromGroupedQuery(
+      getEventsGroupedByName,
+      (item) => item.name,
+    );
+  }
+
+  if (column === "traceName") {
+    return createResultFromGroupedQuery(
+      getEventsGroupedByTraceName,
+      (item) => item.traceName,
+    );
+  }
+
+  if (column === "type") {
+    return createResultFromGroupedQuery(
+      getEventsGroupedByType,
+      (item) => item.type,
+    );
+  }
+
+  if (column === "userId") {
+    return createResultFromGroupedQuery(
+      getEventsGroupedByUserId,
+      (item) => item.userId,
+    );
+  }
+
+  if (column === "version") {
+    return createResultFromGroupedQuery(
+      getEventsGroupedByVersion,
+      (item) => item.version,
+    );
+  }
+
+  if (column === "sessionId") {
+    return createResultFromGroupedQuery(
+      getEventsGroupedBySessionId,
+      (item) => item.sessionId,
+    );
+  }
+
+  if (column === "level") {
+    return createResultFromGroupedQuery(
+      getEventsGroupedByLevel,
+      (item) => item.level,
+    );
+  }
+
+  if (column === "environment") {
+    return createResultFromGroupedQuery(
+      getEventsGroupedByEnvironment,
+      (item) => item.environment,
+    );
+  }
+
+  if (column === "promptName") {
+    return createResultFromGroupedQuery(
+      getEventsGroupedByPromptName,
+      (item) => item.promptName,
+    );
+  }
+
+  return assertUnreachable(column);
+}
+
+/**
+ * Get all available filter options for events table
+ */
+export async function getEventFilterOptions(
+  params: GetObservationsFilterOptionsParams,
+) {
+  const { projectId } = params;
+  const { eventsFilter, traceTimestampFilters, traceScoreTimestampFilters } =
+    getEventFilterOptionsScope(params);
 
   const [
     numericScoreNames,

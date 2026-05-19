@@ -745,6 +745,11 @@ describe("MCP Read Tools", () => {
           name: `mcp-filter-values-${nanoid()}`,
           providedModelName: uniqueModel,
         }),
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-values-${nanoid()}`,
+          providedModelName: uniqueModel,
+        }),
       ]);
 
       const result = (await handleGetObservationFilterValues(
@@ -759,7 +764,7 @@ describe("MCP Read Tools", () => {
       expect(result.column).toBe("providedModelName");
       expect(result.values).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ value: uniqueModel }),
+          expect.objectContaining({ value: uniqueModel, count: 2 }),
         ]),
       );
       expect(result.meta).toBeDefined();
@@ -788,7 +793,7 @@ describe("MCP Read Tools", () => {
       );
     });
 
-    it("should return boolean values for hasParentObservation", async () => {
+    it("should return boolean values for hasParentObservation with counts", async () => {
       const { context, projectId } = await createMcpTestSetup();
 
       await createEventsCh([
@@ -813,44 +818,49 @@ describe("MCP Read Tools", () => {
       };
 
       expect(result.column).toBe("hasParentObservation");
-      expect(result.values).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ value: false }),
-          expect.objectContaining({ value: true }),
-        ]),
-      );
+      expect(result.values).toEqual([
+        expect.objectContaining({ value: false, count: 1 }),
+        expect.objectContaining({ value: true, count: 1 }),
+      ]);
     });
 
-    it("should paginate filter values with an opaque cursor", async () => {
+    it("should preserve backend order and paginate filter values with an opaque cursor", async () => {
       const { context, projectId } = await createMcpTestSetup();
-      const firstName = `mcp-filter-page-a-${nanoid()}`;
-      const secondName = `mcp-filter-page-b-${nanoid()}`;
+      const topName = `mcp-filter-page-top-${nanoid()}`;
+      const nextName = `mcp-filter-page-next-${nanoid()}`;
+      const lastName = `mcp-filter-page-last-${nanoid()}`;
 
       await createEventsCh([
-        createObservationEvent({ projectId, name: firstName }),
-        createObservationEvent({ projectId, name: secondName }),
+        createObservationEvent({ projectId, name: topName }),
+        createObservationEvent({ projectId, name: topName }),
+        createObservationEvent({ projectId, name: topName }),
+        createObservationEvent({ projectId, name: nextName }),
+        createObservationEvent({ projectId, name: nextName }),
+        createObservationEvent({ projectId, name: lastName }),
       ]);
 
       const firstPage = (await handleGetObservationFilterValues(
-        { column: "name", limit: 1 },
+        { column: "name", limit: 2 },
         context,
       )) as {
-        values: Array<{ value: string }>;
+        values: Array<{ value: string; count?: number }>;
         meta: { cursor?: string };
       };
 
-      expect(firstPage.values).toHaveLength(1);
+      expect(firstPage.values).toEqual([
+        { value: topName, count: 3 },
+        { value: nextName, count: 2 },
+      ]);
       expect(firstPage.meta.cursor).toEqual(expect.any(String));
 
       const secondPage = (await handleGetObservationFilterValues(
-        { column: "name", limit: 1, cursor: firstPage.meta.cursor },
+        { column: "name", limit: 2, cursor: firstPage.meta.cursor },
         context,
       )) as {
-        values: Array<{ value: string }>;
+        values: Array<{ value: string; count?: number }>;
       };
 
-      expect(secondPage.values).toHaveLength(1);
-      expect(secondPage.values[0].value).not.toBe(firstPage.values[0].value);
+      expect(secondPage.values).toEqual([{ value: lastName, count: 1 }]);
     });
 
     it("should reject invalid cursors and unavailable columns", async () => {
