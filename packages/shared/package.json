@@ -54,6 +54,10 @@
     "./query/server": {
       "import": "./dist/src/features/query/server/index.js",
       "require": "./dist/src/features/query/server/index.js"
+    },
+    "./monitor": {
+      "import": "./dist/src/features/monitor/index.js",
+      "require": "./dist/src/features/monitor/index.js"
     }
   },
   "scripts": {
@@ -63,6 +67,7 @@
     "dev": "tsc --watch",
     "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0",
     "lint:fix": "eslint . --cache --cache-location dist/.eslintcache --fix",
+    "test": "vitest run",
     "db:migrate": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma migrate dev",
     "db:push": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma db push",
     "db:reset": "dotenv -e ../../.env npx -- prisma migrate reset",
@@ -144,7 +149,8 @@
     "prisma": "^6.19.3",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.4"
   },
   "peerDependencies": {
     "@types/react": "~19.2.14",
