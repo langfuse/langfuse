@@ -3,7 +3,6 @@ import { resolveProjectRole } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
-  buildStarterOrganizationMetadata,
   buildStarterProjectMetadata,
   shouldShowStarterProjectInvitePrompt,
 } from "@/src/features/onboarding/lib/starterProjectMetadata";
@@ -43,10 +42,7 @@ export type RealOrganizationMembership =
   }>;
 
 export type OnboardingRedirectTarget = {
-  organizationId: string | null;
-  projectId: string | null;
   redirectTo: string;
-  showStarterProjectInvitePrompt: boolean;
 };
 
 const getStarterOrganizationName = (userName?: string | null) => {
@@ -95,7 +91,6 @@ export const resolveOnboardingRedirectTarget = ({
   const accessibleProjects = organizationMemberships.flatMap((membership) =>
     membership.organization.projects
       .map((project) => ({
-        organizationId: membership.organization.id,
         projectId: project.id,
         metadata: project.metadata,
         role: resolveProjectRole({
@@ -118,10 +113,7 @@ export const resolveOnboardingRedirectTarget = ({
 
   if (starterProject) {
     return {
-      organizationId: starterProject.organizationId,
-      projectId: starterProject.projectId,
       redirectTo: `/project/${starterProject.projectId}/traces`,
-      showStarterProjectInvitePrompt: true,
     };
   }
 
@@ -129,10 +121,7 @@ export const resolveOnboardingRedirectTarget = ({
 
   if (firstProject) {
     return {
-      organizationId: firstProject.organizationId,
-      projectId: firstProject.projectId,
       redirectTo: `/project/${firstProject.projectId}`,
-      showStarterProjectInvitePrompt: false,
     };
   }
 
@@ -142,12 +131,9 @@ export const resolveOnboardingRedirectTarget = ({
 
   if (firstCreatableOrganization) {
     return {
-      organizationId: firstCreatableOrganization.organization.id,
-      projectId: null,
       redirectTo: createProjectRoute(
         firstCreatableOrganization.organization.id,
       ),
-      showStarterProjectInvitePrompt: false,
     };
   }
 
@@ -155,10 +141,7 @@ export const resolveOnboardingRedirectTarget = ({
 
   if (firstOrganization) {
     return {
-      organizationId: firstOrganization.organization.id,
-      projectId: null,
       redirectTo: `/organization/${firstOrganization.organization.id}`,
-      showStarterProjectInvitePrompt: false,
     };
   }
 
@@ -202,9 +185,6 @@ export const provisionStarterOrganizationForNewUser = async ({
     const organization = await tx.organization.create({
       data: {
         name: getStarterOrganizationName(userName),
-        metadata: buildStarterOrganizationMetadata({
-          userId,
-        }),
         organizationMemberships: {
           create: {
             userId,

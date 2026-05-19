@@ -3,16 +3,10 @@ import { z } from "zod";
 
 export const ONBOARDING_STARTER_PROJECT_METADATA_KEY =
   "langfuseCloudOnboardingStarterProject";
-export const ONBOARDING_STARTER_ORG_METADATA_KEY =
-  "langfuseCloudOnboardingStarterOrganization";
 
 const starterProjectMetadataSchema = z.object({
   createdByUserId: z.string(),
   showInviteMembersPrompt: z.boolean(),
-});
-
-const starterOrgMetadataSchema = z.object({
-  createdByUserId: z.string(),
 });
 
 export type StarterProjectMetadata = z.infer<
@@ -23,19 +17,6 @@ const asMetadataRecord = (metadata: unknown): Prisma.InputJsonObject =>
   metadata && typeof metadata === "object" && !Array.isArray(metadata)
     ? (metadata as Prisma.InputJsonObject)
     : {};
-
-export const buildStarterOrganizationMetadata = ({
-  userId,
-  metadata,
-}: {
-  userId: string;
-  metadata?: unknown;
-}): Prisma.InputJsonObject => ({
-  ...asMetadataRecord(metadata),
-  [ONBOARDING_STARTER_ORG_METADATA_KEY]: starterOrgMetadataSchema.parse({
-    createdByUserId: userId,
-  }),
-});
 
 export const buildStarterProjectMetadata = ({
   userId,
@@ -55,7 +36,7 @@ export const buildStarterProjectMetadata = ({
   ),
 });
 
-export const getStarterProjectMetadata = (
+const getStarterProjectMetadata = (
   metadata: unknown,
 ): StarterProjectMetadata | null => {
   const parsed = starterProjectMetadataSchema.safeParse(

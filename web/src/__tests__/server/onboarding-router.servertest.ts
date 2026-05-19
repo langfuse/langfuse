@@ -5,7 +5,6 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import {
-  ONBOARDING_STARTER_ORG_METADATA_KEY,
   ONBOARDING_STARTER_PROJECT_METADATA_KEY,
   buildStarterProjectMetadata,
 } from "@/src/features/onboarding/lib/starterProjectMetadata";
@@ -99,17 +98,13 @@ describe("onboarding router", () => {
     });
 
     const result = await caller.onboarding.complete();
-    createdOrgIds.push(result.organizationId);
 
-    expect(result.projectId).toBeTruthy();
-    expect(result.redirectTo).toBe(`/project/${result.projectId}/traces`);
-    expect(result.showStarterProjectInvitePrompt).toBe(true);
+    expect(result.redirectTo).toMatch(/^\/project\/.+\/traces$/);
 
     const organizationMembership =
       await prisma.organizationMembership.findFirst({
         where: {
           userId,
-          orgId: result.organizationId,
         },
         include: {
           organization: {
@@ -120,14 +115,11 @@ describe("onboarding router", () => {
         },
       });
 
+    expect(organizationMembership).toBeTruthy();
+    if (organizationMembership) {
+      createdOrgIds.push(organizationMembership.organization.id);
+    }
     expect(organizationMembership?.role).toBe(Role.OWNER);
-    expect(
-      (
-        organizationMembership?.organization.metadata as Record<string, unknown>
-      )[ONBOARDING_STARTER_ORG_METADATA_KEY],
-    ).toMatchObject({
-      createdByUserId: userId,
-    });
     expect(organizationMembership?.organization.projects).toHaveLength(1);
     expect(organizationMembership?.organization.projects[0]?.name).toBe(
       "My Project",
@@ -170,10 +162,9 @@ describe("onboarding router", () => {
 
     const result = await caller.onboarding.complete();
 
-    expect(result.organizationId).toBeNull();
-    expect(result.projectId).toBeNull();
-    expect(result.redirectTo).toBe("/setup");
-    expect(result.showStarterProjectInvitePrompt).toBe(false);
+    expect(result).toEqual({
+      redirectTo: "/setup",
+    });
   });
 
   it("reuses an existing real project instead of creating starter resources", async () => {
@@ -224,10 +215,9 @@ describe("onboarding router", () => {
 
     const result = await caller.onboarding.complete();
 
-    expect(result.organizationId).toBe(organization.id);
-    expect(result.projectId).toBe(project.id);
-    expect(result.redirectTo).toBe(`/project/${project.id}`);
-    expect(result.showStarterProjectInvitePrompt).toBe(false);
+    expect(result).toEqual({
+      redirectTo: `/project/${project.id}`,
+    });
 
     const projectCount = await prisma.project.count({
       where: {
@@ -277,10 +267,9 @@ describe("onboarding router", () => {
 
     const result = await caller.onboarding.complete();
 
-    expect(result.organizationId).toBe(organization.id);
-    expect(result.projectId).toBeNull();
-    expect(result.redirectTo).toBe(createProjectRoute(organization.id));
-    expect(result.showStarterProjectInvitePrompt).toBe(false);
+    expect(result).toEqual({
+      redirectTo: createProjectRoute(organization.id),
+    });
   });
 
   it("clears the starter-project invite prompt after it is consumed", async () => {

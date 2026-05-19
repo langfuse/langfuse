@@ -50,11 +50,8 @@ describe("resolveOnboardingRedirectTarget", () => {
       ],
     });
 
-    expect(result).toMatchObject({
-      organizationId: "org-1",
-      projectId: "project-1",
+    expect(result).toEqual({
       redirectTo: "/project/project-1",
-      showStarterProjectInvitePrompt: false,
     });
   });
 
@@ -76,11 +73,8 @@ describe("resolveOnboardingRedirectTarget", () => {
       ],
     });
 
-    expect(result).toMatchObject({
-      organizationId: "org-1",
-      projectId: "project-1",
+    expect(result).toEqual({
       redirectTo: "/project/project-1/traces",
-      showStarterProjectInvitePrompt: true,
     });
   });
 });

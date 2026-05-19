@@ -31,10 +31,7 @@ export const onboardingRouter = createTRPCRouter({
     }
 
     return {
-      organizationId: null,
-      projectId: null,
       redirectTo: ctx.session.user.canCreateOrganizations ? "/setup" : "/",
-      showStarterProjectInvitePrompt: false,
     };
   }),
 
