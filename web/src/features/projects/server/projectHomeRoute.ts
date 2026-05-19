@@ -1,6 +1,5 @@
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { resolveProjectRole } from "@langfuse/shared/src/server";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 
@@ -169,11 +168,8 @@ export const resolveProjectHomeRoute = async ({
     };
   }
 
-  const projectRole = resolveProjectRole({
-    projectId,
-    projectMemberships: membershipProject.projectMembers,
-    orgMembershipRole: organizationMembership.role,
-  });
+  const projectRole =
+    membershipProject.projectMembers[0]?.role ?? organizationMembership.role;
 
   if (!projectRoleAccessRights[projectRole].includes("project:read")) {
     return {
