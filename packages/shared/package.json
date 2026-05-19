@@ -118,6 +118,7 @@
     "dd-trace": "5.97.0",
     "decimal.js": "^10.4.3",
     "exponential-backoff": "^3.1.2",
+    "handlebars": "^4.7.9",
     "ioredis": "^5.10.1",
     "ipaddr.js": "^2.2.0",
     "jsonpath-plus": "10.3.0",

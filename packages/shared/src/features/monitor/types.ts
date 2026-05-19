@@ -9,6 +9,7 @@ import { z } from "zod";
 import { singleFilter } from "../../interfaces/filters";
 import { metric as MetricSchema } from "../query/types";
 import { DAY, HOUR, MINUTE, WEEK } from "./internal";
+import { validateMonitorTemplate } from "./template";
 
 /**
  * ErrorInvalidMonitorWindow is emitted when a `window`
@@ -23,6 +24,14 @@ export const ErrorInvalidMonitorWindow =
  */
 export const ErrorInvalidWarningAlertOrdering =
   "warningThreshold must be less severe than alertThreshold for ordered operators";
+
+/**
+ * ErrorInvalidMonitorTemplate is emitted when a message template references
+ * unknown variables, uses helpers, partials, decorators, sub-expressions, or
+ * unescaped `{{{x}}}` output, or fails to parse as Handlebars.
+ */
+export const ErrorInvalidMonitorTemplate =
+  "template is not formatted correctly";
 
 /**
  * MonitorWindow contains a the list of allowed Monitor evaluation windows.
@@ -94,10 +103,6 @@ export const MonitorNoDataSchema = z.discriminatedUnion("mode", [
 ]);
 export type MonitorNoData = z.infer<typeof MonitorNoDataSchema>;
 
-/** MonitorTemplateSchema is the Monitor message template source (Handlebars). Size-limited; AST validation layered elsewhere. */
-export const MonitorTemplateSchema = z.string().max(4000);
-export type MonitorTemplate = z.infer<typeof MonitorTemplateSchema>;
-
 /**
  * validateWarningAlertOrdering enforces that warning must cross before alert
  * for ordered operators; null warning and unordered operators (EQ/NEQ) always
@@ -155,8 +160,16 @@ export const MonitorSchema = z
     renotify: MonitorRenotifySchema.default({ mode: "OFF" }),
 
     // MonitorAlert Config
-    name: MonitorTemplateSchema.min(1).max(200),
-    message: MonitorTemplateSchema.default(""),
+    name: z
+      .string()
+      .min(1)
+      .max(200)
+      .refine(validateMonitorTemplate, ErrorInvalidMonitorTemplate),
+    message: z
+      .string()
+      .max(2000)
+      .refine(validateMonitorTemplate, ErrorInvalidMonitorTemplate)
+      .default(""),
     tags: z.array(z.string().max(60)).max(20).default([]),
 
     // Monitor State

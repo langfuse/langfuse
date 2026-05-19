@@ -6,7 +6,6 @@ import {
   monitorWindowCadenceMs,
   MonitorRenotifySchema,
   MonitorNoDataSchema,
-  MonitorTemplateSchema,
   MonitorSchema,
   MonitorQueueEventSchema,
   MonitorAlertSchema,
@@ -194,36 +193,6 @@ describe("MonitorNoDataSchema", () => {
   });
 });
 
-describe("MonitorTemplateSchema", () => {
-  it("accepts the empty string", () => {
-    expect(MonitorTemplateSchema.safeParse("").success).toBe(true);
-  });
-
-  it("accepts a typical short template", () => {
-    expect(
-      MonitorTemplateSchema.safeParse("Alert: {{value}} crossed {{threshold}}")
-        .success,
-    ).toBe(true);
-  });
-
-  it("accepts exactly 4000 characters", () => {
-    expect(MonitorTemplateSchema.safeParse("x".repeat(4000)).success).toBe(
-      true,
-    );
-  });
-
-  it("rejects a string longer than 4000 characters", () => {
-    expect(MonitorTemplateSchema.safeParse("x".repeat(4001)).success).toBe(
-      false,
-    );
-  });
-
-  it("rejects non-string input", () => {
-    expect(MonitorTemplateSchema.safeParse(123).success).toBe(false);
-    expect(MonitorTemplateSchema.safeParse(null).success).toBe(false);
-  });
-});
-
 describe("validateWarningAlertOrdering", () => {
   it.each(["GT", "GTE"] as const)("%s requires warning < alert", (op) => {
     expect(
@@ -292,6 +261,22 @@ describe("MonitorSchema", () => {
   it("parses a minimally valid Monitor", () => {
     const result = MonitorSchema.safeParse(validMonitorBase);
     expect(result.success).toBe(true);
+  });
+
+  it("rejects a message longer than 2000 characters", () => {
+    const result = MonitorSchema.safeParse({
+      ...validMonitorBase,
+      message: "x".repeat(2001),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a message with an invalid handlebars template", () => {
+    const result = MonitorSchema.safeParse({
+      ...validMonitorBase,
+      message: "{{unknown}}",
+    });
+    expect(result.success).toBe(false);
   });
 
   describe("warning/alert threshold ordering refinement", () => {
