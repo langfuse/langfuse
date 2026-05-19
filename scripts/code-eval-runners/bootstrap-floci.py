@@ -113,9 +113,6 @@ def request(method: str, path: str, payload=None) -> bytes:
         method=method,
     )
 
-    # Dev infra: ENDPOINT is operator-supplied (default localhost Floci),
-    # not user input.
-    # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
     with urllib.request.urlopen(req, timeout=10) as response:
         return response.read()
 
