@@ -132,6 +132,7 @@ export const transformDbToApiObservation = (
   const totalTokens = reducedUsageDetails.total ?? 0;
 
   const {
+    providedUsageDetails,
     providedCostDetails,
 
     internalModelId,
