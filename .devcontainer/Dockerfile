@@ -2,13 +2,16 @@
 FROM --platform=${BUILDPLATFORM} golang:1.24 AS migrate-builder
 ARG TARGETOS
 ARG TARGETARCH
+# GOBIN must NOT be set when cross-compiling — Go refuses it.
 ENV CGO_ENABLED=0 \
-    GOBIN=/out \
     GOOS=${TARGETOS} \
     GOARCH=${TARGETARCH}
 # Build only the ClickHouse migrate CLI used in this repo.
-RUN /usr/local/go/bin/go install -trimpath -tags 'clickhouse' -ldflags='-s -w' \
-    github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+RUN go install -trimpath -tags 'clickhouse' -ldflags='-s -w' \
+        github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1 && \
+    mkdir -p /out && \
+    (cp "$(go env GOPATH)/bin/${GOOS}_${GOARCH}/migrate" /out/migrate 2>/dev/null || \
+     cp "$(go env GOPATH)/bin/migrate" /out/migrate)
 
 FROM mcr.microsoft.com/devcontainers/universal:2
 
