@@ -924,6 +924,13 @@ function buildObservationsQueryComponents(
   const hasTraceFilter = observationsFilter.some(
     (f) => f.clickhouseTable === "traces",
   );
+  const filtersNeedFullTable = observationsFilter.some(
+    (f) =>
+      f.clickhouseTable.startsWith("events") &&
+      (f.field === "e.input" ||
+        f.field === "e.output" ||
+        f.field === "metadata"),
+  );
 
   // Extract time filter and apply filters
   const startTimeFrom = extractTimeFilter(observationsFilter);
@@ -946,6 +953,7 @@ function buildObservationsQueryComponents(
 
   // Build query with joins and filters (no CTEs)
   const queryBuilder = new EventsQueryBuilder({ projectId })
+    .when(filtersNeedFullTable, (b) => b.forceFullTable())
     .when(hasTraceFilter, (b) =>
       b.leftJoin(
         "traces t",

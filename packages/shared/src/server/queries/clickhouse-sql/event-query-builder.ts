@@ -923,6 +923,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   private ioFields: { truncated: boolean; charLimit?: number } | null = null;
   // Metadata expansion config: null = use truncated (default), string[] = expand specific keys, empty array = expand all
   private metadataExpansionKeys: string[] | null = null;
+  private shouldForceFullTable = false;
   // Raw SELECT expressions for custom columns (e.g., from CTEs)
   private rawSelectExpressions: string[] = [];
 
@@ -989,6 +990,14 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    */
   selectIO(truncated: boolean = false, charLimit?: number): this {
     this.ioFields = { truncated, charLimit };
+    return this;
+  }
+
+  /**
+   * Force queries to read from events_full instead of events_core.
+   */
+  forceFullTable(): this {
+    this.shouldForceFullTable = true;
     return this;
   }
 
@@ -1074,7 +1083,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     const needsFullMetadata =
       this.metadataExpansionKeys !== null && this.selectFields.has("metadata");
 
-    return needsFullIO || needsFullMetadata;
+    return needsFullIO || needsFullMetadata || this.shouldForceFullTable;
   }
 
   /**

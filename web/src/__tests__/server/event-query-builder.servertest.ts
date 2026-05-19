@@ -145,4 +145,23 @@ describe("EventsQueryBuilder", () => {
     expect(defaultQuery).toContain('e.tool_calls as "tool_calls"');
     expect(defaultQuery).toContain('e.tool_call_names as "tool_call_names"');
   });
+
+  it("should query events_full when explicitly marked for full-table filter targets", () => {
+    const inputQuery = new EventsQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("core")
+      .forceFullTable()
+      .buildWithParams().query;
+
+    const metadataQuery = new EventsQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("core")
+      .forceFullTable()
+      .buildWithParams().query;
+
+    expect(inputQuery).toContain("FROM events_full e");
+    expect(metadataQuery).toContain("FROM events_full e");
+  });
 });

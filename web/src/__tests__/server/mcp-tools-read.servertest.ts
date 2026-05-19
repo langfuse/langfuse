@@ -396,6 +396,45 @@ describe("MCP Read Tools", () => {
       ]);
     });
 
+    it("should match advanced input filters beyond the events_core truncation boundary", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const needle = `needle-${nanoid()}`;
+      const matchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        input: `${"x".repeat(250)}${needle}`,
+      });
+
+      await createEventsCh([
+        matchingObservation,
+        createObservationEvent({
+          projectId,
+          traceId,
+          input: "short-input-without-match",
+        }),
+      ]);
+
+      const result = (await handleListObservations(
+        {
+          traceId,
+          filter: [
+            {
+              type: "string",
+              column: "input",
+              operator: "contains",
+              value: needle,
+            },
+          ],
+          fields: ["id"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string }> };
+
+      expect(result.data).toEqual([{ id: matchingObservation.id }]);
+    });
+
     it("should infer advanced filter type from the column", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
