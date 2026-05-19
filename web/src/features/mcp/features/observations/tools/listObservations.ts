@@ -150,12 +150,10 @@ const OBSERVATION_MCP_FILTER_SCHEMAS =
   );
 
 const OBSERVATION_MCP_EXPLICIT_FILTER_SCHEMAS =
-  OBSERVATION_MCP_FILTER_COLUMN_DEFINITIONS.flatMap(({ column }) =>
-    (
-      Object.keys(
-        OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE,
-      ) as ObservationMcpFilterType[]
-    ).map((type) => OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](column, true)),
+  OBSERVATION_MCP_FILTER_COLUMN_DEFINITIONS.flatMap(({ column, type }) =>
+    isObservationMcpFilterType(type)
+      ? [OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](column, true)]
+      : [],
   );
 
 const ObservationMcpFilterShapeSchema = z

@@ -232,11 +232,20 @@ describe("MCP Read Tools", () => {
       expect(filterSchema?.type).toBe("array");
       const filterVariants =
         filterSchema?.items?.anyOf ?? filterSchema?.items?.oneOf;
-      const totalCostSchema = filterVariants?.find(
-        (schema) =>
-          schema.properties?.column?.const === "totalCost" ||
-          schema.properties?.column?.enum?.includes("totalCost"),
-      );
+      const totalCostSchemas =
+        filterVariants?.filter(
+          (schema) =>
+            schema.properties?.column?.const === "totalCost" ||
+            schema.properties?.column?.enum?.includes("totalCost"),
+        ) ?? [];
+      const totalCostSchema = totalCostSchemas[0];
+
+      expect(totalCostSchemas).not.toHaveLength(0);
+      expect(
+        totalCostSchemas.every(
+          (schema) => schema.properties?.type?.const === "number",
+        ),
+      ).toBe(true);
 
       expect(totalCostSchema?.type).toBe("object");
       expect(totalCostSchema?.required).toEqual(
@@ -350,18 +359,18 @@ describe("MCP Read Tools", () => {
     it("should filter by advanced filters", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
-      const matchingName = `mcp-filter-match-${nanoid()}`;
+      const matchingUserId = `mcp-filter-user-${nanoid()}`;
 
       await createEventsCh([
         createObservationEvent({
           projectId,
           traceId,
-          name: matchingName,
+          userId: matchingUserId,
         }),
         createObservationEvent({
           projectId,
           traceId,
-          name: `mcp-filter-miss-${nanoid()}`,
+          userId: `mcp-filter-user-miss-${nanoid()}`,
         }),
       ]);
 
@@ -371,19 +380,19 @@ describe("MCP Read Tools", () => {
           filter: [
             {
               type: "string",
-              column: "name",
+              column: "userId",
               operator: "=",
-              value: matchingName,
+              value: matchingUserId,
             },
           ],
-          fields: ["id", "name"],
+          fields: ["id", "userId"],
           limit: 100,
         },
         context,
-      )) as { data: Array<{ name: string }> };
+      )) as { data: Array<{ id: string; userId: string | null }> };
 
       expect(result.data).toEqual([
-        { name: matchingName, id: expect.any(String) },
+        { userId: matchingUserId, id: expect.any(String) },
       ]);
     });
 
@@ -422,6 +431,27 @@ describe("MCP Read Tools", () => {
       expect(result.data).toEqual([
         { id: matchingObservation.id, name: matchingObservation.name },
       ]);
+    });
+
+    it("should reject explicit advanced filters with a mismatched column type", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListObservations(
+          {
+            filter: [
+              {
+                type: "string",
+                column: "totalCost",
+                operator: "=",
+                value: "abc",
+              },
+            ],
+            limit: 100,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/Validation failed: filter\.0: Invalid input/i);
     });
 
     it("should reject hidden/internal advanced filter columns", async () => {
