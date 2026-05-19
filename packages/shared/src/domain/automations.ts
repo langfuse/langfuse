@@ -1,16 +1,42 @@
 import { Action, Trigger } from "@prisma/client";
 import { FilterState } from "../types";
+import { singleFilter } from "../interfaces/filters";
 import { z } from "zod";
 
 export enum TriggerEventSource {
   Prompt = "prompt",
+  Monitor = "monitor",
 }
 
 export const EventActionSchema = z.enum(["created", "updated", "deleted"]);
 
 export type TriggerEventAction = z.infer<typeof EventActionSchema>;
 
-export const TriggerEventSourceSchema = z.enum([TriggerEventSource.Prompt]);
+export const TriggerEventSourceSchema = z.enum([
+  TriggerEventSource.Prompt,
+  TriggerEventSource.Monitor,
+]);
+
+const PromptTriggerInputSchema = z.object({
+  eventSource: z.literal(TriggerEventSource.Prompt),
+  filter: z.array(singleFilter).default([]),
+});
+
+const MonitorTriggerInputSchema = z.object({
+  eventSource: z.literal(TriggerEventSource.Monitor),
+  filter: z.array(singleFilter).default([]),
+});
+
+/**
+ * TriggerInputSchema is the per-eventSource shape that defines when a
+ * Trigger fires. Variants share `filter` today; downstream tickets will
+ * tighten the allowed filter columns per variant.
+ */
+export const TriggerInputSchema = z.discriminatedUnion("eventSource", [
+  PromptTriggerInputSchema,
+  MonitorTriggerInputSchema,
+]);
+export type TriggerInput = z.infer<typeof TriggerInputSchema>;
 
 export type TriggerDomain = Omit<
   Trigger,
@@ -38,8 +64,8 @@ export type ActionDomainWithSecrets = Omit<Action, "config"> & {
 
 export const ActionTypeSchema = z.enum(["WEBHOOK", "SLACK", "GITHUB_DISPATCH"]);
 
-export const AvailableWebhookApiSchema = z.record(
-  z.enum(["prompt"]),
+export const AvailableWebhookApiSchema = z.partialRecord(
+  z.enum(["prompt", "monitor"]),
   z.enum(["v1"]),
 );
 

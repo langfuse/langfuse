@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { jsonSchema } from "../utils/zod";
+import { MonitorAlertSchema } from "../features/monitor";
 import { EventActionSchema } from "./automations";
 
 export const WebhookDefaultHeaders = {
@@ -50,4 +51,16 @@ export const GitHubDispatchWebhookOutboundSchema = z.object({
 
 export type GitHubDispatchWebhookOutput = z.infer<
   typeof GitHubDispatchWebhookOutboundSchema
+>;
+
+export const MonitorAlertWebhookOutboundSchema = z.object({
+  id: z.string(),
+  timestamp: z.coerce.date(),
+  type: z.literal("monitor-alert"),
+  apiVersion: z.literal("v1"),
+  payload: MonitorAlertSchema,
+});
+
+export type MonitorAlertWebhookOutput = z.infer<
+  typeof MonitorAlertWebhookOutboundSchema
 >;

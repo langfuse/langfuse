@@ -8,6 +8,7 @@ import {
 import { BatchTableNames } from "../interfaces/tableNames";
 import { EventActionSchema } from "../domain";
 import { PromptDomainSchema } from "../domain/prompts";
+import { MonitorWebhookQueueEventSchema } from "../features/monitor";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
 import { EvalTargetObjectSchema } from "../features/evals/types";
 
@@ -230,10 +231,10 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
   // Future notification types can be added here
 ]);
 
-export const WebhookOutboundEnvelopeSchema = z.object({
+export const PromptVersionWebhookEnvelopeSchema = z.object({
+  type: z.literal("prompt-version"),
   prompt: PromptDomainSchema,
   action: EventActionSchema,
-  type: z.literal("prompt-version"),
   user: z
     .object({
       id: z.string(),
@@ -242,6 +243,11 @@ export const WebhookOutboundEnvelopeSchema = z.object({
     })
     .optional(),
 });
+
+export const WebhookOutboundEnvelopeSchema = z.discriminatedUnion("type", [
+  PromptVersionWebhookEnvelopeSchema,
+  MonitorWebhookQueueEventSchema,
+]);
 
 export const WebhookInputSchema = z.object({
   projectId: z.string(),

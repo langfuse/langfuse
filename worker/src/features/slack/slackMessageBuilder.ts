@@ -18,7 +18,9 @@ export class SlackMessageBuilder {
   /**
    * Build Block Kit message for prompt version events
    */
-  static buildPromptVersionMessage(payload: WebhookInput["payload"]): any[] {
+  static buildPromptVersionMessage(
+    payload: Extract<WebhookInput["payload"], { type: "prompt-version" }>,
+  ): any[] {
     const { action, prompt } = payload;
 
     // Determine action emoji and color
@@ -110,12 +112,14 @@ export class SlackMessageBuilder {
    * Build a simple fallback message for unsupported event types
    */
   static buildFallbackMessage(payload: WebhookInput["payload"]): any[] {
+    const detail =
+      payload.type === "prompt-version" ? payload.action : "notification";
     return [
       {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*Langfuse Notification*\n${payload.type} event: *${payload.action}*`,
+          text: `*Langfuse Notification*\n${payload.type} event: *${detail}*`,
         },
       },
     ];

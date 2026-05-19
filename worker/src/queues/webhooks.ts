@@ -362,6 +362,12 @@ async function executeWebhookAction({
     );
   }
 
+  if (input.payload.type !== "prompt-version") {
+    throw new InternalServerError(
+      `Unsupported webhook payload type ${input.payload.type}`,
+    );
+  }
+
   const webhookConfig = actionConfig.config;
   const webhookUser = input.payload.user
     ? {
@@ -470,6 +476,12 @@ async function executeGitHubDispatchAction({
   if (!isGitHubDispatchAction(actionConfig)) {
     throw new InternalServerError(
       "Action config is not a valid GitHub dispatch configuration",
+    );
+  }
+
+  if (input.payload.type !== "prompt-version") {
+    throw new InternalServerError(
+      `Unsupported webhook payload type ${input.payload.type}`,
     );
   }
 
