@@ -51,6 +51,8 @@ evaluating, and debugging AI applications.
   `.agents/skills/add-model-price/SKILL.md`
 - Code review tasks:
   `.agents/skills/code-review/SKILL.md`
+- Recent main-branch commit bug sweeps with optional Slack reports:
+  `.agents/skills/recent-commit-bug-sweep/SKILL.md`
 - Debugging a Linear issue, GitHub issue, or incident report using Datadog
   (APM, logs, metrics) to establish a root cause:
   `.agents/skills/debug-issue-with-datadog/SKILL.md`

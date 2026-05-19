@@ -1,0 +1,4 @@
+interface:
+  display_name: "Recent Commit Bug Sweep"
+  short_description: "Review recent commits for concrete bugs."
+  default_prompt: "Use $recent-commit-bug-sweep to scan recent Langfuse main commits for likely bugs, propose minimal fixes, and send a tabular Slack report when evidence supports a finding."

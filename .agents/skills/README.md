@@ -122,6 +122,15 @@ Use for:
 
 Open: [code-review/SKILL.md](code-review/SKILL.md)
 
+### recent-commit-bug-sweep
+
+Use for:
+- scanning recent `main` commits or merged PRs for likely bugs
+- evidence-backed regression sweeps since the last run or last 24 hours
+- Slack reports to `#max-and-agents` when concrete bugs are found
+
+Open: [recent-commit-bug-sweep/SKILL.md](recent-commit-bug-sweep/SKILL.md)
+
 ### detect-prod-regressions
 
 Use for:
