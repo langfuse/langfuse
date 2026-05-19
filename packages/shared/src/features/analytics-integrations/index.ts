@@ -70,7 +70,7 @@ const EXPORT_FIELD_GROUP_LABELS = {
   usage: {
     label: "Usage",
     description:
-      "usage_details, cost_details, total_cost, usage_pricing_tier_name",
+      "usage_details, cost_details, total_cost, usage_pricing_tier_id, usage_pricing_tier_name",
   },
   prompt: {
     label: "Prompt",
