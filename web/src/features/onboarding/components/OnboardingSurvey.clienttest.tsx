@@ -1,17 +1,23 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { SurveyFormData } from "../lib/surveyTypes";
 
-const { pushMock, updateSessionMock, mutateAsyncMock, useSurveyFormMock } =
-  vi.hoisted(() => ({
-    pushMock: vi.fn(),
-    updateSessionMock: vi.fn(),
-    mutateAsyncMock: vi.fn(),
-    useSurveyFormMock: vi.fn(),
-  }));
+const {
+  replaceMock,
+  updateSessionMock,
+  mutateAsyncMock,
+  useSurveyFormMock,
+  showErrorToastMock,
+} = vi.hoisted(() => ({
+  replaceMock: vi.fn(),
+  updateSessionMock: vi.fn(),
+  mutateAsyncMock: vi.fn(),
+  useSurveyFormMock: vi.fn(),
+  showErrorToastMock: vi.fn(),
+}));
 
 vi.mock("next/router", () => ({
   useRouter: () => ({
-    push: pushMock,
+    replace: replaceMock,
   }),
 }));
 
@@ -87,8 +93,16 @@ vi.mock("@/src/components/ui/button", () => ({
   ),
 }));
 
+vi.mock("@/src/components/design-system/Spinner/Spinner", () => ({
+  default: () => <div data-testid="onboarding-spinner" />,
+}));
+
 vi.mock("@/src/components/LangfuseLogo", () => ({
   LangfuseIcon: () => <div data-testid="langfuse-icon" />,
+}));
+
+vi.mock("@/src/features/notifications/showErrorToast", () => ({
+  showErrorToast: showErrorToastMock,
 }));
 
 vi.mock("../hooks/useSurveyForm", () => ({
@@ -121,8 +135,8 @@ const makeSurveyHookResult = ({
 
 describe("OnboardingSurvey", () => {
   beforeEach(() => {
-    pushMock.mockReset();
-    pushMock.mockResolvedValue(true);
+    replaceMock.mockReset();
+    replaceMock.mockResolvedValue(true);
     updateSessionMock.mockReset();
     updateSessionMock.mockResolvedValue(undefined);
     mutateAsyncMock.mockReset();
@@ -130,6 +144,7 @@ describe("OnboardingSurvey", () => {
       redirectTo: "/project/project-1/traces",
     });
     useSurveyFormMock.mockReset();
+    showErrorToastMock.mockReset();
   });
 
   it("redirects to the onboarding completion target after finishing the survey", async () => {
@@ -154,7 +169,7 @@ describe("OnboardingSurvey", () => {
     });
     expect(mutateAsyncMock).toHaveBeenCalledTimes(1);
     expect(updateSessionMock).toHaveBeenCalledTimes(1);
-    expect(pushMock).toHaveBeenCalledWith("/project/project-1/traces");
+    expect(replaceMock).toHaveBeenCalledWith("/project/project-1/traces");
   });
 
   it("redirects to the onboarding completion target when skipping the last step", async () => {
@@ -178,6 +193,75 @@ describe("OnboardingSurvey", () => {
     });
     expect(handleSubmit).not.toHaveBeenCalled();
     expect(updateSessionMock).toHaveBeenCalledTimes(1);
-    expect(pushMock).toHaveBeenCalledWith("/project/project-1/traces");
+    expect(replaceMock).toHaveBeenCalledWith("/project/project-1/traces");
+  });
+
+  it("shows a stable finishing state while onboarding completion is in progress", async () => {
+    let resolveMutation: ((value: { redirectTo: string }) => void) | undefined;
+    mutateAsyncMock.mockReturnValue(
+      new Promise<{ redirectTo: string }>((resolve) => {
+        resolveMutation = resolve;
+      }),
+    );
+
+    useSurveyFormMock.mockReturnValue(
+      makeSurveyHookResult({
+        values: {
+          referralSource: undefined,
+        },
+      }),
+    );
+
+    render(<OnboardingSurvey />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Setting up your project" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Taking you to tracing...")).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-spinner")).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText(
+        "Colleague, Word of Mouth, X, Reddit, Event",
+      ),
+    ).not.toBeInTheDocument();
+
+    resolveMutation?.({ redirectTo: "/project/project-1/traces" });
+
+    await waitFor(() => {
+      expect(replaceMock).toHaveBeenCalledWith("/project/project-1/traces");
+    });
+  });
+
+  it("returns to the survey and shows an error toast if completion fails", async () => {
+    mutateAsyncMock.mockRejectedValueOnce(new Error("boom"));
+
+    useSurveyFormMock.mockReturnValue(
+      makeSurveyHookResult({
+        values: {
+          referralSource: undefined,
+        },
+      }),
+    );
+
+    render(<OnboardingSurvey />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Setting up your project" }),
+    ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(showErrorToastMock).toHaveBeenCalledWith(
+        "Failed to finish onboarding",
+        "boom",
+      );
+    });
+
+    expect(
+      screen.getByPlaceholderText("Colleague, Word of Mouth, X, Reddit, Event"),
+    ).toBeInTheDocument();
   });
 });

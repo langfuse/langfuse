@@ -42,6 +42,7 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
+import { resolveProjectHomeRoute } from "@/src/features/projects/server/projectHomeRoute";
 import { getServerAuthSession } from "@/src/server/auth";
 
 const HOME_DASHBOARD_CARD_IDS = {
@@ -375,56 +376,28 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     res: context.res,
   });
 
-  if (!session?.user) {
-    return {
-      props: {},
-    };
-  }
-
-  const sessionOrganization = session.user.organizations.find((organization) =>
-    organization.projects.some((project) => project.id === projectId),
-  );
-
-  const sessionProject = sessionOrganization?.projects.find(
-    (project) => project.id === projectId,
-  );
-
-  if (!sessionProject || !sessionOrganization) {
-    return {
-      notFound: true,
-    };
-  }
-
-  const persistedProject = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      orgId: sessionOrganization.id,
-      deletedAt: null,
-    },
-    select: {
-      hasTraces: true,
-    },
+  const routeResolution = await resolveProjectHomeRoute({
+    prisma,
+    session,
+    projectId,
   });
 
-  if (!persistedProject) {
-    return {
-      notFound: true,
-    };
+  switch (routeResolution.kind) {
+    case "redirect-sign-in":
+    case "redirect-traces":
+      return {
+        redirect: {
+          destination: routeResolution.destination,
+          permanent: false,
+        },
+      };
+    case "not-found":
+      return {
+        notFound: true,
+      };
+    case "render":
+      return {
+        props: {},
+      };
   }
-
-  const projectHasTraces =
-    sessionProject.hasTraces || persistedProject.hasTraces;
-
-  if (!projectHasTraces) {
-    return {
-      redirect: {
-        destination: `/project/${projectId}/traces`,
-        permanent: false,
-      },
-    };
-  }
-
-  return {
-    props: {},
-  };
 };

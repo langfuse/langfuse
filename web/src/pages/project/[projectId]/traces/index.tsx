@@ -39,11 +39,9 @@ export default function Traces() {
     shouldPromptForStarterProjectInvite && !hasHandledStarterInvitePrompt;
 
   useEffect(() => {
-    if (shouldPromptForStarterProjectInvite) {
-      setHasHandledStarterInvitePrompt(false);
-      setIsConsumingStarterInvitePrompt(false);
-    }
-  }, [projectId, shouldPromptForStarterProjectInvite]);
+    setHasHandledStarterInvitePrompt(false);
+    setIsConsumingStarterInvitePrompt(false);
+  }, [projectId]);
 
   const handleConsumeStarterProjectInvitePrompt = async () => {
     if (

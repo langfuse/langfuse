@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
@@ -12,6 +12,8 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import { useSurveyForm } from "../hooks/useSurveyForm";
 import type { SurveyFormData } from "../lib/surveyTypes";
@@ -21,12 +23,32 @@ export function OnboardingSurvey() {
   const { update: updateSession } = useSession();
   const { form, handleSubmit } = useSurveyForm();
   const completeOnboardingMutation = api.onboarding.complete.useMutation();
+  const [isFinishingOnboarding, setIsFinishingOnboarding] = useState(false);
 
   const finishOnboarding = useCallback(async () => {
-    const onboardingResult = await completeOnboardingMutation.mutateAsync();
-    await updateSession();
-    await router.push(onboardingResult.redirectTo);
-  }, [completeOnboardingMutation, router, updateSession]);
+    if (isFinishingOnboarding) {
+      return;
+    }
+
+    setIsFinishingOnboarding(true);
+
+    try {
+      const onboardingResult = await completeOnboardingMutation.mutateAsync();
+      await updateSession();
+      await router.replace(onboardingResult.redirectTo);
+    } catch (error) {
+      showErrorToast(
+        "Failed to finish onboarding",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+      setIsFinishingOnboarding(false);
+    }
+  }, [
+    completeOnboardingMutation,
+    isFinishingOnboarding,
+    router,
+    updateSession,
+  ]);
 
   const handleSkipButton = useCallback(() => {
     void finishOnboarding();
@@ -51,6 +73,28 @@ export function OnboardingSurvey() {
     v == null || (typeof v === "string" && v.trim() === "");
   const currentEmpty = isEmpty(currentValue);
   const showSkip = currentEmpty;
+
+  if (isFinishingOnboarding) {
+    return (
+      <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-start sm:px-6 sm:py-12 lg:px-8">
+        <div className="flex items-center justify-center gap-2 sm:mx-auto sm:w-full sm:max-w-md">
+          <LangfuseIcon className="h-8 w-8" />
+        </div>
+
+        <div className="bg-background mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
+          <div className="flex flex-col items-center text-center">
+            <Spinner size="xl" variant="muted" />
+            <h1 className="mt-6 text-xl font-semibold">
+              Setting up your project
+            </h1>
+            <p className="text-muted-foreground mt-2 text-sm">
+              Taking you to tracing...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-start sm:px-6 sm:py-12 lg:px-8">
@@ -100,11 +144,17 @@ export function OnboardingSurvey() {
                   onClick={handleSkipButton}
                   variant="ghost"
                   className="w-20"
+                  disabled={isFinishingOnboarding}
                 >
                   Skip
                 </Button>
               ) : (
-                <Button type="submit" variant="default" className="w-20">
+                <Button
+                  type="submit"
+                  variant="default"
+                  className="w-20"
+                  disabled={isFinishingOnboarding}
+                >
                   Finish
                 </Button>
               )}
