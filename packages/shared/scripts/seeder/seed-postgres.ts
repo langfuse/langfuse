@@ -300,11 +300,10 @@ async function main() {
     for (const evalTemplate of SEED_EVALUATOR_TEMPLATES) {
       await prisma.evalTemplate.upsert({
         where: {
-          projectId_name_version_type: {
+          projectId_name_version: {
             projectId: project1.id,
             name: evalTemplate.name,
             version: 1,
-            type: EvalTemplateType.LLM_AS_JUDGE,
           },
         },
         create: {
@@ -312,6 +311,7 @@ async function main() {
           projectId: project1.id,
           name: evalTemplate.name,
           version: evalTemplate.version,
+          type: EvalTemplateType.LLM_AS_JUDGE,
           prompt: evalTemplate.prompt,
           model: evalTemplate.model,
           vars: evalTemplate.vars,

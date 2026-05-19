@@ -937,7 +937,7 @@ model EvalTemplate {
   JobConfiguration   JobConfiguration[]
   JobExecution       JobExecution[]
 
-  @@unique([projectId, name, version, type])
+  @@unique([projectId, name, version])
   @@index([projectId, id])
   @@map("eval_templates")
 }
