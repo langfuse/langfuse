@@ -35,6 +35,44 @@ vi.mock("@/src/utils/api", () => ({
 
 vi.mock("@/src/components/ui/form", () => ({
   Form: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  FormField: ({
+    name,
+    render,
+  }: {
+    name: string;
+    render: (props: {
+      field: {
+        name: string;
+        onBlur: ReturnType<typeof vi.fn>;
+        onChange: ReturnType<typeof vi.fn>;
+        ref: ReturnType<typeof vi.fn>;
+        value: string;
+      };
+    }) => React.ReactNode;
+  }) => (
+    <>
+      {render({
+        field: {
+          name,
+          onBlur: vi.fn(),
+          onChange: vi.fn(),
+          ref: vi.fn(),
+          value: "",
+        },
+      })}
+    </>
+  ),
+  FormControl: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  FormItem: ({ children, className }: React.HTMLAttributes<HTMLDivElement>) => (
+    <div className={className}>{children}</div>
+  ),
+  FormLabel: ({
+    children,
+    className,
+  }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
+    <label className={className}>{children}</label>
+  ),
+  FormMessage: () => null,
 }));
 
 vi.mock("@/src/components/ui/button", () => ({
@@ -51,14 +89,6 @@ vi.mock("@/src/components/ui/button", () => ({
 
 vi.mock("@/src/components/LangfuseLogo", () => ({
   LangfuseIcon: () => <div data-testid="langfuse-icon" />,
-}));
-
-vi.mock("./SurveyProgress", () => ({
-  SurveyProgress: () => <div data-testid="survey-progress" />,
-}));
-
-vi.mock("./SurveyStep", () => ({
-  SurveyStep: () => <div data-testid="survey-step" />,
 }));
 
 vi.mock("../hooks/useSurveyForm", () => ({
@@ -86,19 +116,7 @@ const makeSurveyHookResult = ({
   handleSubmit?: ReturnType<typeof vi.fn>;
 }) => ({
   form: makeForm(values),
-  state: { currentStep: 2 },
-  currentQuestion: {
-    id: "referralSource",
-    type: "text" as const,
-    question: "Where did you hear about us?",
-  },
-  isLastStep: true,
-  isFirstStep: false,
-  goNext: vi.fn(),
-  goBack: vi.fn(),
-  handleAutoAdvance: vi.fn(),
   handleSubmit,
-  totalSteps: 3,
 });
 
 describe("OnboardingSurvey", () => {
@@ -116,8 +134,6 @@ describe("OnboardingSurvey", () => {
 
   it("redirects to the onboarding completion target after finishing the survey", async () => {
     const values: SurveyValues = {
-      role: "Software Engineer",
-      signupReason: "Start using Langfuse",
       referralSource: "GitHub",
     };
     const handleSubmit = vi.fn().mockResolvedValue(undefined);
@@ -147,8 +163,6 @@ describe("OnboardingSurvey", () => {
     useSurveyFormMock.mockReturnValue(
       makeSurveyHookResult({
         values: {
-          role: undefined,
-          signupReason: undefined,
           referralSource: undefined,
         },
         handleSubmit,
