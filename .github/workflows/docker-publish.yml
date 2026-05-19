@@ -12,8 +12,6 @@ on:
       - "**"
     types: [opened, synchronize, reopened]
 
-# For PRs from forks, GITHUB_TOKEN only gets read permissions and cannot push
-# to GHCR. Restrict image push to PRs from the same repo (i.e. your own branches).
 permissions:
   contents: read
   packages: write
@@ -39,10 +37,10 @@ jobs:
           persist-credentials: false
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5730b46bce3e7a7b23de4d27cbf503b90a05df5 # v3
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v3
@@ -51,13 +49,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Log in to Docker Hub
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
@@ -65,8 +56,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v5
         with:
-          images: |
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.image_name }}
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image_name }}
           flavor: |
             latest=false
           tags: |
@@ -79,12 +69,11 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and push ${{ matrix.component }}
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b2a4 # v6
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64,linux/arm64
-          # Only push on non-fork PRs (forks lack write token), main, tags, and manual runs
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
