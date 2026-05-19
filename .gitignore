@@ -83,6 +83,7 @@ web/test-results/*
 .mcp.json
 .claude/settings.json
 .claude/skills/
+.claude/launch.json
 .cursor/mcp.json
 .cursor/environment.json
 .vscode/mcp.json
