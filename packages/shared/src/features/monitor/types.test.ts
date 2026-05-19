@@ -419,13 +419,23 @@ describe("MonitorQueueEventSchema", () => {
     if (result.success) expect(result.data.scheduledAt).toBeInstanceOf(Date);
   });
 
-  it("rejects a non-bigint schedulerBatchId", () => {
-    expect(
-      MonitorQueueEventSchema.safeParse({
-        ...validQueueEvent,
-        schedulerBatchId: 42,
-      }).success,
-    ).toBe(false);
+  it("coerces a string schedulerBatchId to a bigint", () => {
+    const result = MonitorQueueEventSchema.safeParse({
+      ...validQueueEvent,
+      schedulerBatchId: "42",
+    });
+    expect(result.success).toBe(true);
+    if (result.success)
+      expect(typeof result.data.schedulerBatchId).toBe("bigint");
+  });
+
+  it("coerces a string window to a bigint", () => {
+    const result = MonitorQueueEventSchema.safeParse({
+      ...validQueueEvent,
+      window: MonitorWindow.FIVE_MIN.toString(),
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(typeof result.data.window).toBe("bigint");
   });
 
   it("rejects a window outside the MonitorWindow tier set", () => {
@@ -491,6 +501,15 @@ describe("MonitorAlertSchema", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.timestamp).toBeInstanceOf(Date);
+  });
+
+  it("coerces a string window to a bigint", () => {
+    const result = MonitorAlertSchema.safeParse({
+      ...validAlert,
+      window: MonitorWindow.FIVE_MIN.toString(),
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(typeof result.data.window).toBe("bigint");
   });
 });
 

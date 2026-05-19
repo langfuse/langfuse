@@ -198,7 +198,7 @@ export const MonitorSchema = z
 export const MonitorQueueEventSchema = z.object({
   projectId: z.string(),
   // Fingerprint of (projectId, view, filters, window)
-  schedulerBatchId: z.bigint(),
+  schedulerBatchId: z.coerce.bigint(),
 
   // Scheduler tick time
   scheduledAt: z.coerce.date(),
@@ -206,7 +206,9 @@ export const MonitorQueueEventSchema = z.object({
   // Shared query primitives — every monitor in this batch agrees on these.
   view: z.enum(MonitorView),
   filters: z.array(singleFilter),
-  window: z.bigint().refine(isValidMonitorWindow, ErrorInvalidMonitorWindow),
+  window: z.coerce
+    .bigint()
+    .refine(isValidMonitorWindow, ErrorInvalidMonitorWindow),
   metrics: z.array(MetricSchema),
 
   // Monitors map to metricNames returned by the above query params
@@ -230,7 +232,9 @@ export const MonitorAlertSchema = z.object({
   timestamp: z.coerce.date(),
   view: z.enum(MonitorView),
   filters: z.array(singleFilter),
-  window: z.bigint().refine(isValidMonitorWindow, ErrorInvalidMonitorWindow),
+  window: z.coerce
+    .bigint()
+    .refine(isValidMonitorWindow, ErrorInvalidMonitorWindow),
 });
 export type MonitorAlert = z.infer<typeof MonitorAlertSchema>;
 
