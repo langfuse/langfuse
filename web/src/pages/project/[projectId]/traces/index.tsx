@@ -14,6 +14,7 @@ import ObservationsEventsTable from "@/src/features/events/components/EventsTabl
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { CreateProjectMemberButton } from "@/src/features/rbac/components/CreateProjectMemberButton";
 import { shouldShowStarterProjectInvitePrompt } from "@/src/features/onboarding/lib/starterProjectMetadata";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 export default function Traces() {
   const router = useRouter();
@@ -58,11 +59,15 @@ export default function Traces() {
       await consumeStarterProjectInvitePrompt.mutateAsync({
         projectId,
       });
-      setHasHandledStarterInvitePrompt(true);
       await updateSession();
     } catch (error) {
       console.error(error);
+      showErrorToast(
+        "Failed to dismiss invite prompt",
+        error instanceof Error ? error.message : "Please try again.",
+      );
     } finally {
+      setHasHandledStarterInvitePrompt(true);
       setIsConsumingStarterInvitePrompt(false);
     }
   };
