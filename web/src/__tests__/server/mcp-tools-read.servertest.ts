@@ -132,6 +132,7 @@ describe("MCP Read Tools", () => {
             default: boolean;
             expensive: boolean;
             sensitive: boolean;
+            description?: string;
           }
         >;
       };
@@ -161,6 +162,9 @@ describe("MCP Read Tools", () => {
       expect(result.fields.input.expensive).toBe(true);
       expect(result.fields.input.sensitive).toBe(true);
       expect(result.fields.metadata.expensive).toBe(true);
+      expect(result.fields.metadata.description).toContain(
+        "truncated to 200 UTF-8 characters per key",
+      );
       expect(result.fields.userId.sensitive).toBe(true);
     });
   });

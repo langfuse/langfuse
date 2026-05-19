@@ -12,6 +12,7 @@ type ObservationMcpFieldMetadata = {
   default?: boolean;
   expensive?: boolean;
   sensitive?: boolean;
+  description?: string;
 };
 
 type ObservationMcpFieldDefinition = ObservationMcpFieldMetadata & {
@@ -63,7 +64,13 @@ const OBSERVATION_MCP_FIELD_METADATA: Record<
   updatedAt: { type: "datetime" },
   input: { type: "unknown", expensive: true, sensitive: true },
   output: { type: "unknown", expensive: true, sensitive: true },
-  metadata: { type: "record", expensive: true, sensitive: true },
+  metadata: {
+    type: "record",
+    expensive: true,
+    sensitive: true,
+    description:
+      "Metadata values are truncated to 200 UTF-8 characters per key by default. When requesting metadata explicitly, pass expandMetadataKeys with the keys that may need full values.",
+  },
   providedModelName: { type: "string", nullable: true, default: true },
   internalModelId: { type: "string", nullable: true },
   modelParameters: {
@@ -155,7 +162,7 @@ export const ExpandMetadataKeysSchema = z
   .array(z.string())
   .optional()
   .describe(
-    'Metadata keys to expand. Only used when metadata is projected or fields is ["*"].',
+    "Metadata keys that may need full values. Metadata values are truncated to 200 UTF-8 characters per key by default when metadata is projected without this option.",
   );
 
 type ObservationMcpFilterColumn =

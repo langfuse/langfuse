@@ -28,6 +28,7 @@ export const [getObservationTool, handleGetObservation] = defineTool({
     "Use this when you already know the observation ID and want to inspect its timing, model, status, payload, metadata, usage, cost, or prompt fields.",
     "",
     'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
+    'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
   ].join("\n"),
   baseSchema: GetObservationBaseSchema,
   inputSchema: GetObservationBaseSchema,

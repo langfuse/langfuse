@@ -245,6 +245,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     "Use filters to narrow results by trace, name, type, level, environment, time range, or advanced filter conditions. Results are paginated with an opaque cursor.",
     "",
     'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
+    'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
   ].join("\n"),
   baseSchema: ListObservationsBaseSchema as z.ZodType<ListObservationsInput>,
   inputSchema: ListObservationsInputSchema,
