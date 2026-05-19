@@ -49,6 +49,22 @@ services:
     networks:
       - default
 
+  floci:
+    image: docker.io/floci/floci:1.5.17-compat
+    container_name: ${FLOCI_CONTAINER_NAME:-langfuse-floci}
+    environment:
+      FLOCI_HOSTNAME: floci
+      FLOCI_INIT_HOOKS_TIMEOUT_SECONDS: 120
+    ports:
+      - ${HOST_IP:-127.0.0.1}:${FLOCI_PORT:-4566}:4566
+    volumes:
+      - langfuse_floci_data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./scripts/code-eval-runners:/opt/code-eval-runners:ro
+      - ./scripts/code-eval-runners/bootstrap-floci.py:/etc/floci/init/ready.d/01-bootstrap-code-eval-runners.py:ro
+    networks:
+      - default
+
   redis:
     image: docker.io/redis:7.2.4
     container_name: ${REDIS_CONTAINER_NAME:-langfuse-redis}
@@ -96,6 +112,9 @@ volumes:
     driver: local
   langfuse_minio_data:
     name: ${MINIO_VOLUME_NAME:-langfuse_minio_data}
+    driver: local
+  langfuse_floci_data:
+    name: ${FLOCI_VOLUME_NAME:-langfuse_floci_data}
     driver: local
 
 networks:

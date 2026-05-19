@@ -32,6 +32,7 @@ import {
   isLLMCompletionError,
   blockEvaluatorConfigs,
   EvaluatorBlockSource,
+  type CodeEvalScoreWithName,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -59,6 +60,7 @@ import {
   PersistedEvalOutputDefinitionSchema,
   ScoreDataTypeEnum,
   validateEvalOutputResult,
+  type EvalOutputResult,
   extractValueFromObject,
   validateEvaluatorFiltersForTarget,
 } from "@langfuse/shared";
@@ -955,12 +957,53 @@ export async function runLLMAsJudgeEvaluation({
       );
 
       return {
-        outputResult: parsedLLMOutput.data,
+        scores: toNormalizedScores({
+          outputResult: parsedLLMOutput.data,
+          scoreName: config.scoreName,
+        }),
         primaryScoreId,
         executionTraceId,
+        metadata,
       };
     },
   );
+}
+
+function toNormalizedScores(params: {
+  outputResult: EvalOutputResult;
+  scoreName: string;
+}): CodeEvalScoreWithName[] {
+  const { outputResult, scoreName } = params;
+  const baseFields = {
+    name: scoreName,
+    comment: outputResult.reasoning,
+  };
+
+  if (outputResult.dataType === ScoreDataTypeEnum.NUMERIC) {
+    return [
+      {
+        ...baseFields,
+        dataType: ScoreDataTypeEnum.NUMERIC,
+        value: outputResult.score,
+      },
+    ];
+  }
+
+  if (outputResult.dataType === ScoreDataTypeEnum.BOOLEAN) {
+    return [
+      {
+        ...baseFields,
+        dataType: ScoreDataTypeEnum.BOOLEAN,
+        value: outputResult.score ? 1 : 0,
+      },
+    ];
+  }
+
+  return outputResult.matches.map((value) => ({
+    ...baseFields,
+    dataType: ScoreDataTypeEnum.CATEGORICAL,
+    value,
+  }));
 }
 
 export async function executeLLMAsJudgeEvaluation(
@@ -986,11 +1029,9 @@ export async function executeLLMAsJudgeEvaluation(
     jobExecutionId: params.jobExecutionId,
     traceId: params.job.jobInputTraceId,
     observationId: params.job.jobInputObservationId,
-    scoreName: params.config.scoreName,
     environment: params.environment,
-    metadata,
     deps,
-    ...result,
+    result,
   });
 }
 
