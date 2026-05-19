@@ -442,8 +442,12 @@ const APIObservationV2 = z
     latency: z.number().nullable().optional(),
     timeToFirstToken: z.number().nullable().optional(),
 
-    // Enrichment fields
+    // Enrichment fields (always present on v2 responses).
+    // Populated only when "model" is in the `fields` query param; otherwise null.
     modelId: z.string().nullable().optional(),
+    inputPrice: z.number().nullable().optional(),
+    outputPrice: z.number().nullable().optional(),
+    totalPrice: z.number().nullable().optional(),
 
     // Trace context fields (field group: trace_context)
     traceName: z.string().nullable().optional(),
