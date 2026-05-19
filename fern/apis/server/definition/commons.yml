@@ -278,9 +278,11 @@ types:
         docs: Additional metadata of the observation
 
       # Model fields (field group: model)
-      providedModelName:
+      # Note: the wire-format key is "model" (maps from provided_model_name); "providedModelName"
+      # is the human-readable alias used in documentation.
+      model:
         type: optional<nullable<string>>
-        docs: The model name as provided by the user
+        docs: The model name as provided by the user (wire key is "model", not "providedModelName")
       internalModelId:
         type: optional<nullable<string>>
         docs: The internal model ID matched by Langfuse
@@ -298,6 +300,9 @@ types:
       totalCost:
         type: optional<nullable<double>>
         docs: The total cost of the observation in USD
+      usagePricingTierId:
+        type: optional<nullable<string>>
+        docs: The ID of the pricing tier applied to this observation's usage costs
       usagePricingTierName:
         type: optional<nullable<string>>
         docs: The name of the pricing tier applied to this observation's usage costs
@@ -321,10 +326,20 @@ types:
         type: optional<nullable<double>>
         docs: The time to first token in seconds
 
-      # Enrichment fields (added by server-side enrichment)
+      # Enrichment fields (always present on v2 responses; null when model group not requested).
+      # Prices are decimal strings (e.g. "0.0001") for backward compatibility — see LFE-9859.
       modelId:
-        type: optional<nullable<string>>
-        docs: The matched model ID
+        type: nullable<string>
+        docs: The matched model ID. Null when the `model` field group is not requested.
+      inputPrice:
+        type: nullable<string>
+        docs: The input token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
+      outputPrice:
+        type: nullable<string>
+        docs: The output token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
+      totalPrice:
+        type: nullable<string>
+        docs: The total token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
 
       # Trace context fields (field group: trace_context)
       traceName:

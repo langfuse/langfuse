@@ -385,7 +385,7 @@ export const GetObservationsV2Query = z.object({
 /**
  * Typed observation schema for v2 API responses.
  * Core fields are always present; other fields are optional depending on requested field groups.
- * Uses .loose() to allow server enrichment fields not explicitly listed.
+ * Uses .strict() to ensure the schema exactly matches what the server returns.
  */
 const APIObservationV2 = z
   .object({
@@ -422,7 +422,9 @@ const APIObservationV2 = z
     metadata: z.any().optional(),
 
     // Model fields (field group: model)
-    providedModelName: z.string().nullable().optional(),
+    // Note: the wire-format key is "model" (maps from provided_model_name in ClickHouse),
+    // matching the domain Observation type. "providedModelName" is the Fern/docs alias.
+    model: z.string().nullable().optional(),
     internalModelId: z.string().nullable().optional(),
     modelParameters: z.any().optional(),
 
@@ -430,6 +432,7 @@ const APIObservationV2 = z
     usageDetails: z.record(z.string(), z.number().nonnegative()).optional(),
     costDetails: z.record(z.string(), z.number().nonnegative()).optional(),
     totalCost: z.number().nullable().optional(),
+    usagePricingTierId: z.string().nullable().optional(),
     usagePricingTierName: z.string().nullable().optional(),
 
     // Prompt fields (field group: prompt)
@@ -441,15 +444,21 @@ const APIObservationV2 = z
     latency: z.number().nullable().optional(),
     timeToFirstToken: z.number().nullable().optional(),
 
-    // Enrichment fields
-    modelId: z.string().nullable().optional(),
+    // Enrichment fields (always present on v2 responses; null when model group not requested).
+    // Prices are strings (Prisma Decimal serialisation) to preserve backward compatibility —
+    // statically-typed language clients (Go, Java, C#) built structs against the original
+    // string wire format and cannot safely migrate to numbers on v2. See LFE-9859.
+    modelId: z.string().nullable(),
+    inputPrice: z.string().nullable(),
+    outputPrice: z.string().nullable(),
+    totalPrice: z.string().nullable(),
 
     // Trace context fields (field group: trace_context)
     traceName: z.string().nullable().optional(),
     tags: z.array(z.string()).nullable().optional(),
     release: z.string().nullable().optional(),
   })
-  .loose();
+  .strict();
 
 export const GetObservationsV2Response = z
   .object({

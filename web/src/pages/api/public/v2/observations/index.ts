@@ -57,12 +57,38 @@ export default withMiddlewares({
       const hasMore = items.length > query.limit;
       const dataToReturn = hasMore ? items.slice(0, query.limit) : items;
 
-      // Convert empty parent_observation_id to null for consistency with v1
+      // Normalize for the wire format and strip internal derived fields not
+      // part of the public v2 contract.
       const transformedItems = dataToReturn.map((item) => {
-        if (item.parentObservationId === "") {
-          return { ...item, parentObservationId: null };
-        }
-        return item;
+        // Strip internal derived fields that the converter produces from
+        // usageDetails / costDetails but are not declared in the public schema.
+        const {
+          inputUsage: _iu,
+          outputUsage: _ou,
+          totalUsage: _tu,
+          inputCost: _ic,
+          outputCost: _oc,
+          ...publicFields
+        } = item as typeof item & {
+          inputUsage?: number;
+          outputUsage?: number;
+          totalUsage?: number;
+          inputCost?: number | null;
+          outputCost?: number | null;
+        };
+
+        return {
+          ...publicFields,
+          parentObservationId:
+            item.parentObservationId === "" ? null : item.parentObservationId,
+          // Enrichment fields: always present (null when model group not requested).
+          // Prices serialised as strings (Decimal.toString()) for backward compat — v2
+          // wire format has always been string; see LFE-9859.
+          modelId: item.modelId ?? null,
+          inputPrice: item.inputPrice?.toString() ?? null,
+          outputPrice: item.outputPrice?.toString() ?? null,
+          totalPrice: item.totalPrice?.toString() ?? null,
+        };
       });
 
       // Generate cursor if there are more results

@@ -622,6 +622,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       "usageDetails",
       "costDetails",
       "totalCost",
+      "usagePricingTierId",
       "usagePricingTierName",
       // prompt
       "promptId",
@@ -665,6 +666,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         model_parameters: '{"temperature":0.5}',
         usage_details: { input: 10, output: 20, total: 30 },
         cost_details: { input: 0.01, output: 0.02, total: 0.03 },
+        usage_pricing_tier_id: "tier-id-9859",
         usage_pricing_tier_name: "contract-tier",
         prompt_id: randomUUID(),
         prompt_name: "contract-prompt",
@@ -703,6 +705,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       traceName: "contract-trace",
       tags: ["tag-a", "tag-b"],
       release: "1.2.3",
+      usagePricingTierId: "tier-id-9859",
       usagePricingTierName: "contract-tier",
     };
 
@@ -727,6 +730,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         "usageDetails",
         "costDetails",
         "totalCost",
+        "usagePricingTierId",
         "usagePricingTierName",
       ],
       prompt: ["promptId", "promptName", "promptVersion"],
@@ -736,6 +740,46 @@ describe("/api/public/v2/observations API Endpoint", () => {
       metrics: ["latency", "timeToFirstToken"],
       trace_context: ["traceName", "tags", "release"],
     };
+
+    it("enrichment fields always present; internal derived fields absent; prices are strings", async () => {
+      // Requests all groups. Validates:
+      // 1. modelId/inputPrice/outputPrice/totalPrice are always in the response.
+      // 2. Prices are strings (Decimal serialisation, v2 backward compat).
+      // 3. Internal converter fields (inputUsage etc.) are stripped.
+      // 4. Response passes the strict GetObservationsV2Response Zod schema.
+      const response = await getObservations(
+        `/api/public/v2/observations?fields=core,basic,time,io,metadata,model,usage,prompt,metrics,trace_context&traceId=${sharedTraceId}`,
+      );
+
+      expect(response.status).toBe(200);
+      const obs = response.body.data.find((o: any) => o.id === sharedObsId);
+      expect(obs).toBeDefined();
+      if (!obs) return;
+
+      // Enrichment fields — always present as own keys (null when not resolved)
+      expect(obs).toHaveProperty("modelId");
+      expect(obs).toHaveProperty("inputPrice");
+      expect(obs).toHaveProperty("outputPrice");
+      expect(obs).toHaveProperty("totalPrice");
+
+      // Prices are strings on v2 (Prisma Decimal.toString()), never numbers
+      if (obs.inputPrice !== null) expect(typeof obs.inputPrice).toBe("string");
+      if (obs.outputPrice !== null)
+        expect(typeof obs.outputPrice).toBe("string");
+      if (obs.totalPrice !== null) expect(typeof obs.totalPrice).toBe("string");
+
+      // usagePricingTierId present and correct when usage group requested
+      expect(obs.usagePricingTierId).toBe("tier-id-9859");
+
+      // Internal derived fields must never appear in the v2 response
+      expect(obs).not.toHaveProperty("inputUsage");
+      expect(obs).not.toHaveProperty("outputUsage");
+      expect(obs).not.toHaveProperty("totalUsage");
+      expect(obs).not.toHaveProperty("inputCost");
+      expect(obs).not.toHaveProperty("outputCost");
+      expect(obs).not.toHaveProperty("providedUsageDetails");
+      expect(obs).not.toHaveProperty("providedCostDetails");
+    });
 
     for (const [group, expectedFields] of Object.entries(fieldsForGroup)) {
       it(`field group contract: ${group}`, async () => {
