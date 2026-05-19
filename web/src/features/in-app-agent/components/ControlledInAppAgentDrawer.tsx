@@ -22,7 +22,16 @@ type ControlledInAppAgentDrawerProps =
 export function ControlledInAppAgentDrawer(
   props: ControlledInAppAgentDrawerProps,
 ) {
-  const { error, isRunning, messages, submit } = useInAppAiAgent();
+  const {
+    conversations,
+    error,
+    isRunning,
+    messages,
+    selectConversation,
+    selectedConversationId,
+    startNewConversation,
+    submit,
+  } = useInAppAiAgent();
   const drawerMessages = useMemo(() => {
     const parsedMessages = z.array(AgUiMessageSchema).parse(messages);
 
@@ -118,6 +127,10 @@ export function ControlledInAppAgentDrawer(
       error={error}
       isRunning={isRunning}
       messages={drawerMessages}
+      conversations={conversations}
+      selectedConversationId={selectedConversationId}
+      onSelectConversation={selectConversation}
+      onNewConversation={startNewConversation}
       onSubmit={submit}
       {...closeButtonProps}
     />

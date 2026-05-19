@@ -20,6 +20,10 @@ const MAX_AGENT_BUDGET_USD = 5;
 type CreateAgUiStreamOptions = {
   resumeSessionId?: string;
   createResumeStateForSessionId: (sessionId: string) => unknown;
+  onResumeSessionId?: (sessionId: string) => void;
+  onComplete?: () => void;
+  onAbort?: () => void;
+  onError?: (error: unknown) => void;
   awsCredentials: {
     accessKeyId: string;
     secretAccessKey: string;
@@ -79,6 +83,11 @@ export function createAgUiStream(params: {
       };
 
       const abort = () => {
+        if (closed) {
+          return;
+        }
+
+        params.options.onAbort?.();
         void adapter.interrupt().catch(() => undefined);
         closeController();
       };
@@ -107,6 +116,7 @@ export function createAgUiStream(params: {
           for (const agUiEvent of normalizeAdapterEvent(
             event,
             params.options.createResumeStateForSessionId,
+            params.options.onResumeSessionId,
           )) {
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify(agUiEvent)}\n\n`),
@@ -120,6 +130,7 @@ export function createAgUiStream(params: {
           }
 
           console.error("Error in agent execution:", error);
+          params.options.onError?.(error);
 
           const message =
             error instanceof Error ? error.message : "Unknown assistant error";
@@ -135,6 +146,7 @@ export function createAgUiStream(params: {
           closeController();
         },
         complete() {
+          params.options.onComplete?.();
           closeController();
         },
       });
@@ -145,6 +157,7 @@ export function createAgUiStream(params: {
 function normalizeAdapterEvent(
   event: AgUiEvent,
   createResumeStateForSessionId: (sessionId: string) => unknown,
+  onResumeSessionId?: (sessionId: string) => void,
 ): AgUiEvent[] {
   if (isSystemInitEvent(event)) {
     let sessionId: string | undefined;
@@ -163,20 +176,24 @@ function normalizeAdapterEvent(
       }
     }
 
-    return sessionId
-      ? [
+    if (!sessionId) {
+      return [];
+    }
+
+    onResumeSessionId?.(sessionId);
+
+    return [
+      {
+        type: EventType.STATE_DELTA,
+        delta: [
           {
-            type: EventType.STATE_DELTA,
-            delta: [
-              {
-                op: "replace",
-                path: "",
-                value: createResumeStateForSessionId(sessionId),
-              },
-            ],
+            op: "replace",
+            path: "",
+            value: createResumeStateForSessionId(sessionId),
           },
-        ]
-      : [];
+        ],
+      },
+    ];
   }
 
   return [event];

@@ -1,9 +1,16 @@
 "use client";
 
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
-import { PanelRightClose, SendHorizontal } from "lucide-react";
+import { PanelRightClose, Plus, SendHorizontal } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 import {
   InAppAgentMessage,
   type InAppAgentMessageContent,
@@ -11,11 +18,19 @@ import {
 } from "./InAppAgentMessage";
 
 const AUTO_SCROLL_THRESHOLD_PX = 200;
+const NEW_CONVERSATION_VALUE = "__new__";
 
 export type InAppAgentDrawerMessage = {
   id: string;
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent[];
+};
+
+export type InAppAgentDrawerConversation = {
+  id: string;
+  title: string | null;
+  lastMessageAt: Date | null;
+  updatedAt: Date;
 };
 
 type InAppAgentDrawerCloseButtonProps =
@@ -32,11 +47,24 @@ export type InAppAgentDrawerProps = {
   error: string | null;
   isRunning: boolean;
   messages: InAppAgentDrawerMessage[];
+  conversations: InAppAgentDrawerConversation[];
+  selectedConversationId: string | undefined;
+  onSelectConversation: (conversationId: string) => void;
+  onNewConversation: () => void;
   onSubmit: (input: string) => void;
 } & InAppAgentDrawerCloseButtonProps;
 
 export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
-  const { error, isRunning, messages, onSubmit } = props;
+  const {
+    conversations,
+    error,
+    isRunning,
+    messages,
+    onNewConversation,
+    onSelectConversation,
+    onSubmit,
+    selectedConversationId,
+  } = props;
   const viewportRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef<{
     scrollHeight: number;
@@ -85,10 +113,50 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
   return (
     <section className="bg-background flex h-full min-w-0 flex-col">
       <header className="bg-background flex h-11.25 shrink-0 items-center justify-between border-b px-3">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">AI Assistant</p>
           </div>
+          <Select
+            value={selectedConversationId ?? NEW_CONVERSATION_VALUE}
+            onValueChange={(value) => {
+              if (value === NEW_CONVERSATION_VALUE) {
+                onNewConversation();
+                return;
+              }
+
+              onSelectConversation(value);
+            }}
+            disabled={isRunning}
+          >
+            <SelectTrigger
+              aria-label="Select agent conversation"
+              className="h-8 max-w-52 min-w-0 flex-1"
+            >
+              <SelectValue placeholder="New conversation" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NEW_CONVERSATION_VALUE}>
+                New conversation
+              </SelectItem>
+              {conversations.map((conversation) => (
+                <SelectItem key={conversation.id} value={conversation.id}>
+                  {getConversationTitle(conversation)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={onNewConversation}
+            disabled={isRunning}
+            aria-label="Start new AI agent conversation"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
         </div>
         {props.showCloseButton !== false && (
           <Button
@@ -205,4 +273,8 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
       </div>
     </section>
   );
+}
+
+function getConversationTitle(conversation: InAppAgentDrawerConversation) {
+  return conversation.title?.trim() || "Untitled conversation";
 }

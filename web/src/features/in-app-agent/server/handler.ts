@@ -10,9 +10,15 @@ import {
 import { createAgUiStream } from "@/src/features/in-app-agent/server/agent";
 import {
   InvalidInAppAgentSessionTokenError,
-  signInAppAgentSessionToken,
   verifyInAppAgentSessionToken,
 } from "@/src/features/in-app-agent/server/auth";
+import {
+  createRun,
+  ensureOwnedConversation,
+  updateProviderSessionId,
+  updateRunStatus,
+  upsertConversationMessages,
+} from "@/src/features/in-app-agent/server/persistence";
 import { getAuthOptions } from "@/src/server/auth";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import {
@@ -21,8 +27,9 @@ import {
   InvalidRequestError,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { InAppAgentRunStatus, prisma } from "@langfuse/shared/src/db";
 import { assertUnreachable } from "@/src/utils/types";
+import { TRPCError } from "@trpc/server";
 
 const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
 
@@ -94,18 +101,46 @@ export default async function handler(request: Request) {
 
     const auth = { userId: session.user.id, user: session.user };
 
-    const { projectId, claudeSessionId } = (() => {
+    const {
+      projectId,
+      claudeSessionId: tokenClaudeSessionId,
+      conversationId,
+    } = (() => {
       if (parsedState.data.type === "newSession") {
         return {
           projectId: parsedState.data.projectId,
+          conversationId: input.threadId,
           claudeSessionId: undefined,
         };
       }
 
-      return verifyInAppAgentSessionToken(parsedState.data.claudeSessionToken, {
-        userId: auth.userId,
-        threadId: input.threadId,
-      });
+      if (parsedState.data.type === "existingConversation") {
+        if (parsedState.data.conversationId !== input.threadId) {
+          throw new InvalidRequestError(
+            "Conversation id does not match thread",
+          );
+        }
+
+        return {
+          projectId: parsedState.data.projectId,
+          conversationId: parsedState.data.conversationId,
+          claudeSessionId: undefined,
+        };
+      }
+
+      const token = verifyInAppAgentSessionToken(
+        parsedState.data.claudeSessionToken,
+        {
+          userId: auth.userId,
+          threadId: input.threadId,
+        },
+      );
+
+      return {
+        projectId: token.projectId,
+        conversationId: input.threadId,
+        claudeSessionId: token.claudeSessionId,
+      };
     })();
 
     if (!isProjectMemberOrAdmin(auth.user, projectId)) {
@@ -140,21 +175,86 @@ export default async function handler(request: Request) {
     }
 
     const sanitizedInput = sanitizeAgentInput(input);
+    const lastUserMessage = getLastUserMessage(input.messages);
+
+    const conversation = await ensureOwnedConversation({
+      prisma,
+      projectId,
+      conversationId,
+      userId: auth.userId,
+      title: lastUserMessage?.content,
+    });
+
+    await createRun({
+      prisma,
+      runId: sanitizedInput.runId,
+      projectId,
+      conversationId: conversation.id,
+      userId: auth.userId,
+      model: "haiku",
+      modelProvider: "anthropic",
+    });
+
+    await upsertConversationMessages({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      userId: auth.userId,
+      messages: sanitizedInput.messages,
+      runId: sanitizedInput.runId,
+    });
+
+    const resumeSessionId =
+      tokenClaudeSessionId ?? conversation.providerSessionId ?? undefined;
 
     const stream = createAgUiStream({
       input: sanitizedInput,
       signal: request.signal,
       options: {
-        resumeSessionId: claudeSessionId,
-        createResumeStateForSessionId: (claudeSessionId) => ({
-          type: "existingSession",
-          claudeSessionToken: signInAppAgentSessionToken({
-            userId: auth.userId,
-            projectId,
-            threadId: sanitizedInput.threadId,
-            claudeSessionId,
-          }),
+        resumeSessionId,
+        createResumeStateForSessionId: (_claudeSessionId) => ({
+          type: "existingConversation",
+          projectId,
+          conversationId: conversation.id,
         }),
+        onResumeSessionId: (claudeSessionId) => {
+          void updateProviderSessionId({
+            prisma,
+            projectId,
+            conversationId: conversation.id,
+            runId: sanitizedInput.runId,
+            providerSessionId: claudeSessionId,
+          }).catch((error) =>
+            console.error("Failed to persist agent session id", error),
+          );
+        },
+        onComplete: () => {
+          void updateRunStatus({
+            prisma,
+            runId: sanitizedInput.runId,
+            projectId,
+            status: InAppAgentRunStatus.SUCCEEDED,
+          });
+        },
+        onAbort: () => {
+          void updateRunStatus({
+            prisma,
+            runId: sanitizedInput.runId,
+            projectId,
+            status: InAppAgentRunStatus.CANCELLED,
+          });
+        },
+        onError: (error) => {
+          void updateRunStatus({
+            prisma,
+            runId: sanitizedInput.runId,
+            projectId,
+            status: InAppAgentRunStatus.FAILED,
+            errorCode: "agent_error",
+            errorMessage:
+              error instanceof Error ? error.message : "Unknown agent error",
+          });
+        },
         awsCredentials: {
           region: env.LANGFUSE_AWS_BEDROCK_REGION,
           accessKeyId: env.AWS_ACCESS_KEY_ID,
@@ -184,6 +284,13 @@ export default async function handler(request: Request) {
       );
     }
 
+    if (err instanceof TRPCError) {
+      return Response.json(
+        { error: err.message },
+        { status: getStatusCodeForTrpcError(err) },
+      );
+    }
+
     throw err;
   }
 }
@@ -207,9 +314,15 @@ function sanitizeAgentInput(input: AgUiRunAgentInput): AgUiRunAgentInput {
   };
 }
 
+type SanitizedUserMessage = {
+  id: string;
+  role: "user";
+  content: string;
+};
+
 function getLastUserMessage(
   messages: AgUiMessage[],
-): Extract<AgUiMessage, { role: "user" }> | undefined {
+): SanitizedUserMessage | undefined {
   const lastMessage = messages.at(-1);
 
   if (lastMessage?.role !== "user") {
@@ -279,5 +392,22 @@ async function readBoundedJsonBody(
     return { success: true, data: bodyText ? JSON.parse(bodyText) : null };
   } catch {
     return { success: false, error: "invalid_body" };
+  }
+}
+
+function getStatusCodeForTrpcError(error: TRPCError): number {
+  switch (error.code) {
+    case "BAD_REQUEST":
+      return 400;
+    case "UNAUTHORIZED":
+      return 401;
+    case "FORBIDDEN":
+      return 403;
+    case "NOT_FOUND":
+      return 404;
+    case "CONFLICT":
+      return 409;
+    default:
+      return 500;
   }
 }

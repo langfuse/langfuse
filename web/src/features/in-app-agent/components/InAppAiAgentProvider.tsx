@@ -12,30 +12,28 @@ import {
 } from "react";
 import { HttpAgent } from "@ag-ui/client";
 import { useRouter } from "next/router";
-import { z } from "zod";
+
+import useSessionStorage from "@/src/components/useSessionStorage";
 import { env } from "@/src/env.mjs";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   AgUiMessageSchema,
-  InAppAgentRuntimeStateSchema,
-  PersistentInAppAiAgentSessionSchema,
-  type InAppAgentRuntimeState,
-  type PersistentInAppAiAgentSession,
   type AgUiMessage,
+  type InAppAgentRuntimeState,
 } from "@/src/features/in-app-agent/schema";
-import useSessionStorage from "@/src/components/useSessionStorage";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { api } from "@/src/utils/api";
 
-const SESSION_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-session";
+const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
+  "langfuse:in-app-ai-agent-selected-conversation";
 const OPEN_STORAGE_KEY = "langfuse:in-app-ai-agent-open";
 
-const getInitialAgentState = (projectId: string): InAppAgentRuntimeState => ({
-  type: "newSession",
+const getConversationAgentState = (
+  projectId: string,
+  conversationId: string,
+): InAppAgentRuntimeState => ({
+  type: "existingConversation",
   projectId,
-});
-
-const getEmptySession = (projectId: string): PersistentInAppAiAgentSession => ({
-  state: getInitialAgentState(projectId),
-  messages: [],
+  conversationId,
 });
 
 const NOOP_CONTEXT: InAppAiAgentContextType = {
@@ -45,10 +43,21 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isRunning: false,
   error: null,
   messages: [],
+  conversations: [],
+  selectedConversationId: undefined,
+  selectConversation: () => undefined,
+  startNewConversation: () => undefined,
   submit: () => undefined,
 };
 
 type InAppAiAgentMessage = Extract<AgUiMessage, { role: "user" | "assistant" }>;
+
+export type InAppAiAgentConversation = {
+  id: string;
+  title: string | null;
+  lastMessageAt: Date | null;
+  updatedAt: Date;
+};
 
 type InAppAiAgentContextType = {
   isAvailable: boolean;
@@ -57,6 +66,10 @@ type InAppAiAgentContextType = {
   isRunning: boolean;
   error: string | null;
   messages: InAppAiAgentMessage[];
+  conversations: InAppAiAgentConversation[];
+  selectedConversationId: string | undefined;
+  selectConversation: (conversationId: string) => void;
+  startNewConversation: () => void;
   submit: (content: string) => void;
 };
 
@@ -103,7 +116,6 @@ function InAppAiAgentProjectProvider({
     <InAppAiAgentProviderInner
       key={projectId}
       projectId={projectId}
-      sessionStorageKey={`${SESSION_STORAGE_KEY_PREFIX}:${projectId}`}
       open={open}
       setOpen={setOpen}
     >
@@ -114,7 +126,6 @@ function InAppAiAgentProjectProvider({
 
 type InAppAiAgentProviderInnerProps = PropsWithChildren<{
   projectId: string;
-  sessionStorageKey: string;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
 }>;
@@ -122,16 +133,14 @@ type InAppAiAgentProviderInnerProps = PropsWithChildren<{
 function InAppAiAgentProviderInner({
   children,
   projectId,
-  sessionStorageKey,
   open,
   setOpen,
 }: InAppAiAgentProviderInnerProps) {
-  const [storedSession, setStoredSession] =
-    useSessionStorage<PersistentInAppAiAgentSession>(
-      sessionStorageKey,
-      getEmptySession(projectId),
-    );
-
+  const utils = api.useUtils();
+  const [selectedConversationId, setSelectedConversationId] = useSessionStorage<
+    string | null
+  >(`${SELECTED_CONVERSATION_STORAGE_KEY_PREFIX}:${projectId}`, null);
+  const [messages, setMessages] = useState<InAppAiAgentMessage[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const agentRef = useRef<HttpAgent | null>(null);
@@ -139,93 +148,157 @@ function InAppAiAgentProviderInner({
     null,
   );
 
-  const restoredSession = useMemo(() => {
-    const result = PersistentInAppAiAgentSessionSchema.safeParse(storedSession);
+  const conversationsQuery = api.inAppAgent.list.useQuery(
+    { projectId },
+    { enabled: open },
+  );
+  const conversationQuery = api.inAppAgent.get.useQuery(
+    {
+      projectId,
+      conversationId: selectedConversationId ?? "",
+    },
+    { enabled: open && Boolean(selectedConversationId) },
+  );
+  const createConversationMutation = api.inAppAgent.create.useMutation();
+  const syncMessagesMutation = api.inAppAgent.syncMessages.useMutation();
 
-    return result.success ? result.data : getEmptySession(projectId);
-  }, [projectId, storedSession]);
-
-  const restoredMessages = useMemo(
-    () => restoredSession.messages.filter(isAgentConversationMessage),
-    [restoredSession.messages],
+  const conversations = useMemo(
+    () => conversationsQuery.data ?? [],
+    [conversationsQuery.data],
   );
 
-  const persistSession = useCallback(
-    (params: {
-      agent: { threadId: string };
-      messages: readonly unknown[];
-      state: unknown;
-    }) => {
-      const state = InAppAgentRuntimeStateSchema.safeParse(params.state);
+  const resetAgent = useCallback(() => {
+    subscriptionRef.current?.unsubscribe();
+    subscriptionRef.current = null;
+    agentRef.current?.abortRun();
+    agentRef.current = null;
+  }, []);
 
-      setStoredSession((previousStoredSession) => {
-        const previousSession = PersistentInAppAiAgentSessionSchema.safeParse(
-          previousStoredSession,
-        );
-        const previousMessages = previousSession.success
-          ? previousSession.data.messages.filter(isAgentConversationMessage)
-          : [];
-        const incomingMessages = z
-          .array(AgUiMessageSchema)
-          .safeParse(params.messages);
+  useEffect(() => {
+    if (!selectedConversationId) {
+      if (!isRunning) {
+        resetAgent();
+        setMessages([]);
+      }
+      return;
+    }
 
-        const incomingMessageIds = new Set(
-          incomingMessages.success
-            ? incomingMessages.data.map((message) => message.id)
-            : [],
-        );
-        const result = PersistentInAppAiAgentSessionSchema.safeParse({
-          threadId: params.agent.threadId,
-          state: state.success ? state.data : getInitialAgentState(projectId),
-          messages: incomingMessages.success
-            ? [
-                ...previousMessages.filter(
-                  (message) => !incomingMessageIds.has(message.id),
-                ),
-                ...incomingMessages.data.filter(isAgentConversationMessage),
-              ]
-            : previousMessages,
-        });
+    if (!conversationQuery.data || isRunning) {
+      return;
+    }
 
-        return result.success ? result.data : getEmptySession(projectId);
-      });
+    resetAgent();
+    setMessages(
+      conversationQuery.data.messages.filter(isAgentConversationMessage),
+    );
+  }, [conversationQuery.data, isRunning, resetAgent, selectedConversationId]);
+
+  useEffect(() => {
+    if (!selectedConversationId || !conversationsQuery.data) {
+      return;
+    }
+
+    const selectedStillExists = conversationsQuery.data.some(
+      (conversation) => conversation.id === selectedConversationId,
+    );
+
+    if (!selectedStillExists) {
+      resetAgent();
+      setMessages([]);
+      setSelectedConversationId(null);
+    }
+  }, [
+    conversationsQuery.data,
+    resetAgent,
+    selectedConversationId,
+    setSelectedConversationId,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      resetAgent();
+    };
+  }, [resetAgent]);
+
+  const syncMessages = useCallback(
+    (conversationId: string, nextMessages: readonly unknown[]) => {
+      const parsedMessages = nextMessages.filter(isAgentConversationMessage);
+      setMessages(parsedMessages);
+
+      syncMessagesMutation.mutate(
+        {
+          projectId,
+          conversationId,
+          messages: parsedMessages,
+        },
+        {
+          onSuccess: () => {
+            void utils.inAppAgent.list.invalidate({ projectId });
+            void utils.inAppAgent.get.invalidate({
+              projectId,
+              conversationId,
+            });
+          },
+        },
+      );
     },
-    [projectId, setStoredSession],
+    [
+      projectId,
+      syncMessagesMutation,
+      utils.inAppAgent.get,
+      utils.inAppAgent.list,
+    ],
   );
 
   const ensureSubscription = useCallback(
-    (agent: HttpAgent) => {
+    (agent: HttpAgent, conversationId: string) => {
       if (subscriptionRef.current) {
         return;
       }
 
       subscriptionRef.current = agent.subscribe({
-        onMessagesChanged: ({ messages, state, agent }) => {
-          persistSession({
-            agent,
-            messages,
-            state,
-          });
+        onMessagesChanged: ({ messages }) => {
+          setMessages(messages.filter(isAgentConversationMessage));
         },
-        onStateChanged: ({ messages, state, agent }) => {
-          persistSession({
-            agent,
-            messages,
-            state,
-          });
+        onStateChanged: ({ messages }) => {
+          setMessages(messages.filter(isAgentConversationMessage));
         },
       });
+
+      syncMessages(conversationId, agent.messages);
     },
-    [persistSession],
+    [syncMessages],
+  );
+
+  const getOrCreateAgent = useCallback(
+    (conversationId: string, initialMessages: InAppAiAgentMessage[]) => {
+      if (agentRef.current?.threadId === conversationId) {
+        return agentRef.current;
+      }
+
+      resetAgent();
+
+      const agent = new HttpAgent({
+        url: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/in-app-agent`,
+        threadId: conversationId,
+        initialMessages,
+        initialState: getConversationAgentState(projectId, conversationId),
+      });
+
+      agentRef.current = agent;
+
+      return agent;
+    },
+    [projectId, resetAgent],
   );
 
   const runAgent = useCallback(
-    (agent: HttpAgent, retryOnInvalidSession = true) => {
-      persistSession({
-        agent,
-        messages: agent.messages,
-        state: agent.state,
-      });
+    (
+      agent: HttpAgent,
+      conversationId: string,
+      retryOnInvalidSession = true,
+    ) => {
+      syncMessages(conversationId, agent.messages);
       setIsRunning(true);
       let retriedWithFreshSession = false;
 
@@ -240,16 +313,19 @@ function InAppAiAgentProviderInner({
 
             const freshAgent = new HttpAgent({
               url: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/in-app-agent`,
-              threadId: agent.threadId,
+              threadId: conversationId,
               initialMessages: agent.messages.filter(
                 isAgentConversationMessage,
               ),
-              initialState: getInitialAgentState(projectId),
+              initialState: getConversationAgentState(
+                projectId,
+                conversationId,
+              ),
             });
 
             agentRef.current = freshAgent;
-            ensureSubscription(freshAgent);
-            runAgent(freshAgent, false);
+            ensureSubscription(freshAgent, conversationId);
+            runAgent(freshAgent, conversationId, false);
             return;
           }
 
@@ -264,59 +340,92 @@ function InAppAiAgentProviderInner({
           }
 
           setIsRunning(false);
-          persistSession({
-            agent,
-            messages: agent.messages,
-            state: agent.state,
-          });
+          syncMessages(conversationId, agent.messages);
         });
     },
-    [ensureSubscription, persistSession, projectId],
+    [ensureSubscription, projectId, syncMessages],
   );
 
-  useEffect(() => {
-    return () => {
-      subscriptionRef.current?.unsubscribe();
-      agentRef.current?.abortRun();
-    };
-  }, []);
+  const selectConversation = useCallback(
+    (conversationId: string) => {
+      setError(null);
+      resetAgent();
+      setMessages([]);
+      setSelectedConversationId(conversationId);
+    },
+    [resetAgent, setSelectedConversationId],
+  );
+
+  const startNewConversation = useCallback(() => {
+    setError(null);
+    resetAgent();
+    setMessages([]);
+    setSelectedConversationId(null);
+  }, [resetAgent, setSelectedConversationId]);
 
   const submit = useCallback(
     (content: string) => {
-      if (!content) {
+      if (!content || isRunning) {
         return;
       }
 
       setError(null);
 
-      // Create the agent if none exists
-      if (!agentRef.current) {
-        agentRef.current = new HttpAgent({
-          url: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/in-app-agent`,
-          threadId: restoredSession.threadId,
-          initialMessages: restoredMessages,
-          initialState: restoredSession.state,
-        });
-      }
+      void (async () => {
+        try {
+          const conversationId =
+            selectedConversationId ??
+            (
+              await createConversationMutation.mutateAsync({
+                projectId,
+                title: content,
+              })
+            ).id;
 
-      const agent = agentRef.current;
+          if (!selectedConversationId) {
+            setSelectedConversationId(conversationId);
+            void utils.inAppAgent.list.invalidate({ projectId });
+          }
 
-      if (agent.isRunning) {
-        return;
-      }
+          const initialMessages =
+            selectedConversationId === conversationId ? messages : [];
+          const agent = getOrCreateAgent(conversationId, initialMessages);
 
-      ensureSubscription(agent);
+          if (agent.isRunning) {
+            return;
+          }
 
-      const userMessage = {
-        id: crypto.randomUUID(),
-        role: "user",
-        content,
-      } satisfies AgUiMessage;
+          ensureSubscription(agent, conversationId);
 
-      agent.addMessage(userMessage);
-      runAgent(agent);
+          const userMessage = {
+            id: crypto.randomUUID(),
+            role: "user",
+            content,
+          } satisfies AgUiMessage;
+
+          agent.addMessage(userMessage);
+          setMessages(agent.messages.filter(isAgentConversationMessage));
+          runAgent(agent, conversationId);
+        } catch (error) {
+          const errorMessage = getAgentErrorMessage(error);
+          setError(errorMessage);
+          showErrorToast("Assistant failed", errorMessage);
+          console.error("Failed to start in-app agent conversation", error);
+        }
+      })();
     },
-    [ensureSubscription, restoredMessages, restoredSession, runAgent],
+    [
+      createConversationMutation,
+      ensureSubscription,
+      getOrCreateAgent,
+      isRunning,
+      messages,
+      projectId,
+      runAgent,
+      selectedConversationId,
+      setSelectedConversationId,
+      utils.inAppAgent.list,
+    ],
   );
 
   const value = useMemo<InAppAiAgentContextType>(
@@ -326,10 +435,25 @@ function InAppAiAgentProviderInner({
       setOpen,
       isRunning,
       error,
-      messages: restoredMessages,
+      messages,
+      conversations,
+      selectedConversationId: selectedConversationId ?? undefined,
+      selectConversation,
+      startNewConversation,
       submit,
     }),
-    [error, isRunning, open, restoredMessages, setOpen, submit],
+    [
+      conversations,
+      error,
+      isRunning,
+      messages,
+      open,
+      selectConversation,
+      selectedConversationId,
+      setOpen,
+      startNewConversation,
+      submit,
+    ],
   );
 
   return (

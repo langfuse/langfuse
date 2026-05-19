@@ -157,6 +157,11 @@ export const InAppAgentRuntimeStateSchema = z.discriminatedUnion("type", [
     projectId: z.string(),
   }),
   z.object({
+    type: z.literal("existingConversation"),
+    projectId: z.string(),
+    conversationId: z.string(),
+  }),
+  z.object({
     type: z.literal("existingSession"),
     claudeSessionToken: z.string(),
   }),

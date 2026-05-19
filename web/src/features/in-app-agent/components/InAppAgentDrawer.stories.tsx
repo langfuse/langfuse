@@ -2,6 +2,21 @@ import preview from "../../../../.storybook/preview";
 import { fn } from "storybook/test";
 import { InAppAgentDrawer } from "./InAppAgentDrawer";
 
+const conversations = [
+  {
+    id: "conversation-1",
+    title: "Latency outliers",
+    lastMessageAt: new Date("2026-05-19T10:00:00.000Z"),
+    updatedAt: new Date("2026-05-19T10:00:00.000Z"),
+  },
+  {
+    id: "conversation-2",
+    title: "Score correlation",
+    lastMessageAt: new Date("2026-05-19T09:00:00.000Z"),
+    updatedAt: new Date("2026-05-19T09:00:00.000Z"),
+  },
+];
+
 const meta = preview.meta({
   component: InAppAgentDrawer,
   parameters: {
@@ -17,6 +32,10 @@ const meta = preview.meta({
   args: {
     error: null,
     isRunning: false,
+    conversations,
+    selectedConversationId: undefined,
+    onNewConversation: fn(),
+    onSelectConversation: fn(),
     onClose: fn(),
     onSubmit: fn(),
     showCloseButton: true,
@@ -31,6 +50,7 @@ export const Empty = meta.story({
 
 export const Conversation = meta.story({
   args: {
+    selectedConversationId: "conversation-1",
     messages: [
       {
         id: "user-1",
