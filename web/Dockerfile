@@ -29,10 +29,6 @@ ARG TARGETARCH
 ENV CGO_ENABLED=0 \
     GOOS=${TARGETOS} \
     GOARCH=${TARGETARCH}
-<<<<<<< l1-voicebot-integration
-RUN /usr/local/go/bin/go install -trimpath -tags 'clickhouse' -ldflags='-s -w' \
-    github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
-=======
 # Build only the ClickHouse migrate CLI Langfuse uses at runtime.
 # compile this ourselves instead of downloading the upstream release
 # because prebuilt bins bundle many unused drivers and thus inherit CVEs
@@ -42,7 +38,6 @@ RUN go install -trimpath -tags 'clickhouse' -ldflags='-s -w' \
     mkdir -p /out && \
     (cp "$(go env GOPATH)/bin/${GOOS}_${GOARCH}/migrate" /out/migrate 2>/dev/null || \
      cp "$(go env GOPATH)/bin/migrate" /out/migrate)
->>>>>>> main
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
 
