@@ -3776,7 +3776,7 @@ describe("queryBuilder", () => {
 
   describe("pairExpand map expansion (v2)", () => {
     const isEventsTableV2Enabled =
-      env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true" ? it : it.skip;
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
     let hasLegacyEventsTable = false;
 
     const maybeItWithEventsTable = (
@@ -3790,7 +3790,7 @@ describe("queryBuilder", () => {
     };
 
     beforeAll(async () => {
-      if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") return;
+      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") return;
 
       try {
         const result = await clickhouseClient().query({
@@ -4495,11 +4495,11 @@ describe("query builder measure-aggregation validation", () => {
 
   describe("events_traces traceName filter", () => {
     const isEventsTableV2Enabled =
-      env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true" ? it : it.skip;
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
     let hasLegacyEventsTable = false;
 
     beforeAll(async () => {
-      if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") return;
+      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") return;
 
       try {
         const result = await clickhouseClient().query({

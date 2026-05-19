@@ -22,7 +22,6 @@ import waitForExpect from "wait-for-expect";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSourceEnum } from "@langfuse/shared";
-import { env } from "../../../env";
 
 let projectId = "";
 const environment = "default";
@@ -2910,7 +2909,7 @@ async function getClickhouseRecord<T extends TableName>(
   tableName: T,
   entityId: string,
 ): Promise<RecordReadType<T>> {
-  let query = await clickhouseClient().query({
+  const query = await clickhouseClient().query({
     query: `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
     format: "JSONEachRow",
   });

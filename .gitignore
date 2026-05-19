@@ -25,6 +25,9 @@ next-env.d.ts
 # production
 /build
 
+# claude worktrees
+.claude/worktrees
+
 # idea
 .idea
 

@@ -49,7 +49,7 @@ export default withMiddlewares(
         const useEventsTable =
           query.useEventsTable !== undefined && query.useEventsTable !== null
             ? query.useEventsTable === true
-            : env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS;
+            : env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
         if (useEventsTable) {
           const [items, count] = await Promise.all([

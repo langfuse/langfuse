@@ -37,7 +37,7 @@ import waitForExpect from "wait-for-expect";
 import { Queue } from "bullmq";
 
 const maybeDescribe =
-  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 

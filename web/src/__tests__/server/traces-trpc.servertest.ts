@@ -636,7 +636,8 @@ describe("traces trpc", () => {
   });
 
   describe("traces flags", () => {
-    const useEventsTable = env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true";
+    const useEventsTable =
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
     it("should bookmark a trace", async () => {
       // Create a trace that is not bookmarked
       const trace = createTrace({

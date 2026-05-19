@@ -24,7 +24,7 @@ import {
   applyIngestionMasking,
   isIngestionMaskingEnabled,
 } from "@langfuse/shared/src/server/ee/ingestionMasking";
-import { env } from "../env";
+import { env, v4ForceDirectOtelWrite, v4WritesToEventsTable } from "../env";
 import { IngestionService } from "../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
@@ -365,7 +365,11 @@ export const otelIngestionQueueProcessorBuilder = (
         ingestionVersion: job.data.payload.ingestionVersion,
       });
 
-      let useDirectEventWrite = headerBasedDirectWrite;
+      // Priority 0: deployment-level override.
+      //   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct forces every batch
+      //   onto the direct events_full path regardless of SDK headers/scopes.
+      const envForcesDirect = v4ForceDirectOtelWrite(env);
+      let useDirectEventWrite = envForcesDirect || headerBasedDirectWrite;
 
       if (!useDirectEventWrite) {
         const hasExperimentEnvironment = observations.some((o) => {
@@ -387,9 +391,11 @@ export const otelIngestionQueueProcessorBuilder = (
       }
 
       const writePath = useDirectEventWrite
-        ? headerBasedDirectWrite
-          ? "direct_header"
-          : "direct_scope"
+        ? envForcesDirect && !headerBasedDirectWrite
+          ? "direct_env"
+          : headerBasedDirectWrite
+            ? "direct_header"
+            : "direct_scope"
         : "dual";
       span?.setAttribute("langfuse.ingestion.otel.write_path", writePath);
       recordIncrement("langfuse.ingestion.otel.write_path", 1, {
@@ -397,8 +403,7 @@ export const otelIngestionQueueProcessorBuilder = (
       });
 
       const shouldForwardToEventsTable =
-        !useDirectEventWrite &&
-        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true";
+        !useDirectEventWrite && v4WritesToEventsTable(env);
 
       // Running everything concurrently might be detrimental to the event loop, but has probably
       // the highest possible throughput. Therefore, we start with a Promise.all.
@@ -443,8 +448,7 @@ export const otelIngestionQueueProcessorBuilder = (
 
       // Determine what processing is needed
       const shouldWriteToEventsTable =
-        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
-        useDirectEventWrite;
+        v4WritesToEventsTable(env) && useDirectEventWrite;
 
       const evalConfigs = await fetchObservationEvalConfigs(projectId).catch(
         (error) => {

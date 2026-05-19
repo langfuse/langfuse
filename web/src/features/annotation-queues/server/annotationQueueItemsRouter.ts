@@ -59,7 +59,10 @@ const MAP_OBJECT_TYPE_TO_ACTION_PROPS: Record<
   },
   [AnnotationQueueObjectType.OBSERVATION]: {
     actionId: ActionId.ObservationAddToAnnotationQueue,
-    tableName: BatchExportTableName.Observations,
+    tableName:
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+        ? BatchExportTableName.Events
+        : BatchExportTableName.Observations,
   },
 };
 
@@ -135,7 +138,7 @@ export const queueItemRouter = createTRPCRouter({
 
       if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
         const clickhouseObservation =
-          env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true"
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
             ? await getObservationByIdFromEventsTable({
                 id: item.objectId,
                 projectId: input.projectId,
@@ -227,7 +230,7 @@ export const queueItemRouter = createTRPCRouter({
 
       if (hasQueueItemsReferencingObservations) {
         traceIds =
-          env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true"
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
             ? await getObservationsTraceIdsFromEventsTable({
                 projectId: input.projectId,
                 observationIds,
