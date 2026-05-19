@@ -38,9 +38,9 @@ service:
         ```json
         [
           {
-            "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
-            "column": string,         // Required. Column to filter on (see available columns below)
-            "operator": string,       // Required. Operator based on type:
+            "type": "string",         // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
+            "column": "name",         // Required. Column to filter on (see Available Columns below)
+            "operator": "=",          // Required. Operator based on type:
                                       // - datetime: ">", "<", ">=", "<="
                                       // - string: "=", "contains", "does not contain", "starts with", "ends with"
                                       // - stringOptions: "any of", "none of"
@@ -51,8 +51,8 @@ service:
                                       // - numberObject: "=", ">", "<", ">=", "<="
                                       // - boolean: "=", "<>"
                                       // - null: "is null", "is not null"
-            "value": any,             // Required (except for null type). Value to compare against. Type depends on filter type
-            "key": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata
+            "value": "GENERATION",    // Required (except for null type). Type depends on filter type.
+            "key": "env"              // Required only for stringObject, numberObject, and categoryOptions when filtering nested fields like metadata.
           }
         ]
         ```
@@ -64,22 +64,24 @@ service:
         - `type` (string) - Observation type (SPAN, GENERATION, EVENT)
         - `name` (string) - Observation name
         - `traceId` (string) - Associated trace ID
+        - `parentObservationId` (string) - Parent observation ID
         - `startTime` (datetime) - Observation start time
         - `endTime` (datetime) - Observation end time
         - `environment` (string) - Environment tag
         - `level` (string) - Log level (DEBUG, DEFAULT, WARNING, ERROR)
         - `statusMessage` (string) - Status message
         - `version` (string) - Version tag
-        - `userId` (string) - User ID
-        - `sessionId` (string) - Session ID
 
         #### Trace-Related Fields
         - `traceName` (string) - Name of the parent trace
+        - `traceEnvironment` (string) - Environment tag from the parent trace
         - `traceTags` (arrayOptions) - Tags from the parent trace
-        - `tags` (arrayOptions) - Alias for traceTags
+        - `tags` (arrayOptions) - Tags on the observation
+        - `userId` (string) - User ID
+        - `sessionId` (string) - Session ID
 
         #### Performance Metrics
-        - `latency` (number) - Latency in seconds (calculated: end_time - start_time)
+        - `latency` (number) - Latency in seconds (end_time − start_time)
         - `timeToFirstToken` (number) - Time to first token in seconds
         - `tokensPerSecond` (number) - Output tokens per second
 
@@ -95,11 +97,18 @@ service:
 
         #### Model Information
         - `model` (string) - Provided model name (alias: `providedModelName`)
+        - `modelId` (stringOptions) - Internal model ID
         - `promptName` (string) - Associated prompt name
         - `promptVersion` (number) - Associated prompt version
 
         #### Structured Data
-        - `metadata` (stringObject/numberObject/categoryOptions) - Metadata key-value pairs. Use `key` parameter to filter on specific metadata keys.
+        - `metadata` (stringObject) - Metadata key-value pairs. Requires the `key` parameter to target a specific metadata key.
+
+        #### Tool Fields
+        - `toolDefinitions` (number) - Number of tool definitions
+        - `toolCalls` (number) - Number of tool calls
+        - `toolNames` (arrayOptions) - Names of defined tools
+        - `calledToolNames` (arrayOptions) - Names of tools that were called
 
         ### Filter Examples
         ```json
