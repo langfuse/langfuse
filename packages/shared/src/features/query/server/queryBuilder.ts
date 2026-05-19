@@ -1,8 +1,12 @@
+import { randomUUID } from "crypto";
 import { type z } from "zod";
+import { convertDateToClickhouseDateTime } from "../../../server/clickhouse/client";
+import { shouldSkipObservationsFinal } from "../../../server/queries/clickhouse-sql/query-options";
 import {
-  convertDateToClickhouseDateTime,
-  shouldSkipObservationsFinal,
-} from "@langfuse/shared/src/server";
+  FilterList,
+  type Filter,
+} from "../../../server/queries/clickhouse-sql/clickhouse-filter";
+import { createFilterFromFilterState } from "../../../server/queries/clickhouse-sql/factory";
 import type {
   QueryType,
   ViewDeclarationType,
@@ -15,14 +19,9 @@ import {
   query as queryModel,
   getValidAggregationsForMeasureType,
 } from "../types";
-import { getViewDeclaration } from "@/src/features/query/dataModel";
-import {
-  FilterList,
-  createFilterFromFilterState,
-  type Filter,
-} from "@langfuse/shared/src/server";
-import { InvalidRequestError } from "@langfuse/shared";
-import { env } from "@/src/env.mjs";
+import { getViewDeclaration } from "../dataModel";
+import { InvalidRequestError } from "../../../errors";
+import { env } from "../../../env";
 import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
 
 type AppliedDimensionType = {
@@ -55,6 +54,8 @@ type MappedFilters = {
 export class QueryBuilder {
   private chartConfig?: { bins?: number; row_limit?: number };
   private version: ViewVersion;
+  private rootEventConditionMaxWindowHours: number =
+    env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
 
   constructor(
     chartConfig?: { bins?: number; row_limit?: number },
@@ -62,6 +63,10 @@ export class QueryBuilder {
   ) {
     this.chartConfig = chartConfig;
     this.version = version;
+  }
+
+  setRootEventConditionMaxWindowHours(hours: number): void {
+    this.rootEventConditionMaxWindowHours = hours;
   }
 
   private translateAggregation(metric: AppliedMetricType): string {
@@ -86,18 +91,20 @@ export class QueryBuilder {
         return `quantile(0.95)(${metric.alias || metric.sql})`;
       case "p99":
         return `quantile(0.99)(${metric.alias || metric.sql})`;
-      case "histogram":
+      case "histogram": {
         // Get histogram bins from chart config, fallback to 10
         const bins = this.chartConfig?.bins ?? 10;
         return `histogram(${bins})(toFloat64(${metric.alias || metric.sql}))`;
+      }
       case "uniq":
         return `uniq(${metric.alias || metric.sql})`;
-      default:
+      default: {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const exhaustiveCheck: never = metric.aggregation;
         throw new InvalidRequestError(
-          `Invalid aggregation: ${metric.aggregation}`,
+          `Invalid aggregation: ${metric.aggregation satisfies never}`,
         );
+      }
     }
   }
 
@@ -717,12 +724,13 @@ export class QueryBuilder {
         throw new Error(
           `Granularity 'auto' is not supported for getTimeDimensionSql`,
         );
-      default:
+      default: {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const exhaustiveCheck: never = granularity;
         throw new InvalidRequestError(
           `Invalid time granularity: ${granularity}. Must be one of minute, hour, day, week, month`,
         );
+      }
     }
   }
 
@@ -1351,12 +1359,12 @@ export class QueryBuilder {
         new Date(query.toTimestamp).getTime() -
         new Date(query.fromTimestamp).getTime();
       const windowHours = windowMs / (1000 * 60 * 60);
-      const thresholdHours = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
+      const thresholdHours = this.rootEventConditionMaxWindowHours;
 
       if (thresholdHours === 0 || windowHours <= thresholdHours) {
         // Falls back gracefully: if no root events exist in the window at all
         // (e.g. parent_span_id is never populated), the filter is skipped via NOT EXISTS.
-        const uid = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+        const uid = randomUUID().replace(/-/g, "").slice(0, 8);
         const fromP = `subFrom${uid}`;
         const toP = `subTo${uid}`;
         const projP = `subProj${uid}`;

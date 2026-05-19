@@ -299,10 +299,7 @@ export const queueItemRouter = createTRPCRouter({
       let createdCount = 0;
 
       if (input.isBatchAction && input.query) {
-        const actionProps =
-          MAP_OBJECT_TYPE_TO_ACTION_PROPS[
-            input.objectType as "TRACE" | "SESSION"
-          ];
+        const actionProps = MAP_OBJECT_TYPE_TO_ACTION_PROPS[input.objectType];
         if (!actionProps) {
           throw new TRPCError({
             code: "BAD_REQUEST",

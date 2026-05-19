@@ -225,6 +225,94 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(obs?.level).toBe("WARNING");
     });
 
+    it("should filter by multiple environment query params (any-of semantics)", async () => {
+      const traceId = randomUUID();
+      const envA = `env-a-${randomUUID()}`;
+      const envB = `env-b-${randomUUID()}`;
+      const envC = `env-c-${randomUUID()}`;
+      const observationIdA = randomUUID();
+      const observationIdB = randomUUID();
+      const observationIdC = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      const buildObservation = (
+        id: string,
+        environment: string,
+        offsetMicros: number,
+      ) =>
+        createEvent({
+          id,
+          span_id: id,
+          trace_id: traceId,
+          project_id: projectId,
+          name: `env-filter-obs-${environment}`,
+          type: "GENERATION",
+          level: "DEFAULT",
+          environment,
+          start_time: timeValue + offsetMicros,
+          end_time: timeValue + offsetMicros + 1000 * 1000,
+        });
+
+      await createEventsCh([
+        buildObservation(observationIdA, envA, 0),
+        buildObservation(observationIdB, envB, 1000 * 1000),
+        buildObservation(observationIdC, envC, 2000 * 1000),
+      ]);
+
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND span_id IN ({ids: Array(String)})`,
+            params: {
+              projectId,
+              ids: [observationIdA, observationIdB, observationIdC],
+            },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(3);
+        },
+        5000,
+        10,
+      );
+
+      const response = await getObservations(
+        `/api/public/v2/observations?fields=basic&traceId=${traceId}&environment=${encodeURIComponent(envA)}&environment=${encodeURIComponent(envB)}`,
+      );
+
+      expect(response.status).toBe(200);
+      const returnedIds = response.body.data
+        .map((obs: any) => obs.id)
+        .filter((id: string) =>
+          [observationIdA, observationIdB, observationIdC].includes(id),
+        );
+      expect(returnedIds.sort()).toEqual(
+        [observationIdA, observationIdB].sort(),
+      );
+
+      for (const obs of response.body.data) {
+        expect([envA, envB]).toContain(obs.environment);
+      }
+
+      // Backwards-compat: single environment value (scalar string) must still
+      // behave as exact-match equality (previously `environment = 'foo'`, now
+      // `environment IN ('foo')`).
+      const singleEnvResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&traceId=${traceId}&environment=${encodeURIComponent(envA)}`,
+      );
+
+      expect(singleEnvResponse.status).toBe(200);
+      const singleEnvReturnedIds = singleEnvResponse.body.data
+        .map((obs: any) => obs.id)
+        .filter((id: string) =>
+          [observationIdA, observationIdB, observationIdC].includes(id),
+        );
+      expect(singleEnvReturnedIds).toEqual([observationIdA]);
+
+      for (const obs of singleEnvResponse.body.data) {
+        expect(obs.environment).toBe(envA);
+      }
+    });
+
     it("should support filter parameter on various columns without SQL crashes", async () => {
       const traceId = randomUUID();
       const observationId1 = randomUUID();
@@ -534,10 +622,15 @@ describe("/api/public/v2/observations API Endpoint", () => {
       "usageDetails",
       "costDetails",
       "totalCost",
+      "usagePricingTierName",
       // prompt
       "promptId",
       "promptName",
       "promptVersion",
+      // trace_context
+      "traceName",
+      "tags",
+      "release",
     ] as const;
 
     let sharedObsId: string;
@@ -572,6 +665,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         model_parameters: '{"temperature":0.5}',
         usage_details: { input: 10, output: 20, total: 30 },
         cost_details: { input: 0.01, output: 0.02, total: 0.03 },
+        usage_pricing_tier_name: "contract-tier",
         prompt_id: randomUUID(),
         prompt_name: "contract-prompt",
         prompt_version: 2,
@@ -579,6 +673,9 @@ describe("/api/public/v2/observations API Endpoint", () => {
         output: "contract output",
         metadata_names: ["key"],
         metadata_values: ["val"],
+        trace_name: "contract-trace",
+        tags: ["tag-a", "tag-b"],
+        release: "1.2.3",
       });
 
       await createEventsCh([obs]);
@@ -603,6 +700,10 @@ describe("/api/public/v2/observations API Endpoint", () => {
       promptVersion: 2,
       input: "contract input",
       output: "contract output",
+      traceName: "contract-trace",
+      tags: ["tag-a", "tag-b"],
+      release: "1.2.3",
+      usagePricingTierName: "contract-tier",
     };
 
     const fieldsForGroup: Record<string, readonly string[]> = {
@@ -622,12 +723,18 @@ describe("/api/public/v2/observations API Endpoint", () => {
       metadata: ["metadata"],
       // "model" is the API response key for provided_model_name (see domain type)
       model: ["model", "internalModelId", "modelParameters"],
-      usage: ["usageDetails", "costDetails", "totalCost"],
+      usage: [
+        "usageDetails",
+        "costDetails",
+        "totalCost",
+        "usagePricingTierName",
+      ],
       prompt: ["promptId", "promptName", "promptVersion"],
       // latency and timeToFirstToken are always returned (computed from core start_time, completion_start_time,
       // end_time), but the metrics group is still defined for documentation and to verify these fields are indeed
       // present
       metrics: ["latency", "timeToFirstToken"],
+      trace_context: ["traceName", "tags", "release"],
     };
 
     for (const [group, expectedFields] of Object.entries(fieldsForGroup)) {
@@ -662,15 +769,14 @@ describe("/api/public/v2/observations API Endpoint", () => {
           }
         }
 
-        // Fields from other groups absent (null or undefined — API may serialize
-        // absent fields as null rather than omitting them from the JSON)
+        // Fields from other groups must be absent from the response
         const absentFields = ALL_NON_CORE_FIELDS.filter(
           (f) => !(expectedFields as readonly string[]).includes(f),
         );
         for (const field of absentFields) {
           expect(
-            obs[field] ?? undefined,
-            `expected field "${field}" to be null/undefined when only group "${group}" is requested`,
+            obs[field],
+            `expected field "${field}" to be absent when only group "${group}" is requested`,
           ).toBeUndefined();
         }
       });

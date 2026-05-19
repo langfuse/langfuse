@@ -82,6 +82,7 @@ web/test-results/*
 .mcp.json
 .claude/settings.json
 .claude/skills/
+.claude/launch.json
 .cursor/mcp.json
 .cursor/environment.json
 .vscode/mcp.json
@@ -100,3 +101,6 @@ web/test-results/*
 
 # Serena MCP server config (local only)
 .serena/
+
+# Local overrides for AGENTS.md
+**/AGENTS.override.md

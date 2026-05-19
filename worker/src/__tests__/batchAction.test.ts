@@ -672,6 +672,122 @@ describe("select all test suite", () => {
       expect(jobs).toHaveLength(0);
     });
   });
+
+  it("should add traces to annotation queue", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId1 = uuidv4();
+    const traceId2 = uuidv4();
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: traceId1,
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: traceId2,
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    const queueId = uuidv4();
+    await prisma.annotationQueue.create({
+      data: {
+        id: queueId,
+        projectId,
+        name: "test-queue",
+      },
+    });
+
+    await handleBatchActionJob({
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "trace-add-to-annotation-queue" as const,
+        tableName: BatchExportTableName.Traces,
+        cutoffCreatedAt: new Date("2024-01-02"),
+        targetId: queueId,
+        query: { filter: [], orderBy: { column: "timestamp", order: "DESC" } },
+        type: BatchActionType.Create,
+      },
+    });
+
+    const queueItems = await prisma.annotationQueueItem.findMany({
+      where: { queueId, projectId },
+    });
+
+    expect(queueItems).toHaveLength(2);
+    const objectIds = queueItems.map((item) => item.objectId);
+    expect(objectIds).toContain(traceId1);
+    expect(objectIds).toContain(traceId2);
+    expect(queueItems.every((item) => item.objectType === "TRACE")).toBe(true);
+  });
+
+  it("should add sessions to annotation queue", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const sessionId1 = uuidv4();
+    const sessionId2 = uuidv4();
+
+    // Create traces with sessions
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: uuidv4(),
+        session_id: sessionId1,
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: uuidv4(),
+        session_id: sessionId2,
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    const queueId = uuidv4();
+    await prisma.annotationQueue.create({
+      data: {
+        id: queueId,
+        projectId,
+        name: "test-queue",
+      },
+    });
+
+    await handleBatchActionJob({
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "session-add-to-annotation-queue" as const,
+        tableName: BatchExportTableName.Sessions,
+        cutoffCreatedAt: new Date("2024-01-02"),
+        targetId: queueId,
+        query: { filter: [], orderBy: { column: "createdAt", order: "DESC" } },
+        type: BatchActionType.Create,
+      },
+    });
+
+    const queueItems = await prisma.annotationQueueItem.findMany({
+      where: { queueId, projectId },
+    });
+
+    expect(queueItems).toHaveLength(2);
+    const objectIds = queueItems.map((item) => item.objectId);
+    expect(objectIds).toContain(sessionId1);
+    expect(objectIds).toContain(sessionId2);
+    expect(queueItems.every((item) => item.objectType === "SESSION")).toBe(
+      true,
+    );
+  });
 });
 
 maybeDescribe("events table batch actions", () => {
@@ -813,8 +929,8 @@ maybeDescribe("events table batch actions", () => {
     const event = createEvent({
       project_id: projectId,
       trace_id: traceId,
-      input: eventInput,
-      output: eventOutput,
+      input: JSON.stringify(eventInput),
+      output: JSON.stringify(eventOutput),
       metadata_names: Object.keys(eventMetadata),
       metadata_values: Object.values(eventMetadata),
     });
@@ -934,5 +1050,69 @@ maybeDescribe("events table batch actions", () => {
     });
     expect(updatedBatchAction?.status).toBe(BatchActionStatus.Completed);
     expect(updatedBatchAction?.processedCount).toBe(1);
+  });
+
+  it("should add observations to annotation queue from events table", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = uuidv4();
+    const trace = createTrace({
+      project_id: projectId,
+      id: traceId,
+      timestamp: new Date().getTime(),
+    });
+    await createTracesCh([trace]);
+
+    const event1 = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      input: JSON.stringify({ prompt: "Hello" }),
+      output: JSON.stringify({ response: "Hi" }),
+    });
+    const event2 = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      input: JSON.stringify({ prompt: "Goodbye" }),
+      output: JSON.stringify({ response: "Bye" }),
+    });
+
+    await createEventsCh([event1, event2]);
+
+    // Create annotation queue
+    const queueId = uuidv4();
+    await prisma.annotationQueue.create({
+      data: {
+        id: queueId,
+        projectId,
+        name: "test-queue",
+      },
+    });
+
+    await handleBatchActionJob({
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "observation-add-to-annotation-queue" as const,
+        tableName: BatchTableNames.Events,
+        cutoffCreatedAt: new Date(),
+        targetId: queueId,
+        query: { filter: [], orderBy: null },
+        type: BatchActionType.Create,
+      },
+    });
+
+    const queueItems = await prisma.annotationQueueItem.findMany({
+      where: { queueId, projectId },
+    });
+
+    expect(queueItems).toHaveLength(2);
+
+    const eventSpanIds = [event1.span_id, event2.span_id];
+    for (const item of queueItems) {
+      expect(eventSpanIds).toContain(item.objectId);
+      expect(item.objectType).toBe("OBSERVATION");
+    }
   });
 });

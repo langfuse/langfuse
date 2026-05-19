@@ -61,6 +61,34 @@ types:
       - daily
       - weekly
 
+  BlobStorageExportSource:
+    docs: |
+      What data the integration exports.
+      - `LEGACY_TRACES_OBSERVATIONS`: traces, observations, and scores tables with a fixed column set. The `exportFieldGroups` field is not applicable.
+      - `OBSERVATIONS_V2`: same data model as the `/api/public/v2/observations` endpoint, plus scores. Columns are controlled by `exportFieldGroups`.
+      - `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS`: both sets. For the `OBSERVATIONS_V2` portion, columns are controlled by `exportFieldGroups`.
+
+      **Note:** `OBSERVATIONS_V2` and the enriched-observations portion of `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` rely on the enriched observations table (Langfuse Fast Preview / v4), which is currently available on Langfuse Cloud only. See https://langfuse.com/docs/v4.
+    enum:
+      - LEGACY_TRACES_OBSERVATIONS
+      - OBSERVATIONS_V2
+      - LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS
+
+  BlobStorageExportFieldGroup:
+    docs: Field group for the OBSERVATIONS_V2 and LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS export.
+    enum:
+      - core
+      - basic
+      - time
+      - io
+      - metadata
+      - model
+      - usage
+      - prompt
+      - metrics
+      - tools
+      - trace_context
+
   CreateBlobStorageIntegrationRequest:
     properties:
       projectId:
@@ -100,6 +128,23 @@ types:
       compressed:
         type: optional<boolean>
         docs: Enable gzip compression for exported files (.csv.gz, .json.gz, .jsonl.gz). Defaults to true.
+      exportSource:
+        type: optional<BlobStorageExportSource>
+        docs: |
+          Data to export. When omitted on update, the existing value is preserved. When omitted on create: pre-cutoff Cloud projects and self-hosted deployments fall back to `LEGACY_TRACES_OBSERVATIONS`; post-cutoff Cloud projects (created on or after 2026-05-20) auto-default to `OBSERVATIONS_V2`. Required when `exportFieldGroups` is provided.
+
+          **Cloud-only deprecation gate (effective 2026-05-20):** For projects created on or after 2026-05-20 on Langfuse Cloud, `LEGACY_TRACES_OBSERVATIONS` and `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` are rejected with HTTP 400. Omitting `exportSource` on these projects silently defaults to `OBSERVATIONS_V2` rather than the schema column default. Use `OBSERVATIONS_V2` for all new integrations. Projects created before 2026-05-20 and self-hosted deployments are unaffected.
+
+      exportFieldGroups:
+        type: optional<list<BlobStorageExportFieldGroup>>
+        docs: |
+          Field groups to include in each exported row.
+
+          For exportSource `OBSERVATIONS_V2` or `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS`: must include `core` if provided. When omitted on create, the column default (all groups) applies. When omitted on update, the existing value is preserved.
+
+          For exportSource `LEGACY_TRACES_OBSERVATIONS`: this field must be omitted or null. Sending an array (including an empty array) returns 400, because that source uses a fixed column set and does not honor field groups.
+
+          `exportFieldGroups` requires `exportSource` to be provided in the same request.
 
   BlobStorageIntegrationResponse:
     properties:
@@ -118,6 +163,11 @@ types:
       exportMode: BlobStorageExportMode
       exportStartDate: nullable<datetime>
       compressed: boolean
+      exportSource: BlobStorageExportSource
+      exportFieldGroups:
+        type: nullable<list<BlobStorageExportFieldGroup>>
+        docs: |
+          Field groups included in each exported row for `OBSERVATIONS_V2` / `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` sources. Always `null` when exportSource is `LEGACY_TRACES_OBSERVATIONS` (the field does not apply to that source; any legacy DB value is hidden from the public surface).
       nextSyncAt: nullable<datetime>
       lastSyncAt: nullable<datetime>
       lastError: nullable<string>
