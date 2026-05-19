@@ -111,7 +111,8 @@
       "glob": "^10.5.0",
       "qs": "6.14.1",
       "path-to-regexp@0.1.12": "0.1.13",
-      "ip-address@10.1.0": "10.2.0"
+      "ip-address@10.1.0": "10.2.0",
+      "@anthropic-ai/claude-agent-sdk>@anthropic-ai/sdk": "0.95.1"
     },
     "patchedDependencies": {
       "next-auth@4.24.13": "patches/next-auth@4.24.13.patch"

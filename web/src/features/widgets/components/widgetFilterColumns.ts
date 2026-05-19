@@ -16,6 +16,7 @@ type GetWidgetFilterColumnsParams = {
   toolNamesOptions: SingleValueOption[];
   calledToolNamesOptions: SingleValueOption[];
   observationLevelOptions: SingleValueOption[];
+  observationTypeOptions: SingleValueOption[];
 };
 
 type WidgetFilterColumnSpec = {
@@ -33,6 +34,7 @@ const getWidgetFilterColumnSpecs = ({
   toolNamesOptions,
   calledToolNamesOptions,
   observationLevelOptions,
+  observationTypeOptions,
 }: GetWidgetFilterColumnsParams): WidgetFilterColumnSpec[] => {
   const filterColumns: WidgetFilterColumnSpec[] = [
     {
@@ -192,6 +194,15 @@ const getWidgetFilterColumnSpecs = ({
           id: "level",
           type: "stringOptions",
           options: observationLevelOptions,
+          internal: "internalValue",
+        },
+      },
+      {
+        column: {
+          name: "Type",
+          id: "type",
+          type: "stringOptions",
+          options: observationTypeOptions,
           internal: "internalValue",
         },
       },
