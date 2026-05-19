@@ -1,15 +1,41 @@
 /** types.ts contains all entity models and logic */
-import {
-  MonitorSeverity,
-  MonitorStatus,
-  MonitorThresholdOperator,
-  MonitorView,
-} from "@prisma/client";
 import { z } from "zod";
-import { singleFilter } from "../../interfaces/filters";
-import { metric as MetricSchema } from "../query/types";
+import { singleFilter } from "../../../interfaces/filters";
+import { metric as MetricSchema, viewsV2 } from "../../../features/query/types";
 import { DAY, HOUR, MINUTE, WEEK } from "./internal";
 import { validateMonitorTemplate } from "./template";
+import { validateQuery } from "./validateQuery";
+
+/**
+ * monitorSeverity is the kebab-case wire form of Prisma's `MonitorSeverity`
+ * enum. The service translates between this and Prisma at the persistence
+ * boundary.
+ */
+export const monitorSeverity = z.enum([
+  "unknown",
+  "ok",
+  "warning",
+  "alert",
+  "no-data",
+]);
+
+/**
+ * monitorStatus is the kebab-case wire form of Prisma's `MonitorStatus` enum.
+ */
+export const monitorStatus = z.enum(["active", "paused", "error-bad-query"]);
+
+/**
+ * monitorThresholdOperator is the kebab-case wire form of Prisma's
+ * `MonitorThresholdOperator` enum.
+ */
+export const monitorThresholdOperator = z.enum([
+  "gt",
+  "gte",
+  "lt",
+  "lte",
+  "eq",
+  "neq",
+]);
 
 /**
  * ErrorInvalidMonitorWindow is emitted when a `window`
@@ -109,23 +135,106 @@ export type MonitorNoData = z.infer<typeof MonitorNoDataSchema>;
  * pass.
  */
 export function validateWarningAlertOrdering(monitor: {
-  thresholdOperator: MonitorThresholdOperator;
+  thresholdOperator: z.infer<typeof monitorThresholdOperator>;
   alertThreshold: number;
   warningThreshold: number | null;
 }): boolean {
   if (monitor.warningThreshold == null) return true;
   switch (monitor.thresholdOperator) {
-    case "GT":
-    case "GTE":
+    case "gt":
+    case "gte":
       return monitor.warningThreshold < monitor.alertThreshold;
-    case "LT":
-    case "LTE":
+    case "lt":
+    case "lte":
       return monitor.warningThreshold > monitor.alertThreshold;
-    case "EQ":
-    case "NEQ":
+    case "eq":
+    case "neq":
       return true;
   }
 }
+
+/**
+ * monitorBaseSchema is the unrefined ZodObject backing both `MonitorSchema`
+ * and the write-input schemas. Kept as a plain ZodObject so the write inputs
+ * can derive themselves via `.omit(...)`.
+ */
+const monitorBaseSchema = z.object({
+  id: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  createdBy: z.string().nullable(),
+  updatedBy: z.string().nullable(),
+  projectId: z.string(),
+
+  // Query Config
+  view: viewsV2,
+  filters: z.array(singleFilter),
+  metric: MetricSchema,
+
+  // Monitor Config
+  window: z.bigint().refine(isValidMonitorWindow, ErrorInvalidMonitorWindow),
+  thresholdOperator: monitorThresholdOperator,
+  alertThreshold: z.number(),
+  warningThreshold: z.number().nullable(),
+  noData: MonitorNoDataSchema.default({ mode: "SILENT" }),
+  renotify: MonitorRenotifySchema.default({ mode: "OFF" }),
+
+  // MonitorAlert Config
+  name: z
+    .string()
+    .min(1)
+    .max(200)
+    .refine(validateMonitorTemplate, ErrorInvalidMonitorTemplate),
+  message: z
+    .string()
+    .max(2000)
+    .refine(validateMonitorTemplate, ErrorInvalidMonitorTemplate)
+    .default(""),
+  tags: z.array(z.string().max(60)).max(20).default([]),
+
+  // Monitor State
+  severity: monitorSeverity.default("unknown"),
+  severityChangedAt: z.date().nullable(),
+  alertedAt: z.date().nullable(),
+
+  // MonitorScheduler State
+  status: monitorStatus.default("active"),
+  nextRunAt: z.date(),
+  lastPublishedRunAt: z.date().nullable(),
+  lastCompletedRunAt: z.date().nullable(),
+});
+
+const warningAlertOrderingRefinement = {
+  message: ErrorInvalidWarningAlertOrdering,
+  path: ["warningThreshold"],
+};
+
+/**
+ * refineQueryShape attaches the v2 view-declaration check (measure exists,
+ * aggregation valid for measure type, filter columns are real dimensions) to
+ * each input schema as a `superRefine`.
+ */
+const refineQueryShape = (
+  input: {
+    view: z.infer<typeof viewsV2>;
+    metric: z.infer<typeof MetricSchema>;
+    filters: z.infer<typeof singleFilter>[];
+  },
+  ctx: z.RefinementCtx,
+): void => {
+  const result = validateQuery({
+    view: input.view,
+    metric: input.metric,
+    filters: input.filters,
+  });
+  if (!result.valid) {
+    ctx.addIssue({
+      code: "custom",
+      message: result.reason,
+      path: ["metric"],
+    });
+  }
+};
 
 /**
  * MonitorSchema is the canonical Monitor object. Mirrors the Prisma `Monitor`
@@ -137,56 +246,47 @@ export function validateWarningAlertOrdering(monitor: {
  * The Prisma column `windowMs` maps to this schema's `window`
  * at the service boundary.
  */
-export const MonitorSchema = z
-  .object({
-    id: z.string(),
-    createdAt: z.date(),
-    updatedAt: z.date(),
-    createdBy: z.string().nullable(),
-    updatedBy: z.string().nullable(),
-    projectId: z.string(),
+export const MonitorSchema = monitorBaseSchema.refine(
+  validateWarningAlertOrdering,
+  warningAlertOrderingRefinement,
+);
 
-    // Query Config
-    view: z.enum(MonitorView),
-    filters: z.array(singleFilter),
-    metric: MetricSchema,
+// Fields the service generates or owns at write time — omitted from both input
+// schemas. CreateMonitorInputSchema additionally omits `id` (Prisma generates)
+// and `updatedBy` (the service mirrors `createdBy` onto it).
+// UpdateMonitorInputSchema additionally omits `createdBy` (preserved from the
+// existing row) but keeps `id` so callers identify the target row in-payload.
+const writeOmit = {
+  createdAt: true,
+  updatedAt: true,
+  severity: true,
+  severityChangedAt: true,
+  alertedAt: true,
+  nextRunAt: true,
+  lastPublishedRunAt: true,
+  lastCompletedRunAt: true,
+} as const;
 
-    // Monitor Config
-    window: z.bigint().refine(isValidMonitorWindow, ErrorInvalidMonitorWindow),
-    thresholdOperator: z.enum(MonitorThresholdOperator),
-    alertThreshold: z.number(),
-    warningThreshold: z.number().nullable(),
-    noData: MonitorNoDataSchema.default({ mode: "SILENT" }),
-    renotify: MonitorRenotifySchema.default({ mode: "OFF" }),
+/**
+ * CreateMonitorInputSchema is the input contract for `MonitorService.create`.
+ * The caller supplies `createdBy`; the service mirrors it onto `updatedBy`.
+ */
+export const CreateMonitorInputSchema = monitorBaseSchema
+  .omit({ ...writeOmit, id: true, updatedBy: true })
+  .refine(validateWarningAlertOrdering, warningAlertOrderingRefinement)
+  .superRefine(refineQueryShape);
+export type CreateMonitorInput = z.infer<typeof CreateMonitorInputSchema>;
 
-    // MonitorAlert Config
-    name: z
-      .string()
-      .min(1)
-      .max(200)
-      .refine(validateMonitorTemplate, ErrorInvalidMonitorTemplate),
-    message: z
-      .string()
-      .max(2000)
-      .refine(validateMonitorTemplate, ErrorInvalidMonitorTemplate)
-      .default(""),
-    tags: z.array(z.string().max(60)).max(20).default([]),
-
-    // Monitor State
-    severity: z.enum(MonitorSeverity).default("UNKNOWN"),
-    severityChangedAt: z.date().nullable(),
-    alertedAt: z.date().nullable(),
-
-    // MonitorScheduler State
-    status: z.enum(MonitorStatus).default("ACTIVE"),
-    nextRunAt: z.date(),
-    lastPublishedRunAt: z.date().nullable(),
-    lastCompletedRunAt: z.date().nullable(),
-  })
-  .refine(validateWarningAlertOrdering, {
-    message: ErrorInvalidWarningAlertOrdering,
-    path: ["warningThreshold"],
-  });
+/**
+ * UpdateMonitorInputSchema is the input contract for `MonitorService.update`.
+ * The caller supplies `id` (target row) and `updatedBy`; `createdBy` is
+ * preserved from the existing row.
+ */
+export const UpdateMonitorInputSchema = monitorBaseSchema
+  .omit({ ...writeOmit, createdBy: true })
+  .refine(validateWarningAlertOrdering, warningAlertOrderingRefinement)
+  .superRefine(refineQueryShape);
+export type UpdateMonitorInput = z.infer<typeof UpdateMonitorInputSchema>;
 
 /**
  * MonitorQueueEventSchema represents a batch of monitors that can be evaluated
@@ -204,7 +304,7 @@ export const MonitorQueueEventSchema = z.object({
   scheduledAt: z.coerce.date(),
 
   // Shared query primitives — every monitor in this batch agrees on these.
-  view: z.enum(MonitorView),
+  view: viewsV2,
   filters: z.array(singleFilter),
   window: z.coerce
     .bigint()
@@ -228,9 +328,9 @@ export const MonitorAlertSchema = z.object({
   projectId: z.string(),
   permalink: z.url(),
   message: z.object({ title: z.string(), body: z.string() }),
-  severity: z.enum(MonitorSeverity),
+  severity: monitorSeverity,
   timestamp: z.coerce.date(),
-  view: z.enum(MonitorView),
+  view: viewsV2,
   filters: z.array(singleFilter),
   window: z.coerce
     .bigint()

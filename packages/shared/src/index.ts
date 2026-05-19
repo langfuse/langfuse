@@ -104,6 +104,3 @@ export * from "./features/analytics-integrations";
 export * from "./features/query/types";
 export * from "./features/query/dataModel";
 export * from "./features/query/validateQuery";
-
-// monitor (Monitor schemas, queue contracts, template validator)
-export * from "./features/monitor";

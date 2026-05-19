@@ -23,22 +23,22 @@ const validMonitorBase = {
   updatedBy: null,
   projectId: "proj_01",
 
-  view: "OBSERVATIONS" as const,
+  view: "observations" as const,
   filters: [],
   metric: { measure: "count", aggregation: "count" as const },
 
   window: MonitorWindow.FIVE_MIN,
-  thresholdOperator: "GT" as const,
+  thresholdOperator: "gt" as const,
   alertThreshold: 100,
   warningThreshold: null,
 
-  severity: "UNKNOWN" as const,
+  severity: "unknown" as const,
   severityChangedAt: null,
 
   noData: { mode: "SILENT" as const },
   renotify: { mode: "OFF" as const },
 
-  status: "ACTIVE" as const,
+  status: "active" as const,
   nextRunAt: new Date("2026-05-18T00:01:00.000Z"),
   lastPublishedRunAt: null,
   lastCompletedRunAt: null,
@@ -199,7 +199,7 @@ describe("MonitorNoDataSchema", () => {
 });
 
 describe("validateWarningAlertOrdering", () => {
-  it.each(["GT", "GTE"] as const)("%s requires warning < alert", (op) => {
+  it.each(["gt", "gte"] as const)("%s requires warning < alert", (op) => {
     expect(
       validateWarningAlertOrdering({
         thresholdOperator: op,
@@ -216,7 +216,7 @@ describe("validateWarningAlertOrdering", () => {
     ).toBe(false);
   });
 
-  it.each(["LT", "LTE"] as const)("%s requires warning > alert", (op) => {
+  it.each(["lt", "lte"] as const)("%s requires warning > alert", (op) => {
     expect(
       validateWarningAlertOrdering({
         thresholdOperator: op,
@@ -233,7 +233,7 @@ describe("validateWarningAlertOrdering", () => {
     ).toBe(false);
   });
 
-  it.each(["EQ", "NEQ"] as const)(
+  it.each(["eq", "neq"] as const)(
     "%s always passes regardless of ordering",
     (op) => {
       for (const warning of [50, 100, 200]) {
@@ -248,7 +248,7 @@ describe("validateWarningAlertOrdering", () => {
     },
   );
 
-  it.each(["GT", "GTE", "LT", "LTE", "EQ", "NEQ"] as const)(
+  it.each(["gt", "gte", "lt", "lte", "eq", "neq"] as const)(
     "%s passes with null warningThreshold",
     (op) => {
       expect(
@@ -285,7 +285,7 @@ describe("MonitorSchema", () => {
   });
 
   describe("warning/alert threshold ordering refinement", () => {
-    it.each(["GT", "GTE"] as const)(
+    it.each(["gt", "gte"] as const)(
       "%s rejects warningThreshold >= alertThreshold",
       (op) => {
         const result = MonitorSchema.safeParse({
@@ -309,7 +309,7 @@ describe("MonitorSchema", () => {
       },
     );
 
-    it.each(["GT", "GTE"] as const)(
+    it.each(["gt", "gte"] as const)(
       "%s accepts warningThreshold < alertThreshold",
       (op) => {
         expect(
@@ -323,7 +323,7 @@ describe("MonitorSchema", () => {
       },
     );
 
-    it.each(["LT", "LTE"] as const)(
+    it.each(["lt", "lte"] as const)(
       "%s rejects warningThreshold <= alertThreshold",
       (op) => {
         const result = MonitorSchema.safeParse({
@@ -347,7 +347,7 @@ describe("MonitorSchema", () => {
       },
     );
 
-    it.each(["LT", "LTE"] as const)(
+    it.each(["lt", "lte"] as const)(
       "%s accepts warningThreshold > alertThreshold",
       (op) => {
         expect(
@@ -361,7 +361,7 @@ describe("MonitorSchema", () => {
       },
     );
 
-    it.each(["EQ", "NEQ"] as const)(
+    it.each(["eq", "neq"] as const)(
       "%s accepts any warningThreshold/alertThreshold ordering",
       (op) => {
         for (const warning of [50, 100, 200]) {
@@ -377,7 +377,7 @@ describe("MonitorSchema", () => {
       },
     );
 
-    it.each(["GT", "GTE", "LT", "LTE", "EQ", "NEQ"] as const)(
+    it.each(["gt", "gte", "lt", "lte", "eq", "neq"] as const)(
       "%s accepts a null warningThreshold regardless of alertThreshold",
       (op) => {
         expect(
@@ -398,7 +398,7 @@ describe("MonitorQueueEventSchema", () => {
     projectId: "proj_01",
     schedulerBatchId: 42n,
     scheduledAt: new Date("2026-05-18T12:00:00.000Z"),
-    view: "OBSERVATIONS" as const,
+    view: "observations" as const,
     filters: [],
     window: MonitorWindow.FIVE_MIN,
     metrics: [{ measure: "count", aggregation: "count" as const }],
@@ -461,11 +461,11 @@ describe("MonitorAlertSchema", () => {
   const validAlert = {
     monitorId: "mon_01",
     projectId: "proj_01",
-    severity: "ALERT" as const,
+    severity: "alert" as const,
     permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
     timestamp: new Date("2026-05-18T12:01:00.000Z"),
     message: { title: "High error rate", body: "errors > 100" },
-    view: "OBSERVATIONS" as const,
+    view: "observations" as const,
     filters: [],
     window: MonitorWindow.FIVE_MIN,
   };
@@ -520,11 +520,11 @@ describe("MonitorWebhookQueueEventSchema", () => {
     payload: {
       monitorId: "mon_01",
       projectId: "proj_01",
-      severity: "ALERT" as const,
+      severity: "alert" as const,
       permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
       timestamp: new Date("2026-05-18T12:01:00.000Z"),
       message: { title: "High error rate", body: "errors > 100" },
-      view: "OBSERVATIONS" as const,
+      view: "observations" as const,
       filters: [],
       window: MonitorWindow.FIVE_MIN,
     },
