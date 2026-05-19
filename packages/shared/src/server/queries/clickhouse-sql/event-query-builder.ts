@@ -1,3 +1,7 @@
+import {
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
+  ObservationFieldGroupPublicApi,
+} from "../../../domain/observation-field-groups";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import { FilterList, StringFilter } from "./clickhouse-filter";
 
@@ -139,22 +143,6 @@ const EVENTS_FIELDS = {
   timeToFirstToken:
     "if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time)) as \"time_to_first_token\"",
 } as const;
-
-export const OBSERVATION_FIELD_GROUPS = [
-  "core",
-  "basic",
-  "time",
-  "io",
-  "metadata",
-  "model",
-  "usage",
-  "prompt",
-  "metrics",
-  "tools",
-  "trace_context",
-] as const;
-
-export type ObservationFieldGroup = (typeof OBSERVATION_FIELD_GROUPS)[number];
 
 /**
  * Predefined field sets for common query patterns
@@ -416,9 +404,12 @@ const FIELD_SETS = {
 export type FieldSetName = keyof typeof FIELD_SETS;
 
 export const OBSERVATION_FIELD_GROUP_FIELD_NAMES = Object.fromEntries(
-  OBSERVATION_FIELD_GROUPS.map((group) => [group, FIELD_SETS[group]]),
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API.map((group) => [
+    group,
+    FIELD_SETS[group],
+  ]),
 ) as {
-  [K in ObservationFieldGroup]: (typeof FIELD_SETS)[K];
+  [K in ObservationFieldGroupPublicApi]: (typeof FIELD_SETS)[K];
 };
 
 /**

@@ -76,11 +76,8 @@ import {
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
-  OBSERVATION_FIELD_GROUPS,
-  OBSERVATION_FIELD_GROUP_FIELD_NAMES,
   type QueryWithParams,
   type SessionEventsMetricsRow,
-  type ObservationFieldGroup,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
@@ -863,12 +860,6 @@ export const getTraceByIdFromEventsTable = async ({
   });
 
   return res.shift();
-};
-
-export {
-  OBSERVATION_FIELD_GROUPS,
-  OBSERVATION_FIELD_GROUP_FIELD_NAMES,
-  type ObservationFieldGroup,
 };
 
 type PublicApiObservationsQuery = {
