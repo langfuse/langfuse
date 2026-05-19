@@ -92,6 +92,7 @@ import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-clean
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
+import { MonitorSchedulerRunner } from "./features/monitor-scheduler";
 
 const app = express();
 
@@ -693,6 +694,16 @@ export let queueMetricsRunner: QueueMetricsRunner | null = null;
 if (env.LANGFUSE_QUEUE_METRICS_ENABLED === "true") {
   queueMetricsRunner = new QueueMetricsRunner();
   queueMetricsRunner.start();
+}
+
+// Monitor schedulers: per-slot leader-elected runners that tick every second
+// and publish `MonitorQueueEvent`s to the sharded `MonitorQueue`.
+export const monitorSchedulers: MonitorSchedulerRunner[] = [];
+
+for (let i = 0; i < env.LANGFUSE_MONITOR_SCHEDULERS; i++) {
+  const runner = new MonitorSchedulerRunner(i, env.LANGFUSE_MONITOR_SCHEDULERS);
+  monitorSchedulers.push(runner);
+  runner.start();
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

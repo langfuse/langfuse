@@ -128,6 +128,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_MONITOR_QUEUE_SHARD_COUNT: z.coerce.number().positive().default(1),
   LANGFUSE_OTEL_INGESTION_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()

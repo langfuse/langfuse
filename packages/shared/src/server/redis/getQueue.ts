@@ -41,6 +41,7 @@ export function getQueue(
     | QueueName.TraceUpsert
     | QueueName.OtelIngestionQueue
     | QueueName.OtelIngestionSecondaryQueue
+    | QueueName.MonitorQueue
   >,
 ): Queue | null {
   switch (queueName) {

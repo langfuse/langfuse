@@ -13,6 +13,7 @@ import {
   IngestionEvent,
   OtelIngestionQueue,
   SecondaryOtelIngestionQueue,
+  MonitorQueue,
 } from "@langfuse/shared/src/server";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 
@@ -78,6 +79,7 @@ export default async function handler(
           ...TraceUpsertQueue.getShardNames(),
           ...OtelIngestionQueue.getShardNames(),
           ...SecondaryOtelIngestionQueue.getShardNames(),
+          ...MonitorQueue.getShardNames(),
         ]),
       );
       const queueCounts = await Promise.all(
@@ -114,6 +116,8 @@ export default async function handler(
               });
             } else if (queueName.startsWith(QueueName.OtelIngestionQueue)) {
               queue = OtelIngestionQueue.getInstance({ shardName: queueName });
+            } else if (queueName.startsWith(QueueName.MonitorQueue)) {
+              queue = MonitorQueue.getInstance({ shardName: queueName });
             } else {
               queue = getQueue(
                 queueName as Exclude<
@@ -126,6 +130,7 @@ export default async function handler(
                   | QueueName.TraceUpsert
                   | QueueName.OtelIngestionQueue
                   | QueueName.OtelIngestionSecondaryQueue
+                  | QueueName.MonitorQueue
                 >,
               );
             }
@@ -180,6 +185,8 @@ export default async function handler(
           });
         } else if (queueName.startsWith(QueueName.OtelIngestionQueue)) {
           queue = OtelIngestionQueue.getInstance({ shardName: queueName });
+        } else if (queueName.startsWith(QueueName.MonitorQueue)) {
+          queue = MonitorQueue.getInstance({ shardName: queueName });
         } else {
           queue = getQueue(
             queueName as Exclude<
@@ -192,6 +199,7 @@ export default async function handler(
               | QueueName.TraceUpsert
               | QueueName.OtelIngestionQueue
               | QueueName.OtelIngestionSecondaryQueue
+              | QueueName.MonitorQueue
             >,
           );
         }
@@ -256,6 +264,8 @@ export default async function handler(
           });
         } else if (queueName.startsWith(QueueName.OtelIngestionQueue)) {
           queue = OtelIngestionQueue.getInstance({ shardName: queueName });
+        } else if (queueName.startsWith(QueueName.MonitorQueue)) {
+          queue = MonitorQueue.getInstance({ shardName: queueName });
         } else {
           queue = getQueue(
             queueName as Exclude<
@@ -268,6 +278,7 @@ export default async function handler(
               | QueueName.TraceUpsert
               | QueueName.OtelIngestionQueue
               | QueueName.OtelIngestionSecondaryQueue
+              | QueueName.MonitorQueue
             >,
           );
         }

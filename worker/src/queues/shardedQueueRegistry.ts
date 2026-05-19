@@ -11,6 +11,7 @@ import {
   EvalExecutionQueue,
   SecondaryEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
+  MonitorQueue,
 } from "@langfuse/shared/src/server";
 
 export type ShardedQueueDef = {
@@ -66,6 +67,11 @@ export const SHARDED_QUEUES: ShardedQueueDef[] = [
     getInstance: (shard) =>
       LLMAsJudgeExecutionQueue.getInstance({ shardName: shard }),
   },
+  {
+    baseQueueName: QueueName.MonitorQueue,
+    getShardNames: () => MonitorQueue.getShardNames(),
+    getInstance: (shard) => MonitorQueue.getInstance({ shardName: shard }),
+  },
 ];
 
 export const SHARDED_QUEUE_BASE_NAMES = new Set<QueueName>(
@@ -95,6 +101,7 @@ export function resolveQueueInstance(queueName: string): Queue | null {
       | QueueName.TraceUpsert
       | QueueName.OtelIngestionQueue
       | QueueName.OtelIngestionSecondaryQueue
+      | QueueName.MonitorQueue
     >,
   );
 }

@@ -10,6 +10,7 @@ import { EventActionSchema } from "../domain";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
 import { EvalTargetObjectSchema } from "../features/evals/types";
+import type { MonitorQueueEvent } from "../features/monitor/types";
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -355,6 +356,7 @@ export enum QueueName {
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
+  MonitorQueue = "monitor-queue",
 }
 
 export enum QueueJobs {
@@ -390,6 +392,7 @@ export enum QueueJobs {
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
+  MonitorJob = "monitor-job",
 }
 
 export type TQueueJobTypes = {
@@ -563,5 +566,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: NotificationEventType;
     name: QueueJobs.NotificationJob;
+  };
+  [QueueName.MonitorQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: MonitorQueueEvent;
+    name: QueueJobs.MonitorJob;
   };
 };
