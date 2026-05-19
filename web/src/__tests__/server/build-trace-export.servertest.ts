@@ -8,7 +8,7 @@ import {
 } from "@/src/features/traces/server/buildTraceExport";
 
 const {
-  mockGetTraceById,
+  mockGetTraceByIdFromEventsTable,
   mockGetObservationsCountFromEventsTable,
   mockGetObservationsForTraceFromEventsTable,
   mockGetScoresAndCorrectionsForTraces,
@@ -16,7 +16,7 @@ const {
   mockProjectFindFirst,
   mockSendAdminAccessWebhook,
 } = vi.hoisted(() => ({
-  mockGetTraceById: vi.fn(),
+  mockGetTraceByIdFromEventsTable: vi.fn(),
   mockGetObservationsCountFromEventsTable: vi.fn(),
   mockGetObservationsForTraceFromEventsTable: vi.fn(),
   mockGetScoresAndCorrectionsForTraces: vi.fn(),
@@ -27,7 +27,8 @@ const {
 
 vi.mock("@langfuse/shared/src/server", async () => ({
   ...(await vi.importActual("@langfuse/shared/src/server")),
-  getTraceById: (...args: unknown[]) => mockGetTraceById(...args),
+  getTraceByIdFromEventsTable: (...args: unknown[]) =>
+    mockGetTraceByIdFromEventsTable(...args),
   getObservationsCountFromEventsTable: (...args: unknown[]) =>
     mockGetObservationsCountFromEventsTable(...args),
   getObservationsForTraceFromEventsTable: (...args: unknown[]) =>
@@ -169,7 +170,7 @@ describe("buildTraceExport", () => {
     vi.clearAllMocks();
     env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES =
       originalObservationLimit;
-    mockGetTraceById.mockResolvedValue(makeTrace());
+    mockGetTraceByIdFromEventsTable.mockResolvedValue(makeTrace());
     mockGetObservationsCountFromEventsTable.mockResolvedValue(1);
     mockGetObservationsForTraceFromEventsTable.mockResolvedValue({
       observations: [makeObservation()],
@@ -192,6 +193,15 @@ describe("buildTraceExport", () => {
       session: makeSession(),
     });
 
+    expect(mockGetTraceByIdFromEventsTable).toHaveBeenCalledWith({
+      traceId,
+      projectId,
+      renderingProps: {
+        truncated: true,
+        shouldJsonParse: false,
+      },
+      clickhouseFeatureTag: "tracing-download",
+    });
     expect(mockGetObservationsCountFromEventsTable).toHaveBeenCalledWith({
       projectId,
       filter: [
@@ -361,7 +371,7 @@ describe("buildTraceExport", () => {
   });
 
   it("throws a not-found error when the trace is missing", async () => {
-    mockGetTraceById.mockResolvedValue(null);
+    mockGetTraceByIdFromEventsTable.mockResolvedValue(null);
 
     await expect(
       buildTraceExport({
@@ -383,7 +393,9 @@ describe("buildTraceExport", () => {
   });
 
   it("allows unauthenticated access to public traces", async () => {
-    mockGetTraceById.mockResolvedValue(makeTrace({ public: true }));
+    mockGetTraceByIdFromEventsTable.mockResolvedValue(
+      makeTrace({ public: true }),
+    );
 
     const result = await buildTraceExport({
       traceId,
@@ -403,7 +415,7 @@ describe("buildTraceExport", () => {
   });
 
   it("allows unauthenticated access to traces in public sessions", async () => {
-    mockGetTraceById.mockResolvedValue(
+    mockGetTraceByIdFromEventsTable.mockResolvedValue(
       makeTrace({ public: false, sessionId: "trace-session-1" }),
     );
     mockTraceSessionFindFirst.mockResolvedValue({ public: true });

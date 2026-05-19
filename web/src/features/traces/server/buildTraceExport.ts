@@ -5,10 +5,10 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import {
-  getTraceById,
   getScoresAndCorrectionsForTraces,
   getObservationsCountFromEventsTable,
   getObservationsForTraceFromEventsTable,
+  getTraceByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
@@ -99,16 +99,14 @@ async function getAuthorizedTrace(params: {
 }) {
   const { traceId, projectId, session } = params;
 
-  const clickhouseTrace = await getTraceById({
+  const clickhouseTrace = await getTraceByIdFromEventsTable({
     traceId,
     projectId,
     renderingProps: {
-      truncated: false,
+      truncated: true,
       shouldJsonParse: false,
     },
     clickhouseFeatureTag: "tracing-download",
-    excludeInputOutput: true,
-    excludeMetadata: true,
   });
 
   if (!clickhouseTrace) {
