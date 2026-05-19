@@ -192,6 +192,46 @@ describe("MCP Read Tools", () => {
       expect(result.columns.scores).toBeUndefined();
       expect(result.columns.name.operators).toContain("any of");
     });
+
+    it.each([
+      ["name", "stringOptions", true],
+      ["type", "stringOptions", false],
+      ["environment", "stringOptions", true],
+      ["version", "string", true],
+      ["userId", "string", true],
+      ["sessionId", "string", true],
+      ["traceName", "stringOptions", true],
+      ["level", "stringOptions", false],
+      ["promptName", "stringOptions", true],
+      ["modelId", "stringOptions", true],
+      ["providedModelName", "stringOptions", true],
+      ["tags", "arrayOptions", false],
+      ["hasParentObservation", "boolean", false],
+    ])(
+      "should expose the %s column used by observation filter values",
+      async (column, type, nullable) => {
+        const { context } = await createMcpTestSetup();
+
+        const result = (await handleGetObservationFilterSchema(
+          {},
+          context,
+        )) as {
+          columns: Record<
+            string,
+            { type: string; operators: string[]; nullable: boolean }
+          >;
+        };
+
+        expect(result.columns[column]).toEqual(
+          expect.objectContaining({
+            type,
+            nullable,
+            operators: expect.any(Array),
+          }),
+        );
+        expect(result.columns[column]?.operators.length).toBeGreaterThan(0);
+      },
+    );
   });
 
   maybeEventsTable("listObservations tool", () => {
