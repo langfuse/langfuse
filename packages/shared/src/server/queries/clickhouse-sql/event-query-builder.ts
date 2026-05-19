@@ -106,6 +106,7 @@ const EVENTS_FIELDS = {
   toolCallNames: 'e.tool_call_names as "tool_call_names"',
 
   // Pricing tier
+  usagePricingTierId: 'e.usage_pricing_tier_id as "usage_pricing_tier_id"',
   usagePricingTierName:
     'e.usage_pricing_tier_name as "usage_pricing_tier_name"',
 
@@ -178,6 +179,8 @@ const FIELD_SETS = {
     "updatedAt",
     "providedModelName",
     "totalCost",
+    "usagePricingTierId",
+    "usagePricingTierName",
     "promptId",
     "promptName",
     "promptVersion",
@@ -216,6 +219,8 @@ const FIELD_SETS = {
     "updatedAt",
     "providedModelName",
     "totalCost",
+    "usagePricingTierId",
+    "usagePricingTierName",
     "promptId",
     "promptName",
     "promptVersion",
@@ -225,6 +230,8 @@ const FIELD_SETS = {
     "traceName",
     "release",
     "tags",
+    // Keep lightweight tool names available even when heavy tool payloads are omitted.
+    "toolCallNames",
   ],
   calculated: ["latency", "timeToFirstToken"],
   io: ["input", "output"],
@@ -269,6 +276,8 @@ const FIELD_SETS = {
     "providedCostDetails",
     "costDetails",
     "totalCost",
+    "usagePricingTierId",
+    "usagePricingTierName",
     "completionStartTime",
   ],
   byIdPrompt: ["promptId", "promptName", "promptVersion"],
@@ -297,7 +306,13 @@ const FIELD_SETS = {
   ],
   time: ["completionStartTime", "createdAt", "updatedAt"],
   model: ["providedModelName", "internalModelId", "modelParameters"],
-  usage: ["usageDetails", "costDetails", "totalCost", "usagePricingTierName"],
+  usage: [
+    "usageDetails",
+    "costDetails",
+    "totalCost",
+    "usagePricingTierId",
+    "usagePricingTierName",
+  ],
   prompt: ["promptId", "promptName", "promptVersion"],
   metrics: ["latency", "timeToFirstToken"],
 
@@ -339,6 +354,7 @@ const FIELD_SETS = {
     "toolDefinitions",
     "toolCalls",
     "toolCallNames",
+    "usagePricingTierId",
     "usagePricingTierName",
   ],
 

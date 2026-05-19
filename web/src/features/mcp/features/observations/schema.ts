@@ -84,6 +84,7 @@ const OBSERVATION_MCP_FIELD_METADATA: Record<
   release: { type: "string", nullable: true },
   traceName: { type: "string", nullable: true, sensitive: true },
   usagePricingTierName: { type: "string", nullable: true },
+  usagePricingTierId: { type: "string", nullable: true },
 } as const;
 
 export type { ObservationMcpField };

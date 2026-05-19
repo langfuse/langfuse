@@ -7,7 +7,6 @@ import {
   singleFilter,
   InvalidRequestError,
 } from "@langfuse/shared";
-
 import {
   reduceUsageOrCostDetails,
   stringDateTime,
@@ -18,7 +17,7 @@ import {
   type ObservationFieldGroupPublicApi,
 } from "@langfuse/shared";
 import { z } from "zod";
-import { useEventsTableSchema } from "../../query/types";
+import { useEventsTableSchema } from "@langfuse/shared/query";
 
 // Re-export for convenience
 export {
@@ -132,6 +131,7 @@ export const transformDbToApiObservation = (
   const totalTokens = reducedUsageDetails.total ?? 0;
 
   const {
+    providedUsageDetails,
     providedCostDetails,
 
     internalModelId,
