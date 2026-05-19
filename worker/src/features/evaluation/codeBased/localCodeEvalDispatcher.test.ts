@@ -1,0 +1,187 @@
+import { describe, expect, it } from "vitest";
+import {
+  CodeEvalDispatcherError,
+  LocalCodeEvalDispatcher,
+  type DispatchInput,
+} from "@langfuse/shared/src/server";
+import { TEXT_SCORE_MAX_LENGTH } from "../../../../../packages/shared/src/domain/scores";
+
+const baseInput: Omit<DispatchInput, "runtime" | "code"> = {
+  scope: {
+    organizationId: "org-1",
+    projectId: "project-1",
+    evaluatorId: "evaluator-1",
+    environment: "default",
+  },
+  execution: {
+    jobExecutionId: "job-1",
+  },
+  payload: {
+    input: { question: "2+2" },
+    output: "4",
+    observationMetadata: { source: "test" },
+    experimentExpectedOutput: "4",
+    experimentItemMetadata: { difficulty: "easy" },
+  },
+};
+
+describe("LocalCodeEvalDispatcher", () => {
+  it("executes TS-lite evaluate(ctx) functions in process", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher();
+
+    const result = await dispatcher.dispatch({
+      ...baseInput,
+      runtime: { language: "TYPESCRIPT" },
+      code: {
+        source: `
+          type EvaluationContext = { output: string; experimentExpectedOutput: string };
+          export async function evaluate(ctx: EvaluationContext) {
+            return {
+              scores: [{ value: ctx.output === ctx.experimentExpectedOutput ? 1 : 0, dataType: "BOOLEAN" }],
+            };
+          }
+        `,
+      },
+    });
+
+    expect(result).toEqual({ scores: [{ value: 1, dataType: "BOOLEAN" }] });
+  });
+
+  it("rejects sources with TypeScript syntax errors", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher();
+
+    await expect(
+      dispatcher.dispatch({
+        ...baseInput,
+        runtime: { language: "TYPESCRIPT" },
+        // Deliberate stray token that `stripTypeScriptTypes` cannot parse.
+        code: { source: "export function evaluate(@@@) {}" },
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_SOURCE",
+      retryable: false,
+    } satisfies Partial<CodeEvalDispatcherError>);
+  });
+
+  it("rejects sources whose module throws at top level", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher();
+
+    await expect(
+      dispatcher.dispatch({
+        ...baseInput,
+        runtime: { language: "TYPESCRIPT" },
+        code: { source: `throw new Error("top-level boom");` },
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_SOURCE",
+      retryable: false,
+    } satisfies Partial<CodeEvalDispatcherError>);
+  });
+
+  it("rejects sources missing an exported evaluate function", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher();
+
+    await expect(
+      dispatcher.dispatch({
+        ...baseInput,
+        runtime: { language: "TYPESCRIPT" },
+        code: { source: `export const evaluate = 42;` },
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_SOURCE",
+      retryable: false,
+    } satisfies Partial<CodeEvalDispatcherError>);
+  });
+
+  it("surfaces evaluator runtime throws as USER_CODE_ERROR", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher();
+
+    await expect(
+      dispatcher.dispatch({
+        ...baseInput,
+        runtime: { language: "TYPESCRIPT" },
+        code: {
+          source: `export function evaluate() { throw new Error("boom"); }`,
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "USER_CODE_ERROR",
+      retryable: false,
+      message: expect.stringContaining("boom"),
+    } satisfies Partial<CodeEvalDispatcherError>);
+  });
+
+  it("rejects Python evaluators", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher();
+
+    await expect(
+      dispatcher.dispatch({
+        ...baseInput,
+        runtime: { language: "PYTHON" },
+        code: { source: "def evaluate(ctx): pass" },
+      }),
+    ).rejects.toThrow(CodeEvalDispatcherError);
+  });
+
+  it("accepts TEXT scores within the public ingestion length cap", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher();
+
+    const source = `
+      export async function evaluate() {
+        return {
+          scores: [{
+            value: "reasoning fits within the limit",
+            dataType: "TEXT",
+            name: "judge-rationale",
+          }],
+        };
+      }
+    `;
+
+    await expect(
+      dispatcher.dispatch({
+        ...baseInput,
+        runtime: { language: "TYPESCRIPT" },
+        code: { source },
+      }),
+    ).resolves.toEqual({
+      scores: [
+        {
+          value: "reasoning fits within the limit",
+          dataType: "TEXT",
+          name: "judge-rationale",
+        },
+      ],
+    });
+  });
+
+  it("rejects TEXT scores that exceed the public ingestion length cap", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher();
+
+    // Produce a TEXT value just over the public 500-char ingestion cap. The
+    // dispatcher must surface this as a non-retryable INVALID_RESULT so the
+    // job execution fails clearly instead of completing and then having the
+    // score silently dropped by the ingestion consumer.
+    const source = `
+      export async function evaluate() {
+        return {
+          scores: [{
+            value: "a".repeat(${TEXT_SCORE_MAX_LENGTH + 1}),
+            dataType: "TEXT",
+          }],
+        };
+      }
+    `;
+
+    await expect(
+      dispatcher.dispatch({
+        ...baseInput,
+        runtime: { language: "TYPESCRIPT" },
+        code: { source },
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_RESULT",
+      retryable: false,
+    } satisfies Partial<CodeEvalDispatcherError>);
+  });
+});

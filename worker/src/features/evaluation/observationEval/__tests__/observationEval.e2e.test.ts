@@ -64,11 +64,14 @@ const validateLLMAsJudgeTemplate = (
 };
 
 const mockEvalExecutionResult = {
-  outputResult: {
-    dataType: "NUMERIC" as const,
-    score: 0.85,
-    reasoning: "Good response",
-  },
+  scores: [
+    {
+      dataType: "NUMERIC" as const,
+      value: 0.85,
+      name: "test-score",
+      comment: "Good response",
+    },
+  ],
   primaryScoreId: "score-123",
   executionTraceId: "trace-123",
   metadata: {},

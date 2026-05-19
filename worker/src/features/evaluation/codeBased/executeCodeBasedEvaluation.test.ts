@@ -1,0 +1,156 @@
+import { describe, expect, it, beforeEach, vi } from "vitest";
+import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
+} from "@prisma/client";
+
+const mocks = vi.hoisted(() => ({
+  dispatcher: {
+    name: "test-dispatcher",
+    dispatch: vi.fn(),
+  },
+  projectFindUnique: vi.fn(),
+  writeInternalTrace: vi.fn(),
+}));
+
+vi.mock("@langfuse/shared/src/db", () => ({
+  prisma: {
+    project: {
+      findUnique: mocks.projectFindUnique,
+    },
+  },
+}));
+
+vi.mock("@langfuse/shared/src/server", () => ({
+  INTERNAL_TRACE_EVENT_SOURCE: "test-source",
+  LangfuseInternalTraceEnvironment: { CodeEval: "langfuse-code-eval" },
+  instrumentAsync: vi.fn(async (_options, fn) => fn({ setAttribute: vi.fn() })),
+  logger: { debug: vi.fn() },
+  resolveConfiguredCodeEvalDispatcher: vi.fn(() => mocks.dispatcher),
+}));
+
+vi.mock("../../internal-tracing/createInternalEventsWriter", () => ({
+  createInternalEventsWriter: () => ({ write: mocks.writeInternalTrace }),
+}));
+
+import { executeCodeBasedEvaluation } from "./executeCodeBasedEvaluation";
+
+describe("executeCodeBasedEvaluation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.projectFindUnique.mockResolvedValue({ orgId: "org-1" });
+  });
+
+  it("defaults the first missing score name to the score config name and keeps additional names", async () => {
+    mocks.dispatcher.dispatch.mockResolvedValue({
+      scores: [
+        { value: 1, dataType: "BOOLEAN", metadata: { user: "value" } },
+        { name: "extra-score", value: "good", dataType: "CATEGORICAL" },
+      ],
+    });
+
+    const result = await executeCodeBasedEvaluation({
+      projectId: "project-1",
+      jobExecutionId: "job-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: "obs-1",
+        jobInputDatasetItemId: null,
+      } as any,
+      config: {
+        id: "config-1",
+        scoreName: "default-score",
+      } as any,
+      template: {
+        id: "template-1",
+        name: "Code evaluator",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "export function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [
+        { var: "input", value: '{"question":"2+2"}' },
+        { var: "output", value: '"4"' },
+        { var: "experimentExpectedOutput", value: '"4"' },
+      ],
+      environment: "default",
+      metadata: { job_execution_id: "job-1" },
+    });
+
+    expect(result.scores).toMatchObject([
+      { name: "default-score", value: 1, dataType: "BOOLEAN" },
+      { name: "extra-score", value: "good", dataType: "CATEGORICAL" },
+    ]);
+    const expectedPayload = expect.objectContaining({
+      input: { question: "2+2" },
+      output: "4",
+      experimentExpectedOutput: "4",
+    });
+    expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: expect.objectContaining({ organizationId: "org-1" }),
+        payload: expectedPayload,
+      }),
+    );
+    expect(mocks.writeInternalTrace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventInputs: [
+          expect.objectContaining({
+            projectId: "project-1",
+            traceName: "Execute evaluator: Code evaluator",
+            name: "Execute evaluator: Code evaluator",
+            type: "SPAN",
+            environment: "langfuse-code-eval",
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("defaults every unnamed score to the score config name", async () => {
+    mocks.dispatcher.dispatch.mockResolvedValue({
+      scores: [
+        { value: 1, dataType: "BOOLEAN" },
+        { value: "good", dataType: "CATEGORICAL" },
+      ],
+    });
+
+    const result = await executeCodeBasedEvaluation({
+      projectId: "project-1",
+      jobExecutionId: "job-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: "obs-1",
+        jobInputDatasetItemId: null,
+      } as any,
+      config: {
+        id: "config-1",
+        scoreName: "default-score",
+      } as any,
+      template: {
+        id: "template-1",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "export function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [],
+      environment: "default",
+      metadata: { job_execution_id: "job-1" },
+    });
+
+    expect(result.scores).toMatchObject([
+      { name: "default-score", value: 1, dataType: "BOOLEAN" },
+      { name: "default-score", value: "good", dataType: "CATEGORICAL" },
+    ]);
+  });
+});

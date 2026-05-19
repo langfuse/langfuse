@@ -1,49 +1,49 @@
 import { JobExecutionStatus } from "@prisma/client";
-import { logger, traceException } from "@langfuse/shared/src/server";
-import { type EvalOutputResult } from "@langfuse/shared";
+import {
+  logger,
+  traceException,
+  type CodeEvalScoreWithName,
+} from "@langfuse/shared/src/server";
 import { buildEvalScoreWritePayloads } from "./evalScoreEvent";
 import { type EvalExecutionDeps } from "./evalExecutionDeps";
 
+/**
+ * Common result returned by every evaluator executor (LLM-as-judge,
+ * code-based, future executors). The first entry of `scores` is the primary
+ * score and is persisted on `JobExecution.jobOutputScoreId`.
+ */
 export type EvalExecutionResult = {
-  outputResult: EvalOutputResult;
+  scores: CodeEvalScoreWithName[];
   primaryScoreId: string;
   executionTraceId: string;
+  metadata: Record<string, string>;
 };
 
 export async function completeEvalExecution({
   projectId,
   jobExecutionId,
-  outputResult,
-  primaryScoreId,
+  result,
   traceId,
   observationId,
-  scoreName,
   environment,
-  executionTraceId,
-  metadata,
   deps,
 }: {
   projectId: string;
   jobExecutionId: string;
-  outputResult: EvalOutputResult;
-  primaryScoreId: string;
+  result: EvalExecutionResult;
   traceId: string | null;
   observationId: string | null;
-  scoreName: string;
   environment: string;
-  executionTraceId: string;
-  metadata: Record<string, string>;
   deps: EvalExecutionDeps;
 }): Promise<{ scoreCount: number }> {
   const scoreWritePayloads = buildEvalScoreWritePayloads({
-    outputResult,
-    primaryScoreId,
+    scores: result.scores,
+    primaryScoreId: result.primaryScoreId,
     traceId,
     observationId,
-    scoreName,
     environment,
-    executionTraceId,
-    metadata,
+    executionTraceId: result.executionTraceId,
+    executionMetadata: result.metadata,
   });
 
   try {
@@ -67,7 +67,7 @@ export async function completeEvalExecution({
     logger.error(`Failed to persist score: ${e}`, e);
     traceException(e);
     throw new Error(
-      `Failed to write score ${primaryScoreId} into IngestionQueue`,
+      `Failed to write score ${result.primaryScoreId} into IngestionQueue`,
     );
   }
 
@@ -81,8 +81,8 @@ export async function completeEvalExecution({
     data: {
       status: JobExecutionStatus.COMPLETED,
       endTime: new Date(),
-      jobOutputScoreId: primaryScoreId,
-      executionTraceId,
+      jobOutputScoreId: result.primaryScoreId,
+      executionTraceId: result.executionTraceId,
     },
   });
 
