@@ -56,6 +56,9 @@ export const [
               type: column.type,
               operators: filterOperators[column.type],
               nullable: Boolean(column.nullable),
+              requiresKey:
+                column.type === "stringObject" ||
+                column.type === "numberObject",
             },
           ];
         }),
