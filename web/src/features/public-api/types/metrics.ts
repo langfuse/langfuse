@@ -12,7 +12,7 @@ import {
   metric,
   views,
   viewsV2,
-} from "@/src/features/query";
+} from "@langfuse/shared/query";
 
 /**
  * Query Object Structure
