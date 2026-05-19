@@ -30,6 +30,7 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
+- Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
 - Postgres schema: `prisma/schema.prisma`
 - For unstable public eval APIs, the public `evaluatorId` is currently the
   exact `EvalTemplate.id`. Latest-version family grouping is derived from
@@ -54,6 +55,7 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
   schema/accessors used by backend runtimes and scripts.
 - `@langfuse/shared/encryption` via `src/encryption/index.ts`: encryption and
   signature helpers for secrets and signed payloads.
+- `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
   `@langfuse/shared/src/server/ee/ingestionMasking`, and
@@ -108,8 +110,8 @@ the same PR.
    set), fetch the latest published docs and check for discrepancies:
    - https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage
    - https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields
-   Surface any mismatches in field names, types, nullability, or filter
-   descriptions so they can be addressed in the docs repo.
+     Surface any mismatches in field names, types, nullability, or filter
+     descriptions so they can be addressed in the docs repo.
 
 ### Queue payload contract change
 

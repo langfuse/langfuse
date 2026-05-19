@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   Dialog,
   DialogBody,
@@ -25,6 +26,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -100,10 +102,20 @@ const formSchema = z.object({
     // providers don't carry a stray field. The strict provider schema
     // enforces presence at submit for `custom`.
     name: z.string().optional(),
+    idToken: z.boolean().optional(),
   }),
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+type AuthConfigFormField = `authConfig.${
+  | "clientId"
+  | "clientSecret"
+  | "issuer"
+  | "tenantId"
+  | "baseUrl"
+  | "name"
+  | "idToken"}`;
 
 type SsoConfigRow = {
   domain: string;
@@ -293,6 +305,7 @@ function SsoConfigDialog({
         tenantId: typeof cfg.tenantId === "string" ? cfg.tenantId : "",
         baseUrl: enterprise?.baseUrl ?? "",
         name: typeof cfg.name === "string" ? cfg.name : "",
+        idToken: typeof cfg.idToken === "boolean" ? cfg.idToken : true,
       },
     };
   }, [existing]);
@@ -360,7 +373,7 @@ function SsoConfigDialog({
           ? "authConfig.baseUrl"
           : schemaPath;
       const formField = formPath.startsWith("authConfig.")
-        ? (formPath as `authConfig.${"clientId" | "clientSecret" | "issuer" | "tenantId" | "baseUrl" | "name"}`)
+        ? (formPath as AuthConfigFormField)
         : "authProvider";
       form.setError(formField, { message: firstIssue.message });
       // Defensive fallback: if a future schema path doesn't map cleanly to
@@ -374,6 +387,7 @@ function SsoConfigDialog({
         "authConfig.tenantId",
         "authConfig.baseUrl",
         "authConfig.name",
+        "authConfig.idToken",
       ];
       if (!FORM_FIELDS.includes(formField)) {
         showErrorToast(
@@ -539,6 +553,36 @@ function SsoConfigDialog({
                       </FormItem>
                     )}
                   />
+                ) : null}
+
+                {selectedProvider === "custom" ? (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="authConfig.idToken"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-y-0 space-x-3 rounded-md border p-4">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value ?? false}
+                              onCheckedChange={(checked) =>
+                                field.onChange(checked === true)
+                              }
+                            />
+                          </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel>
+                              Use id_token claims only (skip userinfo)
+                            </FormLabel>
+                            <FormDescription>
+                              Leave off for IdPs that release email only via the
+                              userinfo endpoint.
+                            </FormDescription>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  </>
                 ) : null}
               </DialogBody>
               <DialogFooter>
@@ -738,6 +782,7 @@ function buildSsoPayload(domain: string, values: FormValues) {
           ...base,
           issuer: authConfig.issuer ?? "",
           name: authConfig.name ?? "",
+          idToken: authConfig.idToken ?? true,
         },
       };
     default:

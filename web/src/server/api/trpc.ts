@@ -170,6 +170,11 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
     if (res.error.cause instanceof ClickHouseResourceError) {
       // Surface ClickHouse errors using an advice message
       // which is supposed to provide a bit of guidance to the user.
+      logger.warn("ClickHouse resource limit exceeded", {
+        errorType: res.error.cause.errorType,
+        message: res.error.cause.message,
+        tags: res.error.cause.tags,
+      });
       logErrorByCode("UNPROCESSABLE_CONTENT", res.error);
       res.error = new TRPCError({
         code: "UNPROCESSABLE_CONTENT",

@@ -2,8 +2,8 @@ import {
   type ColumnDefinition,
   type SingleValueOption,
 } from "@langfuse/shared";
-import { type views } from "@/src/features/query/types";
-import { type ViewVersion } from "@/src/features/query";
+import { type ViewVersion, type views } from "@langfuse/shared/query";
+
 import { type z } from "zod";
 
 type GetWidgetFilterColumnsParams = {
@@ -18,6 +18,7 @@ type GetWidgetFilterColumnsParams = {
   observationLevelOptions: SingleValueOption[];
   experimentNameOptions: SingleValueOption[];
   experimentDatasetOptions: SingleValueOption[];
+  observationTypeOptions: SingleValueOption[];
 };
 
 type WidgetFilterColumnSpec = {
@@ -37,6 +38,7 @@ const getWidgetFilterColumnSpecs = ({
   observationLevelOptions,
   experimentNameOptions,
   experimentDatasetOptions,
+  observationTypeOptions,
 }: GetWidgetFilterColumnsParams): WidgetFilterColumnSpec[] => {
   const filterColumns: WidgetFilterColumnSpec[] = [
     {
@@ -225,6 +227,15 @@ const getWidgetFilterColumnSpecs = ({
           id: "level",
           type: "stringOptions",
           options: observationLevelOptions,
+          internal: "internalValue",
+        },
+      },
+      {
+        column: {
+          name: "Type",
+          id: "type",
+          type: "stringOptions",
+          options: observationTypeOptions,
           internal: "internalValue",
         },
       },
