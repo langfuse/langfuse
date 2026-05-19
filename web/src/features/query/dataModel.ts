@@ -1167,6 +1167,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "experimentId",
       type: "string",
       description: "ID of the experiment this observation belongs to.",
+      highCardinality: true,
       uiHidden: true, // Only available as filter, not as breakdown dimension
     },
   },
