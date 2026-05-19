@@ -1,9 +1,18 @@
+const { auditLogMock } = vi.hoisted(() => ({
+  auditLogMock: vi.fn(),
+}));
+
+vi.mock("@/src/features/audit-logs/auditLog", () => ({
+  auditLog: auditLogMock,
+}));
+
 import { Role } from "@langfuse/shared/src/db";
 import {
   buildStarterProjectMetadata,
   type StarterProjectMetadata,
 } from "@/src/features/onboarding/lib/starterProjectMetadata";
 import {
+  provisionStarterOrganizationForNewUser,
   resolveOnboardingRedirectTarget,
   type RealOrganizationMembership,
 } from "@/src/features/onboarding/server/onboardingService";
@@ -73,5 +82,90 @@ describe("resolveOnboardingRedirectTarget", () => {
       redirectTo: "/project/project-1/traces",
       showStarterProjectInvitePrompt: true,
     });
+  });
+});
+
+describe("provisionStarterOrganizationForNewUser", () => {
+  beforeEach(() => {
+    auditLogMock.mockReset();
+    auditLogMock.mockResolvedValue(undefined);
+  });
+
+  it("locks the user row before checking for existing real organizations", async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
+      organizationMembership: {
+        count: vi.fn().mockResolvedValue(0),
+      },
+      organization: {
+        create: vi.fn().mockResolvedValue({
+          id: "org-1",
+          name: "Starter Org",
+        }),
+      },
+      project: {
+        create: vi.fn().mockResolvedValue({
+          id: "project-1",
+          name: "My Project",
+        }),
+      },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (callback) => callback(tx)),
+    } as unknown as Parameters<
+      typeof provisionStarterOrganizationForNewUser
+    >[0]["prisma"];
+
+    const result = await provisionStarterOrganizationForNewUser({
+      prisma,
+      userId: "user-1",
+      userName: "Taylor",
+      canCreateOrganizations: true,
+    });
+
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.organizationMembership.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        userId: "user-1",
+      }),
+    });
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.organizationMembership.count.mock.invocationCallOrder[0],
+    );
+    expect(result).toMatchObject({
+      organization: { id: "org-1" },
+      project: { id: "project-1" },
+    });
+  });
+
+  it("does not create starter resources when the locked user already has a real org", async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
+      organizationMembership: {
+        count: vi.fn().mockResolvedValue(1),
+      },
+      organization: {
+        create: vi.fn(),
+      },
+      project: {
+        create: vi.fn(),
+      },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (callback) => callback(tx)),
+    } as unknown as Parameters<
+      typeof provisionStarterOrganizationForNewUser
+    >[0]["prisma"];
+
+    const result = await provisionStarterOrganizationForNewUser({
+      prisma,
+      userId: "user-1",
+      canCreateOrganizations: true,
+    });
+
+    expect(result).toBeNull();
+    expect(tx.organization.create).not.toHaveBeenCalled();
+    expect(tx.project.create).not.toHaveBeenCalled();
+    expect(auditLogMock).not.toHaveBeenCalled();
   });
 });

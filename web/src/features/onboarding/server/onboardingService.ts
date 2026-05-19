@@ -181,6 +181,15 @@ export const provisionStarterOrganizationForNewUser = async ({
   }
 
   const createdResources = await prisma.$transaction(async (tx) => {
+    // Serialize starter provisioning per user so concurrent first-login flows
+    // cannot both observe "no real orgs yet" and create duplicate starters.
+    await tx.$queryRaw`
+      SELECT id
+      FROM users
+      WHERE id = ${userId}
+      FOR UPDATE
+    `;
+
     const realOrganizationMembershipCount =
       await tx.organizationMembership.count({
         where: getRealOrganizationMembershipWhere(userId),

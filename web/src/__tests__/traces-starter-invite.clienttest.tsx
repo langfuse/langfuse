@@ -1,4 +1,4 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 
 const {
   useSessionMock,
@@ -150,6 +150,9 @@ describe("starter project invite prompt", () => {
 
     render(<TracesPage />);
 
+    expect(
+      screen.getByTestId("starter-project-invite-dialog"),
+    ).toBeInTheDocument();
     expect(latestCreateProjectMemberButtonProps?.open).toBe(true);
 
     await act(async () => {
@@ -166,7 +169,28 @@ describe("starter project invite prompt", () => {
     expect(updateSessionMock).not.toHaveBeenCalled();
   });
 
-  it("closes the invite prompt after the server consumes it", async () => {
+  it("does not mount the invite prompt for non-starter projects", () => {
+    useQueryProjectMock.mockReturnValue({
+      organization: {
+        id: "org-1",
+      },
+      project: {
+        id: "project-1",
+        name: "Regular Project",
+        hasTraces: false,
+        metadata: {},
+      },
+    });
+
+    render(<TracesPage />);
+
+    expect(
+      screen.queryByTestId("starter-project-invite-dialog"),
+    ).not.toBeInTheDocument();
+    expect(latestCreateProjectMemberButtonProps).toBeUndefined();
+  });
+
+  it("closes the invite prompt after the server consumes it once", async () => {
     mutateAsyncMock.mockResolvedValueOnce({
       updated: true,
     });
@@ -178,9 +202,12 @@ describe("starter project invite prompt", () => {
     });
 
     await waitFor(() => {
-      expect(latestCreateProjectMemberButtonProps?.open).toBe(false);
+      expect(
+        screen.queryByTestId("starter-project-invite-dialog"),
+      ).not.toBeInTheDocument();
     });
 
+    expect(mutateAsyncMock).toHaveBeenCalledTimes(1);
     expect(updateSessionMock).toHaveBeenCalledTimes(1);
   });
 });

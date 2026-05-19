@@ -70,7 +70,7 @@ export default function Traces() {
   };
 
   const starterProjectInvitePrompt =
-    organization && project ? (
+    showStarterProjectInvitePrompt && organization && project ? (
       <CreateProjectMemberButton
         orgId={organization.id}
         project={{ id: project.id, name: project.name }}
@@ -80,9 +80,6 @@ export default function Traces() {
           if (!open) {
             void handleConsumeStarterProjectInvitePrompt();
           }
-        }}
-        onSuccess={() => {
-          void handleConsumeStarterProjectInvitePrompt();
         }}
       />
     ) : null;
