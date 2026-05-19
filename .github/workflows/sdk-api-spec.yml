@@ -28,7 +28,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
         with:
-          version: 11.1.0
+          version: 11.1.3
 
       # Keep this secret-bearing job cache-cold to avoid exposing Fern and
       # GitHub write credentials to potentially poisoned shared package-manager state.
@@ -133,7 +133,7 @@ jobs:
 
           # Install dependencies and format
           corepack enable
-          corepack prepare pnpm@11.1.0 --activate
+          corepack prepare pnpm@11.1.3 --activate
           pnpm install
           pnpm format
 
