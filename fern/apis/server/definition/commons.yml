@@ -330,7 +330,8 @@ types:
         docs: The time to first token in seconds
 
       # Enrichment fields (always present on v2 responses; null when model group not requested).
-      # Prices are decimal strings (e.g. "0.0001") for backward compatibility — see
+      # Prices are decimal strings (e.g. "0.0001") for backward compatibility — changing to
+      # number would break Go/Java/C# callers who built typed structs against the original wire format.
       modelId:
         type: nullable<string>
         docs: The matched model ID. Null when the `model` field group is not requested.
