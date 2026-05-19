@@ -7920,17 +7920,17 @@ components:
           nullable: true
           description: The unique identifier of the model
         inputPrice:
-          type: string
+          type: number
           format: double
           nullable: true
           description: The price of the input in USD
         outputPrice:
-          type: string
+          type: number
           format: double
           nullable: true
           description: The price of the output in USD.
         totalPrice:
-          type: string
+          type: number
           format: double
           nullable: true
           description: The total price in USD.

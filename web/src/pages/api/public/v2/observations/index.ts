@@ -59,7 +59,7 @@ export default withMiddlewares({
 
       // Normalize for the wire format:
       // - empty parent_observation_id -> null (v1 parity)
-      // - Decimal price fields -> number (v1 parity; see transformDbToApiObservation)
+      // - Decimal price fields -> string (preserves original v2 wire format; v1 emits numbers via .toNumber())
       const transformedItems = dataToReturn.map((item) => ({
         ...item,
         parentObservationId:
