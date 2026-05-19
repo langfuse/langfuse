@@ -523,10 +523,7 @@ describe("Explicit filter in URL without viewId", () => {
       query: { filter: encoded },
     });
 
-    sessionStorage.setItem(
-      "traces-project-1-viewId",
-      JSON.stringify("view-1"),
-    );
+    sessionStorage.setItem("traces-project-1-viewId", JSON.stringify("view-1"));
 
     mockGetDefaultUseQuery.mockReturnValue({
       data: null,
@@ -554,6 +551,27 @@ describe("Explicit filter in URL without viewId", () => {
   });
 
   it("does not overwrite URL filters when session storage has a last-used viewId", async () => {
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "search",
+    );
+    expect(screen.getByTestId("explicit-state").textContent).not.toContain(
+      "checkout",
+    );
+  });
+
+  it("does not overwrite URL filters when the project has a default viewId", async () => {
+    sessionStorage.clear();
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: { viewId: "view-1", scope: "project" },
+      isLoading: false,
+    });
+
     render(<SavedViewHarness />);
 
     await waitFor(() => {
