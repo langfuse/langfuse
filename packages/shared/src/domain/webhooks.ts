@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { jsonSchema } from "../utils/zod";
-import { MonitorAlertSchema } from "../features/monitor";
 import { EventActionSchema } from "./automations";
 
 export const WebhookDefaultHeaders = {
@@ -51,21 +50,4 @@ export const GitHubDispatchWebhookOutboundSchema = z.object({
 
 export type GitHubDispatchWebhookOutput = z.infer<
   typeof GitHubDispatchWebhookOutboundSchema
->;
-
-// `payload.window` is stringified here because the rest of the system
-// keeps `window` as a `bigint` (cheap arithmetic, exact ms) and `bigint`
-// has no JSON representation.
-export const MonitorAlertWebhookOutboundSchema = z.object({
-  id: z.string(),
-  timestamp: z.coerce.date(),
-  type: z.literal("monitor-alert"),
-  apiVersion: z.literal("v1"),
-  payload: MonitorAlertSchema.omit({ window: true }).extend({
-    window: z.bigint().transform((v) => v.toString()),
-  }),
-});
-
-export type MonitorAlertWebhookOutput = z.infer<
-  typeof MonitorAlertWebhookOutboundSchema
 >;

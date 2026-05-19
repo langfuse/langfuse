@@ -58,6 +58,10 @@
     "./monitor": {
       "import": "./dist/src/features/monitor/index.js",
       "require": "./dist/src/features/monitor/index.js"
+    },
+    "./monitor/server": {
+      "import": "./dist/src/features/monitor/server/index.js",
+      "require": "./dist/src/features/monitor/server/index.js"
     }
   },
   "scripts": {

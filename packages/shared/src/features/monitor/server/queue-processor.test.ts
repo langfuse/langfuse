@@ -1,7 +1,22 @@
 import { describe, it, expect } from "vitest";
 
-import { MonitorWindow } from "../features/monitor";
-import { MonitorAlertWebhookOutboundSchema } from "./webhooks";
+import { MonitorWindow } from "../types";
+import {
+  MonitorAlertWebhookOutboundSchema,
+  MonitorAlertWebhookPublishInputSchema,
+} from "./queue-processor";
+
+const validAlertPayload = {
+  monitorId: "mon_01",
+  projectId: "proj_01",
+  severity: "ALERT" as const,
+  permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
+  timestamp: new Date("2026-05-18T12:01:00.000Z"),
+  message: { title: "High error rate", body: "errors > 100" },
+  view: "OBSERVATIONS" as const,
+  filters: [],
+  window: MonitorWindow.FIVE_MIN,
+};
 
 describe("MonitorAlertWebhookOutboundSchema", () => {
   const validOutbound = {
@@ -9,17 +24,7 @@ describe("MonitorAlertWebhookOutboundSchema", () => {
     timestamp: new Date("2026-05-18T12:01:00.000Z"),
     type: "monitor-alert" as const,
     apiVersion: "v1" as const,
-    payload: {
-      monitorId: "mon_01",
-      projectId: "proj_01",
-      severity: "ALERT" as const,
-      permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
-      timestamp: new Date("2026-05-18T12:01:00.000Z"),
-      message: { title: "High error rate", body: "errors > 100" },
-      view: "OBSERVATIONS" as const,
-      filters: [],
-      window: MonitorWindow.FIVE_MIN,
-    },
+    payload: validAlertPayload,
   };
 
   it("round-trips a valid outbound payload", () => {
@@ -57,6 +62,35 @@ describe("MonitorAlertWebhookOutboundSchema", () => {
       MonitorAlertWebhookOutboundSchema.safeParse({
         ...validOutbound,
         apiVersion: "v2",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("MonitorAlertWebhookPublishInputSchema", () => {
+  const validPublishInput = {
+    projectId: "proj_01",
+    automationId: "auto_01",
+    executionId: "exe_01",
+    payload: {
+      type: "monitor-alert" as const,
+      apiVersion: "v1" as const,
+      payload: validAlertPayload,
+    },
+  };
+
+  it("parses a valid publish input", () => {
+    expect(
+      MonitorAlertWebhookPublishInputSchema.safeParse(validPublishInput)
+        .success,
+    ).toBe(true);
+  });
+
+  it("rejects a publish input with a non-monitor-alert envelope", () => {
+    expect(
+      MonitorAlertWebhookPublishInputSchema.safeParse({
+        ...validPublishInput,
+        payload: { ...validPublishInput.payload, type: "prompt-version" },
       }).success,
     ).toBe(false);
   });
