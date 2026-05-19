@@ -735,6 +735,7 @@ export async function runLLMAsJudgeEvaluation({
   config,
   template,
   extractedVariables,
+  metadata,
   deps,
 }: {
   projectId: string;
@@ -744,6 +745,7 @@ export async function runLLMAsJudgeEvaluation({
   template: EvalTemplateLlmAsAJudge;
   extractedVariables: ExtractedVariable[];
   environment: string;
+  metadata: Record<string, string>;
   deps: EvalExecutionDeps;
 }): Promise<EvalExecutionResult> {
   return instrumentAsync(
@@ -856,14 +858,6 @@ export async function runLLMAsJudgeEvaluation({
       span.setAttribute("eval.score.id", primaryScoreId);
       const executionTraceId = createW3CTraceId(jobExecutionId);
 
-      const executionMetadata = buildEvalExecutionMetadata({
-        jobExecutionId,
-        jobConfigurationId: job.jobConfigurationId,
-        targetTraceId: job.jobInputTraceId,
-        targetObservationId: job.jobInputObservationId,
-        targetDatasetItemId: job.jobInputDatasetItemId,
-      });
-
       // Call LLM
       const llmOutput = await instrumentAsync(
         { name: "eval.call-llm" },
@@ -898,7 +892,7 @@ export async function runLLMAsJudgeEvaluation({
                 traceName: `Execute evaluator: ${template.name}`,
                 environment: LangfuseInternalTraceEnvironment.LLMJudge,
                 metadata: {
-                  ...executionMetadata,
+                  ...metadata,
                   score_id: primaryScoreId,
                 },
               },
@@ -964,19 +958,28 @@ export async function runLLMAsJudgeEvaluation({
         outputResult: parsedLLMOutput.data,
         primaryScoreId,
         executionTraceId,
-        metadata: executionMetadata,
       };
     },
   );
 }
 
 export async function executeLLMAsJudgeEvaluation(
-  params: Omit<Parameters<typeof runLLMAsJudgeEvaluation>[0], "deps"> & {
+  params: Omit<
+    Parameters<typeof runLLMAsJudgeEvaluation>[0],
+    "deps" | "metadata"
+  > & {
     deps?: EvalExecutionDeps;
   },
 ): Promise<void> {
   const deps = params.deps ?? createProductionEvalExecutionDeps();
-  const result = await runLLMAsJudgeEvaluation({ ...params, deps });
+  const metadata = buildEvalExecutionMetadata({
+    jobExecutionId: params.jobExecutionId,
+    jobConfigurationId: params.job.jobConfigurationId,
+    targetTraceId: params.job.jobInputTraceId,
+    targetObservationId: params.job.jobInputObservationId,
+    targetDatasetItemId: params.job.jobInputDatasetItemId,
+  });
+  const result = await runLLMAsJudgeEvaluation({ ...params, deps, metadata });
 
   await completeEvalExecution({
     projectId: params.projectId,
@@ -985,6 +988,7 @@ export async function executeLLMAsJudgeEvaluation(
     observationId: params.job.jobInputObservationId,
     scoreName: params.config.scoreName,
     environment: params.environment,
+    metadata,
     deps,
     ...result,
   });
