@@ -3015,12 +3015,10 @@ export const getEventsForBlobStorageExport = function (
     ? fieldGroups
     : (["core", ...fieldGroups] as ObservationFieldGroupFull[]);
 
-  // model_export must be selected whenever model or usage is requested:
-  // - model group: include model identification fields in the output
-  // - usage group (without model): pricing enrichment needs model_id for the
-  //   lookup; the field is dropped afterward by enrichObservationStream
-  const needsModelFields =
-    fieldGroups.includes("model") || fieldGroups.includes("usage");
+  // model_export must be selected when the model group is requested.
+  // It provides model_id (needed for the pricing lookup), provided_model_name,
+  // and model_parameters. Pricing fields are only enriched when model is selected.
+  const needsModelFields = fieldGroups.includes("model");
 
   for (const group of effectiveGroups) {
     if (group === "io") {
