@@ -8126,7 +8126,30 @@ components:
         modelId:
           type: string
           nullable: true
-          description: The matched model ID
+          description: >-
+            The matched model ID. Null when the `model` field group is not
+            requested.
+        inputPrice:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            The input token price (USD per unit) from the matched model. Null
+            when the `model` field group is not requested.
+        outputPrice:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            The output token price (USD per unit) from the matched model. Null
+            when the `model` field group is not requested.
+        totalPrice:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            The total token price (USD per unit) from the matched model. Null
+            when the `model` field group is not requested.
         traceName:
           type: string
           nullable: true

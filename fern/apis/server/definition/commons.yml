@@ -321,10 +321,19 @@ types:
         type: optional<nullable<double>>
         docs: The time to first token in seconds
 
-      # Enrichment fields (added by server-side enrichment)
+      # Enrichment fields (always present on v2 responses, null when `model` field group not requested)
       modelId:
-        type: optional<nullable<string>>
-        docs: The matched model ID
+        type: nullable<string>
+        docs: The matched model ID. Null when the `model` field group is not requested.
+      inputPrice:
+        type: nullable<double>
+        docs: The input token price (USD per unit) from the matched model. Null when the `model` field group is not requested.
+      outputPrice:
+        type: nullable<double>
+        docs: The output token price (USD per unit) from the matched model. Null when the `model` field group is not requested.
+      totalPrice:
+        type: nullable<double>
+        docs: The total token price (USD per unit) from the matched model. Null when the `model` field group is not requested.
 
       # Trace context fields (field group: trace_context)
       traceName:
