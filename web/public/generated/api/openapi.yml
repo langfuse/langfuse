@@ -7920,17 +7920,17 @@ components:
           nullable: true
           description: The unique identifier of the model
         inputPrice:
-          type: number
+          type: string
           format: double
           nullable: true
           description: The price of the input in USD
         outputPrice:
-          type: number
+          type: string
           format: double
           nullable: true
           description: The price of the output in USD.
         totalPrice:
-          type: number
+          type: string
           format: double
           nullable: true
           description: The total price in USD.
@@ -8130,26 +8130,26 @@ components:
             The matched model ID. Null when the `model` field group is not
             requested.
         inputPrice:
-          type: number
-          format: double
+          type: string
           nullable: true
           description: >-
-            The input token price (USD per unit) from the matched model. Null
-            when the `model` field group is not requested.
+            The input token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
         outputPrice:
-          type: number
-          format: double
+          type: string
           nullable: true
           description: >-
-            The output token price (USD per unit) from the matched model. Null
-            when the `model` field group is not requested.
+            The output token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
         totalPrice:
-          type: number
-          format: double
+          type: string
           nullable: true
           description: >-
-            The total token price (USD per unit) from the matched model. Null
-            when the `model` field group is not requested.
+            The total token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
         traceName:
           type: string
           nullable: true
