@@ -326,14 +326,14 @@ types:
         type: nullable<string>
         docs: The matched model ID. Null when the `model` field group is not requested.
       inputPrice:
-        type: nullable<double>
-        docs: The input token price (USD per unit) from the matched model. Null when the `model` field group is not requested.
+        type: nullable<string>
+        docs: The input token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
       outputPrice:
-        type: nullable<double>
-        docs: The output token price (USD per unit) from the matched model. Null when the `model` field group is not requested.
+        type: nullable<string>
+        docs: The output token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
       totalPrice:
-        type: nullable<double>
-        docs: The total token price (USD per unit) from the matched model. Null when the `model` field group is not requested.
+        type: nullable<string>
+        docs: The total token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
 
       # Trace context fields (field group: trace_context)
       traceName:

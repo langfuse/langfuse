@@ -444,10 +444,12 @@ const APIObservationV2 = z
 
     // Enrichment fields (always present on v2 responses).
     // Populated only when "model" is in the `fields` query param; otherwise null.
+    // Prices are strings (serialized from Prisma Decimal) to preserve backward compatibility
+    // with callers who built typed schemas against the initial v2 wire format.
     modelId: z.string().nullable(),
-    inputPrice: z.number().nullable(),
-    outputPrice: z.number().nullable(),
-    totalPrice: z.number().nullable(),
+    inputPrice: z.string().nullable(),
+    outputPrice: z.string().nullable(),
+    totalPrice: z.string().nullable(),
 
     // Trace context fields (field group: trace_context)
     traceName: z.string().nullable().optional(),

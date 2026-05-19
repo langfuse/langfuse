@@ -64,9 +64,10 @@ export default withMiddlewares({
         ...item,
         parentObservationId:
           item.parentObservationId === "" ? null : item.parentObservationId,
-        inputPrice: item.inputPrice?.toNumber() ?? null,
-        outputPrice: item.outputPrice?.toNumber() ?? null,
-        totalPrice: item.totalPrice?.toNumber() ?? null,
+        modelId: item.modelId ?? null,
+        inputPrice: item.inputPrice?.toString() ?? null,
+        outputPrice: item.outputPrice?.toString() ?? null,
+        totalPrice: item.totalPrice?.toString() ?? null,
       }));
 
       // Generate cursor if there are more results
