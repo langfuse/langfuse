@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
 
+import { DAY, HOUR, MINUTE, WEEK } from "./internal";
 import {
   MonitorWindow,
   isValidMonitorWindow,
-  monitorWindowCadenceMs,
+  calculateMonitorWindowCadenceMillis,
   MonitorRenotifySchema,
   MonitorNoDataSchema,
   MonitorSchema,
@@ -48,12 +49,6 @@ const validMonitorBase = {
   alertedAt: null,
 };
 
-// Local readability aliases. The production module keeps these internal.
-const MINUTE_MS = 60_000n;
-const HOUR_MS = 60n * MINUTE_MS;
-const DAY_MS = 24n * HOUR_MS;
-const WEEK_MS = 7n * DAY_MS;
-
 describe("MonitorWindow tier map", () => {
   it("exposes the 10 RFC tiers with BigInt millisecond values", () => {
     expect(MonitorWindow.FIVE_MIN).toBe(5n * 60_000n);
@@ -81,23 +76,33 @@ describe("isValidMonitorWindow", () => {
   });
 });
 
-describe("monitorWindowCadenceMs", () => {
+describe("calculateMonitorWindowCadenceMillis", () => {
   it("returns 1 minute for sub-day windows", () => {
-    expect(monitorWindowCadenceMs(MonitorWindow.FIVE_MIN)).toBe(MINUTE_MS);
-    expect(monitorWindowCadenceMs(MonitorWindow.FOUR_HOUR)).toBe(MINUTE_MS);
-    expect(monitorWindowCadenceMs(DAY_MS - 1n)).toBe(MINUTE_MS);
+    expect(calculateMonitorWindowCadenceMillis(MonitorWindow.FIVE_MIN)).toBe(
+      MINUTE,
+    );
+    expect(calculateMonitorWindowCadenceMillis(MonitorWindow.FOUR_HOUR)).toBe(
+      MINUTE,
+    );
+    expect(calculateMonitorWindowCadenceMillis(DAY - 1n)).toBe(MINUTE);
   });
 
   it("returns 30 minutes for day-to-week windows", () => {
-    expect(monitorWindowCadenceMs(MonitorWindow.ONE_DAY)).toBe(30n * MINUTE_MS);
-    expect(monitorWindowCadenceMs(DAY_MS + 1n)).toBe(30n * MINUTE_MS);
-    expect(monitorWindowCadenceMs(MonitorWindow.TWO_DAY)).toBe(30n * MINUTE_MS);
-    expect(monitorWindowCadenceMs(WEEK_MS - 1n)).toBe(30n * MINUTE_MS);
+    expect(calculateMonitorWindowCadenceMillis(MonitorWindow.ONE_DAY)).toBe(
+      30n * MINUTE,
+    );
+    expect(calculateMonitorWindowCadenceMillis(DAY + 1n)).toBe(30n * MINUTE);
+    expect(calculateMonitorWindowCadenceMillis(MonitorWindow.TWO_DAY)).toBe(
+      30n * MINUTE,
+    );
+    expect(calculateMonitorWindowCadenceMillis(WEEK - 1n)).toBe(30n * MINUTE);
   });
 
   it("returns 48 hours for week-and-up windows", () => {
-    expect(monitorWindowCadenceMs(MonitorWindow.ONE_WEEK)).toBe(48n * HOUR_MS);
-    expect(monitorWindowCadenceMs(WEEK_MS + 1n)).toBe(48n * HOUR_MS);
+    expect(calculateMonitorWindowCadenceMillis(MonitorWindow.ONE_WEEK)).toBe(
+      48n * HOUR,
+    );
+    expect(calculateMonitorWindowCadenceMillis(WEEK + 1n)).toBe(48n * HOUR);
   });
 });
 
@@ -396,12 +401,8 @@ describe("MonitorQueueEventSchema", () => {
     view: "OBSERVATIONS" as const,
     filters: [],
     window: MonitorWindow.FIVE_MIN,
-    monitors: [
-      {
-        monitorId: "mon_01",
-        metric: { measure: "count", aggregation: "count" as const },
-      },
-    ],
+    metrics: [{ measure: "count", aggregation: "count" as const }],
+    monitors: [{ monitorId: "mon_01", metricName: "count_count" }],
   };
 
   it("parses a representative queue event", () => {
