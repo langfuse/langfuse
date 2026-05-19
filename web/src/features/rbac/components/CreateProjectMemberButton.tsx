@@ -50,16 +50,12 @@ const formSchema = z.object({
 export function CreateProjectMemberButton(props: {
   orgId: string;
   project?: { id: string; name: string };
-  defaultOpen?: boolean;
   open?: boolean;
   hideTrigger?: boolean;
   onOpenChange?: (open: boolean) => void;
-  onSuccess?: () => void | Promise<void>;
 }) {
   const capture = usePostHogClientCapture();
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(
-    props.defaultOpen ?? false,
-  );
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isControlled = props.open !== undefined;
   const open = isControlled ? props.open : uncontrolledOpen;
   const setOpen = (nextOpen: boolean) => {
@@ -143,7 +139,6 @@ export function CreateProjectMemberButton(props: {
       })
       .then(() => {
         form.reset();
-        void props.onSuccess?.();
         setOpen(false);
       })
       .catch((error) => {
