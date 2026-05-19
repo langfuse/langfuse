@@ -14,6 +14,13 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -31,6 +38,8 @@ import {
   extractVariables,
   getIsCharOrUnderscore,
 } from "@langfuse/shared";
+
+type TemplateFormat = "default" | "jinja2";
 import { PromptChatMessages } from "./PromptChatMessages";
 import { ReviewPromptDialog } from "./ReviewPromptDialog";
 import {
@@ -78,6 +87,17 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     initialPromptVariant = null;
   }
 
+  const initialConfig =
+    initialPrompt?.config &&
+    typeof initialPrompt.config === "object" &&
+    initialPrompt.config !== null
+      ? (initialPrompt.config as Record<string, unknown>)
+      : {};
+
+  const [templateFormat, setTemplateFormat] = useState<TemplateFormat>(
+    (initialConfig.templateFormat as TemplateFormat) ?? "default",
+  );
+
   const defaultValues = {
     type: initialPromptVariant?.type ?? PromptType.Text,
     chatPrompt:
@@ -102,11 +122,13 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
   const currentName = form.watch("name");
   const currentType = form.watch("type");
-  const currentExtractedVariables = extractVariables(
+  const currentPromptText =
     currentType === PromptType.Text
       ? form.watch("textPrompt")
-      : JSON.stringify(form.watch("chatPrompt"), null, 2),
-  ).filter(getIsCharOrUnderscore);
+      : JSON.stringify(form.watch("chatPrompt"), null, 2);
+  const currentExtractedVariables = extractVariables(currentPromptText).filter(
+    getIsCharOrUnderscore,
+  );
 
   const createPromptMutation = api.prompts.create.useMutation({
     onSuccess: () => utils.prompts.invalidate(),
@@ -141,6 +163,12 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
     const { type, textPrompt, chatPrompt } = values;
 
+    // Merge templateFormat into config JSON
+    const parsedConfig = {
+      ...(JSON.parse(values.config) as Record<string, unknown>),
+      templateFormat,
+    };
+
     // TS does not narrow down type of 'prompt' property given the type of 'type' property in ternary operator
     let newPrompt: CreatePromptTRPCType;
     if (type === PromptType.Chat) {
@@ -149,7 +177,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         projectId,
         type,
         prompt: chatPrompt,
-        config: JSON.parse(values.config),
+        config: parsedConfig,
         labels: values.isActive ? [PRODUCTION_LABEL] : [],
       };
     } else {
@@ -158,7 +186,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         projectId,
         type,
         prompt: textPrompt,
-        config: JSON.parse(values.config),
+        config: parsedConfig,
         labels: values.isActive ? [PRODUCTION_LABEL] : [],
       };
     }
@@ -383,6 +411,35 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           </FormItem>
           <PromptVariableListPreview variables={currentExtractedVariables} />
         </>
+
+        {/* Template Format selector */}
+        <FormItem>
+          <FormLabel>Template Format</FormLabel>
+          <FormDescription>
+            <b>Default</b> — use{" "}
+            <code className="text-xs">{"{{variable}}"}</code> substitution only.{" "}
+            <b>Jinja2</b> — also enables{" "}
+            <code className="text-xs">{"{% if %}...{% endif %}"}</code>{" "}
+            conditionals and{" "}
+            <code className="text-xs">{"{% for item in list %}"}</code> loops.
+          </FormDescription>
+          <Select
+            onValueChange={(v) => setTemplateFormat(v as TemplateFormat)}
+            value={templateFormat}
+          >
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Select format" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">
+                Default ({"{{var}}"} only)
+              </SelectItem>
+              <SelectItem value="jinja2">
+                Jinja2 (conditionals + loops)
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </FormItem>
 
         {/* Prompt Config field */}
         <FormField

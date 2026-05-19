@@ -64,7 +64,9 @@ import {
   renderRichPromptContent,
 } from "@/src/components/ui/PromptReferences";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
+import { Jinja2ResolutionPanel } from "@/src/features/prompts/components/Jinja2ResolutionPanel";
 import { createBreadcrumbItems } from "@/src/features/folders/utils";
+import { PromptConfigSchema } from "@langfuse/shared";
 
 const getPythonCode = (
   name: string,
@@ -266,6 +268,34 @@ export const PromptDetail = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompt?.id]);
+
+  const promptConfig = PromptConfigSchema.parse(
+    typeof prompt?.config === "object" && prompt.config !== null
+      ? prompt.config
+      : {},
+  );
+  const templateFormat = promptConfig.templateFormat ?? "default";
+
+  const promptText =
+    prompt?.type === PromptType.Text
+      ? (prompt.prompt?.toString() ?? "")
+      : JSON.stringify(prompt?.prompt ?? "");
+
+  const jinja2Variables = useMemo(() => {
+    if (templateFormat !== "jinja2" || !promptText) return [];
+    const matches = new Set<string>();
+    const varRegex = /{{\s*([\w.]+)\s*(?:\|[^}]*)?\s*}}/g;
+    let m;
+    while ((m = varRegex.exec(promptText)) !== null) {
+      const name = m[1].split(".")[0];
+      if (name && !["loop"].includes(name)) matches.add(name);
+    }
+    const forRegex = /{%[-\s]*for\s+\w+\s+in\s+([\w.]+)\s*[-\s]*%}/g;
+    while ((m = forRegex.exec(promptText)) !== null) {
+      if (m[1]) matches.add(m[1]);
+    }
+    return Array.from(matches);
+  }, [templateFormat, promptText]);
 
   if (!promptHistory.data || !prompt) {
     return <div className="p-3">Loading...</div>;
@@ -566,6 +596,12 @@ export const PromptDetail = ({
                   )}
                 </PromptReferenceProvider>
                 <PromptVariableListPreview variables={extractedVariables} />
+                {templateFormat === "jinja2" && jinja2Variables.length > 0 && (
+                  <Jinja2ResolutionPanel
+                    template={promptText}
+                    variables={jinja2Variables}
+                  />
+                )}
               </div>
             </TabsBarContent>
             <TabsBarContent

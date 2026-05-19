@@ -12,7 +12,7 @@ import { logger } from "@langfuse/shared/src/server";
  */
 export interface ExtractedVariable {
   var: string;
-  value: string;
+  value: unknown;
   environment?: string;
 }
 

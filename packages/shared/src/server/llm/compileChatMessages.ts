@@ -8,6 +8,7 @@ import {
   type ChatMessageWithId,
   type ChatMessageWithIdNoPlaceholders,
 } from "./types";
+import { compilePromptTemplate, type TemplateFormat } from "../prompt-compiler";
 
 export type MessagePlaceholderValues = Record<string, unknown[]>;
 export type PromptMessage = z.infer<typeof PromptChatMessageSchema>;
@@ -20,15 +21,10 @@ export function isPlaceholder(
 
 function replaceTextVariables(
   content: string,
-  textVariables: Record<string, string>,
+  textVariables: Record<string, unknown>,
+  format: TemplateFormat = "default",
 ): string {
-  let result = content;
-  for (const [varName, varValue] of Object.entries(textVariables)) {
-    // Create regex that handles optional whitespace around variable name
-    const variablePattern = new RegExp(`{{\\s*${varName}\\s*}}`, "g");
-    result = result.replace(variablePattern, varValue);
-  }
-  return result;
+  return compilePromptTemplate(content, textVariables, format).compiled;
 }
 
 function expandPlaceholder(
@@ -65,7 +61,8 @@ function expandPlaceholder(
 export function compileChatMessages(
   messages: PromptMessage[],
   placeholderValues: MessagePlaceholderValues,
-  textVariables?: Record<string, string>,
+  textVariables?: Record<string, unknown>,
+  format: TemplateFormat = "default",
 ): ChatMessage[] {
   const expandedMessages = messages.flatMap((message) =>
     isPlaceholder(message)
@@ -85,7 +82,7 @@ export function compileChatMessages(
 
     return {
       ...message,
-      content: replaceTextVariables(message.content, textVariables),
+      content: replaceTextVariables(message.content, textVariables, format),
     };
   });
 }
@@ -93,7 +90,8 @@ export function compileChatMessages(
 export function compileChatMessagesWithIds(
   messages: ChatMessageWithId[],
   placeholderValues: MessagePlaceholderValues,
-  textVariables?: Record<string, string>,
+  textVariables?: Record<string, unknown>,
+  format: TemplateFormat = "default",
 ): ChatMessageWithIdNoPlaceholders[] {
   // TODO: check, is it even important to retain the IDs?
   const expandedMessages = messages.flatMap((message) => {
@@ -118,7 +116,7 @@ export function compileChatMessagesWithIds(
 
     return {
       ...message,
-      content: replaceTextVariables(message.content, textVariables),
+      content: replaceTextVariables(message.content, textVariables, format),
     };
   });
 }

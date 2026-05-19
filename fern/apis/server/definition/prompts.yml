@@ -63,6 +63,26 @@ service:
       request: CreatePromptRequest
       response: Prompt
 
+    compile:
+      docs: |
+        Compile a prompt by resolving all template variables. Supports both the default
+        `{{variable}}` substitution and Jinja2/Nunjucks syntax including conditionals
+        (`{% if %}...{% endif %}`) and loops (`{% for item in list %}`). The template
+        format is determined by the `templateFormat` field in the prompt's config.
+
+        Version/label selection works identically to the GET endpoint:
+        - Omit both → compiles the "production" label
+        - `label: "staging"` → compiles the staging variant
+        - `version: 3` → compiles a specific version
+      method: POST
+      path: /prompts/{promptName}/compile
+      path-parameters:
+        promptName:
+          type: string
+          docs: The name of the prompt to compile.
+      request: CompilePromptRequest
+      response: CompiledPromptResponse
+
     delete:
       docs: Delete prompt versions. If neither version nor label is specified, all versions of the prompt are deleted.
       method: DELETE
@@ -138,6 +158,39 @@ types:
       commitMessage:
         type: optional<string>
         docs: Commit message for this prompt version.
+
+  CompilePromptRequest:
+    properties:
+      variables:
+        type: optional<map<string, unknown>>
+        docs: |
+          Variable values. Strings, numbers, booleans, arrays, or objects. Arrays and objects
+          enable Jinja2 loops (`{% for item in list %}`).
+      version:
+        type: optional<integer>
+        docs: Compile a specific version. Mutually exclusive with `label`.
+      label:
+        type: optional<string>
+        docs: Compile the prompt with this label. Defaults to "production" if neither version nor label is provided.
+
+  CompiledPromptResponse:
+    extends: BasePrompt
+    properties:
+      id: string
+      type: PromptType
+      createdAt: datetime
+      updatedAt: datetime
+      projectId: string
+      createdBy: string
+      prompt:
+        type: unknown
+        docs: The compiled prompt — a string for text prompts, a list of chat messages for chat prompts.
+      isActive:
+        type: boolean
+        docs: Whether this prompt version carries the "production" label.
+      compilationErrors:
+        type: optional<list<string>>
+        docs: Non-fatal warnings, e.g. undefined variables referenced in logic blocks.
 
   Prompt:
     union:

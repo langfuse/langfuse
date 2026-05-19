@@ -31,6 +31,7 @@ export * from "./llm/utils";
 export * from "./llm/types";
 export * from "./llm/internalTraceEvents";
 export * from "./llm/compileChatMessages";
+export * from "./prompt-compiler";
 export * from "./llm/testModelCall";
 export * from "./llm/baseUrlValidation";
 export * from "./llm/getInternalTracingHandler";

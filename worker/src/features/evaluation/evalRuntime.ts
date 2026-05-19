@@ -1,18 +1,54 @@
-import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
+import {
+  ChatMessageRole,
+  ChatMessageType,
+  deepParseJson,
+} from "@langfuse/shared";
 import { compileTemplateString } from "../utils";
+import { logger } from "@langfuse/shared/src/server";
+import { type TemplateFormat } from "@langfuse/shared/src/server";
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
 
 export interface CompileEvalPromptParams {
   templatePrompt: string;
   variables: ExtractedVariable[];
+  templateFormat?: TemplateFormat;
 }
 
 export function compileEvalPrompt(params: CompileEvalPromptParams): string {
+  const format = params.templateFormat ?? "default";
+
   const variableMap = Object.fromEntries(
-    params.variables.map(({ var: key, value }) => [key, value]),
+    params.variables.map(({ var: key, value }) => {
+      // For Jinja2 format: re-parse JSON strings so arrays/objects are passed
+      // as structured data, enabling {% for item in list %} loops.
+      if (format === "jinja2" && typeof value === "string") {
+        try {
+          const parsed = deepParseJson(value);
+          return [key, parsed];
+        } catch {
+          return [key, value];
+        }
+      }
+      return [key, value];
+    }),
   );
 
-  return compileTemplateString(params.templatePrompt, variableMap);
+  const result = compileTemplateString(
+    params.templatePrompt,
+    variableMap,
+    format,
+  );
+
+  if (format === "jinja2") {
+    // compileTemplateString logs warnings internally; surface undefined-variable
+    // issues here for observability in eval job logs.
+    logger.debug("compileEvalPrompt completed", {
+      format,
+      variableCount: params.variables.length,
+    });
+  }
+
+  return result;
 }
 
 export function buildEvalExecutionMetadata(params: {

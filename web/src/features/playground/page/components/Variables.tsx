@@ -9,8 +9,10 @@ export const Variables = () => {
     <div className="text-xs">
       <p className="mb-2">No variables defined.</p>
       <p>
-        Use double curly braces in your prompts to add a variable:
-        &#123;&#123;exampleVariable&#125;&#125;
+        Use <code>{"{{variable}}"}</code> to add a simple variable. For Jinja2
+        prompts also use <code>{"{% if condition %}"}</code> or{" "}
+        <code>{"{% for item in list %}"}</code>. Switch a variable to{" "}
+        <b>JSON</b> type to pass arrays or objects.
       </p>
     </div>
   );

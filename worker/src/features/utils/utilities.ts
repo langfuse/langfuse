@@ -1,21 +1,23 @@
 import crypto from "node:crypto";
 import { logger } from "@langfuse/shared/src/server";
+import {
+  compilePromptTemplate,
+  type TemplateFormat,
+} from "@langfuse/shared/src/server";
 
 export function compileTemplateString(
   template: string,
-  context: Record<string, any>,
+  context: Record<string, unknown>,
+  format: TemplateFormat = "default",
 ): string {
   try {
-    return template.replace(/{{\s*([\w.]+)\s*}}/g, (match, key) => {
-      if (key in context) {
-        const value = context[key];
-        return value === undefined || value === null ? "" : String(value);
-      }
-      return match; // missing key → return original variable including its braces
-    });
+    const result = compilePromptTemplate(template, context, format);
+    if (result.errors.length > 0) {
+      logger.warn("Template compilation warnings:", { errors: result.errors });
+    }
+    return result.compiled;
   } catch (error) {
     logger.info("Template compilation error:", error);
-
     return template;
   }
 }

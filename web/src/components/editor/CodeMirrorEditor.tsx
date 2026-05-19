@@ -21,7 +21,6 @@ import { useState, useCallback, type RefObject } from "react";
 import { LanguageSupport, StreamLanguage } from "@codemirror/language";
 import type { StringStream } from "@codemirror/language";
 import {
-  isValidVariableName,
   MULTILINE_VARIABLE_REGEX,
   MUSTACHE_REGEX,
   UNCLOSED_VARIABLE_REGEX,
@@ -31,7 +30,7 @@ import {
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { darkTheme } from "@/src/components/editor/dark-theme";
 
-// Custom language mode for prompts that highlights mustache variables and prompt dependency tags
+// Custom language mode for prompts that highlights mustache variables, Jinja2 blocks, and prompt dependency tags
 const promptLanguage = StreamLanguage.define({
   name: "prompt",
   startState: () => ({}),
@@ -40,24 +39,40 @@ const promptLanguage = StreamLanguage.define({
     if (stream.match("@@@langfusePrompt:")) {
       stream.skipTo("@@@") || stream.skipToEnd();
       stream.match("@@@");
-
       return "keyword";
     }
 
-    // Highlight mustache variables
-    if (stream.match("{{")) {
-      const start = stream.pos;
-      stream.skipTo("}}") || stream.skipToEnd();
-      const content = stream.string.slice(start, stream.pos);
-      stream.match("}}");
-      return isValidVariableName(content) ? "variable" : "error";
+    // Jinja2 comments: {# ... #}
+    if (stream.match("{#")) {
+      stream.skipTo("#}") || stream.skipToEnd();
+      stream.match("#}");
+      return "comment";
     }
+
+    // Jinja2 block tags: {%- ... -%} or {% ... %}
+    if (stream.match("{%-") || stream.match("{%")) {
+      stream.skipTo("%}") || stream.skipToEnd();
+      stream.match("-%}") || stream.match("%}");
+      return "keyword";
+    }
+
+    // Mustache / Jinja2 output expressions: {{ ... }}
+    // Accept any expression (dotted paths, filters, etc.) — validation is at compile time
+    if (stream.match("{{")) {
+      stream.skipTo("}}") || stream.skipToEnd();
+      stream.match("}}");
+      return "variable";
+    }
+
     stream.next();
     return null;
   },
 });
 
-// Linter for prompt variables
+// Regex for unclosed {% blocks ({% without matching %} on the same content scan)
+const UNCLOSED_BLOCK_REGEX = /\{%-?(?![^{]*%\})/g;
+
+// Linter for prompt variables and Jinja2 blocks
 const promptLinter = linter((view) => {
   const diagnostics: Diagnostic[] = [];
   const content = view.state.doc.toString();
@@ -72,8 +87,11 @@ const promptLinter = linter((view) => {
     });
   }
 
-  // Check for unclosed variables
+  // Check for unclosed {{ brackets (but not {% or {# which are Jinja2 syntax)
   for (const match of content.matchAll(UNCLOSED_VARIABLE_REGEX)) {
+    // Skip if this is actually a Jinja2 block tag or comment start
+    const after = content.slice(match.index + 2, match.index + 3);
+    if (after === "%" || after === "#") continue;
     diagnostics.push({
       from: match.index,
       to: match.index + 2,
@@ -82,7 +100,7 @@ const promptLinter = linter((view) => {
     });
   }
 
-  // Check variable format
+  // Check {{ }} expressions — only flag truly empty ones; allow complex Jinja2 expressions
   for (const match of content.matchAll(MUSTACHE_REGEX)) {
     const variable = match[1];
     if (!variable || variable.trim() === "") {
@@ -92,15 +110,19 @@ const promptLinter = linter((view) => {
         severity: "error",
         message: "Empty variable is not allowed",
       });
-    } else if (!isValidVariableName(variable)) {
-      diagnostics.push({
-        from: match.index,
-        to: match.index + match[0].length,
-        severity: "error",
-        message:
-          "Variable must start with a letter and can only contain letters and underscores",
-      });
     }
+    // Note: complex expressions like {{ doc.title }} or {{ items | length }} are valid
+    // Jinja2 syntax — do NOT flag them as errors. Validation happens at compile time.
+  }
+
+  // Warn on unclosed {% blocks
+  for (const match of content.matchAll(UNCLOSED_BLOCK_REGEX)) {
+    diagnostics.push({
+      from: match.index,
+      to: match.index + 2,
+      severity: "warning",
+      message: "Unclosed block tag — missing closing %}",
+    });
   }
 
   // Check for malformed prompt dependency tags

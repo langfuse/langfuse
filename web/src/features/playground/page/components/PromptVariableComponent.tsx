@@ -1,6 +1,13 @@
 import { CheckCircle2, Circle, TrashIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { type PromptVariable } from "@langfuse/shared";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import { type PromptVariable, type PromptVariableType } from "@langfuse/shared";
 import { CodeMirrorEditor } from "@/src/components/editor";
 
 import { usePlaygroundContext } from "../context";
@@ -11,16 +18,29 @@ export const PromptVariableComponent: React.FC<{
 }> = ({ promptVariable }) => {
   const {
     updatePromptVariableValue,
+    updatePromptVariableType,
     deletePromptVariable,
     promptVariables,
     messagePlaceholders,
   } = usePlaygroundContext();
-  const { name, value, isUsed } = promptVariable;
+  const { name, value, isUsed, variableType = "string" } = promptVariable;
   const { isVariableConflicting } = useNamingConflicts(
     promptVariables,
     messagePlaceholders,
   );
   const hasConflict = isVariableConflicting(name);
+
+  const isJsonInvalid =
+    variableType === "json" &&
+    value.trim() !== "" &&
+    (() => {
+      try {
+        JSON.parse(value);
+        return false;
+      } catch {
+        return true;
+      }
+    })();
 
   const handleInputChange = (value: string) => {
     updatePromptVariableValue(name, value);
@@ -28,6 +48,10 @@ export const PromptVariableComponent: React.FC<{
   const handleDeleteVariable = () => {
     deletePromptVariable(name);
   };
+  const handleTypeChange = (type: PromptVariableType) => {
+    updatePromptVariableType?.(name, type);
+  };
+
   const isUsedIcon = isUsed ? (
     <CheckCircle2 size={16} color="green" />
   ) : (
@@ -49,6 +73,22 @@ export const PromptVariableComponent: React.FC<{
             {name}
           </p>
         </span>
+        <Select
+          value={variableType}
+          onValueChange={(v) => handleTypeChange(v as PromptVariableType)}
+        >
+          <SelectTrigger className="mr-1 h-5 w-16 px-1 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="string" className="text-xs">
+              String
+            </SelectItem>
+            <SelectItem value="json" className="text-xs">
+              JSON
+            </SelectItem>
+          </SelectContent>
+        </Select>
         <Button
           variant="ghost"
           size="icon"
@@ -64,11 +104,15 @@ export const PromptVariableComponent: React.FC<{
       <CodeMirrorEditor
         value={value}
         onChange={(e) => handleInputChange(e)}
-        mode="prompt"
-        className={`max-h-40 w-full resize-y p-1 font-mono text-xs focus:outline-hidden ${hasConflict ? "border border-red-500" : ""}`}
+        mode={variableType === "json" ? "json" : "prompt"}
+        className={`max-h-40 w-full resize-y p-1 font-mono text-xs focus:outline-hidden ${
+          hasConflict || isJsonInvalid ? "border border-red-500" : ""
+        }`}
         editable={true}
         lineNumbers={false}
-        placeholder={name}
+        placeholder={
+          variableType === "json" ? '["array"] or {"key": "val"}' : name
+        }
         enableSearchKeymap={false}
       />
 
@@ -76,6 +120,9 @@ export const PromptVariableComponent: React.FC<{
         <p className="mt-1 text-xs text-red-500">
           Variable name conflicts with placeholder. Names must be unique.
         </p>
+      )}
+      {isJsonInvalid && (
+        <p className="mt-1 text-xs text-red-500">Invalid JSON</p>
       )}
     </div>
   );

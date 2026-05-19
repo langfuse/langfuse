@@ -9,7 +9,9 @@ import {
   LATEST_PROMPT_LABEL,
   PromptType,
   extractVariables,
+  PromptConfigSchema,
 } from "@langfuse/shared";
+import { extractTemplateVariables } from "@langfuse/shared/src/server";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
 import { updatePromptTagsOnAllVersions } from "@/src/features/prompts/server/utils/updatePromptTags";
@@ -107,6 +109,45 @@ export const createPrompt = async ({
     }
   }
 
+  // Parse config and auto-populate inputKeys from the template content
+  const parsedConfig = PromptConfigSchema.parse(
+    config && typeof config === "object" ? config : {},
+  );
+  const templateFormat = parsedConfig.templateFormat ?? "default";
+
+  const promptText =
+    type === PromptType.Text && typeof prompt === "string"
+      ? prompt
+      : Array.isArray(prompt)
+        ? prompt
+            .map((m) =>
+              m &&
+              typeof m === "object" &&
+              "content" in m &&
+              typeof m.content === "string"
+                ? m.content
+                : "",
+            )
+            .join(" ")
+        : "";
+
+  const extractedKeys =
+    templateFormat === "jinja2"
+      ? extractTemplateVariables(promptText)
+      : extractVariables(promptText);
+
+  // Merge auto-extracted keys with any manually specified ones in config.inputKeys
+  const existingInputKeys = parsedConfig.inputKeys ?? [];
+  const mergedInputKeys = [
+    ...new Set([...extractedKeys, ...existingInputKeys]),
+  ].sort();
+
+  const finalConfig = jsonSchema.parse({
+    ...(typeof config === "object" && config !== null ? config : {}),
+    templateFormat,
+    inputKeys: mergedInputKeys,
+  });
+
   const finalLabels = [...labels, LATEST_PROMPT_LABEL]; // Newly created prompts are always labeled as 'latest'
 
   // If tags are undefined, use the tags from the latest prompt version
@@ -150,7 +191,7 @@ export const createPrompt = async ({
         tags: finalTags,
         version: latestPrompt?.version ? latestPrompt.version + 1 : 1,
         project: { connect: { id: projectId } },
-        config: jsonSchema.parse(config),
+        config: finalConfig,
         commitMessage,
       },
     }),

@@ -10,6 +10,15 @@ import {
 import { PromptChatMessageSchema } from "../../server/llm/types";
 import { PromptNameSchema } from "./validation";
 
+export const PromptConfigSchema = z
+  .object({
+    templateFormat: z.enum(["default", "jinja2"]).default("default"),
+    inputKeys: z.array(z.string()).optional(),
+  })
+  .loose(); // preserve any other config fields
+
+export type PromptConfig = z.infer<typeof PromptConfigSchema>;
+
 export const SingleChatMessageSchema = PromptChatMessageSchema;
 export type SingleChatMessage = z.infer<typeof SingleChatMessageSchema>;
 

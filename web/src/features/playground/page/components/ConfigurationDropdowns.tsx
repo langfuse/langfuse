@@ -16,6 +16,7 @@ import {
 } from "./StructuredOutputSchemaSection";
 import { Variables } from "./Variables";
 import { MessagePlaceholders } from "./MessagePlaceholders";
+import { CompiledPromptPreview } from "./CompiledPromptPreview";
 
 export const ConfigurationDropdowns: React.FC = () => {
   const { containerRef, width, isVeryCompact, isCompact } =
@@ -178,6 +179,7 @@ export const ConfigurationDropdowns: React.FC = () => {
                     <MessagePlaceholders />
                   </div>
                 </div>
+                <CompiledPromptPreview />
               </div>
             ) : (
               <div className="mb-3">

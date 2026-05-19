@@ -21,6 +21,7 @@ import {
   type ChatMessageWithId,
   type ChatMessageWithIdNoPlaceholders,
   type PromptVariable,
+  type PromptVariableType,
   ToolCallResponseSchema,
   type UIModelParams,
   type ToolCallResponse,
@@ -55,6 +56,10 @@ type PlaygroundContextType = {
   windowId: string;
   promptVariables: PromptVariable[];
   updatePromptVariableValue: (variable: string, value: string) => void;
+  updatePromptVariableType?: (
+    variable: string,
+    type: PromptVariableType,
+  ) => void;
   deletePromptVariable: (variable: string) => void;
 
   messagePlaceholders: PlaceholderMessageFillIn[];
@@ -468,6 +473,17 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     [],
   );
 
+  const updatePromptVariableType = useCallback(
+    (variable: string, type: PromptVariableType) => {
+      setPromptVariables((prev) =>
+        prev.map((v) =>
+          v.name === variable ? { ...v, variableType: type } : v,
+        ),
+      );
+    },
+    [],
+  );
+
   const deletePromptVariable = useCallback((variable: string) => {
     setPromptVariables((prev) => prev.filter((v) => v.name !== variable));
   }, []);
@@ -683,6 +699,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         windowId: effectiveWindowId,
         promptVariables,
         updatePromptVariableValue,
+        updatePromptVariableType,
         deletePromptVariable,
         messagePlaceholders,
         updateMessagePlaceholderValue,
@@ -947,10 +964,18 @@ function getFinalMessages(
 
   const textVariables = promptVariables.reduce(
     (variableMap, v) => {
-      variableMap[v.name] = v.value;
+      if (v.variableType === "json") {
+        try {
+          variableMap[v.name] = JSON.parse(v.value);
+        } catch {
+          variableMap[v.name] = v.value;
+        }
+      } else {
+        variableMap[v.name] = v.value;
+      }
       return variableMap;
     },
-    {} as Record<string, string>,
+    {} as Record<string, unknown>,
   );
 
   const compiledMessages = compileChatMessagesWithIds(

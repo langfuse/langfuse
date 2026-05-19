@@ -247,7 +247,13 @@ export const PromptChatMessageSchema = z.union([
 ]);
 export const PromptChatMessageListSchema = z.array(PromptChatMessageSchema);
 
-export type PromptVariable = { name: string; value: string; isUsed: boolean };
+export type PromptVariableType = "string" | "json";
+export type PromptVariable = {
+  name: string;
+  value: string;
+  isUsed: boolean;
+  variableType?: PromptVariableType;
+};
 
 export enum LLMAdapter {
   Anthropic = "anthropic",
