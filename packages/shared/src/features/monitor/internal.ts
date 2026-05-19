@@ -1,4 +1,4 @@
-/* internal.ts is internal to the monitor implementation. Do export from the package barrel. */
+/* internal.ts is internal to the monitor implementation. Do NOT export from the package barrel. */
 
 /**
  * SECOND is one second in milliseconds.

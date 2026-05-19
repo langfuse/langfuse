@@ -74,4 +74,25 @@ describe("validateMonitorTemplate", () => {
   it("rejects malformed handlebars", () => {
     expect(validateMonitorTemplate("{{value")).toBe(false);
   });
+
+  it.each(["{{@is_alert}}", "{{@value}}", "{{@threshold}}", "{{@root}}"])(
+    "rejects an @-prefixed data reference: %s",
+    (template) => {
+      expect(validateMonitorTemplate(template)).toBe(false);
+    },
+  );
+
+  it.each(["{{../value}}", "{{../is_alert}}"])(
+    "rejects a parent-context reference: %s",
+    (template) => {
+      expect(validateMonitorTemplate(template)).toBe(false);
+    },
+  );
+
+  it.each(["{{tags.0}}", "{{value.length}}", "{{window.constructor}}"])(
+    "rejects a sub-property reference: %s",
+    (template) => {
+      expect(validateMonitorTemplate(template)).toBe(false);
+    },
+  );
 });

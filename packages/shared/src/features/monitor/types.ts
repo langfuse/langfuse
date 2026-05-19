@@ -1,4 +1,4 @@
-/** types.ts contains all entitiy models and logic */
+/** types.ts contains all entity models and logic */
 import {
   MonitorSeverity,
   MonitorStatus,
@@ -34,7 +34,7 @@ export const ErrorInvalidMonitorTemplate =
   "template is not formatted correctly";
 
 /**
- * MonitorWindow contains a the list of allowed Monitor evaluation windows.
+ * MonitorWindow contains the list of allowed Monitor evaluation windows.
  * Adding a tier requires updating `monitorWindowCadenceMs`.
  */
 export const MonitorWindow = {
@@ -217,7 +217,7 @@ export const MonitorQueueEventSchema = z.object({
 export type MonitorQueueEvent = z.infer<typeof MonitorQueueEventSchema>;
 
 /**
- * MonitorAlertSchema is emmitted when a monitor alerts.
+ * MonitorAlertSchema is emitted when a monitor alerts.
  * It carries the query shape (`view` / `filters` / `window`) alongside the
  * rendered message so that recipients can reconstruct the underlying observations / scores query.
  */
@@ -227,7 +227,7 @@ export const MonitorAlertSchema = z.object({
   permalink: z.url(),
   message: z.object({ title: z.string(), body: z.string() }),
   severity: z.enum(MonitorSeverity),
-  timestamp: z.date(),
+  timestamp: z.coerce.date(),
   view: z.enum(MonitorView),
   filters: z.array(singleFilter),
   window: z.bigint().refine(isValidMonitorWindow, ErrorInvalidMonitorWindow),

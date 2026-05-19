@@ -80,6 +80,9 @@ const isAllowedPath = (
 ): boolean => {
   if (path.type !== "PathExpression") return false;
   const p = path as hbs.AST.PathExpression;
+  if (p.data) return false;
+  if (p.depth !== 0) return false;
+  if (p.parts.length !== 1) return false;
   const head = p.parts[0];
   if (typeof head !== "string") return false;
   return monitorMessageContextKeys.has(head);

@@ -483,6 +483,15 @@ describe("MonitorAlertSchema", () => {
       MonitorAlertSchema.safeParse({ ...validAlert, window: 123n }).success,
     ).toBe(false);
   });
+
+  it("coerces a string timestamp to a Date", () => {
+    const result = MonitorAlertSchema.safeParse({
+      ...validAlert,
+      timestamp: "2026-05-18T12:01:00.000Z",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.timestamp).toBeInstanceOf(Date);
+  });
 });
 
 describe("MonitorWebhookQueueEventSchema", () => {
