@@ -18,7 +18,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 });
 
 import { enrichObservationStream } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
-import type { ObservationFieldGroup } from "@langfuse/shared/src/server";
+import type { ObservationFieldGroupFull } from "@langfuse/shared";
 
 async function* rowStream(
   rows: Record<string, unknown>[],
@@ -64,7 +64,7 @@ describe("enrichObservationStream field group filtering", () => {
     const rows = [{ id: "obs-1", metadata: {} }];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
-        "core" as ObservationFieldGroup,
+        "core" as ObservationFieldGroupFull,
       ]),
     );
 
@@ -75,7 +75,7 @@ describe("enrichObservationStream field group filtering", () => {
     const rows = [{ id: "obs-1" }];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
-        "core" as ObservationFieldGroup,
+        "core" as ObservationFieldGroupFull,
       ]),
     );
 
@@ -99,8 +99,8 @@ describe("enrichObservationStream field group filtering", () => {
     ];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
-        "core" as ObservationFieldGroup,
-        "usage" as ObservationFieldGroup,
+        "core" as ObservationFieldGroupFull,
+        "usage" as ObservationFieldGroupFull,
       ]),
     );
 
@@ -116,9 +116,9 @@ describe("enrichObservationStream field group filtering", () => {
     const rows = [{ id: "obs-1", model_id: "gpt-4" }];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
-        "core" as ObservationFieldGroup,
-        "model" as ObservationFieldGroup,
-        "usage" as ObservationFieldGroup,
+        "core" as ObservationFieldGroupFull,
+        "model" as ObservationFieldGroupFull,
+        "usage" as ObservationFieldGroupFull,
       ]),
     );
 

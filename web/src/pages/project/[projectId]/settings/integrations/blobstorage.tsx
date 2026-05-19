@@ -53,10 +53,13 @@ import {
   type BlobStorageIntegration,
   EXPORT_SOURCE_OPTIONS,
   EXPORT_FIELD_GROUP_OPTIONS,
-  BLOB_EXPORT_FIELD_GROUPS,
-  type BlobExportFieldGroup,
+  OBSERVATION_FIELD_GROUPS_FULL,
+  type ObservationFieldGroupFull,
+  LEGACY_BLOB_EXPORT_SOURCES,
+  isLegacyBlobExportAllowed,
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Info, ExternalLink } from "lucide-react";
 
@@ -233,11 +236,27 @@ const BlobStorageIntegrationSettingsForm = ({
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { isBetaEnabled } = useV4Beta();
+  const { project } = useQueryProject();
   const [integrationType, setIntegrationType] =
     useState<BlobStorageIntegrationType>(BlobStorageIntegrationType.S3);
 
   // Check if this is a self-hosted instance (no cloud region set)
   const isSelfHosted = !isLangfuseCloud;
+
+  // Post-cutoff Cloud projects may only use OBSERVATIONS_V2 (EVENTS).
+  const isPostCutoffCloud =
+    project?.createdAt != null &&
+    !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
+
+  // Options shown in the dropdown. Legacy options are always hidden for
+  // post-cutoff Cloud projects, including any previously-persisted value.
+  const availableExportSourceOptions = EXPORT_SOURCE_OPTIONS.filter(
+    (opt) =>
+      !isPostCutoffCloud ||
+      !(LEGACY_BLOB_EXPORT_SOURCES as ReadonlyArray<string>).includes(
+        opt.value,
+      ),
+  );
 
   const blobStorageForm = useForm({
     resolver: zodResolver(blobStorageIntegrationFormSchema),
@@ -259,14 +278,15 @@ const BlobStorageIntegrationSettingsForm = ({
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
-      exportSource:
-        state?.exportSource ||
-        (isBetaEnabled
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportSource: isPostCutoffCloud
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : state?.exportSource ||
+          (isBetaEnabled
+            ? AnalyticsIntegrationExportSource.EVENTS
+            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
       exportFieldGroups:
-        (state?.exportFieldGroups as BlobExportFieldGroup[]) ?? [
-          ...BLOB_EXPORT_FIELD_GROUPS,
+        (state?.exportFieldGroups as ObservationFieldGroupFull[]) ?? [
+          ...OBSERVATION_FIELD_GROUPS_FULL,
         ],
       compressed: state?.compressed ?? true,
     },
@@ -293,14 +313,15 @@ const BlobStorageIntegrationSettingsForm = ({
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
-      exportSource:
-        state?.exportSource ||
-        (isBetaEnabled
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportSource: isPostCutoffCloud
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : state?.exportSource ||
+          (isBetaEnabled
+            ? AnalyticsIntegrationExportSource.EVENTS
+            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
       exportFieldGroups:
-        (state?.exportFieldGroups as BlobExportFieldGroup[]) ?? [
-          ...BLOB_EXPORT_FIELD_GROUPS,
+        (state?.exportFieldGroups as ObservationFieldGroupFull[]) ?? [
+          ...OBSERVATION_FIELD_GROUPS_FULL,
         ],
       compressed: state?.compressed ?? true,
     });
@@ -714,17 +735,25 @@ const BlobStorageIntegrationSettingsForm = ({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {EXPORT_SOURCE_OPTIONS.map((option) => (
+                    {availableExportSourceOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <FormDescription>
-                  Choose which data sources to export to blob storage. Scores
-                  are always included.
-                </FormDescription>
+                {isPostCutoffCloud ? (
+                  <FormDescription>
+                    Legacy export sources are not available for projects created
+                    on or after May 20, 2026. Use &quot;Enriched
+                    observations&quot; instead.
+                  </FormDescription>
+                ) : (
+                  <FormDescription>
+                    Choose which data sources to export to blob storage. Scores
+                    are always included.
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -778,7 +807,7 @@ const BlobStorageIntegrationSettingsForm = ({
                                           ? current
                                           : [...current, option.value]
                                         : current.filter(
-                                            (v: BlobExportFieldGroup) =>
+                                            (v: ObservationFieldGroupFull) =>
                                               v !== option.value,
                                           );
                                     field.onChange(next);

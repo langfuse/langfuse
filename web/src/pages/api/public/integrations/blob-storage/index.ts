@@ -6,15 +6,22 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   CreateBlobStorageIntegrationRequest,
+  toInternalExportSource,
+  toPublicExportSource,
   type BlobStorageIntegrationResponseType,
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
+  AnalyticsIntegrationExportSource,
+  type ObservationFieldGroupFull,
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
+  isLegacyBlobExportAllowed,
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
+import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { env } from "@/src/env.mjs";
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrations,
@@ -87,6 +94,12 @@ async function handleGetBlobStorageIntegrations(
       exportMode: integration.exportMode,
       exportStartDate: integration.exportStartDate,
       compressed: integration.compressed,
+      exportSource: toPublicExportSource(integration.exportSource),
+      exportFieldGroups:
+        integration.exportSource ===
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
+          ? null
+          : (integration.exportFieldGroups as ObservationFieldGroupFull[]),
       nextSyncAt: integration.nextSyncAt,
       lastSyncAt: integration.lastSyncAt,
       lastError: integration.lastError,
@@ -142,10 +155,22 @@ async function handleUpsertBlobStorageIntegration(
   // Check if the project exists and belongs to the organization
   const project = await prisma.project.findUnique({
     where: { id: validatedData.projectId },
-    select: { id: true, orgId: true },
+    select: { id: true, orgId: true, createdAt: true },
   });
   if (!project || project.orgId !== authCheck.scope.orgId) {
     throw new LangfuseNotFoundError("Project not found");
+  }
+
+  const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+  if (validatedData.exportSource) {
+    assertLegacyBlobExportSourceAllowed({
+      project,
+      nextInternalExportSource: toInternalExportSource(
+        validatedData.exportSource,
+      ),
+      isCloud,
+    });
   }
 
   await auditLog({
@@ -159,6 +184,12 @@ async function handleUpsertBlobStorageIntegration(
   const integration = await upsertBlobStorageIntegration({
     prisma,
     projectId: validatedData.projectId,
+    // When exportSource is absent and the project is post-cutoff Cloud, have
+    // the service substitute EVENTS on CREATE inside its own transaction —
+    // eliminating the TOCTOU window that a pre-flight findUnique would create.
+    forceEventsOnCreate:
+      validatedData.exportSource == null &&
+      !isLegacyBlobExportAllowed(project.createdAt, isCloud),
     data: {
       type: validatedData.type,
       bucketName: validatedData.bucketName,
@@ -174,6 +205,11 @@ async function handleUpsertBlobStorageIntegration(
       exportMode: validatedData.exportMode,
       exportStartDate: validatedData.exportStartDate ?? null,
       compressed: validatedData.compressed,
+      exportSource:
+        validatedData.exportSource != null
+          ? toInternalExportSource(validatedData.exportSource)
+          : undefined,
+      exportFieldGroups: validatedData.exportFieldGroups ?? undefined,
     },
   });
 
@@ -194,6 +230,12 @@ async function handleUpsertBlobStorageIntegration(
     exportMode: integration.exportMode,
     exportStartDate: integration.exportStartDate,
     compressed: integration.compressed,
+    exportSource: toPublicExportSource(integration.exportSource),
+    exportFieldGroups:
+      integration.exportSource ===
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
+        ? null
+        : (integration.exportFieldGroups as ObservationFieldGroupFull[]),
     nextSyncAt: integration.nextSyncAt,
     lastSyncAt: integration.lastSyncAt,
     lastError: integration.lastError,

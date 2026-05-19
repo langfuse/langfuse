@@ -7,7 +7,7 @@ import {
 } from "@/src/features/blobstorage-integration/types";
 import {
   AnalyticsIntegrationExportSource,
-  BLOB_EXPORT_FIELD_GROUPS,
+  OBSERVATION_FIELD_GROUPS_FULL,
   BlobStorageExportMode,
   BlobStorageIntegrationFileType,
   BlobStorageIntegrationType,
@@ -23,7 +23,7 @@ const VALID_BASE: BlobStorageIntegrationFormSchema = {
   fileType: BlobStorageIntegrationFileType.JSONL,
   exportMode: BlobStorageExportMode.FULL_HISTORY,
   exportSource: AnalyticsIntegrationExportSource.EVENTS,
-  exportFieldGroups: [...BLOB_EXPORT_FIELD_GROUPS],
+  exportFieldGroups: [...OBSERVATION_FIELD_GROUPS_FULL],
   compressed: true,
   endpoint: null,
   accessKeyId: "",
