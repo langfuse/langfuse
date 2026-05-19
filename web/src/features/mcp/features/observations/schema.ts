@@ -110,6 +110,15 @@ export const ObservationFieldsSchema = z
   .superRefine((fields, ctx) => {
     if (!fields) return;
 
+    if (fields.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Fields array cannot be empty. Use undefined for defaults or specify fields.",
+      });
+      return;
+    }
+
     const hasWildcard = fields.includes("*");
     if (hasWildcard && fields.length > 1) {
       ctx.addIssue({
