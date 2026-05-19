@@ -113,7 +113,7 @@ export const membersRouter = createTRPCRouter({
     .input(
       z.object({
         orgId: z.string(),
-        email: z.string().email(),
+        email: z.email(),
         orgRole: z.enum(Role),
         // in case a projectRole should be set for a specific project
         projectId: z.string().optional(),

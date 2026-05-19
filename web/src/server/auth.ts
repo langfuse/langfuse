@@ -774,6 +774,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               email: true,
               image: true,
               emailVerified: true,
+              password: true,
               createdAt: true,
               featureFlags: true,
               admin: true,
@@ -803,7 +804,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
           span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
-          const isCloudDeployment = Boolean(
+          const isCloudDeploymentOrDev = Boolean(
             env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
           );
 
@@ -828,10 +829,10 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
-                    v4BetaEnabled: isCloudDeployment
+                    v4BetaEnabled: isCloudDeploymentOrDev
                       ? dbUser.v4BetaEnabled
                       : false,
-                    canToggleV4: isCloudDeployment
+                    canToggleV4: isCloudDeploymentOrDev
                       ? canToggleV4({
                           userCreatedAt: dbUser.createdAt,
                           organizations: dbUser.organizationMemberships.map(
@@ -885,6 +886,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                                     string,
                                     unknown
                                   >) ?? {},
+                                createdAt: project.createdAt.toISOString(),
                               };
                             })
                             // Only include projects where the user has the required role
@@ -904,6 +906,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                     ),
                     emailVerified: dbUser.emailVerified?.toISOString(),
                     featureFlags: parseFlags(dbUser.featureFlags),
+                    hasPassword: Boolean(dbUser.password),
                   }
                 : null,
           };
@@ -917,7 +920,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             logger.error("No email found in user object");
             throw new Error("No email found in user object");
           }
-          if (z.string().email().safeParse(email).success === false) {
+          if (z.email().safeParse(email).success === false) {
             logger.error("Invalid email found in user object");
             throw new Error("Invalid email found in user object");
           }
@@ -965,6 +968,20 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
           // Only allow sign in via email link if user is already in db as this is used for password reset
           if (account?.provider === "email") {
+            const blockedDomains = getSSOBlockedDomains();
+            if (userDomain && blockedDomains.includes(userDomain)) {
+              logger.info(
+                "Blocked email-OTP sign in for domain enforced via AUTH_DOMAINS_WITH_SSO_ENFORCEMENT",
+                { email },
+              );
+              const params = new URLSearchParams({
+                reason: "sso_enforced_domain",
+              });
+              if (email) params.set("email", email);
+              params.set("attemptedProvider", "email");
+              return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/enterprise-sso-required?${params.toString()}`;
+            }
+
             const user = await prisma.user.findUnique({
               where: {
                 email: email,

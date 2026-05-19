@@ -1,6 +1,7 @@
 import { OrderByState } from "../../interfaces/orderBy";
 import { tracesTableUiColumnDefinitions } from "../tableMappings";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
+import { findUiColumnMapping } from "../../tableDefinitions";
 import { FilterState } from "../../types";
 import {
   StringFilter,
@@ -269,18 +270,14 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
 
   const requiresScoresJoin =
     tracesFilter.find((f) => f.clickhouseTable === "scores") !== undefined ||
-    tracesTableUiColumnDefinitions.find(
-      (c) =>
-        c.uiTableName === orderBy?.column || c.uiTableId === orderBy?.column,
-    )?.clickhouseTableName === "scores";
+    findUiColumnMapping(tracesTableUiColumnDefinitions, orderBy?.column)
+      ?.clickhouseTableName === "scores";
 
   const requiresObservationsJoin =
     tracesFilter.find((f) => f.clickhouseTable === "observations") !==
       undefined ||
-    tracesTableUiColumnDefinitions.find(
-      (c) =>
-        c.uiTableName === orderBy?.column || c.uiTableId === orderBy?.column,
-    )?.clickhouseTableName === "observations";
+    findUiColumnMapping(tracesTableUiColumnDefinitions, orderBy?.column)
+      ?.clickhouseTableName === "observations";
 
   const tracesFilterRes = tracesFilter.apply();
   const scoresFilterRes = scoresFilter.apply();

@@ -1,9 +1,10 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db";
 import {
   TableViewPresetTableName,
   type TableViewPresetDomain,
 } from "../../../domain/table-view-presets";
-import { LangfuseNotFoundError } from "../../../errors";
+import { LangfuseConflictError, LangfuseNotFoundError } from "../../../errors";
 import {
   TableViewPresetsNamesCreatorList,
   TableViewPresetsNamesCreatorListSchema,
@@ -11,12 +12,51 @@ import {
   type CreateTableViewPresetsInput,
   type UpdateTableViewPresetsInput,
 } from "./types";
+import {
+  getSystemTableViewPresetById,
+  getSystemTableViewPresetByTableAndId,
+  getSystemTableViewPresets,
+  isSystemTableViewPresetId,
+} from "./systemPresets";
 
-const TABLE_NAME_TO_URL_MAP = <Record<TableViewPresetTableName, string>>{
-  [TableViewPresetTableName.Traces]: "traces",
-  [TableViewPresetTableName.Observations]: "observations",
-  [TableViewPresetTableName.Scores]: "scores",
-  [TableViewPresetTableName.Sessions]: "sessions",
+const TABLE_NAME_TO_URL_MAP: Partial<Record<TableViewPresetTableName, string>> =
+  {
+    [TableViewPresetTableName.Traces]: "traces",
+    [TableViewPresetTableName.Observations]: "observations",
+    [TableViewPresetTableName.ObservationsEvents]: "traces",
+    [TableViewPresetTableName.Scores]: "scores",
+    [TableViewPresetTableName.Sessions]: "sessions",
+    [TableViewPresetTableName.Datasets]: "datasets",
+    [TableViewPresetTableName.Experiments]: "experiments",
+    [TableViewPresetTableName.ExperimentItems]: "experiments/results",
+  };
+
+// The v4 table was mistakenly released under the `observations` table name,
+// so we need to read legacy presets that belong to the events table under the `observations` name.
+// To avoid proliferating this compatibility logic, we only apply it when reading presets for the events table,
+// and we never allow it when writing (creating/updating) presets.
+const getReadCompatibleTableNames = (
+  tableName: TableViewPresetTableName,
+): TableViewPresetTableName[] =>
+  tableName === TableViewPresetTableName.ObservationsEvents
+    ? [
+        TableViewPresetTableName.ObservationsEvents,
+        TableViewPresetTableName.Observations,
+      ]
+    : [tableName];
+
+const TABLE_VIEW_PRESET_NAME_CONFLICT_MESSAGE =
+  "Table view preset with this name already exists. Please choose a different name.";
+
+const throwTableViewPresetConflictIfDuplicateName = (error: unknown): never => {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  ) {
+    throw new LangfuseConflictError(TABLE_VIEW_PRESET_NAME_CONFLICT_MESSAGE);
+  }
+
+  throw error;
 };
 
 export class TableViewService {
@@ -46,11 +86,13 @@ export class TableViewService {
     input: UpdateTableViewPresetsInput,
     updatedBy: string,
   ): Promise<TableViewPresetDomain> {
-    const tableViewPresets = await prisma.tableViewPreset.findUnique({
+    const tableViewPresets = await prisma.tableViewPreset.findFirst({
       where: {
         id: input.id,
         projectId: input.projectId,
-        tableName: input.tableName,
+        tableName: {
+          in: getReadCompatibleTableNames(input.tableName),
+        },
       },
     });
 
@@ -60,20 +102,28 @@ export class TableViewService {
       );
     }
 
-    const updatedTableViewPresets = await prisma.tableViewPreset.update({
-      where: {
-        id: input.id,
-        projectId: input.projectId,
-        tableName: input.tableName,
-      },
-      data: {
-        ...input,
-        orderBy: input.orderBy ?? undefined,
-        updatedBy,
-      },
-    });
+    try {
+      const updatedTableViewPresets = await prisma.tableViewPreset.update({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+        data: {
+          name: input.name,
+          tableName: input.tableName,
+          filters: input.filters,
+          columnOrder: input.columnOrder,
+          columnVisibility: input.columnVisibility,
+          searchQuery: input.searchQuery,
+          orderBy: input.orderBy ?? undefined,
+          updatedBy,
+        },
+      });
 
-    return updatedTableViewPresets as unknown as TableViewPresetDomain;
+      return updatedTableViewPresets as unknown as TableViewPresetDomain;
+    } catch (error) {
+      return throwTableViewPresetConflictIfDuplicateName(error);
+    }
   }
 
   /**
@@ -83,11 +133,13 @@ export class TableViewService {
     input: UpdateTableViewPresetsNameInput,
     updatedBy: string,
   ): Promise<TableViewPresetDomain> {
-    const tableViewPresets = await prisma.tableViewPreset.findUnique({
+    const tableViewPresets = await prisma.tableViewPreset.findFirst({
       where: {
         id: input.id,
         projectId: input.projectId,
-        tableName: input.tableName,
+        tableName: {
+          in: getReadCompatibleTableNames(input.tableName),
+        },
       },
     });
 
@@ -97,19 +149,23 @@ export class TableViewService {
       );
     }
 
-    const updatedTableViewPresets = await prisma.tableViewPreset.update({
-      where: {
-        id: input.id,
-        projectId: input.projectId,
-        tableName: input.tableName,
-      },
-      data: {
-        name: input.name,
-        updatedBy,
-      },
-    });
+    try {
+      const updatedTableViewPresets = await prisma.tableViewPreset.update({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+        data: {
+          name: input.name,
+          tableName: input.tableName,
+          updatedBy,
+        },
+      });
 
-    return updatedTableViewPresets as unknown as TableViewPresetDomain;
+      return updatedTableViewPresets as unknown as TableViewPresetDomain;
+    } catch (error) {
+      return throwTableViewPresetConflictIfDuplicateName(error);
+    }
   }
 
   /**
@@ -131,17 +187,20 @@ export class TableViewService {
    * Gets all table view presets for a table
    */
   public static async getTableViewPresetsByTableName(
-    tableName: string,
+    tableName: TableViewPresetTableName,
     projectId: string,
   ): Promise<TableViewPresetsNamesCreatorList> {
-    const TableViewPresets = await prisma.tableViewPreset.findMany({
+    const records = await prisma.tableViewPreset.findMany({
       where: {
-        tableName,
+        tableName: {
+          in: getReadCompatibleTableNames(tableName),
+        },
         projectId,
       },
       select: {
         id: true,
         name: true,
+        tableName: true,
         createdBy: true,
         createdByUser: {
           select: {
@@ -157,7 +216,56 @@ export class TableViewService {
       },
     });
 
-    return TableViewPresetsNamesCreatorListSchema.parse(TableViewPresets);
+    const systemPresets = getSystemTableViewPresets(tableName).map(
+      (preset) => ({
+        id: preset.id,
+        name: preset.name,
+        description: preset.description,
+        isSystem: true,
+        tableName: preset.tableName,
+        createdBy: null,
+        createdByUser: null,
+        filters: preset.state.filters,
+        columnOrder: preset.state.columnOrder,
+        columnVisibility: preset.state.columnVisibility,
+        searchQuery: preset.state.searchQuery ?? null,
+        orderBy: preset.state.orderBy,
+      }),
+    );
+
+    const presets = TableViewPresetsNamesCreatorListSchema.parse([
+      ...systemPresets,
+      ...records,
+    ]);
+
+    if (tableName === TableViewPresetTableName.ObservationsEvents) {
+      // Deduplicate presets that have the same name,
+      // preferring presets that belong to the canonical events table namespace
+      // over presets that belong to the legacy observations namespace.
+      const presetsByName = new Map<
+        string,
+        TableViewPresetsNamesCreatorList[number]
+      >();
+
+      for (const preset of presets) {
+        const existingPreset = presetsByName.get(preset.name);
+
+        if (
+          !existingPreset ||
+          (preset.tableName === TableViewPresetTableName.ObservationsEvents &&
+            existingPreset.tableName ===
+              TableViewPresetTableName.Observations) ||
+          // Non-system presets should take precedence over system presets
+          (!preset.isSystem && existingPreset.isSystem)
+        ) {
+          presetsByName.set(preset.name, preset);
+        }
+      }
+
+      return Array.from(presetsByName.values());
+    }
+
+    return presets;
   }
 
   /**
@@ -167,6 +275,31 @@ export class TableViewService {
     id: string,
     projectId: string,
   ): Promise<TableViewPresetDomain> {
+    if (isSystemTableViewPresetId(id)) {
+      const systemPreset = getSystemTableViewPresetById(id);
+
+      if (!systemPreset) {
+        throw new LangfuseNotFoundError(
+          `Saved table view preset not found for id ${id} in project ${projectId}`,
+        );
+      }
+
+      return {
+        id: systemPreset.id,
+        projectId,
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+        createdBy: null,
+        name: systemPreset.name,
+        tableName: systemPreset.tableName,
+        filters: systemPreset.state.filters,
+        columnOrder: systemPreset.state.columnOrder,
+        columnVisibility: systemPreset.state.columnVisibility,
+        searchQuery: systemPreset.state.searchQuery ?? null,
+        orderBy: systemPreset.state.orderBy,
+      };
+    }
+
     const tableViewPresets = await prisma.tableViewPreset.findUnique({
       where: {
         id,
@@ -192,7 +325,19 @@ export class TableViewService {
     tableName: TableViewPresetTableName,
     projectId: string,
   ): Promise<string> {
+    if (
+      isSystemTableViewPresetId(TableViewPresetsId) &&
+      !getSystemTableViewPresetByTableAndId(tableName, TableViewPresetsId)
+    ) {
+      throw new Error(
+        `Permalinks are not supported for preset ${TableViewPresetsId}`,
+      );
+    }
+
     const page = TABLE_NAME_TO_URL_MAP[tableName];
+    if (!page) {
+      throw new Error(`Permalinks are not supported for table ${tableName}`);
+    }
     return `${baseUrl}/project/${projectId}/${page}?viewId=${TableViewPresetsId}`;
   }
 }

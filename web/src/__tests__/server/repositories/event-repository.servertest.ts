@@ -1,6 +1,7 @@
 import {
   createEvent,
   createEventsCh,
+  getObservationsForTraceFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getObservationsCountFromEventsTable,
   getObservationByIdFromEventsTable,
@@ -232,6 +233,36 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result2.length).toBeLessThanOrEqual(2);
     });
 
+    it("should return release field in the result set", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "release-field-test",
+          release: "1.2.3",
+          version: "V2",
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(observationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      const observation = result.find((o) => o.id === observationId);
+      expect(observation).toBeDefined();
+      expect(observation?.release).toBe("1.2.3");
+      expect(observation?.version).toBe("V2");
+    });
+
     it("should handle events without end_time (null latency)", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -328,6 +359,47 @@ describe("Clickhouse Events Repository Test", () => {
       expect(resultWithoutIO.length).toBeGreaterThanOrEqual(1);
       expect(resultWithIO[0]?.input).toBeDefined();
       expect(resultWithoutIO[0]?.output).toBeDefined();
+    });
+
+    it("should not throw when model_parameters is not valid JSON", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "poisoned-model-parameters",
+        provided_model_name: "gpt-5-mini",
+        model_parameters: "<not serializable object of type: dict>",
+      });
+
+      await createEventsCh([event]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(generationId)],
+        limit: 1000,
+        offset: 0,
+        selectIOAndMetadata: true,
+      });
+
+      const observation = result.find((o) => o.id === generationId);
+      expect(observation).toBeDefined();
+      expect(observation?.modelParameters).toBe(
+        "<not serializable object of type: dict>",
+      );
+
+      const byId = await getObservationByIdFromEventsTable({
+        id: generationId,
+        projectId,
+        fetchWithInputOutput: true,
+      });
+      expect(byId?.modelParameters).toBe(
+        "<not serializable object of type: dict>",
+      );
     });
   });
 
@@ -1244,6 +1316,113 @@ describe("Clickhouse Events Repository Test", () => {
 
         expect(resultBaz.length).toBe(0);
       });
+
+      it("equality on absent key with empty value does NOT match", async () => {
+        // Today arr[indexOf(names, missing)] resolves to '' (Array(String)
+        // default), so `metadata.foo = ''` would match rows that never had
+        // the key. The has(metadata_names, ?) conjunct fixes this.
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "no-foo-key-eq-empty",
+            metadata_names: ["bar"],
+            metadata_values: ["baz"],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "=",
+              key: "foo",
+              value: "",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(0);
+      });
+
+      it("'does not contain' on absent key with non-empty needle does NOT match", async () => {
+        // Headline correctness fix: previously rows with the key absent
+        // matched `does not contain V` (because position('', V) = 0 is true
+        // for non-empty V). The has(metadata_names, ?) conjunct restricts
+        // the result to rows where the key actually exists.
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "no-foo-key-dnc",
+            metadata_names: ["bar"],
+            metadata_values: ["baz"],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "does not contain",
+              key: "foo",
+              value: "anything",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(0);
+      });
     });
   });
 
@@ -1277,6 +1456,33 @@ describe("Clickhouse Events Repository Test", () => {
       expect(observation?.traceTags).toEqual(["chat", "prod"]);
       expect(observation?.userId).toBe("user-123");
       expect(observation?.sessionId).toBe("session-123");
+    });
+
+    it("should return release field when fetching observation by id", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "release-byid-test",
+          release: "2.0.0",
+          version: "V3",
+        }),
+      ]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.release).toBe("2.0.0");
+      expect(observation?.version).toBe("V3");
     });
 
     it("should return observation by id with input and output", async () => {
@@ -1508,6 +1714,42 @@ describe("Clickhouse Events Repository Test", () => {
           startTime: wrongDate,
         }),
       ).rejects.toThrow();
+    });
+  });
+
+  maybe("getObservationsForTraceFromEventsTable", () => {
+    it("should return usage pricing tier fields even when tool payloads are omitted", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: generationId,
+          span_id: generationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-trace-pricing-tier-export",
+          usage_pricing_tier_id: "tier-enterprise",
+          usage_pricing_tier_name: "Enterprise",
+        }),
+      ]);
+
+      const { observations, totalCount } =
+        await getObservationsForTraceFromEventsTable({
+          traceId,
+          projectId,
+          selectIOAndMetadata: false,
+          selectToolData: false,
+        });
+
+      expect(totalCount).toBe(1);
+      expect(observations).toHaveLength(1);
+      expect(observations[0]).toMatchObject({
+        id: generationId,
+        usagePricingTierId: "tier-enterprise",
+        usagePricingTierName: "Enterprise",
+      });
     });
   });
 
@@ -2067,6 +2309,14 @@ describe("Clickhouse Events Repository Test", () => {
 
       const nowMicro = Date.now() * 1000;
       const timestamp = new Date(nowMicro / 1000);
+      const observation3Input = JSON.stringify({
+        prototype: "input",
+        safeKey: "input-value",
+      });
+      const observation3Output = JSON.stringify({
+        prototype: "output",
+        safeKey: "output-value",
+      });
 
       // Create events with different I/O content and metadata
       const events = [
@@ -2103,8 +2353,8 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: traceId,
           type: "GENERATION",
           name: "test-observation-3",
-          input: "This is input for observation 3",
-          output: "This is output for observation 3",
+          input: observation3Input,
+          output: observation3Output,
           metadata_names: ["key3"],
           metadata_values: ["value3"],
           start_time: nowMicro + 2000,
@@ -2149,8 +2399,16 @@ describe("Clickhouse Events Repository Test", () => {
       // Check observation 3
       const io3 = result.find((r) => r.id === observation3Id);
       expect(io3).toBeDefined();
-      expect(io3?.input).toBe("This is input for observation 3");
-      expect(io3?.output).toBe("This is output for observation 3");
+      expect(io3?.input).toBe(observation3Input);
+      expect(io3?.output).toBe(observation3Output);
+      expect(JSON.parse(io3?.input ?? "{}")).toEqual({
+        prototype: "input",
+        safeKey: "input-value",
+      });
+      expect(JSON.parse(io3?.output ?? "{}")).toEqual({
+        prototype: "output",
+        safeKey: "output-value",
+      });
       expect(io3?.metadata).toBeDefined();
       expect(io3?.metadata?.key3).toBe("value3");
     });

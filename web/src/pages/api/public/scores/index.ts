@@ -5,7 +5,7 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import {
   GetScoresQueryV1,
   GetScoresResponseV1,
-  filterAndValidateV1GetScoreList,
+  filterAndValidateLegacyV1GetScoreList,
   PostScoresBodyV1,
   PostScoresResponseV1,
 } from "@langfuse/shared";
@@ -90,7 +90,7 @@ export default withMiddlewares({
       return {
         // As these are traces scores, we expect all scores to have a traceId set
         // For type consistency, we validate the scores against the v1 schema which requires a traceId
-        data: filterAndValidateV1GetScoreList(items),
+        data: filterAndValidateLegacyV1GetScoreList(items),
         meta: {
           page: query.page,
           limit: query.limit,

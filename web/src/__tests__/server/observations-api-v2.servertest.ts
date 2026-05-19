@@ -1,15 +1,31 @@
 import {
   createEvent,
   createEventsCh,
+  createOrgProjectAndApiKey,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
-import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
+import {
+  makeAPICall,
+  makeZodVerifiedAPICall,
+} from "@/src/__tests__/test-utils";
 import { GetObservationsV2Response } from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
 
-const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+let projectId: string;
+let auth: string;
+
+const getObservations = (url: string) =>
+  makeZodVerifiedAPICall(
+    GetObservationsV2Response,
+    "GET",
+    url,
+    undefined,
+    auth,
+  );
+
+const getRaw = (url: string) => makeAPICall("GET", url, undefined, auth);
 
 const maybe =
   env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
@@ -17,6 +33,12 @@ const maybe =
     : describe.skip;
 
 describe("/api/public/v2/observations API Endpoint", () => {
+  beforeEach(async () => {
+    const fixture = await createOrgProjectAndApiKey();
+    projectId = fixture.projectId;
+    auth = fixture.auth;
+  });
+
   it("should kill redis connection", () => {
     // we need at least one test case to avoid hanging
     // redis connection when everything else is skipped.
@@ -51,10 +73,8 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await createEventsCh([observation]);
 
       // Request only basic field group (core is always included)
-      const response = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
-        `/api/public/v2/observations?fields=basic`,
+      const response = await getObservations(
+        `/api/public/v2/observations?fields=basic&traceId=${traceId}`,
       );
 
       expect(response.status).toBe(200);
@@ -114,9 +134,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await createEventsCh([observation]);
 
       // Request with parseIoAsJson=false (default)
-      const response = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const response = await getObservations(
         `/api/public/v2/observations?fields=io&traceId=${traceId}&parseIoAsJson=false`,
       );
 
@@ -132,9 +150,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
     });
 
     it("should return 400 when parseIoAsJson=true", async () => {
-      const { makeAPICall } = await import("@/src/__tests__/test-utils");
-      const response = await makeAPICall(
-        "GET",
+      const response = await getRaw(
         `/api/public/v2/observations?fields=io&parseIoAsJson=true`,
       );
 
@@ -144,25 +160,36 @@ describe("/api/public/v2/observations API Endpoint", () => {
     });
 
     it("should respect limit parameter with default of 50", async () => {
+      const timestamp = Date.now() * 1000;
+      const observations = Array.from({ length: 6 }, (_, index) => {
+        const observationId = randomUUID();
+        return createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: randomUUID(),
+          project_id: projectId,
+          name: `limit-test-observation-${index}`,
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timestamp + index,
+        });
+      });
+
+      await createEventsCh(observations);
+
       // Test default limit
-      const response1 = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
-        "/api/public/v2/observations",
-      );
+      const response1 = await getObservations("/api/public/v2/observations");
 
       expect(response1.status).toBe(200);
-      expect(response1.body.data.length).toBeLessThanOrEqual(50);
+      expect(response1.body.data.length).toBe(6);
 
       // Test custom limit
-      const response2 = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const response2 = await getObservations(
         "/api/public/v2/observations?limit=5",
       );
 
       expect(response2.status).toBe(200);
-      expect(response2.body.data.length).toBeLessThanOrEqual(5);
+      expect(response2.body.data.length).toBe(5);
     });
 
     it("should support standard filters (name, type, level, etc.)", async () => {
@@ -186,9 +213,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await createEventsCh([observation]);
 
       // Test filtering by name
-      const response = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const response = await getObservations(
         `/api/public/v2/observations?fields=basic&name=unique-observation-name`,
       );
 
@@ -335,9 +360,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       // Test each filter to ensure no SQL crashes
       for (const testCase of filterTestCases) {
         const filterParam = JSON.stringify(testCase.filter);
-        const response = await makeZodVerifiedAPICall(
-          GetObservationsV2Response,
-          "GET",
+        const response = await getObservations(
           `/api/public/v2/observations?traceId=${traceId}&fields=basic,io,cost,model,metadata&filter=${encodeURIComponent(filterParam)}`,
         );
 
@@ -358,9 +381,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
           value: "test-user-123",
         },
       ]);
-      const userIdFilterResponse = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const userIdFilterResponse = await getObservations(
         `/api/public/v2/observations?traceId=${traceId}&fields=basic&filter=${encodeURIComponent(userIdFilterParam)}`,
       );
 
@@ -381,9 +402,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
           value: "test",
         },
       ]);
-      const traceNameResponse = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const traceNameResponse = await getObservations(
         `/api/public/v2/observations?traceId=${traceId}&fields=basic&filter=${encodeURIComponent(traceNameFilterParam)}`,
       );
 
@@ -455,9 +474,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         },
       ]);
 
-      const response = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const response = await getObservations(
         `/api/public/v2/observations?traceId=${traceId}&fields=basic,metadata&filter=${encodeURIComponent(filterParam)}`,
       );
 
@@ -470,6 +487,212 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(matchedObs).toBeDefined();
       expect(matchedObs?.name).toBe("nested-metadata-obs-1");
     });
+  });
+
+  maybe("Field group contract", () => {
+    // Core fields always returned regardless of which group is requested
+    const CORE_FIELDS = [
+      "id",
+      "traceId",
+      "type",
+      "startTime",
+      "endTime",
+      "projectId",
+      "parentObservationId",
+    ] as const;
+
+    // All non-core fields across all groups — used to assert absence.
+    // Note: latency is computed from start_time/end_time (both in core). timeToFirstToken is computed from start_time
+    // and completion_start_time, but the converter spreads it when EITHER is defined; since start_time is in core and
+    // always selected, timeToFirstToken is always present (as null when completion_start_time is not selected).
+    const ALL_NON_CORE_FIELDS = [
+      // basic
+      "name",
+      "level",
+      "statusMessage",
+      "version",
+      "environment",
+      "bookmarked",
+      "public",
+      "userId",
+      "sessionId",
+      // time
+      "completionStartTime",
+      "createdAt",
+      "updatedAt",
+      // io
+      "input",
+      "output",
+      // metadata
+      "metadata",
+      // model — note: the API response uses "model" for the provided model name,
+      // not "providedModelName" (the domain type maps provided_model_name → model)
+      "model",
+      "internalModelId",
+      "modelParameters",
+      // usage
+      "usageDetails",
+      "costDetails",
+      "totalCost",
+      "usagePricingTierName",
+      // prompt
+      "promptId",
+      "promptName",
+      "promptVersion",
+      // trace_context
+      "traceName",
+      "tags",
+      "release",
+    ] as const;
+
+    let sharedObsId: string;
+    let sharedTraceId: string;
+
+    beforeEach(async () => {
+      sharedTraceId = randomUUID();
+      sharedObsId = randomUUID();
+      const now = new Date();
+      const timeValue = now.getTime() * 1000;
+
+      const obs = createEvent({
+        id: sharedObsId,
+        span_id: sharedObsId,
+        trace_id: sharedTraceId,
+        project_id: projectId,
+        name: "field-group-contract-obs",
+        type: "GENERATION",
+        level: "DEFAULT",
+        status_message: "ok",
+        version: "1.0",
+        environment: "production",
+        bookmarked: true,
+        public: true,
+        user_id: "test-user",
+        session_id: "test-session",
+        start_time: timeValue,
+        end_time: timeValue + 1000 * 1000,
+        completion_start_time: timeValue + 500 * 1000,
+        provided_model_name: "gpt-4",
+        model_id: randomUUID(),
+        model_parameters: '{"temperature":0.5}',
+        usage_details: { input: 10, output: 20, total: 30 },
+        cost_details: { input: 0.01, output: 0.02, total: 0.03 },
+        usage_pricing_tier_name: "contract-tier",
+        prompt_id: randomUUID(),
+        prompt_name: "contract-prompt",
+        prompt_version: 2,
+        input: "contract input",
+        output: "contract output",
+        metadata_names: ["key"],
+        metadata_values: ["val"],
+        trace_name: "contract-trace",
+        tags: ["tag-a", "tag-b"],
+        release: "1.2.3",
+      });
+
+      await createEventsCh([obs]);
+    });
+
+    // Known fixture values — used to assert exact values, not just presence.
+    // toBeDefined() passes for null; for fields the fixture explicitly sets we
+    // assert the stored value so a null regression is caught.
+    const knownValues: Record<string, unknown> = {
+      name: "field-group-contract-obs",
+      level: "DEFAULT",
+      statusMessage: "ok",
+      version: "1.0",
+      environment: "production",
+      bookmarked: true,
+      public: true,
+      userId: "test-user",
+      sessionId: "test-session",
+      model: "gpt-4",
+      modelParameters: { temperature: 0.5 },
+      promptName: "contract-prompt",
+      promptVersion: 2,
+      input: "contract input",
+      output: "contract output",
+      traceName: "contract-trace",
+      tags: ["tag-a", "tag-b"],
+      release: "1.2.3",
+      usagePricingTierName: "contract-tier",
+    };
+
+    const fieldsForGroup: Record<string, readonly string[]> = {
+      basic: [
+        "name",
+        "level",
+        "statusMessage",
+        "version",
+        "environment",
+        "bookmarked",
+        "public",
+        "userId",
+        "sessionId",
+      ],
+      time: ["completionStartTime", "createdAt", "updatedAt"],
+      io: ["input", "output"],
+      metadata: ["metadata"],
+      // "model" is the API response key for provided_model_name (see domain type)
+      model: ["model", "internalModelId", "modelParameters"],
+      usage: [
+        "usageDetails",
+        "costDetails",
+        "totalCost",
+        "usagePricingTierName",
+      ],
+      prompt: ["promptId", "promptName", "promptVersion"],
+      // latency and timeToFirstToken are always returned (computed from core start_time, completion_start_time,
+      // end_time), but the metrics group is still defined for documentation and to verify these fields are indeed
+      // present
+      metrics: ["latency", "timeToFirstToken"],
+      trace_context: ["traceName", "tags", "release"],
+    };
+
+    for (const [group, expectedFields] of Object.entries(fieldsForGroup)) {
+      it(`field group contract: ${group}`, async () => {
+        const response = await getObservations(
+          `/api/public/v2/observations?fields=${group}&traceId=${sharedTraceId}`,
+        );
+
+        expect(response.status).toBe(200);
+        const obs = response.body.data.find((o: any) => o.id === sharedObsId);
+        expect(obs).toBeDefined();
+        if (!obs) return; // narrow type; expect above already fails the test
+
+        // Core fields always present
+        for (const field of CORE_FIELDS) {
+          expect(obs[field]).toBeDefined();
+        }
+
+        // Requested group fields present — assert exact value when the fixture
+        // set one, toBeDefined() otherwise (e.g. dates, generated IDs).
+        for (const field of expectedFields) {
+          if (field in knownValues) {
+            expect(
+              obs[field],
+              `expected field "${field}" to equal fixture value for group "${group}"`,
+            ).toStrictEqual(knownValues[field]);
+          } else {
+            expect(
+              obs[field],
+              `expected field "${field}" to be defined for group "${group}"`,
+            ).toBeDefined();
+          }
+        }
+
+        // Fields from other groups must be absent from the response
+        const absentFields = ALL_NON_CORE_FIELDS.filter(
+          (f) => !(expectedFields as readonly string[]).includes(f),
+        );
+        for (const field of absentFields) {
+          expect(
+            obs[field],
+            `expected field "${field}" to be absent when only group "${group}" is requested`,
+          ).toBeUndefined();
+        }
+      });
+    }
   });
 
   maybe("Metadata expansion with expandMetadata parameter", () => {
@@ -517,9 +740,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       );
 
       // Request metadata with expansion - this switches to events_full table
-      const response = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const response = await getObservations(
         `/api/public/v2/observations?traceId=${traceId}&fields=metadata&expandMetadata=expandMe`,
       );
 
@@ -575,9 +796,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       );
 
       // Request expansion for a key that doesn't exist
-      const response = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const response = await getObservations(
         `/api/public/v2/observations?traceId=${traceId}&fields=metadata&expandMetadata=nonExistentKey`,
       );
 
@@ -633,9 +852,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       );
 
       // Request metadata with empty expandMetadata - should use events_core (truncated)
-      const response = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const response = await getObservations(
         `/api/public/v2/observations?traceId=${traceId}&fields=metadata&expandMetadata=`,
       );
 
@@ -694,9 +911,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       );
 
       // Request with limit=5 - should return exactly 5, not all 10
-      const response = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const response = await getObservations(
         `/api/public/v2/observations?traceId=${traceId}&limit=5`,
       );
 
@@ -734,9 +949,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await createEventsCh(observations);
 
       // Fetch with limit=2 (should have cursor since we have 3 observations)
-      const response = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const response = await getObservations(
         `/api/public/v2/observations?traceId=${traceId}&limit=2`,
       );
 
@@ -772,9 +985,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await createEventsCh(observations);
 
       // Fetch with limit=5 (should not have cursor since we only have 2)
-      const response = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const response = await getObservations(
         `/api/public/v2/observations?traceId=${traceId}&limit=5`,
       );
 
@@ -809,9 +1020,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await createEventsCh(observations);
 
       // Fetch first page with limit=2
-      const page1 = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const page1 = await getObservations(
         `/api/public/v2/observations?traceId=${traceId}&limit=2`,
       );
 
@@ -822,9 +1031,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const page1Ids = page1.body.data.map((obs: any) => obs.id);
 
       // Fetch second page using cursor
-      const page2 = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const page2 = await getObservations(
         `/api/public/v2/observations?traceId=${traceId}&limit=2&cursor=${page1.body.meta.cursor}`,
       );
 
@@ -839,9 +1046,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(overlap.length).toBe(0);
 
       // Fetch third page
-      const page3 = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const page3 = await getObservations(
         `/api/public/v2/observations?traceId=${traceId}&limit=2&cursor=${page2.body.meta.cursor}`,
       );
 
@@ -900,9 +1105,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await createEventsCh([obs1, obs2, obs3]);
 
       // Fetch first page
-      const page1 = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const page1 = await getObservations(
         `/api/public/v2/observations?userId=${userId}&limit=2&fromStartTime=${new Date(timeValue / 1000).toISOString()}&toStartTime=${new Date(timeValue / 1000 + 1000).toISOString()}`,
       );
 
@@ -912,9 +1115,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const page1Ids = page1.body.data.map((obs: any) => obs.id);
 
       // Fetch second page using cursor
-      const page2 = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const page2 = await getObservations(
         `/api/public/v2/observations?userId=${userId}&limit=2&cursor=${page1.body.meta.cursor}`,
       );
 
@@ -959,9 +1160,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await createEventsCh(observations);
 
       // Fetch first page with type filter
-      const page1 = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const page1 = await getObservations(
         `/api/public/v2/observations?traceId=${traceId}&type=SPAN&limit=2`,
       );
 
@@ -973,9 +1172,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(page1.body.meta.cursor).toBeDefined();
 
       // Fetch second page with same filter and cursor
-      const page2 = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
+      const page2 = await getObservations(
         `/api/public/v2/observations?traceId=${traceId}&type=SPAN&limit=2&cursor=${page1.body.meta.cursor}`,
       );
 
@@ -993,9 +1190,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
     });
 
     it("should reject invalid cursor format", async () => {
-      const { makeAPICall } = await import("@/src/__tests__/test-utils");
-      const response = await makeAPICall(
-        "GET",
+      const response = await getRaw(
         `/api/public/v2/observations?fields=id&cursor=invalid-base64-string`,
       );
 

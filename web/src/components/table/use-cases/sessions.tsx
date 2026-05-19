@@ -403,6 +403,7 @@ export default function SessionsTable({
     projectId,
     tableName: "sessions",
     setSelectedRows,
+    setSelectAll,
   });
 
   const handleAddToAnnotationQueue = async ({
@@ -754,7 +755,8 @@ export default function SessionsTable({
           return <TableTextLoadingCell />;
         }
         return (
-          value && (
+          value &&
+          value.length > 0 && (
             <div
               className={cn(
                 "flex gap-x-2 gap-y-1",
@@ -777,20 +779,37 @@ export default function SessionsTable({
     columns,
   );
 
+  const selectedSessionIds = useMemo(
+    () =>
+      Object.keys(selectedRows).filter((sessionId) =>
+        sessions.data?.sessions.map((s) => s.id).includes(sessionId),
+      ),
+    [selectedRows, sessions.data?.sessions],
+  );
+
+  const selectedSessionCount = selectAll
+    ? totalCount
+    : selectedSessionIds.length;
+
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Sessions,
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
     },
     validationContext: {
       columns,
       filterColumnDefinition: sessionsFilterConfig.columnDefinitions,
+      expandableFilterColumns: sessionsFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
     },
     currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
   });
 
   return (
@@ -800,14 +819,17 @@ export default function SessionsTable({
         <DataTableToolbar
           filterState={queryFilter.explicitFilterState}
           actionButtons={[
-            Object.keys(selectedRows).filter((sessionId) =>
-              sessions.data?.sessions.map((s) => s.id).includes(sessionId),
-            ).length > 0 ? (
+            selectedSessionIds.length > 0 || selectAll ? (
               <TableActionMenu
                 key="sessions-multi-select-actions"
                 projectId={projectId}
                 actions={tableActions}
                 tableName={BatchExportTableName.Sessions}
+                selectedCount={selectedSessionCount}
+                onClearSelection={() => {
+                  setSelectedRows({});
+                  setSelectAll(false);
+                }}
               />
             ) : null,
             <BatchExportTableButton
@@ -838,9 +860,7 @@ export default function SessionsTable({
           multiSelect={{
             selectAll,
             setSelectAll,
-            selectedRowIds: Object.keys(selectedRows).filter((sessionId) =>
-              sessions.data?.sessions.map((s) => s.id).includes(sessionId),
-            ),
+            selectedRowIds: selectedSessionIds,
             setRowSelection: setSelectedRows,
             totalCount,
             ...paginationState,
@@ -849,7 +869,11 @@ export default function SessionsTable({
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} />
+          <DataTableControls
+            // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
+            key={viewControllers.selectedViewId ?? "no-view"}
+            queryFilter={queryFilter}
+          />
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
@@ -902,6 +926,7 @@ export default function SessionsTable({
               columnOrder={columnOrder}
               onColumnOrderChange={setColumnOrder}
               rowSelection={selectedRows}
+              highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               help={{
                 description:

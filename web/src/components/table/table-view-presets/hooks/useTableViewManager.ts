@@ -1,6 +1,6 @@
 import { api } from "@/src/utils/api";
 import {
-  type TableViewPresetTableName,
+  TableViewPresetTableName,
   type FilterState,
   type OrderByState,
   type TableViewPresetState,
@@ -25,20 +25,31 @@ interface TableStateUpdaters {
   setOrderBy?: (orderBy: OrderByState) => void;
   setFilters?: (filters: FilterState) => void;
   setSearchQuery?: (searchQuery: string) => void;
+  setExpandedFilters?: (expandedFilters: string[]) => void;
 }
 
 interface UseTableStateProps {
   tableName: TableViewPresetTableName;
   projectId: string;
-  viewPersistenceKey?: string;
   stateUpdaters: TableStateUpdaters;
   validationContext?: {
     columns?: LangfuseColumnDef<any, any>[];
     filterColumnDefinition?: ColumnDefinition[];
+    expandableFilterColumns?: string[];
   };
   currentFilterState?: FilterState;
+  currentExpandedFilters?: string[];
   disabled?: boolean;
+  allowBackendSystemPresets?: boolean;
 }
+
+const isViewApplicableToTable = (
+  currentTableName: TableViewPresetTableName,
+  viewTableName: TableViewPresetTableName,
+) =>
+  currentTableName === viewTableName ||
+  (currentTableName === TableViewPresetTableName.ObservationsEvents &&
+    viewTableName === TableViewPresetTableName.Observations);
 
 /**
  * Hook to manage table view state with permalink support
@@ -46,11 +57,12 @@ interface UseTableStateProps {
 export function useTableViewManager({
   projectId,
   tableName,
-  viewPersistenceKey,
   stateUpdaters,
   validationContext = {},
   currentFilterState,
+  currentExpandedFilters,
   disabled = false,
+  allowBackendSystemPresets = false,
 }: UseTableStateProps) {
   const router = useRouter();
   const isRouterReady = router.isReady;
@@ -59,14 +71,9 @@ export function useTableViewManager({
   const capture = usePostHogClientCapture();
   const pendingFiltersRef = useRef<FilterState | null>(null);
   const pendingFiltersPreviousStateRef = useRef<FilterState | null>(null);
-  // Session storage needs a mode-specific key because the same tableName can be
-  // rendered by different route variants (for example legacy vs v4 pages) with
-  // distinct saved-view IDs. Reusing tableName would restore stale IDs across
-  // modes and boot the user into an incompatible saved view.
-  const resolvedViewPersistenceKey = viewPersistenceKey ?? tableName;
 
   const [storedViewId, setStoredViewId] = useSessionStorage<string | null>(
-    `${resolvedViewPersistenceKey}-${projectId}-viewId`,
+    `${tableName}-${projectId}-viewId`,
     null,
   );
   const [selectedViewIdParam, setSelectedViewId] = useQueryParam(
@@ -113,6 +120,7 @@ export function useTableViewManager({
     setColumnOrder,
     setColumnVisibility,
     setSearchQuery,
+    setExpandedFilters,
   } = stateUpdaters;
 
   // Use refs to always get latest function references to avoid stale closures in applyViewState
@@ -120,11 +128,13 @@ export function useTableViewManager({
   const setFiltersRef = useRef(setFilters);
   const setOrderByRef = useRef(setOrderBy);
   const setSearchQueryRef = useRef(setSearchQuery);
+  const setExpandedFiltersRef = useRef(setExpandedFilters);
 
   // Update refs immediately on every render
   setFiltersRef.current = setFilters;
   setOrderByRef.current = setOrderBy;
   setSearchQueryRef.current = setSearchQuery;
+  setExpandedFiltersRef.current = setExpandedFilters;
 
   // Extract primitive for effect dep (rerender-dependencies: avoid object deps)
   const defaultViewId = resolvedDefault?.viewId;
@@ -136,23 +146,26 @@ export function useTableViewManager({
     if (isInitialized) return;
     if (!isRouterReady) return;
 
-    // If viewId already in URL and not a system preset → getById query handles it.
-    // Sync to session storage so navigating away and back restores the view.
-    if (selectedViewId && !isSystemPresetId(selectedViewId)) {
-      if (storedViewId !== selectedViewId) {
-        setStoredViewId(selectedViewId);
-      }
+    // If viewId already in the URL and is not a system preset, let the getById
+    // query resolve it.
+    if (
+      selectedViewId &&
+      (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets)
+    ) {
       return;
     }
 
-    // Clear stale system preset from URL (e.g. navigated from session detail).
+    // Clear stale frontend-only system presets from the URL.
     if (selectedViewId && isSystemPresetId(selectedViewId)) {
       handleSetViewId(null);
       return;
     }
 
     // Priority 1: Session storage (from a previous visit to this table)
-    if (storedViewId && !isSystemPresetId(storedViewId)) {
+    if (
+      storedViewId &&
+      (!isSystemPresetId(storedViewId) || allowBackendSystemPresets)
+    ) {
       setSelectedViewId(storedViewId);
       return;
     }
@@ -161,8 +174,7 @@ export function useTableViewManager({
     if (isDefaultLoading) return;
 
     if (defaultViewId) {
-      if (isSystemPresetId(defaultViewId)) {
-        // Resolved defaults should never point to system presets; clear if they do.
+      if (isSystemPresetId(defaultViewId) && !allowBackendSystemPresets) {
         handleSetViewId(null);
         return;
       }
@@ -182,6 +194,7 @@ export function useTableViewManager({
     storedViewId,
     isDefaultLoading,
     defaultViewId,
+    allowBackendSystemPresets,
     handleSetViewId,
     setStoredViewId,
     setSelectedViewId,
@@ -229,6 +242,24 @@ export function useTableViewManager({
 
       const filtersAlreadyApplied = isEqual(currentFilterState, validFilters);
 
+      if (
+        setExpandedFiltersRef.current &&
+        validationContext.expandableFilterColumns?.length
+      ) {
+        const nextExpandedFilters = Array.from(
+          new Set([
+            ...(currentExpandedFilters ?? []),
+            ...validFilters
+              .map((filter) => filter.column)
+              .filter((column) =>
+                validationContext.expandableFilterColumns?.includes(column),
+              ),
+          ]),
+        );
+
+        setExpandedFiltersRef.current(nextExpandedFilters);
+      }
+
       if (setFiltersRef.current) {
         setFiltersRef.current(validFilters);
         // Track expected filters to observe when state actually updates (for useEffect below)
@@ -265,10 +296,11 @@ export function useTableViewManager({
       setColumnVisibility,
       validationContext,
       currentFilterState,
+      currentExpandedFilters,
     ],
   );
 
-  // Fetch view data if viewId is provided (skip for system presets)
+  // Fetch view data if a viewId is provided (skip for frontend-only system presets)
   const {
     data: selectedViewData,
     error: selectedViewError,
@@ -282,7 +314,7 @@ export function useTableViewManager({
         isRouterReady &&
         !!selectedViewId &&
         !isInitialized &&
-        !isSystemPresetId(selectedViewId),
+        (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets),
     },
   );
 
@@ -294,7 +326,7 @@ export function useTableViewManager({
     if (isInitializedRef.current) return;
     if (selectedViewIdRef.current !== requestedViewId) return;
     if (selectedViewData.id !== requestedViewId) return;
-    if (selectedViewData.tableName !== tableName) {
+    if (!isViewApplicableToTable(tableName, selectedViewData.tableName)) {
       handleSetViewId(null);
       return;
     }
@@ -307,6 +339,9 @@ export function useTableViewManager({
     });
 
     applyViewState(selectedViewData);
+    if (storedViewId !== requestedViewId) {
+      setStoredViewId(requestedViewId);
+    }
     isInitializedRef.current = true;
     setIsInitialized(true);
   }, [
@@ -318,6 +353,8 @@ export function useTableViewManager({
     capture,
     tableName,
     applyViewState,
+    storedViewId,
+    setStoredViewId,
   ]);
 
   useEffect(() => {

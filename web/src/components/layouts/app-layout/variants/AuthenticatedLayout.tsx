@@ -11,8 +11,12 @@ import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { Toaster } from "@/src/components/ui/sonner";
 import { TopBannerProvider } from "@/src/features/top-banner";
 import { ResizableContent } from "../components/ResizableContent";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
-import { getAvailableCloudRegionOptions } from "@/src/features/organizations/cloudRegions";
+import {
+  getAvailableCloudRegionOptions,
+  getCloudRegionAuthUrl,
+} from "@/src/features/organizations/cloudRegions";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
@@ -79,6 +83,7 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
     favicon256Path: string;
     appleTouchIconPath: string;
   };
+  aiFeaturesEnabled: boolean;
   onSignOut: () => void;
 }>;
 
@@ -96,9 +101,12 @@ export function AuthenticatedLayout({
   session,
   navigation,
   metadata,
+  aiFeaturesEnabled,
   onSignOut,
 }: AuthenticatedLayoutProps) {
   const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
+  const assistantEnabled =
+    useIsFeatureEnabled("inAppAgent") && aiFeaturesEnabled;
 
   // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
   // in AppLayout, which guarantees session.user exists at this point
@@ -114,7 +122,11 @@ export function AuthenticatedLayout({
       content: `${region.flag} ${region.name}`,
       onClick: () => {
         if (!region.rootUrl) return;
-        window.open(region.rootUrl, "_blank", "noopener,noreferrer");
+        window.open(
+          getCloudRegionAuthUrl(region.rootUrl, user.email),
+          "_blank",
+          "noopener,noreferrer",
+        );
       },
     }),
   );
@@ -176,7 +188,9 @@ export function AuthenticatedLayout({
                 userNavProps={userNavProps}
               />
               <SidebarInset className="h-screen-with-banner max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
-                <ResizableContent>{children}</ResizableContent>
+                <ResizableContent aiAgentEnabled={assistantEnabled}>
+                  {children}
+                </ResizableContent>
                 <Toaster visibleToasts={1} />
                 <CommandMenu mainNavigation={navigation.navigation} />
               </SidebarInset>

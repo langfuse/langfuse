@@ -6,7 +6,7 @@ export const clickhouseStringDateSchema = z
   // clickhouse stores UTC like '2024-05-23 18:33:41.602000'
   // we need to convert it to '2024-05-23T18:33:41.602000Z'
   .transform((str) => str.replace(" ", "T") + "Z")
-  .pipe(z.string().datetime());
+  .pipe(z.iso.datetime());
 
 //https://clickhouse.com/docs/en/integrations/javascript#integral-types-int64-int128-int256-uint64-uint128-uint256
 // clickhouse returns int64 as string
@@ -19,7 +19,7 @@ export const UsageCostSchema = z
         const parsed = Number(val[key]);
         if (isNaN(parsed)) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             message: `Key ${key} is not a number`,
           });
         } else {
@@ -115,6 +115,7 @@ export const eventsObservationRecordReadSchema =
     user_id: z.string().nullish(),
     session_id: z.string().nullish(),
     trace_name: z.string().nullish(),
+    release: z.string().nullish(),
     tags: z.array(z.string()).optional(),
     bookmarked: z.boolean().optional(),
     public: z.boolean().optional(),

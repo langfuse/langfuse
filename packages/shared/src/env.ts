@@ -3,10 +3,14 @@ import { removeEmptyEnvVariables } from "./utils/environment";
 
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
+  // Dev-only override: set to an ISO datetime string to shift the legacy blob
+  // export cutoff for local testing (e.g. "2020-01-01T00:00:00.000Z" makes
+  // every project post-cutoff; "2099-01-01T00:00:00.000Z" grandfathers all).
+  NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
-  NEXTAUTH_URL: z.string().url().optional(),
+  NEXTAUTH_URL: z.url().optional(),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
   CLOUD_CRM_EMAIL: z.string().optional(),
@@ -71,9 +75,9 @@ const EnvSchema = z.object({
     .default(20_000),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(3600), // 1h
-  CLICKHOUSE_URL: z.string().url(),
-  CLICKHOUSE_READ_ONLY_URL: z.string().url().optional(),
-  CLICKHOUSE_EVENTS_READ_ONLY_URL: z.string().url().optional(),
+  CLICKHOUSE_URL: z.url(),
+  CLICKHOUSE_READ_ONLY_URL: z.url().optional(),
+  CLICKHOUSE_EVENTS_READ_ONLY_URL: z.url().optional(),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_USER: z.string(),
@@ -95,6 +99,12 @@ const EnvSchema = z.object({
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])
     .default("auto"),
+  // Workaround for a 25.12 bug where lightweight updates/deletes interact
+  // incorrectly with lazy materialization. Remove after ClickHouse 26.4, or
+  // earlier if the fix is backported.
+  CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
+    .enum(["true", "false"])
+    .default("false"),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
@@ -106,6 +116,10 @@ const EnvSchema = z.object({
     .positive()
     .default(1),
   LANGFUSE_OTEL_INGESTION_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_OTEL_INGESTION_SECONDARY_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()
     .default(1),
@@ -382,7 +396,7 @@ const EnvSchema = z.object({
   LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
 
   // Ingestion Masking (EE feature)
-  LANGFUSE_INGESTION_MASKING_CALLBACK_URL: z.string().url().optional(),
+  LANGFUSE_INGESTION_MASKING_CALLBACK_URL: z.url().optional(),
   LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS: z.coerce
     .number()
     .positive()
