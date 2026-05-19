@@ -135,14 +135,28 @@ export function createPublicApiObservationsColumnMapping(
   tablePrefix: "e" | "o",
   parentFieldName: "parent_span_id" | "parent_observation_id",
 ): ApiColumnMapping[] {
+  // user_id is denormalized onto events_core/events_full, so the events_proto
+  // path filters directly without joining the traces CTE. The legacy
+  // observations table does not carry user_id, so that path still joins
+  // traces.
+  const userIdMapping: ApiColumnMapping =
+    tableName === "events_proto"
+      ? {
+          id: "userId",
+          clickhouseSelect: "user_id",
+          filterType: "StringFilter",
+          clickhouseTable: tableName,
+          clickhousePrefix: tablePrefix,
+        }
+      : {
+          id: "userId",
+          clickhouseSelect: "user_id",
+          filterType: "StringFilter",
+          clickhouseTable: "traces",
+          clickhousePrefix: "t",
+        };
   return [
-    {
-      id: "userId",
-      clickhouseSelect: "user_id",
-      filterType: "StringFilter",
-      clickhouseTable: "traces",
-      clickhousePrefix: "t",
-    },
+    userIdMapping,
     {
       id: "traceId",
       clickhouseSelect: "trace_id",
@@ -204,7 +218,7 @@ export function createPublicApiObservationsColumnMapping(
     {
       id: "environment",
       clickhouseSelect: "environment",
-      filterType: "StringFilter",
+      filterType: "StringOptionsFilter",
       clickhouseTable: tableName,
       clickhousePrefix: tablePrefix,
     },
