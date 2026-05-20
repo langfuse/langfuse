@@ -473,6 +473,155 @@ export const getExperimentItemsCountFromEvents = async (
   return rows.length > 0 ? Number(rows[0].count) : 0;
 };
 
+type ExperimentItemsFilterOptionsInput = {
+  projectId: string;
+  experimentIds: string[];
+};
+
+type ScoreFilterOptionsRow = {
+  name: string;
+  data_type: string;
+  values: string[];
+};
+
+const SCORE_FILTER_OPTIONS_LIMIT = 1000;
+
+const buildScoreFilterOptionsQuery = (params: {
+  projectId: string;
+  experimentIds: string[];
+  level: "observation" | "trace";
+}): { query: string; params: Record<string, unknown> } => {
+  const { projectId, experimentIds, level } = params;
+
+  // Build experiment events CTE using existing fragment
+  const experimentEventsCTE = eventsExperimentsRootSpans({
+    projectId,
+    experimentIds,
+  })
+    .selectRaw("e.project_id", "e.trace_id", "e.span_id")
+    .limitBy("e.project_id", "e.trace_id", "e.span_id")
+    .buildWithParams();
+
+  // Build scores CTE for the appropriate level
+  const scoresCTE = buildScoresCTE({
+    projectId,
+    level,
+  });
+
+  // Build the join condition based on level
+  const joinCondition =
+    level === "trace"
+      ? "ON s.project_id = ee.project_id AND s.trace_id = ee.trace_id"
+      : "ON s.project_id = ee.project_id AND s.trace_id = ee.trace_id AND s.observation_id = ee.span_id";
+
+  // Compose the full query using CTEQueryBuilder
+  const queryBuilder = new CTEQueryBuilder()
+    .withCTE("experiment_events", {
+      ...experimentEventsCTE,
+      schema: ["project_id", "trace_id", "span_id"],
+    })
+    .withCTE("scores", scoresCTE)
+    .from("experiment_events", "ee")
+    .innerJoin("scores", "s", joinCondition)
+    .select(
+      "s.name AS name",
+      "s.data_type AS data_type",
+      "groupUniqArrayIf(s.string_value, s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS values",
+    )
+    .groupBy("s.name", "s.data_type")
+    .limit(SCORE_FILTER_OPTIONS_LIMIT);
+
+  return queryBuilder.buildWithParams();
+};
+
+const processScoreFilterOptionsResults = (
+  rows: ScoreFilterOptionsRow[],
+): {
+  numeric: string[];
+  categorical: Array<{ label: string; values: string[] }>;
+} => {
+  const numeric: string[] = [];
+  const categorical: Array<{ label: string; values: string[] }> = [];
+
+  for (const row of rows) {
+    if (row.data_type === "NUMERIC" || row.data_type === "BOOLEAN") {
+      numeric.push(row.name);
+    } else if (row.data_type === "CATEGORICAL") {
+      categorical.push({ label: row.name, values: row.values });
+    }
+  }
+
+  return { numeric, categorical };
+};
+
+export const getExperimentItemsFilterOptions = async (
+  props: ExperimentItemsFilterOptionsInput,
+): Promise<{
+  obs_scores_avg: string[];
+  obs_score_categories: Array<{ label: string; values: string[] }>;
+  trace_scores_avg: string[];
+  trace_score_categories: Array<{ label: string; values: string[] }>;
+}> => {
+  const { projectId, experimentIds } = props;
+
+  if (experimentIds.length === 0) {
+    return {
+      obs_scores_avg: [],
+      obs_score_categories: [],
+      trace_scores_avg: [],
+      trace_score_categories: [],
+    };
+  }
+
+  // Build queries for both levels
+  const traceQuery = buildScoreFilterOptionsQuery({
+    projectId,
+    experimentIds,
+    level: "trace",
+  });
+
+  const obsQuery = buildScoreFilterOptionsQuery({
+    projectId,
+    experimentIds,
+    level: "observation",
+  });
+
+  // Run both queries in parallel
+  const [traceResults, obsResults] = await Promise.all([
+    queryClickhouse<ScoreFilterOptionsRow>({
+      query: traceQuery.query,
+      params: traceQuery.params,
+      tags: {
+        feature: "experiments",
+        type: "filter-options",
+        kind: "trace-scores",
+        projectId,
+      },
+    }),
+    queryClickhouse<ScoreFilterOptionsRow>({
+      query: obsQuery.query,
+      params: obsQuery.params,
+      tags: {
+        feature: "experiments",
+        type: "filter-options",
+        kind: "observation-scores",
+        projectId,
+      },
+    }),
+  ]);
+
+  // Process results to split by data_type
+  const traceScores = processScoreFilterOptionsResults(traceResults);
+  const obsScores = processScoreFilterOptionsResults(obsResults);
+
+  return {
+    obs_scores_avg: obsScores.numeric,
+    obs_score_categories: obsScores.categorical,
+    trace_scores_avg: traceScores.numeric,
+    trace_score_categories: traceScores.categorical,
+  };
+};
+
 type FilterByExperiment = {
   experimentId: string;
   filters: FilterState;
