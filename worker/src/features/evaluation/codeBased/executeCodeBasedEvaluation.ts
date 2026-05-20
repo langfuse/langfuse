@@ -78,49 +78,85 @@ export async function executeCodeBasedEvaluation(params: {
 
       const payload = buildCodeEvalPayload(params.extractedVariables);
       const traceStartTime = new Date();
-      const dispatchResult = await dispatcher.dispatch({
-        scope: {
-          organizationId: project.orgId,
-          projectId: params.projectId,
-          evaluatorId: params.template.id,
-          environment: CODE_EVAL_SCOPE_ENVIRONMENT,
-        },
-        runtime: { language: params.template.sourceCodeLanguage },
-        execution: { jobExecutionId: params.jobExecutionId },
-        code: { source: params.template.sourceCode },
-        payload,
-      });
-
-      const scores = normalizeCodeEvalScores({
-        scores: dispatchResult.scores,
-        defaultScoreName: params.config.scoreName,
-      });
-
-      // LLM-as-judge gets this trace from fetchLLMCompletion's traceSinkParams;
-      // the code-eval dispatcher returns no trace data, so synthesize a SPAN.
       const traceName = `Execute evaluator: ${params.template.name}`;
-      await createInternalEventsWriter().write({
-        rootSpanId: executionTraceId,
-        eventInputs: [
-          {
+      let dispatchResult: { scores: CodeEvalScore[] } | undefined;
+      let scores: CodeEvalScoreWithName[];
+
+      try {
+        dispatchResult = await dispatcher.dispatch({
+          scope: {
+            organizationId: project.orgId,
             projectId: params.projectId,
-            traceId: executionTraceId,
-            spanId: executionTraceId,
-            startTimeISO: traceStartTime.toISOString(),
-            endTimeISO: new Date().toISOString(),
-            name: traceName,
+            evaluatorId: params.template.id,
+            environment: CODE_EVAL_SCOPE_ENVIRONMENT,
+          },
+          runtime: { language: params.template.sourceCodeLanguage },
+          execution: { jobExecutionId: params.jobExecutionId },
+          code: { source: params.template.sourceCode },
+          payload,
+        });
+
+        scores = normalizeCodeEvalScores({
+          scores: dispatchResult.scores,
+          defaultScoreName: params.config.scoreName,
+        });
+      } catch (error) {
+        const errorDetails = serializeCodeEvalError(error);
+
+        try {
+          await writeCodeEvalTrace({
+            projectId: params.projectId,
+            executionTraceId,
+            traceStartTime,
             traceName,
-            type: "SPAN",
-            environment: LangfuseInternalTraceEnvironment.CodeEval,
-            input: stringifyValue(payload),
-            output: stringifyValue(dispatchResult),
+            payload,
+            output: {
+              ...(dispatchResult ? { result: dispatchResult } : {}),
+              error: errorDetails,
+            },
             metadata: {
               ...executionMetadata,
               score_id: primaryScoreId,
+              error_name: errorDetails.name,
+              error_message: errorDetails.message,
+              ...(errorDetails.code ? { error_code: errorDetails.code } : {}),
+              ...(typeof errorDetails.retryable === "boolean"
+                ? { error_retryable: errorDetails.retryable }
+                : {}),
             },
-            source: INTERNAL_TRACE_EVENT_SOURCE,
-          },
-        ],
+            level: "ERROR",
+            statusMessage: `Code eval execution failed: ${errorDetails.message}`,
+          });
+        } catch (traceError) {
+          logger.warn(
+            "Failed to write internal trace for failed code eval execution",
+            {
+              projectId: params.projectId,
+              executionTraceId,
+              error:
+                traceError instanceof Error
+                  ? traceError.message
+                  : String(traceError),
+            },
+          );
+        }
+
+        throw error;
+      }
+
+      // LLM-as-judge gets this trace from fetchLLMCompletion's traceSinkParams;
+      // the code-eval dispatcher returns no trace data, so synthesize a SPAN.
+      await writeCodeEvalTrace({
+        projectId: params.projectId,
+        executionTraceId,
+        traceStartTime,
+        traceName,
+        payload,
+        output: dispatchResult,
+        metadata: {
+          ...executionMetadata,
+          score_id: primaryScoreId,
+        },
       });
 
       span.setAttribute("eval.result.count", scores.length);
@@ -164,6 +200,67 @@ function buildCodeEvalPayload(
   }
 
   return payload;
+}
+
+async function writeCodeEvalTrace(params: {
+  projectId: string;
+  executionTraceId: string;
+  traceStartTime: Date;
+  traceName: string;
+  payload: CodeEvalPayload;
+  output: unknown;
+  metadata: Record<string, unknown>;
+  level?: string;
+  statusMessage?: string;
+}) {
+  await createInternalEventsWriter().write({
+    rootSpanId: params.executionTraceId,
+    eventInputs: [
+      {
+        projectId: params.projectId,
+        traceId: params.executionTraceId,
+        spanId: params.executionTraceId,
+        startTimeISO: params.traceStartTime.toISOString(),
+        endTimeISO: new Date().toISOString(),
+        name: params.traceName,
+        traceName: params.traceName,
+        type: "SPAN",
+        environment: LangfuseInternalTraceEnvironment.CodeEval,
+        ...(params.level ? { level: params.level } : {}),
+        ...(params.statusMessage
+          ? { statusMessage: params.statusMessage }
+          : {}),
+        input: stringifyValue(params.payload),
+        output: stringifyValue(params.output),
+        metadata: params.metadata,
+        source: INTERNAL_TRACE_EVENT_SOURCE,
+      },
+    ],
+  });
+}
+
+function serializeCodeEvalError(error: unknown): {
+  name: string;
+  message: string;
+  code?: string;
+  retryable?: boolean;
+} {
+  const base =
+    error instanceof Error
+      ? { name: error.name, message: error.message }
+      : { name: "Error", message: String(error) };
+
+  if (!error || typeof error !== "object") return base;
+
+  const errorRecord = error as Record<string, unknown>;
+
+  return {
+    ...base,
+    ...(typeof errorRecord.code === "string" ? { code: errorRecord.code } : {}),
+    ...(typeof errorRecord.retryable === "boolean"
+      ? { retryable: errorRecord.retryable }
+      : {}),
+  };
 }
 
 function normalizeCodeEvalScores(params: {
