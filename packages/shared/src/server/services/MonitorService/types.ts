@@ -2,33 +2,120 @@
 import { z } from "zod";
 import { singleFilter } from "../../../interfaces/filters";
 import { metric as MetricSchema, viewsV2 } from "../../../features/query/types";
-import { DAY, HOUR, MINUTE, WEEK } from "./internal";
-import { validateMonitorTemplate } from "./template";
-import { validateQuery } from "./validateQuery";
+import { isValidQuery } from "./isValidQuery";
+import { isValidTemplate } from "./isValidTemplate";
 
 /**
- * monitorSeverity is the kebab-case wire form of Prisma's `MonitorSeverity`
+ * isValidThresholdOrder returns true if order of the alert and warning
+ * thresholds are correct based on the operator
+ */
+const isValidThresholdOrder = (monitor: {
+  thresholdOperator: MonitorThresholdOperator;
+  alertThreshold: number;
+  warningThreshold: number | null;
+}): boolean => {
+  if (monitor.warningThreshold == null) return true;
+  switch (monitor.thresholdOperator) {
+    case "gt":
+    case "gte":
+      return monitor.warningThreshold > monitor.alertThreshold;
+    case "lt":
+    case "lte":
+      return monitor.warningThreshold < monitor.alertThreshold;
+    case "eq":
+    case "neq":
+      return true;
+  }
+};
+
+/**
+ * validateThresholdOrder enforces the correct order of the thresholds
+ * set in the MonitorSchema
+ */
+export const validateThresholdOrder = (
+  input: {
+    thresholdOperator: MonitorThresholdOperator;
+    alertThreshold: number;
+    warningThreshold: number | null;
+  },
+  ctx: z.RefinementCtx,
+): void => {
+  if (!isValidThresholdOrder(input)) {
+    ctx.addIssue({
+      code: "custom",
+      message: `alertThreshold must be ${input.thresholdOperator} warningThreshold`,
+      path: ["threshold"],
+    });
+  }
+};
+
+/**
+ * validateQuery enforces the correct query schema of the MonitorSchema.
+ */
+export const validateQuery = (
+  input: {
+    view: z.infer<typeof ViewsV2Schema>;
+    metric: z.infer<typeof MetricSchema>;
+    filters: z.infer<typeof singleFilter>[];
+  },
+  ctx: z.RefinementCtx,
+): void => {
+  const result = isValidQuery({
+    view: input.view,
+    metric: input.metric,
+    filters: input.filters,
+  });
+  if (!result.valid) {
+    ctx.addIssue({
+      code: "custom",
+      message: result.reason,
+      path: ["query"],
+    });
+  }
+};
+
+/**
+ * validateTemplate validates template strings
+ */
+export const validateTemplate = (template: string, ctx: z.RefinementCtx) => {
+  if (!isValidTemplate(template)) {
+    ctx.addIssue({
+      code: "custom",
+      message: "message template is not valid",
+      path: ["query"],
+    });
+  }
+};
+
+/**
+ * MonitorSeveritySchema is the kebab-case wire form of Prisma's `MonitorSeverity`
  * enum. The service translates between this and Prisma at the persistence
  * boundary.
  */
-export const monitorSeverity = z.enum([
+export const MonitorSeveritySchema = z.enum([
   "unknown",
   "ok",
   "warning",
   "alert",
   "no-data",
 ]);
+export type MonitorSeverity = z.infer<typeof MonitorSeveritySchema>;
 
 /**
- * monitorStatus is the kebab-case wire form of Prisma's `MonitorStatus` enum.
+ * MonitorStatusSchema is the kebab-case wire form of Prisma's `MonitorStatus` enum.
  */
-export const monitorStatus = z.enum(["active", "paused", "error-bad-query"]);
+export const MonitorStatusSchema = z.enum([
+  "active",
+  "paused",
+  "error-bad-query",
+]);
+export type MonitorStatus = z.infer<typeof MonitorStatusSchema>;
 
 /**
- * monitorThresholdOperator is the kebab-case wire form of Prisma's
+ * MonitorThresholdOperatorSchema is the kebab-case wire form of Prisma's
  * `MonitorThresholdOperator` enum.
  */
-export const monitorThresholdOperator = z.enum([
+export const MonitorThresholdOperatorSchema = z.enum([
   "gt",
   "gte",
   "lt",
@@ -36,62 +123,34 @@ export const monitorThresholdOperator = z.enum([
   "eq",
   "neq",
 ]);
+export type MonitorThresholdOperator = z.infer<
+  typeof MonitorThresholdOperatorSchema
+>;
 
 /**
- * ErrorInvalidMonitorWindow is emitted when a `window`
- * value does not match any `MonitorWindow.*` tier.
+ * MonitorWindowSchema is the kebab-case wire form of a Monitor evaluation
+ * window. The service translates between this and a bigint of milliseconds
+ * (the Prisma `windowMs` column) at the persistence boundary.
  */
-export const ErrorInvalidMonitorWindow =
-  "window must be one of the MonitorWindow.* tiers";
+export const MonitorWindowSchema = z.enum([
+  "5m",
+  "10m",
+  "15m",
+  "30m",
+  "1h",
+  "2h",
+  "4h",
+  "1d",
+  "2d",
+  "1w",
+]);
+export type MonitorWindow = z.infer<typeof MonitorWindowSchema>;
 
 /**
- * ErrorInvalidWarningAlertOrdering is emitted when `warningThreshold` is more severe
- * than `alertThreshold` for a given `thresholdOperator`.
+ * MonitorViewSchema is an alias of the query viewsV2 schema
  */
-export const ErrorInvalidWarningAlertOrdering =
-  "warningThreshold must be less severe than alertThreshold for ordered operators";
-
-/**
- * ErrorInvalidMonitorTemplate is emitted when a message template references
- * unknown variables, uses helpers, partials, decorators, sub-expressions, or
- * unescaped `{{{x}}}` output, or fails to parse as Handlebars.
- */
-export const ErrorInvalidMonitorTemplate =
-  "template is not formatted correctly";
-
-/**
- * MonitorWindow contains the list of allowed Monitor evaluation windows.
- * Adding a tier requires updating `calculateMonitorWindowCadenceMillis`.
- */
-export const MonitorWindow = {
-  FIVE_MIN: 5n * MINUTE,
-  TEN_MIN: 10n * MINUTE,
-  FIFTEEN_MIN: 15n * MINUTE,
-  THIRTY_MIN: 30n * MINUTE,
-  ONE_HOUR: HOUR,
-  TWO_HOUR: 2n * HOUR,
-  FOUR_HOUR: 4n * HOUR,
-  ONE_DAY: DAY,
-  TWO_DAY: 2n * DAY,
-  ONE_WEEK: WEEK,
-} as const;
-
-/**
- * calculateMonitorWindowCadenceMillis derives a Monitor's scheduler cadence from its evaluation window.
- */
-export function calculateMonitorWindowCadenceMillis(
-  windowMillis: bigint,
-): bigint {
-  if (windowMillis >= WEEK) return 48n * HOUR;
-  if (windowMillis >= DAY) return 30n * MINUTE;
-  return MINUTE; // default cadence
-}
-
-/**
- * isValidMonitorWindow returns true when `v` matches one of the `MonitorWindow.*` tiers.
- */
-export const isValidMonitorWindow = (v: bigint): boolean =>
-  (Object.values(MonitorWindow) as bigint[]).includes(v);
+export const MonitorViewSchema = viewsV2;
+export type MonitorView = z.infer<typeof MonitorViewSchema>;
 
 /**
  * MonitorRenotifySchema describes renotify behavior for a sustained severity.
@@ -130,35 +189,10 @@ export const MonitorNoDataSchema = z.discriminatedUnion("mode", [
 export type MonitorNoData = z.infer<typeof MonitorNoDataSchema>;
 
 /**
- * validateWarningAlertOrdering enforces that warning must cross before alert
- * for ordered operators; null warning and unordered operators (EQ/NEQ) always
- * pass.
+ * MonitorSchema is the Monitor domiain object. It mirrors the Prisma `Monitor`
+ * row.
  */
-export function validateWarningAlertOrdering(monitor: {
-  thresholdOperator: z.infer<typeof monitorThresholdOperator>;
-  alertThreshold: number;
-  warningThreshold: number | null;
-}): boolean {
-  if (monitor.warningThreshold == null) return true;
-  switch (monitor.thresholdOperator) {
-    case "gt":
-    case "gte":
-      return monitor.warningThreshold < monitor.alertThreshold;
-    case "lt":
-    case "lte":
-      return monitor.warningThreshold > monitor.alertThreshold;
-    case "eq":
-    case "neq":
-      return true;
-  }
-}
-
-/**
- * monitorBaseSchema is the unrefined ZodObject backing both `MonitorSchema`
- * and the write-input schemas. Kept as a plain ZodObject so the write inputs
- * can derive themselves via `.omit(...)`.
- */
-const monitorBaseSchema = z.object({
+export const MonitorSchema = z.object({
   id: z.string(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -167,126 +201,35 @@ const monitorBaseSchema = z.object({
   projectId: z.string(),
 
   // Query Config
-  view: viewsV2,
+  view: MonitorViewSchema,
   filters: z.array(singleFilter),
   metric: MetricSchema,
 
   // Monitor Config
-  window: z.bigint().refine(isValidMonitorWindow, ErrorInvalidMonitorWindow),
-  thresholdOperator: monitorThresholdOperator,
+  window: MonitorWindowSchema,
+  thresholdOperator: MonitorThresholdOperatorSchema,
   alertThreshold: z.number(),
   warningThreshold: z.number().nullable(),
   noData: MonitorNoDataSchema.default({ mode: "SILENT" }),
   renotify: MonitorRenotifySchema.default({ mode: "OFF" }),
 
   // MonitorAlert Config
-  name: z
-    .string()
-    .min(1)
-    .max(200)
-    .refine(validateMonitorTemplate, ErrorInvalidMonitorTemplate),
-  message: z
-    .string()
-    .max(2000)
-    .refine(validateMonitorTemplate, ErrorInvalidMonitorTemplate)
-    .default(""),
+  name: z.string().min(1).max(200).superRefine(validateTemplate),
+  message: z.string().max(2000).superRefine(validateTemplate).default(""),
   tags: z.array(z.string().max(60)).max(20).default([]),
 
   // Monitor State
-  severity: monitorSeverity.default("unknown"),
+  severity: MonitorSeveritySchema.default("unknown"),
   severityChangedAt: z.date().nullable(),
   alertedAt: z.date().nullable(),
 
   // MonitorScheduler State
-  status: monitorStatus.default("active"),
+  status: MonitorStatusSchema.default("active"),
   nextRunAt: z.date(),
   lastPublishedRunAt: z.date().nullable(),
   lastCompletedRunAt: z.date().nullable(),
 });
-
-const warningAlertOrderingRefinement = {
-  message: ErrorInvalidWarningAlertOrdering,
-  path: ["warningThreshold"],
-};
-
-/**
- * refineQueryShape attaches the v2 view-declaration check (measure exists,
- * aggregation valid for measure type, filter columns are real dimensions) to
- * each input schema as a `superRefine`.
- */
-const refineQueryShape = (
-  input: {
-    view: z.infer<typeof viewsV2>;
-    metric: z.infer<typeof MetricSchema>;
-    filters: z.infer<typeof singleFilter>[];
-  },
-  ctx: z.RefinementCtx,
-): void => {
-  const result = validateQuery({
-    view: input.view,
-    metric: input.metric,
-    filters: input.filters,
-  });
-  if (!result.valid) {
-    ctx.addIssue({
-      code: "custom",
-      message: result.reason,
-      path: ["metric"],
-    });
-  }
-};
-
-/**
- * MonitorSchema is the canonical Monitor object. Mirrors the Prisma `Monitor`
- * row.
- *
- * `cadenceMs` is derived from `window` on write and intentionally not
- * exposed here.
- *
- * The Prisma column `windowMs` maps to this schema's `window`
- * at the service boundary.
- */
-export const MonitorSchema = monitorBaseSchema.refine(
-  validateWarningAlertOrdering,
-  warningAlertOrderingRefinement,
-);
-
-// Fields the service generates or owns at write time — omitted from both input
-// schemas. CreateMonitorInputSchema additionally omits `id` (Prisma generates)
-// and `updatedBy` (the service mirrors `createdBy` onto it).
-// UpdateMonitorInputSchema additionally omits `createdBy` (preserved from the
-// existing row) but keeps `id` so callers identify the target row in-payload.
-const writeOmit = {
-  createdAt: true,
-  updatedAt: true,
-  severity: true,
-  severityChangedAt: true,
-  alertedAt: true,
-  nextRunAt: true,
-  lastPublishedRunAt: true,
-  lastCompletedRunAt: true,
-} as const;
-
-/**
- * CreateMonitorInputSchema is the input contract for `MonitorService.create`.
- * The caller supplies `createdBy`; the service mirrors it onto `updatedBy`.
- */
-export const CreateMonitorInputSchema = monitorBaseSchema
-  .omit({ ...writeOmit, id: true, updatedBy: true })
-  .refine(validateWarningAlertOrdering, warningAlertOrderingRefinement)
-  .superRefine(refineQueryShape);
-export type CreateMonitorInput = z.infer<typeof CreateMonitorInputSchema>;
-
-/**
- * UpdateMonitorInputSchema is the input contract for `MonitorService.update`.
- * The caller supplies `id` (target row) and `updatedBy`; `createdBy` is
- * preserved from the existing row.
- */
-export const UpdateMonitorInputSchema = monitorBaseSchema
-  .omit({ ...writeOmit, createdBy: true })
-  .refine(validateWarningAlertOrdering, warningAlertOrderingRefinement)
-  .superRefine(refineQueryShape);
-export type UpdateMonitorInput = z.infer<typeof UpdateMonitorInputSchema>;
+export type Monitor = z.infer<typeof MonitorSchema>;
 
 /**
  * MonitorQueueEventSchema represents a batch of monitors that can be evaluated
@@ -304,11 +247,9 @@ export const MonitorQueueEventSchema = z.object({
   scheduledAt: z.coerce.date(),
 
   // Shared query primitives — every monitor in this batch agrees on these.
-  view: viewsV2,
+  view: MonitorViewSchema,
   filters: z.array(singleFilter),
-  window: z.coerce
-    .bigint()
-    .refine(isValidMonitorWindow, ErrorInvalidMonitorWindow),
+  window: MonitorWindowSchema,
   metrics: z.array(MetricSchema),
 
   // Monitors map to metricNames returned by the above query params
@@ -328,13 +269,11 @@ export const MonitorAlertSchema = z.object({
   projectId: z.string(),
   permalink: z.url(),
   message: z.object({ title: z.string(), body: z.string() }),
-  severity: monitorSeverity,
+  severity: MonitorSeveritySchema,
   timestamp: z.coerce.date(),
-  view: viewsV2,
+  view: MonitorViewSchema,
   filters: z.array(singleFilter),
-  window: z.coerce
-    .bigint()
-    .refine(isValidMonitorWindow, ErrorInvalidMonitorWindow),
+  window: MonitorWindowSchema,
 });
 export type MonitorAlert = z.infer<typeof MonitorAlertSchema>;
 

@@ -6,7 +6,7 @@ import Handlebars from "handlebars";
  * message template at render time. Templates may only reference these
  * top-level keys.
  */
-export type MonitorMessageContext = {
+export type MonitorTemplateContext = {
   value: string;
   threshold: string;
   warningThreshold: string | null;
@@ -25,7 +25,7 @@ export type MonitorMessageContext = {
   is_crossed: boolean;
 };
 
-const monitorMessageContextKeys = new Set<string>([
+const monitorTemplateKeys = new Set<string>([
   "value",
   "threshold",
   "warningThreshold",
@@ -40,15 +40,15 @@ const monitorMessageContextKeys = new Set<string>([
   "is_fired",
   "is_resolved",
   "is_crossed",
-] satisfies (keyof MonitorMessageContext)[]);
+] satisfies (keyof MonitorTemplateContext)[]);
 
 /**
- * validateMonitorTemplate returns true when `source` is a Handlebars
+ * isValidTemplate returns true when `source` is a Handlebars
  * template whose AST only references `MonitorMessageContext` keys and
  * does not invoke helpers, partials, decorators, or sub-expressions, and
  * does not use unescaped output (`{{{x}}}`).
  */
-export const validateMonitorTemplate = (source: string): boolean => {
+export const isValidTemplate = (source: string): boolean => {
   let ast: hbs.AST.Program;
   try {
     ast = Handlebars.parse(source);
@@ -85,5 +85,5 @@ const isAllowedPath = (
   if (p.parts.length !== 1) return false;
   const head = p.parts[0];
   if (typeof head !== "string") return false;
-  return monitorMessageContextKeys.has(head);
+  return monitorTemplateKeys.has(head);
 };

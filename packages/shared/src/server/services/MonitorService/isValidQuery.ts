@@ -12,48 +12,40 @@ import {
 } from "../../../features/query/types";
 
 /**
- * QueryShapeValidationResult mirrors `validateQuery`'s contract in the query
- * package so callers can branch on `valid` and surface `reason` consistently.
- */
-export type QueryShapeValidationResult =
-  | { valid: true }
-  | { valid: false; reason: string };
-
-/**
- * validateQuery ensures:
+ * isValidQuery ensures:
  * - The measure exists on the view's v2 declaration.
  * - The aggregation is compatible with the measure's declared type.
  * - Each filter column is either a declared dimension or the `metadata`
  *   escape hatch.
  */
-export function validateQuery(params: {
+export function isValidQuery(input: {
   view: z.infer<typeof viewsV2>;
   metric: z.infer<typeof metric>;
   filters: z.infer<typeof singleFilter>[];
-}): QueryShapeValidationResult {
-  const declaration = getViewDeclaration(params.view, "v2");
+}): { valid: true } | { valid: false; reason: string } {
+  const declaration = getViewDeclaration(input.view, "v2");
 
-  const measureDef = declaration.measures[params.metric.measure];
+  const measureDef = declaration.measures[input.metric.measure];
   if (!measureDef) {
     return {
       valid: false,
       reason:
-        `Invalid measure "${params.metric.measure}" for view "${params.view}". ` +
+        `Invalid measure "${input.metric.measure}" for view "${input.view}". ` +
         `Must be one of: ${Object.keys(declaration.measures).join(", ")}`,
     };
   }
 
   const validAggs = getValidAggregationsForMeasureType(measureDef.type);
-  if (!validAggs.some((a) => a === params.metric.aggregation)) {
+  if (!validAggs.some((a) => a === input.metric.aggregation)) {
     return {
       valid: false,
       reason:
-        `Aggregation "${params.metric.aggregation}" is not valid for measure ` +
-        `"${params.metric.measure}" (type: ${measureDef.type}). Valid: ${validAggs.join(", ")}`,
+        `Aggregation "${input.metric.aggregation}" is not valid for measure ` +
+        `"${input.metric.measure}" (type: ${measureDef.type}). Valid: ${validAggs.join(", ")}`,
     };
   }
 
-  for (const filter of params.filters) {
+  for (const filter of input.filters) {
     if (filter.column === "metadata") continue;
     if (!(filter.column in declaration.dimensions)) {
       return {

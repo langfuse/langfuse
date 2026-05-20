@@ -6,7 +6,6 @@ import {
   calculateSchedulerBatchId,
   sortFiltersCanonically,
 } from "./internal";
-import { MonitorWindow } from "./types";
 import { type singleFilter } from "../../../interfaces/filters";
 
 type Filter = z.infer<typeof singleFilter>;
@@ -76,7 +75,7 @@ describe("calculateSchedulerBatchId", () => {
       stringFilter("env", "production"),
       stringFilter("app", "faq-bot"),
     ],
-    windowMs: MonitorWindow.FIVE_MIN,
+    windowMs: 5n * 60_000n,
   };
 
   it("is deterministic across calls", () => {
@@ -111,7 +110,7 @@ describe("calculateSchedulerBatchId", () => {
     expect(
       calculateSchedulerBatchId({
         ...base,
-        windowMs: MonitorWindow.ONE_HOUR,
+        windowMs: 60n * 60_000n,
       }),
     ).not.toBe(calculateSchedulerBatchId(base));
   });

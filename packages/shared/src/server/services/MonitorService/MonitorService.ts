@@ -1,175 +1,54 @@
-/** MonitorService.ts — direct Prisma CRUD over the Monitor row. */
+/** MonitorService.ts contains the monitor service and its helper funcitons */
 import {
-  MonitorSeverity,
-  MonitorStatus,
-  MonitorThresholdOperator,
-  MonitorView,
+  MonitorSeverity as PrismaMonitorSeverity,
+  MonitorStatus as PrismaMonitorStatus,
+  MonitorThresholdOperator as PrismaMonitorThresholdOperator,
+  MonitorView as PrismaMonitorView,
 } from "@prisma/client";
 import { z } from "zod";
+import { paginationZod } from "../../../utils/zod";
+import { orderBy } from "../../../interfaces/orderBy";
 
 import { Prisma, prisma } from "../../../db";
 import { InvalidRequestError } from "../../../errors";
-import { type OrderByState } from "../../../interfaces/orderBy";
-import { type viewsV2 } from "../../../features/query/types";
-import {
-  calculateMonitorWindowCadenceMillis,
-  type CreateMonitorInput,
-  monitorSeverity,
-  MonitorSchema,
-  monitorStatus,
-  monitorThresholdOperator,
-  type UpdateMonitorInput,
+import { viewsV2 } from "../../../features/query/types";
+import type {
+  Monitor,
+  MonitorSeverity,
+  MonitorStatus,
+  MonitorThresholdOperator,
+  MonitorWindow,
+  MonitorView,
 } from "./types";
+import { MonitorSchema, validateQuery, validateThresholdOrder } from "./types";
 import {
   calculateLastRunAt,
   calculateSchedulerBatchId,
   sortFiltersCanonically,
+  calculateCadence,
 } from "./internal";
 
-type Monitor = z.infer<typeof MonitorSchema>;
-
-// The Monitor domain speaks kebab-case (matching `viewsV2` and the local
-// `monitorSeverity` / `monitorStatus` / `monitorThresholdOperator` zod enums);
-// Prisma stores SCREAMING_SNAKE via its generated enums. The helpers below are
-// the only places the codebase translates between the two formats.
-const viewToPrisma = (view: z.infer<typeof viewsV2>): MonitorView => {
-  switch (view) {
-    case "observations":
-      return MonitorView.OBSERVATIONS;
-    case "scores-numeric":
-      return MonitorView.SCORES_NUMERIC;
-    case "scores-categorical":
-      return MonitorView.SCORES_CATEGORICAL;
-  }
-};
-
-const viewFromPrisma = (view: MonitorView): z.infer<typeof viewsV2> => {
-  switch (view) {
-    case MonitorView.OBSERVATIONS:
-      return "observations";
-    case MonitorView.SCORES_NUMERIC:
-      return "scores-numeric";
-    case MonitorView.SCORES_CATEGORICAL:
-      return "scores-categorical";
-  }
-};
-
-// `severityToPrisma` is intentionally omitted — severity is worker-owned and
-// the service never writes it. The future worker `applyResults` method will
-// add it back when that path lands.
-
-const severityFromPrisma = (
-  s: MonitorSeverity,
-): z.infer<typeof monitorSeverity> => {
-  switch (s) {
-    case MonitorSeverity.UNKNOWN:
-      return "unknown";
-    case MonitorSeverity.OK:
-      return "ok";
-    case MonitorSeverity.WARNING:
-      return "warning";
-    case MonitorSeverity.ALERT:
-      return "alert";
-    case MonitorSeverity.NO_DATA:
-      return "no-data";
-  }
-};
-
-const statusToPrisma = (s: z.infer<typeof monitorStatus>): MonitorStatus => {
-  switch (s) {
-    case "active":
-      return MonitorStatus.ACTIVE;
-    case "paused":
-      return MonitorStatus.PAUSED;
-    case "error-bad-query":
-      return MonitorStatus.ERROR_BAD_QUERY;
-  }
-};
-
-const statusFromPrisma = (s: MonitorStatus): z.infer<typeof monitorStatus> => {
-  switch (s) {
-    case MonitorStatus.ACTIVE:
-      return "active";
-    case MonitorStatus.PAUSED:
-      return "paused";
-    case MonitorStatus.ERROR_BAD_QUERY:
-      return "error-bad-query";
-  }
-};
-
-const thresholdOperatorToPrisma = (
-  o: z.infer<typeof monitorThresholdOperator>,
-): MonitorThresholdOperator => {
-  switch (o) {
-    case "gt":
-      return MonitorThresholdOperator.GT;
-    case "gte":
-      return MonitorThresholdOperator.GTE;
-    case "lt":
-      return MonitorThresholdOperator.LT;
-    case "lte":
-      return MonitorThresholdOperator.LTE;
-    case "eq":
-      return MonitorThresholdOperator.EQ;
-    case "neq":
-      return MonitorThresholdOperator.NEQ;
-  }
-};
-
-const thresholdOperatorFromPrisma = (
-  o: MonitorThresholdOperator,
-): z.infer<typeof monitorThresholdOperator> => {
-  switch (o) {
-    case MonitorThresholdOperator.GT:
-      return "gt";
-    case MonitorThresholdOperator.GTE:
-      return "gte";
-    case MonitorThresholdOperator.LT:
-      return "lt";
-    case MonitorThresholdOperator.LTE:
-      return "lte";
-    case MonitorThresholdOperator.EQ:
-      return "eq";
-    case MonitorThresholdOperator.NEQ:
-      return "neq";
-  }
-};
-
-// Prisma row → Monitor domain object. Field names match 1:1 except `windowMs`
-// (renamed back to `window`), the kebab-case `view`, and the two Decimal
-// threshold columns.
-type PrismaMonitorRow = Awaited<
-  ReturnType<typeof prisma.monitor.findFirstOrThrow>
->;
-const toMonitor = (row: PrismaMonitorRow): Monitor =>
-  MonitorSchema.parse({
-    ...row,
-    view: viewFromPrisma(row.view),
-    severity: severityFromPrisma(row.severity),
-    status: statusFromPrisma(row.status),
-    thresholdOperator: thresholdOperatorFromPrisma(row.thresholdOperator),
-    window: row.windowMs,
-    alertThreshold: row.alertThreshold.toNumber(),
-    warningThreshold: row.warningThreshold?.toNumber() ?? null,
-  });
-
-const toDecimal = (n: number | null): Prisma.Decimal | null =>
-  n == null ? null : new Prisma.Decimal(n);
-
 /**
- * MonitorService — direct Prisma CRUD. On every write, normalizes filters and
- * recomputes `schedulerBatchId`, `cadenceMs`, and `nextRunAt` so the scheduler
- * and queue processor downstream see a canonical row.
+ * MonitorService manages all of the Monitors that produce
+ * MonitorAlerts on the system.
+ *
+ * It nomalizes data, calculates derived properties, and persists data
+ * to the Prisma repository.
+ *
+ * Validation is handeled directly by the zod schema found in types.ts.
+ * Services assume the inputs have been parsed and validated by trpc or
+ * other api adapters.
  */
 export class MonitorService {
   public static async create(input: CreateMonitorInput): Promise<Monitor> {
     const filters = sortFiltersCanonically(input.filters);
-    const cadenceMs = calculateMonitorWindowCadenceMillis(input.window);
+    const windowMs = windowToMs(input.window);
+    const cadenceMs = calculateCadence(windowMs);
     const schedulerBatchId = calculateSchedulerBatchId({
       projectId: input.projectId,
       view: input.view,
       filters,
-      windowMs: input.window,
+      windowMs,
     });
     const nextRunAt = calculateLastRunAt(
       new Date(),
@@ -185,11 +64,11 @@ export class MonitorService {
         view: viewToPrisma(input.view),
         filters,
         metric: input.metric,
-        windowMs: input.window,
+        windowMs,
         cadenceMs,
         thresholdOperator: thresholdOperatorToPrisma(input.thresholdOperator),
         alertThreshold: new Prisma.Decimal(input.alertThreshold),
-        warningThreshold: toDecimal(input.warningThreshold),
+        warningThreshold: decimalToPrisma(input.warningThreshold),
         noData: input.noData,
         renotify: input.renotify,
         status: statusToPrisma(input.status),
@@ -200,17 +79,18 @@ export class MonitorService {
         tags: input.tags,
       },
     });
-    return toMonitor(created);
+    return monitorFromPrisma(created);
   }
 
   public static async update(input: UpdateMonitorInput): Promise<Monitor> {
     const filters = sortFiltersCanonically(input.filters);
-    const cadenceMs = calculateMonitorWindowCadenceMillis(input.window);
+    const windowMs = windowToMs(input.window);
+    const cadenceMs = calculateCadence(windowMs);
     const schedulerBatchId = calculateSchedulerBatchId({
       projectId: input.projectId,
       view: input.view,
       filters,
-      windowMs: input.window,
+      windowMs,
     });
     const nextRunAt = calculateLastRunAt(
       new Date(),
@@ -218,8 +98,8 @@ export class MonitorService {
       schedulerBatchId,
     );
 
-    // Worker-owned lifecycle columns (severity, severityChangedAt, alertedAt,
-    // lastPublishedRunAt, lastCompletedRunAt) are intentionally not touched.
+    // Scheduler and QueueProcessor columns are intentionally not touched
+    // (eg. severity, severityChangedAt, alertedAt, lastPublishedRunAt, lastCompletedRunAt).
     try {
       const updated = await prisma.monitor.update({
         where: { id: input.id, projectId: input.projectId },
@@ -228,11 +108,11 @@ export class MonitorService {
           view: viewToPrisma(input.view),
           filters,
           metric: input.metric,
-          windowMs: input.window,
+          windowMs,
           cadenceMs,
           thresholdOperator: thresholdOperatorToPrisma(input.thresholdOperator),
           alertThreshold: new Prisma.Decimal(input.alertThreshold),
-          warningThreshold: toDecimal(input.warningThreshold),
+          warningThreshold: decimalToPrisma(input.warningThreshold),
           noData: input.noData,
           renotify: input.renotify,
           status: statusToPrisma(input.status),
@@ -243,17 +123,9 @@ export class MonitorService {
           tags: input.tags,
         },
       });
-      return toMonitor(updated);
+      return monitorFromPrisma(updated);
     } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === "P2025"
-      ) {
-        throw new InvalidRequestError(
-          `Monitor ${input.id} not found in project ${input.projectId}`,
-        );
-      }
-      throw e;
+      throw errorFromPrisma(input.id, input.projectId, e);
     }
   }
 
@@ -261,44 +133,283 @@ export class MonitorService {
     monitorId: string,
     projectId: string,
   ): Promise<Monitor | null> {
-    const row = await prisma.monitor.findFirst({
+    const monitor = await prisma.monitor.findFirst({
       where: { id: monitorId, projectId },
     });
-    return row ? toMonitor(row) : null;
+    return monitor ? monitorFromPrisma(monitor) : null;
   }
 
-  public static async list(params: {
-    projectId: string;
-    limit?: number;
-    page?: number;
-    orderBy?: OrderByState;
-  }): Promise<{ monitors: Monitor[]; totalCount: number }> {
+  public static async list(
+    input: MonitorListInput,
+  ): Promise<{ monitors: Monitor[]; totalCount: number }> {
     const skip =
-      params.page && params.limit
-        ? (params.page - 1) * params.limit
-        : undefined;
+      input.page && input.limit ? (input.page - 1) * input.limit : undefined;
 
-    const [rows, totalCount] = await Promise.all([
+    const [monitors, totalCount] = await Promise.all([
       prisma.monitor.findMany({
-        where: { projectId: params.projectId },
-        orderBy: params.orderBy
-          ? [{ [params.orderBy.column]: params.orderBy.order.toLowerCase() }]
+        where: { projectId: input.projectId },
+        orderBy: input.orderBy
+          ? [{ [input.orderBy.column]: input.orderBy.order.toLowerCase() }]
           : [{ updatedAt: "desc" }],
         skip,
-        take: params.limit,
+        take: input.limit,
       }),
-      prisma.monitor.count({ where: { projectId: params.projectId } }),
+      prisma.monitor.count({ where: { projectId: input.projectId } }),
     ]);
 
-    return { monitors: rows.map(toMonitor), totalCount };
+    return { monitors: monitors.map(monitorFromPrisma), totalCount };
   }
 
   public static async delete(
     monitorId: string,
     projectId: string,
   ): Promise<void> {
-    await prisma.monitor.delete({
-      where: { id: monitorId, projectId },
-    });
+    try {
+      await prisma.monitor.delete({
+        where: { id: monitorId, projectId },
+      });
+    } catch (e) {
+      throw errorFromPrisma(monitorId, projectId, e);
+    }
   }
 }
+
+/** omitOnWrite are a list of properties that should be omitted from all write DTOs */
+const omitOnWrite = {
+  createdAt: true,
+  updatedAt: true,
+  severity: true,
+  severityChangedAt: true,
+  alertedAt: true,
+  nextRunAt: true,
+  lastPublishedRunAt: true,
+  lastCompletedRunAt: true,
+} as const;
+
+/**
+ * CreateMonitorInputSchema is the input contract for `MonitorService.create`.
+ * The caller supplies `createdBy`; the service mirrors it onto `updatedBy`.
+ */
+export const CreateMonitorInputSchema = MonitorSchema.omit({
+  ...omitOnWrite,
+  id: true,
+  updatedBy: true,
+})
+  .superRefine(validateQuery)
+  .superRefine(validateThresholdOrder);
+export type CreateMonitorInput = z.infer<typeof CreateMonitorInputSchema>;
+
+/**
+ * UpdateMonitorInputSchema is the input contract for `MonitorService.update`.
+ * The caller supplies `id` (target row) and `updatedBy`; `createdBy` is
+ * preserved from the existing row.
+ */
+export const UpdateMonitorInputSchema = MonitorSchema.omit({
+  ...omitOnWrite,
+  createdBy: true,
+})
+  .superRefine(validateQuery)
+  .superRefine(validateThresholdOrder);
+export type UpdateMonitorInput = z.infer<typeof UpdateMonitorInputSchema>;
+
+/**
+ * MonitorListInputSchema is the input contract for `MonitorService.list`.
+ * `orderBy` is constrained to the columns the admin table can sort on; null
+ * falls back to the service default (`updatedAt DESC`).
+ */
+export const MonitorListInputSchema = z.object({
+  projectId: z.string(),
+  orderBy: orderBy,
+  ...paginationZod,
+});
+export type MonitorListInput = z.infer<typeof MonitorListInputSchema>;
+
+/** viewToPrisma converts the query api value to the Prisma MonitorView enum. */
+const viewToPrisma = (view: z.infer<typeof viewsV2>): PrismaMonitorView => {
+  switch (view) {
+    case "observations":
+      return PrismaMonitorView.OBSERVATIONS;
+    case "scores-numeric":
+      return PrismaMonitorView.SCORES_NUMERIC;
+    case "scores-categorical":
+      return PrismaMonitorView.SCORES_CATEGORICAL;
+  }
+};
+
+/** viewFromPrisma converts the Prisma MonitorView enum to the query api enum. */
+const viewFromPrisma = (view: PrismaMonitorView): MonitorView => {
+  switch (view) {
+    case PrismaMonitorView.OBSERVATIONS:
+      return "observations";
+    case PrismaMonitorView.SCORES_NUMERIC:
+      return "scores-numeric";
+    case PrismaMonitorView.SCORES_CATEGORICAL:
+      return "scores-categorical";
+  }
+};
+
+/** severityFromPrisma converts the Prisma MonitorSeverity enum to the monitorSeverity api enum. */
+const severityFromPrisma = (s: PrismaMonitorSeverity): MonitorSeverity => {
+  switch (s) {
+    case PrismaMonitorSeverity.UNKNOWN:
+      return "unknown";
+    case PrismaMonitorSeverity.OK:
+      return "ok";
+    case PrismaMonitorSeverity.WARNING:
+      return "warning";
+    case PrismaMonitorSeverity.ALERT:
+      return "alert";
+    case PrismaMonitorSeverity.NO_DATA:
+      return "no-data";
+  }
+};
+
+/** statusToPrisma converts the monitorStatus api enum to the Prisma MonitorStatus enum. */
+const statusToPrisma = (s: MonitorStatus): PrismaMonitorStatus => {
+  switch (s) {
+    case "active":
+      return PrismaMonitorStatus.ACTIVE;
+    case "paused":
+      return PrismaMonitorStatus.PAUSED;
+    case "error-bad-query":
+      return PrismaMonitorStatus.ERROR_BAD_QUERY;
+  }
+};
+
+/** statusFromPrisma converts the Prisma MonitorStatus enum to the monitorStatus api enum. */
+const statusFromPrisma = (s: PrismaMonitorStatus): MonitorStatus => {
+  switch (s) {
+    case PrismaMonitorStatus.ACTIVE:
+      return "active";
+    case PrismaMonitorStatus.PAUSED:
+      return "paused";
+    case PrismaMonitorStatus.ERROR_BAD_QUERY:
+      return "error-bad-query";
+  }
+};
+
+/** thresholdOperatorToPrisma converts the monitorThresholdOperator api enum to the Prisma MonitorThresholdOperator enum. */
+const thresholdOperatorToPrisma = (
+  o: MonitorThresholdOperator,
+): PrismaMonitorThresholdOperator => {
+  switch (o) {
+    case "gt":
+      return PrismaMonitorThresholdOperator.GT;
+    case "gte":
+      return PrismaMonitorThresholdOperator.GTE;
+    case "lt":
+      return PrismaMonitorThresholdOperator.LT;
+    case "lte":
+      return PrismaMonitorThresholdOperator.LTE;
+    case "eq":
+      return PrismaMonitorThresholdOperator.EQ;
+    case "neq":
+      return PrismaMonitorThresholdOperator.NEQ;
+  }
+};
+
+/** thresholdOperatorFromPrisma converts the Prisma MonitorThresholdOperator enum to the monitorThresholdOperator api enum. */
+const thresholdOperatorFromPrisma = (
+  o: PrismaMonitorThresholdOperator,
+): MonitorThresholdOperator => {
+  switch (o) {
+    case PrismaMonitorThresholdOperator.GT:
+      return "gt";
+    case PrismaMonitorThresholdOperator.GTE:
+      return "gte";
+    case PrismaMonitorThresholdOperator.LT:
+      return "lt";
+    case PrismaMonitorThresholdOperator.LTE:
+      return "lte";
+    case PrismaMonitorThresholdOperator.EQ:
+      return "eq";
+    case PrismaMonitorThresholdOperator.NEQ:
+      return "neq";
+  }
+};
+
+/** windowToMs converts the kebab-case MonitorWindow api value to a bigint of milliseconds. */
+const windowToMs = (w: MonitorWindow): bigint => {
+  switch (w) {
+    case "5m":
+      return 5n * 60_000n;
+    case "10m":
+      return 10n * 60_000n;
+    case "15m":
+      return 15n * 60_000n;
+    case "30m":
+      return 30n * 60_000n;
+    case "1h":
+      return 60n * 60_000n;
+    case "2h":
+      return 2n * 60n * 60_000n;
+    case "4h":
+      return 4n * 60n * 60_000n;
+    case "1d":
+      return 24n * 60n * 60_000n;
+    case "2d":
+      return 2n * 24n * 60n * 60_000n;
+    case "1w":
+      return 7n * 24n * 60n * 60_000n;
+  }
+};
+
+/** windowFromMs converts a bigint of milliseconds to MonitorWindow api value. */
+const windowFromMs = (ms: bigint): MonitorWindow => {
+  switch (ms) {
+    case 5n * 60_000n:
+      return "5m";
+    case 10n * 60_000n:
+      return "10m";
+    case 15n * 60_000n:
+      return "15m";
+    case 30n * 60_000n:
+      return "30m";
+    case 60n * 60_000n:
+      return "1h";
+    case 2n * 60n * 60_000n:
+      return "2h";
+    case 4n * 60n * 60_000n:
+      return "4h";
+    case 24n * 60n * 60_000n:
+      return "1d";
+    case 2n * 24n * 60n * 60_000n:
+      return "2d";
+    case 7n * 24n * 60n * 60_000n:
+      return "1w";
+    default:
+      throw new InvalidRequestError(
+        `windowMs ${ms.toString()} does not correspond to a known MonitorWindow tier`,
+      );
+  }
+};
+
+/** monitorFromPrisma converts a Prisma monitor to a domain Monitor */
+const monitorFromPrisma = (
+  monitor: Awaited<ReturnType<typeof prisma.monitor.findFirstOrThrow>>,
+): Monitor =>
+  MonitorSchema.parse({
+    ...monitor,
+    view: viewFromPrisma(monitor.view),
+    severity: severityFromPrisma(monitor.severity),
+    status: statusFromPrisma(monitor.status),
+    thresholdOperator: thresholdOperatorFromPrisma(monitor.thresholdOperator),
+    window: windowFromMs(monitor.windowMs),
+    alertThreshold: monitor.alertThreshold.toNumber(),
+    warningThreshold: monitor.warningThreshold?.toNumber() ?? null,
+  });
+
+/** decimalToPrisma converts a nullable JS number to a Prisma.Decimal column type, preserving null. */
+const decimalToPrisma = (n: number | null): Prisma.Decimal | null =>
+  n == null ? null : new Prisma.Decimal(n);
+
+/** errorFromPrisma converts a Prisma client error to a caller-facing Error */
+const errorFromPrisma = (id: string, projectId: string, e: any): Error => {
+  // Object not found in the database
+  if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
+    return new InvalidRequestError(
+      `Monitor ${id} not found in project ${projectId}`,
+    );
+  }
+  return e;
+};

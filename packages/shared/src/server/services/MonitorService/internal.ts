@@ -50,6 +50,15 @@ export const sortFiltersCanonically = (filters: Filter[]): Filter[] =>
   });
 
 /**
+ * calculateCadence derives a Monitor's scheduler cadence from its evaluation window.
+ */
+export const calculateCadence = (windowMillis: bigint): bigint => {
+  if (windowMillis >= WEEK) return 48n * HOUR;
+  if (windowMillis >= DAY) return 30n * MINUTE;
+  return MINUTE; // default cadence
+};
+
+/**
  * calculateSchedulerBatchId fingerprints the query shape that the scheduler groups by:
  * (projectId, view, canonicalized filters, windowMs). Output fits Postgres BIGINT
  * (nonneg i63).

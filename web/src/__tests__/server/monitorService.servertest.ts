@@ -3,7 +3,6 @@ import {
   calculateMonitorWindowCadenceMillis,
   createOrgProjectAndApiKey,
   MonitorService,
-  MonitorWindow,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { InvalidRequestError } from "@langfuse/shared";
@@ -17,7 +16,7 @@ const baseCreateInput = (
   view: "observations" as const,
   filters: [],
   metric: { measure: "count", aggregation: "count" as const },
-  window: MonitorWindow.FIVE_MIN,
+  window: "5m" as const,
   thresholdOperator: "gt" as const,
   alertThreshold: 100,
   warningThreshold: null,
@@ -37,7 +36,7 @@ const baseUpdateInput = (
   view: "observations" as const,
   filters: [],
   metric: { measure: "count", aggregation: "count" as const },
-  window: MonitorWindow.FIVE_MIN,
+  window: "5m" as const,
   thresholdOperator: "gt" as const,
   alertThreshold: 100,
   warningThreshold: null,
@@ -86,10 +85,8 @@ describe("MonitorService (integration)", () => {
         where: { id: created.id },
       });
       expect(row).not.toBeNull();
-      expect(row!.windowMs).toBe(MonitorWindow.FIVE_MIN);
-      expect(row!.cadenceMs).toBe(
-        calculateMonitorWindowCadenceMillis(MonitorWindow.FIVE_MIN),
-      );
+      expect(row!.windowMs).toBe(5n * 60_000n);
+      expect(row!.cadenceMs).toBe(calculateMonitorWindowCadenceMillis(5n * 60_000n));
       expect(row!.schedulerBatchId).toBeGreaterThan(0n);
       expect(row!.nextRunAt.getTime()).toBeLessThanOrEqual(Date.now());
       expect(row!.severity).toBe("UNKNOWN");

@@ -1,4 +1,4 @@
 export * from "./MonitorService";
-export * from "./template";
+export * from "./isValidTemplate";
 export * from "./types";
-export * from "./validateQuery";
+export * from "./isValidQuery";

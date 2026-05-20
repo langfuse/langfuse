@@ -1,18 +1,29 @@
 import { describe, it, expect } from "vitest";
+import { z } from "zod";
 
-import { DAY, HOUR, MINUTE, WEEK } from "./internal";
+import { calculateCadence, DAY, HOUR, MINUTE, WEEK } from "./internal";
 import {
-  MonitorWindow,
-  isValidMonitorWindow,
-  calculateMonitorWindowCadenceMillis,
-  MonitorRenotifySchema,
-  MonitorNoDataSchema,
-  MonitorSchema,
-  MonitorQueueEventSchema,
   MonitorAlertSchema,
+  MonitorNoDataSchema,
+  MonitorQueueEventSchema,
+  MonitorRenotifySchema,
+  MonitorSchema,
+  MonitorThresholdOperatorSchema,
   MonitorWebhookQueueEventSchema,
-  validateWarningAlertOrdering,
+  MonitorWindowSchema,
+  validateThresholdOrder,
 } from "./types";
+
+// Standalone wrapper around `validateThresholdOrder` so the refinement can be
+// exercised directly. The refinement is wired into `CreateMonitorInputSchema`
+// and `UpdateMonitorInputSchema` in MonitorService.ts; this isolates the rule.
+const ThresholdOrderTestSchema = z
+  .object({
+    thresholdOperator: MonitorThresholdOperatorSchema,
+    alertThreshold: z.number(),
+    warningThreshold: z.number().nullable(),
+  })
+  .superRefine(validateThresholdOrder);
 
 // Minimal valid domain object. Tests override one field at a time.
 const validMonitorBase = {
@@ -27,7 +38,7 @@ const validMonitorBase = {
   filters: [],
   metric: { measure: "count", aggregation: "count" as const },
 
-  window: MonitorWindow.FIVE_MIN,
+  window: "5m" as const,
   thresholdOperator: "gt" as const,
   alertThreshold: 100,
   warningThreshold: null,
@@ -49,60 +60,43 @@ const validMonitorBase = {
   alertedAt: null,
 };
 
-describe("MonitorWindow tier map", () => {
-  it("exposes the 10 RFC tiers with BigInt millisecond values", () => {
-    expect(MonitorWindow.FIVE_MIN).toBe(5n * 60_000n);
-    expect(MonitorWindow.TEN_MIN).toBe(10n * 60_000n);
-    expect(MonitorWindow.FIFTEEN_MIN).toBe(15n * 60_000n);
-    expect(MonitorWindow.THIRTY_MIN).toBe(30n * 60_000n);
-    expect(MonitorWindow.ONE_HOUR).toBe(60n * 60_000n);
-    expect(MonitorWindow.TWO_HOUR).toBe(2n * 60n * 60_000n);
-    expect(MonitorWindow.FOUR_HOUR).toBe(4n * 60n * 60_000n);
-    expect(MonitorWindow.ONE_DAY).toBe(24n * 60n * 60_000n);
-    expect(MonitorWindow.TWO_DAY).toBe(2n * 24n * 60n * 60_000n);
-    expect(MonitorWindow.ONE_WEEK).toBe(7n * 24n * 60n * 60_000n);
-  });
-});
-
-describe("isValidMonitorWindow", () => {
+describe("MonitorWindowSchema", () => {
   it("accepts every MonitorWindow tier value", () => {
-    for (const tier of Object.values(MonitorWindow)) {
-      expect(isValidMonitorWindow(tier)).toBe(true);
+    for (const tier of MonitorWindowSchema.options) {
+      expect(MonitorWindowSchema.safeParse(tier).success).toBe(true);
     }
   });
 
-  it("rejects a bigint that isn't a known tier", () => {
-    expect(isValidMonitorWindow(123n)).toBe(false);
+  it("rejects a value that isn't a known tier", () => {
+    expect(MonitorWindowSchema.safeParse("bogus").success).toBe(false);
   });
 });
 
-describe("calculateMonitorWindowCadenceMillis", () => {
+describe("calculateCadence", () => {
   it("returns 1 minute for sub-day windows", () => {
-    expect(calculateMonitorWindowCadenceMillis(MonitorWindow.FIVE_MIN)).toBe(
+    expect(calculateCadence(5n * 60_000n)).toBe(MINUTE);
+    expect(calculateCadence(4n * 60n * 60_000n)).toBe(
       MINUTE,
     );
-    expect(calculateMonitorWindowCadenceMillis(MonitorWindow.FOUR_HOUR)).toBe(
-      MINUTE,
-    );
-    expect(calculateMonitorWindowCadenceMillis(DAY - 1n)).toBe(MINUTE);
+    expect(calculateCadence(DAY - 1n)).toBe(MINUTE);
   });
 
   it("returns 30 minutes for day-to-week windows", () => {
-    expect(calculateMonitorWindowCadenceMillis(MonitorWindow.ONE_DAY)).toBe(
+    expect(calculateCadence(24n * 60n * 60_000n)).toBe(
       30n * MINUTE,
     );
-    expect(calculateMonitorWindowCadenceMillis(DAY + 1n)).toBe(30n * MINUTE);
-    expect(calculateMonitorWindowCadenceMillis(MonitorWindow.TWO_DAY)).toBe(
+    expect(calculateCadence(DAY + 1n)).toBe(30n * MINUTE);
+    expect(calculateCadence(2n * 24n * 60n * 60_000n)).toBe(
       30n * MINUTE,
     );
-    expect(calculateMonitorWindowCadenceMillis(WEEK - 1n)).toBe(30n * MINUTE);
+    expect(calculateCadence(WEEK - 1n)).toBe(30n * MINUTE);
   });
 
   it("returns 48 hours for week-and-up windows", () => {
-    expect(calculateMonitorWindowCadenceMillis(MonitorWindow.ONE_WEEK)).toBe(
+    expect(calculateCadence(7n * 24n * 60n * 60_000n)).toBe(
       48n * HOUR,
     );
-    expect(calculateMonitorWindowCadenceMillis(WEEK + 1n)).toBe(48n * HOUR);
+    expect(calculateCadence(WEEK + 1n)).toBe(48n * HOUR);
   });
 });
 
@@ -198,38 +192,38 @@ describe("MonitorNoDataSchema", () => {
   });
 });
 
-describe("validateWarningAlertOrdering", () => {
+describe("validateThresholdOrder", () => {
   it.each(["gt", "gte"] as const)("%s requires warning < alert", (op) => {
     expect(
-      validateWarningAlertOrdering({
+      ThresholdOrderTestSchema.safeParse({
         thresholdOperator: op,
         alertThreshold: 100,
         warningThreshold: 50,
-      }),
+      }).success,
     ).toBe(true);
     expect(
-      validateWarningAlertOrdering({
+      ThresholdOrderTestSchema.safeParse({
         thresholdOperator: op,
         alertThreshold: 100,
         warningThreshold: 100,
-      }),
+      }).success,
     ).toBe(false);
   });
 
   it.each(["lt", "lte"] as const)("%s requires warning > alert", (op) => {
     expect(
-      validateWarningAlertOrdering({
+      ThresholdOrderTestSchema.safeParse({
         thresholdOperator: op,
         alertThreshold: 100,
         warningThreshold: 200,
-      }),
+      }).success,
     ).toBe(true);
     expect(
-      validateWarningAlertOrdering({
+      ThresholdOrderTestSchema.safeParse({
         thresholdOperator: op,
         alertThreshold: 100,
         warningThreshold: 100,
-      }),
+      }).success,
     ).toBe(false);
   });
 
@@ -238,11 +232,11 @@ describe("validateWarningAlertOrdering", () => {
     (op) => {
       for (const warning of [50, 100, 200]) {
         expect(
-          validateWarningAlertOrdering({
+          ThresholdOrderTestSchema.safeParse({
             thresholdOperator: op,
             alertThreshold: 100,
             warningThreshold: warning,
-          }),
+          }).success,
         ).toBe(true);
       }
     },
@@ -252,11 +246,11 @@ describe("validateWarningAlertOrdering", () => {
     "%s passes with null warningThreshold",
     (op) => {
       expect(
-        validateWarningAlertOrdering({
+        ThresholdOrderTestSchema.safeParse({
           thresholdOperator: op,
           alertThreshold: 100,
           warningThreshold: null,
-        }),
+        }).success,
       ).toBe(true);
     },
   );
@@ -283,114 +277,6 @@ describe("MonitorSchema", () => {
     });
     expect(result.success).toBe(false);
   });
-
-  describe("warning/alert threshold ordering refinement", () => {
-    it.each(["gt", "gte"] as const)(
-      "%s rejects warningThreshold >= alertThreshold",
-      (op) => {
-        const result = MonitorSchema.safeParse({
-          ...validMonitorBase,
-          thresholdOperator: op,
-          alertThreshold: 100,
-          warningThreshold: 100, // equal → must reject
-        });
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          expect(result.error.issues[0].path).toEqual(["warningThreshold"]);
-        }
-
-        const tooHigh = MonitorSchema.safeParse({
-          ...validMonitorBase,
-          thresholdOperator: op,
-          alertThreshold: 100,
-          warningThreshold: 200,
-        });
-        expect(tooHigh.success).toBe(false);
-      },
-    );
-
-    it.each(["gt", "gte"] as const)(
-      "%s accepts warningThreshold < alertThreshold",
-      (op) => {
-        expect(
-          MonitorSchema.safeParse({
-            ...validMonitorBase,
-            thresholdOperator: op,
-            alertThreshold: 100,
-            warningThreshold: 50,
-          }).success,
-        ).toBe(true);
-      },
-    );
-
-    it.each(["lt", "lte"] as const)(
-      "%s rejects warningThreshold <= alertThreshold",
-      (op) => {
-        const result = MonitorSchema.safeParse({
-          ...validMonitorBase,
-          thresholdOperator: op,
-          alertThreshold: 100,
-          warningThreshold: 100,
-        });
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          expect(result.error.issues[0].path).toEqual(["warningThreshold"]);
-        }
-
-        const tooLow = MonitorSchema.safeParse({
-          ...validMonitorBase,
-          thresholdOperator: op,
-          alertThreshold: 100,
-          warningThreshold: 50,
-        });
-        expect(tooLow.success).toBe(false);
-      },
-    );
-
-    it.each(["lt", "lte"] as const)(
-      "%s accepts warningThreshold > alertThreshold",
-      (op) => {
-        expect(
-          MonitorSchema.safeParse({
-            ...validMonitorBase,
-            thresholdOperator: op,
-            alertThreshold: 100,
-            warningThreshold: 200,
-          }).success,
-        ).toBe(true);
-      },
-    );
-
-    it.each(["eq", "neq"] as const)(
-      "%s accepts any warningThreshold/alertThreshold ordering",
-      (op) => {
-        for (const warning of [50, 100, 200]) {
-          expect(
-            MonitorSchema.safeParse({
-              ...validMonitorBase,
-              thresholdOperator: op,
-              alertThreshold: 100,
-              warningThreshold: warning,
-            }).success,
-          ).toBe(true);
-        }
-      },
-    );
-
-    it.each(["gt", "gte", "lt", "lte", "eq", "neq"] as const)(
-      "%s accepts a null warningThreshold regardless of alertThreshold",
-      (op) => {
-        expect(
-          MonitorSchema.safeParse({
-            ...validMonitorBase,
-            thresholdOperator: op,
-            alertThreshold: 100,
-            warningThreshold: null,
-          }).success,
-        ).toBe(true);
-      },
-    );
-  });
 });
 
 describe("MonitorQueueEventSchema", () => {
@@ -400,7 +286,7 @@ describe("MonitorQueueEventSchema", () => {
     scheduledAt: new Date("2026-05-18T12:00:00.000Z"),
     view: "observations" as const,
     filters: [],
-    window: MonitorWindow.FIVE_MIN,
+    window: "5m" as const,
     metrics: [{ measure: "count", aggregation: "count" as const }],
     monitors: [{ monitorId: "mon_01", metricName: "count_count" }],
   };
@@ -429,20 +315,11 @@ describe("MonitorQueueEventSchema", () => {
       expect(typeof result.data.schedulerBatchId).toBe("bigint");
   });
 
-  it("coerces a string window to a bigint", () => {
-    const result = MonitorQueueEventSchema.safeParse({
-      ...validQueueEvent,
-      window: MonitorWindow.FIVE_MIN.toString(),
-    });
-    expect(result.success).toBe(true);
-    if (result.success) expect(typeof result.data.window).toBe("bigint");
-  });
-
   it("rejects a window outside the MonitorWindow tier set", () => {
     expect(
       MonitorQueueEventSchema.safeParse({
         ...validQueueEvent,
-        window: 123n,
+        window: "bogus",
       }).success,
     ).toBe(false);
   });
@@ -467,7 +344,7 @@ describe("MonitorAlertSchema", () => {
     message: { title: "High error rate", body: "errors > 100" },
     view: "observations" as const,
     filters: [],
-    window: MonitorWindow.FIVE_MIN,
+    window: "5m" as const,
   };
 
   it("parses a representative alert", () => {
@@ -490,7 +367,7 @@ describe("MonitorAlertSchema", () => {
 
   it("rejects a window outside the MonitorWindow tier set", () => {
     expect(
-      MonitorAlertSchema.safeParse({ ...validAlert, window: 123n }).success,
+      MonitorAlertSchema.safeParse({ ...validAlert, window: "bogus" }).success,
     ).toBe(false);
   });
 
@@ -501,15 +378,6 @@ describe("MonitorAlertSchema", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.timestamp).toBeInstanceOf(Date);
-  });
-
-  it("coerces a string window to a bigint", () => {
-    const result = MonitorAlertSchema.safeParse({
-      ...validAlert,
-      window: MonitorWindow.FIVE_MIN.toString(),
-    });
-    expect(result.success).toBe(true);
-    if (result.success) expect(typeof result.data.window).toBe("bigint");
   });
 });
 
@@ -526,7 +394,7 @@ describe("MonitorWebhookQueueEventSchema", () => {
       message: { title: "High error rate", body: "errors > 100" },
       view: "observations" as const,
       filters: [],
-      window: MonitorWindow.FIVE_MIN,
+      window: "5m" as const,
     },
   };
 

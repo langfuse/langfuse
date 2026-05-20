@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
 
-import { validateMonitorTemplate } from "./template";
+import { isValidTemplate } from "./isValidTemplate";
 
-describe("validateMonitorTemplate", () => {
+describe("isValidTemplate", () => {
   it("accepts the empty string", () => {
-    expect(validateMonitorTemplate("")).toBe(true);
+    expect(isValidTemplate("")).toBe(true);
   });
 
   it("accepts plain text without any handlebars", () => {
-    expect(validateMonitorTemplate("hello world")).toBe(true);
+    expect(isValidTemplate("hello world")).toBe(true);
   });
 
   it.each([
@@ -27,27 +27,25 @@ describe("validateMonitorTemplate", () => {
     "is_resolved",
     "is_crossed",
   ])("accepts {{%s}}", (key) => {
-    expect(validateMonitorTemplate(`x {{${key}}} y`)).toBe(true);
+    expect(isValidTemplate(`x {{${key}}} y`)).toBe(true);
   });
 
   it("accepts a mix of text and multiple variables", () => {
     expect(
-      validateMonitorTemplate(
-        "Alert {{value}} crossed {{threshold}} in {{window}}",
-      ),
+      isValidTemplate("Alert {{value}} crossed {{threshold}} in {{window}}"),
     ).toBe(true);
   });
 
   it("accepts a handlebars comment", () => {
-    expect(validateMonitorTemplate("{{! a comment }}hi {{value}}")).toBe(true);
+    expect(isValidTemplate("{{! a comment }}hi {{value}}")).toBe(true);
   });
 
   it("rejects a template referencing an unknown variable", () => {
-    expect(validateMonitorTemplate("{{foo}}")).toBe(false);
+    expect(isValidTemplate("{{foo}}")).toBe(false);
   });
 
   it("rejects unescaped {{{value}}}", () => {
-    expect(validateMonitorTemplate("{{{value}}}")).toBe(false);
+    expect(isValidTemplate("{{{value}}}")).toBe(false);
   });
 
   it.each([
@@ -56,43 +54,43 @@ describe("validateMonitorTemplate", () => {
     "{{#each tags}}x{{/each}}",
     "{{#with value}}x{{/with}}",
   ])("rejects a block helper: %s", (template) => {
-    expect(validateMonitorTemplate(template)).toBe(false);
+    expect(isValidTemplate(template)).toBe(false);
   });
 
   it("rejects an inline helper invocation", () => {
-    expect(validateMonitorTemplate("{{lookup tags 0}}")).toBe(false);
+    expect(isValidTemplate("{{lookup tags 0}}")).toBe(false);
   });
 
   it("rejects a partial", () => {
-    expect(validateMonitorTemplate("{{> myPartial}}")).toBe(false);
+    expect(isValidTemplate("{{> myPartial}}")).toBe(false);
   });
 
   it("rejects a sub-expression argument", () => {
-    expect(validateMonitorTemplate("{{value (lookup tags 0)}}")).toBe(false);
+    expect(isValidTemplate("{{value (lookup tags 0)}}")).toBe(false);
   });
 
   it("rejects malformed handlebars", () => {
-    expect(validateMonitorTemplate("{{value")).toBe(false);
+    expect(isValidTemplate("{{value")).toBe(false);
   });
 
   it.each(["{{@is_alert}}", "{{@value}}", "{{@threshold}}", "{{@root}}"])(
     "rejects an @-prefixed data reference: %s",
     (template) => {
-      expect(validateMonitorTemplate(template)).toBe(false);
+      expect(isValidTemplate(template)).toBe(false);
     },
   );
 
   it.each(["{{../value}}", "{{../is_alert}}"])(
     "rejects a parent-context reference: %s",
     (template) => {
-      expect(validateMonitorTemplate(template)).toBe(false);
+      expect(isValidTemplate(template)).toBe(false);
     },
   );
 
   it.each(["{{tags.0}}", "{{value.length}}", "{{window.constructor}}"])(
     "rejects a sub-property reference: %s",
     (template) => {
-      expect(validateMonitorTemplate(template)).toBe(false);
+      expect(isValidTemplate(template)).toBe(false);
     },
   );
 });
