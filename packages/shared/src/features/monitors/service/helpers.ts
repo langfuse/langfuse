@@ -27,15 +27,41 @@ import {
 } from "../types";
 
 /**
- * sortFiltersCanonically returns a new array sorted by `column`, then
- * `operator`, then `key` (when present on `stringObject`/`numberObject`/
- * `categoryOptions`/`positionInTrace` variants), then `JSON.stringify(value)`.
- * Same logical filter set → same canonical sequence, regardless of input order.
+ * canonicalizeFilter normalizes a single filter for canonical comparison.
+ * For the set-semantics filter variants (`stringOptions` / `categoryOptions` /
+ * `arrayOptions`, all of which use `any of` / `none of` / `all of` over a
+ * `string[]` value) element order is semantically irrelevant, so the value
+ * array is sorted. Otherwise the filter is returned unchanged.
+ *
+ * Without this, `["prod","staging"]` and `["staging","prod"]` would produce
+ * different `schedulerBatchId` values for logically-identical filters,
+ * fragmenting the worker batching optimization the helper exists to enable.
+ */
+const canonicalizeFilter = (
+  f: MonitorFilters[number],
+): MonitorFilters[number] => {
+  if (
+    f.type === "stringOptions" ||
+    f.type === "categoryOptions" ||
+    f.type === "arrayOptions"
+  ) {
+    return { ...f, value: [...f.value].sort() };
+  }
+  return f;
+};
+
+/**
+ * sortFiltersCanonically returns a new array of filters in canonical order:
+ * each filter's value is normalized first (set-semantics value arrays are
+ * sorted), then filters are sorted by `column` → `operator` → `key` (when
+ * present on `stringObject`/`numberObject`/`categoryOptions`/`positionInTrace`
+ * variants) → `JSON.stringify(value)`. Same logical filter set → same
+ * canonical sequence, regardless of input order.
  */
 export const sortFiltersCanonically = (
   filters: MonitorFilters,
 ): MonitorFilters =>
-  [...filters].sort((a, b) => {
+  filters.map(canonicalizeFilter).sort((a, b) => {
     if (a.column !== b.column) return a.column < b.column ? -1 : 1;
     if (a.operator !== b.operator) return a.operator < b.operator ? -1 : 1;
     const aKey = "key" in a ? String(a.key) : "";

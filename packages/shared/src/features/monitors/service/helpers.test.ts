@@ -85,6 +85,22 @@ describe("sortFiltersCanonically", () => {
     expect(sorted[0].value).toEqual(["dev"]);
   });
 
+  it("sorts the value array for set-semantics operators", () => {
+    // `stringOptions` / `categoryOptions` / `arrayOptions` all use the
+    // `any of` / `none of` / `all of` operators over a `string[]` value, and
+    // element order is semantically irrelevant — must canonicalize the array
+    // so equivalent filters hash the same.
+    const input: Filter[] = [
+      stringOptionsFilter("env", ["staging", "production", "dev"]),
+    ];
+    const sorted = sortFiltersCanonically(input);
+    expect(sorted[0].value as string[]).toEqual([
+      "dev",
+      "production",
+      "staging",
+    ]);
+  });
+
   it("breaks column+operator ties by `key` for stringObject filters", () => {
     // Two metadata filters with the same operator and value but different
     // keys must canonicalize on `key` — otherwise filters that scope to
@@ -166,6 +182,23 @@ describe("calculateSchedulerBatchId", () => {
     expect(calculateSchedulerBatchId(reordered)).toBe(
       calculateSchedulerBatchId(base),
     );
+  });
+
+  it("is permutation-invariant for set-semantics value arrays", () => {
+    // `stringOptions` (and its siblings) carry a set as `value` — element
+    // order does not change which rows match, so two filters that pick the
+    // same options in different orders MUST produce the same
+    // schedulerBatchId. Otherwise the worker batching optimization
+    // fragments on logically-identical multi-select filters.
+    const a = calculateSchedulerBatchId({
+      ...base,
+      filters: [stringOptionsFilter("env", ["prod", "staging"])],
+    });
+    const b = calculateSchedulerBatchId({
+      ...base,
+      filters: [stringOptionsFilter("env", ["staging", "prod"])],
+    });
+    expect(a).toBe(b);
   });
 
   it("is permutation-invariant for filters that differ only in `key`", () => {
