@@ -13,7 +13,12 @@ import {
   createTestEvalConfig,
   createFullyMockedEvalPipeline,
 } from "./fixtures";
-import { EvalTargetObject } from "@langfuse/shared";
+import {
+  assertLLMAsJudgeEvalTemplate,
+  EvalTargetObject,
+  type EvalTemplate,
+  type EvalTemplateLlmAsAJudge,
+} from "@langfuse/shared";
 
 // Mock prisma for processObservationEval
 vi.mock("@langfuse/shared/src/db", () => ({
@@ -28,9 +33,9 @@ vi.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-// Mock executeLLMAsJudgeEvaluation
+// Mock runLLMAsJudgeEvaluation
 vi.mock("../../evalService", () => ({
-  executeLLMAsJudgeEvaluation: vi.fn(),
+  runLLMAsJudgeEvaluation: vi.fn(),
 }));
 
 // Mock logger
@@ -49,13 +54,34 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { prisma } from "@langfuse/shared/src/db";
-import { executeLLMAsJudgeEvaluation } from "../../evalService";
+import { runLLMAsJudgeEvaluation } from "../../evalService";
+
+const validateLLMAsJudgeTemplate = (
+  template: EvalTemplate,
+): EvalTemplateLlmAsAJudge => {
+  assertLLMAsJudgeEvalTemplate(template);
+  return template;
+};
+
+const mockEvalExecutionResult = {
+  outputResult: {
+    dataType: "NUMERIC" as const,
+    score: 0.85,
+    reasoning: "Good response",
+  },
+  primaryScoreId: "score-123",
+  executionTraceId: "trace-123",
+  metadata: {},
+};
 
 describe("Observation Eval E2E Pipeline", () => {
   const projectId = "test-project-123";
 
   beforeEach(() => {
     vi.clearAllMocks();
+    (runLLMAsJudgeEvaluation as Mock).mockResolvedValue(
+      mockEvalExecutionResult,
+    );
   });
 
   describe("full pipeline: schedule → process → execute", () => {
@@ -207,6 +233,8 @@ describe("Observation Eval E2E Pipeline", () => {
           jobExecutionId: capturedJobExecutionId!,
           observationS3Path,
         },
+        validateTemplate: validateLLMAsJudgeTemplate,
+        executor: runLLMAsJudgeEvaluation,
         deps: pipeline.processorDeps,
       });
 
@@ -214,7 +242,7 @@ describe("Observation Eval E2E Pipeline", () => {
       expect(
         pipeline.processorDeps.downloadObservationFromS3,
       ).toHaveBeenCalledWith(observationS3Path);
-      expect(executeLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           projectId,
           jobExecutionId: capturedJobExecutionId,
@@ -435,10 +463,12 @@ describe("Observation Eval E2E Pipeline", () => {
           jobExecutionId: "job-123",
           observationS3Path: "test-path",
         },
+        validateTemplate: validateLLMAsJudgeTemplate,
+        executor: runLLMAsJudgeEvaluation,
         deps: pipeline.processorDeps,
       });
 
-      expect(executeLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           extractedVariables: expect.arrayContaining([
             expect.objectContaining({
@@ -538,10 +568,12 @@ describe("Observation Eval E2E Pipeline", () => {
           jobExecutionId: "job-123",
           observationS3Path: "test-path",
         },
+        validateTemplate: validateLLMAsJudgeTemplate,
+        executor: runLLMAsJudgeEvaluation,
         deps: pipeline.processorDeps,
       });
 
-      expect(executeLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           extractedVariables: expect.arrayContaining([
             expect.objectContaining({

@@ -10,7 +10,6 @@ import {
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
-  traceException,
   logger,
   EvalExecutionQueue,
   checkTraceExistsAndGetTimestamp,
@@ -74,7 +73,10 @@ import {
   buildEvalExecutionMetadata,
   getEnvironmentFromVariables,
 } from "./evalRuntime";
-import { buildEvalScoreWritePayloads } from "./evalScoreEvent";
+import {
+  completeEvalExecution,
+  type EvalExecutionResult,
+} from "./evalCompletion";
 import {
   type EvalExecutionDeps,
   createProductionEvalExecutionDeps,
@@ -711,8 +713,7 @@ export const createEvalJobs = async ({
  * It handles:
  * - Compiling the prompt with extracted variables
  * - Calling the LLM with structured output
- * - Persisting the score to S3 and queueing for ingestion
- * - Updating job execution status
+ * - Returning the validated eval output and completion metadata
  *
  * Note: Callers are responsible for:
  * - Fetching and validating job, config, and template
@@ -727,15 +728,15 @@ export const createEvalJobs = async ({
  * @param params.extractedVariables - Pre-extracted variables from trace/observation data
  * @param params.deps - Optional dependency injection for testing (defaults to production deps)
  */
-export async function executeLLMAsJudgeEvaluation({
+export async function runLLMAsJudgeEvaluation({
   projectId,
   jobExecutionId,
   job,
   config,
   template,
   extractedVariables,
-  environment,
-  deps = createProductionEvalExecutionDeps(),
+  metadata,
+  deps,
 }: {
   projectId: string;
   jobExecutionId: string;
@@ -744,8 +745,9 @@ export async function executeLLMAsJudgeEvaluation({
   template: EvalTemplateLlmAsAJudge;
   extractedVariables: ExtractedVariable[];
   environment: string;
-  deps?: EvalExecutionDeps;
-}): Promise<void> {
+  metadata: Record<string, string>;
+  deps: EvalExecutionDeps;
+}): Promise<EvalExecutionResult> {
   return instrumentAsync(
     { name: "eval.execute-llm-as-judge" },
     async (span) => {
@@ -856,14 +858,6 @@ export async function executeLLMAsJudgeEvaluation({
       span.setAttribute("eval.score.id", primaryScoreId);
       const executionTraceId = createW3CTraceId(jobExecutionId);
 
-      const executionMetadata = buildEvalExecutionMetadata({
-        jobExecutionId,
-        jobConfigurationId: job.jobConfigurationId,
-        targetTraceId: job.jobInputTraceId,
-        targetObservationId: job.jobInputObservationId,
-        targetDatasetItemId: job.jobInputDatasetItemId,
-      });
-
       // Call LLM
       const llmOutput = await instrumentAsync(
         { name: "eval.call-llm" },
@@ -898,7 +892,7 @@ export async function executeLLMAsJudgeEvaluation({
                 traceName: `Execute evaluator: ${template.name}`,
                 environment: LangfuseInternalTraceEnvironment.LLMJudge,
                 metadata: {
-                  ...executionMetadata,
+                  ...metadata,
                   score_id: primaryScoreId,
                 },
               },
@@ -950,63 +944,8 @@ export async function executeLLMAsJudgeEvaluation({
         }`,
       );
 
-      const scoreWritePayloads = buildEvalScoreWritePayloads({
-        outputResult: parsedLLMOutput.data,
-        primaryScoreId,
-        traceId: job.jobInputTraceId,
-        observationId: job.jobInputObservationId,
-        scoreName: config.scoreName,
-        environment,
-        executionTraceId,
-        metadata: executionMetadata,
-      });
-
-      span.setAttribute("eval.score.count", scoreWritePayloads.length);
-
-      // Write score to S3 and enqueue for ingestion
-      try {
-        await Promise.all(
-          scoreWritePayloads.map(async ({ scoreId, eventId, event }) => {
-            await deps.uploadScore({
-              projectId,
-              scoreId,
-              eventId,
-              event,
-            });
-
-            await deps.enqueueScoreIngestion({
-              projectId,
-              scoreId,
-              eventId,
-            });
-          }),
-        );
-      } catch (e) {
-        logger.error(`Failed to persist score: ${e}`, e);
-        traceException(e);
-        throw new Error(
-          `Failed to write score ${primaryScoreId} into IngestionQueue`,
-        );
-      }
-
       logger.debug(
-        `Persisted ${scoreWritePayloads.length} score(s) for job ${jobExecutionId}`,
-      );
-
-      // Update job execution status
-      await deps.updateJobExecution({
-        id: jobExecutionId,
-        projectId,
-        data: {
-          status: JobExecutionStatus.COMPLETED,
-          endTime: new Date(),
-          jobOutputScoreId: primaryScoreId,
-          executionTraceId,
-        },
-      });
-
-      logger.debug(
-        `Eval job ${job.id} completed with ${
+        `Eval job ${job.id} produced ${
           parsedLLMOutput.data.dataType === ScoreDataTypeEnum.NUMERIC
             ? `score ${parsedLLMOutput.data.score}`
             : parsedLLMOutput.data.dataType === ScoreDataTypeEnum.BOOLEAN
@@ -1014,8 +953,45 @@ export async function executeLLMAsJudgeEvaluation({
               : `matches ${parsedLLMOutput.data.matches.join(",")}`
         }`,
       );
+
+      return {
+        outputResult: parsedLLMOutput.data,
+        primaryScoreId,
+        executionTraceId,
+      };
     },
   );
+}
+
+export async function executeLLMAsJudgeEvaluation(
+  params: Omit<
+    Parameters<typeof runLLMAsJudgeEvaluation>[0],
+    "deps" | "metadata"
+  > & {
+    deps?: EvalExecutionDeps;
+  },
+): Promise<void> {
+  const deps = params.deps ?? createProductionEvalExecutionDeps();
+  const metadata = buildEvalExecutionMetadata({
+    jobExecutionId: params.jobExecutionId,
+    jobConfigurationId: params.job.jobConfigurationId,
+    targetTraceId: params.job.jobInputTraceId,
+    targetObservationId: params.job.jobInputObservationId,
+    targetDatasetItemId: params.job.jobInputDatasetItemId,
+  });
+  const result = await runLLMAsJudgeEvaluation({ ...params, deps, metadata });
+
+  await completeEvalExecution({
+    projectId: params.projectId,
+    jobExecutionId: params.jobExecutionId,
+    traceId: params.job.jobInputTraceId,
+    observationId: params.job.jobInputObservationId,
+    scoreName: params.config.scoreName,
+    environment: params.environment,
+    metadata,
+    deps,
+    ...result,
+  });
 }
 
 /**

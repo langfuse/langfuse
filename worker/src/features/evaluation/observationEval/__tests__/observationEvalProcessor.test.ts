@@ -17,6 +17,19 @@ import {
 } from "./fixtures";
 import { UnrecoverableError } from "../../../../errors/UnrecoverableError";
 
+const validateLLMAsJudgeTemplate = vi.fn((template) => {
+  if (template.type !== EvalTemplateType.LLM_AS_JUDGE) {
+    throw new Error("Expected LLM-as-judge evaluation template");
+  }
+  return template;
+});
+const validateCodeBasedTemplate = vi.fn((template) => {
+  if (template.type !== EvalTemplateType.CODE) {
+    throw new Error("Expected code-based evaluation template");
+  }
+  return template;
+});
+
 // Mock prisma
 vi.mock("@langfuse/shared/src/db", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/db");
@@ -35,9 +48,13 @@ vi.mock("@langfuse/shared/src/db", async () => {
   };
 });
 
-// Mock executeLLMAsJudgeEvaluation
+// Mock runLLMAsJudgeEvaluation
 vi.mock("../../evalService", () => ({
-  executeLLMAsJudgeEvaluation: vi.fn(),
+  runLLMAsJudgeEvaluation: vi.fn(),
+}));
+
+vi.mock("../../codeBased", () => ({
+  executeCodeBasedEvaluation: vi.fn(),
 }));
 
 // Mock logger
@@ -56,7 +73,23 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { prisma } from "@langfuse/shared/src/db";
-import { executeLLMAsJudgeEvaluation } from "../../evalService";
+import { executeCodeBasedEvaluation } from "../../codeBased";
+import {
+  createMockEvalExecutionDeps,
+  type EvalExecutionDeps,
+} from "../../evalExecutionDeps";
+import { runLLMAsJudgeEvaluation } from "../../evalService";
+
+const mockEvalExecutionResult = {
+  outputResult: {
+    dataType: "NUMERIC" as const,
+    score: 0.5,
+    reasoning: "Mock eval result",
+  },
+  primaryScoreId: "score-123",
+  executionTraceId: "trace-123",
+  metadata: {},
+};
 
 describe("processObservationEval", () => {
   const projectId = "test-project-123";
@@ -71,6 +104,12 @@ describe("processObservationEval", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    (executeCodeBasedEvaluation as Mock).mockResolvedValue(
+      mockEvalExecutionResult,
+    );
+    (runLLMAsJudgeEvaluation as Mock).mockResolvedValue(
+      mockEvalExecutionResult,
+    );
   });
 
   describe("job execution lookup", () => {
@@ -79,7 +118,12 @@ describe("processObservationEval", () => {
 
       const deps = createMockProcessorDeps();
 
-      await processObservationEval({ event: baseEvent, deps });
+      await processObservationEval({
+        event: baseEvent,
+        validateTemplate: validateLLMAsJudgeTemplate,
+        executor: runLLMAsJudgeEvaluation,
+        deps,
+      });
 
       expect(prisma.jobExecution.findFirst).toHaveBeenCalledWith({
         where: {
@@ -88,7 +132,7 @@ describe("processObservationEval", () => {
         },
       });
       expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
-      expect(executeLLMAsJudgeEvaluation).not.toHaveBeenCalled();
+      expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
     });
   });
 
@@ -106,10 +150,20 @@ describe("processObservationEval", () => {
       const deps = createMockProcessorDeps();
 
       await expect(
-        processObservationEval({ event: baseEvent, deps }),
+        processObservationEval({
+          event: baseEvent,
+          validateTemplate: validateLLMAsJudgeTemplate,
+          executor: runLLMAsJudgeEvaluation,
+          deps,
+        }),
       ).rejects.toThrow(UnrecoverableError);
       await expect(
-        processObservationEval({ event: baseEvent, deps }),
+        processObservationEval({
+          event: baseEvent,
+          validateTemplate: validateLLMAsJudgeTemplate,
+          executor: runLLMAsJudgeEvaluation,
+          deps,
+        }),
       ).rejects.toThrow("Job configuration or template not found");
     });
 
@@ -134,7 +188,12 @@ describe("processObservationEval", () => {
       const deps = createMockProcessorDeps();
 
       await expect(
-        processObservationEval({ event: baseEvent, deps }),
+        processObservationEval({
+          event: baseEvent,
+          validateTemplate: validateLLMAsJudgeTemplate,
+          executor: runLLMAsJudgeEvaluation,
+          deps,
+        }),
       ).rejects.toThrow(UnrecoverableError);
     });
 
@@ -156,7 +215,12 @@ describe("processObservationEval", () => {
 
       const deps = createMockProcessorDeps();
 
-      await processObservationEval({ event: baseEvent, deps });
+      await processObservationEval({
+        event: baseEvent,
+        validateTemplate: validateLLMAsJudgeTemplate,
+        executor: runLLMAsJudgeEvaluation,
+        deps,
+      });
 
       expect(prisma.jobExecution.update).toHaveBeenCalledWith({
         where: {
@@ -169,7 +233,7 @@ describe("processObservationEval", () => {
         },
       });
       expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
-      expect(executeLLMAsJudgeEvaluation).not.toHaveBeenCalled();
+      expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
     });
 
     it("should cancel blocked jobs before validating the evaluator template type", async () => {
@@ -197,7 +261,12 @@ describe("processObservationEval", () => {
 
       const deps = createMockProcessorDeps();
 
-      await processObservationEval({ event: baseEvent, deps });
+      await processObservationEval({
+        event: baseEvent,
+        validateTemplate: validateLLMAsJudgeTemplate,
+        executor: runLLMAsJudgeEvaluation,
+        deps,
+      });
 
       expect(prisma.jobExecution.update).toHaveBeenCalledWith({
         where: {
@@ -210,7 +279,53 @@ describe("processObservationEval", () => {
         },
       });
       expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
-      expect(executeLLMAsJudgeEvaluation).not.toHaveBeenCalled();
+      expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("template type validation", () => {
+    it("should throw UnrecoverableError when the default LLM path receives a code template", async () => {
+      const job = createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status: JobExecutionStatus.PENDING,
+        jobConfigurationId: "config-123",
+      });
+      const config = createMockJobConfiguration({
+        id: "config-123",
+        projectId,
+        evalTemplate: createMockEvalTemplate({
+          type: EvalTemplateType.CODE,
+          prompt: null,
+          outputDefinition: null,
+          sourceCode: "def evaluate(): pass",
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.PYTHON,
+        }),
+      });
+
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
+      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
+
+      const deps = createMockProcessorDeps();
+
+      await expect(
+        processObservationEval({
+          event: baseEvent,
+          validateTemplate: validateLLMAsJudgeTemplate,
+          executor: runLLMAsJudgeEvaluation,
+          deps,
+        }),
+      ).rejects.toThrow(UnrecoverableError);
+      await expect(
+        processObservationEval({
+          event: baseEvent,
+          validateTemplate: validateLLMAsJudgeTemplate,
+          executor: runLLMAsJudgeEvaluation,
+          deps,
+        }),
+      ).rejects.toThrow("Expected LLM-as-judge evaluation template");
+      expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
+      expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
     });
   });
 
@@ -230,15 +345,20 @@ describe("processObservationEval", () => {
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
 
-      const deps: ObservationEvalProcessorDeps = {
+      const deps = createMockProcessorDeps({
         downloadObservationFromS3: vi
           .fn<ObservationEvalProcessorDeps["downloadObservationFromS3"]>()
           .mockRejectedValue(new Error("S3 connection failed")),
-      };
+      });
 
       // S3 connection errors should be retryable (not UnrecoverableError)
       await expect(
-        processObservationEval({ event: baseEvent, deps }),
+        processObservationEval({
+          event: baseEvent,
+          validateTemplate: validateLLMAsJudgeTemplate,
+          executor: runLLMAsJudgeEvaluation,
+          deps,
+        }),
       ).rejects.toThrow("Failed to download observation from S3");
     });
 
@@ -257,15 +377,20 @@ describe("processObservationEval", () => {
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
 
-      const deps: ObservationEvalProcessorDeps = {
+      const deps = createMockProcessorDeps({
         downloadObservationFromS3: vi
           .fn<ObservationEvalProcessorDeps["downloadObservationFromS3"]>()
           .mockResolvedValue("not valid json {"),
-      };
+      });
 
       // Invalid JSON is a permanent error - should be UnrecoverableError
       await expect(
-        processObservationEval({ event: baseEvent, deps }),
+        processObservationEval({
+          event: baseEvent,
+          validateTemplate: validateLLMAsJudgeTemplate,
+          executor: runLLMAsJudgeEvaluation,
+          deps,
+        }),
       ).rejects.toThrow(UnrecoverableError);
     });
 
@@ -286,21 +411,26 @@ describe("processObservationEval", () => {
 
       // Missing required fields - valid JSON but invalid schema
       const invalidObservation = { id: "obs-123", someField: "value" };
-      const deps: ObservationEvalProcessorDeps = {
+      const deps = createMockProcessorDeps({
         downloadObservationFromS3: vi
           .fn<ObservationEvalProcessorDeps["downloadObservationFromS3"]>()
           .mockResolvedValue(JSON.stringify(invalidObservation)),
-      };
+      });
 
       // Schema validation failures are permanent - should be UnrecoverableError
       await expect(
-        processObservationEval({ event: baseEvent, deps }),
+        processObservationEval({
+          event: baseEvent,
+          validateTemplate: validateLLMAsJudgeTemplate,
+          executor: runLLMAsJudgeEvaluation,
+          deps,
+        }),
       ).rejects.toThrow(UnrecoverableError);
     });
   });
 
   describe("successful execution", () => {
-    it("should call executeLLMAsJudgeEvaluation with correct parameters", async () => {
+    it("should call runLLMAsJudgeEvaluation with correct parameters", async () => {
       const job = createMockJobExecution({
         id: jobExecutionId,
         projectId,
@@ -340,9 +470,14 @@ describe("processObservationEval", () => {
           .mockResolvedValue(JSON.stringify(observation)),
       });
 
-      await processObservationEval({ event: baseEvent, deps });
+      await processObservationEval({
+        event: baseEvent,
+        validateTemplate: validateLLMAsJudgeTemplate,
+        executor: runLLMAsJudgeEvaluation,
+        deps,
+      });
 
-      expect(executeLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           projectId,
           jobExecutionId,
@@ -358,6 +493,161 @@ describe("processObservationEval", () => {
           environment: "production",
         }),
       );
+    });
+
+    it("should complete eval execution with the executor result", async () => {
+      const job = createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status: JobExecutionStatus.PENDING,
+        jobConfigurationId: "config-123",
+        jobInputTraceId: "trace-abc",
+        jobInputObservationId: "obs-xyz",
+      });
+      const template = createMockEvalTemplate({
+        id: "template-456",
+        projectId,
+        prompt: "Evaluate: {{output}}",
+      });
+      const config = createMockJobConfiguration({
+        id: "config-123",
+        projectId,
+        evalTemplateId: "template-456",
+        variableMapping: [
+          { templateVariable: "output", selectedColumnId: "output" },
+        ],
+        evalTemplate: template,
+      });
+      const observation = createTestObservation({
+        span_id: "obs-xyz",
+        project_id: projectId,
+        trace_id: "trace-abc",
+        environment: "production",
+        output: '{"response": "test output"}',
+      });
+
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
+      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
+
+      const uploadScore = vi
+        .fn<EvalExecutionDeps["uploadScore"]>()
+        .mockResolvedValue(undefined);
+      const enqueueScoreIngestion = vi
+        .fn<EvalExecutionDeps["enqueueScoreIngestion"]>()
+        .mockResolvedValue(undefined);
+      const updateJobExecution = vi
+        .fn<EvalExecutionDeps["updateJobExecution"]>()
+        .mockResolvedValue(undefined);
+      const deps = createMockProcessorDeps({
+        downloadObservationFromS3: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify(observation)),
+        evalExecutionDeps: createMockEvalExecutionDeps({
+          uploadScore,
+          enqueueScoreIngestion,
+          updateJobExecution,
+        }),
+      });
+
+      await processObservationEval({
+        event: baseEvent,
+        validateTemplate: validateLLMAsJudgeTemplate,
+        executor: runLLMAsJudgeEvaluation,
+        deps,
+      });
+
+      expect(uploadScore).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId,
+          scoreId: mockEvalExecutionResult.primaryScoreId,
+        }),
+      );
+      expect(enqueueScoreIngestion).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId,
+          scoreId: mockEvalExecutionResult.primaryScoreId,
+        }),
+      );
+      expect(updateJobExecution).toHaveBeenCalledWith({
+        id: jobExecutionId,
+        projectId,
+        data: expect.objectContaining({
+          status: JobExecutionStatus.COMPLETED,
+          jobOutputScoreId: mockEvalExecutionResult.primaryScoreId,
+          executionTraceId: mockEvalExecutionResult.executionTraceId,
+        }),
+      });
+    });
+
+    it("should call the code executor for code templates", async () => {
+      const job = createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status: JobExecutionStatus.PENDING,
+        jobConfigurationId: "config-123",
+        jobInputTraceId: "trace-abc",
+        jobInputObservationId: "obs-xyz",
+      });
+      const template = createMockEvalTemplate({
+        id: "template-456",
+        projectId,
+        type: EvalTemplateType.CODE,
+        prompt: null,
+        outputDefinition: null,
+        sourceCode: "def evaluate(): pass",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.PYTHON,
+      });
+      const config = createMockJobConfiguration({
+        id: "config-123",
+        projectId,
+        evalTemplateId: "template-456",
+        variableMapping: [
+          { templateVariable: "output", selectedColumnId: "output" },
+        ],
+        evalTemplate: template,
+      });
+      const observation = createTestObservation({
+        span_id: "obs-xyz",
+        project_id: projectId,
+        trace_id: "trace-abc",
+        environment: "production",
+        output: '{"response": "test output"}',
+      });
+
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
+      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
+
+      const deps = createMockProcessorDeps({
+        downloadObservationFromS3: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify(observation)),
+      });
+
+      await processObservationEval({
+        event: baseEvent,
+        validateTemplate: validateCodeBasedTemplate,
+        executor: executeCodeBasedEvaluation,
+        deps,
+      });
+
+      expect(executeCodeBasedEvaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId,
+          jobExecutionId,
+          template: expect.objectContaining({
+            id: "template-456",
+            type: EvalTemplateType.CODE,
+          }),
+          extractedVariables: expect.arrayContaining([
+            expect.objectContaining({
+              var: "output",
+              value: '{"response": "test output"}',
+            }),
+          ]),
+          environment: "production",
+        }),
+      );
+      expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
     });
 
     it("should use default environment when observation environment is null", async () => {
@@ -386,9 +676,14 @@ describe("processObservationEval", () => {
           .mockResolvedValue(JSON.stringify(observation)),
       });
 
-      await processObservationEval({ event: baseEvent, deps });
+      await processObservationEval({
+        event: baseEvent,
+        validateTemplate: validateLLMAsJudgeTemplate,
+        executor: runLLMAsJudgeEvaluation,
+        deps,
+      });
 
-      expect(executeLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           environment: "default",
         }),
@@ -425,9 +720,14 @@ describe("processObservationEval", () => {
           .mockResolvedValue(JSON.stringify(observation)),
       });
 
-      await processObservationEval({ event: baseEvent, deps });
+      await processObservationEval({
+        event: baseEvent,
+        validateTemplate: validateLLMAsJudgeTemplate,
+        executor: runLLMAsJudgeEvaluation,
+        deps,
+      });
 
-      expect(executeLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           extractedVariables: expect.arrayContaining([
             expect.objectContaining({
@@ -464,7 +764,11 @@ describe("processObservationEval", () => {
 
       // Without injected deps, it will try to use real S3 which should fail
       await expect(
-        processObservationEval({ event: baseEvent }),
+        processObservationEval({
+          event: baseEvent,
+          validateTemplate: validateLLMAsJudgeTemplate,
+          executor: runLLMAsJudgeEvaluation,
+        }),
       ).rejects.toThrow();
     });
   });

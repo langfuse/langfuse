@@ -15,6 +15,7 @@ import {
   evalJobTraceCreatorQueueProcessor,
   llmAsJudgeExecutionQueueProcessorBuilder,
 } from "./queues/evalQueue";
+import { codeEvalExecutionQueueProcessorBuilder } from "./queues/codeEvalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
 import helmet from "helmet";
@@ -43,6 +44,7 @@ import {
   EvalExecutionQueue,
   SecondaryEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
+  CodeEvalExecutionQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -263,6 +265,22 @@ if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
       llmAsJudgeExecutionQueueProcessorBuilder(shardName),
       {
         concurrency: env.LANGFUSE_LLM_AS_JUDGE_EXECUTION_WORKER_CONCURRENCY,
+        lockDuration: 60000,
+        stalledInterval: 120000,
+        maxStalledCount: 3,
+      },
+    );
+  });
+}
+
+if (env.QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
+  const codeEvalShardNames = CodeEvalExecutionQueue.getShardNames();
+  codeEvalShardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      codeEvalExecutionQueueProcessorBuilder(shardName),
+      {
+        concurrency: env.LANGFUSE_CODE_EVAL_EXECUTION_WORKER_CONCURRENCY,
         lockDuration: 60000,
         stalledInterval: 120000,
         maxStalledCount: 3,
