@@ -23,7 +23,9 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { assertUnreachable } from "@/src/utils/types";
+import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 
+const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
 const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
 
 export default async function handler(request: Request) {
@@ -140,6 +142,7 @@ export default async function handler(request: Request) {
     }
 
     const sanitizedInput = sanitizeAgentInput(input);
+    const mcpApiKey = await createInAppAgentMcpApiKey(projectId);
 
     const stream = createAgUiStream({
       input: sanitizedInput,
@@ -159,6 +162,11 @@ export default async function handler(request: Request) {
           region: env.LANGFUSE_AWS_BEDROCK_REGION,
           accessKeyId: env.AWS_ACCESS_KEY_ID,
           secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+        },
+        langfuseMcp: {
+          url: getLangfuseMcpUrl(),
+          publicKey: mcpApiKey.publicKey,
+          secretKey: mcpApiKey.secretKey,
         },
       },
     });
@@ -186,6 +194,27 @@ export default async function handler(request: Request) {
 
     throw err;
   }
+}
+
+function getLangfuseMcpUrl(): string {
+  const rawUrl = env.NEXTAUTH_URL.replace(/\/api\/auth\/?$/, "");
+  const baseUrl = new URL(rawUrl);
+
+  baseUrl.pathname = `${baseUrl.pathname.replace(/\/$/, "")}/api/public/mcp`;
+  baseUrl.search = "";
+  baseUrl.hash = "";
+
+  return baseUrl.toString();
+}
+
+async function createInAppAgentMcpApiKey(projectId: string) {
+  return createAndAddApiKeysToDb({
+    prisma,
+    entityId: projectId,
+    scope: "PROJECT",
+    note: IN_APP_AGENT_API_KEY_NOTE,
+    isInAppAgentKey: true,
+  });
 }
 
 function sanitizeAgentInput(input: AgUiRunAgentInput): AgUiRunAgentInput {

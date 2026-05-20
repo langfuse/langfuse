@@ -25,6 +25,11 @@ type CreateAgUiStreamOptions = {
     secretAccessKey: string;
     region: string;
   };
+  langfuseMcp: {
+    url: string;
+    publicKey: string;
+    secretKey: string;
+  };
 };
 
 export function createAgUiStream(params: {
@@ -34,11 +39,24 @@ export function createAgUiStream(params: {
 }) {
   const encoder = new TextEncoder();
 
+  const langfuseMcpAuthHeader = `Basic ${Buffer.from(
+    `${params.options.langfuseMcp.publicKey}:${params.options.langfuseMcp.secretKey}`,
+  ).toString("base64")}`;
+
   const adapter = new ClaudeAgentAdapter({
     permissionMode: "dontAsk",
     title: ASSISTANT_TITLE,
     systemPrompt: ASSISTANT_SYSTEM_PROMPT,
-    allowedTools: [],
+    allowedTools: ["mcp__langfuse__*"],
+    mcpServers: {
+      langfuse: {
+        type: "http",
+        url: params.options.langfuseMcp.url,
+        headers: {
+          Authorization: langfuseMcpAuthHeader,
+        },
+      },
+    },
     settingSources: [],
     additionalDirectories: [],
     maxBudgetUsd: MAX_AGENT_BUDGET_USD,
