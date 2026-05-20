@@ -28,8 +28,9 @@ import {
 
 /**
  * sortFiltersCanonically returns a new array sorted by `column`, then
- * `operator`, then `JSON.stringify(value)`. Same logical filter set → same
- * canonical sequence, regardless of input order.
+ * `operator`, then `key` (when present on `stringObject`/`numberObject`/
+ * `categoryOptions`/`positionInTrace` variants), then `JSON.stringify(value)`.
+ * Same logical filter set → same canonical sequence, regardless of input order.
  */
 export const sortFiltersCanonically = (
   filters: MonitorFilters,
@@ -37,6 +38,9 @@ export const sortFiltersCanonically = (
   [...filters].sort((a, b) => {
     if (a.column !== b.column) return a.column < b.column ? -1 : 1;
     if (a.operator !== b.operator) return a.operator < b.operator ? -1 : 1;
+    const aKey = "key" in a ? String(a.key) : "";
+    const bKey = "key" in b ? String(b.key) : "";
+    if (aKey !== bKey) return aKey < bKey ? -1 : 1;
     const av = JSON.stringify(a.value);
     const bv = JSON.stringify(b.value);
     if (av !== bv) return av < bv ? -1 : 1;

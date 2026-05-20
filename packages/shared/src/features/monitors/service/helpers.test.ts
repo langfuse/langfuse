@@ -85,6 +85,31 @@ describe("sortFiltersCanonically", () => {
     expect(sorted[0].value).toEqual(["dev"]);
   });
 
+  it("breaks column+operator ties by `key` for stringObject filters", () => {
+    // Two metadata filters with the same operator and value but different
+    // keys must canonicalize on `key` — otherwise filters that scope to
+    // different metadata properties collide in the canonical sequence.
+    const input: Filter[] = [
+      {
+        type: "stringObject",
+        column: "metadata",
+        key: "tenant",
+        operator: "=",
+        value: "acme",
+      },
+      {
+        type: "stringObject",
+        column: "metadata",
+        key: "env",
+        operator: "=",
+        value: "acme",
+      },
+    ];
+    const sorted = sortFiltersCanonically(input);
+    expect((sorted[0] as { key: string }).key).toBe("env");
+    expect((sorted[1] as { key: string }).key).toBe("tenant");
+  });
+
   it("is idempotent", () => {
     const input: Filter[] = [
       stringFilter("env", "production"),
@@ -141,6 +166,36 @@ describe("calculateSchedulerBatchId", () => {
     expect(calculateSchedulerBatchId(reordered)).toBe(
       calculateSchedulerBatchId(base),
     );
+  });
+
+  it("is permutation-invariant for filters that differ only in `key`", () => {
+    // Two metadata.* filters with the same (column, operator, value) but
+    // different keys MUST canonicalize to the same sequence regardless of
+    // input order; otherwise the schedulerBatchId is not a stable
+    // fingerprint of the query shape.
+    const metaTenant: Filter = {
+      type: "stringObject",
+      column: "metadata",
+      key: "tenant",
+      operator: "=",
+      value: "acme",
+    };
+    const metaEnv: Filter = {
+      type: "stringObject",
+      column: "metadata",
+      key: "env",
+      operator: "=",
+      value: "acme",
+    };
+    const a = calculateSchedulerBatchId({
+      ...base,
+      filters: [metaTenant, metaEnv],
+    });
+    const b = calculateSchedulerBatchId({
+      ...base,
+      filters: [metaEnv, metaTenant],
+    });
+    expect(a).toBe(b);
   });
 
   it("changes when projectId changes", () => {
