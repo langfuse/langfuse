@@ -1,13 +1,16 @@
 import { z } from "zod";
-import { views, metricAggregations } from "@/src/features/query/types";
+import {
+  getValidAggregationsForMeasureType,
+  metricAggregations,
+  viewDeclarations,
+  views,
+  type ViewVersion,
+} from "@langfuse/shared/query";
 import {
   getWidgetImportFilterConfig,
-  getValidAggregationsForMeasureType,
   normalizeStoredWidgetFiltersForEditor,
   partitionStoredUiTableFiltersToView,
-  type ViewVersion,
-} from "@/src/features/query";
-import { viewDeclarations } from "@/src/features/query/dataModel";
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import startCase from "lodash/startCase";
 import {
   ChartConfigSchema,

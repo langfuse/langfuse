@@ -104,3 +104,8 @@ export {
   DimensionSchema,
   MetricSchema,
 } from "./server/services/DashboardService/types";
+
+// query (dashboard / monitor data model)
+export * from "./features/query/types";
+export * from "./features/query/dataModel";
+export * from "./features/query/validateQuery";

@@ -26,7 +26,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useRouter } from "next/router";
 import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { type metricAggregations } from "@/src/features/query";
+import { type metricAggregations } from "@langfuse/shared/query";
 import { type z } from "zod";
 
 type WidgetTableRow = {
