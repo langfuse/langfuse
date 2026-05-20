@@ -146,6 +146,17 @@ describe("EventsQueryBuilder", () => {
     expect(defaultQuery).toContain('e.tool_call_names as "tool_call_names"');
   });
 
+  it("should query events_full when forceFullTable is enabled", () => {
+    const query = new EventsQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("core")
+      .forceFullTable()
+      .buildWithParams().query;
+
+    expect(query).toContain("FROM events_full e");
+  });
+
   it("should include pricing tier fields in observation list, detail, usage, and export field sets", () => {
     const buildQuery = (
       ...fieldSets: Parameters<EventsQueryBuilder["selectFieldSet"]>

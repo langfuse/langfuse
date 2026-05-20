@@ -57,13 +57,18 @@ export default withMiddlewares({
       const hasMore = items.length > query.limit;
       const dataToReturn = hasMore ? items.slice(0, query.limit) : items;
 
-      // Convert empty parent_observation_id to null for consistency with v1
-      const transformedItems = dataToReturn.map((item) => {
-        if (item.parentObservationId === "") {
-          return { ...item, parentObservationId: null };
-        }
-        return item;
-      });
+      // Normalize for the wire format:
+      // - empty parent_observation_id -> null (v1 parity)
+      // - Decimal price fields -> string (preserves original v2 wire format; v1 emits numbers via .toNumber())
+      const transformedItems = dataToReturn.map((item) => ({
+        ...item,
+        parentObservationId:
+          item.parentObservationId === "" ? null : item.parentObservationId,
+        modelId: item.modelId ?? null,
+        inputPrice: item.inputPrice?.toString() ?? null,
+        outputPrice: item.outputPrice?.toString() ?? null,
+        totalPrice: item.totalPrice?.toString() ?? null,
+      }));
 
       // Generate cursor if there are more results
       const lastItemIdx = dataToReturn.length - 1;
