@@ -109,3 +109,24 @@ export function extractValueFromObject(
 
   return { value: jsonSelectedColumn, error };
 }
+
+/**
+ * Backwards-compatible extraction for UI prompt previews and LLM prompt
+ * rendering. `extractValueFromObject` preserves typed values for code eval;
+ * this wrapper keeps the previous string-only behavior for prompt surfaces.
+ */
+export function extractValueFromObjectAsString(
+  obj: Record<string, unknown>,
+  selectedColumnId: string,
+  jsonSelector?: string,
+  parseJson?: (selectedColumn: unknown, jsonSelector: string) => unknown,
+): { value: string; error: Error | null } {
+  const { value, error } = extractValueFromObject(
+    obj,
+    selectedColumnId,
+    jsonSelector,
+    parseJson,
+  );
+
+  return { value: parseUnknownToString(value), error };
+}

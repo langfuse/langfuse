@@ -20,7 +20,7 @@ export function resolveConfiguredCodeEvalDispatcher(): CodeEvalDispatcher | null
   if (dispatcherName === "insecure-local") {
     if (!hasLoggedInsecureLocalWarning) {
       logger.warn(
-        "LANGFUSE_CODE_EVAL_DISPATCHER is set to `insecure-local`. Code evals will execute user-provided code in the worker process. Only use this with trusted code or for local development.",
+        "Using the `insecure-local` code-eval dispatcher. Code evals will execute user-provided code in the worker process. Only use this with trusted code or for local development.",
       );
       hasLoggedInsecureLocalWarning = true;
     }

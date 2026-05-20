@@ -226,7 +226,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
     expect(traceException).toHaveBeenCalledWith(error);
   });
 
-  it("should mark the job as ERROR on the final retry attempt", async () => {
+  it("should mark the job as ERROR with a masked message on the final retry attempt", async () => {
     const error = new Error("temporary dispatcher failure");
     (processObservationEval as Mock).mockRejectedValue(error);
 
@@ -244,7 +244,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
       data: {
         status: JobExecutionStatus.ERROR,
         endTime: expect.any(Date),
-        error: "temporary dispatcher failure",
+        error: "An internal error occurred",
         executionTraceId: "test-trace-id",
       },
     });

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { extractValueFromObject } from "@langfuse/shared";
+import {
+  extractValueFromObjectAsString,
+  extractValueFromObject,
+} from "@langfuse/shared";
 
 describe("extractValueFromObject", () => {
   describe("JSONPath slice expressions returning multiple elements", () => {
@@ -152,6 +155,30 @@ describe("extractValueFromObject", () => {
       const result = extractValueFromObject(obj, "data", "$.name");
       expect(result.value).toBe("Alice");
       expect(result.error).toBeNull();
+    });
+  });
+
+  describe("extractValueFromObjectAsString", () => {
+    it("should preserve string extraction behavior for prompt previews", () => {
+      const obj = {
+        object: { key: "value", count: 42 },
+        array: ["a", "b"],
+        zero: 0,
+        falseValue: false,
+        missing: null,
+      };
+
+      expect(extractValueFromObjectAsString(obj, "object").value).toBe(
+        '{"key":"value","count":42}',
+      );
+      expect(extractValueFromObjectAsString(obj, "array").value).toBe(
+        '["a","b"]',
+      );
+      expect(extractValueFromObjectAsString(obj, "zero").value).toBe("0");
+      expect(extractValueFromObjectAsString(obj, "falseValue").value).toBe(
+        "false",
+      );
+      expect(extractValueFromObjectAsString(obj, "missing").value).toBe("");
     });
   });
 });
