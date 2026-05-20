@@ -481,10 +481,12 @@ type ExperimentItemsFilterOptionsInput = {
 type ScoreFilterOptionsRow = {
   name: string;
   data_type: string;
+  source: string;
   values: string[];
 };
 
 const SCORE_FILTER_OPTIONS_LIMIT = 1000;
+const SCORE_CATEGORICAL_VALUE_LIMIT = 20;
 
 const buildScoreFilterOptionsQuery = (params: {
   projectId: string;
@@ -526,12 +528,20 @@ const buildScoreFilterOptionsQuery = (params: {
     .select(
       "s.name AS name",
       "s.data_type AS data_type",
-      "groupUniqArrayIf(s.string_value, s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS values",
+      "s.source AS source",
+      `groupUniqArrayIf(${SCORE_CATEGORICAL_VALUE_LIMIT})(s.string_value, s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS values`,
     )
-    .groupBy("s.name", "s.data_type")
+    .groupBy("s.name", "s.data_type", "s.source")
+    .orderBy("ORDER BY s.name ASC")
     .limit(SCORE_FILTER_OPTIONS_LIMIT);
 
   return queryBuilder.buildWithParams();
+};
+
+export type ScoreColumnDefinition = {
+  name: string;
+  dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
+  source: string;
 };
 
 const processScoreFilterOptionsResults = (
@@ -539,19 +549,50 @@ const processScoreFilterOptionsResults = (
 ): {
   numeric: string[];
   categorical: Array<{ label: string; values: string[] }>;
+  scoreColumns: ScoreColumnDefinition[];
 } => {
   const numeric: string[] = [];
   const categorical: Array<{ label: string; values: string[] }> = [];
+  const scoreColumns: ScoreColumnDefinition[] = [];
+  // Track unique score names to avoid duplicates in numeric/categorical lists
+  const seenNumeric = new Set<string>();
+  const seenCategorical = new Map<string, string[]>();
 
   for (const row of rows) {
+    // Always add to scoreColumns (unique by name+source+data_type combination)
+    scoreColumns.push({
+      name: row.name,
+      dataType: row.data_type as "NUMERIC" | "BOOLEAN" | "CATEGORICAL",
+      source: row.source,
+    });
+
     if (row.data_type === "NUMERIC" || row.data_type === "BOOLEAN") {
-      numeric.push(row.name);
+      if (!seenNumeric.has(row.name)) {
+        seenNumeric.add(row.name);
+        numeric.push(row.name);
+      }
     } else if (row.data_type === "CATEGORICAL") {
-      categorical.push({ label: row.name, values: row.values });
+      // Merge values for same score name across different sources
+      const existing = seenCategorical.get(row.name);
+      if (existing) {
+        // Add new unique values
+        for (const val of row.values) {
+          if (!existing.includes(val)) {
+            existing.push(val);
+          }
+        }
+      } else {
+        seenCategorical.set(row.name, [...row.values]);
+      }
     }
   }
 
-  return { numeric, categorical };
+  // Convert categorical map to array
+  for (const [label, values] of seenCategorical) {
+    categorical.push({ label, values });
+  }
+
+  return { numeric, categorical, scoreColumns };
 };
 
 export const getExperimentItemsFilterOptions = async (
@@ -559,8 +600,10 @@ export const getExperimentItemsFilterOptions = async (
 ): Promise<{
   obs_scores_avg: string[];
   obs_score_categories: Array<{ label: string; values: string[] }>;
+  obs_score_columns: ScoreColumnDefinition[];
   trace_scores_avg: string[];
   trace_score_categories: Array<{ label: string; values: string[] }>;
+  trace_score_columns: ScoreColumnDefinition[];
 }> => {
   const { projectId, experimentIds } = props;
 
@@ -568,8 +611,10 @@ export const getExperimentItemsFilterOptions = async (
     return {
       obs_scores_avg: [],
       obs_score_categories: [],
+      obs_score_columns: [],
       trace_scores_avg: [],
       trace_score_categories: [],
+      trace_score_columns: [],
     };
   }
 
@@ -617,8 +662,10 @@ export const getExperimentItemsFilterOptions = async (
   return {
     obs_scores_avg: obsScores.numeric,
     obs_score_categories: obsScores.categorical,
+    obs_score_columns: obsScores.scoreColumns,
     trace_scores_avg: traceScores.numeric,
     trace_score_categories: traceScores.categorical,
+    trace_score_columns: traceScores.scoreColumns,
   };
 };
 
