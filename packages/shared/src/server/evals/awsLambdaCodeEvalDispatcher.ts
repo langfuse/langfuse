@@ -61,13 +61,19 @@ const AWS_ERROR_CLASSIFICATION_BY_NAME: Record<
   // a single code regardless of which layer caught them.
   RequestTooLargeException: { code: "PAYLOAD_TOO_LARGE" },
   ResourceNotFoundException: { code: "LAMBDA_CONFIGURATION_ERROR" },
-  ECONNRESET: { code: "LAMBDA_INVOCATION_ERROR", retryable: true },
-  ETIMEDOUT: { code: "LAMBDA_INVOCATION_ERROR", retryable: true },
   ResourceConflictException: {
     code: "LAMBDA_INVOCATION_ERROR",
     retryable: true,
   },
   ServiceException: { code: "LAMBDA_INVOCATION_ERROR", retryable: true },
+};
+
+const AWS_ERROR_CLASSIFICATION_BY_CODE: Record<
+  string,
+  CodeEvalDispatcherErrorClassification
+> = {
+  ECONNRESET: { code: "LAMBDA_INVOCATION_ERROR", retryable: true },
+  ETIMEDOUT: { code: "LAMBDA_INVOCATION_ERROR", retryable: true },
 };
 
 // `.strict()` ensures a runner that returns a valid dispatch result alongside
@@ -278,8 +284,13 @@ function classifyAwsLambdaError(
     return { code: "LAMBDA_INVOCATION_ERROR", retryable: true };
   }
 
+  const errorCode = (error as { code?: unknown }).code;
+
   return (
-    AWS_ERROR_CLASSIFICATION_BY_NAME[error.name] ?? {
+    AWS_ERROR_CLASSIFICATION_BY_NAME[error.name] ??
+    (typeof errorCode === "string"
+      ? AWS_ERROR_CLASSIFICATION_BY_CODE[errorCode]
+      : undefined) ?? {
       code: "LAMBDA_INVOCATION_ERROR",
       retryable: true,
     }

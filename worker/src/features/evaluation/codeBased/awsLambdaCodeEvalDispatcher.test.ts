@@ -271,6 +271,20 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
+  it("classifies Node network timeout error codes as retryable invocation errors", async () => {
+    const error = Object.assign(new Error("connect ETIMEDOUT"), {
+      code: "ETIMEDOUT",
+    });
+    const dispatcher = new AwsLambdaCodeEvalDispatcher({
+      lambdaClient: { send: vi.fn().mockRejectedValue(error) } as any,
+    });
+
+    await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
+      code: "LAMBDA_INVOCATION_ERROR",
+      retryable: true,
+    } satisfies Partial<CodeEvalDispatcherError>);
+  });
+
   it("classifies Lambda configuration errors as non-retryable", async () => {
     const error = new Error("Function not found");
     error.name = "ResourceNotFoundException";
