@@ -4,6 +4,7 @@ import {
   recordIncrement,
   verifySecretKey,
   type AuthHeaderVerificationResult,
+  type AuthHeaderValidVerificationResult,
   CachedApiKey,
   OrgEnrichedApiKey,
   logger,
@@ -24,7 +25,20 @@ import { type Redis, type Cluster } from "ioredis";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { API_KEY_NON_EXISTENT } from "@langfuse/shared/src/server";
 import { type z } from "zod";
-import { CloudConfigSchema, isPlan } from "@langfuse/shared";
+import { CloudConfigSchema, ForbiddenError, isPlan } from "@langfuse/shared";
+
+export class InAppAgentForbiddenError extends ForbiddenError {
+  static description =
+    "Access denied - in-app agent keys are not allowed for this endpoint";
+
+  constructor() {
+    super(InAppAgentForbiddenError.description);
+  }
+}
+
+type VerifyAuthHeaderOptions = {
+  allowInAppAgentKey?: boolean;
+};
 
 export class ApiAuthService {
   prisma: PrismaClient;
@@ -85,6 +99,7 @@ export class ApiAuthService {
 
   async verifyAuthHeaderAndReturnScope(
     authHeader: string | undefined,
+    options: VerifyAuthHeaderOptions = {},
   ): Promise<AuthHeaderVerificationResult> {
     const result: AuthHeaderVerificationResult = await instrumentAsync(
       { name: "api-auth-verify" },
@@ -185,7 +200,7 @@ export class ApiAuthService {
             const accessLevel =
               finalApiKey.scope === "ORGANIZATION" ? "organization" : "project";
 
-            return {
+            const result: AuthHeaderValidVerificationResult = {
               validKey: true,
               scope: {
                 projectId: finalApiKey.projectId,
@@ -200,6 +215,18 @@ export class ApiAuthService {
                 isInAppAgentKey: finalApiKey.isInAppAgentKey,
               },
             };
+
+            if (
+              result.scope.isInAppAgentKey === true &&
+              options.allowInAppAgentKey !== true
+            ) {
+              return {
+                validKey: false,
+                error: InAppAgentForbiddenError.description,
+              };
+            }
+
+            return result;
           }
           // Bearer auth, limited scope, only needs public key
           if (authHeader.startsWith("Bearer ")) {
@@ -226,7 +253,7 @@ export class ApiAuthService {
               span,
             );
 
-            return {
+            const result: AuthHeaderValidVerificationResult = {
               validKey: true,
               scope: {
                 projectId: dbKey.projectId,
@@ -242,6 +269,18 @@ export class ApiAuthService {
                   cloudFreeTierUsageThresholdState === "BLOCKED",
               },
             };
+
+            if (
+              result.scope.isInAppAgentKey === true &&
+              options.allowInAppAgentKey !== true
+            ) {
+              return {
+                validKey: false,
+                error: InAppAgentForbiddenError.description,
+              };
+            }
+
+            return result;
           }
         } catch (error: unknown) {
           logger.info(

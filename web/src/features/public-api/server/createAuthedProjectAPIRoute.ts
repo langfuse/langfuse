@@ -1,7 +1,10 @@
 import crypto from "node:crypto";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType, type z } from "zod";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import {
+  ApiAuthService,
+  InAppAgentForbiddenError,
+} from "@/src/features/public-api/server/apiAuth";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   redis,
@@ -90,6 +93,7 @@ export type AuthedProjectAPIRouteConfig<
 async function verifyApiKeyAuth(
   authHeader: string | undefined,
   allowedAccessLevels: RouteAccessLevel[] = ["project"],
+  allowInAppAgentKey = false,
 ): Promise<
   AuthHeaderValidVerificationResult & {
     scope: { projectId: string; accessLevel: RouteAccessLevel };
@@ -98,10 +102,14 @@ async function verifyApiKeyAuth(
   const regularAuth = await new ApiAuthService(
     prisma,
     redis,
-  ).verifyAuthHeaderAndReturnScope(authHeader);
+  ).verifyAuthHeaderAndReturnScope(authHeader, { allowInAppAgentKey });
 
   if (!regularAuth.validKey) {
-    throw { status: 401, message: regularAuth.error };
+    throw {
+      status:
+        regularAuth.error === InAppAgentForbiddenError.description ? 403 : 401,
+      message: regularAuth.error,
+    };
   }
 
   if (
@@ -250,6 +258,7 @@ export async function verifyAuth(
   req: NextApiRequest,
   isAdminApiKeyAuthAllowed: boolean,
   allowedAccessLevels: RouteAccessLevel[] = ["project"],
+  allowInAppAgentKey = false,
 ): Promise<
   AuthHeaderValidVerificationResult & {
     scope: { projectId: string; accessLevel: RouteAccessLevel };
@@ -266,11 +275,16 @@ export async function verifyAuth(
     return await verifyApiKeyAuth(
       req.headers.authorization,
       allowedAccessLevels,
+      allowInAppAgentKey,
     );
   }
 
   // Only regular API key auth is allowed
-  return await verifyApiKeyAuth(req.headers.authorization, allowedAccessLevels);
+  return await verifyApiKeyAuth(
+    req.headers.authorization,
+    allowedAccessLevels,
+    allowInAppAgentKey,
+  );
 }
 
 export const createAuthedProjectAPIRoute = <
@@ -291,6 +305,7 @@ export const createAuthedProjectAPIRoute = <
         req,
         routeConfig.isAdminApiKeyAuthAllowed || false,
         routeConfig.allowedAccessLevels || ["project"],
+        routeConfig.allowInAppAgentKey === true,
       );
     } catch (error: any) {
       const statusCode = error.status || 401;
@@ -304,18 +319,6 @@ export const createAuthedProjectAPIRoute = <
       }
 
       res.status(statusCode).json({ message });
-
-      return;
-    }
-
-    if (
-      routeConfig.allowInAppAgentKey !== true &&
-      auth.scope.isInAppAgentKey === true
-    ) {
-      res.status(403).json({
-        message:
-          "Access denied - in-app agent keys are not allowed for this endpoint",
-      });
 
       return;
     }

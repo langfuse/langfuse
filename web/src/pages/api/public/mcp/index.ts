@@ -80,7 +80,9 @@ export default async function handler(
     const authCheck = await new ApiAuthService(
       prisma,
       redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization, {
+      allowInAppAgentKey: true,
+    });
 
     if (!authCheck.validKey) {
       throw new UnauthorizedError(authCheck.error);

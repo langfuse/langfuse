@@ -1,5 +1,6 @@
 import {
   OrgEnrichedApiKey,
+  createAndAddApiKeysToDb,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
   createShaHash,
@@ -283,6 +284,50 @@ describe("Authenticate API calls", () => {
       });
       expect(apiKey).not.toBeNull();
       expect(apiKey?.fastHashedSecretKey).toBeNull();
+    });
+
+    it("rejects in-app agent API keys by default", async () => {
+      const apiKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: testApiKey.projectId,
+        scope: "PROJECT",
+        isInAppAgentKey: true,
+      });
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(
+        createBasicAuthHeader(apiKey.publicKey, apiKey.secretKey),
+      );
+
+      expect(auth).toEqual({
+        validKey: false,
+        error:
+          "Access denied - in-app agent keys are not allowed for this endpoint",
+      });
+    });
+
+    it("allows in-app agent API keys when explicitly enabled", async () => {
+      const apiKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: testApiKey.projectId,
+        scope: "PROJECT",
+        isInAppAgentKey: true,
+      });
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(
+        createBasicAuthHeader(apiKey.publicKey, apiKey.secretKey),
+        { allowInAppAgentKey: true },
+      );
+
+      expect(auth.validKey).toBe(true);
+      if (auth.validKey) {
+        expect(auth.scope.isInAppAgentKey).toBe(true);
+      }
     });
   });
 
