@@ -24,17 +24,7 @@ import { type Redis, type Cluster } from "ioredis";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { API_KEY_NON_EXISTENT } from "@langfuse/shared/src/server";
 import { type z } from "zod";
-import { CloudConfigSchema, isPlan } from "@langfuse/shared";
-
-export class InAppAgentForbiddenError extends Error {
-  static description =
-    "Access denied - in-app agent keys are not allowed for this endpoint";
-
-  constructor() {
-    super(InAppAgentForbiddenError.description);
-    this.name = "InAppAgentForbiddenError";
-  }
-}
+import { CloudConfigSchema, ForbiddenError, isPlan } from "@langfuse/shared";
 
 type VerifyAuthHeaderOptions = {
   allowInAppAgentKey?: boolean;
@@ -218,16 +208,6 @@ export class ApiAuthService {
               },
             };
 
-            if (
-              result.scope.isInAppAgentKey === true &&
-              options.allowInAppAgentKey !== true
-            ) {
-              return {
-                validKey: false,
-                error: InAppAgentForbiddenError.description,
-              };
-            }
-
             return result;
           }
           // Bearer auth, limited scope, only needs public key
@@ -272,16 +252,6 @@ export class ApiAuthService {
               },
             };
 
-            if (
-              result.scope.isInAppAgentKey === true &&
-              options.allowInAppAgentKey !== true
-            ) {
-              return {
-                validKey: false,
-                error: InAppAgentForbiddenError.description,
-              };
-            }
-
             return result;
           }
         } catch (error: unknown) {
@@ -307,6 +277,16 @@ export class ApiAuthService {
         };
       },
     );
+
+    if (
+      result.validKey &&
+      result.scope.isInAppAgentKey === true &&
+      options.allowInAppAgentKey !== true
+    ) {
+      throw new ForbiddenError(
+        "Access denied - in-app agent keys are not allowed for this endpoint",
+      );
+    }
 
     return result;
   }

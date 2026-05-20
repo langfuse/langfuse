@@ -11,6 +11,7 @@ import {
 import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ForbiddenError } from "@langfuse/shared";
 import { v4 } from "uuid";
 import {
   clearRedisKeysByPatternSafely,
@@ -294,18 +295,11 @@ describe("Authenticate API calls", () => {
         isInAppAgentKey: true,
       });
 
-      const auth = await new ApiAuthService(
-        prisma,
-        null,
-      ).verifyAuthHeaderAndReturnScope(
-        createBasicAuthHeader(apiKey.publicKey, apiKey.secretKey),
-      );
-
-      expect(auth).toEqual({
-        validKey: false,
-        error:
-          "Access denied - in-app agent keys are not allowed for this endpoint",
-      });
+      await expect(
+        new ApiAuthService(prisma, null).verifyAuthHeaderAndReturnScope(
+          createBasicAuthHeader(apiKey.publicKey, apiKey.secretKey),
+        ),
+      ).rejects.toThrow(ForbiddenError);
     });
 
     it("allows in-app agent API keys when explicitly enabled", async () => {

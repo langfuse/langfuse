@@ -1,10 +1,7 @@
 import crypto from "node:crypto";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType, type z } from "zod";
-import {
-  ApiAuthService,
-  InAppAgentForbiddenError,
-} from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   redis,
@@ -105,11 +102,7 @@ async function verifyApiKeyAuth(
   ).verifyAuthHeaderAndReturnScope(authHeader, { allowInAppAgentKey });
 
   if (!regularAuth.validKey) {
-    throw {
-      status:
-        regularAuth.error === InAppAgentForbiddenError.description ? 403 : 401,
-      message: regularAuth.error,
-    };
+    throw { status: 401, message: regularAuth.error };
   }
 
   if (
@@ -308,7 +301,7 @@ export const createAuthedProjectAPIRoute = <
         routeConfig.allowInAppAgentKey === true,
       );
     } catch (error: any) {
-      const statusCode = error.status || 401;
+      const statusCode = error.status || error.httpCode || 401;
       const message = error.message || "Authentication failed";
 
       if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
