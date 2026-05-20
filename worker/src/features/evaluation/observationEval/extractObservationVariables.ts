@@ -82,10 +82,12 @@ export function extractObservationVariables(
       continue;
     }
 
-    // Use pre-parsed value if this field was parsed, otherwise use raw value
-    const fieldValue = parsedFields.has(mapping.selectedColumnId)
-      ? parsedFields.get(mapping.selectedColumnId)
-      : observation[internal];
+    // Use pre-parsed value only for mappings that requested a selector,
+    // otherwise keep the raw column value even if a sibling mapping parsed it.
+    const fieldValue =
+      mapping.jsonSelector && parsedFields.has(mapping.selectedColumnId)
+        ? parsedFields.get(mapping.selectedColumnId)
+        : observation[internal];
 
     // Build a single-key object so extractValueFromObject can look it up
     const { value, error } = extractValueFromObject(

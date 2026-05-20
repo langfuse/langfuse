@@ -118,7 +118,7 @@ function getJobExecutionErrorMessage(e: unknown): string {
       : e.message;
   }
 
-  if (e instanceof Error) return e.message;
+  if (isUnrecoverableError(e)) return e.message;
 
   return INTERNAL_ERROR_MESSAGE;
 }

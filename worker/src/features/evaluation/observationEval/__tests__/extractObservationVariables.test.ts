@@ -393,6 +393,30 @@ describe("extractObservationVariables", () => {
 
       expect(result[0].value).toBe(mockObservation.input);
     });
+
+    it("keeps raw value for no-selector mapping when selector sibling uses the same JSON string column", () => {
+      const variableMapping: ObservationVariableMapping[] = [
+        {
+          templateVariable: "rawInput",
+          selectedColumnId: "input",
+        },
+        {
+          templateVariable: "prompt",
+          selectedColumnId: "input",
+          jsonSelector: "$.prompt",
+        },
+      ];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result).toEqual([
+        { var: "rawInput", value: mockObservation.input },
+        { var: "prompt", value: "Hello, how are you?" },
+      ]);
+    });
   });
 
   describe("edge cases", () => {
