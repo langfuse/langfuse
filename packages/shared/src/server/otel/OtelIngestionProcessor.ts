@@ -459,14 +459,7 @@ export class OtelIngestionProcessor {
                   // Properties
                   tags: this.extractTags(spanAttributes),
                   public: this.extractPublic(spanAttributes),
-                  isAppRoot:
-                    typeof spanAttributes[
-                      LangfuseOtelSpanAttributes.IS_APP_ROOT
-                    ] === "boolean"
-                      ? (spanAttributes[
-                          LangfuseOtelSpanAttributes.IS_APP_ROOT
-                        ] as boolean)
-                      : null,
+                  isAppRoot: this.extractIsAppRoot(spanAttributes),
                   traceName:
                     spanAttributes?.[LangfuseOtelSpanAttributes.TRACE_NAME] ??
                     null,
@@ -950,6 +943,16 @@ export class OtelIngestionProcessor {
 
     if (value == null) return;
     return value === true || value === "true";
+  }
+
+  private extractIsAppRoot(
+    attributes?: Record<string, unknown>,
+  ): boolean | null {
+    const value = attributes?.[LangfuseOtelSpanAttributes.IS_APP_ROOT];
+
+    if (value === true || value === "true") return true;
+    if (value === false || value === "false") return false;
+    return null;
   }
 
   private createObservationEvent(

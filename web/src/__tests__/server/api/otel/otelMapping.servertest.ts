@@ -1210,6 +1210,46 @@ describe("OTel Resource Span Mapping", () => {
       },
     };
 
+    it.each([
+      ["boolean true", { boolValue: true }, true],
+      ["string true", { stringValue: "true" }, true],
+      ["boolean false", { boolValue: false }, false],
+      ["string false", { stringValue: "false" }, false],
+    ])(
+      "should extract isAppRoot from %s",
+      (
+        _name: string,
+        otelAttributeValue: Record<string, unknown>,
+        expectedIsAppRoot: boolean,
+      ) => {
+        const resourceSpan = {
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  attributes: [
+                    {
+                      key: "langfuse.internal.is_app_root",
+                      value: otelAttributeValue,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        };
+
+        const processor = new OtelIngestionProcessor({
+          projectId: "test-project",
+        });
+        const eventInputs = processor.processToEvent([resourceSpan]);
+
+        expect(eventInputs).toHaveLength(1);
+        expect(eventInputs[0].isAppRoot).toBe(expectedIsAppRoot);
+      },
+    );
+
     it("should interpret an empty buffer as an unset parentSpanId", async () => {
       // https://github.com/langchain4j/langchain4j/issues/2328#issuecomment-2686129552
       // Empty buffers where detected as truthy, i.e. behaved like they had a parent span.
