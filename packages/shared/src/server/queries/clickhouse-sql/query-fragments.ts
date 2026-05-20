@@ -10,6 +10,7 @@ import {
   ExperimentsAggregationQueryBuilder,
   type CTEWithSchema,
 } from "./event-query-builder";
+import { AGGREGATABLE_SCORE_TYPES } from "../../../domain/scores";
 
 /**
  * Lightweight trace metadata query: one row per trace with name, user_id, tags.
@@ -367,6 +368,53 @@ export const eventsExperimentTraceIds = (
     .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
     .limitBy("e.trace_id");
 
+export const buildScoreRowsCTE = (params: BaseScoresParams): CTEWithSchema => {
+  const queryParams: Record<string, any> = {
+    projectId: params.projectId,
+    dataTypes: AGGREGATABLE_SCORE_TYPES,
+  };
+
+  if (params.startTimeFrom) {
+    queryParams.startTimeFrom = params.startTimeFrom;
+  }
+
+  const isTraceLevel = params.level === "trace";
+  const observationFilter = isTraceLevel
+    ? "AND observation_id IS NULL"
+    : "AND observation_id IS NOT NULL";
+
+  const query = `
+    SELECT
+      project_id,
+      trace_id,
+      observation_id,
+      name,
+      source,
+      data_type,
+      string_value
+    FROM scores s
+    WHERE
+      project_id = {projectId: String}
+      ${observationFilter}
+      AND data_type IN ({dataTypes: Array(String)})
+      ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
+  `.trim();
+
+  return {
+    query,
+    params: queryParams,
+    schema: [
+      "project_id",
+      "trace_id",
+      "observation_id",
+      "name",
+      "source",
+      "data_type",
+      "string_value",
+    ],
+  };
+};
+
 export const buildScoresCTE = (params: BaseScoresParams): CTEWithSchema => {
   const queryParams: Record<string, any> = {
     projectId: params.projectId,
@@ -387,7 +435,6 @@ export const buildScoresCTE = (params: BaseScoresParams): CTEWithSchema => {
       trace_id,
       observation_id,
       name,
-      source,
       data_type,
       string_value,
       avg(value) avg_value
@@ -401,7 +448,6 @@ export const buildScoresCTE = (params: BaseScoresParams): CTEWithSchema => {
       trace_id,
       observation_id,
       name,
-      source,
       data_type,
       string_value
   `.trim();
@@ -414,7 +460,6 @@ export const buildScoresCTE = (params: BaseScoresParams): CTEWithSchema => {
       "trace_id",
       "observation_id",
       "name",
-      "source",
       "data_type",
       "string_value",
       "avg_value",

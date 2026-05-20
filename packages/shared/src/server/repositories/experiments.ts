@@ -14,6 +14,7 @@ import {
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
+  buildScoreRowsCTE,
   buildScoresCTE,
   eventsExperimentsRootSpans,
   eventsExperiments,
@@ -546,8 +547,8 @@ const buildScoreFilterOptionsQuery = (params: {
     .limitBy("e.project_id", "e.trace_id", "e.span_id")
     .buildWithParams();
 
-  // Build scores CTE for the appropriate level
-  const scoresCTE = buildScoresCTE({
+  // Build unaggregated score rows so the experiment join happens before grouping
+  const scoreRowsCTE = buildScoreRowsCTE({
     projectId,
     level,
   });
@@ -565,12 +566,9 @@ const buildScoreFilterOptionsQuery = (params: {
       ...experimentEventsCTE,
       schema: ["project_id", "trace_id", "span_id"],
     })
-    .withCTE("scores", scoresCTE)
-    .from("experiment_events", "ee")
-    .innerJoin("scores", "s", joinCondition)
-    .whereRaw(`s.data_type IN ({allowedDataTypes: Array(String)})`, {
-      allowedDataTypes: ALLOWED_SCORE_DATA_TYPES,
-    })
+    .withCTE("score_rows", scoreRowsCTE)
+    .from("score_rows", "s")
+    .innerJoin("experiment_events", "ee", joinCondition)
     .select(
       "s.name AS name",
       "s.data_type AS data_type",
@@ -684,6 +682,7 @@ export const getExperimentItemsFilterOptions = async (
         kind: "trace-scores",
         projectId,
       },
+      preferredClickhouseService: "ReadOnly",
     }),
     queryClickhouse<ScoreFilterOptionsRow>({
       query: obsQuery.query,
@@ -694,6 +693,7 @@ export const getExperimentItemsFilterOptions = async (
         kind: "observation-scores",
         projectId,
       },
+      preferredClickhouseService: "ReadOnly",
     }),
     queryClickhouse<ScoreFilterOptionsRow>({
       query: runQuery.query,
