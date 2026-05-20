@@ -11,6 +11,10 @@ const mocks = vi.hoisted(() => ({
   },
   projectFindUnique: vi.fn(),
   writeInternalTrace: vi.fn(),
+  createW3CTraceId: vi.fn(() => "execution-trace-1"),
+  span: {
+    setAttribute: vi.fn(),
+  },
 }));
 
 vi.mock("@langfuse/shared/src/db", () => ({
@@ -24,15 +28,17 @@ vi.mock("@langfuse/shared/src/db", () => ({
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  const { runCodeBasedEvaluationDispatch } =
+    await import("../../../../../packages/shared/src/server/evals/codeEvalExecution");
 
   return {
     ...actual,
     INTERNAL_TRACE_EVENT_SOURCE: "test-source",
     LangfuseInternalTraceEnvironment: { CodeEval: "langfuse-code-eval" },
-    instrumentAsync: vi.fn(async (_options, fn) =>
-      fn({ setAttribute: vi.fn() }),
-    ),
+    instrumentAsync: vi.fn(async (_options, fn) => fn(mocks.span)),
     logger: { debug: vi.fn(), warn: vi.fn() },
+    createW3CTraceId: mocks.createW3CTraceId,
+    runCodeBasedEvaluationDispatch,
     resolveConfiguredCodeEvalDispatcher: vi.fn(() => mocks.dispatcher),
   };
 });
@@ -94,6 +100,7 @@ describe("executeCodeBasedEvaluation", () => {
       { name: "default-score", value: 1, dataType: "BOOLEAN" },
       { name: "extra-score", value: "good", dataType: "CATEGORICAL" },
     ]);
+    expect(mocks.span.setAttribute).toHaveBeenCalledWith("eval.score.count", 2);
     const expectedPayload = expect.objectContaining({
       observation: {
         input: { question: "2+2" },
@@ -224,6 +231,58 @@ describe("executeCodeBasedEvaluation", () => {
           experiment: {
             expectedOutput: "null",
             itemMetadata: null,
+          },
+        }),
+      }),
+    );
+  });
+
+  it("passes experiment item metadata through without expected output", async () => {
+    mocks.dispatcher.dispatch.mockResolvedValue({
+      scores: [{ value: 1, dataType: "BOOLEAN" }],
+    });
+
+    await executeCodeBasedEvaluation({
+      projectId: "project-1",
+      jobExecutionId: "job-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: "obs-1",
+        jobInputDatasetItemId: null,
+      } as any,
+      config: { id: "config-1", scoreName: "default-score" } as any,
+      template: {
+        id: "template-1",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "export function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [
+        {
+          var: "experimentItemMetadata",
+          value: { difficulty: "easy", source: "dataset" },
+        },
+      ],
+      environment: "default",
+      metadata: { job_execution_id: "job-1" },
+    });
+
+    expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          observation: {
+            input: null,
+            output: null,
+            metadata: null,
+          },
+          experiment: {
+            expectedOutput: null,
+            itemMetadata: { difficulty: "easy", source: "dataset" },
           },
         }),
       }),

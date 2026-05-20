@@ -51,7 +51,9 @@ function buildCodeEvalPayload(
   extractedVariables: ExtractedVariable[],
 ): CodeEvalPayload {
   const byName = new Map(extractedVariables.map((v) => [v.var, v.value]));
-  const hasExperiment = byName.has("experimentExpectedOutput");
+  const hasExperiment =
+    byName.has("experimentExpectedOutput") ||
+    byName.has("experimentItemMetadata");
 
   const payload: CodeEvalPayload = {
     observation: {
@@ -64,7 +66,7 @@ function buildCodeEvalPayload(
   if (hasExperiment) {
     payload.experiment = {
       expectedOutput: byName.get("experimentExpectedOutput") ?? null,
-      itemMetadata: null,
+      itemMetadata: byName.get("experimentItemMetadata") ?? null,
     };
   }
 

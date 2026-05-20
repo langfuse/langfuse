@@ -746,7 +746,6 @@ export async function runLLMAsJudgeEvaluation({
   config: JobConfiguration;
   template: EvalTemplateLlmAsAJudge;
   extractedVariables: ExtractedVariable[];
-  environment: string;
   metadata: Record<string, string>;
   deps: EvalExecutionDeps;
 }): Promise<EvalExecutionResult> {
@@ -956,11 +955,15 @@ export async function runLLMAsJudgeEvaluation({
         }`,
       );
 
+      const scores = toNormalizedScores({
+        outputResult: parsedLLMOutput.data,
+        scoreName: config.scoreName,
+      });
+
+      span.setAttribute("eval.score.count", scores.length);
+
       return {
-        scores: toNormalizedScores({
-          outputResult: parsedLLMOutput.data,
-          scoreName: config.scoreName,
-        }),
+        scores,
         primaryScoreId,
         executionTraceId,
         metadata,
@@ -1011,6 +1014,7 @@ export async function executeLLMAsJudgeEvaluation(
     Parameters<typeof runLLMAsJudgeEvaluation>[0],
     "deps" | "metadata"
   > & {
+    environment: string;
     deps?: EvalExecutionDeps;
   },
 ): Promise<void> {

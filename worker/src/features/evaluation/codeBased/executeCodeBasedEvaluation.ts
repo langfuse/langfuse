@@ -92,6 +92,7 @@ export async function executeCodeBasedEvaluation(params: {
       }
 
       span.setAttribute("eval.result.count", dispatchOutcome.scores.length);
+      span.setAttribute("eval.score.count", dispatchOutcome.scores.length);
       span.setAttribute("eval.score.id", primaryScoreId);
 
       return {
