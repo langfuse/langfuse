@@ -490,13 +490,6 @@ async function getObservationsFromEventsTableInternal<T>(
       column === "trace scores (categorical)"
     );
   });
-  const search = clickhouseSearchCondition(
-    opts.searchQuery,
-    opts.searchType,
-    "e",
-    ["span_id", "name", "trace_name", "user_id", "session_id", "trace_id"],
-  );
-
   const orderByEntries = orderByToEntries(
     [orderBy ?? null],
     eventsTableUiColumnDefinitions,
@@ -521,6 +514,21 @@ async function getObservationsFromEventsTableInternal<T>(
         .selectFieldSet("metadata");
     }
   }
+
+  const search = clickhouseSearchCondition({
+    query: opts.searchQuery,
+    searchType: opts.searchType,
+    tablePrefix: "e",
+    searchColumns: [
+      "span_id",
+      "name",
+      "trace_name",
+      "user_id",
+      "session_id",
+      "trace_id",
+    ],
+    useEventsTablePath: true,
+  });
 
   // Handle positionInTrace via CTE with ROW_NUMBER()
   // All modes use the same pattern: rank observations per trace, pick rn = N.

@@ -46,13 +46,19 @@ export class ClickHouseClientManager {
     opts: NodeClickHouseClientConfigOptions,
     preferredClickhouseService: PreferredClickhouseService = "ReadWrite",
   ): NodeClickHouseClientConfigOptions {
+    const serviceClickhouseSettings = this.getServiceClickhouseSettings(
+      preferredClickhouseService,
+    );
     const keyParams = {
       url: this.getClickhouseUrl(preferredClickhouseService),
       username: env.CLICKHOUSE_USER,
       password: env.CLICKHOUSE_PASSWORD,
       database: env.CLICKHOUSE_DB,
       http_headers: opts?.http_headers ?? {},
-      settings: opts?.clickhouse_settings,
+      settings: {
+        ...serviceClickhouseSettings,
+        ...opts?.clickhouse_settings,
+      },
       ...(opts.request_timeout
         ? { request_timeout: opts.request_timeout }
         : {}),
@@ -60,6 +66,14 @@ export class ClickHouseClientManager {
       // Include any other relevant config options
     };
     return keyParams;
+  }
+
+  private getServiceClickhouseSettings(
+    preferredClickhouseService: PreferredClickhouseService,
+  ) {
+    return preferredClickhouseService === "EventsReadOnly"
+      ? { enable_full_text_index: 1 }
+      : {};
   }
 
   private generateClientSettingsKey(
@@ -101,6 +115,9 @@ export class ClickHouseClientManager {
     );
     const key = this.generateClientSettingsKey(settings);
     if (!this.clientMap.has(key)) {
+      const serviceClickhouseSettings = this.getServiceClickhouseSettings(
+        preferredClickhouseService,
+      );
       const activeSpan = getCurrentSpan();
       if (activeSpan) {
         propagation.inject(context.active(), settings.http_headers);
@@ -160,6 +177,7 @@ export class ClickHouseClientManager {
             ? { query_plan_optimize_lazy_materialization: 0 }
             : {}),
           ...cloudOptions,
+          ...serviceClickhouseSettings,
           ...opts.clickhouse_settings,
           async_insert: 1,
           wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse

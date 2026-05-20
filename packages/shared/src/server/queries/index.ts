@@ -24,7 +24,20 @@ export {
   orderByToEntries,
 } from "./clickhouse-sql/orderby-factory";
 export { createFilterFromFilterState } from "./clickhouse-sql/factory";
-export { clickhouseSearchCondition } from "./clickhouse-sql/search";
+export {
+  clickhouseSearchCondition,
+  type ClickhouseSearchConditionOptions,
+} from "./clickhouse-sql/search";
+export {
+  FTS_EVENTS_TABLES,
+  FTS_TEXT_FIELDS,
+  FTS_TEXT_OPERATORS,
+  FTS_METADATA_SUBSTRING_OPERATORS,
+  isFtsEventsTable,
+  isFtsMetadataEqualsTarget,
+  isFtsMetadataSubstringTarget,
+  isFtsTextTarget,
+} from "./clickhouse-sql/fts";
 export { postgresSearchCondition } from "./postgres-sql/search";
 export {
   convertApiProvidedFilterToClickhouseFilter,
