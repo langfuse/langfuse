@@ -69,7 +69,6 @@ export class MonitorService {
         schedulerBatchId,
         nextRunAt,
         name: input.name,
-        message: input.message,
         tags: input.tags,
       },
     });
@@ -113,7 +112,6 @@ export class MonitorService {
           schedulerBatchId,
           nextRunAt,
           name: input.name,
-          message: input.message,
           tags: input.tags,
         },
       });

@@ -25,7 +25,6 @@ const validCreateInput = {
   status: "active" as const,
 
   name: "High error rate",
-  message: "",
   tags: [],
 };
 

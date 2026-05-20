@@ -6,7 +6,6 @@ import { singleFilter } from "../../interfaces/filters";
 import { metric as MetricSchema, viewsV2 } from "../query/types";
 
 import { isValidQuery } from "./isValidQuery";
-import { isValidTemplate } from "./isValidTemplate";
 import { isValidThresholdOrder } from "./isValidThresholdOrder";
 
 /**
@@ -167,24 +166,6 @@ export const validateQuery = (
 };
 
 /**
- * validateTemplate enforces that a Handlebars message template only
- * references `MonitorTemplateContext` keys and uses no helpers, partials,
- * decorators, or sub-expressions.
- */
-export const validateTemplate = (
-  template: string,
-  ctx: z.RefinementCtx,
-): void => {
-  if (!isValidTemplate(template)) {
-    ctx.addIssue({
-      code: "custom",
-      message: "message template is not valid",
-      path: ["query"],
-    });
-  }
-};
-
-/**
  * MonitorSchema is the Monitor domain object. It mirrors the Prisma `Monitor`
  * row.
  */
@@ -210,8 +191,7 @@ export const MonitorSchema = z.object({
   renotify: MonitorRenotifySchema.default({ mode: "OFF" }),
 
   // MonitorAlert Config
-  name: z.string().min(1).max(200).superRefine(validateTemplate),
-  message: z.string().max(2000).superRefine(validateTemplate).default(""),
+  name: z.string().min(1).max(200),
   tags: z.array(z.string().max(60)).max(20).default([]),
 
   // Monitor State

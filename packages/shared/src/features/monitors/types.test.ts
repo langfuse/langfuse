@@ -38,7 +38,6 @@ const validMonitorBase = {
   lastCompletedRunAt: null,
 
   name: "High error rate",
-  message: "",
   tags: [],
   alertedAt: null,
 };
@@ -151,22 +150,6 @@ describe("MonitorSchema", () => {
   it("parses a minimally valid Monitor", () => {
     const result = MonitorSchema.safeParse(validMonitorBase);
     expect(result.success).toBe(true);
-  });
-
-  it("rejects a message longer than 2000 characters", () => {
-    const result = MonitorSchema.safeParse({
-      ...validMonitorBase,
-      message: "x".repeat(2001),
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects a message with an invalid handlebars template", () => {
-    const result = MonitorSchema.safeParse({
-      ...validMonitorBase,
-      message: "{{unknown}}",
-    });
-    expect(result.success).toBe(false);
   });
 });
 

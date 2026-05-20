@@ -3,5 +3,4 @@
  * (the service, scheduler DTOs) is re-exported from `./server` instead. */
 export * from "./types";
 export * from "./isValidQuery";
-export * from "./isValidTemplate";
 export * from "./isValidThresholdOrder";

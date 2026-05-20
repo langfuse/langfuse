@@ -23,7 +23,6 @@ const baseCreateInput = (
   renotify: { mode: "OFF" as const },
   status: "active" as const,
   name: "High error rate",
-  message: "",
   tags: [],
 });
 
@@ -44,7 +43,6 @@ const baseUpdateInput = (
   renotify: { mode: "OFF" as const },
   status: "active" as const,
   name: "High error rate",
-  message: "",
   tags: [],
 });
 
