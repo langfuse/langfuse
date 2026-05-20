@@ -311,8 +311,12 @@ export const PromptDetail = ({
     ]);
     while ((m = ifRegex.exec(promptText)) !== null) {
       if (m[1]) {
-        const conditions = m[1];
-        const varMatches = conditions.matchAll(/\b([a-zA-Z_]\w*)\b/g);
+        // Strip string literals so quoted values like 'napan' aren't treated as variable names
+        const conditionWithoutStrings = m[1]
+          .replace(/'[^']*'/g, "")
+          .replace(/"[^"]*"/g, "");
+        const varMatches =
+          conditionWithoutStrings.matchAll(/\b([a-zA-Z_]\w*)\b/g);
         for (const varMatch of varMatches) {
           const varName = varMatch[1];
           if (!jinja2Keywords.has(varName.toLowerCase())) {
@@ -625,7 +629,13 @@ export const PromptDetail = ({
                 <PromptVariableListPreview variables={extractedVariables} />
                 {templateFormat === "jinja2" && jinja2Variables.length > 0 && (
                   <Jinja2ResolutionPanel
-                    template={promptText}
+                    template={
+                      resolutionMode === "resolved" &&
+                      promptGraph.data?.resolvedPrompt &&
+                      typeof promptGraph.data.resolvedPrompt === "string"
+                        ? promptGraph.data.resolvedPrompt
+                        : promptText
+                    }
                     variables={jinja2Variables}
                   />
                 )}
