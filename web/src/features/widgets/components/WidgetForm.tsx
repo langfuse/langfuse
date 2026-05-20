@@ -58,7 +58,11 @@ import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props
 import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { type FilterState, ObservationTypeDomain } from "@langfuse/shared";
+import {
+  type FilterState,
+  ObservationLevelDomain,
+  ObservationTypeDomain,
+} from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
   BarChart,
@@ -171,6 +175,9 @@ const chartTypes: ChartType[] = [
   },
 ];
 
+const observationLevelOptions = ObservationLevelDomain.options.map((value) => ({
+  value,
+}));
 const observationTypeOptions = ObservationTypeDomain.options.map((value) => ({
   value,
 }));
@@ -738,12 +745,7 @@ export function WidgetForm({
     viewVersion === "v2"
       ? eventsFilterOptions.data?.calledToolNames || []
       : generationsFilterOptions.data?.calledToolNames || [];
-  const observationLevelOptions = [
-    { value: "DEBUG" },
-    { value: "DEFAULT" },
-    { value: "WARNING" },
-    { value: "ERROR" },
-  ];
+
   // Experiment options only available in v2 (from events table)
   const experimentNameOptions =
     viewVersion === "v2" ? eventsFilterOptions.data?.experimentName || [] : [];
