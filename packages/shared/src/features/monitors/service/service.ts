@@ -1,4 +1,4 @@
-/** service.ts contains the MonitorServicee */
+/** service.ts contains the MonitorService */
 import { Prisma, prisma } from "../../../db";
 
 import { type Monitor } from "../types";
