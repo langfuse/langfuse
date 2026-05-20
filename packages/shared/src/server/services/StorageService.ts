@@ -9,11 +9,14 @@ import {
 } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import {
   BlobSASPermissions,
   BlobServiceClient,
   ContainerClient,
   StorageSharedKeyCredential,
+  newPipeline,
+  type RequestPolicyFactory,
 } from "@azure/storage-blob";
 import { Storage, Bucket, GetSignedUrlConfig } from "@google-cloud/storage";
 import { logger } from "../logger";
@@ -26,6 +29,10 @@ import * as objectstorage from "oci-objectstorage";
 import * as common from "oci-common";
 import { UploadManager as OciUploadManager } from "oci-objectstorage";
 import { URL } from "node:url";
+import {
+  getSecureOutboundHttpAgents,
+  type OutboundUrlConnectionValidationOptions,
+} from "../outbound-url";
 
 export interface S3SseConfig {
   serverSideEncryption?: string;
@@ -85,6 +92,64 @@ function handleStorageError(err: unknown, operation: string): never {
   throw new Error(`Failed to ${operation}`, { cause: err });
 }
 
+function createS3RequestHandler(
+  connectionValidation?: OutboundUrlConnectionValidationOptions,
+): NodeHttpHandler {
+  const maxSockets = env.LANGFUSE_S3_CONCURRENT_WRITES;
+
+  if (!connectionValidation) {
+    return new NodeHttpHandler({
+      httpsAgent: { maxSockets },
+    });
+  }
+
+  const { httpAgent, httpsAgent } = getSecureOutboundHttpAgents(
+    connectionValidation,
+    { maxSockets },
+  );
+
+  return new NodeHttpHandler({
+    httpAgent,
+    httpsAgent,
+  });
+}
+
+function createAzureBlobPipeline(
+  sharedKeyCredential: StorageSharedKeyCredential,
+  connectionValidation?: OutboundUrlConnectionValidationOptions,
+): ReturnType<typeof newPipeline> {
+  const pipeline = newPipeline(sharedKeyCredential);
+
+  if (connectionValidation) {
+    pipeline.factories.push(
+      createSecureAzureBlobRequestPolicyFactory(connectionValidation),
+    );
+  }
+
+  return pipeline;
+}
+
+function createSecureAzureBlobRequestPolicyFactory(
+  connectionValidation: OutboundUrlConnectionValidationOptions,
+): RequestPolicyFactory {
+  const { httpAgent, httpsAgent } = getSecureOutboundHttpAgents(
+    connectionValidation,
+    { maxSockets: env.LANGFUSE_S3_CONCURRENT_WRITES },
+  );
+
+  return {
+    create(nextPolicy) {
+      return {
+        sendRequest(request) {
+          request.agent =
+            new URL(request.url).protocol === "http:" ? httpAgent : httpsAgent;
+          return nextPolicy.sendRequest(request);
+        },
+      };
+    },
+  };
+}
+
 export interface StorageService {
   uploadFile(params: UploadFile): Promise<void>;
 
@@ -136,6 +201,7 @@ export class StorageServiceFactory {
    * @param params.googleCloudCredentials - Google Cloud Storage credentials JSON string or path to credentials file
    * @param params.awsSse - Server-side encryption method (e.g., "aws:kms")
    * @param params.awsSseKmsKeyId - SSE KMS Key ID when using KMS encryption
+   * @param params.connectionValidation - Optional connection-time DNS/IP validation for user-controlled endpoints.
    */
   public static getInstance(params: {
     accessKeyId: string | undefined;
@@ -151,6 +217,7 @@ export class StorageServiceFactory {
     googleCloudCredentials?: string;
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
+    connectionValidation?: OutboundUrlConnectionValidationOptions;
   }): StorageService {
     if (
       params.useAzureBlob !== undefined
@@ -164,7 +231,11 @@ export class StorageServiceFactory {
         ? params.useGoogleCloudStorage
         : env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE === "true"
     ) {
-      // Use provided credentials or fall back to environment variable
+      // connectionValidation is intentionally not applied here: GCS is selected
+      // by deployment env for Langfuse-owned storage, not by user-configured
+      // blob storage integrations. Those callers force useGoogleCloudStorage to
+      // false. Add SDK-specific connection-time validation before exposing GCS
+      // as a user-configurable blob export endpoint.
       const googleParams = {
         ...params,
         googleCloudCredentials:
@@ -178,6 +249,8 @@ export class StorageServiceFactory {
         ? params.useOCIObjectStorage
         : env.LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE === "true"
     ) {
+      // Same as GCS above: OCI is currently deployment-configured internal
+      // storage only, not a user-controlled blob integration endpoint.
       return new OCIObjectStorageService(params);
     }
     return new S3StorageService(params);
@@ -198,6 +271,7 @@ class AzureBlobStorageService implements StorageService {
     externalEndpoint?: string | undefined;
     region: string | undefined;
     forcePathStyle: boolean;
+    connectionValidation?: OutboundUrlConnectionValidationOptions;
   }) {
     const { accessKeyId, secretAccessKey, endpoint, externalEndpoint } = params;
     if (!accessKeyId || !secretAccessKey || !endpoint) {
@@ -211,10 +285,12 @@ class AzureBlobStorageService implements StorageService {
       accessKeyId,
       secretAccessKey,
     );
-    const blobServiceClient = new BlobServiceClient(
-      endpoint,
+    const pipeline = createAzureBlobPipeline(
       sharedKeyCredential,
+      params.connectionValidation,
     );
+
+    const blobServiceClient = new BlobServiceClient(endpoint, pipeline);
     this.container = params.bucketName;
     this.client = blobServiceClient.getContainerClient(this.container);
   }
@@ -492,6 +568,7 @@ class S3StorageService implements StorageService {
     forcePathStyle: boolean;
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
+    connectionValidation?: OutboundUrlConnectionValidationOptions;
   }) {
     // Use accessKeyId and secretAccessKey if provided or fallback to default credentials
     const { accessKeyId, secretAccessKey } = params;
@@ -503,6 +580,8 @@ class S3StorageService implements StorageService {
           }
         : undefined;
 
+    const requestHandler = createS3RequestHandler(params.connectionValidation);
+
     // Create the main client for S3 operations using the internal endpoint
     this.client = new S3Client({
       credentials,
@@ -513,11 +592,7 @@ class S3StorageService implements StorageService {
       // composite CRC32 header, which GCS's S3-compat layer rejects with 412.
       requestChecksumCalculation: "WHEN_REQUIRED",
       responseChecksumValidation: "WHEN_REQUIRED",
-      requestHandler: {
-        httpsAgent: {
-          maxSockets: env.LANGFUSE_S3_CONCURRENT_WRITES,
-        },
-      },
+      requestHandler,
     });
 
     // Create a separate client for generating presigned URLs
@@ -531,11 +606,7 @@ class S3StorageService implements StorageService {
           forcePathStyle: params.forcePathStyle,
           requestChecksumCalculation: "WHEN_REQUIRED",
           responseChecksumValidation: "WHEN_REQUIRED",
-          requestHandler: {
-            httpsAgent: {
-              maxSockets: env.LANGFUSE_S3_CONCURRENT_WRITES,
-            },
-          },
+          requestHandler,
         })
       : this.client;
 

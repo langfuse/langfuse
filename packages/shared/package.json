@@ -104,6 +104,7 @@
     "@react-email/render": "^1.2.1",
     "@slack/oauth": "3.0.5",
     "@slack/web-api": "^7.15.0",
+    "@smithy/node-http-handler": "4.5.1",
     "@types/bcryptjs": "^2.4.6",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
