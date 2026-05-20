@@ -65,6 +65,8 @@ const maybeEventsTable =
   env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
     ? describe
     : describe.skip;
+const maybeEventsTableIt =
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true" ? it : it.skip;
 
 const createObservationEvent = (params: {
   projectId: string;
@@ -121,7 +123,7 @@ describe("MCP Read Tools", () => {
       });
     });
 
-    it("should be available to in-app agent keys", async () => {
+    maybeEventsTableIt("should be available to in-app agent keys", async () => {
       const context = mockServerContext({ isInAppAgentKey: true });
 
       await expect(
@@ -190,7 +192,7 @@ describe("MCP Read Tools", () => {
       });
     });
 
-    it("should be available to in-app agent keys", async () => {
+    maybeEventsTableIt("should be available to in-app agent keys", async () => {
       const context = mockServerContext({ isInAppAgentKey: true });
 
       await expect(
