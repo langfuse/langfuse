@@ -120,6 +120,10 @@ describe("executeCodeBasedEvaluation", () => {
             name: "Execute evaluator: Code evaluator",
             type: "SPAN",
             environment: "langfuse-code-eval",
+            metadata: expect.objectContaining({
+              code_eval_runtime: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+              code_eval_source_code: "export function evaluate() {}",
+            }),
           }),
         ],
       }),
@@ -325,6 +329,7 @@ describe("executeCodeBasedEvaluation", () => {
             metadata: expect.objectContaining({
               dispatcher_name: "test-dispatcher",
               code_eval_runtime: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+              code_eval_source_code: "export function evaluate() {}",
               job_execution_id: "job-1",
               error_name: "Error",
               error_message: "runner exploded",

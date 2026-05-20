@@ -257,8 +257,11 @@ describe("evals.testRunCodeEval", () => {
     const executionTraceId = response.executionTraceId;
 
     const findTrace = async () => {
-      const rows = await queryClickhouse<{ environment: string }>({
-        query: `SELECT environment FROM traces WHERE project_id = {projectId: String} AND id = {traceId: String} LIMIT 1`,
+      const rows = await queryClickhouse<{
+        environment: string;
+        sourceCode: string;
+      }>({
+        query: `SELECT environment, metadata['code_eval_source_code'] as sourceCode FROM traces WHERE project_id = {projectId: String} AND id = {traceId: String} LIMIT 1`,
         params: { projectId: project.id, traceId: executionTraceId },
         tags: {
           feature: "evals",
@@ -279,6 +282,7 @@ describe("evals.testRunCodeEval", () => {
 
     expect(trace).toBeDefined();
     expect(trace?.environment).toBe("langfuse-code-eval");
+    expect(trace?.sourceCode).toBe(template.sourceCode);
   });
 
   it("does not return observations from other projects", async () => {

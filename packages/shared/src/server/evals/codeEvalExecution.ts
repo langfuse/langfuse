@@ -188,6 +188,7 @@ export async function runCodeBasedEvaluationDispatch(params: {
         payload,
         output: dispatchResult,
         metadata: params.metadata,
+        sourceCode: params.template.sourceCode,
       }),
     });
 
@@ -229,6 +230,7 @@ export async function runCodeBasedEvaluationDispatch(params: {
             ? { error_retryable: serializedError.retryable }
             : {}),
         },
+        sourceCode: params.template.sourceCode,
         level: "ERROR",
         statusMessage: `Code eval execution failed: ${
           params.maskErrorsInTrace
@@ -255,6 +257,7 @@ function buildCodeEvalTraceInput(params: {
   payload: CodeEvalPayload;
   output: unknown;
   metadata: Record<string, unknown>;
+  sourceCode: string;
   level?: string;
   statusMessage?: string;
 }): InternalTraceWriteInput {
@@ -272,7 +275,10 @@ function buildCodeEvalTraceInput(params: {
     statusMessage: params.statusMessage,
     input: stringifyValue(params.payload),
     output: stringifyValue(params.output),
-    metadata: params.metadata,
+    metadata: {
+      ...params.metadata,
+      code_eval_source_code: params.sourceCode,
+    },
     source: INTERNAL_TRACE_EVENT_SOURCE,
   };
 
