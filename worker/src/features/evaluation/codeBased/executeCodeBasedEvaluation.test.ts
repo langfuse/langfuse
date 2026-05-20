@@ -97,7 +97,12 @@ describe("executeCodeBasedEvaluation", () => {
     });
 
     expect(result.scores).toMatchObject([
-      { name: "default-score", value: 1, dataType: "BOOLEAN" },
+      {
+        name: "default-score",
+        value: 1,
+        dataType: "BOOLEAN",
+        metadata: { user: "value" },
+      },
       { name: "extra-score", value: "good", dataType: "CATEGORICAL" },
     ]);
     expect(mocks.span.setAttribute).toHaveBeenCalledWith("eval.score.count", 2);

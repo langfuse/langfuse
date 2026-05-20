@@ -43,6 +43,7 @@ const codeEvalScoreBase = {
   name: z.string().min(1).optional(),
   comment: z.string().nullish(),
   configId: z.string().nullish(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 };
 
 const CodeEvalScoreSchema = z.union([

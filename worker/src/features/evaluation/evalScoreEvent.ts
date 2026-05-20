@@ -38,7 +38,10 @@ export function buildEvalScoreWritePayloads(params: {
           observationId: params.observationId,
           name: score.name,
           comment: score.comment,
-          metadata: params.executionMetadata,
+          metadata: {
+            ...(score.metadata ?? {}),
+            ...params.executionMetadata,
+          },
           configId: score.configId,
           source: ScoreSourceEnum.EVAL,
           environment: params.environment,

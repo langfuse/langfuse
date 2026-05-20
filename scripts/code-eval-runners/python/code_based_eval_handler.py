@@ -53,6 +53,7 @@ class Score:
     name: str | None = None
     comment: str | None = None
     config_id: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass

@@ -12,6 +12,7 @@ import {
   validateEvalOutputResult,
 } from "@langfuse/shared";
 import { type ExtractedVariable } from "@langfuse/shared/src/server";
+import { parseDispatchResult } from "../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
 import {
   buildEvalExecutionMetadata,
   buildEvalMessages,
@@ -380,6 +381,40 @@ describe("evaluation helpers", () => {
     });
   });
 
+  describe("parseDispatchResult", () => {
+    it("should preserve optional per-score metadata from code eval runners", () => {
+      const result = parseDispatchResult({
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.9,
+            metadata: { rubric: "strict" },
+          },
+        ],
+      });
+
+      expect(result.scores[0]).toMatchObject({
+        dataType: ScoreDataTypeEnum.NUMERIC,
+        value: 0.9,
+        metadata: { rubric: "strict" },
+      });
+    });
+
+    it("should reject non-object score metadata from code eval runners", () => {
+      expect(() =>
+        parseDispatchResult({
+          scores: [
+            {
+              dataType: ScoreDataTypeEnum.NUMERIC,
+              value: 0.9,
+              metadata: "not-a-dict",
+            },
+          ],
+        }),
+      ).toThrow("Invalid code eval result");
+    });
+  });
+
   describe("buildEvalScoreWritePayloads", () => {
     it("should build a single numeric score payload", () => {
       const result = buildEvalScoreWritePayloads({
@@ -479,6 +514,48 @@ describe("evaluation helpers", () => {
       });
       expect(result[1].event.body.metadata).toEqual({
         job_execution_id: "job-1",
+      });
+    });
+
+    it("should merge returned score metadata with execution metadata", () => {
+      const result = buildEvalScoreWritePayloads({
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.9,
+            name: "accuracy",
+            metadata: {
+              rubric: "strict",
+              tags: ["math", "strict"],
+              job_execution_id: "user-supplied-job",
+            },
+          },
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.7,
+            name: "fluency",
+          },
+        ],
+        primaryScoreId: "score-123",
+        traceId: "trace-456",
+        observationId: "obs-789",
+        environment: "production",
+        executionTraceId: "exec-trace-789",
+        executionMetadata: {
+          job_execution_id: "job-1",
+          dispatcher_name: "test-dispatcher",
+        },
+      });
+
+      expect(result[0].event.body.metadata).toEqual({
+        rubric: "strict",
+        tags: ["math", "strict"],
+        job_execution_id: "job-1",
+        dispatcher_name: "test-dispatcher",
+      });
+      expect(result[1].event.body.metadata).toEqual({
+        job_execution_id: "job-1",
+        dispatcher_name: "test-dispatcher",
       });
     });
   });

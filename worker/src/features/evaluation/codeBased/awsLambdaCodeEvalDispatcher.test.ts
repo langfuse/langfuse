@@ -28,7 +28,15 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
   it("returns successful Lambda scores", async () => {
     const send = vi.fn().mockResolvedValue({
       Payload: Buffer.from(
-        JSON.stringify({ scores: [{ value: 1, dataType: "NUMERIC" }] }),
+        JSON.stringify({
+          scores: [
+            {
+              value: 1,
+              dataType: "NUMERIC",
+              metadata: { source: "lambda-fixture" },
+            },
+          ],
+        }),
       ),
     });
     const dispatcher = new AwsLambdaCodeEvalDispatcher({
@@ -36,7 +44,13 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     });
 
     await expect(dispatcher.dispatch(baseInput)).resolves.toEqual({
-      scores: [{ value: 1, dataType: "NUMERIC" }],
+      scores: [
+        {
+          value: 1,
+          dataType: "NUMERIC",
+          metadata: { source: "lambda-fixture" },
+        },
+      ],
     });
   });
 
