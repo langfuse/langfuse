@@ -520,6 +520,12 @@ export class ClickhouseWriter {
       });
 
       if (droppedCount > 0) {
+        recordIncrement(
+          "langfuse.queue.clickhouse_writer.rows_dropped",
+          droppedCount,
+          { entity_type: tableName },
+        );
+
         const droppedIds = queueItems
           .filter((item) => item.attempts >= this.maxAttempts)
           .map((item) => {

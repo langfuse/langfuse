@@ -35,6 +35,16 @@ import { backOff } from "exponential-backoff";
 import { env } from "../env";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
 
+// GitHub repository_dispatch client_payload: max 10 top-level properties and <64KB.
+// https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event
+const GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES = 64 * 1024;
+const GITHUB_REPOSITORY_DISPATCH_TRUNCATION_MARKER =
+  "[TRUNCATED: GitHub repository_dispatch payload exceeded size limit]";
+const GITHUB_REPOSITORY_DISPATCH_TRUNCATED_FIELDS = [
+  "prompt.prompt",
+  "prompt.config",
+];
+
 // Handles both webhook and slack actions
 export const webhookProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.WebhookQueue]>,
@@ -503,7 +513,7 @@ async function executeGitHubDispatchAction({
 
   // Transform to GitHub dispatch format
   const { prompt, user, ...otherFields } = validatedPayload.data;
-  const githubPayload = JSON.stringify({
+  const fullGithubPayload = JSON.stringify({
     event_type: eventType,
     client_payload: {
       ...otherFields,
@@ -511,6 +521,26 @@ async function executeGitHubDispatchAction({
       prompt,
     },
   });
+  const githubPayload =
+    Buffer.byteLength(fullGithubPayload, "utf8") <
+    GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES
+      ? fullGithubPayload
+      : JSON.stringify({
+          event_type: eventType,
+          client_payload: {
+            ...otherFields,
+            ...(user ? { user } : {}),
+            truncation: {
+              payloadTruncated: true,
+              truncatedFields: GITHUB_REPOSITORY_DISPATCH_TRUNCATED_FIELDS,
+            },
+            prompt: {
+              ...prompt,
+              prompt: GITHUB_REPOSITORY_DISPATCH_TRUNCATION_MARKER,
+              config: {},
+            },
+          },
+        });
 
   // Prepare headers with GitHub token
   const requestHeaders: Record<string, string> = {};

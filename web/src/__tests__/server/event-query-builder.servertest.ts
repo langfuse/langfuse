@@ -124,7 +124,7 @@ describe("CTEQueryBuilder", () => {
 });
 
 describe("EventsQueryBuilder", () => {
-  it("should allow list queries to omit tool payload columns", () => {
+  it("should allow list queries to omit heavy tool payload columns while keeping tool call names", () => {
     const slimQuery = new EventsQueryBuilder({
       projectId: "test-project",
     })
@@ -139,10 +139,54 @@ describe("EventsQueryBuilder", () => {
 
     expect(slimQuery).not.toContain('e.tool_definitions as "tool_definitions"');
     expect(slimQuery).not.toContain('e.tool_calls as "tool_calls"');
-    expect(slimQuery).not.toContain('e.tool_call_names as "tool_call_names"');
+    expect(slimQuery).toContain('e.tool_call_names as "tool_call_names"');
 
     expect(defaultQuery).toContain('e.tool_definitions as "tool_definitions"');
     expect(defaultQuery).toContain('e.tool_calls as "tool_calls"');
     expect(defaultQuery).toContain('e.tool_call_names as "tool_call_names"');
+  });
+
+  it("should query events_full when forceFullTable is enabled", () => {
+    const query = new EventsQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("core")
+      .forceFullTable()
+      .buildWithParams().query;
+
+    expect(query).toContain("FROM events_full e");
+  });
+
+  it("should include pricing tier fields in observation list, detail, usage, and export field sets", () => {
+    const buildQuery = (
+      ...fieldSets: Parameters<EventsQueryBuilder["selectFieldSet"]>
+    ) =>
+      new EventsQueryBuilder({
+        projectId: "test-project",
+      })
+        .selectFieldSet(...fieldSets)
+        .buildWithParams().query;
+
+    const listQuery = buildQuery("base", "calculated");
+    const slimListQuery = buildQuery("baseWithoutTools", "calculated");
+    const byIdQuery = buildQuery(
+      "byIdBase",
+      "byIdModel",
+      "byIdPrompt",
+      "byIdTimestamps",
+    );
+    const usageQuery = buildQuery("core", "usage");
+    const exportQuery = buildQuery("export");
+
+    [listQuery, slimListQuery, byIdQuery, usageQuery, exportQuery].forEach(
+      (query) => {
+        expect(query).toContain(
+          'e.usage_pricing_tier_id as "usage_pricing_tier_id"',
+        );
+        expect(query).toContain(
+          'e.usage_pricing_tier_name as "usage_pricing_tier_name"',
+        );
+      },
+    );
   });
 });

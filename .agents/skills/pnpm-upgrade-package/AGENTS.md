@@ -15,7 +15,7 @@ pnpm workspace.
      `node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs <package> <targetVersion>`.
    - Treat this as the single source of truth for:
      - direct workspace references
-     - root `pnpm.overrides` / `pnpm.patchedDependencies`
+     - root `pnpm-workspace.yaml` `overrides` / `patchedDependencies`
      - latest registry version
      - latest version installable under the current release-age rules
      - existing matching `minimumReleaseAgeExclude` entries

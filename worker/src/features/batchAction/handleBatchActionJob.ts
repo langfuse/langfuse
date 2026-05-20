@@ -34,6 +34,7 @@ import { getObservationStream } from "../database-read-stream/observation-stream
 import {
   getEventsStreamForEval,
   getEventsStreamForDataset,
+  getEventsStreamForAnnotationQueue,
 } from "../database-read-stream/event-stream";
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
 import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
@@ -173,33 +174,29 @@ export const handleBatchActionJob = async (
       throw new Error(`Target ID is required for create action`);
     }
 
+    const streamParams = {
+      projectId: projectId,
+      cutoffCreatedAt: new Date(cutoffCreatedAt),
+      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      searchQuery: query.searchQuery ?? undefined,
+      searchType: query.searchType ?? ["id" as const],
+    };
+
     const dbReadStream =
       actionId === "trace-delete"
         ? await getTraceIdentifierStream({
-            projectId: projectId,
-            cutoffCreatedAt: new Date(cutoffCreatedAt),
-            filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+            ...streamParams,
             orderBy: query.orderBy,
-            searchQuery: query.searchQuery ?? undefined,
-            searchType: query.searchType ?? ["id" as const],
           })
-        : tableName === BatchTableNames.Observations
-          ? await getObservationStream({
-              projectId: projectId,
-              cutoffCreatedAt: new Date(cutoffCreatedAt),
-              filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-              searchQuery: query.searchQuery ?? undefined,
-              searchType: query.searchType ?? ["id" as const],
-            })
-          : await getDatabaseReadStreamPaginated({
-              projectId: projectId,
-              cutoffCreatedAt: new Date(cutoffCreatedAt),
-              filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-              orderBy: query.orderBy,
-              tableName: tableName as BatchTableNames,
-              searchQuery: query.searchQuery ?? undefined,
-              searchType: query.searchType ?? ["id" as const],
-            });
+        : tableName === BatchTableNames.Events
+          ? await getEventsStreamForAnnotationQueue(streamParams)
+          : tableName === BatchTableNames.Observations
+            ? await getObservationStream(streamParams)
+            : await getDatabaseReadStreamPaginated({
+                ...streamParams,
+                orderBy: query.orderBy,
+                tableName: tableName as BatchTableNames,
+              });
 
     // Process stream in database-sized batches
     // 1. Read all records

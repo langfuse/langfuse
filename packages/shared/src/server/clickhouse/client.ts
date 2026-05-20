@@ -153,6 +153,12 @@ export class ClickHouseClientManager {
                 update_parallel_mode: env.CLICKHOUSE_UPDATE_PARALLEL_MODE,
               }
             : {}),
+          // Workaround for a 25.12 bug where lightweight updates/deletes
+          // interact incorrectly with lazy materialization. Remove after
+          // ClickHouse 26.4, or earlier if the fix is backported.
+          ...(env.CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION === "true"
+            ? { query_plan_optimize_lazy_materialization: 0 }
+            : {}),
           ...cloudOptions,
           ...opts.clickhouse_settings,
           async_insert: 1,

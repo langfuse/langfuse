@@ -84,7 +84,7 @@ export const TraceLogView = ({
     observations.length >= LOG_VIEW_VIRTUALIZATION_THRESHOLD;
 
   // Determine if download/copy should use cached I/O only (vs loading all)
-  const isDownloadCacheOnly =
+  const isCopyOrDownloadCacheOnly =
     observations.length >= LOG_VIEW_DOWNLOAD_THRESHOLD;
 
   // Get expanded keys from context (persisted in sessionStorage)
@@ -246,10 +246,10 @@ export const TraceLogView = ({
   });
 
   // Download and copy handlers
-  const { handleCopyJson, handleDownloadJson, isDownloadOrCopyLoading } =
+  const { handleCopyJson, isActionLoading: isCopyOrDownloadLoading } =
     useLogViewDownload({
       traceId,
-      isDownloadCacheOnly,
+      isCacheOnly: isCopyOrDownloadCacheOnly,
       allObservationsData: allObservationsIO.data,
       isLoadingAllData: allObservationsIO.isLoading,
       failedObservationIds: allObservationsIO.failedObservationIds,
@@ -278,9 +278,8 @@ export const TraceLogView = ({
         onToggleExpandAll={handleToggleExpandAll}
         allRowsExpanded={allRowsExpanded}
         onCopyJson={handleCopyJson}
-        onDownloadJson={handleDownloadJson}
-        isDownloadCacheOnly={isDownloadCacheOnly}
-        isDownloadLoading={isDownloadOrCopyLoading}
+        isCopyOrDownloadLoading={isCopyOrDownloadLoading}
+        isCopyOrDownloadCacheOnly={isCopyOrDownloadCacheOnly}
         currentView={currentView}
         indentEnabled={indentEnabled}
         indentDisabled={indentDisabled}

@@ -88,7 +88,7 @@ export class ApiAuthService {
   ): Promise<AuthHeaderVerificationResult> {
     const result: AuthHeaderVerificationResult = await instrumentAsync(
       { name: "api-auth-verify" },
-      async () => {
+      async (span) => {
         if (!authHeader) {
           logger.debug("No authorization header");
           return {
@@ -172,12 +172,15 @@ export class ApiAuthService {
               throw new Error("Invalid credentials");
             }
 
-            addUserToSpan({
-              projectId: finalApiKey.projectId ?? undefined,
-              orgId: finalApiKey.orgId,
-              plan,
-              apiKeyId: finalApiKey.id,
-            });
+            addUserToSpan(
+              {
+                projectId: finalApiKey.projectId ?? undefined,
+                orgId: finalApiKey.orgId,
+                plan,
+                apiKeyId: finalApiKey.id,
+              },
+              span,
+            );
 
             const accessLevel =
               finalApiKey.scope === "ORGANIZATION" ? "organization" : "project";
@@ -213,12 +216,15 @@ export class ApiAuthService {
               this.extractOrgIdAndCloudConfig(dbKey);
             const plan = getOrganizationPlanServerSide(cloudConfig);
 
-            addUserToSpan({
-              projectId: dbKey.projectId ?? undefined,
-              orgId,
-              plan,
-              apiKeyId: dbKey.id,
-            });
+            addUserToSpan(
+              {
+                projectId: dbKey.projectId ?? undefined,
+                orgId,
+                plan,
+                apiKeyId: dbKey.id,
+              },
+              span,
+            );
 
             return {
               validKey: true,
