@@ -10,6 +10,7 @@ import {
   assertDispatchResultWithinByteLimit,
   CodeEvalDispatcherError,
   CodeEvalDispatcherErrorCode,
+  CodeEvalDispatcherErrorCodes,
   parseDispatchResult,
   type CodeEvalDispatcher,
   type CodeEvalRuntimeLanguage,
@@ -31,20 +32,20 @@ type CodeEvalDispatcherErrorClassification = {
 // this is only consulted if a future runner surfaces one of them via the
 // user-code-error envelope.
 const RETRYABLE_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
-  "TIMEOUT",
-  "LAMBDA_CONCURRENCY_LIMIT",
-  "LAMBDA_INVOCATION_ERROR",
+  CodeEvalDispatcherErrorCodes.TIMEOUT,
+  CodeEvalDispatcherErrorCodes.LAMBDA_CONCURRENCY_LIMIT,
+  CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
 ]);
 
 // Skipped from warn-level logging so routine user failures don't drown out
 // infrastructure issues in Datadog.
 const USER_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
-  "INVALID_RESULT",
-  "INVALID_SOURCE",
-  "PAYLOAD_TOO_LARGE",
-  "RESULT_TOO_LARGE",
-  "SOURCE_TOO_LARGE",
-  "USER_CODE_ERROR",
+  CodeEvalDispatcherErrorCodes.INVALID_RESULT,
+  CodeEvalDispatcherErrorCodes.INVALID_SOURCE,
+  CodeEvalDispatcherErrorCodes.PAYLOAD_TOO_LARGE,
+  CodeEvalDispatcherErrorCodes.RESULT_TOO_LARGE,
+  CodeEvalDispatcherErrorCodes.SOURCE_TOO_LARGE,
+  CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
 ]);
 
 const AWS_ERROR_CLASSIFICATION_BY_NAME: Record<
@@ -52,28 +53,45 @@ const AWS_ERROR_CLASSIFICATION_BY_NAME: Record<
   CodeEvalDispatcherErrorClassification
 > = {
   TooManyRequestsException: {
-    code: "LAMBDA_CONCURRENCY_LIMIT",
+    code: CodeEvalDispatcherErrorCodes.LAMBDA_CONCURRENCY_LIMIT,
     retryable: true,
   },
-  AccessDeniedException: { code: "LAMBDA_CONFIGURATION_ERROR" },
-  InvalidParameterValueException: { code: "LAMBDA_CONFIGURATION_ERROR" },
+  AccessDeniedException: {
+    code: CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
+  },
+  InvalidParameterValueException: {
+    code: CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
+  },
   // Unified with the local pre-check so "payload too large" failures share
   // a single code regardless of which layer caught them.
-  RequestTooLargeException: { code: "PAYLOAD_TOO_LARGE" },
-  ResourceNotFoundException: { code: "LAMBDA_CONFIGURATION_ERROR" },
+  RequestTooLargeException: {
+    code: CodeEvalDispatcherErrorCodes.PAYLOAD_TOO_LARGE,
+  },
+  ResourceNotFoundException: {
+    code: CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
+  },
   ResourceConflictException: {
-    code: "LAMBDA_INVOCATION_ERROR",
+    code: CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
     retryable: true,
   },
-  ServiceException: { code: "LAMBDA_INVOCATION_ERROR", retryable: true },
+  ServiceException: {
+    code: CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
+    retryable: true,
+  },
 };
 
 const AWS_ERROR_CLASSIFICATION_BY_CODE: Record<
   string,
   CodeEvalDispatcherErrorClassification
 > = {
-  ECONNRESET: { code: "LAMBDA_INVOCATION_ERROR", retryable: true },
-  ETIMEDOUT: { code: "LAMBDA_INVOCATION_ERROR", retryable: true },
+  ECONNRESET: {
+    code: CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
+    retryable: true,
+  },
+  ETIMEDOUT: {
+    code: CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
+    retryable: true,
+  },
 };
 
 // `.strict()` ensures a runner that returns a valid dispatch result alongside
@@ -165,7 +183,10 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
       if (!response.Payload) {
         throw new CodeEvalDispatcherError(
           `Code eval Lambda ${functionName} returned an empty response`,
-          { code: "LAMBDA_INVOCATION_ERROR", retryable: true },
+          {
+            code: CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
+            retryable: true,
+          },
         );
       }
 
@@ -238,7 +259,7 @@ function classifyLambdaFunctionError(params: {
   ) {
     return new CodeEvalDispatcherError(
       composedMessage || "Lambda task timed out",
-      { code: "TIMEOUT", retryable: true },
+      { code: CodeEvalDispatcherErrorCodes.TIMEOUT, retryable: true },
     );
   }
 
@@ -247,7 +268,10 @@ function classifyLambdaFunctionError(params: {
   if (errorType === "Runtime.ExitError") {
     return new CodeEvalDispatcherError(
       composedMessage || "Lambda runtime exited abnormally",
-      { code: "LAMBDA_CONFIGURATION_ERROR", retryable: false },
+      {
+        code: CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
+        retryable: false,
+      },
     );
   }
 
@@ -256,7 +280,7 @@ function classifyLambdaFunctionError(params: {
   if (params.functionError === "Handled") {
     return new CodeEvalDispatcherError(
       composedMessage || "Evaluator code threw an uncaught exception",
-      { code: "USER_CODE_ERROR", retryable: false },
+      { code: CodeEvalDispatcherErrorCodes.USER_CODE_ERROR, retryable: false },
     );
   }
 
@@ -264,7 +288,10 @@ function classifyLambdaFunctionError(params: {
   return new CodeEvalDispatcherError(
     composedMessage ||
       `Code eval Lambda ${params.functionName} failed with ${params.functionError}`,
-    { code: "LAMBDA_INVOCATION_ERROR", retryable: true },
+    {
+      code: CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
+      retryable: true,
+    },
   );
 }
 
@@ -281,7 +308,10 @@ function classifyAwsLambdaError(
   error: unknown,
 ): CodeEvalDispatcherErrorClassification {
   if (!(error instanceof Error)) {
-    return { code: "LAMBDA_INVOCATION_ERROR", retryable: true };
+    return {
+      code: CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
+      retryable: true,
+    };
   }
 
   const errorCode = (error as { code?: unknown }).code;
@@ -291,7 +321,7 @@ function classifyAwsLambdaError(
     (typeof errorCode === "string"
       ? AWS_ERROR_CLASSIFICATION_BY_CODE[errorCode]
       : undefined) ?? {
-      code: "LAMBDA_INVOCATION_ERROR",
+      code: CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
       retryable: true,
     }
   );
@@ -311,7 +341,7 @@ function parseLambdaResponsePayload(params: {
   } catch (error) {
     throw new CodeEvalDispatcherError(
       `Code eval Lambda ${params.functionName} returned invalid JSON`,
-      { code: "INVALID_RESULT", cause: error },
+      { code: CodeEvalDispatcherErrorCodes.INVALID_RESULT, cause: error },
     );
   }
 

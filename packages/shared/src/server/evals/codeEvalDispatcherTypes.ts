@@ -126,6 +126,7 @@ export const CodeEvalDispatcherErrorCode = z.enum([
 export type CodeEvalDispatcherErrorCode = z.infer<
   typeof CodeEvalDispatcherErrorCode
 >;
+export const CodeEvalDispatcherErrorCodes = CodeEvalDispatcherErrorCode.enum;
 
 export class CodeEvalDispatcherError extends Error {
   public readonly code: CodeEvalDispatcherErrorCode;
@@ -153,7 +154,7 @@ export function assertDispatchInputWithinLimits(input: DispatchInput): string {
   if (sourceBytes > CODE_EVAL_SOURCE_MAX_BYTES) {
     throw new CodeEvalDispatcherError(
       `Code eval source exceeds the ${CODE_EVAL_SOURCE_MAX_BYTES} byte limit`,
-      { code: "SOURCE_TOO_LARGE" },
+      { code: CodeEvalDispatcherErrorCodes.SOURCE_TOO_LARGE },
     );
   }
 
@@ -162,7 +163,7 @@ export function assertDispatchInputWithinLimits(input: DispatchInput): string {
   if (payloadBytes > CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES) {
     throw new CodeEvalDispatcherError(
       `Code eval dispatch payload exceeds the ${CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES} byte limit`,
-      { code: "PAYLOAD_TOO_LARGE" },
+      { code: CodeEvalDispatcherErrorCodes.PAYLOAD_TOO_LARGE },
     );
   }
 
@@ -181,7 +182,7 @@ export function assertDispatchResultWithinByteLimit(byteSize: number): void {
   if (byteSize > CODE_EVAL_DISPATCH_RESULT_MAX_BYTES) {
     throw new CodeEvalDispatcherError(
       `Code eval result exceeds the ${CODE_EVAL_DISPATCH_RESULT_MAX_BYTES} byte limit`,
-      { code: "RESULT_TOO_LARGE" },
+      { code: CodeEvalDispatcherErrorCodes.RESULT_TOO_LARGE },
     );
   }
 }
@@ -192,7 +193,7 @@ export function parseDispatchResult(result: unknown): DispatchResult {
   if (!parsed.success) {
     throw new CodeEvalDispatcherError(
       `Invalid code eval result: ${parsed.error.message}`,
-      { code: "INVALID_RESULT" },
+      { code: CodeEvalDispatcherErrorCodes.INVALID_RESULT },
     );
   }
 
