@@ -88,6 +88,14 @@ export const organizationApiKeysRouter = createTRPCRouter({
         scope: "organization:CRUD_apiKeys",
       });
 
+      await ctx.prisma.apiKey.findFirstOrThrow({
+        where: {
+          id: input.keyId,
+          orgId: input.orgId,
+          isInAppAgentKey: false,
+        },
+      });
+
       await auditLog({
         session: ctx.session,
         resourceType: "apiKey",
@@ -122,13 +130,6 @@ export const organizationApiKeysRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organization:CRUD_apiKeys",
       });
-      await auditLog({
-        session: ctx.session,
-        resourceType: "apiKey",
-        resourceId: input.id,
-        action: "delete",
-      });
-
       const apiKey = await ctx.prisma.apiKey.findFirstOrThrow({
         where: {
           id: input.id,
@@ -138,6 +139,13 @@ export const organizationApiKeysRouter = createTRPCRouter({
       });
 
       if (apiKey.isInAppAgentKey) return false;
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "apiKey",
+        resourceId: input.id,
+        action: "delete",
+      });
 
       return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
         input.id,
