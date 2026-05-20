@@ -1174,13 +1174,13 @@ export async function extractVariablesFromTracingData({
   traceTimestamp?: Date;
   datasetItemId?: string;
   datasetItemValidFrom?: Date;
-}): Promise<{ var: string; value: string; environment?: string }[]> {
+}): Promise<ExtractedVariable[]> {
   // Internal cache for this function call to avoid duplicate database lookups.
   // We do not cache dataset items as Postgres is cheaper than ClickHouse.
   const traceCache = new Map<string, TraceDomain | null>();
   const observationCache = new Map<string, Observation | null>();
 
-  const results: { var: string; value: string; environment?: string }[] = [];
+  const results: ExtractedVariable[] = [];
 
   // We run through this list sequentially to make use of caching.
   // The performance improvement by parallel execution should be less than the improvement we gain by caching.
@@ -1244,7 +1244,7 @@ export async function extractVariablesFromTracingData({
 
       results.push({
         var: variable,
-        value: parseDatabaseRowToString(datasetItem, mapping),
+        value: parseDatabaseRowValue(datasetItem, mapping),
       });
       continue;
     }
@@ -1289,7 +1289,7 @@ export async function extractVariablesFromTracingData({
 
       results.push({
         var: variable,
-        value: parseDatabaseRowToString(trace, mapping),
+        value: parseDatabaseRowValue(trace, mapping),
         environment: trace.environment,
       });
       continue;
@@ -1350,7 +1350,7 @@ export async function extractVariablesFromTracingData({
 
       results.push({
         var: variable,
-        value: parseDatabaseRowToString(observation, mapping),
+        value: parseDatabaseRowValue(observation, mapping),
         environment: observation.environment,
       });
       continue;
@@ -1365,10 +1365,13 @@ export async function extractVariablesFromTracingData({
 const snakeToCamel = (s: string) =>
   s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 
-export const parseDatabaseRowToString = (
+// Returns the typed value extracted from a database row. LLM-as-judge
+// stringifies at template-substitution time via `compileEvalPrompt`; code-
+// based evaluators consume the typed value directly.
+export const parseDatabaseRowValue = (
   dbRow: Record<string, unknown>,
   mapping: z.infer<typeof variableMapping>,
-): string => {
+): unknown => {
   // Prisma returns camelCase keys, but selectedColumnId may be snake_case
   const selectedColumn =
     dbRow[mapping.selectedColumnId] ??

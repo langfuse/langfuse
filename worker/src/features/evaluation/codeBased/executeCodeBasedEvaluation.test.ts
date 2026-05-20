@@ -74,9 +74,9 @@ describe("executeCodeBasedEvaluation", () => {
         outputDefinition: null,
       } as any,
       extractedVariables: [
-        { var: "input", value: '{"question":"2+2"}' },
-        { var: "output", value: '"4"' },
-        { var: "experimentExpectedOutput", value: '"4"' },
+        { var: "input", value: { question: "2+2" } },
+        { var: "output", value: "4" },
+        { var: "experimentExpectedOutput", value: "4" },
       ],
       environment: "default",
       metadata: { job_execution_id: "job-1" },
@@ -152,5 +152,50 @@ describe("executeCodeBasedEvaluation", () => {
       { name: "default-score", value: 1, dataType: "BOOLEAN" },
       { name: "default-score", value: "good", dataType: "CATEGORICAL" },
     ]);
+  });
+
+  it("passes extracted variable values through to the dispatcher payload as-is", async () => {
+    mocks.dispatcher.dispatch.mockResolvedValue({
+      scores: [{ value: 1, dataType: "BOOLEAN" }],
+    });
+
+    await executeCodeBasedEvaluation({
+      projectId: "project-1",
+      jobExecutionId: "job-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: "obs-1",
+        jobInputDatasetItemId: null,
+      } as any,
+      config: { id: "config-1", scoreName: "default-score" } as any,
+      template: {
+        id: "template-1",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "export function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [
+        { var: "output", value: "true" },
+        { var: "observationMetadata", value: "42" },
+        { var: "experimentExpectedOutput", value: "null" },
+      ],
+      environment: "default",
+      metadata: { job_execution_id: "job-1" },
+    });
+
+    expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          output: "true",
+          observationMetadata: "42",
+          experimentExpectedOutput: "null",
+        }),
+      }),
+    );
   });
 });
