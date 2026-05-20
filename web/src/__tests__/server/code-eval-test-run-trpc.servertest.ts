@@ -5,6 +5,7 @@ import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
 } from "@prisma/client";
+import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
@@ -17,6 +18,11 @@ import {
 import { EvalTargetObject } from "@langfuse/shared";
 
 const orgIds: string[] = [];
+
+const maybe =
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+    ? describe
+    : describe.skip;
 
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -73,7 +79,7 @@ async function prepare() {
   return { project, caller };
 }
 
-describe("evals.testRunCodeEval", () => {
+maybe("evals.testRunCodeEval", () => {
   afterAll(async () => {
     await prisma.organization.deleteMany({
       where: {

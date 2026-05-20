@@ -200,7 +200,11 @@ export async function runCodeBasedEvaluationDispatch(params: {
     const serializedError = serializeCodeEvalError(error);
     const visibleError = getCodeEvalUserVisibleError(error);
     const traceError = params.maskErrorsInTrace
-      ? { ...serializedError, message: visibleError.message }
+      ? {
+          ...serializedError,
+          code: visibleError.code,
+          message: visibleError.message,
+        }
       : serializedError;
 
     await writeCodeEvalTraceSafely({
