@@ -9,7 +9,8 @@ import {
   type availableDatasetEvalVariables,
   type availableTraceEvalVariables,
   type EvalTemplate,
-  observationEvalVariableColumns,
+  eventTargetEvalVariableColumns,
+  experimentTargetEvalVariableColumns,
 } from "@langfuse/shared";
 import { Card } from "@/src/components/ui/card";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
@@ -649,48 +650,8 @@ export const VariableMappingCard = ({
                               // For observations (event), exclude experiment-specific fields
                               const availableColumns =
                                 form.watch("target") === EvalTargetObject.EVENT
-                                  ? observationEvalVariableColumns.filter(
-                                      (col) =>
-                                        col.id !==
-                                          "experimentItemExpectedOutput" &&
-                                        col.id !== "experimentItemMetadata",
-                                    )
-                                  : observationEvalVariableColumns;
-                              const displayColumns = availableColumns.map(
-                                (column) => {
-                                  if (
-                                    form.watch("target") ===
-                                      EvalTargetObject.EXPERIMENT &&
-                                    column.id === "input"
-                                  ) {
-                                    return {
-                                      ...column,
-                                      name: "Observation Input",
-                                    };
-                                  }
-                                  if (
-                                    form.watch("target") ===
-                                      EvalTargetObject.EXPERIMENT &&
-                                    column.id === "output"
-                                  ) {
-                                    return {
-                                      ...column,
-                                      name: "Observation Output",
-                                    };
-                                  }
-                                  if (
-                                    form.watch("target") ===
-                                      EvalTargetObject.EXPERIMENT &&
-                                    column.id === "metadata"
-                                  ) {
-                                    return {
-                                      ...column,
-                                      name: "Observation Metadata",
-                                    };
-                                  }
-                                  return column;
-                                },
-                              );
+                                  ? eventTargetEvalVariableColumns
+                                  : experimentTargetEvalVariableColumns;
 
                               return (
                                 <div className="flex items-center gap-2">
@@ -714,7 +675,7 @@ export const VariableMappingCard = ({
                                           <SelectValue placeholder="Select field" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {displayColumns.map((column) => (
+                                          {availableColumns.map((column) => (
                                             <SelectItem
                                               value={column.id}
                                               key={column.id}
