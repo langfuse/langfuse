@@ -21,13 +21,21 @@ vi.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-vi.mock("@langfuse/shared/src/server", () => ({
-  INTERNAL_TRACE_EVENT_SOURCE: "test-source",
-  LangfuseInternalTraceEnvironment: { CodeEval: "langfuse-code-eval" },
-  instrumentAsync: vi.fn(async (_options, fn) => fn({ setAttribute: vi.fn() })),
-  logger: { debug: vi.fn(), warn: vi.fn() },
-  resolveConfiguredCodeEvalDispatcher: vi.fn(() => mocks.dispatcher),
-}));
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+
+  return {
+    ...actual,
+    INTERNAL_TRACE_EVENT_SOURCE: "test-source",
+    LangfuseInternalTraceEnvironment: { CodeEval: "langfuse-code-eval" },
+    instrumentAsync: vi.fn(async (_options, fn) =>
+      fn({ setAttribute: vi.fn() }),
+    ),
+    logger: { debug: vi.fn(), warn: vi.fn() },
+    resolveConfiguredCodeEvalDispatcher: vi.fn(() => mocks.dispatcher),
+  };
+});
 
 vi.mock("../../internal-tracing/createInternalEventsWriter", () => ({
   createInternalEventsWriter: () => ({ write: mocks.writeInternalTrace }),
@@ -112,6 +120,10 @@ describe("executeCodeBasedEvaluation", () => {
             name: "Execute evaluator: Code evaluator",
             type: "SPAN",
             environment: "langfuse-code-eval",
+            metadata: expect.objectContaining({
+              code_eval_runtime: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+              code_eval_source_code: "export function evaluate() {}",
+            }),
           }),
         ],
       }),
@@ -317,6 +329,7 @@ describe("executeCodeBasedEvaluation", () => {
             metadata: expect.objectContaining({
               dispatcher_name: "test-dispatcher",
               code_eval_runtime: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+              code_eval_source_code: "export function evaluate() {}",
               job_execution_id: "job-1",
               error_name: "Error",
               error_message: "runner exploded",

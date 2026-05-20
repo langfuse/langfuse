@@ -83,7 +83,7 @@ import {
   type EvalExecutionDeps,
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
-import { ExtractedVariable } from "./observationEval/extractObservationVariables";
+import { type ExtractedVariable } from "@langfuse/shared/src/server";
 
 /**
  * Determines which eval jobs to create for a given event (traces or dataset run items).

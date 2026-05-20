@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractObservationVariables } from "../extractObservationVariables";
+import { extractObservationVariables } from "@langfuse/shared/src/server";
 import { type ObservationForEval } from "../types";
 import {
   availableObservationEvalVariableColumns,

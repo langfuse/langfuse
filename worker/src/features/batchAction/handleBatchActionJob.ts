@@ -1,6 +1,7 @@
 import {
   BatchActionProcessingEventType,
   CreateEvalQueue,
+  getEventsStreamForEval,
   getCurrentSpan,
   logger,
   QueueJobs,
@@ -32,7 +33,6 @@ import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 import { getObservationStream } from "../database-read-stream/observation-stream";
 import {
-  getEventsStreamForEval,
   getEventsStreamForDataset,
   getEventsStreamForAnnotationQueue,
 } from "../database-read-stream/event-stream";

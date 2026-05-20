@@ -53,27 +53,26 @@ const { FakeCodeEvalDispatcherError } = vi.hoisted(() => {
   return { FakeCodeEvalDispatcherError };
 });
 
-vi.mock("@langfuse/shared/src/server", () => ({
-  CodeEvalDispatcherError: FakeCodeEvalDispatcherError,
-  CodeEvalDispatcherErrorCode: {
-    enum: {
-      LAMBDA_CONCURRENCY_LIMIT: "LAMBDA_CONCURRENCY_LIMIT",
-      LAMBDA_CONFIGURATION_ERROR: "LAMBDA_CONFIGURATION_ERROR",
-      LAMBDA_INVOCATION_ERROR: "LAMBDA_INVOCATION_ERROR",
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+
+  return {
+    ...actual,
+    CodeEvalDispatcherError: FakeCodeEvalDispatcherError,
+    getCurrentSpan: vi.fn().mockReturnValue({
+      setAttribute: vi.fn(),
+    }),
+    logger: {
+      debug: vi.fn(),
+      error: vi.fn(),
     },
-  },
-  getCurrentSpan: vi.fn().mockReturnValue({
-    setAttribute: vi.fn(),
-  }),
-  logger: {
-    debug: vi.fn(),
-    error: vi.fn(),
-  },
-  QueueName: {
-    CodeEvalExecution: "code-eval-execution-queue",
-  },
-  traceException: vi.fn(),
-}));
+    QueueName: {
+      CodeEvalExecution: "code-eval-execution-queue",
+    },
+    traceException: vi.fn(),
+  };
+});
 
 vi.mock("../../features/utils", () => ({
   createW3CTraceId: vi.fn().mockReturnValue("test-trace-id"),

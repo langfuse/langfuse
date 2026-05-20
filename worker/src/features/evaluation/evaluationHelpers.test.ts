@@ -11,7 +11,7 @@ import {
   ScoreDataTypeEnum,
   validateEvalOutputResult,
 } from "@langfuse/shared";
-import { type ExtractedVariable } from "./observationEval/extractObservationVariables";
+import { type ExtractedVariable } from "@langfuse/shared/src/server";
 import {
   buildEvalExecutionMetadata,
   buildEvalMessages,

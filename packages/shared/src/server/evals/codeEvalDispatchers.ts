@@ -13,14 +13,16 @@ let hasLoggedInsecureLocalWarning = false;
 export function resolveConfiguredCodeEvalDispatcher(): CodeEvalDispatcher | null {
   const dispatcherName =
     env.LANGFUSE_CODE_EVAL_DISPATCHER ??
-    (env.NODE_ENV === "development" ? "insecure-local" : undefined);
+    (env.NODE_ENV === "development" || env.NODE_ENV === "test"
+      ? "insecure-local"
+      : undefined);
 
   if (!dispatcherName) return null;
 
   if (dispatcherName === "insecure-local") {
     if (!hasLoggedInsecureLocalWarning) {
       logger.warn(
-        "Using the `insecure-local` code-eval dispatcher. Code evals will execute user-provided code in the worker process. Only use this with trusted code or for local development.",
+        "Using the `insecure-local` code-eval dispatcher. Code evals will execute user-provided code in the worker process. Only use this with trusted code, local development, or tests.",
       );
       hasLoggedInsecureLocalWarning = true;
     }

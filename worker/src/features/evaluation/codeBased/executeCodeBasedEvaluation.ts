@@ -1,25 +1,19 @@
 import { randomUUID } from "crypto";
 import { type JobConfiguration, type JobExecution } from "@prisma/client";
-import { stringifyValue, type EvalTemplateCodeBased } from "@langfuse/shared";
+import { type EvalTemplateCodeBased } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   instrumentAsync,
-  INTERNAL_TRACE_EVENT_SOURCE,
-  LangfuseInternalTraceEnvironment,
   logger,
   resolveConfiguredCodeEvalDispatcher,
-  type CodeEvalScore,
-  type CodeEvalScoreWithName,
-  type CodeEvalPayload,
+  runCodeBasedEvaluationDispatch,
+  type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 import { createW3CTraceId } from "../../utils";
 import { createInternalEventsWriter } from "../../internal-tracing/createInternalEventsWriter";
 import { type EvalExecutionResult } from "../evalCompletion";
 import { type EvalExecutionDeps } from "../evalExecutionDeps";
-import { type ExtractedVariable } from "../observationEval/extractObservationVariables";
-
-const CODE_EVAL_SCOPE_ENVIRONMENT = "code-based-eval";
 
 export async function executeCodeBasedEvaluation(params: {
   projectId: string;
@@ -76,216 +70,36 @@ export async function executeCodeBasedEvaluation(params: {
         `Executing code-based evaluation for job ${params.jobExecutionId} in project ${params.projectId}`,
       );
 
-      const payload = buildCodeEvalPayload(params.extractedVariables);
-      const traceStartTime = new Date();
-      const traceName = `Execute evaluator: ${params.template.name}`;
-      let dispatchResult: { scores: CodeEvalScore[] } | undefined;
-      let scores: CodeEvalScoreWithName[];
-
-      try {
-        dispatchResult = await dispatcher.dispatch({
-          scope: {
-            organizationId: project.orgId,
-            projectId: params.projectId,
-            evaluatorId: params.template.id,
-            environment: CODE_EVAL_SCOPE_ENVIRONMENT,
-          },
-          runtime: { language: params.template.sourceCodeLanguage },
-          execution: { jobExecutionId: params.jobExecutionId },
-          code: { source: params.template.sourceCode },
-          payload,
-        });
-
-        scores = normalizeCodeEvalScores({
-          scores: dispatchResult.scores,
-          defaultScoreName: params.config.scoreName,
-        });
-      } catch (error) {
-        const errorDetails = serializeCodeEvalError(error);
-
-        await writeCodeEvalTraceBestEffort({
-          failureMessage:
-            "Failed to write internal trace for failed code eval execution",
-          projectId: params.projectId,
-          executionTraceId,
-          traceParams: {
-            projectId: params.projectId,
-            executionTraceId,
-            traceStartTime,
-            traceName,
-            payload,
-            output: {
-              ...(dispatchResult ? { result: dispatchResult } : {}),
-              error: errorDetails,
-            },
-            metadata: {
-              ...executionMetadata,
-              score_id: primaryScoreId,
-              error_name: errorDetails.name,
-              error_message: errorDetails.message,
-              ...(errorDetails.code ? { error_code: errorDetails.code } : {}),
-              ...(typeof errorDetails.retryable === "boolean"
-                ? { error_retryable: errorDetails.retryable }
-                : {}),
-            },
-            level: "ERROR",
-            statusMessage: `Code eval execution failed: ${errorDetails.message}`,
-          },
-        });
-
-        throw error;
-      }
-
-      // LLM-as-judge gets this trace from fetchLLMCompletion's traceSinkParams;
-      // the code-eval dispatcher returns no trace data, so synthesize a SPAN.
-      await writeCodeEvalTraceBestEffort({
-        failureMessage:
-          "Failed to write internal trace for completed code eval execution",
+      const dispatchOutcome = await runCodeBasedEvaluationDispatch({
+        dispatcher,
+        organizationId: project.orgId,
         projectId: params.projectId,
         executionTraceId,
-        traceParams: {
-          projectId: params.projectId,
-          executionTraceId,
-          traceStartTime,
-          traceName,
-          payload,
-          output: dispatchResult,
-          metadata: {
-            ...executionMetadata,
-            score_id: primaryScoreId,
-          },
+        jobExecutionId: params.jobExecutionId,
+        template: params.template,
+        scoreName: params.config.scoreName,
+        extractedVariables: params.extractedVariables,
+        traceName: `Execute evaluator: ${params.template.name}`,
+        metadata: {
+          ...executionMetadata,
+          score_id: primaryScoreId,
         },
+        writeTrace: (trace) => createInternalEventsWriter().write(trace),
       });
 
-      span.setAttribute("eval.result.count", scores.length);
+      if (!dispatchOutcome.success) {
+        throw dispatchOutcome.cause;
+      }
+
+      span.setAttribute("eval.result.count", dispatchOutcome.scores.length);
       span.setAttribute("eval.score.id", primaryScoreId);
 
       return {
-        scores,
+        scores: dispatchOutcome.scores,
         primaryScoreId,
         executionTraceId,
         metadata: executionMetadata,
       };
     },
-  );
-}
-
-// The frontend maps user-facing template variables to a fixed, known set of
-// payload field names; we only need to look each one up once. Values are
-// already typed (the upstream extractor preserves the original shape), so
-// no per-field parsing is needed here.
-function buildCodeEvalPayload(
-  extractedVariables: ExtractedVariable[],
-): CodeEvalPayload {
-  const byName = new Map(extractedVariables.map((v) => [v.var, v.value]));
-  const hasExperiment = byName.has("experimentExpectedOutput");
-
-  const payload: CodeEvalPayload = {
-    observation: {
-      input: byName.get("input") ?? null,
-      output: byName.get("output") ?? null,
-      metadata: byName.get("observationMetadata") ?? null,
-    },
-  };
-
-  if (hasExperiment) {
-    payload.experiment = {
-      expectedOutput: byName.get("experimentExpectedOutput") ?? null,
-      itemMetadata: null,
-    };
-  }
-
-  return payload;
-}
-
-type WriteCodeEvalTraceParams = {
-  projectId: string;
-  executionTraceId: string;
-  traceStartTime: Date;
-  traceName: string;
-  payload: CodeEvalPayload;
-  output: unknown;
-  metadata: Record<string, unknown>;
-  level?: string;
-  statusMessage?: string;
-};
-
-async function writeCodeEvalTraceBestEffort(params: {
-  failureMessage: string;
-  projectId: string;
-  executionTraceId: string;
-  traceParams: WriteCodeEvalTraceParams;
-}) {
-  try {
-    await writeCodeEvalTrace(params.traceParams);
-  } catch (traceError) {
-    logger.warn(params.failureMessage, {
-      projectId: params.projectId,
-      executionTraceId: params.executionTraceId,
-      error:
-        traceError instanceof Error ? traceError.message : String(traceError),
-    });
-  }
-}
-
-async function writeCodeEvalTrace(params: WriteCodeEvalTraceParams) {
-  await createInternalEventsWriter().write({
-    rootSpanId: params.executionTraceId,
-    eventInputs: [
-      {
-        projectId: params.projectId,
-        traceId: params.executionTraceId,
-        spanId: params.executionTraceId,
-        startTimeISO: params.traceStartTime.toISOString(),
-        endTimeISO: new Date().toISOString(),
-        name: params.traceName,
-        traceName: params.traceName,
-        type: "SPAN",
-        environment: LangfuseInternalTraceEnvironment.CodeEval,
-        ...(params.level ? { level: params.level } : {}),
-        ...(params.statusMessage
-          ? { statusMessage: params.statusMessage }
-          : {}),
-        input: stringifyValue(params.payload),
-        output: stringifyValue(params.output),
-        metadata: params.metadata,
-        source: INTERNAL_TRACE_EVENT_SOURCE,
-      },
-    ],
-  });
-}
-
-function serializeCodeEvalError(error: unknown): {
-  name: string;
-  message: string;
-  code?: string;
-  retryable?: boolean;
-} {
-  const base =
-    error instanceof Error
-      ? { name: error.name, message: error.message }
-      : { name: "Error", message: String(error) };
-
-  if (!error || typeof error !== "object") return base;
-
-  const errorRecord = error as Record<string, unknown>;
-
-  return {
-    ...base,
-    ...(typeof errorRecord.code === "string" ? { code: errorRecord.code } : {}),
-    ...(typeof errorRecord.retryable === "boolean"
-      ? { retryable: errorRecord.retryable }
-      : {}),
-  };
-}
-
-function normalizeCodeEvalScores(params: {
-  scores: CodeEvalScore[];
-  defaultScoreName: string;
-}): CodeEvalScoreWithName[] {
-  return params.scores.map((score) =>
-    score.name
-      ? (score as CodeEvalScoreWithName)
-      : { ...score, name: params.defaultScoreName },
   );
 }
