@@ -22,7 +22,7 @@ import {
 export const MonitorQueueEventSchema = z.object({
   projectId: z.string(),
   // Fingerprint of (projectId, view, filters, window)
-  schedulerBatchId: z.coerce.bigint(),
+  schedulerBatchId: z.coerce.bigint().nonnegative(),
 
   // Scheduler tick time
   scheduledAt: z.coerce.date(),

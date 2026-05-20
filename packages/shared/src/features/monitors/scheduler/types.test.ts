@@ -50,6 +50,31 @@ describe("MonitorQueueEventSchema", () => {
     ).toBe(false);
   });
 
+  it("rejects a negative schedulerBatchId", () => {
+    // `calculateSchedulerBatchId` masks the sha256 high 8 bytes with
+    // `& (2^63 - 1)`, so the producer can never emit a negative value. Guard
+    // the wire boundary so anything else looks like an obvious validator
+    // failure rather than corrupted data.
+    expect(
+      MonitorQueueEventSchema.safeParse({
+        ...validQueueEvent,
+        schedulerBatchId: -1n,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts zero as a schedulerBatchId", () => {
+    // Cryptographically improbable but mathematically possible; the
+    // refinement is `.nonnegative()`, not `.positive()`, to match the
+    // producer's contract.
+    expect(
+      MonitorQueueEventSchema.safeParse({
+        ...validQueueEvent,
+        schedulerBatchId: 0n,
+      }).success,
+    ).toBe(true);
+  });
+
   it("accepts an empty monitors array", () => {
     // Scheduler may publish with zero monitors if everything in the batch was
     // filtered out — schema should not block; downstream worker handles it.
