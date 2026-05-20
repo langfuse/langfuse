@@ -24,11 +24,15 @@ const baseInput: DispatchInput = {
   execution: { jobExecutionId: "job-floci-integration" },
   code: { source: "export function evaluate() {}" },
   payload: {
-    input: "hello",
-    output: "hello world",
-    observationMetadata: { topic: "integration" },
-    experimentExpectedOutput: "hello world",
-    experimentItemMetadata: { item: 42 },
+    observation: {
+      input: "hello",
+      output: "hello world",
+      metadata: { topic: "integration" },
+    },
+    experiment: {
+      expectedOutput: "hello world",
+      itemMetadata: { item: 42 },
+    },
   },
 };
 
@@ -47,20 +51,24 @@ const expectedScores = [
 const sources: Record<CodeEvalRuntimeLanguage, string> = {
   TYPESCRIPT: `
 export function evaluate(ctx: {
-  input: string;
-  output: string;
-  observationMetadata: { topic: string };
-  experimentExpectedOutput: string;
-  experimentItemMetadata: { item: number };
+  observation: {
+    input: string;
+    output: string;
+    metadata: { topic: string };
+  };
+  experiment: {
+    expectedOutput: string;
+    itemMetadata: { item: number };
+  } | undefined;
 }) {
-  const contains = ctx.output.includes(ctx.input);
+  const contains = ctx.observation.output.includes(ctx.observation.input);
   return {
     scores: [
       { name: "output-contains-input-bool", value: contains, dataType: "BOOLEAN" },
       { name: "output-contains-input-int", value: contains ? 1 : 0, dataType: "BOOLEAN" },
       { name: "output-contains-input-str", value: contains ? "True" : "False", dataType: "BOOLEAN" },
-      { name: ctx.observationMetadata.topic, value: ctx.experimentItemMetadata.item, dataType: "NUMERIC" },
-      { name: "expected-output", value: ctx.experimentExpectedOutput, dataType: "TEXT" },
+      { name: ctx.observation.metadata.topic, value: ctx.experiment?.itemMetadata.item ?? 0, dataType: "NUMERIC" },
+      { name: "expected-output", value: ctx.experiment?.expectedOutput ?? "", dataType: "TEXT" },
       { name: "rating", value: "good", dataType: "CATEGORICAL" },
     ],
   };
@@ -68,14 +76,14 @@ export function evaluate(ctx: {
 `,
   PYTHON: `
 def evaluate(ctx):
-    contains = ctx.input in ctx.output
+    contains = ctx.observation.input in ctx.observation.output
     return {
         "scores": [
             {"name": "output-contains-input-bool", "value": contains, "dataType": "BOOLEAN"},
             {"name": "output-contains-input-int", "value": 1 if contains else 0, "dataType": "BOOLEAN"},
             {"name": "output-contains-input-str", "value": "true" if contains else "false", "dataType": "BOOLEAN"},
-            {"name": ctx.observation_metadata["topic"], "value": ctx.experiment_item_metadata["item"], "dataType": "NUMERIC"},
-            {"name": "expected-output", "value": ctx.experiment_expected_output, "dataType": "TEXT"},
+            {"name": ctx.observation.metadata["topic"], "value": ctx.experiment.itemMetadata["item"], "dataType": "NUMERIC"},
+            {"name": "expected-output", "value": ctx.experiment.expectedOutput, "dataType": "TEXT"},
             {"name": "rating", "value": "good", "dataType": "CATEGORICAL"},
         ],
     }

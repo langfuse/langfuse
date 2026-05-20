@@ -87,9 +87,15 @@ describe("executeCodeBasedEvaluation", () => {
       { name: "extra-score", value: "good", dataType: "CATEGORICAL" },
     ]);
     const expectedPayload = expect.objectContaining({
-      input: { question: "2+2" },
-      output: "4",
-      experimentExpectedOutput: "4",
+      observation: {
+        input: { question: "2+2" },
+        output: "4",
+        metadata: null,
+      },
+      experiment: {
+        expectedOutput: "4",
+        itemMetadata: null,
+      },
     });
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -152,6 +158,13 @@ describe("executeCodeBasedEvaluation", () => {
       { name: "default-score", value: 1, dataType: "BOOLEAN" },
       { name: "default-score", value: "good", dataType: "CATEGORICAL" },
     ]);
+    expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: {
+          observation: { input: null, output: null, metadata: null },
+        },
+      }),
+    );
   });
 
   it("passes extracted variable values through to the dispatcher payload as-is", async () => {
@@ -191,9 +204,15 @@ describe("executeCodeBasedEvaluation", () => {
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: expect.objectContaining({
-          output: "true",
-          observationMetadata: "42",
-          experimentExpectedOutput: "null",
+          observation: {
+            input: null,
+            output: "true",
+            metadata: "42",
+          },
+          experiment: {
+            expectedOutput: "null",
+            itemMetadata: null,
+          },
         }),
       }),
     );

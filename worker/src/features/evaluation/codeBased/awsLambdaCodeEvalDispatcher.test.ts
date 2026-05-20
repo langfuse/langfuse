@@ -16,11 +16,11 @@ const baseInput: DispatchInput = {
   execution: { jobExecutionId: "job-1" },
   code: { source: "export function evaluate() {}" },
   payload: {
-    input: null,
-    output: null,
-    observationMetadata: null,
-    experimentExpectedOutput: null,
-    experimentItemMetadata: null,
+    observation: {
+      input: null,
+      output: null,
+      metadata: null,
+    },
   },
 };
 
@@ -52,6 +52,38 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
 
     await dispatcher.dispatch(baseInput);
     expect(send.mock.calls[0][0].input.TenantId).toBe("org-1:project-1");
+  });
+
+  it("sends the nested evaluation context payload to Lambda", async () => {
+    const send = vi.fn().mockResolvedValue({
+      Payload: Buffer.from(
+        JSON.stringify({ scores: [{ value: 1, dataType: "NUMERIC" }] }),
+      ),
+    });
+    const dispatcher = new AwsLambdaCodeEvalDispatcher({
+      lambdaClient: { send } as any,
+    });
+    const input: DispatchInput = {
+      ...baseInput,
+      payload: {
+        observation: {
+          input: { question: "2+2" },
+          output: "4",
+          metadata: { source: "test" },
+        },
+        experiment: {
+          expectedOutput: "4",
+          itemMetadata: { difficulty: "easy" },
+        },
+      },
+    };
+
+    await dispatcher.dispatch(input);
+
+    const lambdaPayload = JSON.parse(
+      Buffer.from(send.mock.calls[0][0].input.Payload).toString("utf8"),
+    );
+    expect(lambdaPayload.payload).toEqual(input.payload);
   });
 
   it("prefers a valid dispatch result over an injected error envelope", async () => {

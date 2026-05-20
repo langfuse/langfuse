@@ -17,11 +17,15 @@ const baseInput: Omit<DispatchInput, "runtime" | "code"> = {
     jobExecutionId: "job-1",
   },
   payload: {
-    input: { question: "2+2" },
-    output: "4",
-    observationMetadata: { source: "test" },
-    experimentExpectedOutput: "4",
-    experimentItemMetadata: { difficulty: "easy" },
+    observation: {
+      input: { question: "2+2" },
+      output: "4",
+      metadata: { source: "test" },
+    },
+    experiment: {
+      expectedOutput: "4",
+      itemMetadata: { difficulty: "easy" },
+    },
   },
 };
 
@@ -34,10 +38,13 @@ describe("LocalCodeEvalDispatcher", () => {
       runtime: { language: "TYPESCRIPT" },
       code: {
         source: `
-          type EvaluationContext = { output: string; experimentExpectedOutput: string };
+          type EvaluationContext = {
+            observation: { output: string };
+            experiment: { expectedOutput: string } | undefined;
+          };
           export async function evaluate(ctx: EvaluationContext) {
             return {
-              scores: [{ value: ctx.output === ctx.experimentExpectedOutput ? 1 : 0, dataType: "BOOLEAN" }],
+              scores: [{ value: ctx.observation.output === ctx.experiment?.expectedOutput ? 1 : 0, dataType: "BOOLEAN" }],
             };
           }
         `,

@@ -16,11 +16,15 @@ export type CodeEvalScope = {
 };
 
 export type CodeEvalPayload = {
-  input: unknown;
-  output: unknown;
-  observationMetadata: unknown;
-  experimentExpectedOutput: unknown;
-  experimentItemMetadata: unknown;
+  observation: {
+    input: unknown;
+    output: unknown;
+    metadata: unknown;
+  };
+  experiment?: {
+    expectedOutput: unknown;
+    itemMetadata: unknown;
+  };
 };
 
 export type DispatchInput = {
