@@ -38,6 +38,7 @@ export * from "./llm/compileChatMessages";
 export * from "./llm/testModelCall";
 export * from "./llm/baseUrlValidation";
 export * from "./outbound-url";
+export * from "./services/blobStorageEndpointValidation";
 export * from "./llm/getInternalTracingHandler";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";

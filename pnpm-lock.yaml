@@ -224,6 +224,9 @@ importers:
       '@slack/web-api':
         specifier: ^7.15.0
         version: 7.15.1
+      '@smithy/node-http-handler':
+        specifier: 4.5.1
+        version: 4.5.1
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6

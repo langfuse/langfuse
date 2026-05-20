@@ -440,7 +440,7 @@ describe("Blob Storage Integrations API", () => {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
         type: "AZURE_BLOB_STORAGE" as const,
-        endpoint: "https://myaccount.blob.core.windows.net",
+        endpoint: "https://example.com",
       };
 
       const response = await makeZodVerifiedAPICall(
@@ -454,9 +454,7 @@ describe("Blob Storage Integrations API", () => {
 
       expect(response.status).toBe(200);
       expect(response.body.type).toBe("AZURE_BLOB_STORAGE");
-      expect(response.body.endpoint).toBe(
-        "https://myaccount.blob.core.windows.net",
-      );
+      expect(response.body.endpoint).toBe("https://example.com");
     });
 
     it("should reject invalid Azure container names", async () => {
@@ -464,7 +462,7 @@ describe("Blob Storage Integrations API", () => {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
         type: "AZURE_BLOB_STORAGE" as const,
-        endpoint: "https://myaccount.blob.core.windows.net",
+        endpoint: "https://example.com",
         bucketName: "Feedback N8N Bot",
       };
 
