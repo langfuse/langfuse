@@ -222,7 +222,6 @@ export default async function handler(request: Request) {
             prisma,
             projectId,
             conversationId: conversation.id,
-            runId: sanitizedInput.runId,
             providerSessionId: claudeSessionId,
           }).catch((error) =>
             console.error("Failed to persist agent session id", error),

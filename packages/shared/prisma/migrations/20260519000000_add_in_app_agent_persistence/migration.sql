@@ -1,4 +1,4 @@
-CREATE TYPE "InAppAgentConversationVisibility" AS ENUM ('PRIVATE', 'PROJECT');
+CREATE TYPE "InAppAgentConversationVisibilityScope" AS ENUM ('PERSONAL', 'PROJECT');
 
 CREATE TYPE "InAppAgentMessageRole" AS ENUM ('USER', 'ASSISTANT', 'SYSTEM', 'TOOL', 'ACTIVITY', 'REASONING');
 
@@ -6,18 +6,14 @@ CREATE TYPE "InAppAgentMessageStatus" AS ENUM ('PENDING', 'COMPLETED', 'FAILED')
 
 CREATE TYPE "InAppAgentRunStatus" AS ENUM ('PENDING', 'RUNNING', 'AWAITING_CONFIRMATION', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT');
 
-CREATE TYPE "InAppAgentRunTrigger" AS ENUM ('USER_MESSAGE', 'BACKGROUND');
-
 CREATE TABLE "in_app_agent_conversations" (
   "id" TEXT NOT NULL,
   "project_id" TEXT NOT NULL,
   "created_by_user_id" TEXT,
   "title" TEXT,
-  "visibility" "InAppAgentConversationVisibility" NOT NULL DEFAULT 'PRIVATE',
-  "provider" TEXT NOT NULL DEFAULT 'anthropic',
+  "visibility_scope" "InAppAgentConversationVisibilityScope" NOT NULL DEFAULT 'PERSONAL',
   "provider_session_id" TEXT,
   "last_message_at" TIMESTAMP(3),
-  "archived_at" TIMESTAMP(3),
   "deleted_at" TIMESTAMP(3),
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -31,7 +27,6 @@ CREATE TABLE "in_app_agent_runs" (
   "conversation_id" TEXT NOT NULL,
   "created_by_user_id" TEXT,
   "status" "InAppAgentRunStatus" NOT NULL DEFAULT 'PENDING',
-  "trigger" "InAppAgentRunTrigger" NOT NULL DEFAULT 'USER_MESSAGE',
   "model_provider" TEXT,
   "model" TEXT,
   "model_params" JSONB,
@@ -39,7 +34,6 @@ CREATE TABLE "in_app_agent_runs" (
   "prompt_versions" JSONB,
   "allowed_tools" JSONB,
   "mcp_api_key_id" TEXT,
-  "provider_session_id" TEXT,
   "internal_trace_id" TEXT,
   "usage" JSONB,
   "error_code" TEXT,

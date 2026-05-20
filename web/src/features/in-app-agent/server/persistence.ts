@@ -29,7 +29,6 @@ const AG_UI_ROLE_TO_DB_ROLE: Record<string, InAppAgentMessageRole> = {
 export type SerializedInAppAgentConversation = {
   id: string;
   title: string | null;
-  provider: string;
   lastMessageAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -40,13 +39,12 @@ export type SerializedInAppAgentMessage = AgUiMessage;
 export function serializeConversation(
   conversation: Pick<
     InAppAgentConversation,
-    "id" | "title" | "provider" | "lastMessageAt" | "createdAt" | "updatedAt"
+    "id" | "title" | "lastMessageAt" | "createdAt" | "updatedAt"
   >,
 ): SerializedInAppAgentConversation {
   return {
     id: conversation.id,
     title: conversation.title,
-    provider: conversation.provider,
     lastMessageAt: conversation.lastMessageAt,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
@@ -209,23 +207,12 @@ export async function updateProviderSessionId(params: {
   prisma: PrismaClient;
   projectId: string;
   conversationId: string;
-  runId?: string;
   providerSessionId: string;
 }) {
-  await params.prisma.$transaction([
-    params.prisma.inAppAgentConversation.update({
-      where: { id: params.conversationId, projectId: params.projectId },
-      data: { providerSessionId: params.providerSessionId },
-    }),
-    ...(params.runId
-      ? [
-          params.prisma.inAppAgentRun.update({
-            where: { id: params.runId, projectId: params.projectId },
-            data: { providerSessionId: params.providerSessionId },
-          }),
-        ]
-      : []),
-  ]);
+  await params.prisma.inAppAgentConversation.update({
+    where: { id: params.conversationId, projectId: params.projectId },
+    data: { providerSessionId: params.providerSessionId },
+  });
 }
 
 export async function upsertConversationMessages(params: {

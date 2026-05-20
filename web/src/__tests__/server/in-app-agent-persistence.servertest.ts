@@ -78,6 +78,7 @@ describe("in-app agent persistence", () => {
     });
 
     expect(conversation).not.toHaveProperty("providerSessionId");
+    expect(conversation).not.toHaveProperty("provider");
 
     await prisma.inAppAgentConversation.update({
       where: { id: conversation.id, projectId },
@@ -108,6 +109,7 @@ describe("in-app agent persistence", () => {
     });
 
     expect(detail.conversation).not.toHaveProperty("providerSessionId");
+    expect(detail.conversation).not.toHaveProperty("provider");
     expect(detail.conversation.id).toBe(conversation.id);
     expect(detail.conversation.title).toBe(
       "Please inspect today's traces for outliers",
@@ -137,6 +139,7 @@ describe("in-app agent persistence", () => {
 
     const listedConversations = await caller.list({ projectId });
     expect(listedConversations[0]).not.toHaveProperty("providerSessionId");
+    expect(listedConversations[0]).not.toHaveProperty("provider");
 
     const run = await createRun({
       prisma,

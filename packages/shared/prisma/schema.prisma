@@ -210,8 +210,8 @@ model ApiKey {
   @@map("api_keys")
 }
 
-enum InAppAgentConversationVisibility {
-  PRIVATE
+enum InAppAgentConversationVisibilityScope {
+  PERSONAL
   PROJECT
 }
 
@@ -240,26 +240,19 @@ enum InAppAgentRunStatus {
   TIMED_OUT
 }
 
-enum InAppAgentRunTrigger {
-  USER_MESSAGE
-  BACKGROUND
-}
-
 model InAppAgentConversation {
-  id                String                           @id @default(cuid())
-  projectId         String                           @map("project_id")
-  project           Project                          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdByUserId   String?                          @map("created_by_user_id")
-  createdByUser     User?                            @relation("InAppAgentConversationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  id                String                                @id @default(cuid())
+  projectId         String                                @map("project_id")
+  project           Project                               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdByUserId   String?                               @map("created_by_user_id")
+  createdByUser     User?                                 @relation("InAppAgentConversationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   title             String?
-  visibility        InAppAgentConversationVisibility @default(PRIVATE)
-  provider          String                           @default("anthropic")
-  providerSessionId String?                          @map("provider_session_id")
-  lastMessageAt     DateTime?                        @map("last_message_at")
-  archivedAt        DateTime?                        @map("archived_at")
-  deletedAt         DateTime?                        @map("deleted_at")
-  createdAt         DateTime                         @default(now()) @map("created_at")
-  updatedAt         DateTime                         @default(now()) @updatedAt @map("updated_at")
+  visibilityScope   InAppAgentConversationVisibilityScope @default(PERSONAL) @map("visibility_scope")
+  providerSessionId String?                               @map("provider_session_id")
+  lastMessageAt     DateTime?                             @map("last_message_at")
+  deletedAt         DateTime?                             @map("deleted_at")
+  createdAt         DateTime                              @default(now()) @map("created_at")
+  updatedAt         DateTime                              @default(now()) @updatedAt @map("updated_at")
 
   messages InAppAgentMessage[]
   runs     InAppAgentRun[]
@@ -297,31 +290,29 @@ model InAppAgentMessage {
 }
 
 model InAppAgentRun {
-  id                String                 @id @default(cuid())
-  projectId         String                 @map("project_id")
-  project           Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  conversationId    String                 @map("conversation_id")
-  conversation      InAppAgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  createdByUserId   String?                @map("created_by_user_id")
-  createdByUser     User?                  @relation("InAppAgentRunCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  status            InAppAgentRunStatus    @default(PENDING)
-  trigger           InAppAgentRunTrigger   @default(USER_MESSAGE)
-  modelProvider     String?                @map("model_provider")
-  model             String?
-  modelParams       Json?                  @map("model_params") @db.JsonB
-  agentVersion      String?                @map("agent_version")
-  promptVersions    Json?                  @map("prompt_versions") @db.JsonB
-  allowedTools      Json?                  @map("allowed_tools") @db.JsonB
-  mcpApiKeyId       String?                @map("mcp_api_key_id")
-  providerSessionId String?                @map("provider_session_id")
-  internalTraceId   String?                @map("internal_trace_id")
-  usage             Json?                  @db.JsonB
-  errorCode         String?                @map("error_code")
-  errorMessage      String?                @map("error_message")
-  startedAt         DateTime?              @map("started_at")
-  finishedAt        DateTime?              @map("finished_at")
-  createdAt         DateTime               @default(now()) @map("created_at")
-  updatedAt         DateTime               @default(now()) @updatedAt @map("updated_at")
+  id              String                 @id @default(cuid())
+  projectId       String                 @map("project_id")
+  project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  conversationId  String                 @map("conversation_id")
+  conversation    InAppAgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdByUserId String?                @map("created_by_user_id")
+  createdByUser   User?                  @relation("InAppAgentRunCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  status          InAppAgentRunStatus    @default(PENDING)
+  modelProvider   String?                @map("model_provider")
+  model           String?
+  modelParams     Json?                  @map("model_params") @db.JsonB
+  agentVersion    String?                @map("agent_version")
+  promptVersions  Json?                  @map("prompt_versions") @db.JsonB
+  allowedTools    Json?                  @map("allowed_tools") @db.JsonB
+  mcpApiKeyId     String?                @map("mcp_api_key_id")
+  internalTraceId String?                @map("internal_trace_id")
+  usage           Json?                  @db.JsonB
+  errorCode       String?                @map("error_code")
+  errorMessage    String?                @map("error_message")
+  startedAt       DateTime?              @map("started_at")
+  finishedAt      DateTime?              @map("finished_at")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @default(now()) @updatedAt @map("updated_at")
 
   messages InAppAgentMessage[]
 
