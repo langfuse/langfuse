@@ -233,7 +233,7 @@ async function writeTraceViaIngestion(trace: InternalTraceWriteInput) {
         projectId: rootEventInput.projectId,
         accessLevel: "project",
       },
-    } as any,
+    } satisfies Parameters<typeof processEventBatch>[1],
     { delay: 0, isLangfuseInternal: true },
   );
 
