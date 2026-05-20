@@ -12,8 +12,6 @@ import {
   type AgUiMessage,
 } from "@/src/features/in-app-agent/schema";
 
-const MAX_TITLE_LENGTH = 80;
-
 const AG_UI_ROLE_TO_DB_ROLE: Record<string, InAppAgentMessageRole> = {
   user: InAppAgentMessageRole.USER,
   assistant: InAppAgentMessageRole.ASSISTANT,
@@ -93,7 +91,6 @@ export async function ensureOwnedConversation(params: {
   projectId: string;
   conversationId: string;
   userId: string;
-  title?: string | null;
 }) {
   const existing = await params.prisma.inAppAgentConversation.findFirst({
     where: {
@@ -119,7 +116,6 @@ export async function ensureOwnedConversation(params: {
       id: params.conversationId,
       projectId: params.projectId,
       createdByUserId: params.userId,
-      title: normalizeTitle(params.title),
     },
   });
 }
@@ -226,11 +222,6 @@ export async function upsertConversationMessages(params: {
   }
 
   const lastMessageAt = new Date();
-  const firstUserTitle = params.messages
-    .flatMap((message) =>
-      message.role === "user" ? [getUserMessageTitle(message)] : [],
-    )
-    .find((title): title is string => title !== null);
 
   await params.prisma.$transaction([
     ...persistableMessages.map((message) =>
@@ -272,33 +263,7 @@ export async function upsertConversationMessages(params: {
         lastMessageAt,
       },
     }),
-    ...(firstUserTitle
-      ? [
-          params.prisma.inAppAgentConversation.updateMany({
-            where: {
-              id: params.conversationId,
-              projectId: params.projectId,
-              title: null,
-            },
-            data: {
-              title: normalizeTitle(firstUserTitle),
-            },
-          }),
-        ]
-      : []),
   ]);
-}
-
-export function normalizeTitle(title: string | null | undefined) {
-  const normalized = title?.replace(/\s+/g, " ").trim();
-
-  if (!normalized) {
-    return null;
-  }
-
-  return normalized.length > MAX_TITLE_LENGTH
-    ? `${normalized.slice(0, MAX_TITLE_LENGTH - 3)}...`
-    : normalized;
 }
 
 type PersistableMessage = {
@@ -322,26 +287,6 @@ function toPersistableMessage(
     role: AG_UI_ROLE_TO_DB_ROLE[message.role],
     content: toJsonValue(message),
   };
-}
-
-function getUserMessageTitle(message: Extract<AgUiMessage, { role: "user" }>) {
-  const content = message.content;
-
-  if (typeof content === "string") {
-    const text = content.trim();
-    return text ? text : null;
-  }
-
-  if (Array.isArray(content)) {
-    const text = content
-      .flatMap((part) => (part.type === "text" ? [part.text] : []))
-      .join("")
-      .trim();
-
-    return text ? text : null;
-  }
-
-  return null;
 }
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {

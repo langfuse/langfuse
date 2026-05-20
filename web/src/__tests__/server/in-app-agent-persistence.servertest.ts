@@ -77,7 +77,6 @@ describe("in-app agent persistence", () => {
 
     const conversation = await caller.create({
       projectId,
-      title: "Please inspect today's traces for outliers",
     });
 
     expect(conversation).not.toHaveProperty("providerSessionId");
@@ -114,9 +113,7 @@ describe("in-app agent persistence", () => {
     expect(detail.conversation).not.toHaveProperty("providerSessionId");
     expect(detail.conversation).not.toHaveProperty("provider");
     expect(detail.conversation.id).toBe(conversation.id);
-    expect(detail.conversation.title).toBe(
-      "Please inspect today's traces for outliers",
-    );
+    expect(detail.conversation.title).toBeNull();
     expect(detail.state).toEqual({
       type: "existingConversation",
       projectId,
@@ -206,7 +203,7 @@ describe("in-app agent persistence", () => {
       }),
     ).resolves.toMatchObject({
       conversation: {
-        title: "Please inspect today's traces for outliers",
+        title: null,
       },
     });
   });
@@ -238,7 +235,6 @@ describe("in-app agent persistence", () => {
 
     const conversation = await owner.caller.create({
       projectId: owner.projectId,
-      title: "Private analysis",
     });
 
     await expect(

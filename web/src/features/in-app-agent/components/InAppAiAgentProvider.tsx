@@ -378,7 +378,6 @@ function InAppAiAgentProviderInner({
             (
               await createConversationMutation.mutateAsync({
                 projectId,
-                title: content,
               })
             ).id;
 

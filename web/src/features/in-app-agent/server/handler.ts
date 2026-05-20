@@ -175,14 +175,12 @@ export default async function handler(request: Request) {
     }
 
     const sanitizedInput = sanitizeAgentInput(input);
-    const lastUserMessage = getLastUserMessage(input.messages);
 
     const conversation = await ensureOwnedConversation({
       prisma,
       projectId,
       conversationId,
       userId: auth.userId,
-      title: lastUserMessage?.content,
     });
 
     await createRun({

@@ -9,7 +9,6 @@ import {
 import { AgUiMessageSchema } from "@/src/features/in-app-agent/schema";
 import {
   getOwnedConversationOrThrow,
-  normalizeTitle,
   serializeConversation,
   serializeMessage,
   upsertConversationMessages,
@@ -48,7 +47,6 @@ export const inAppAgentRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        title: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -58,7 +56,6 @@ export const inAppAgentRouter = createTRPCRouter({
         data: {
           projectId: input.projectId,
           createdByUserId: ctx.session.user.id,
-          title: normalizeTitle(input.title),
         },
       });
 
