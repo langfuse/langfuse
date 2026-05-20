@@ -385,6 +385,7 @@ const FIELD_SETS = {
     "experimentId",
     "experimentItemRootSpanId",
     "experimentItemExpectedOutput",
+    "experimentItemMetadata",
   ],
 
   // Experiment items field set

@@ -1,50 +1,29 @@
-import { type ObservationForEval } from "./types";
 import {
   observationEvalVariableColumns,
-  type ObservationVariableMapping,
-  deepParseJson,
-  extractValueFromObject,
-} from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+  type ObservationEvalVariableColumn,
+  type ObservationForEval,
+} from "../../features/evals/observationForEval";
+import type { ObservationVariableMapping } from "../../features/evals/types";
+import { extractValueFromObject } from "../../features/evals/utilities";
+import { deepParseJson } from "../../utils/json";
+import { logger } from "../logger";
 
-/**
- * Extracted variable from observation data for LLM-as-a-judge evaluation.
- */
 export interface ExtractedVariable {
   var: string;
   value: unknown;
   environment?: string;
 }
 
-interface ExtractVariablesParams {
-  observation: ObservationForEval;
-  variableMapping: ObservationVariableMapping[];
-}
-
-/**
- * Extracts variable values from an observation based on the variable mapping.
- *
- * For each mapping:
- * 1. Gets the value from the observation based on selectedColumnId (direct property access)
- * 2. Optionally applies JSON selector if provided
- * 3. Returns an array of extracted variables compatible with executeLLMAsJudgeEvaluation()
- *
- * JSON string parsing (via deepParseJson) is lazy:
- * - Only happens if at least one mapping has a JSON selector
- * - Only parses fields that have selectors (not all fields)
- * - Each field is parsed once, regardless of how many mappings access it
- *
- * Note: Environment is passed directly to executeLLMAsJudgeEvaluation() by the caller,
- * not embedded in variables.
- */
 export function extractObservationVariables(
-  params: ExtractVariablesParams,
-  columns = observationEvalVariableColumns,
+  params: {
+    observation: ObservationForEval;
+    variableMapping: ObservationVariableMapping[];
+  },
+  columns: ObservationEvalVariableColumn[] = observationEvalVariableColumns,
 ): ExtractedVariable[] {
   const { observation, variableMapping } = params;
   const variables: ExtractedVariable[] = [];
 
-  // Find which fields have JSON selectors - we'll parse these once upfront
   const fieldsWithSelectors = new Set<string>();
   for (const mapping of variableMapping) {
     if (mapping.jsonSelector) {
@@ -52,7 +31,6 @@ export function extractObservationVariables(
     }
   }
 
-  // Parse fields with selectors once (lazy - skip if no selectors)
   const parsedFields = new Map<string, unknown>();
   for (const fieldId of fieldsWithSelectors) {
     const internal = columns.find((col) => col.id === fieldId)?.internal;
@@ -60,7 +38,6 @@ export function extractObservationVariables(
       try {
         parsedFields.set(fieldId, deepParseJson(observation[internal]));
       } catch {
-        // If parsing fails, use raw value
         parsedFields.set(fieldId, observation[internal]);
       }
     }
@@ -82,14 +59,11 @@ export function extractObservationVariables(
       continue;
     }
 
-    // Use pre-parsed value only for mappings that requested a selector,
-    // otherwise keep the raw column value even if a sibling mapping parsed it.
     const fieldValue =
       mapping.jsonSelector && parsedFields.has(mapping.selectedColumnId)
         ? parsedFields.get(mapping.selectedColumnId)
         : observation[internal];
 
-    // Build a single-key object so extractValueFromObject can look it up
     const { value, error } = extractValueFromObject(
       { [mapping.selectedColumnId]: fieldValue },
       mapping.selectedColumnId,

@@ -8,7 +8,7 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import {
   CodeEvalDispatcherError,
-  CodeEvalDispatcherErrorCode,
+  getCodeEvalUserVisibleError,
   getCurrentSpan,
   logger,
   QueueName,
@@ -100,25 +100,15 @@ const validateCodeBasedTemplate = (
   return template;
 };
 
-const INTERNAL_ERROR_MESSAGE = "An internal error occurred";
-
-const INTERNAL_CODE_EVAL_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
-  CodeEvalDispatcherErrorCode.enum.LAMBDA_CONCURRENCY_LIMIT,
-  CodeEvalDispatcherErrorCode.enum.LAMBDA_CONFIGURATION_ERROR,
-  CodeEvalDispatcherErrorCode.enum.LAMBDA_INVOCATION_ERROR,
-]);
-
 // Returns a user-visible message for JobExecution.error. Dispatcher errors
 // with internal lambda codes are masked to avoid exposing infra details;
 // other dispatcher errors and UnrecoverableError messages are surfaced as-is.
 function getJobExecutionErrorMessage(e: unknown): string {
   if (e instanceof CodeEvalDispatcherError) {
-    return INTERNAL_CODE_EVAL_ERROR_CODES.has(e.code)
-      ? INTERNAL_ERROR_MESSAGE
-      : e.message;
+    return getCodeEvalUserVisibleError(e).message;
   }
 
   if (isUnrecoverableError(e)) return e.message;
 
-  return INTERNAL_ERROR_MESSAGE;
+  return getCodeEvalUserVisibleError(e).message;
 }

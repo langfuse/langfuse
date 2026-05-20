@@ -68,6 +68,7 @@ import {
   JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
 } from "@/src/features/evals/server/audit-log-resource-types";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
+import { runCodeEvalTest } from "@/src/features/evals/server/codeEvalTestRun";
 
 // Filter columns that used to be backed by the Postgres `traces` and
 // `scores` JOINs.  Those tables now live in ClickHouse, so the eval logs
@@ -170,6 +171,18 @@ const CreateEvalJobSchema = z.object({
   delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
   timeScope: TimeScopeSchema,
   status: z.enum(EvaluatorStatus).optional().default(JobConfigState.ACTIVE),
+});
+
+const CodeEvalTestRunSchema = z.object({
+  projectId: z.string(),
+  evalTemplateId: z.string(),
+  target: z.union([
+    z.literal(EvalTargetObject.EVENT),
+    z.literal(EvalTargetObject.EXPERIMENT),
+  ]),
+  mapping: z.array(observationVariableMapping),
+  scoreName: z.string().min(1),
+  observationId: z.string(),
 });
 
 const UpdateEvalJobSchema = z.object({
@@ -851,6 +864,30 @@ export const evalRouter = createTRPCRouter({
       }
 
       return { id: job.id };
+    }),
+  testRunCodeEval: protectedProjectProcedure
+    .input(CodeEvalTestRunSchema)
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:CUD",
+      });
+
+      validateVariableMappingForTarget({
+        targetObject: input.target,
+        mapping: input.mapping,
+      });
+
+      return runCodeEvalTest({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        evalTemplateId: input.evalTemplateId,
+        target: input.target,
+        mapping: input.mapping,
+        scoreName: input.scoreName,
+        observationId: input.observationId,
+      });
     }),
   createTemplate: protectedProjectProcedure
     .input(CreateEvalTemplateInputSchema)

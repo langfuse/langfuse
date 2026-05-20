@@ -545,16 +545,22 @@ export type ProcessedTraceEvent = {
   body: Record<string, unknown>;
 };
 
+export type InternalTraceWriteInput = {
+  rootSpanId: string;
+  eventInputs: InternalTraceEventInput[];
+};
+
+export type InternalTraceWriter = (
+  params: InternalTraceWriteInput,
+) => Promise<void>;
+
 /**
  * Configuration for direct writing of trace events to the events table.
  * Used by internal tracing (prompt experiments, evaluations).
  */
 export type InternalEventsWriter = {
   experimentContext?: InternalTraceExperimentContext;
-  write: (params: {
-    rootSpanId: string;
-    eventInputs: InternalTraceEventInput[];
-  }) => Promise<void>;
+  write: InternalTraceWriter;
 };
 
 export type TraceSinkParams = {

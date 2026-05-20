@@ -3,8 +3,8 @@ import {
   ChatMessageType,
   parseUnknownToString,
 } from "@langfuse/shared";
+import { type ExtractedVariable } from "@langfuse/shared/src/server";
 import { compileTemplateString } from "../utils";
-import { ExtractedVariable } from "./observationEval/extractObservationVariables";
 
 export interface CompileEvalPromptParams {
   templatePrompt: string;

@@ -2,7 +2,9 @@ import { z } from "zod";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
   ObservationEvalExecutionEventSchema,
+  extractObservationVariables,
   logger,
+  type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import {
   observationForEvalSchema,
@@ -14,10 +16,6 @@ import {
 import { type JobConfiguration, type JobExecution } from "@prisma/client";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
-import {
-  extractObservationVariables,
-  type ExtractedVariable,
-} from "./extractObservationVariables";
 import { buildEvalExecutionMetadata } from "../evalRuntime";
 import {
   completeEvalExecution,

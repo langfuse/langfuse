@@ -63,6 +63,7 @@ export const observationForEvalSchema = z.object({
   experiment_dataset_id: z.string().nullish(),
   experiment_item_id: z.string().nullish(),
   experiment_item_expected_output: z.string().nullish(),
+  experiment_item_metadata: z.record(z.string(), z.unknown()).default({}),
   experiment_item_root_span_id: z.string().nullish(),
 
   // Data - accepts any type (string, array, object) from different OTEL SDKs
@@ -111,7 +112,11 @@ export type ObservationEvalFilterColumnInternal =
 
 export type ObservationEvalMappingColumnInternal = keyof Pick<
   ObservationForEval,
-  "input" | "output" | "metadata" | "experiment_item_expected_output"
+  | "input"
+  | "output"
+  | "metadata"
+  | "experiment_item_expected_output"
+  | "experiment_item_metadata"
 >;
 
 export interface ObservationEvalVariableColumn {
@@ -158,6 +163,13 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
     name: "Expected Output",
     description: "Expected output from experiment item",
     internal: "experiment_item_expected_output",
+  },
+  {
+    id: "experimentItemMetadata",
+    name: "Experiment Item Metadata",
+    description: "Metadata from experiment item",
+    type: "stringObject",
+    internal: "experiment_item_metadata",
   },
 ];
 
