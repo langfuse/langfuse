@@ -34,7 +34,34 @@ vi.mock("../../features/evaluation/codeBased", () => ({
   executeCodeBasedEvaluation: vi.fn(),
 }));
 
+const { FakeCodeEvalDispatcherError } = vi.hoisted(() => {
+  class FakeCodeEvalDispatcherError extends Error {
+    public readonly code: string;
+    public readonly retryable: boolean;
+
+    constructor(
+      message: string,
+      options: { code: string; retryable?: boolean },
+    ) {
+      super(message);
+      this.name = "CodeEvalDispatcherError";
+      this.code = options.code;
+      this.retryable = options.retryable ?? false;
+    }
+  }
+
+  return { FakeCodeEvalDispatcherError };
+});
+
 vi.mock("@langfuse/shared/src/server", () => ({
+  CodeEvalDispatcherError: FakeCodeEvalDispatcherError,
+  CodeEvalDispatcherErrorCode: {
+    enum: {
+      LAMBDA_CONCURRENCY_LIMIT: "LAMBDA_CONCURRENCY_LIMIT",
+      LAMBDA_CONFIGURATION_ERROR: "LAMBDA_CONFIGURATION_ERROR",
+      LAMBDA_INVOCATION_ERROR: "LAMBDA_INVOCATION_ERROR",
+    },
+  },
   getCurrentSpan: vi.fn().mockReturnValue({
     setAttribute: vi.fn(),
   }),
@@ -73,7 +100,13 @@ describe("codeEvalExecutionQueueProcessor", () => {
   const queueName = `${QueueName.CodeEvalExecution}-1`;
   let codeEvalExecutionQueueProcessor: (job: Job<any>) => Promise<unknown>;
 
-  const createMockJob = (overrides: Record<string, unknown> = {}): Job<any> =>
+  const createMockJob = (
+    overrides: {
+      data?: Record<string, unknown>;
+      attemptsMade?: number;
+      opts?: { attempts?: number };
+    } = {},
+  ): Job<any> =>
     ({
       data: {
         id: "queue-job-123",
@@ -85,8 +118,10 @@ describe("codeEvalExecutionQueueProcessor", () => {
           observationS3Path,
         },
         retryBaggage: { attempt: 0 },
-        ...overrides,
+        ...overrides.data,
       },
+      attemptsMade: overrides.attemptsMade ?? 0,
+      opts: overrides.opts ?? { attempts: 10 },
     }) as Job<any>;
 
   beforeAll(async () => {
@@ -118,6 +153,49 @@ describe("codeEvalExecutionQueueProcessor", () => {
     });
   });
 
+  it("should treat non-retryable dispatcher errors as terminal and show the dispatcher message", async () => {
+    const error = new FakeCodeEvalDispatcherError(
+      "Evaluator returned invalid result",
+      { code: "INVALID_RESULT", retryable: false },
+    );
+    (processObservationEval as Mock).mockRejectedValue(error);
+
+    const result = await codeEvalExecutionQueueProcessor(createMockJob());
+
+    expect(result).toBeUndefined();
+    expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+      where: { id: jobExecutionId, projectId },
+      data: {
+        status: JobExecutionStatus.ERROR,
+        endTime: expect.any(Date),
+        error: "Evaluator returned invalid result",
+        executionTraceId: "test-trace-id",
+      },
+    });
+    expect(traceException).not.toHaveBeenCalled();
+  });
+
+  it("should mask internal lambda error codes when finalizing on the last attempt", async () => {
+    const error = new FakeCodeEvalDispatcherError(
+      "Function not found: code-based-eval-executor-node",
+      { code: "LAMBDA_CONFIGURATION_ERROR", retryable: false },
+    );
+    (processObservationEval as Mock).mockRejectedValue(error);
+
+    const result = await codeEvalExecutionQueueProcessor(createMockJob());
+
+    expect(result).toBeUndefined();
+    expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+      where: { id: jobExecutionId, projectId },
+      data: {
+        status: JobExecutionStatus.ERROR,
+        endTime: expect.any(Date),
+        error: "An internal error occurred",
+        executionTraceId: "test-trace-id",
+      },
+    });
+  });
+
   it("should mark unrecoverable skeleton errors as terminal", async () => {
     const error = new UnrecoverableError(
       "Code-based eval execution is not implemented yet",
@@ -143,12 +221,26 @@ describe("codeEvalExecutionQueueProcessor", () => {
     expect(traceException).not.toHaveBeenCalled();
   });
 
-  it("should rethrow unexpected errors after marking the job as errored", async () => {
+  it("should rethrow retryable errors without writing ERROR while retries remain", async () => {
     const error = new Error("temporary dispatcher failure");
     (processObservationEval as Mock).mockRejectedValue(error);
 
     await expect(
       codeEvalExecutionQueueProcessor(createMockJob()),
+    ).rejects.toThrow(error);
+
+    expect(prisma.jobExecution.update).not.toHaveBeenCalled();
+    expect(traceException).toHaveBeenCalledWith(error);
+  });
+
+  it("should mark the job as ERROR with a masked message on the final retry attempt", async () => {
+    const error = new Error("temporary dispatcher failure");
+    (processObservationEval as Mock).mockRejectedValue(error);
+
+    await expect(
+      codeEvalExecutionQueueProcessor(
+        createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
+      ),
     ).rejects.toThrow(error);
 
     expect(prisma.jobExecution.update).toHaveBeenCalledWith({

@@ -32,6 +32,7 @@ import {
   isLLMCompletionError,
   blockEvaluatorConfigs,
   EvaluatorBlockSource,
+  type CodeEvalScoreWithName,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -59,6 +60,7 @@ import {
   PersistedEvalOutputDefinitionSchema,
   ScoreDataTypeEnum,
   validateEvalOutputResult,
+  type EvalOutputResult,
   extractValueFromObject,
   validateEvaluatorFiltersForTarget,
 } from "@langfuse/shared";
@@ -955,12 +957,53 @@ export async function runLLMAsJudgeEvaluation({
       );
 
       return {
-        outputResult: parsedLLMOutput.data,
+        scores: toNormalizedScores({
+          outputResult: parsedLLMOutput.data,
+          scoreName: config.scoreName,
+        }),
         primaryScoreId,
         executionTraceId,
+        metadata,
       };
     },
   );
+}
+
+function toNormalizedScores(params: {
+  outputResult: EvalOutputResult;
+  scoreName: string;
+}): CodeEvalScoreWithName[] {
+  const { outputResult, scoreName } = params;
+  const baseFields = {
+    name: scoreName,
+    comment: outputResult.reasoning,
+  };
+
+  if (outputResult.dataType === ScoreDataTypeEnum.NUMERIC) {
+    return [
+      {
+        ...baseFields,
+        dataType: ScoreDataTypeEnum.NUMERIC,
+        value: outputResult.score,
+      },
+    ];
+  }
+
+  if (outputResult.dataType === ScoreDataTypeEnum.BOOLEAN) {
+    return [
+      {
+        ...baseFields,
+        dataType: ScoreDataTypeEnum.BOOLEAN,
+        value: outputResult.score ? 1 : 0,
+      },
+    ];
+  }
+
+  return outputResult.matches.map((value) => ({
+    ...baseFields,
+    dataType: ScoreDataTypeEnum.CATEGORICAL,
+    value,
+  }));
 }
 
 export async function executeLLMAsJudgeEvaluation(
@@ -986,11 +1029,9 @@ export async function executeLLMAsJudgeEvaluation(
     jobExecutionId: params.jobExecutionId,
     traceId: params.job.jobInputTraceId,
     observationId: params.job.jobInputObservationId,
-    scoreName: params.config.scoreName,
     environment: params.environment,
-    metadata,
     deps,
-    ...result,
+    result,
   });
 }
 
@@ -1133,13 +1174,13 @@ export async function extractVariablesFromTracingData({
   traceTimestamp?: Date;
   datasetItemId?: string;
   datasetItemValidFrom?: Date;
-}): Promise<{ var: string; value: string; environment?: string }[]> {
+}): Promise<ExtractedVariable[]> {
   // Internal cache for this function call to avoid duplicate database lookups.
   // We do not cache dataset items as Postgres is cheaper than ClickHouse.
   const traceCache = new Map<string, TraceDomain | null>();
   const observationCache = new Map<string, Observation | null>();
 
-  const results: { var: string; value: string; environment?: string }[] = [];
+  const results: ExtractedVariable[] = [];
 
   // We run through this list sequentially to make use of caching.
   // The performance improvement by parallel execution should be less than the improvement we gain by caching.
@@ -1203,7 +1244,7 @@ export async function extractVariablesFromTracingData({
 
       results.push({
         var: variable,
-        value: parseDatabaseRowToString(datasetItem, mapping),
+        value: parseDatabaseRowValue(datasetItem, mapping),
       });
       continue;
     }
@@ -1248,7 +1289,7 @@ export async function extractVariablesFromTracingData({
 
       results.push({
         var: variable,
-        value: parseDatabaseRowToString(trace, mapping),
+        value: parseDatabaseRowValue(trace, mapping),
         environment: trace.environment,
       });
       continue;
@@ -1309,7 +1350,7 @@ export async function extractVariablesFromTracingData({
 
       results.push({
         var: variable,
-        value: parseDatabaseRowToString(observation, mapping),
+        value: parseDatabaseRowValue(observation, mapping),
         environment: observation.environment,
       });
       continue;
@@ -1324,10 +1365,13 @@ export async function extractVariablesFromTracingData({
 const snakeToCamel = (s: string) =>
   s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 
-export const parseDatabaseRowToString = (
+// Returns the typed value extracted from a database row. LLM-as-judge
+// stringifies at template-substitution time via `compileEvalPrompt`; code-
+// based evaluators consume the typed value directly.
+export const parseDatabaseRowValue = (
   dbRow: Record<string, unknown>,
   mapping: z.infer<typeof variableMapping>,
-): string => {
+): unknown => {
   // Prisma returns camelCase keys, but selectedColumnId may be snake_case
   const selectedColumn =
     dbRow[mapping.selectedColumnId] ??

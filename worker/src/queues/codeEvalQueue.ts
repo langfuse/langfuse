@@ -7,6 +7,8 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  CodeEvalDispatcherError,
+  CodeEvalDispatcherErrorCode,
   getCurrentSpan,
   logger,
   QueueName,
@@ -54,20 +56,29 @@ export const codeEvalExecutionQueueProcessorBuilder = (
         job.data.payload.jobExecutionId,
       );
 
-      const isTerminalError = isUnrecoverableError(e);
+      const isTerminalError =
+        isUnrecoverableError(e) ||
+        (e instanceof CodeEvalDispatcherError && !e.retryable);
+      const totalAttempts = job.opts.attempts ?? 1;
+      const isFinalAttempt = job.attemptsMade + 1 >= totalAttempts;
 
-      await prisma.jobExecution.update({
-        where: {
-          id: job.data.payload.jobExecutionId,
-          projectId: job.data.payload.projectId,
-        },
-        data: {
-          status: JobExecutionStatus.ERROR,
-          endTime: new Date(),
-          error: isTerminalError ? e.message : "An internal error occurred",
-          executionTraceId,
-        },
-      });
+      // Only persist the terminal ERROR state when there will be no more
+      // retries; otherwise observationEvalProcessor would short-circuit the
+      // retry attempts because it skips jobs already in ERROR status.
+      if (isTerminalError || isFinalAttempt) {
+        await prisma.jobExecution.update({
+          where: {
+            id: job.data.payload.jobExecutionId,
+            projectId: job.data.payload.projectId,
+          },
+          data: {
+            status: JobExecutionStatus.ERROR,
+            endTime: new Date(),
+            error: getJobExecutionErrorMessage(e),
+            executionTraceId,
+          },
+        });
+      }
 
       if (isTerminalError) return;
 
@@ -88,3 +99,26 @@ const validateCodeBasedTemplate = (
   assertCodeBasedEvalTemplate(template);
   return template;
 };
+
+const INTERNAL_ERROR_MESSAGE = "An internal error occurred";
+
+const INTERNAL_CODE_EVAL_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
+  CodeEvalDispatcherErrorCode.enum.LAMBDA_CONCURRENCY_LIMIT,
+  CodeEvalDispatcherErrorCode.enum.LAMBDA_CONFIGURATION_ERROR,
+  CodeEvalDispatcherErrorCode.enum.LAMBDA_INVOCATION_ERROR,
+]);
+
+// Returns a user-visible message for JobExecution.error. Dispatcher errors
+// with internal lambda codes are masked to avoid exposing infra details;
+// other dispatcher errors and UnrecoverableError messages are surfaced as-is.
+function getJobExecutionErrorMessage(e: unknown): string {
+  if (e instanceof CodeEvalDispatcherError) {
+    return INTERNAL_CODE_EVAL_ERROR_CODES.has(e.code)
+      ? INTERNAL_ERROR_MESSAGE
+      : e.message;
+  }
+
+  if (isUnrecoverableError(e)) return e.message;
+
+  return INTERNAL_ERROR_MESSAGE;
+}

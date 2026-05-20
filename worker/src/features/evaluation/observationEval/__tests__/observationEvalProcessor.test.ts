@@ -81,11 +81,14 @@ import {
 import { runLLMAsJudgeEvaluation } from "../../evalService";
 
 const mockEvalExecutionResult = {
-  outputResult: {
-    dataType: "NUMERIC" as const,
-    score: 0.5,
-    reasoning: "Mock eval result",
-  },
+  scores: [
+    {
+      dataType: "NUMERIC" as const,
+      value: 0.5,
+      name: "test-score",
+      comment: "Mock eval result",
+    },
+  ],
   primaryScoreId: "score-123",
   executionTraceId: "trace-123",
   metadata: {},
