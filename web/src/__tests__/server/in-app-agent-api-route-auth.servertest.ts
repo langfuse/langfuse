@@ -48,7 +48,7 @@ describe("in-app agent public API route auth", () => {
   it("rejects in-app agent keys when allowInAppAgentKey is omitted", async () => {
     const res = await callRoute({});
 
-    expect(res.statusCode).toBe(403);
+    expect(res.statusCode).toBe(401);
     expect(res._getJSONData()).toEqual({
       message:
         "Access denied - in-app agent keys are not allowed for this endpoint",
@@ -58,7 +58,7 @@ describe("in-app agent public API route auth", () => {
   it("rejects in-app agent keys when allowInAppAgentKey is false", async () => {
     const res = await callRoute({ allowInAppAgentKey: false });
 
-    expect(res.statusCode).toBe(403);
+    expect(res.statusCode).toBe(401);
     expect(res._getJSONData()).toEqual({
       message:
         "Access denied - in-app agent keys are not allowed for this endpoint",

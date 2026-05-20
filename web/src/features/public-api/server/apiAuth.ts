@@ -24,7 +24,7 @@ import { type Redis, type Cluster } from "ioredis";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { API_KEY_NON_EXISTENT } from "@langfuse/shared/src/server";
 import { type z } from "zod";
-import { CloudConfigSchema, ForbiddenError, isPlan } from "@langfuse/shared";
+import { CloudConfigSchema, isPlan } from "@langfuse/shared";
 
 type VerifyAuthHeaderOptions = {
   allowInAppAgentKey?: boolean;
@@ -283,9 +283,11 @@ export class ApiAuthService {
       result.scope.isInAppAgentKey === true &&
       options.allowInAppAgentKey !== true
     ) {
-      throw new ForbiddenError(
-        "Access denied - in-app agent keys are not allowed for this endpoint",
-      );
+      return {
+        validKey: false,
+        error:
+          "Access denied - in-app agent keys are not allowed for this endpoint",
+      };
     }
 
     return result;
