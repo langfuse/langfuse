@@ -45,6 +45,19 @@ export function isValidQuery(input: {
     };
   }
 
+  // `histogram` returns a bucket-array (Array(Tuple(...))) at the ClickHouse
+  // layer; monitor thresholds are scalars (`z.number()`) compared with
+  // `gt`/`gte`/`lt`/`lte`/`eq`/`neq`. No defined comparison semantics →
+  // reject at the input boundary rather than failing in the worker.
+  if (input.metric.aggregation === "histogram") {
+    return {
+      valid: false,
+      reason:
+        `Aggregation "histogram" is not supported for monitors — it produces ` +
+        `a bucket array, not a scalar value comparable to the threshold.`,
+    };
+  }
+
   for (const filter of input.filters) {
     if (filter.column === "metadata") continue;
     if (!Object.hasOwn(declaration.dimensions, filter.column)) {

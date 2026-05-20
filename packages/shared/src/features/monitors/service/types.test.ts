@@ -96,6 +96,14 @@ describe("CreateMonitorInputSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects status `error-bad-query` on create (scheduler-owned)", () => {
+    const result = CreateMonitorInputSchema.safeParse({
+      ...validCreateInput,
+      status: "error-bad-query",
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("UpdateMonitorInputSchema", () => {
@@ -129,6 +137,17 @@ describe("UpdateMonitorInputSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects status `error-bad-query` on update (scheduler-owned)", () => {
+    // `error-bad-query` is flipped by the scheduler when a monitor's query
+    // fails to evaluate. Callers must not be able to set or clear it
+    // directly — narrowing the input DTO to active/paused enforces that.
+    const result = UpdateMonitorInputSchema.safeParse({
+      ...validUpdateInput,
+      status: "error-bad-query",
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("MonitorListInputSchema", () => {
@@ -152,6 +171,25 @@ describe("MonitorListInputSchema", () => {
       limit: 25,
     });
     expect(result.success).toBe(true);
+  });
+
+  it.each(["name", "status", "severity", "createdAt"] as const)(
+    "accepts %s as orderBy.column",
+    (column) => {
+      const result = MonitorListInputSchema.safeParse({
+        projectId: "proj_01",
+        orderBy: { column, order: "DESC" },
+      });
+      expect(result.success).toBe(true);
+    },
+  );
+
+  it("rejects an unknown orderBy.column (Prisma would otherwise raise a 500)", () => {
+    const result = MonitorListInputSchema.safeParse({
+      projectId: "proj_01",
+      orderBy: { column: "bogus", order: "DESC" },
+    });
+    expect(result.success).toBe(false);
   });
 
   it("rejects a missing projectId", () => {

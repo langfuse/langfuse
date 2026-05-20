@@ -102,4 +102,17 @@ describe("isValidQuery", () => {
       }
     },
   );
+
+  it("rejects histogram aggregation (bucket array is not comparable to a scalar threshold)", () => {
+    const result = isValidQuery({
+      view: "observations",
+      metric: { measure: "count", aggregation: "histogram" },
+      filters: [],
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.reason).toContain("histogram");
+      expect(result.reason).toContain("not supported for monitors");
+    }
+  });
 });

@@ -42,6 +42,16 @@ export const MonitorStatusSchema = z.enum([
 export type MonitorStatus = z.infer<typeof MonitorStatusSchema>;
 
 /**
+ * MonitorWriteStatusSchema is the subset of `MonitorStatusSchema` callers may
+ * submit on create/update. `error-bad-query` is owned by the scheduler/worker
+ * (flipped when a monitor's query fails to evaluate); accepting it on inputs
+ * would let callers forge a broken state or clear a legitimately broken
+ * monitor without scheduler revalidation.
+ */
+export const MonitorWriteStatusSchema = z.enum(["active", "paused"]);
+export type MonitorWriteStatus = z.infer<typeof MonitorWriteStatusSchema>;
+
+/**
  * MonitorThresholdOperatorSchema is the kebab-case wire form of Prisma's
  * `MonitorThresholdOperator` enum.
  */
