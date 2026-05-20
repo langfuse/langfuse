@@ -232,6 +232,29 @@ describe("organization API keys trpc", () => {
       expect(updatedKey?.note).toBe("Updated Note");
     });
 
+    it("does not update in-app agent API keys", async () => {
+      const inAppAgentKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: organizationId,
+        scope: "ORGANIZATION",
+        note: "Original in-app agent note",
+        isInAppAgentKey: true,
+      });
+
+      await expect(
+        ownerCaller.organizationApiKeys.updateNote({
+          orgId: organizationId,
+          keyId: inAppAgentKey.id,
+          note: "Updated in-app agent note",
+        }),
+      ).rejects.toThrow();
+
+      const persistedKey = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: inAppAgentKey.id },
+      });
+      expect(persistedKey.note).toBe("Original in-app agent note");
+    });
+
     it("regular member cannot update API key note", async () => {
       // Create a key as owner
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
@@ -288,6 +311,26 @@ describe("organization API keys trpc", () => {
 
       const deletedKey = apiKeys.find((key) => key.id === apiKeyResult.id);
       expect(deletedKey).toBeUndefined();
+    });
+
+    it("does not delete in-app agent API keys", async () => {
+      const inAppAgentKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: organizationId,
+        scope: "ORGANIZATION",
+        isInAppAgentKey: true,
+      });
+
+      await expect(
+        ownerCaller.organizationApiKeys.delete({
+          orgId: organizationId,
+          id: inAppAgentKey.id,
+        }),
+      ).resolves.toBe(false);
+
+      await expect(
+        prisma.apiKey.findUniqueOrThrow({ where: { id: inAppAgentKey.id } }),
+      ).resolves.toBeDefined();
     });
 
     it("regular member cannot delete API key", async () => {

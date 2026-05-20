@@ -99,6 +99,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         where: {
           id: input.keyId,
           orgId: input.orgId,
+          isInAppAgentKey: false,
         },
         data: {
           note: input.note,
@@ -127,6 +128,16 @@ export const organizationApiKeysRouter = createTRPCRouter({
         resourceId: input.id,
         action: "delete",
       });
+
+      const apiKey = await ctx.prisma.apiKey.findFirstOrThrow({
+        where: {
+          id: input.id,
+          orgId: input.orgId,
+          scope: "ORGANIZATION",
+        },
+      });
+
+      if (apiKey.isInAppAgentKey) return false;
 
       return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
         input.id,

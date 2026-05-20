@@ -360,7 +360,7 @@ describe("Authenticate API calls", () => {
     }, 20_000);
 
     it("should create new api key and read from cache", async () => {
-      const legacySecretKey = ["legacy", "secret", "key"].join("-");
+      const legacySecretKey = ["legacy", "secret", "key", v4()].join("-");
       const legacyPublicKey = `legacy-public-key-${v4()}`;
       const legacyAuth = createBasicAuthHeader(
         legacyPublicKey,
