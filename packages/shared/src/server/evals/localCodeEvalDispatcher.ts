@@ -3,6 +3,7 @@ import { Worker } from "node:worker_threads";
 import { env } from "../../env";
 import {
   CodeEvalDispatcherError,
+  CodeEvalDispatcherErrorCodes,
   parseDispatchResult,
   type CodeEvalDispatcher,
   type CodeEvalDispatcherErrorCode,
@@ -61,7 +62,8 @@ type WorkerFailure = {
   ok: false;
   code: Extract<
     CodeEvalDispatcherErrorCode,
-    "INVALID_SOURCE" | "USER_CODE_ERROR"
+    | typeof CodeEvalDispatcherErrorCodes.INVALID_SOURCE
+    | typeof CodeEvalDispatcherErrorCodes.USER_CODE_ERROR
   >;
   message: string;
 };
@@ -80,7 +82,7 @@ export class LocalCodeEvalDispatcher implements CodeEvalDispatcher {
     if (input.runtime.language !== "TYPESCRIPT") {
       throw new CodeEvalDispatcherError(
         "Local code eval dispatcher only supports TypeScript/JavaScript evaluators",
-        { code: "UNSUPPORTED_RUNTIME" },
+        { code: CodeEvalDispatcherErrorCodes.UNSUPPORTED_RUNTIME },
       );
     }
 
@@ -90,7 +92,7 @@ export class LocalCodeEvalDispatcher implements CodeEvalDispatcher {
     } catch (error) {
       throw new CodeEvalDispatcherError(
         `Failed to strip TypeScript syntax: ${error instanceof Error ? error.message : String(error)}`,
-        { code: "INVALID_SOURCE", cause: error },
+        { code: CodeEvalDispatcherErrorCodes.INVALID_SOURCE, cause: error },
       );
     }
 
@@ -125,7 +127,7 @@ function runInWorker(
       cleanup();
       reject(
         new CodeEvalDispatcherError("Local code eval execution timed out", {
-          code: "TIMEOUT",
+          code: CodeEvalDispatcherErrorCodes.TIMEOUT,
           retryable: true,
         }),
       );
@@ -152,7 +154,7 @@ function runInWorker(
       reject(
         new CodeEvalDispatcherError(
           `Local code eval worker crashed: ${error.message}`,
-          { code: "INVALID_SOURCE", cause: error },
+          { code: CodeEvalDispatcherErrorCodes.INVALID_SOURCE, cause: error },
         ),
       );
     });
@@ -165,7 +167,7 @@ function runInWorker(
       reject(
         new CodeEvalDispatcherError(
           `Local code eval worker exited with code ${exitCode} before returning a result`,
-          { code: "USER_CODE_ERROR" },
+          { code: CodeEvalDispatcherErrorCodes.USER_CODE_ERROR },
         ),
       );
     });

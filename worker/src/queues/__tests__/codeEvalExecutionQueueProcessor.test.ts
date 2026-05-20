@@ -55,6 +55,13 @@ const { FakeCodeEvalDispatcherError } = vi.hoisted(() => {
 
 vi.mock("@langfuse/shared/src/server", () => ({
   CodeEvalDispatcherError: FakeCodeEvalDispatcherError,
+  CodeEvalDispatcherErrorCode: {
+    enum: {
+      LAMBDA_CONCURRENCY_LIMIT: "LAMBDA_CONCURRENCY_LIMIT",
+      LAMBDA_CONFIGURATION_ERROR: "LAMBDA_CONFIGURATION_ERROR",
+      LAMBDA_INVOCATION_ERROR: "LAMBDA_INVOCATION_ERROR",
+    },
+  },
   getCurrentSpan: vi.fn().mockReturnValue({
     setAttribute: vi.fn(),
   }),

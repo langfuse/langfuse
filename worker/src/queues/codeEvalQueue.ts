@@ -8,12 +8,12 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import {
   CodeEvalDispatcherError,
+  CodeEvalDispatcherErrorCode,
   getCurrentSpan,
   logger,
   QueueName,
   TQueueJobTypes,
   traceException,
-  type CodeEvalDispatcherErrorCode,
 } from "@langfuse/shared/src/server";
 import { executeCodeBasedEvaluation } from "../features/evaluation/codeBased";
 import { processObservationEval } from "../features/evaluation/observationEval";
@@ -103,9 +103,9 @@ const validateCodeBasedTemplate = (
 const INTERNAL_ERROR_MESSAGE = "An internal error occurred";
 
 const INTERNAL_CODE_EVAL_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
-  "LAMBDA_CONCURRENCY_LIMIT",
-  "LAMBDA_CONFIGURATION_ERROR",
-  "LAMBDA_INVOCATION_ERROR",
+  CodeEvalDispatcherErrorCode.enum.LAMBDA_CONCURRENCY_LIMIT,
+  CodeEvalDispatcherErrorCode.enum.LAMBDA_CONFIGURATION_ERROR,
+  CodeEvalDispatcherErrorCode.enum.LAMBDA_INVOCATION_ERROR,
 ]);
 
 // Returns a user-visible message for JobExecution.error. Dispatcher errors
