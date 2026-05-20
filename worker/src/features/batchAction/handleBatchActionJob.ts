@@ -15,6 +15,7 @@ import {
   BatchTableNames,
   FilterCondition,
   EvalTargetObject,
+  EvalTemplateType,
 } from "@langfuse/shared";
 import Decimal from "decimal.js";
 import {
@@ -229,12 +230,29 @@ export const handleBatchActionJob = async (
         id: configId,
         projectId: projectId,
       },
+      select: {
+        delay: true,
+        evalTemplate: {
+          select: {
+            type: true,
+          },
+        },
+      },
     });
 
     if (!config) {
       logger.error(
         `Eval config ${configId} not found for project ${projectId}`,
       );
+      return;
+    }
+
+    if (config.evalTemplate?.type !== EvalTemplateType.LLM_AS_JUDGE) {
+      logger.info(`Skipping legacy eval-create for non-LLM eval template`, {
+        projectId,
+        configId,
+        evalTemplateType: config.evalTemplate?.type ?? null,
+      });
       return;
     }
 
