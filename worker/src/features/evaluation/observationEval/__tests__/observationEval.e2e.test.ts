@@ -299,7 +299,6 @@ describe("Observation Eval E2E Pipeline", () => {
         output: { answer: "4" },
         metadata: { rubric: "math" },
         experiment_item_expected_output: "4",
-        experiment_item_metadata: { difficulty: "easy" },
         environment: "production",
       });
       const variableMapping: ObservationVariableMapping[] = [
@@ -312,10 +311,6 @@ describe("Observation Eval E2E Pipeline", () => {
         {
           templateVariable: "experimentExpectedOutput",
           selectedColumnId: "experimentItemExpectedOutput",
-        },
-        {
-          templateVariable: "experimentItemMetadata",
-          selectedColumnId: "experimentItemMetadata",
         },
       ];
       const config = createTestEvalConfig({
@@ -345,8 +340,7 @@ describe("Observation Eval E2E Pipeline", () => {
             const matched =
               ctx.observation.input.question === "2+2" &&
               ctx.observation.output.answer === ctx.experiment?.expectedOutput &&
-              ctx.observation.metadata.rubric === "math" &&
-              ctx.experiment?.itemMetadata.difficulty === "easy";
+              ctx.observation.metadata.rubric === "math";
 
             return {
               scores: [
@@ -354,7 +348,7 @@ describe("Observation Eval E2E Pipeline", () => {
                   name: "nested-context-score",
                   value: matched ? 1 : 0,
                   dataType: "BOOLEAN",
-                  comment: ctx.experiment?.itemMetadata.difficulty,
+                  comment: ctx.experiment?.expectedOutput,
                 },
               ],
             };
@@ -412,7 +406,7 @@ describe("Observation Eval E2E Pipeline", () => {
               name: "nested-context-score",
               value: 1,
               dataType: "BOOLEAN",
-              comment: "easy",
+              comment: "4",
               environment: "production",
               source: "EVAL",
             }),
