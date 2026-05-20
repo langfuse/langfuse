@@ -98,11 +98,16 @@ export const ExperimentEvaluationRuleMappingSource = z.enum([
   "output",
   "metadata",
   "expected_output",
+  "experiment_item_metadata",
 ]);
 
 function createMappingSchema<
   TSource extends z.ZodType<
-    "input" | "output" | "metadata" | "expected_output"
+    | "input"
+    | "output"
+    | "metadata"
+    | "expected_output"
+    | "experiment_item_metadata"
   >,
 >(sourceSchema: TSource) {
   return z.object({
