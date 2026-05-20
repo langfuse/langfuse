@@ -146,7 +146,7 @@ export class CodeEvalDispatcherError extends Error {
   }
 }
 
-export type CodeEvalDispatcherName = "local" | "aws-lambda";
+export type CodeEvalDispatcherName = "insecure-local" | "aws-lambda";
 
 export function assertDispatchInputWithinLimits(input: DispatchInput): string {
   const sourceBytes = Buffer.byteLength(input.code.source, "utf8");

@@ -68,7 +68,7 @@ type WorkerFailure = {
 type WorkerMessage = WorkerSuccess | WorkerFailure;
 
 export class LocalCodeEvalDispatcher implements CodeEvalDispatcher {
-  public readonly name = "local";
+  public readonly name = "insecure-local";
   private readonly timeoutMs: number;
 
   constructor(params?: { timeoutMs?: number }) {

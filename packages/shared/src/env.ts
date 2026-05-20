@@ -153,7 +153,9 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
-  LANGFUSE_CODE_EVAL_DISPATCHER: z.enum(["local", "aws-lambda"]).optional(),
+  LANGFUSE_CODE_EVAL_DISPATCHER: z
+    .enum(["insecure-local", "aws-lambda"])
+    .optional(),
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: z.string().optional(),
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_NODE_FUNCTION_NAME: z
     .string()
