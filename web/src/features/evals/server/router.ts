@@ -28,8 +28,6 @@ import {
   EvalTargetObject,
   EvalTargetObjectSchema,
   validateEvaluatorFiltersForTarget,
-  eventTargetEvalVariableColumns,
-  experimentTargetEvalVariableColumns,
   InvalidRequestError,
 } from "@langfuse/shared";
 import {
@@ -208,32 +206,6 @@ const validateVariableMappingForTarget = ({
       code: "BAD_REQUEST",
       message: "Variable mapping does not match evaluator target.",
     });
-  }
-
-  // Validate selectedColumnId values for observation-based targets
-  if (
-    targetObject === EvalTargetObject.EVENT ||
-    targetObject === EvalTargetObject.EXPERIMENT
-  ) {
-    const validColumnIds = new Set(
-      (targetObject === EvalTargetObject.EVENT
-        ? eventTargetEvalVariableColumns
-        : experimentTargetEvalVariableColumns
-      ).map((c) => c.id),
-    );
-
-    for (const mapping of result.data) {
-      if (
-        "selectedColumnId" in mapping &&
-        mapping.selectedColumnId &&
-        !validColumnIds.has(mapping.selectedColumnId)
-      ) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Invalid variable mapping for {{${mapping.templateVariable}}}`,
-        });
-      }
-    }
   }
 
   return result.data;
