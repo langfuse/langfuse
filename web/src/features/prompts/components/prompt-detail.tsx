@@ -294,6 +294,33 @@ export const PromptDetail = ({
     while ((m = forRegex.exec(promptText)) !== null) {
       if (m[1]) matches.add(m[1]);
     }
+    const ifRegex = /{%[-\s]*(?:if|elif)\s+([^%]*?)[-\s]*%}/g;
+    const jinja2Keywords = new Set([
+      "and",
+      "or",
+      "not",
+      "if",
+      "elif",
+      "else",
+      "is",
+      "in",
+      "true",
+      "false",
+      "none",
+      "null",
+    ]);
+    while ((m = ifRegex.exec(promptText)) !== null) {
+      if (m[1]) {
+        const conditions = m[1];
+        const varMatches = conditions.matchAll(/\b([a-zA-Z_]\w*)\b/g);
+        for (const varMatch of varMatches) {
+          const varName = varMatch[1];
+          if (!jinja2Keywords.has(varName.toLowerCase())) {
+            matches.add(varName);
+          }
+        }
+      }
+    }
     return Array.from(matches);
   }, [templateFormat, promptText]);
 
