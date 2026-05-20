@@ -32,7 +32,6 @@ import { StringNoHTML } from "@langfuse/shared";
 import Link from "next/link";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { env } from "@/src/env.mjs";
 
 const displayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -287,9 +286,7 @@ const getAccountSettingsPages = (userEmail: string): AccountSettingsPage[] => [
               process.
             </p>
             <Button asChild variant="secondary">
-              <Link
-                href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`}
-              >
+              <Link href="/auth/reset-password">
                 Change Password
               </Link>
             </Button>
