@@ -99,7 +99,6 @@ describe("observationForEvalSchema", () => {
       experiment_dataset_id: "dataset-123",
       experiment_item_id: "item-123",
       experiment_item_expected_output: "expected output",
-      experiment_item_metadata: {},
       input: '{"prompt": "Hello"}',
       output: '{"response": "World"}',
       metadata: { key: "value" },

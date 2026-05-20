@@ -58,7 +58,6 @@ describe("extractObservationVariables", () => {
     experiment_dataset_id: null,
     experiment_item_id: null,
     experiment_item_expected_output: "expected response",
-    experiment_item_metadata: { difficulty: "easy" },
 
     // Data fields
     input: JSON.stringify({
@@ -546,22 +545,6 @@ describe("extractObservationVariables", () => {
       });
 
       expect(result[0].value).toEqual(mockObservation.metadata);
-    });
-
-    it("should map experiment item metadata", () => {
-      const variableMapping: ObservationVariableMapping[] = [
-        {
-          templateVariable: "experimentItemMetadata",
-          selectedColumnId: "experimentItemMetadata",
-        },
-      ];
-
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
-
-      expect(result[0].value).toEqual(mockObservation.experiment_item_metadata);
     });
   });
 });
