@@ -298,6 +298,7 @@ describe("Observation Eval E2E Pipeline", () => {
         input: { question: "2+2" },
         output: { answer: "4" },
         metadata: { rubric: "math" },
+        experiment_id: "experiment-123",
         experiment_item_expected_output: "4",
         environment: "production",
       });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractObservationVariables } from "@langfuse/shared/src/server";
+import { extractObservationVariables } from "../../../../../../packages/shared/src/server/evals/extractObservationVariables";
 import { type ObservationForEval } from "../types";
 import {
   availableObservationEvalVariableColumns,
@@ -252,7 +252,7 @@ describe("extractObservationVariables", () => {
       expect(result[0].value).toBe("expected response");
     });
 
-    it("should extract experimentItemMetadata variable as JSON string", () => {
+    it("should extract experimentItemMetadata variable", () => {
       const variableMapping: ObservationVariableMapping[] = [
         {
           templateVariable: "item_metadata",
@@ -267,9 +267,7 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("item_metadata");
-      expect(result[0].value).toBe(
-        JSON.stringify(mockObservation.experiment_item_metadata),
-      );
+      expect(result[0].value).toEqual(mockObservation.experiment_item_metadata);
     });
   });
 
