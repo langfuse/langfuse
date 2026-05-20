@@ -225,6 +225,94 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(obs?.level).toBe("WARNING");
     });
 
+    it("should filter by multiple environment query params (any-of semantics)", async () => {
+      const traceId = randomUUID();
+      const envA = `env-a-${randomUUID()}`;
+      const envB = `env-b-${randomUUID()}`;
+      const envC = `env-c-${randomUUID()}`;
+      const observationIdA = randomUUID();
+      const observationIdB = randomUUID();
+      const observationIdC = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      const buildObservation = (
+        id: string,
+        environment: string,
+        offsetMicros: number,
+      ) =>
+        createEvent({
+          id,
+          span_id: id,
+          trace_id: traceId,
+          project_id: projectId,
+          name: `env-filter-obs-${environment}`,
+          type: "GENERATION",
+          level: "DEFAULT",
+          environment,
+          start_time: timeValue + offsetMicros,
+          end_time: timeValue + offsetMicros + 1000 * 1000,
+        });
+
+      await createEventsCh([
+        buildObservation(observationIdA, envA, 0),
+        buildObservation(observationIdB, envB, 1000 * 1000),
+        buildObservation(observationIdC, envC, 2000 * 1000),
+      ]);
+
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND span_id IN ({ids: Array(String)})`,
+            params: {
+              projectId,
+              ids: [observationIdA, observationIdB, observationIdC],
+            },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(3);
+        },
+        5000,
+        10,
+      );
+
+      const response = await getObservations(
+        `/api/public/v2/observations?fields=basic&traceId=${traceId}&environment=${encodeURIComponent(envA)}&environment=${encodeURIComponent(envB)}`,
+      );
+
+      expect(response.status).toBe(200);
+      const returnedIds = response.body.data
+        .map((obs: any) => obs.id)
+        .filter((id: string) =>
+          [observationIdA, observationIdB, observationIdC].includes(id),
+        );
+      expect(returnedIds.sort()).toEqual(
+        [observationIdA, observationIdB].sort(),
+      );
+
+      for (const obs of response.body.data) {
+        expect([envA, envB]).toContain(obs.environment);
+      }
+
+      // Backwards-compat: single environment value (scalar string) must still
+      // behave as exact-match equality (previously `environment = 'foo'`, now
+      // `environment IN ('foo')`).
+      const singleEnvResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&traceId=${traceId}&environment=${encodeURIComponent(envA)}`,
+      );
+
+      expect(singleEnvResponse.status).toBe(200);
+      const singleEnvReturnedIds = singleEnvResponse.body.data
+        .map((obs: any) => obs.id)
+        .filter((id: string) =>
+          [observationIdA, observationIdB, observationIdC].includes(id),
+        );
+      expect(singleEnvReturnedIds).toEqual([observationIdA]);
+
+      for (const obs of singleEnvResponse.body.data) {
+        expect(obs.environment).toBe(envA);
+      }
+    });
+
     it("should support filter parameter on various columns without SQL crashes", async () => {
       const traceId = randomUUID();
       const observationId1 = randomUUID();

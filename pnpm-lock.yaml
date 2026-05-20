@@ -20,9 +20,7 @@ overrides:
   '@anthropic-ai/claude-agent-sdk>@anthropic-ai/sdk': 0.95.1
 
 patchedDependencies:
-  next-auth@4.24.13:
-    hash: 7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66
-    path: patches/next-auth@4.24.13.patch
+  next-auth@4.24.13: 7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66
 
 importers:
 
@@ -30,7 +28,7 @@ importers:
     devDependencies:
       '@release-it/bumper':
         specifier: ^7.0.5
-        version: 7.0.5(release-it@19.2.4(@types/node@25.6.0)(magicast@0.5.2))
+        version: 7.0.5(release-it@19.2.4(@types/node@24.3.0)(magicast@0.5.2))
       braces:
         specifier: 3.0.3
         version: 3.0.3
@@ -45,7 +43,7 @@ importers:
         version: 3.8.3
       release-it:
         specifier: ^19.2.4
-        version: 19.2.4(@types/node@25.6.0)(magicast@0.5.2)
+        version: 19.2.4(@types/node@24.3.0)(magicast@0.5.2)
       turbo:
         specifier: 2.9.12
         version: 2.9.12
@@ -66,7 +64,7 @@ importers:
         version: 16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       next-auth:
         specifier: ^4.24.13
-        version: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.6(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       zod:
         specifier: 4.3.6
         version: 4.3.6
@@ -223,6 +221,9 @@ importers:
       '@slack/web-api':
         specifier: ^7.15.0
         version: 7.15.1
+      '@smithy/node-http-handler':
+        specifier: 4.5.1
+        version: 4.5.1
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6
@@ -243,7 +244,7 @@ importers:
         version: 3.6.0
       dd-trace:
         specifier: 5.97.0
-        version: 5.97.0(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@openfeature/server-sdk@1.18.0(@openfeature/core@1.9.2))
+        version: 5.97.0(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)
       decimal.js:
         specifier: ^10.4.3
         version: 10.6.0
@@ -276,7 +277,7 @@ importers:
         version: 11.2.7
       next-auth:
         specifier: ^4.24.13
-        version: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.6(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       nodemailer:
         specifier: ^7.0.11
         version: 7.0.11
@@ -610,7 +611,7 @@ importers:
         version: 3.6.0
       dd-trace:
         specifier: 5.97.0
-        version: 5.97.0(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@openfeature/server-sdk@1.18.0(@openfeature/core@1.9.2))
+        version: 5.97.0(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)
       decimal.js:
         specifier: ^10.4.3
         version: 10.6.0
@@ -658,7 +659,7 @@ importers:
         version: 16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       next-auth:
         specifier: ^4.24.13
-        version: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.6(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       next-query-params:
         specifier: ^5.1.0
         version: 5.1.0(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(use-query-params@2.2.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
@@ -831,9 +832,15 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^4.7.0
         version: 4.7.0(vite@7.0.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.8.4))
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
       dotenv-cli:
         specifier: ^7.4.2
         version: 7.4.4
+      dotenv-expand:
+        specifier: ^10.0.0
+        version: 10.0.0
       eslint:
         specifier: ^9.39.2
         version: 9.39.4(jiti@2.7.0)
@@ -843,6 +850,9 @@ importers:
       eslint-plugin-storybook:
         specifier: ^10.3.6
         version: 10.3.6(eslint@9.39.4(jiti@2.7.0))(storybook@10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(typescript@5.9.2)
+      jsdom:
+        specifier: ^26.1.0
+        version: 26.1.0
       node-mocks-http:
         specifier: ^1.17.2
         version: 1.17.2(@types/express@5.0.6)(@types/node@24.3.0)
@@ -941,7 +951,7 @@ importers:
         version: 5.6.0
       dd-trace:
         specifier: 5.97.0
-        version: 5.97.0(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@openfeature/server-sdk@1.18.0(@openfeature/core@1.9.2))
+        version: 5.97.0(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)
       decimal.js:
         specifier: ^10.4.3
         version: 10.6.0
@@ -2642,15 +2652,6 @@ packages:
   '@open-draft/until@2.1.0':
     resolution: {integrity: sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg==}
 
-  '@openfeature/core@1.9.2':
-    resolution: {integrity: sha512-0lX0xYTflLrjiYNlareYmdV98xEddR5+PhcuoGvH+BMIqpZ2icAC7us9Uv86KRVqofXvpAUwpP32wgqmtUFs8Q==}
-
-  '@openfeature/server-sdk@1.18.0':
-    resolution: {integrity: sha512-uP8nqEGBS58s3iWXx6d8vnJ6ZVt3DACJL4PWADOAuwIS4xXpID91783e9f6zQ0i1ijQpj3yx+3ZuCB2LfQMUMA==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      '@openfeature/core': ^1.7.0
-
   '@opentelemetry/api-logs@0.207.0':
     resolution: {integrity: sha512-lAb0jQRVyleQQGiuuvCOTDVspc14nx6XJjP4FspJ1sNARo3Regq4ZZbrc3rN4b1TYSuUCvgH+UXUPug4SLOqEQ==}
     engines: {node: '>=8.0.0'}
@@ -3910,30 +3911,35 @@ packages:
 
   '@react-email/body@0.1.0':
     resolution: {integrity: sha512-o1bcSAmDYNNHECbkeyceCVPGmVsYvT+O3sSO/Ct7apKUu3JphTi31hu+0Nwqr/pgV5QFqdoT5vdS3SW5DJFHgQ==}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/button@0.2.0':
     resolution: {integrity: sha512-8i+v6cMxr2emz4ihCrRiYJPp2/sdYsNNsBzXStlcA+/B9Umpm5Jj3WJKYpgTPM+aeyiqlG/MMI1AucnBm4f1oQ==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/code-block@0.1.0':
     resolution: {integrity: sha512-jSpHFsgqnQXxDIssE4gvmdtFncaFQz5D6e22BnVjcCPk/udK+0A9jRwGFEG8JD2si9ZXBmU4WsuqQEczuZn4ww==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/code-inline@0.0.5':
     resolution: {integrity: sha512-MmAsOzdJpzsnY2cZoPHFPk6uDO/Ncpb4Kh1hAt9UZc1xOW3fIzpe1Pi9y9p6wwUmpaeeDalJxAxH6/fnTquinA==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/column@0.0.13':
     resolution: {integrity: sha512-Lqq17l7ShzJG/d3b1w/+lVO+gp2FM05ZUo/nW0rjxB8xBICXOVv6PqjDnn3FXKssvhO5qAV20lHM6S+spRhEwQ==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
@@ -3947,59 +3953,69 @@ packages:
   '@react-email/container@0.0.15':
     resolution: {integrity: sha512-Qo2IQo0ru2kZq47REmHW3iXjAQaKu4tpeq/M8m1zHIVwKduL2vYOBQWbC2oDnMtWPmkBjej6XxgtZByxM6cCFg==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/font@0.0.9':
     resolution: {integrity: sha512-4zjq23oT9APXkerqeslPH3OZWuh5X4crHK6nx82mVHV2SrLba8+8dPEnWbaACWTNjOCbcLIzaC9unk7Wq2MIXw==}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/head@0.0.12':
     resolution: {integrity: sha512-X2Ii6dDFMF+D4niNwMAHbTkeCjlYYnMsd7edXOsi0JByxt9wNyZ9EnhFiBoQdqkE+SMDcu8TlNNttMrf5sJeMA==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/heading@0.0.15':
     resolution: {integrity: sha512-xF2GqsvBrp/HbRHWEfOgSfRFX+Q8I5KBEIG5+Lv3Vb2R/NYr0s8A5JhHHGf2pWBMJdbP4B2WHgj/VUrhy8dkIg==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/hr@0.0.11':
     resolution: {integrity: sha512-S1gZHVhwOsd1Iad5IFhpfICwNPMGPJidG/Uysy1AwmspyoAP5a4Iw3OWEpINFdgh9MHladbxcLKO2AJO+cA9Lw==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/html@0.0.11':
     resolution: {integrity: sha512-qJhbOQy5VW5qzU74AimjAR9FRFQfrMa7dn4gkEXKMB/S9xZN8e1yC1uA9C15jkXI/PzmJ0muDIWmFwatm5/+VA==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/img@0.0.11':
     resolution: {integrity: sha512-aGc8Y6U5C3igoMaqAJKsCpkbm1XjguQ09Acd+YcTKwjnC2+0w3yGUJkjWB2vTx4tN8dCqQCXO8FmdJpMfOA9EQ==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/link@0.0.12':
     resolution: {integrity: sha512-vF+xxQk2fGS1CN7UPQDbzvcBGfffr+GjTPNiWM38fhBfsLv6A/YUfaqxWlmL7zLzVmo0K2cvvV9wxlSyNba1aQ==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/markdown@0.0.15':
     resolution: {integrity: sha512-UQA9pVm5sbflgtg3EX3FquUP4aMBzmLReLbGJ6DZQZnAskBF36aI56cRykDq1o+1jT+CKIK1CducPYziaXliag==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/preview@0.0.13':
     resolution: {integrity: sha512-F7j9FJ0JN/A4d7yr+aw28p4uX7VLWs7hTHtLo7WRyw4G+Lit6Zucq4UWKRxJC8lpsUdzVmG7aBJnKOT+urqs/w==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
@@ -4013,24 +4029,28 @@ packages:
   '@react-email/row@0.0.12':
     resolution: {integrity: sha512-HkCdnEjvK3o+n0y0tZKXYhIXUNPDx+2vq1dJTmqappVHXS5tXS6W5JOPZr5j+eoZ8gY3PShI2LWj5rWF7ZEtIQ==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/section@0.0.16':
     resolution: {integrity: sha512-FjqF9xQ8FoeUZYKSdt8sMIKvoT9XF8BrzhT3xiFKdEMwYNbsDflcjfErJe3jb7Wj/es/lKTbV5QR1dnLzGpL3w==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/tailwind@1.2.2':
     resolution: {integrity: sha512-heO9Khaqxm6Ulm6p7HQ9h01oiiLRrZuuEQuYds/O7Iyp3c58sMVHZGIxiRXO/kSs857NZQycpjewEVKF3jhNTw==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@react-email/text@0.1.5':
     resolution: {integrity: sha512-o5PNHFSE085VMXayxH+SJ1LSOtGsTv+RpNKnTiJDrJUwoBu77G3PlKOsZZQHCNyD28WsQpl9v2WcJLbQudqwPg==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
@@ -5180,9 +5200,6 @@ packages:
 
   '@types/node@24.3.0':
     resolution: {integrity: sha512-aPTXCrfwnDLj4VvXrm+UUCQjNEvJgNA8s5F1cvwQU+3KNltTOkBm1j30uNLyqqPNe7gE3KFzImYoZEfLhp4Yow==}
-
-  '@types/node@25.6.0':
-    resolution: {integrity: sha512-+qIYRKdNYJwY3vRCZMdJbPLJAtGjQBudzZzdzwQYkEPQd+PJGixUL5QfvCLDaULoLv+RhT3LDkwEfKaAkgSmNQ==}
 
   '@types/nodemailer@7.0.11':
     resolution: {integrity: sha512-E+U4RzR2dKrx+u3N4DlsmLaDC6mMZOM/TPROxA0UAPiTgI0y4CEFBmZE+coGWTjakDriRsXG368lNk1u9Q0a2g==}
@@ -10178,9 +10195,6 @@ packages:
   undici-types@7.10.0:
     resolution: {integrity: sha512-t5Fy/nfn+14LuOc2KNYg75vZqClpAiqscVvMygNnlsHBFpSXdJaYtXMcdNLpl/Qvc3P2cB3s6lOV51nqsFq4ag==}
 
-  undici-types@7.19.2:
-    resolution: {integrity: sha512-qYVnV5OEm2AW8cJMCpdV20CDyaN3g0AjDlOGf1OW4iaDEx8MwdtChUp4zu4H0VP3nDRF/8RKWH+IPp9uW0YGZg==}
-
   undici@6.23.0:
     resolution: {integrity: sha512-VfQPToRA5FZs/qJxLIinmU59u0r7LXqoJkCzinq3ckNJp3vKEh7jTWN589YQ5+aoAC/TGRLyJLCPKcLQbM8r9g==}
     engines: {node: '>=18.17'}
@@ -10815,7 +10829,6 @@ snapshots:
       '@csstools/css-parser-algorithms': 3.0.5(@csstools/css-tokenizer@3.0.4)
       '@csstools/css-tokenizer': 3.0.4
       lru-cache: 10.4.3
-    optional: true
 
   '@aws-crypto/crc32@5.2.0':
     dependencies:
@@ -11831,14 +11844,12 @@ snapshots:
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
 
-  '@csstools/color-helpers@5.1.0':
-    optional: true
+  '@csstools/color-helpers@5.1.0': {}
 
   '@csstools/css-calc@2.1.4(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)':
     dependencies:
       '@csstools/css-parser-algorithms': 3.0.5(@csstools/css-tokenizer@3.0.4)
       '@csstools/css-tokenizer': 3.0.4
-    optional: true
 
   '@csstools/css-color-parser@3.1.0(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)':
     dependencies:
@@ -11846,15 +11857,12 @@ snapshots:
       '@csstools/css-calc': 2.1.4(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)
       '@csstools/css-parser-algorithms': 3.0.5(@csstools/css-tokenizer@3.0.4)
       '@csstools/css-tokenizer': 3.0.4
-    optional: true
 
   '@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4)':
     dependencies:
       '@csstools/css-tokenizer': 3.0.4
-    optional: true
 
-  '@csstools/css-tokenizer@3.0.4':
-    optional: true
+  '@csstools/css-tokenizer@3.0.4': {}
 
   '@dabh/diagnostics@2.0.3':
     dependencies:
@@ -11886,11 +11894,9 @@ snapshots:
       node-gyp-build: 3.9.0
     optional: true
 
-  '@datadog/openfeature-node-server@1.1.1(@openfeature/server-sdk@1.18.0(@openfeature/core@1.9.2))':
+  '@datadog/openfeature-node-server@1.1.1':
     dependencies:
       '@datadog/flagging-core': 1.1.1
-    optionalDependencies:
-      '@openfeature/server-sdk': 1.18.0(@openfeature/core@1.9.2)
     optional: true
 
   '@datadog/pprof@5.14.1':
@@ -12310,15 +12316,15 @@ snapshots:
 
   '@inquirer/ansi@1.0.2': {}
 
-  '@inquirer/checkbox@4.3.2(@types/node@25.6.0)':
+  '@inquirer/checkbox@4.3.2(@types/node@24.3.0)':
     dependencies:
       '@inquirer/ansi': 1.0.2
-      '@inquirer/core': 10.3.2(@types/node@25.6.0)
+      '@inquirer/core': 10.3.2(@types/node@24.3.0)
       '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@25.6.0)
+      '@inquirer/type': 3.0.10(@types/node@24.3.0)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 25.6.0
+      '@types/node': 24.3.0
 
   '@inquirer/confirm@5.1.21(@types/node@24.3.0)':
     dependencies:
@@ -12326,13 +12332,6 @@ snapshots:
       '@inquirer/type': 3.0.10(@types/node@24.3.0)
     optionalDependencies:
       '@types/node': 24.3.0
-
-  '@inquirer/confirm@5.1.21(@types/node@25.6.0)':
-    dependencies:
-      '@inquirer/core': 10.3.2(@types/node@25.6.0)
-      '@inquirer/type': 3.0.10(@types/node@25.6.0)
-    optionalDependencies:
-      '@types/node': 25.6.0
 
   '@inquirer/core@10.3.2(@types/node@24.3.0)':
     dependencies:
@@ -12347,115 +12346,98 @@ snapshots:
     optionalDependencies:
       '@types/node': 24.3.0
 
-  '@inquirer/core@10.3.2(@types/node@25.6.0)':
+  '@inquirer/editor@4.2.23(@types/node@24.3.0)':
     dependencies:
-      '@inquirer/ansi': 1.0.2
-      '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@25.6.0)
-      cli-width: 4.1.0
-      mute-stream: 2.0.0
-      signal-exit: 4.1.0
-      wrap-ansi: 6.2.0
+      '@inquirer/core': 10.3.2(@types/node@24.3.0)
+      '@inquirer/external-editor': 1.0.3(@types/node@24.3.0)
+      '@inquirer/type': 3.0.10(@types/node@24.3.0)
+    optionalDependencies:
+      '@types/node': 24.3.0
+
+  '@inquirer/expand@4.0.23(@types/node@24.3.0)':
+    dependencies:
+      '@inquirer/core': 10.3.2(@types/node@24.3.0)
+      '@inquirer/type': 3.0.10(@types/node@24.3.0)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 25.6.0
+      '@types/node': 24.3.0
 
-  '@inquirer/editor@4.2.23(@types/node@25.6.0)':
-    dependencies:
-      '@inquirer/core': 10.3.2(@types/node@25.6.0)
-      '@inquirer/external-editor': 1.0.3(@types/node@25.6.0)
-      '@inquirer/type': 3.0.10(@types/node@25.6.0)
-    optionalDependencies:
-      '@types/node': 25.6.0
-
-  '@inquirer/expand@4.0.23(@types/node@25.6.0)':
-    dependencies:
-      '@inquirer/core': 10.3.2(@types/node@25.6.0)
-      '@inquirer/type': 3.0.10(@types/node@25.6.0)
-      yoctocolors-cjs: 2.1.3
-    optionalDependencies:
-      '@types/node': 25.6.0
-
-  '@inquirer/external-editor@1.0.3(@types/node@25.6.0)':
+  '@inquirer/external-editor@1.0.3(@types/node@24.3.0)':
     dependencies:
       chardet: 2.1.1
       iconv-lite: 0.7.2
     optionalDependencies:
-      '@types/node': 25.6.0
+      '@types/node': 24.3.0
 
   '@inquirer/figures@1.0.15': {}
 
-  '@inquirer/input@4.3.1(@types/node@25.6.0)':
+  '@inquirer/input@4.3.1(@types/node@24.3.0)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@25.6.0)
-      '@inquirer/type': 3.0.10(@types/node@25.6.0)
+      '@inquirer/core': 10.3.2(@types/node@24.3.0)
+      '@inquirer/type': 3.0.10(@types/node@24.3.0)
     optionalDependencies:
-      '@types/node': 25.6.0
+      '@types/node': 24.3.0
 
-  '@inquirer/number@3.0.23(@types/node@25.6.0)':
+  '@inquirer/number@3.0.23(@types/node@24.3.0)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@25.6.0)
-      '@inquirer/type': 3.0.10(@types/node@25.6.0)
+      '@inquirer/core': 10.3.2(@types/node@24.3.0)
+      '@inquirer/type': 3.0.10(@types/node@24.3.0)
     optionalDependencies:
-      '@types/node': 25.6.0
+      '@types/node': 24.3.0
 
-  '@inquirer/password@4.0.23(@types/node@25.6.0)':
+  '@inquirer/password@4.0.23(@types/node@24.3.0)':
     dependencies:
       '@inquirer/ansi': 1.0.2
-      '@inquirer/core': 10.3.2(@types/node@25.6.0)
-      '@inquirer/type': 3.0.10(@types/node@25.6.0)
+      '@inquirer/core': 10.3.2(@types/node@24.3.0)
+      '@inquirer/type': 3.0.10(@types/node@24.3.0)
     optionalDependencies:
-      '@types/node': 25.6.0
+      '@types/node': 24.3.0
 
-  '@inquirer/prompts@7.10.1(@types/node@25.6.0)':
+  '@inquirer/prompts@7.10.1(@types/node@24.3.0)':
     dependencies:
-      '@inquirer/checkbox': 4.3.2(@types/node@25.6.0)
-      '@inquirer/confirm': 5.1.21(@types/node@25.6.0)
-      '@inquirer/editor': 4.2.23(@types/node@25.6.0)
-      '@inquirer/expand': 4.0.23(@types/node@25.6.0)
-      '@inquirer/input': 4.3.1(@types/node@25.6.0)
-      '@inquirer/number': 3.0.23(@types/node@25.6.0)
-      '@inquirer/password': 4.0.23(@types/node@25.6.0)
-      '@inquirer/rawlist': 4.1.11(@types/node@25.6.0)
-      '@inquirer/search': 3.2.2(@types/node@25.6.0)
-      '@inquirer/select': 4.4.2(@types/node@25.6.0)
+      '@inquirer/checkbox': 4.3.2(@types/node@24.3.0)
+      '@inquirer/confirm': 5.1.21(@types/node@24.3.0)
+      '@inquirer/editor': 4.2.23(@types/node@24.3.0)
+      '@inquirer/expand': 4.0.23(@types/node@24.3.0)
+      '@inquirer/input': 4.3.1(@types/node@24.3.0)
+      '@inquirer/number': 3.0.23(@types/node@24.3.0)
+      '@inquirer/password': 4.0.23(@types/node@24.3.0)
+      '@inquirer/rawlist': 4.1.11(@types/node@24.3.0)
+      '@inquirer/search': 3.2.2(@types/node@24.3.0)
+      '@inquirer/select': 4.4.2(@types/node@24.3.0)
     optionalDependencies:
-      '@types/node': 25.6.0
+      '@types/node': 24.3.0
 
-  '@inquirer/rawlist@4.1.11(@types/node@25.6.0)':
+  '@inquirer/rawlist@4.1.11(@types/node@24.3.0)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@25.6.0)
-      '@inquirer/type': 3.0.10(@types/node@25.6.0)
+      '@inquirer/core': 10.3.2(@types/node@24.3.0)
+      '@inquirer/type': 3.0.10(@types/node@24.3.0)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 25.6.0
+      '@types/node': 24.3.0
 
-  '@inquirer/search@3.2.2(@types/node@25.6.0)':
+  '@inquirer/search@3.2.2(@types/node@24.3.0)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@25.6.0)
+      '@inquirer/core': 10.3.2(@types/node@24.3.0)
       '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@25.6.0)
+      '@inquirer/type': 3.0.10(@types/node@24.3.0)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 25.6.0
+      '@types/node': 24.3.0
 
-  '@inquirer/select@4.4.2(@types/node@25.6.0)':
+  '@inquirer/select@4.4.2(@types/node@24.3.0)':
     dependencies:
       '@inquirer/ansi': 1.0.2
-      '@inquirer/core': 10.3.2(@types/node@25.6.0)
+      '@inquirer/core': 10.3.2(@types/node@24.3.0)
       '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@25.6.0)
+      '@inquirer/type': 3.0.10(@types/node@24.3.0)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 25.6.0
+      '@types/node': 24.3.0
 
   '@inquirer/type@3.0.10(@types/node@24.3.0)':
     optionalDependencies:
       '@types/node': 24.3.0
-
-  '@inquirer/type@3.0.10(@types/node@25.6.0)':
-    optionalDependencies:
-      '@types/node': 25.6.0
 
   '@ioredis/commands@1.5.1': {}
 
@@ -12716,7 +12698,7 @@ snapshots:
   '@next-auth/prisma-adapter@1.0.7(@prisma/client@6.19.3(prisma@6.19.3(magicast@0.5.2)(typescript@5.9.2))(typescript@5.9.2))(next-auth@4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))':
     dependencies:
       '@prisma/client': 6.19.3(prisma@6.19.3(magicast@0.5.2)(typescript@5.9.2))(typescript@5.9.2)
-      next-auth: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.6(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      next-auth: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
 
   '@next/env@16.0.0': {}
 
@@ -12841,14 +12823,6 @@ snapshots:
       outvariant: 1.4.3
 
   '@open-draft/until@2.1.0': {}
-
-  '@openfeature/core@1.9.2':
-    optional: true
-
-  '@openfeature/server-sdk@1.18.0(@openfeature/core@1.9.2)':
-    dependencies:
-      '@openfeature/core': 1.9.2
-    optional: true
 
   '@opentelemetry/api-logs@0.207.0':
     dependencies:
@@ -14335,7 +14309,7 @@ snapshots:
       react: 19.2.4
       react-redux: 9.2.0(@types/react@19.2.14)(react@19.2.4)(redux@5.0.1)
 
-  '@release-it/bumper@7.0.5(release-it@19.2.4(@types/node@25.6.0)(magicast@0.5.2))':
+  '@release-it/bumper@7.0.5(release-it@19.2.4(@types/node@24.3.0)(magicast@0.5.2))':
     dependencies:
       '@iarna/toml': 3.0.0
       cheerio: 1.2.0
@@ -14344,7 +14318,7 @@ snapshots:
       ini: 5.0.0
       js-yaml: 4.1.1
       lodash-es: 4.18.1
-      release-it: 19.2.4(@types/node@25.6.0)(magicast@0.5.2)
+      release-it: 19.2.4(@types/node@24.3.0)(magicast@0.5.2)
       semver: 7.7.4
 
   '@rolldown/pluginutils@1.0.0-beta.27': {}
@@ -15634,11 +15608,6 @@ snapshots:
     dependencies:
       undici-types: 7.10.0
 
-  '@types/node@25.6.0':
-    dependencies:
-      undici-types: 7.19.2
-    optional: true
-
   '@types/nodemailer@7.0.11':
     dependencies:
       '@types/node': 24.3.0
@@ -16814,7 +16783,6 @@ snapshots:
     dependencies:
       '@asamuzakjp/css-color': 3.2.0
       rrweb-cssom: 0.8.0
-    optional: true
 
   csstype@3.2.3: {}
 
@@ -17018,7 +16986,6 @@ snapshots:
     dependencies:
       whatwg-mimetype: 4.0.0
       whatwg-url: 14.2.0
-    optional: true
 
   data-view-buffer@1.0.2:
     dependencies:
@@ -17048,7 +17015,7 @@ snapshots:
 
   dc-polyfill@0.1.10: {}
 
-  dd-trace@5.97.0(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@openfeature/server-sdk@1.18.0(@openfeature/core@1.9.2)):
+  dd-trace@5.97.0(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2):
     dependencies:
       dc-polyfill: 0.1.10
       import-in-the-middle: 3.0.1
@@ -17057,7 +17024,7 @@ snapshots:
       '@datadog/native-appsec': 11.0.1
       '@datadog/native-iast-taint-tracking': 4.1.0
       '@datadog/native-metrics': 3.1.1
-      '@datadog/openfeature-node-server': 1.1.1(@openfeature/server-sdk@1.18.0(@openfeature/core@1.9.2))
+      '@datadog/openfeature-node-server': 1.1.1
       '@datadog/pprof': 5.14.1
       '@datadog/wasm-js-rewriter': 5.0.1
       '@opentelemetry/api': 1.9.0
@@ -17493,7 +17460,7 @@ snapshots:
       tinyglobby: 0.2.16
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4(jiti@2.7.0))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.58.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.2))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4(jiti@2.7.0))
     transitivePeerDependencies:
       - supports-color
 
@@ -18297,7 +18264,6 @@ snapshots:
   html-encoding-sniffer@4.0.0:
     dependencies:
       whatwg-encoding: 3.1.1
-    optional: true
 
   html-entities@2.6.0: {}
 
@@ -18429,17 +18395,17 @@ snapshots:
 
   inline-style-parser@0.2.7: {}
 
-  inquirer@12.11.1(@types/node@25.6.0):
+  inquirer@12.11.1(@types/node@24.3.0):
     dependencies:
       '@inquirer/ansi': 1.0.2
-      '@inquirer/core': 10.3.2(@types/node@25.6.0)
-      '@inquirer/prompts': 7.10.1(@types/node@25.6.0)
-      '@inquirer/type': 3.0.10(@types/node@25.6.0)
+      '@inquirer/core': 10.3.2(@types/node@24.3.0)
+      '@inquirer/prompts': 7.10.1(@types/node@24.3.0)
+      '@inquirer/type': 3.0.10(@types/node@24.3.0)
       mute-stream: 2.0.0
       run-async: 4.0.6
       rxjs: 7.8.2
     optionalDependencies:
-      '@types/node': 25.6.0
+      '@types/node': 24.3.0
 
   internal-slot@1.1.0:
     dependencies:
@@ -18575,8 +18541,7 @@ snapshots:
 
   is-plain-obj@4.1.0: {}
 
-  is-potential-custom-element-name@1.0.1:
-    optional: true
+  is-potential-custom-element-name@1.0.1: {}
 
   is-promise@4.0.0: {}
 
@@ -18745,7 +18710,6 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
-    optional: true
 
   jsep@1.4.0: {}
 
@@ -19581,7 +19545,7 @@ snapshots:
     dependencies:
       type-fest: 2.19.0
 
-  next-auth@4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.6(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  next-auth@4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
       '@babel/runtime': 7.29.2
       '@panva/hkdf': 1.2.1
@@ -19710,8 +19674,7 @@ snapshots:
     dependencies:
       boolbase: 1.0.0
 
-  nwsapi@2.2.23:
-    optional: true
+  nwsapi@2.2.23: {}
 
   nypm@0.6.6:
     dependencies:
@@ -20544,7 +20507,7 @@ snapshots:
       '@types/hast': 3.0.4
       hast-util-sanitize: 5.0.2
 
-  release-it@19.2.4(@types/node@25.6.0)(magicast@0.5.2):
+  release-it@19.2.4(@types/node@24.3.0)(magicast@0.5.2):
     dependencies:
       '@nodeutils/defaults-deep': 1.1.0
       '@octokit/rest': 22.0.1
@@ -20554,7 +20517,7 @@ snapshots:
       ci-info: 4.4.0
       eta: 4.5.0
       git-url-parse: 16.1.0
-      inquirer: 12.11.1(@types/node@25.6.0)
+      inquirer: 12.11.1(@types/node@24.3.0)
       issue-parser: 7.0.1
       lodash.merge: 4.6.2
       mime-types: 3.0.2
@@ -20721,8 +20684,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  rrweb-cssom@0.8.0:
-    optional: true
+  rrweb-cssom@0.8.0: {}
 
   run-applescript@7.1.0: {}
 
@@ -20774,7 +20736,6 @@ snapshots:
   saxes@6.0.0:
     dependencies:
       xmlchars: 2.2.0
-    optional: true
 
   scheduler@0.27.0: {}
 
@@ -21225,8 +21186,7 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  symbol-tree@3.2.4:
-    optional: true
+  symbol-tree@3.2.4: {}
 
   synckit@0.11.12:
     dependencies:
@@ -21300,13 +21260,11 @@ snapshots:
 
   tinyspy@4.0.4: {}
 
-  tldts-core@6.1.86:
-    optional: true
+  tldts-core@6.1.86: {}
 
   tldts@6.1.86:
     dependencies:
       tldts-core: 6.1.86
-    optional: true
 
   to-regex-range@5.0.1:
     dependencies:
@@ -21324,14 +21282,12 @@ snapshots:
   tough-cookie@5.1.2:
     dependencies:
       tldts: 6.1.86
-    optional: true
 
   tr46@0.0.3: {}
 
   tr46@5.1.1:
     dependencies:
       punycode: 2.3.1
-    optional: true
 
   trim-lines@3.0.1: {}
 
@@ -21487,9 +21443,6 @@ snapshots:
   undici-types@5.26.5: {}
 
   undici-types@7.10.0: {}
-
-  undici-types@7.19.2:
-    optional: true
 
   undici@6.23.0: {}
 
@@ -21787,7 +21740,6 @@ snapshots:
   w3c-xmlserializer@5.0.0:
     dependencies:
       xml-name-validator: 5.0.0
-    optional: true
 
   wait-for-expect@3.0.2: {}
 
@@ -21804,8 +21756,7 @@ snapshots:
 
   webidl-conversions@3.0.1: {}
 
-  webidl-conversions@7.0.0:
-    optional: true
+  webidl-conversions@7.0.0: {}
 
   webpack-sources@3.4.1: {}
 
@@ -21853,7 +21804,6 @@ snapshots:
     dependencies:
       tr46: 5.1.1
       webidl-conversions: 7.0.0
-    optional: true
 
   whatwg-url@5.0.0:
     dependencies:
@@ -21962,11 +21912,9 @@ snapshots:
     dependencies:
       is-wsl: 3.1.1
 
-  xml-name-validator@5.0.0:
-    optional: true
+  xml-name-validator@5.0.0: {}
 
-  xmlchars@2.2.0:
-    optional: true
+  xmlchars@2.2.0: {}
 
   xtend@4.0.2: {}
 

@@ -105,7 +105,20 @@ const EnvSchema = z.object({
   CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
     .enum(["true", "false"])
     .default("false"),
-
+  CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
+    .number()
+    .default(32_000_000_000), // ~32GB
+  CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(168), // 7 days
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
     .nonnegative()
@@ -315,6 +328,24 @@ const EnvSchema = z.object({
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
   LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST: z
     .string()
     .optional()
     .transform((s) =>
