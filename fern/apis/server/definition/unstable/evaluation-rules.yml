@@ -23,7 +23,7 @@ service:
         - Langfuse resolves that family to its latest version before saving the evaluation rule
         - for `target=experiment`, use dataset `id` values from `GET /api/public/v2/datasets` when filtering by `datasetId`
         - every evaluator prompt variable must be mapped exactly once
-        - `expected_output` mappings are only valid for `target=experiment`
+        - `expected_output` and `experiment_item_metadata` mappings are only valid for `target=experiment`
         - if `enabled=true`, Langfuse validates that the referenced evaluator can currently run
         - at most 50 evaluation rules can be effectively active in one project at the same time
 
