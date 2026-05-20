@@ -7,6 +7,8 @@ import type {
   AgUiEvent,
   AgUiRunAgentInput,
 } from "@/src/features/in-app-agent/schema";
+import type { InAppAgentTracingConfig } from "@/src/features/in-app-agent/server/instrumentation";
+import { createInAppAgentInstrumentation } from "@/src/features/in-app-agent/server/instrumentation";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const ASSISTANT_SYSTEM_PROMPT = [
@@ -30,6 +32,7 @@ type CreateAgUiStreamOptions = {
     publicKey: string;
     secretKey: string;
   };
+  langfuseTracing?: InAppAgentTracingConfig;
 };
 
 export function createAgUiStream(params: {
@@ -42,6 +45,23 @@ export function createAgUiStream(params: {
   const langfuseMcpAuthHeader = `Basic ${Buffer.from(
     `${params.options.langfuseMcp.publicKey}:${params.options.langfuseMcp.secretKey}`,
   ).toString("base64")}`;
+
+  const adapterInput = params.options.resumeSessionId
+    ? {
+        ...params.input,
+        forwardedProps: {
+          ...(z
+            .record(z.string(), z.unknown())
+            .safeParse(params.input.forwardedProps).data ?? {}),
+          resume: params.options.resumeSessionId,
+        },
+      }
+    : params.input;
+
+  const instrumentation = createInAppAgentInstrumentation({
+    input: adapterInput,
+    tracing: params.options.langfuseTracing,
+  });
 
   const adapter = new ClaudeAgentAdapter({
     permissionMode: "dontAsk",
@@ -72,18 +92,6 @@ export function createAgUiStream(params: {
     model: "haiku",
   });
 
-  const adapterInput = params.options.resumeSessionId
-    ? {
-        ...params.input,
-        forwardedProps: {
-          ...(z
-            .record(z.string(), z.unknown())
-            .safeParse(params.input.forwardedProps).data ?? {}),
-          resume: params.options.resumeSessionId,
-        },
-      }
-    : params.input;
-
   return new ReadableStream<Uint8Array>({
     start(controller) {
       let closed = false;
@@ -97,6 +105,8 @@ export function createAgUiStream(params: {
       };
 
       const abort = () => {
+        instrumentation?.end({ aborted: true });
+        instrumentation?.flush();
         void adapter.interrupt().catch(() => undefined);
         closeController();
       };
@@ -122,10 +132,14 @@ export function createAgUiStream(params: {
             return;
           }
 
-          for (const agUiEvent of normalizeAdapterEvent(
+          const agUiEvents = normalizeAdapterEvent(
             event,
             params.options.createResumeStateForSessionId,
-          )) {
+          );
+
+          instrumentation?.recordEvents(agUiEvents);
+
+          for (const agUiEvent of agUiEvents) {
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify(agUiEvent)}\n\n`),
             );
@@ -138,6 +152,8 @@ export function createAgUiStream(params: {
           }
 
           console.error("Error in agent execution:", error);
+          instrumentation?.endWithError(error);
+          instrumentation?.flush();
 
           const message =
             error instanceof Error ? error.message : "Unknown assistant error";
@@ -153,6 +169,8 @@ export function createAgUiStream(params: {
           closeController();
         },
         complete() {
+          instrumentation?.end({});
+          instrumentation?.flush();
           closeController();
         },
       });

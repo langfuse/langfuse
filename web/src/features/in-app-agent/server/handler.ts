@@ -1,4 +1,5 @@
 import { getServerSession } from "next-auth";
+import { randomBytes } from "crypto";
 
 import { env } from "@/src/env.mjs";
 import {
@@ -8,6 +9,7 @@ import {
   type AgUiMessage,
 } from "@/src/features/in-app-agent/schema";
 import { createAgUiStream } from "@/src/features/in-app-agent/server/agent";
+import { getInAppAgentTracingEnvironment } from "@/src/features/in-app-agent/server/instrumentation";
 import {
   InvalidInAppAgentSessionTokenError,
   signInAppAgentSessionToken,
@@ -96,11 +98,12 @@ export default async function handler(request: Request) {
 
     const auth = { userId: session.user.id, user: session.user };
 
-    const { projectId, claudeSessionId } = (() => {
+    const { projectId, claudeSessionId, langfuseTraceId } = (() => {
       if (parsedState.data.type === "newSession") {
         return {
           projectId: parsedState.data.projectId,
           claudeSessionId: undefined,
+          langfuseTraceId: randomBytes(16).toString("hex"),
         };
       }
 
@@ -156,6 +159,7 @@ export default async function handler(request: Request) {
             projectId,
             threadId: sanitizedInput.threadId,
             claudeSessionId,
+            langfuseTraceId,
           }),
         }),
         awsCredentials: {
@@ -167,6 +171,24 @@ export default async function handler(request: Request) {
           url: getLangfuseMcpUrl(),
           publicKey: mcpApiKey.publicKey,
           secretKey: mcpApiKey.secretKey,
+        },
+        langfuseTracing: {
+          publicKey: env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+          secretKey: env.LANGFUSE_AI_FEATURES_SECRET_KEY,
+          host: env.LANGFUSE_AI_FEATURES_HOST,
+          environment: getInAppAgentTracingEnvironment(
+            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          ),
+          userId: auth.userId,
+          traceId: langfuseTraceId,
+          metadata: {
+            langfuse_user_id: auth.userId,
+            langfuse_project_id: projectId,
+            thread_id: sanitizedInput.threadId,
+            run_id: sanitizedInput.runId,
+            cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+            agent_session_type: claudeSessionId ? "existing" : "new",
+          },
         },
       },
     });

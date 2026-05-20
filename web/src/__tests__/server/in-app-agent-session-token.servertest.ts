@@ -9,6 +9,7 @@ const tokenParams = {
   projectId: "project-1",
   threadId: "thread-1",
   claudeSessionId: "session-1",
+  langfuseTraceId: "trace-1",
 };
 
 describe("in-app agent session tokens", () => {
@@ -27,6 +28,7 @@ describe("in-app agent session tokens", () => {
     ).toEqual({
       projectId: tokenParams.projectId,
       claudeSessionId: tokenParams.claudeSessionId,
+      langfuseTraceId: tokenParams.langfuseTraceId,
     });
   });
 

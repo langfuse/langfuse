@@ -1,10 +1,10 @@
+import { LangfuseClient } from "@langfuse/client";
 import { LLMAdapter } from "@langfuse/shared/src/server";
-import { Langfuse } from "langfuse";
 import { env } from "@/src/env.mjs";
 import { type FilterCondition, singleFilter } from "@langfuse/shared";
 import { z } from "zod";
 
-let langfuseClient: Langfuse | null = null;
+let langfuseClient: LangfuseClient | null = null;
 
 export function getDefaultModelParams() {
   return {
@@ -50,14 +50,12 @@ export function getLangfuseClient(
   publicKey: string,
   secretKey: string,
   baseUrl?: string,
-  enabled?: boolean,
-): Langfuse {
+): LangfuseClient {
   if (!langfuseClient) {
-    langfuseClient = new Langfuse({
+    langfuseClient = new LangfuseClient({
       publicKey,
       secretKey,
       baseUrl,
-      enabled: enabled ?? true,
     });
   }
   return langfuseClient;

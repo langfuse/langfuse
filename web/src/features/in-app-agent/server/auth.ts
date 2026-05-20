@@ -19,6 +19,7 @@ const InAppAgentSessionTokenPayloadSchema = z.object({
   projectId: z.string(),
   threadId: z.string(),
   claudeSessionId: z.string(),
+  langfuseTraceId: z.string(),
   exp: z.number().int(),
 });
 
@@ -76,6 +77,7 @@ export function signInAppAgentSessionToken(params: {
   projectId: string;
   threadId: string;
   claudeSessionId: string;
+  langfuseTraceId: string;
 }): string {
   const payload = Buffer.from(
     JSON.stringify({
@@ -99,6 +101,7 @@ export function verifyInAppAgentSessionToken(
 ): {
   projectId: string;
   claudeSessionId: string;
+  langfuseTraceId: string;
 } {
   const parsedToken = InAppAgentSessionTokenSchema.safeParse(token);
 
@@ -123,6 +126,7 @@ export function verifyInAppAgentSessionToken(
   return {
     projectId: payload.projectId,
     claudeSessionId: payload.claudeSessionId,
+    langfuseTraceId: payload.langfuseTraceId,
   };
 }
 
