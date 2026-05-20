@@ -13,7 +13,7 @@ import { type viewsV2 } from "../../../features/query/types";
 export const SECOND = 1000n;
 
 /**
- * MINUTE one minute in milliseconds.
+ * MINUTE is one minute in milliseconds.
  */
 export const MINUTE = 60n * SECOND;
 

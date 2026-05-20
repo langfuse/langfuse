@@ -54,10 +54,6 @@
     "./query/server": {
       "import": "./dist/src/features/query/server/index.js",
       "require": "./dist/src/features/query/server/index.js"
-    },
-    "./monitor": {
-      "import": "./dist/src/features/monitor/index.js",
-      "require": "./dist/src/features/monitor/index.js"
     }
   },
   "scripts": {
