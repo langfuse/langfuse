@@ -143,18 +143,44 @@ class ToolRegistry {
   }
 
   /**
+   * Get tool handler by name after applying the owning feature's enablement
+   * check. Direct calls must behave the same as discovery for gated features.
+   */
+  async getEnabledTool(
+    name: string,
+    context: ServerContext,
+  ): Promise<RegisteredTool | undefined> {
+    const tool = this.tools.get(name);
+    if (!tool) return undefined;
+
+    const feature = this.getFeatureForTool(name);
+    if (!feature) return undefined;
+
+    if (feature.isEnabled && !(await feature.isEnabled(context))) {
+      return undefined;
+    }
+
+    return tool;
+  }
+
+  /**
    * Get feature name for a tool (for error messages)
    *
    * @param toolName - Tool name to lookup
    * @returns Feature name or "unknown"
    */
   private getToolFeature(toolName: string): string {
-    for (const [featureName, feature] of this.features.entries()) {
+    const feature = this.getFeatureForTool(toolName);
+    return feature?.name ?? "unknown";
+  }
+
+  private getFeatureForTool(toolName: string): McpFeatureModule | undefined {
+    for (const feature of this.features.values()) {
       if (feature.tools.some((t) => t.definition.name === toolName)) {
-        return featureName;
+        return feature;
       }
     }
-    return "unknown";
+    return undefined;
   }
 
   /**
