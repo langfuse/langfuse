@@ -22,6 +22,7 @@ export async function executeCodeBasedEvaluation(params: {
   config: JobConfiguration;
   template: EvalTemplateCodeBased;
   extractedVariables: ExtractedVariable[];
+  hasExperimentContext?: boolean;
   environment: string;
   metadata: Record<string, string>;
   // Unused; present for ObservationEvalExecutor interface symmetry.
@@ -79,6 +80,7 @@ export async function executeCodeBasedEvaluation(params: {
         template: params.template,
         scoreName: params.config.scoreName,
         extractedVariables: params.extractedVariables,
+        hasExperimentContext: params.hasExperimentContext ?? false,
         traceName: `Execute evaluator: ${params.template.name}`,
         metadata: {
           ...executionMetadata,

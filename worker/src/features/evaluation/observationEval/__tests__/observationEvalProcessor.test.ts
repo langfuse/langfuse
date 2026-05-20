@@ -60,8 +60,11 @@ vi.mock("../../codeBased", () => ({
 // Mock logger
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
+  const { extractObservationVariables } =
+    await import("../../../../../../packages/shared/src/server/evals/extractObservationVariables");
   return {
     ...actual,
+    extractObservationVariables,
     logger: {
       debug: vi.fn(),
       info: vi.fn(),
@@ -460,6 +463,7 @@ describe("processObservationEval", () => {
         span_id: "obs-xyz",
         project_id: projectId,
         trace_id: "trace-abc",
+        experiment_id: "experiment-123",
         environment: "production",
         output: '{"response": "test output"}',
       });
@@ -493,6 +497,7 @@ describe("processObservationEval", () => {
               value: '{"response": "test output"}',
             }),
           ]),
+          hasExperimentContext: true,
           environment: "production",
         }),
       );

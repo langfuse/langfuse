@@ -97,6 +97,7 @@ describe("executeCodeBasedEvaluation", () => {
         { var: "output", value: "4" },
         { var: "experimentExpectedOutput", value: "4" },
       ],
+      hasExperimentContext: true,
       environment: "default",
       metadata: { job_execution_id: "job-1" },
     });
@@ -196,6 +197,90 @@ describe("executeCodeBasedEvaluation", () => {
     );
   });
 
+  it("passes an empty experiment payload when the source observation has experiment context", async () => {
+    mocks.dispatcher.dispatch.mockResolvedValue({
+      scores: [{ value: 1, dataType: "BOOLEAN" }],
+    });
+
+    await executeCodeBasedEvaluation({
+      projectId: "project-1",
+      jobExecutionId: "job-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: "obs-1",
+        jobInputDatasetItemId: null,
+      } as any,
+      config: { id: "config-1", scoreName: "default-score" } as any,
+      template: {
+        id: "template-1",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "export function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [],
+      hasExperimentContext: true,
+      environment: "default",
+      metadata: { job_execution_id: "job-1" },
+    });
+
+    expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: {
+          observation: { input: null, output: null, metadata: null },
+          experiment: {
+            expectedOutput: null,
+            itemMetadata: null,
+          },
+        },
+      }),
+    );
+  });
+
+  it("does not infer experiment payload from mapped variables alone", async () => {
+    mocks.dispatcher.dispatch.mockResolvedValue({
+      scores: [{ value: 1, dataType: "BOOLEAN" }],
+    });
+
+    await executeCodeBasedEvaluation({
+      projectId: "project-1",
+      jobExecutionId: "job-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: "obs-1",
+        jobInputDatasetItemId: null,
+      } as any,
+      config: { id: "config-1", scoreName: "default-score" } as any,
+      template: {
+        id: "template-1",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "export function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [{ var: "experimentExpectedOutput", value: "4" }],
+      hasExperimentContext: false,
+      environment: "default",
+      metadata: { job_execution_id: "job-1" },
+    });
+
+    expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: {
+          observation: { input: null, output: null, metadata: null },
+        },
+      }),
+    );
+  });
+
   it("passes extracted variable values through to the dispatcher payload as-is", async () => {
     mocks.dispatcher.dispatch.mockResolvedValue({
       scores: [{ value: 1, dataType: "BOOLEAN" }],
@@ -226,6 +311,7 @@ describe("executeCodeBasedEvaluation", () => {
         { var: "observationMetadata", value: "42" },
         { var: "experimentExpectedOutput", value: "null" },
       ],
+      hasExperimentContext: true,
       environment: "default",
       metadata: { job_execution_id: "job-1" },
     });
@@ -278,6 +364,7 @@ describe("executeCodeBasedEvaluation", () => {
           value: { difficulty: "easy", source: "dataset" },
         },
       ],
+      hasExperimentContext: true,
       environment: "default",
       metadata: { job_execution_id: "job-1" },
     });

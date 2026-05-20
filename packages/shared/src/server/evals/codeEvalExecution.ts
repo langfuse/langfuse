@@ -47,14 +47,13 @@ type CodeBasedEvaluationDispatchResult =
       executionTraceId: string;
     };
 
-function buildCodeEvalPayload(
-  extractedVariables: ExtractedVariable[],
-): CodeEvalPayload {
-  const byName = new Map(extractedVariables.map((v) => [v.var, v.value]));
-  const hasExperiment =
-    byName.has("experimentExpectedOutput") ||
-    byName.has("experimentItemMetadata");
-
+function buildCodeEvalPayload(params: {
+  extractedVariables: ExtractedVariable[];
+  hasExperimentContext: boolean;
+}): CodeEvalPayload {
+  const byName = new Map(
+    params.extractedVariables.map((v) => [v.var, v.value]),
+  );
   const payload: CodeEvalPayload = {
     observation: {
       input: byName.get("input") ?? null,
@@ -63,7 +62,7 @@ function buildCodeEvalPayload(
     },
   };
 
-  if (hasExperiment) {
+  if (params.hasExperimentContext) {
     payload.experiment = {
       expectedOutput: byName.get("experimentExpectedOutput") ?? null,
       itemMetadata: byName.get("experimentItemMetadata") ?? null,
@@ -150,12 +149,16 @@ export async function runCodeBasedEvaluationDispatch(params: {
   template: EvalTemplateCodeBased;
   scoreName: string;
   extractedVariables: ExtractedVariable[];
+  hasExperimentContext?: boolean;
   traceName: string;
   metadata: Record<string, unknown>;
   writeTrace?: InternalTraceWriter;
   maskErrorsInTrace?: boolean;
 }): Promise<CodeBasedEvaluationDispatchResult> {
-  const payload = buildCodeEvalPayload(params.extractedVariables);
+  const payload = buildCodeEvalPayload({
+    extractedVariables: params.extractedVariables,
+    hasExperimentContext: params.hasExperimentContext ?? false,
+  });
   const traceStartTime = new Date();
   let dispatchResult: DispatchResult | undefined;
 
