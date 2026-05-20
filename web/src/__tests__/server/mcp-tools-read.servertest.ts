@@ -479,6 +479,66 @@ describe("MCP Read Tools", () => {
       expect(result.data).toEqual([{ id: matchingObservation.id }]);
     });
 
+    it("should require selective scope for full io and metadata access", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListObservations({ fields: ["input"], limit: 100 }, context),
+      ).rejects.toThrow(
+        /requires traceId, an id filter, or both fromStartTime and toStartTime/i,
+      );
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["id"],
+            filter: [
+              {
+                type: "string",
+                column: "input",
+                operator: "contains",
+                value: "secret",
+              },
+            ],
+            limit: 100,
+          },
+          context,
+        ),
+      ).rejects.toThrow(
+        /requires traceId, an id filter, or both fromStartTime and toStartTime/i,
+      );
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["input"],
+            filter: [
+              {
+                type: "stringOptions",
+                column: "id",
+                operator: "any of",
+                value: [randomUUID()],
+              },
+            ],
+            limit: 100,
+          },
+          context,
+        ),
+      ).resolves.toMatchObject({ data: [] });
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["metadata"],
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-01-02T00:00:00.000Z",
+            limit: 100,
+          },
+          context,
+        ),
+      ).resolves.toMatchObject({ data: [] });
+    });
+
     it("should infer advanced filter type from the column", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();

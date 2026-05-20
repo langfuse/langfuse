@@ -1,5 +1,6 @@
 import { SpanKind } from "@opentelemetry/api";
 import {
+  InvalidRequestError,
   OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS,
   booleanFilter,
   eventsTableCols,
@@ -39,6 +40,12 @@ const ObservationCursorSchema =
   EncodedObservationsCursorV2String.optional().describe(
     "Cursor returned by a previous listObservations call",
   );
+
+const EXPENSIVE_OBSERVATION_ACCESS_COLUMNS = new Set([
+  "input",
+  "output",
+  "metadata",
+]);
 
 const OBSERVATION_MCP_FILTER_COLUMN_TYPES = new Map(
   eventsTableCols
@@ -238,6 +245,60 @@ const ListObservationsInputSchema = ListObservationsBaseSchema.extend({
 
 type ListObservationsInput = z.infer<typeof ListObservationsInputSchema>;
 
+const hasObservationIdFilter = (filters: ListObservationsInput["filter"]) =>
+  filters?.some(
+    (filter) =>
+      filter.column === "id" &&
+      filter.type === "stringOptions" &&
+      filter.operator === "any of" &&
+      filter.value.length > 0,
+  ) ?? false;
+
+const hasValidStartTimeBound = (input: ListObservationsInput) => {
+  if (!input.fromStartTime || !input.toStartTime) return false;
+  return (
+    new Date(input.fromStartTime).getTime() <
+    new Date(input.toStartTime).getTime()
+  );
+};
+
+// Initially, we return io/metadata in full only if some limits are set
+const assertAllowedExpensiveObservationAccess = (
+  input: ListObservationsInput,
+  projectionFields: string[],
+) => {
+  const expensiveColumns = new Set<string>();
+
+  for (const field of projectionFields) {
+    if (EXPENSIVE_OBSERVATION_ACCESS_COLUMNS.has(field)) {
+      expensiveColumns.add(field);
+    }
+  }
+
+  for (const filter of input.filter ?? []) {
+    if (EXPENSIVE_OBSERVATION_ACCESS_COLUMNS.has(filter.column)) {
+      expensiveColumns.add(filter.column);
+    }
+  }
+
+  if (expensiveColumns.size === 0) return;
+
+  const hasSelectiveScope =
+    Boolean(input.traceId) ||
+    hasObservationIdFilter(input.filter) ||
+    hasValidStartTimeBound(input);
+
+  if (hasSelectiveScope) return;
+
+  throw new InvalidRequestError(
+    `Accessing observation ${Array.from(expensiveColumns)
+      .sort()
+      .join(
+        ", ",
+      )} requires traceId, an id filter, or both fromStartTime and toStartTime.`,
+  );
+};
+
 export const [listObservationsTool, handleListObservations] = defineTool({
   name: "listObservations",
   description: [
@@ -246,6 +307,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     "",
     'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
+    "Requests that project or filter input, output, or metadata must include traceId, an id filter, or both fromStartTime and toStartTime.",
   ].join("\n"),
   baseSchema: ListObservationsBaseSchema as z.ZodType<ListObservationsInput>,
   inputSchema: ListObservationsInputSchema,
@@ -255,6 +317,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
       async (span) => {
         const projectionFields = getProjectionFields(input.fields);
         const fieldGroups = getProjectionFieldGroups(projectionFields);
+        assertAllowedExpensiveObservationAccess(input, projectionFields);
 
         span.setAttributes({
           "langfuse.project.id": context.projectId,
