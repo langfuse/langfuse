@@ -103,8 +103,12 @@ export async function executeCodeBasedEvaluation(params: {
       } catch (error) {
         const errorDetails = serializeCodeEvalError(error);
 
-        try {
-          await writeCodeEvalTrace({
+        await writeCodeEvalTraceBestEffort({
+          failureMessage:
+            "Failed to write internal trace for failed code eval execution",
+          projectId: params.projectId,
+          executionTraceId,
+          traceParams: {
             projectId: params.projectId,
             executionTraceId,
             traceStartTime,
@@ -126,36 +130,30 @@ export async function executeCodeBasedEvaluation(params: {
             },
             level: "ERROR",
             statusMessage: `Code eval execution failed: ${errorDetails.message}`,
-          });
-        } catch (traceError) {
-          logger.warn(
-            "Failed to write internal trace for failed code eval execution",
-            {
-              projectId: params.projectId,
-              executionTraceId,
-              error:
-                traceError instanceof Error
-                  ? traceError.message
-                  : String(traceError),
-            },
-          );
-        }
+          },
+        });
 
         throw error;
       }
 
       // LLM-as-judge gets this trace from fetchLLMCompletion's traceSinkParams;
       // the code-eval dispatcher returns no trace data, so synthesize a SPAN.
-      await writeCodeEvalTrace({
+      await writeCodeEvalTraceBestEffort({
+        failureMessage:
+          "Failed to write internal trace for completed code eval execution",
         projectId: params.projectId,
         executionTraceId,
-        traceStartTime,
-        traceName,
-        payload,
-        output: dispatchResult,
-        metadata: {
-          ...executionMetadata,
-          score_id: primaryScoreId,
+        traceParams: {
+          projectId: params.projectId,
+          executionTraceId,
+          traceStartTime,
+          traceName,
+          payload,
+          output: dispatchResult,
+          metadata: {
+            ...executionMetadata,
+            score_id: primaryScoreId,
+          },
         },
       });
 
@@ -200,7 +198,7 @@ function buildCodeEvalPayload(
   return payload;
 }
 
-async function writeCodeEvalTrace(params: {
+type WriteCodeEvalTraceParams = {
   projectId: string;
   executionTraceId: string;
   traceStartTime: Date;
@@ -210,7 +208,27 @@ async function writeCodeEvalTrace(params: {
   metadata: Record<string, unknown>;
   level?: string;
   statusMessage?: string;
+};
+
+async function writeCodeEvalTraceBestEffort(params: {
+  failureMessage: string;
+  projectId: string;
+  executionTraceId: string;
+  traceParams: WriteCodeEvalTraceParams;
 }) {
+  try {
+    await writeCodeEvalTrace(params.traceParams);
+  } catch (traceError) {
+    logger.warn(params.failureMessage, {
+      projectId: params.projectId,
+      executionTraceId: params.executionTraceId,
+      error:
+        traceError instanceof Error ? traceError.message : String(traceError),
+    });
+  }
+}
+
+async function writeCodeEvalTrace(params: WriteCodeEvalTraceParams) {
   await createInternalEventsWriter().write({
     rootSpanId: params.executionTraceId,
     eventInputs: [
