@@ -173,7 +173,7 @@ describe("MonitorListInputSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it.each(["name", "status", "severity", "createdAt"] as const)(
+  it.each(["name", "status", "severity", "createdAt", "updatedAt"] as const)(
     "accepts %s as orderBy.column",
     (column) => {
       const result = MonitorListInputSchema.safeParse({
