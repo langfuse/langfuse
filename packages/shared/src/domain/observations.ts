@@ -79,6 +79,7 @@ export const ObservationSchema = z.object({
   promptVersion: z.number().nullable(),
   latency: z.number().nullable(),
   timeToFirstToken: z.number().nullable(),
+  providedUsageDetails: z.record(z.string(), z.number()),
   usageDetails: z.record(z.string(), z.number()),
   costDetails: z.record(z.string(), z.number()),
   providedCostDetails: z.record(z.string(), z.number()),

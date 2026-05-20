@@ -76,9 +76,14 @@ node_modules
 web/test-results/*
 .playwright-mcp/*
 .codex-artifacts/
+
+# Local DeepSec workspace and generated scan state
+.deepsec/
+
 .mcp.json
 .claude/settings.json
 .claude/skills/
+.claude/launch.json
 .cursor/mcp.json
 .cursor/environment.json
 .vscode/mcp.json

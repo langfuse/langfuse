@@ -1,19 +1,13 @@
 import {
   queryClickhouse,
-  measureAndReturn,
   type ClickhouseQueryOpts,
-  type PreferredClickhouseService,
-} from "@langfuse/shared/src/server";
-import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
-import { type QueryType, type ViewVersion } from "@/src/features/query/types";
-import { getViewDeclaration } from "@/src/features/query/dataModel";
-import { env } from "@/src/env.mjs";
-
-// Re-export validation logic (shared between server and client)
-export {
-  validateQuery,
-  type QueryValidationResult,
-} from "@/src/features/query/validateQuery";
+} from "../../../server/repositories/clickhouse";
+import { measureAndReturn } from "../../../server/clickhouse/measureAndReturn";
+import { type PreferredClickhouseService } from "../../../server/clickhouse/client";
+import { QueryBuilder } from "./queryBuilder";
+import { type QueryType, type ViewVersion } from "../types";
+import { getViewDeclaration } from "../dataModel";
+import { env } from "../../../env";
 
 export type PreparedQuery = {
   compiledQuery: string;
