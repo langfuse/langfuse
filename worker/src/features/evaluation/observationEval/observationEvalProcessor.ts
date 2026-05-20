@@ -243,10 +243,8 @@ export async function processObservationEval<TTemplate extends EvalTemplate>(
     jobExecutionId: executionParams.jobExecutionId,
     traceId: executionParams.job.jobInputTraceId,
     observationId: executionParams.job.jobInputObservationId,
-    scoreName: executionParams.config.scoreName,
     environment: executionParams.environment,
-    metadata: executionParams.metadata,
     deps: executionParams.deps,
-    ...executionResult,
+    result: executionResult,
   });
 }

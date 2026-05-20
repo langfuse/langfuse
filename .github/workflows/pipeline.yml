@@ -471,6 +471,8 @@ jobs:
         run: |
           docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
           docker compose ps
+        env:
+          COMPOSE_PROFILES: ${{ matrix.deploy-mode == '' && 'worker-tests' || '' }}
       - name: Ensure no unhealthy status
         run: |
           if docker compose ps | grep "(unhealthy)"; then
@@ -500,7 +502,8 @@ jobs:
         run: pnpm --filter=worker... run build
       - name: run tests
         run: pnpm --filter=worker run test:exclude-llm-connections
-
+        env:
+          LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
   test-worker-llm-connections:
     timeout-minutes: 20
     runs-on: blacksmith-4vcpu-ubuntu-2404

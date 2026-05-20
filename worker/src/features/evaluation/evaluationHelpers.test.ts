@@ -18,7 +18,7 @@ import {
   compileEvalPrompt,
   getEnvironmentFromVariables,
 } from "./evalRuntime";
-import { buildEvalScoreWritePayloads, buildScoreEvent } from "./evalScoreEvent";
+import { buildEvalScoreWritePayloads } from "./evalScoreEvent";
 
 describe("evaluation helpers", () => {
   describe("compileEvalPrompt", () => {
@@ -69,6 +69,33 @@ describe("evaluation helpers", () => {
 
       const result = compileEvalPrompt(params);
       expect(result).toBe('Data: {"key": "value", "count": 42}');
+    });
+
+    it("stringifies non-string variable values via parseUnknownToString", () => {
+      // Regression guard for the upstream refactor that made
+      // `ExtractedVariable.value: unknown`. A naive `String(value)` would
+      // render `"[object Object]"` for object inputs and the comma-joined
+      // form for arrays — both useless to an LLM.
+      const params = {
+        templatePrompt:
+          "meta={{meta}} tools={{tools}} score={{score}} flag={{flag}} missing={{missing}}",
+        variables: [
+          { var: "meta", value: { key: "value", count: 42 } },
+          { var: "tools", value: ["get_weather", "search_web"] },
+          { var: "score", value: 0.85 },
+          { var: "flag", value: true },
+          { var: "missing", value: null },
+        ] as ExtractedVariable[],
+      };
+
+      const result = compileEvalPrompt(params);
+
+      expect(result).toContain('meta={"key":"value","count":42}');
+      expect(result).not.toContain("[object Object]");
+      expect(result).toContain('tools=["get_weather","search_web"]');
+      expect(result).toContain("score=0.85");
+      expect(result).toContain("flag=true");
+      expect(result).toContain("missing=");
     });
   });
 
@@ -353,113 +380,23 @@ describe("evaluation helpers", () => {
     });
   });
 
-  describe("buildScoreEvent", () => {
-    it("should build complete score event", () => {
-      const params = {
-        eventId: "event-123",
-        scoreId: "score-456",
-        traceId: "trace-789",
-        observationId: null,
-        scoreName: "accuracy",
-        scoreValue: 0.85,
-        reasoning: "High accuracy observed",
-        environment: "production",
-        executionTraceId: "exec-trace-abc",
-        metadata: { job_execution_id: "exec-123" },
-        dataType: ScoreDataTypeEnum.NUMERIC,
-      };
-
-      const result = buildScoreEvent(params);
-
-      expect(result.id).toBe("event-123");
-      expect(result.type).toBe("score-create");
-      expect(result.body.id).toBe("score-456");
-      expect(result.body.traceId).toBe("trace-789");
-      expect(result.body.observationId).toBeNull();
-      expect(result.body.name).toBe("accuracy");
-      expect(result.body.value).toBe(0.85);
-      expect(result.body.comment).toBe("High accuracy observed");
-      expect(result.body.source).toBe("EVAL");
-      expect(result.body.environment).toBe("production");
-      expect(result.body.executionTraceId).toBe("exec-trace-abc");
-      expect(result.body.metadata).toEqual({ job_execution_id: "exec-123" });
-      expect(result.body.dataType).toBe("NUMERIC");
-    });
-
-    it("should include observation ID when provided", () => {
-      const params = {
-        eventId: "event-123",
-        scoreId: "score-456",
-        traceId: "trace-789",
-        observationId: "obs-abc",
-        scoreName: "relevance",
-        scoreValue: 0.9,
-        reasoning: "Highly relevant",
-        environment: "default",
-        executionTraceId: "exec-trace-def",
-        metadata: {},
-        dataType: ScoreDataTypeEnum.NUMERIC,
-      };
-
-      const result = buildScoreEvent(params);
-
-      expect(result.body.observationId).toBe("obs-abc");
-    });
-
-    it("should build categorical score events", () => {
-      const result = buildScoreEvent({
-        eventId: "event-123",
-        scoreId: "score-456",
-        traceId: "trace-789",
-        observationId: null,
-        scoreName: "factuality",
-        scoreValue: "correct",
-        reasoning: "The answer is fully supported.",
-        environment: "production",
-        executionTraceId: "exec-trace-abc",
-        metadata: { job_execution_id: "exec-123" },
-        dataType: ScoreDataTypeEnum.CATEGORICAL,
-      });
-
-      expect(result.body.value).toBe("correct");
-      expect(result.body.dataType).toBe("CATEGORICAL");
-    });
-
-    it("should build boolean score events", () => {
-      const result = buildScoreEvent({
-        eventId: "event-123",
-        scoreId: "score-456",
-        traceId: "trace-789",
-        observationId: null,
-        scoreName: "correctness",
-        scoreValue: 1,
-        reasoning: "The answer meets the criteria.",
-        environment: "production",
-        executionTraceId: "exec-trace-abc",
-        metadata: { job_execution_id: "exec-123" },
-        dataType: ScoreDataTypeEnum.BOOLEAN,
-      });
-
-      expect(result.body.value).toBe(1);
-      expect(result.body.dataType).toBe("BOOLEAN");
-    });
-  });
-
   describe("buildEvalScoreWritePayloads", () => {
     it("should build a single numeric score payload", () => {
       const result = buildEvalScoreWritePayloads({
-        outputResult: {
-          dataType: ScoreDataTypeEnum.NUMERIC,
-          score: 0.85,
-          reasoning: "High accuracy observed",
-        },
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.85,
+            name: "accuracy",
+            comment: "High accuracy observed",
+          },
+        ],
         primaryScoreId: "score-123",
         traceId: "trace-456",
         observationId: null,
-        scoreName: "accuracy",
         environment: "production",
         executionTraceId: "exec-trace-789",
-        metadata: { job_execution_id: "job-1" },
+        executionMetadata: { job_execution_id: "job-1" },
       });
 
       expect(result).toHaveLength(1);
@@ -477,18 +414,20 @@ describe("evaluation helpers", () => {
 
     it("should build a single boolean score payload", () => {
       const result = buildEvalScoreWritePayloads({
-        outputResult: {
-          dataType: ScoreDataTypeEnum.BOOLEAN,
-          score: true,
-          reasoning: "The answer satisfies the criteria",
-        },
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.BOOLEAN,
+            value: 1,
+            name: "correctness",
+            comment: "The answer satisfies the criteria",
+          },
+        ],
         primaryScoreId: "score-123",
         traceId: "trace-456",
         observationId: null,
-        scoreName: "correctness",
         environment: "production",
         executionTraceId: "exec-trace-789",
-        metadata: { job_execution_id: "job-1" },
+        executionMetadata: { job_execution_id: "job-1" },
       });
 
       expect(result).toHaveLength(1);
@@ -506,18 +445,26 @@ describe("evaluation helpers", () => {
 
     it("should build one categorical payload per match while preserving shared metadata", () => {
       const result = buildEvalScoreWritePayloads({
-        outputResult: {
-          dataType: ScoreDataTypeEnum.CATEGORICAL,
-          matches: ["correct", "partial"],
-          reasoning: "Both categories apply",
-        },
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "correct",
+            name: "accuracy",
+            comment: "Both categories apply",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "partial",
+            name: "accuracy",
+            comment: "Both categories apply",
+          },
+        ],
         primaryScoreId: "score-123",
         traceId: "trace-456",
         observationId: "obs-789",
-        scoreName: "accuracy",
         environment: "production",
         executionTraceId: "exec-trace-789",
-        metadata: { job_execution_id: "job-1" },
+        executionMetadata: { job_execution_id: "job-1" },
       });
 
       expect(result).toHaveLength(2);

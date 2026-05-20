@@ -2,7 +2,10 @@ import { type PreviewData } from "@/src/features/evals/hooks/usePreviewData";
 import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { EvalTargetObject, extractValueFromObject } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  extractValueFromObjectAsString,
+} from "@langfuse/shared";
 import { useEffect, useState, useRef } from "react";
 
 /**
@@ -20,7 +23,7 @@ function getObservationByName(
 
 type ExtractedVariable = {
   variable: string;
-  value: unknown;
+  value: string;
 };
 
 type ExtractionError =
@@ -158,7 +161,7 @@ export function useExtractVariables({
         return { variable, value: "n/a" };
       }
 
-      const { value, error } = extractValueFromObject(
+      const { value, error } = extractValueFromObjectAsString(
         object,
         mapping.selectedColumnId,
         mapping.jsonSelector ?? undefined,
