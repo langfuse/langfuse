@@ -1,5 +1,6 @@
 import { stripTypeScriptTypes } from "node:module";
 import { Worker } from "node:worker_threads";
+import { env } from "../../env";
 import {
   CodeEvalDispatcherError,
   parseDispatchResult,
@@ -68,6 +69,12 @@ type WorkerMessage = WorkerSuccess | WorkerFailure;
 
 export class LocalCodeEvalDispatcher implements CodeEvalDispatcher {
   public readonly name = "local";
+  private readonly timeoutMs: number;
+
+  constructor(params?: { timeoutMs?: number }) {
+    this.timeoutMs =
+      params?.timeoutMs ?? env.LANGFUSE_CODE_EVAL_LOCAL_TIMEOUT_MS;
+  }
 
   async dispatch(input: DispatchInput): Promise<DispatchResult> {
     if (input.runtime.language !== "TYPESCRIPT") {
@@ -87,7 +94,10 @@ export class LocalCodeEvalDispatcher implements CodeEvalDispatcher {
       );
     }
 
-    const message = await runInWorker({ source, payload: input.payload });
+    const message = await runInWorker(
+      { source, payload: input.payload },
+      this.timeoutMs,
+    );
 
     if (!message.ok) {
       throw new CodeEvalDispatcherError(message.message, {
@@ -99,20 +109,36 @@ export class LocalCodeEvalDispatcher implements CodeEvalDispatcher {
   }
 }
 
-function runInWorker(workerData: {
-  source: string;
-  payload: unknown;
-}): Promise<WorkerMessage> {
+function runInWorker(
+  workerData: {
+    source: string;
+    payload: unknown;
+  },
+  timeoutMs: number,
+): Promise<WorkerMessage> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(WORKER_SOURCE, { eval: true, workerData });
     let settled = false;
 
+    const timer = setTimeout(() => {
+      if (settled) return;
+      cleanup();
+      reject(
+        new CodeEvalDispatcherError("Local code eval execution timed out", {
+          code: "TIMEOUT",
+          retryable: true,
+        }),
+      );
+    }, timeoutMs);
+
     const cleanup = () => {
       settled = true;
+      clearTimeout(timer);
       void worker.terminate();
     };
 
     worker.once("message", (msg: WorkerMessage) => {
+      if (settled) return;
       cleanup();
       resolve(msg);
     });
@@ -121,6 +147,7 @@ function runInWorker(workerData: {
     // the IIFE. The in-worker try/catch above covers the common paths, so
     // hitting this branch usually means the runtime itself crashed.
     worker.once("error", (error) => {
+      if (settled) return;
       cleanup();
       reject(
         new CodeEvalDispatcherError(
@@ -134,6 +161,7 @@ function runInWorker(workerData: {
     // process.exit()). Surface as a user-code error rather than hanging.
     worker.once("exit", (exitCode) => {
       if (settled) return;
+      cleanup();
       reject(
         new CodeEvalDispatcherError(
           `Local code eval worker exited with code ${exitCode} before returning a result`,

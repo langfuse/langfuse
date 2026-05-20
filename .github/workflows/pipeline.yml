@@ -504,17 +504,6 @@ jobs:
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
-      - name: Dump Floci diagnostics on worker test failure
-        if: failure() && matrix.deploy-mode == ''
-        run: |
-          docker compose -f docker-compose.dev.yml ps floci || true
-          docker compose -f docker-compose.dev.yml logs --no-color --timestamps floci || true
-          floci_container_id="$(docker compose -f docker-compose.dev.yml ps -q floci)"
-          if [ -n "$floci_container_id" ]; then
-            docker inspect "$floci_container_id" || true
-          fi
-          docker ps -a --filter "name=code-based-eval" || true
-
   test-worker-llm-connections:
     timeout-minutes: 20
     runs-on: blacksmith-4vcpu-ubuntu-2404

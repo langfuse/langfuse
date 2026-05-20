@@ -83,7 +83,7 @@ def evaluate(ctx):
             {"name": "output-contains-input-int", "value": 1 if contains else 0, "dataType": "BOOLEAN"},
             {"name": "output-contains-input-str", "value": "true" if contains else "false", "dataType": "BOOLEAN"},
             {"name": ctx.observation.metadata["topic"], "value": ctx.experiment.itemMetadata["item"], "dataType": "NUMERIC"},
-            {"name": "expected-output", "value": ctx.experiment.expectedOutput, "dataType": "TEXT"},
+            Score(name="expected-output", value=ctx.experiment.expectedOutput, data_type="TEXT"),
             {"name": "rating", "value": "good", "dataType": "CATEGORICAL"},
         ],
     }

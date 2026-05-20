@@ -118,6 +118,23 @@ describe("LocalCodeEvalDispatcher", () => {
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
+  it("times out runaway evaluators and terminates the worker", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher({ timeoutMs: 50 });
+
+    await expect(
+      dispatcher.dispatch({
+        ...baseInput,
+        runtime: { language: "TYPESCRIPT" },
+        code: {
+          source: `export function evaluate() { while (true) {} }`,
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "TIMEOUT",
+      retryable: true,
+    } satisfies Partial<CodeEvalDispatcherError>);
+  });
+
   it("rejects Python evaluators", async () => {
     const dispatcher = new LocalCodeEvalDispatcher();
 
