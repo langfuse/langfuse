@@ -84,6 +84,7 @@ export async function executeCodeBasedEvaluation(params: {
           ...executionMetadata,
           score_id: primaryScoreId,
         },
+        maskErrorsInTrace: true,
         writeTrace: (trace) => createInternalEventsWriter().write(trace),
       });
 

@@ -3,6 +3,10 @@ import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
 } from "@prisma/client";
+import {
+  CodeEvalDispatcherError,
+  CodeEvalDispatcherErrorCodes,
+} from "../../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
 
 const mocks = vi.hoisted(() => ({
   dispatcher: {
@@ -53,6 +57,7 @@ describe("executeCodeBasedEvaluation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.projectFindUnique.mockResolvedValue({ orgId: "org-1" });
+    mocks.writeInternalTrace.mockResolvedValue(undefined);
   });
 
   it("defaults the first missing score name to the score config name and keeps additional names", async () => {
@@ -332,9 +337,9 @@ describe("executeCodeBasedEvaluation", () => {
     });
   });
 
-  it("writes an error internal trace when code eval execution fails and rethrows", async () => {
-    const error = Object.assign(new Error("runner exploded"), {
-      code: "USER_CODE_ERROR",
+  it("writes a user-visible error internal trace when code eval execution fails and rethrows", async () => {
+    const error = new CodeEvalDispatcherError("runner exploded", {
+      code: CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
       retryable: false,
     });
     mocks.dispatcher.dispatch.mockRejectedValue(error);
@@ -384,7 +389,7 @@ describe("executeCodeBasedEvaluation", () => {
             }),
             output: JSON.stringify({
               error: {
-                name: "Error",
+                name: "CodeEvalDispatcherError",
                 message: "runner exploded",
                 code: "USER_CODE_ERROR",
                 retryable: false,
@@ -395,9 +400,75 @@ describe("executeCodeBasedEvaluation", () => {
               code_eval_runtime: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
               code_eval_source_code: "export function evaluate() {}",
               job_execution_id: "job-1",
-              error_name: "Error",
+              error_name: "CodeEvalDispatcherError",
               error_message: "runner exploded",
               error_code: "USER_CODE_ERROR",
+              error_retryable: false,
+            }),
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("masks internal dispatcher errors in the internal trace", async () => {
+    const error = new CodeEvalDispatcherError(
+      "Failed to invoke code eval Lambda code-based-eval-executor-node: ResourceNotFoundException: Function not found",
+      {
+        code: CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
+        retryable: false,
+      },
+    );
+    mocks.dispatcher.dispatch.mockRejectedValue(error);
+
+    await expect(
+      executeCodeBasedEvaluation({
+        projectId: "project-1",
+        jobExecutionId: "job-1",
+        job: {
+          id: "job-1",
+          jobConfigurationId: "config-1",
+          jobInputTraceId: "trace-1",
+          jobInputObservationId: "obs-1",
+          jobInputDatasetItemId: null,
+        } as any,
+        config: { id: "config-1", scoreName: "default-score" } as any,
+        template: {
+          id: "template-1",
+          name: "Code evaluator",
+          type: EvalTemplateType.CODE,
+          version: 1,
+          sourceCode: "export function evaluate() {}",
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+          prompt: null,
+          outputDefinition: null,
+        } as any,
+        extractedVariables: [{ var: "input", value: "prompt" }],
+        environment: "default",
+        metadata: { job_execution_id: "job-1" },
+      }),
+    ).rejects.toBe(error);
+
+    expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);
+    expect(mocks.writeInternalTrace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventInputs: [
+          expect.objectContaining({
+            level: "ERROR",
+            statusMessage:
+              "Code eval execution failed: An internal error occurred",
+            output: JSON.stringify({
+              error: {
+                name: "CodeEvalDispatcherError",
+                message: "An internal error occurred",
+                code: "INTERNAL_ERROR",
+                retryable: false,
+              },
+            }),
+            metadata: expect.objectContaining({
+              error_name: "CodeEvalDispatcherError",
+              error_message: "An internal error occurred",
+              error_code: "INTERNAL_ERROR",
               error_retryable: false,
             }),
           }),
