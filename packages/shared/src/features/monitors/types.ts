@@ -131,9 +131,14 @@ export const validateThresholdOrder = (
   ctx: z.RefinementCtx,
 ): void => {
   if (!isValidThresholdOrder(input)) {
+    // For gt/gte the predicate requires `warning < alert` (strict);
+    // for lt/lte it requires `warning > alert` (strict). Map to the actual
+    // required relation symbol so the error message doesn't claim the
+    // non-strict variant for `gte`/`lte`.
+    const symbol = input.thresholdOperator.startsWith("g") ? ">" : "<";
     ctx.addIssue({
       code: "custom",
-      message: `alertThreshold must be ${input.thresholdOperator} warningThreshold`,
+      message: `alertThreshold must be ${symbol} warningThreshold`,
       path: ["threshold"],
     });
   }

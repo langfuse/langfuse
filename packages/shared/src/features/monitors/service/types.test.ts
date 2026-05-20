@@ -51,6 +51,44 @@ describe("CreateMonitorInputSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it.each(["gt", "gte"] as const)(
+    "%s emits a `>` strict-ordering message (not the operator name)",
+    (op) => {
+      const result = CreateMonitorInputSchema.safeParse({
+        ...validCreateInput,
+        thresholdOperator: op,
+        alertThreshold: 100,
+        warningThreshold: 100,
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const message = result.error.issues[0].message;
+        expect(message).toContain(">");
+        // Must NOT interpolate the operator literal — `gte` would otherwise
+        // produce the misleading "must be gte" (non-strict) phrasing.
+        expect(message).not.toContain(op);
+      }
+    },
+  );
+
+  it.each(["lt", "lte"] as const)(
+    "%s emits a `<` strict-ordering message (not the operator name)",
+    (op) => {
+      const result = CreateMonitorInputSchema.safeParse({
+        ...validCreateInput,
+        thresholdOperator: op,
+        alertThreshold: 100,
+        warningThreshold: 100,
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const message = result.error.issues[0].message;
+        expect(message).toContain("<");
+        expect(message).not.toContain(op);
+      }
+    },
+  );
+
   it("rejects an unknown measure (validateQuery is wired)", () => {
     const result = CreateMonitorInputSchema.safeParse({
       ...validCreateInput,

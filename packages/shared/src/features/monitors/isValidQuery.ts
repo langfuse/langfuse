@@ -25,8 +25,7 @@ export function isValidQuery(input: {
 }): { valid: true } | { valid: false; reason: string } {
   const declaration = getViewDeclaration(input.view, "v2");
 
-  const measureDef = declaration.measures[input.metric.measure];
-  if (!measureDef) {
+  if (!Object.hasOwn(declaration.measures, input.metric.measure)) {
     return {
       valid: false,
       reason:
@@ -34,6 +33,7 @@ export function isValidQuery(input: {
         `Must be one of: ${Object.keys(declaration.measures).join(", ")}`,
     };
   }
+  const measureDef = declaration.measures[input.metric.measure];
 
   const validAggs = getValidAggregationsForMeasureType(measureDef.type);
   if (!validAggs.some((a) => a === input.metric.aggregation)) {
@@ -47,7 +47,7 @@ export function isValidQuery(input: {
 
   for (const filter of input.filters) {
     if (filter.column === "metadata") continue;
-    if (!(filter.column in declaration.dimensions)) {
+    if (!Object.hasOwn(declaration.dimensions, filter.column)) {
       return {
         valid: false,
         reason:

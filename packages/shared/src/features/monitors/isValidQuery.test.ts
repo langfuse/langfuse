@@ -72,4 +72,34 @@ describe("isValidQuery", () => {
       }),
     ).toThrow(/View 'bogus' is not supported/);
   });
+
+  it.each(["constructor", "toString", "hasOwnProperty", "__proto__"])(
+    "rejects %s as a measure (does not walk the prototype chain)",
+    (measure) => {
+      const result = isValidQuery({
+        view: "observations",
+        metric: { measure, aggregation: "count" },
+        filters: [],
+      });
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.reason).toContain("Invalid measure");
+      }
+    },
+  );
+
+  it.each(["constructor", "toString", "hasOwnProperty", "__proto__"])(
+    "rejects %s as a filter column (does not walk the prototype chain)",
+    (column) => {
+      const result = isValidQuery({
+        view: "observations",
+        metric: { measure: "count", aggregation: "count" },
+        filters: [{ type: "string", column, operator: "=", value: "x" }],
+      });
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.reason).toContain("Invalid filter column");
+      }
+    },
+  );
 });
