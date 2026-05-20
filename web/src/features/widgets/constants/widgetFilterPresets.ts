@@ -1,4 +1,4 @@
-import { type views } from "@/src/features/query/types";
+import { type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { BeakerIcon, type LucideIcon } from "lucide-react";
 import { type FilterState } from "@langfuse/shared";
