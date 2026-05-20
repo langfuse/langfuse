@@ -1,6 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
 import {
-  calculateMonitorWindowCadenceMillis,
   createOrgProjectAndApiKey,
   MonitorService,
 } from "@langfuse/shared/src/server";
@@ -22,6 +21,7 @@ const baseCreateInput = (
   warningThreshold: null,
   noData: { mode: "SILENT" as const },
   renotify: { mode: "OFF" as const },
+  status: "active" as const,
   name: "High error rate",
   message: "",
   tags: [],
@@ -42,6 +42,7 @@ const baseUpdateInput = (
   warningThreshold: null,
   noData: { mode: "SILENT" as const },
   renotify: { mode: "OFF" as const },
+  status: "active" as const,
   name: "High error rate",
   message: "",
   tags: [],
@@ -86,7 +87,8 @@ describe("MonitorService (integration)", () => {
       });
       expect(row).not.toBeNull();
       expect(row!.windowMs).toBe(5n * 60_000n);
-      expect(row!.cadenceMs).toBe(calculateMonitorWindowCadenceMillis(5n * 60_000n));
+      // "5m" is a sub-day window → 1-minute cadence.
+      expect(row!.cadenceMs).toBe(60_000n);
       expect(row!.schedulerBatchId).toBeGreaterThan(0n);
       expect(row!.nextRunAt.getTime()).toBeLessThanOrEqual(Date.now());
       expect(row!.severity).toBe("UNKNOWN");
@@ -208,6 +210,7 @@ describe("MonitorService (integration)", () => {
       }
       const page = await MonitorService.list({
         projectId,
+        orderBy: null,
         limit: 2,
         page: 1,
       });

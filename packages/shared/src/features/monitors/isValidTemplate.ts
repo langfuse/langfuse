@@ -1,8 +1,8 @@
-/** template.ts contains Monitor message template validation */
+/** isValidTemplate.ts contains Monitor message template validation. */
 import Handlebars from "handlebars";
 
 /**
- * MonitorMessageContext is the allowlisted context passed to a Monitor
+ * MonitorTemplateContext is the allowlisted context passed to a Monitor
  * message template at render time. Templates may only reference these
  * top-level keys.
  */
@@ -43,10 +43,10 @@ const monitorTemplateKeys = new Set<string>([
 ] satisfies (keyof MonitorTemplateContext)[]);
 
 /**
- * isValidTemplate returns true when `source` is a Handlebars
- * template whose AST only references `MonitorMessageContext` keys and
- * does not invoke helpers, partials, decorators, or sub-expressions, and
- * does not use unescaped output (`{{{x}}}`).
+ * isValidTemplate returns true when `source` is a Handlebars template whose
+ * AST only references `MonitorTemplateContext` keys and does not invoke
+ * helpers, partials, decorators, or sub-expressions, and does not use
+ * unescaped output (`{{{x}}}`).
  */
 export const isValidTemplate = (source: string): boolean => {
   let ast: hbs.AST.Program;

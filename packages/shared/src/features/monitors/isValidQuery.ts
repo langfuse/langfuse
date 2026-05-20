@@ -1,15 +1,15 @@
-/** validateQuery checks that a Monitor's (view, metric, filters) tuple resolves
- * against the v2 view declaration in the query package. Consumed as a zod
- * `superRefine` from the Monitor input schemas in `./types`. */
+/** isValidQuery.ts checks that a Monitor's (view, metric, filters) tuple
+ * resolves against the v2 view declaration in the query package. Consumed as
+ * a zod `superRefine` from the Monitor input schemas in `./types`. */
 import { type z } from "zod";
 
-import { type singleFilter } from "../../../interfaces/filters";
-import { getViewDeclaration } from "../../../features/query/dataModel";
+import { type singleFilter } from "../../interfaces/filters";
+import { getViewDeclaration } from "../query/dataModel";
 import {
   getValidAggregationsForMeasureType,
   type metric,
   type viewsV2,
-} from "../../../features/query/types";
+} from "../query/types";
 
 /**
  * isValidQuery ensures:
@@ -51,7 +51,7 @@ export function isValidQuery(input: {
       return {
         valid: false,
         reason:
-          `Invalid filter column "${filter.column}" for view "${params.view}". ` +
+          `Invalid filter column "${filter.column}" for view "${input.view}". ` +
           `Must be a dimension on the view or the special "metadata" column.`,
       };
     }
