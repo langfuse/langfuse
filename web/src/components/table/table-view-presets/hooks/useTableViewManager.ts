@@ -23,7 +23,11 @@ function firstRouterQueryString(
   value: string | string[] | undefined,
 ): string | undefined {
   if (typeof value === "string") return value;
-  if (Array.isArray(value) && value.length > 0 && typeof value[0] === "string") {
+  if (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    typeof value[0] === "string"
+  ) {
     return value[0];
   }
   return undefined;
@@ -177,7 +181,11 @@ export function useTableViewManager({
     // filters (e.g. opening a copied link in a new tab while session still holds
     // a last-used viewId).
     const explicitFilterQuery = firstRouterQueryString(router.query.filter);
-    if (explicitFilterQuery && explicitFilterQuery.length > 0 && !selectedViewId) {
+    if (
+      explicitFilterQuery &&
+      explicitFilterQuery.length > 0 &&
+      !selectedViewId
+    ) {
       setIsInitialized(true);
       setIsLoading(false);
       return;
