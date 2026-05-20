@@ -1,0 +1,5 @@
+# Normalize line endings to LF on commit
+* text=auto eol=lf
+
+# Auto-resolve pnpm-lock.yaml merge conflicts by keeping ours, then re-run pnpm install
+pnpm-lock.yaml merge=ours
