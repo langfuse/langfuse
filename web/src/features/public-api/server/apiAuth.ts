@@ -4,7 +4,6 @@ import {
   recordIncrement,
   verifySecretKey,
   type AuthHeaderVerificationResult,
-  type AuthHeaderValidVerificationResult,
   CachedApiKey,
   OrgEnrichedApiKey,
   logger,
@@ -25,14 +24,15 @@ import { type Redis, type Cluster } from "ioredis";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { API_KEY_NON_EXISTENT } from "@langfuse/shared/src/server";
 import { type z } from "zod";
-import { CloudConfigSchema, ForbiddenError, isPlan } from "@langfuse/shared";
+import { CloudConfigSchema, isPlan } from "@langfuse/shared";
 
-export class InAppAgentForbiddenError extends ForbiddenError {
+export class InAppAgentForbiddenError extends Error {
   static description =
     "Access denied - in-app agent keys are not allowed for this endpoint";
 
   constructor() {
     super(InAppAgentForbiddenError.description);
+    this.name = "InAppAgentForbiddenError";
   }
 }
 
@@ -198,10 +198,12 @@ export class ApiAuthService {
             );
 
             const accessLevel =
-              finalApiKey.scope === "ORGANIZATION" ? "organization" : "project";
+              finalApiKey.scope === "ORGANIZATION"
+                ? ("organization" as const)
+                : ("project" as const);
 
-            const result: AuthHeaderValidVerificationResult = {
-              validKey: true,
+            const result = {
+              validKey: true as const,
               scope: {
                 projectId: finalApiKey.projectId,
                 accessLevel,
@@ -253,11 +255,11 @@ export class ApiAuthService {
               span,
             );
 
-            const result: AuthHeaderValidVerificationResult = {
-              validKey: true,
+            const result = {
+              validKey: true as const,
               scope: {
                 projectId: dbKey.projectId,
-                accessLevel: "scores",
+                accessLevel: "scores" as const,
                 orgId,
                 plan: getOrganizationPlanServerSide(cloudConfig),
                 rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
