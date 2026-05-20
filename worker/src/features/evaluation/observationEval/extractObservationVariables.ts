@@ -12,7 +12,7 @@ import { logger } from "@langfuse/shared/src/server";
  */
 export interface ExtractedVariable {
   var: string;
-  value: string;
+  value: unknown;
   environment?: string;
 }
 
@@ -77,7 +77,7 @@ export function extractObservationVariables(
       );
       variables.push({
         var: mapping.templateVariable,
-        value: "",
+        value: null,
       });
       continue;
     }

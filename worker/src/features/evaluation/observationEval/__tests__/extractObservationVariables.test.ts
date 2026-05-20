@@ -123,7 +123,7 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("meta");
-      expect(result[0].value).toBe(JSON.stringify(mockObservation.metadata));
+      expect(result[0].value).toEqual(mockObservation.metadata);
     });
 
     it("should extract multiple variables", () => {
@@ -166,7 +166,7 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("tools");
-      expect(result[0].value).toBe(JSON.stringify(mockObservation.tool_calls));
+      expect(result[0].value).toEqual(mockObservation.tool_calls);
     });
 
     it("should extract toolDefinitions variable", () => {
@@ -187,9 +187,7 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("definitions");
-      expect(result[0].value).toBe(
-        JSON.stringify(mockObservation.tool_definitions),
-      );
+      expect(result[0].value).toEqual(mockObservation.tool_definitions);
     });
   });
 
@@ -270,9 +268,7 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("usage");
-      expect(result[0].value).toBe(
-        JSON.stringify(mockObservation.usage_details),
-      );
+      expect(result[0].value).toEqual(mockObservation.usage_details);
     });
 
     it("should extract costDetails variable", () => {
@@ -290,9 +286,7 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("cost");
-      expect(result[0].value).toBe(
-        JSON.stringify(mockObservation.cost_details),
-      );
+      expect(result[0].value).toEqual(mockObservation.cost_details);
     });
   });
 
@@ -363,9 +357,7 @@ describe("extractObservationVariables", () => {
         variableMapping,
       });
 
-      expect(result[0].value).toBe(
-        JSON.stringify(["get_weather", "search_web"]),
-      );
+      expect(result[0].value).toEqual(["get_weather", "search_web"]);
     });
 
     it("should handle null jsonSelector by returning full value", () => {
@@ -433,8 +425,8 @@ describe("extractObservationVariables", () => {
         availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
       );
 
-      expect(result[0].value).toBe("");
-      expect(result[1].value).toBe("");
+      expect(result[0].value).toBeNull();
+      expect(result[1].value).toBeUndefined();
     });
 
     it("should handle invalid JSON selector gracefully", () => {
@@ -454,8 +446,8 @@ describe("extractObservationVariables", () => {
         availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
       );
 
-      // Non-matching JSONPath returns empty string
-      expect(result[0].value).toBe("");
+      // Non-matching JSONPath returns undefined
+      expect(result[0].value).toBeUndefined();
     });
 
     it("should handle non-JSON string column with JSON selector", () => {
@@ -528,7 +520,7 @@ describe("extractObservationVariables", () => {
         variableMapping,
       });
 
-      expect(result[0].value).toBe(JSON.stringify(mockObservation.metadata));
+      expect(result[0].value).toEqual(mockObservation.metadata);
     });
   });
 });

@@ -78,7 +78,7 @@ export function extractValueFromObject(
   selectedColumnId: string,
   jsonSelector?: string,
   parseJson?: (selectedColumn: unknown, jsonSelector: string) => unknown,
-): { value: string; error: Error | null } {
+): { value: unknown; error: Error | null } {
   const selectedColumn = obj[selectedColumnId];
 
   const jsonParser = parseJson || parseJsonDefault;
@@ -107,8 +107,5 @@ export function extractValueFromObject(
     jsonSelectedColumn = selectedColumn;
   }
 
-  return {
-    value: parseUnknownToString(jsonSelectedColumn),
-    error,
-  };
+  return { value: jsonSelectedColumn, error };
 }

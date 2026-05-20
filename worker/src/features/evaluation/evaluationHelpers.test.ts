@@ -70,6 +70,33 @@ describe("evaluation helpers", () => {
       const result = compileEvalPrompt(params);
       expect(result).toBe('Data: {"key": "value", "count": 42}');
     });
+
+    it("stringifies non-string variable values via parseUnknownToString", () => {
+      // Regression guard for the upstream refactor that made
+      // `ExtractedVariable.value: unknown`. A naive `String(value)` would
+      // render `"[object Object]"` for object inputs and the comma-joined
+      // form for arrays — both useless to an LLM.
+      const params = {
+        templatePrompt:
+          "meta={{meta}} tools={{tools}} score={{score}} flag={{flag}} missing={{missing}}",
+        variables: [
+          { var: "meta", value: { key: "value", count: 42 } },
+          { var: "tools", value: ["get_weather", "search_web"] },
+          { var: "score", value: 0.85 },
+          { var: "flag", value: true },
+          { var: "missing", value: null },
+        ] as ExtractedVariable[],
+      };
+
+      const result = compileEvalPrompt(params);
+
+      expect(result).toContain('meta={"key":"value","count":42}');
+      expect(result).not.toContain("[object Object]");
+      expect(result).toContain('tools=["get_weather","search_web"]');
+      expect(result).toContain("score=0.85");
+      expect(result).toContain("flag=true");
+      expect(result).toContain("missing=");
+    });
   });
 
   describe("buildEvalOutputResultSchema", () => {

@@ -15,6 +15,7 @@ export function resolveConfiguredCodeEvalDispatcher(): CodeEvalDispatcher | null
   if (!dispatcherName) return null;
 
   if (dispatcherName === "local") return new LocalCodeEvalDispatcher();
+
   if (dispatcherName === "aws-lambda") {
     return new AwsLambdaCodeEvalDispatcher({
       endpoint: env.LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT,

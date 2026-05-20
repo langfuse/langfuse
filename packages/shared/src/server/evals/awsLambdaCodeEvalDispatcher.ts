@@ -90,6 +90,23 @@ const UserCodeErrorSchema = z.union([
 
 type UserCodeError = z.infer<typeof UserCodeErrorSchema>;
 
+// Process-singleton client so the AWS SDK's Keep-Alive connection pool is
+// reused across all dispatcher instances. In practice the process sees one
+// endpoint for its lifetime (real AWS or the Floci dev endpoint); the
+// endpoint-mismatch guard exists so a future caller that passes a different
+// endpoint without injecting a client doesn't silently get a stale one.
+let sharedLambdaClient: LambdaClient | undefined;
+let sharedLambdaClientEndpoint: string | undefined;
+
+function getSharedLambdaClient(endpoint?: string): LambdaClient {
+  if (sharedLambdaClient && sharedLambdaClientEndpoint === endpoint) {
+    return sharedLambdaClient;
+  }
+  sharedLambdaClient = new LambdaClient(endpoint ? { endpoint } : {});
+  sharedLambdaClientEndpoint = endpoint;
+  return sharedLambdaClient;
+}
+
 export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
   public readonly name = "aws-lambda";
   private readonly lambdaClient: LambdaClient;
@@ -104,8 +121,7 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
     functionNameByLanguage?: Partial<Record<CodeEvalRuntimeLanguage, string>>;
   }) {
     this.lambdaClient =
-      params?.lambdaClient ??
-      new LambdaClient(params?.endpoint ? { endpoint: params.endpoint } : {});
+      params?.lambdaClient ?? getSharedLambdaClient(params?.endpoint);
     this.functionNameByLanguage = {
       ...DEFAULT_LAMBDA_FUNCTION_BY_LANGUAGE,
       ...params?.functionNameByLanguage,

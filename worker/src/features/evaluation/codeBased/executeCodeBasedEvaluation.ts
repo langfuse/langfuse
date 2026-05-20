@@ -137,16 +137,13 @@ export async function executeCodeBasedEvaluation(params: {
 }
 
 // The frontend maps user-facing template variables to a fixed, known set of
-// payload field names; we only need to look each one up once.
+// payload field names; we only need to look each one up once. Values are
+// already typed (the upstream extractor preserves the original shape), so
+// no per-field parsing is needed here.
 function buildCodeEvalPayload(
   extractedVariables: ExtractedVariable[],
 ): CodeEvalPayload {
-  const byName = new Map(
-    extractedVariables.map((v) => [
-      v.var,
-      parseExtractedVariableValue(v.value),
-    ]),
-  );
+  const byName = new Map(extractedVariables.map((v) => [v.var, v.value]));
   return {
     input: byName.get("input") ?? null,
     output: byName.get("output") ?? null,
@@ -154,15 +151,6 @@ function buildCodeEvalPayload(
     experimentExpectedOutput: byName.get("experimentExpectedOutput") ?? null,
     experimentItemMetadata: byName.get("experimentItemMetadata") ?? null,
   };
-}
-
-function parseExtractedVariableValue(value: string): unknown {
-  if (value === "") return null;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
 }
 
 function normalizeCodeEvalScores(params: {
