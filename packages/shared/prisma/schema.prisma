@@ -46,43 +46,40 @@ model Session {
 }
 
 model User {
-  id                         String                      @id @default(cuid())
-  name                       String?
-  email                      String?                     @unique
-  emailVerified              DateTime?                   @map("email_verified")
-  password                   String?
-  image                      String?
-  admin                      Boolean                     @default(false)
-  v4BetaEnabled              Boolean                     @default(false) @map("v4_beta_enabled")
-  accounts                   Account[]
-  sessions                   Session[]
-  organizationMemberships    OrganizationMembership[]
-  projectMemberships         ProjectMembership[]
-  invitations                MembershipInvitation[]
-  createdAt                  DateTime                    @default(now()) @map("created_at")
-  updatedAt                  DateTime                    @default(now()) @updatedAt @map("updated_at")
-  featureFlags               String[]                    @default([]) @map("feature_flags")
-  annotatedLockedItem        AnnotationQueueItem[]       @relation("LockedByUser")
-  annotatedCompletedItem     AnnotationQueueItem[]       @relation("AnnotatorUser")
-  dashboardWidgetsCreated    DashboardWidget[]           @relation("CreatedByUser")
-  dashboardWidgetsUpdated    DashboardWidget[]           @relation("UpdatedByUser")
-  dashboardCreated           Dashboard[]                 @relation("CreatedByUser")
-  dashboardUpdated           Dashboard[]                 @relation("UpdatedByUser")
-  tableViewPresetCreated     TableViewPreset[]           @relation("CreatedByUser")
-  tableViewPresetUpdated     TableViewPreset[]           @relation("UpdatedByUser")
-  monitorsCreated            Monitor[]                   @relation("CreatedByUser")
-  monitorsUpdated            Monitor[]                   @relation("UpdatedByUser")
-  annotationQueueAssignment  AnnotationQueueAssignment[]
-  surveys                    Survey[]
-  commentReactions           CommentReaction[]
-  notificationPreferences    NotificationPreference[]
-  defaultViews               DefaultView[]               @relation("DefaultViewUser")
-  inAppAgentConversations    InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
-  inAppAgentMessages         InAppAgentMessage[]         @relation("InAppAgentMessageAuthorUser")
-  inAppAgentRuns             InAppAgentRun[]             @relation("InAppAgentRunCreatedByUser")
-  inAppAgentConfirmations    InAppAgentConfirmation[]    @relation("InAppAgentConfirmationCreatedByUser")
-  inAppAgentResponses        InAppAgentConfirmation[]    @relation("InAppAgentConfirmationRespondedByUser")
-  inAppAgentCredentialLeases InAppAgentCredentialLease[] @relation("InAppAgentCredentialLeaseCreatedByUser")
+  id                        String                      @id @default(cuid())
+  name                      String?
+  email                     String?                     @unique
+  emailVerified             DateTime?                   @map("email_verified")
+  password                  String?
+  image                     String?
+  admin                     Boolean                     @default(false)
+  v4BetaEnabled             Boolean                     @default(false) @map("v4_beta_enabled")
+  accounts                  Account[]
+  sessions                  Session[]
+  organizationMemberships   OrganizationMembership[]
+  projectMemberships        ProjectMembership[]
+  invitations               MembershipInvitation[]
+  createdAt                 DateTime                    @default(now()) @map("created_at")
+  updatedAt                 DateTime                    @default(now()) @updatedAt @map("updated_at")
+  featureFlags              String[]                    @default([]) @map("feature_flags")
+  annotatedLockedItem       AnnotationQueueItem[]       @relation("LockedByUser")
+  annotatedCompletedItem    AnnotationQueueItem[]       @relation("AnnotatorUser")
+  dashboardWidgetsCreated   DashboardWidget[]           @relation("CreatedByUser")
+  dashboardWidgetsUpdated   DashboardWidget[]           @relation("UpdatedByUser")
+  dashboardCreated          Dashboard[]                 @relation("CreatedByUser")
+  dashboardUpdated          Dashboard[]                 @relation("UpdatedByUser")
+  tableViewPresetCreated    TableViewPreset[]           @relation("CreatedByUser")
+  tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
+  monitorsCreated           Monitor[]                   @relation("CreatedByUser")
+  monitorsUpdated           Monitor[]                   @relation("UpdatedByUser")
+  annotationQueueAssignment AnnotationQueueAssignment[]
+  surveys                   Survey[]
+  commentReactions          CommentReaction[]
+  notificationPreferences   NotificationPreference[]
+  defaultViews              DefaultView[]               @relation("DefaultViewUser")
+  inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
+  inAppAgentMessages        InAppAgentMessage[]         @relation("InAppAgentMessageAuthorUser")
+  inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunCreatedByUser")
 
   @@map("users")
 }
@@ -179,8 +176,6 @@ model Project {
   InAppAgentConversation    InAppAgentConversation[]
   InAppAgentMessage         InAppAgentMessage[]
   InAppAgentRun             InAppAgentRun[]
-  InAppAgentConfirmation    InAppAgentConfirmation[]
-  InAppAgentCredentialLease InAppAgentCredentialLease[]
 
   @@index([orgId])
   @@map("projects")
@@ -192,21 +187,20 @@ enum ApiKeyScope {
 }
 
 model ApiKey {
-  id                         String                      @id @unique @default(cuid())
-  createdAt                  DateTime                    @default(now()) @map("created_at")
-  note                       String?
-  publicKey                  String                      @unique @map("public_key")
-  hashedSecretKey            String                      @unique @map("hashed_secret_key")
-  fastHashedSecretKey        String?                     @unique @map("fast_hashed_secret_key")
-  displaySecretKey           String                      @map("display_secret_key")
-  lastUsedAt                 DateTime?                   @map("last_used_at")
-  expiresAt                  DateTime?                   @map("expires_at")
-  projectId                  String?                     @map("project_id")
-  project                    Project?                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  orgId                      String?                     @map("organization_id")
-  organization               Organization?               @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  scope                      ApiKeyScope                 @default(PROJECT) @map("scope")
-  inAppAgentCredentialLeases InAppAgentCredentialLease[]
+  id                  String        @id @unique @default(cuid())
+  createdAt           DateTime      @default(now()) @map("created_at")
+  note                String?
+  publicKey           String        @unique @map("public_key")
+  hashedSecretKey     String        @unique @map("hashed_secret_key")
+  fastHashedSecretKey String?       @unique @map("fast_hashed_secret_key")
+  displaySecretKey    String        @map("display_secret_key")
+  lastUsedAt          DateTime?     @map("last_used_at")
+  expiresAt           DateTime?     @map("expires_at")
+  projectId           String?       @map("project_id")
+  project             Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  orgId               String?       @map("organization_id")
+  organization        Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  scope               ApiKeyScope   @default(PROJECT) @map("scope")
 
   @@index(orgId)
   @@index(projectId)
@@ -251,20 +245,6 @@ enum InAppAgentRunTrigger {
   BACKGROUND
 }
 
-enum InAppAgentConfirmationStatus {
-  PENDING
-  CONFIRMED
-  REJECTED
-  EXPIRED
-  CANCELLED
-}
-
-enum InAppAgentConfirmationSeverity {
-  INFO
-  WARNING
-  DANGER
-}
-
 model InAppAgentConversation {
   id                String                           @id @default(cuid())
   projectId         String                           @map("project_id")
@@ -281,10 +261,8 @@ model InAppAgentConversation {
   createdAt         DateTime                         @default(now()) @map("created_at")
   updatedAt         DateTime                         @default(now()) @updatedAt @map("updated_at")
 
-  messages         InAppAgentMessage[]
-  runs             InAppAgentRun[]
-  confirmations    InAppAgentConfirmation[]
-  credentialLeases InAppAgentCredentialLease[]
+  messages InAppAgentMessage[]
+  runs     InAppAgentRun[]
 
   @@index([projectId, createdByUserId, deletedAt, lastMessageAt])
   @@index([projectId, updatedAt])
@@ -310,8 +288,6 @@ model InAppAgentMessage {
   metadata       Json?                   @db.JsonB
   createdAt      DateTime                @default(now()) @map("created_at")
   updatedAt      DateTime                @default(now()) @updatedAt @map("updated_at")
-
-  confirmations InAppAgentConfirmation[]
 
   @@unique([projectId, conversationId, externalId])
   @@index([projectId, conversationId, sequenceNumber])
@@ -347,68 +323,12 @@ model InAppAgentRun {
   createdAt         DateTime               @default(now()) @map("created_at")
   updatedAt         DateTime               @default(now()) @updatedAt @map("updated_at")
 
-  messages         InAppAgentMessage[]
-  confirmations    InAppAgentConfirmation[]
-  credentialLeases InAppAgentCredentialLease[]
+  messages InAppAgentMessage[]
 
   @@index([projectId, conversationId, createdAt])
   @@index([projectId, createdByUserId, createdAt])
   @@index([projectId, status, createdAt])
   @@map("in_app_agent_runs")
-}
-
-model InAppAgentConfirmation {
-  id                 String                         @id @default(cuid())
-  projectId          String                         @map("project_id")
-  project            Project                        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  conversationId     String                         @map("conversation_id")
-  conversation       InAppAgentConversation         @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  runId              String?                        @map("run_id")
-  run                InAppAgentRun?                 @relation(fields: [runId], references: [id], onDelete: SetNull)
-  messageId          String?                        @map("message_id")
-  message            InAppAgentMessage?             @relation(fields: [messageId], references: [id], onDelete: SetNull)
-  createdByUserId    String?                        @map("created_by_user_id")
-  createdByUser      User?                          @relation("InAppAgentConfirmationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  status             InAppAgentConfirmationStatus   @default(PENDING)
-  title              String
-  body               String
-  severity           InAppAgentConfirmationSeverity @default(INFO)
-  options            Json?                          @db.JsonB
-  proposedAction     Json?                          @map("proposed_action") @db.JsonB
-  proposedActionHash String?                        @map("proposed_action_hash")
-  response           Json?                          @db.JsonB
-  respondedByUserId  String?                        @map("responded_by_user_id")
-  respondedByUser    User?                          @relation("InAppAgentConfirmationRespondedByUser", fields: [respondedByUserId], references: [id], onDelete: SetNull)
-  respondedAt        DateTime?                      @map("responded_at")
-  expiresAt          DateTime?                      @map("expires_at")
-  createdAt          DateTime                       @default(now()) @map("created_at")
-  updatedAt          DateTime                       @default(now()) @updatedAt @map("updated_at")
-
-  @@index([projectId, conversationId, createdAt])
-  @@index([projectId, runId, status])
-  @@index([projectId, status, expiresAt])
-  @@map("in_app_agent_confirmation_requests")
-}
-
-model InAppAgentCredentialLease {
-  id              String                 @id @default(cuid())
-  projectId       String                 @map("project_id")
-  project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  conversationId  String                 @map("conversation_id")
-  conversation    InAppAgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  runId           String?                @map("run_id")
-  run             InAppAgentRun?         @relation(fields: [runId], references: [id], onDelete: SetNull)
-  createdByUserId String?                @map("created_by_user_id")
-  createdByUser   User?                  @relation("InAppAgentCredentialLeaseCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  apiKeyId        String                 @map("api_key_id")
-  apiKey          ApiKey                 @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
-  expiresAt       DateTime               @map("expires_at")
-  revokedAt       DateTime?              @map("revoked_at")
-  createdAt       DateTime               @default(now()) @map("created_at")
-
-  @@index([projectId, conversationId, expiresAt])
-  @@index([apiKeyId])
-  @@map("in_app_agent_credential_leases")
 }
 
 model BackgroundMigration {

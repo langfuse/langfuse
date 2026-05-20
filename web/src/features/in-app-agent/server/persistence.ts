@@ -137,6 +137,7 @@ export async function createRun(params: {
   userId: string;
   model?: string;
   modelProvider?: string;
+  mcpApiKeyId?: string;
 }) {
   const existing = await params.prisma.inAppAgentRun.findUnique({
     where: { id: params.runId },
@@ -161,6 +162,7 @@ export async function createRun(params: {
         finishedAt: null,
         errorCode: null,
         errorMessage: null,
+        mcpApiKeyId: params.mcpApiKeyId ?? existing.mcpApiKeyId,
       },
     });
   }
@@ -175,6 +177,7 @@ export async function createRun(params: {
       startedAt: new Date(),
       model: params.model,
       modelProvider: params.modelProvider,
+      mcpApiKeyId: params.mcpApiKeyId,
       allowedTools: [] satisfies Prisma.InputJsonValue,
     },
   });

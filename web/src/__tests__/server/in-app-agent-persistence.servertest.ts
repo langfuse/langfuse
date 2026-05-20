@@ -5,6 +5,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
+import { createRun } from "@/src/features/in-app-agent/server/persistence";
 
 describe("in-app agent persistence", () => {
   const createCaller = async (userId = `user-${randomUUID()}`) => {
@@ -136,6 +137,19 @@ describe("in-app agent persistence", () => {
 
     const listedConversations = await caller.list({ projectId });
     expect(listedConversations[0]).not.toHaveProperty("providerSessionId");
+
+    const run = await createRun({
+      prisma,
+      runId: `run-${randomUUID()}`,
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      model: "haiku",
+      modelProvider: "anthropic",
+      mcpApiKeyId: "api-key-id-1",
+    });
+
+    expect(run.mcpApiKeyId).toBe("api-key-id-1");
 
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
