@@ -651,12 +651,12 @@ export const eventRecordBaseSchema = z.object({
   trace_name: z.string().nullish(),
   user_id: z.string().nullish(),
   session_id: z.string().nullish(),
+  is_app_root: z.boolean().nullish(),
 
   // User updatable flags
   tags: z.array(z.string()).default([]),
   bookmarked: z.boolean().optional(),
   public: z.boolean().optional(),
-  is_app_root: z.boolean().nullish(),
 
   level: z.string(),
   status_message: z.string().nullish(),

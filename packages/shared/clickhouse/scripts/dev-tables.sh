@@ -155,11 +155,11 @@ CREATE TABLE IF NOT EXISTS events_full
       level LowCardinality(String),
       status_message String, -- Threat '' and null the same for search
       completion_start_time Nullable(DateTime64(6)),
+      is_app_root Nullable(Bool),
 
       -- Updateable properties
       bookmarked Bool DEFAULT false,
       public Bool DEFAULT false,
-      is_app_root Nullable(Bool),
 
       -- Prompt
       prompt_id String,
@@ -291,11 +291,11 @@ CREATE TABLE IF NOT EXISTS events_core
     level LowCardinality(String),
     status_message String,
     completion_start_time Nullable(DateTime64(6)),
+    is_app_root Nullable(Bool),
 
     -- Updateable properties
     bookmarked Bool DEFAULT false,
     public Bool DEFAULT false,
-    is_app_root Nullable(Bool),
 
     -- Prompt
     prompt_id String,
@@ -411,9 +411,9 @@ SELECT
     level,
     status_message,
     completion_start_time,
+    is_app_root,
     bookmarked,
     public,
-    is_app_root,
     prompt_id,
     prompt_name,
     prompt_version,
