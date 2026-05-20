@@ -218,6 +218,44 @@ describe("executeCodeBasedEvaluation", () => {
     );
   });
 
+  it("continues successful execution when writing the internal trace fails", async () => {
+    mocks.dispatcher.dispatch.mockResolvedValue({
+      scores: [{ name: "score", value: 1, dataType: "NUMERIC" }],
+    });
+    mocks.writeInternalTrace.mockRejectedValue(new Error("trace write failed"));
+
+    await expect(
+      executeCodeBasedEvaluation({
+        projectId: "project-1",
+        jobExecutionId: "job-1",
+        job: {
+          id: "job-1",
+          jobConfigurationId: "config-1",
+          jobInputTraceId: "trace-1",
+          jobInputObservationId: "obs-1",
+          jobInputDatasetItemId: null,
+        } as any,
+        config: { id: "config-1", scoreName: "default-score" } as any,
+        template: {
+          id: "template-1",
+          name: "Code evaluator",
+          type: EvalTemplateType.CODE,
+          version: 1,
+          sourceCode: "export function evaluate() {}",
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+          prompt: null,
+          outputDefinition: null,
+        } as any,
+        extractedVariables: [{ var: "input", value: "prompt" }],
+        environment: "default",
+        metadata: { job_execution_id: "job-1" },
+      }),
+    ).resolves.toMatchObject({
+      scores: [{ name: "score", value: 1, dataType: "NUMERIC" }],
+      metadata: expect.objectContaining({ dispatcher_name: "test-dispatcher" }),
+    });
+  });
+
   it("writes an error internal trace when code eval execution fails and rethrows", async () => {
     const error = Object.assign(new Error("runner exploded"), {
       code: "USER_CODE_ERROR",
