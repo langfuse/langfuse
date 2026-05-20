@@ -5,22 +5,41 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-class EvaluationContext:
-    def __init__(self, payload: dict[str, Any]):
-        self.input = payload.get("input")
-        self.output = payload.get("output")
-        self.observation_metadata = payload.get("observationMetadata")
-        self.experiment_expected_output = payload.get("experimentExpectedOutput")
-        self.experiment_item_metadata = payload.get("experimentItemMetadata")
+@dataclass
+class ObservationContext:
+    input: Any = None
+    output: Any = None
+    metadata: Any = None
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "input": self.input,
-            "output": self.output,
-            "observation_metadata": self.observation_metadata,
-            "experiment_expected_output": self.experiment_expected_output,
-            "experiment_item_metadata": self.experiment_item_metadata,
-        }
+
+@dataclass
+class ExperimentContext:
+    expectedOutput: Any = None
+    itemMetadata: Any = None
+
+
+@dataclass
+class EvaluationContext:
+    observation: ObservationContext
+    experiment: ExperimentContext | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]):
+        observation = payload.get("observation") or {}
+        experiment = payload.get("experiment")
+        return cls(
+            observation=ObservationContext(
+                input=observation.get("input"),
+                output=observation.get("output"),
+                metadata=observation.get("metadata"),
+            ),
+            experiment=ExperimentContext(
+                expectedOutput=experiment.get("expectedOutput"),
+                itemMetadata=experiment.get("itemMetadata"),
+            )
+            if isinstance(experiment, dict)
+            else None,
+        )
 
 
 # Public dataclasses exposed to user evaluator code. Field names are Pythonic
@@ -33,7 +52,6 @@ class Score:
     data_type: str | None = None
     name: str | None = None
     comment: str | None = None
-    metadata: Any | None = None
     config_id: str | None = None
 
 
@@ -73,7 +91,7 @@ def handler(event, context):
         )
 
     try:
-        result = evaluate(EvaluationContext(event.get("payload", {})))
+        result = evaluate(EvaluationContext.from_payload(event.get("payload", {})))
         if asyncio.iscoroutine(result):
             result = asyncio.run(result)
     except Exception as error:

@@ -144,13 +144,26 @@ function buildCodeEvalPayload(
   extractedVariables: ExtractedVariable[],
 ): CodeEvalPayload {
   const byName = new Map(extractedVariables.map((v) => [v.var, v.value]));
-  return {
-    input: byName.get("input") ?? null,
-    output: byName.get("output") ?? null,
-    observationMetadata: byName.get("observationMetadata") ?? null,
-    experimentExpectedOutput: byName.get("experimentExpectedOutput") ?? null,
-    experimentItemMetadata: byName.get("experimentItemMetadata") ?? null,
+  const hasExperiment =
+    byName.has("experimentExpectedOutput") ||
+    byName.has("experimentItemMetadata");
+
+  const payload: CodeEvalPayload = {
+    observation: {
+      input: byName.get("input") ?? null,
+      output: byName.get("output") ?? null,
+      metadata: byName.get("observationMetadata") ?? null,
+    },
   };
+
+  if (hasExperiment) {
+    payload.experiment = {
+      expectedOutput: byName.get("experimentExpectedOutput") ?? null,
+      itemMetadata: byName.get("experimentItemMetadata") ?? null,
+    };
+  }
+
+  return payload;
 }
 
 function normalizeCodeEvalScores(params: {

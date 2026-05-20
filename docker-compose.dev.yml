@@ -50,6 +50,8 @@ services:
       - default
 
   floci:
+    profiles:
+      - worker-tests
     image: docker.io/floci/floci:1.5.17-compat
     container_name: ${FLOCI_CONTAINER_NAME:-langfuse-floci}
     environment:
