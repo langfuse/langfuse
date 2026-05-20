@@ -387,6 +387,7 @@ export const buildScoresCTE = (params: BaseScoresParams): CTEWithSchema => {
       trace_id,
       observation_id,
       name,
+      source,
       data_type,
       string_value,
       avg(value) avg_value
@@ -400,6 +401,7 @@ export const buildScoresCTE = (params: BaseScoresParams): CTEWithSchema => {
       trace_id,
       observation_id,
       name,
+      source,
       data_type,
       string_value
   `.trim();
@@ -412,6 +414,7 @@ export const buildScoresCTE = (params: BaseScoresParams): CTEWithSchema => {
       "trace_id",
       "observation_id",
       "name",
+      "source",
       "data_type",
       "string_value",
       "avg_value",

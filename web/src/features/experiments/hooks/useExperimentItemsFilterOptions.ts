@@ -1,9 +1,16 @@
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
 
+export type ScoreColumnDef = {
+  name: string;
+  dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
+  source: string;
+};
+
 /**
  * Hook to fetch experiment item filter options (scores) scoped to specific experiment IDs.
- * Returns score filter options for both observation-level and trace-level scores.
+ * Returns score filter options for both observation-level and trace-level scores,
+ * plus full score column definitions for table column visibility.
  */
 export const useExperimentItemsFilterOptions = ({
   projectId,
@@ -62,8 +69,20 @@ export const useExperimentItemsFilterOptions = ({
     };
   }, [filterOptions.data]);
 
+  // Extract score column definitions for table columns
+  const scoreColumns = useMemo(
+    () => ({
+      observationScoreColumns: (filterOptions.data?.obs_score_columns ??
+        []) as ScoreColumnDef[],
+      traceScoreColumns: (filterOptions.data?.trace_score_columns ??
+        []) as ScoreColumnDef[],
+    }),
+    [filterOptions.data],
+  );
+
   return {
     filterOptions: transformedOptions,
+    scoreColumns,
     isLoading: filterOptions.isLoading,
   };
 };

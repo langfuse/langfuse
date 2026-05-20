@@ -492,6 +492,7 @@ type ScoreFilterOptionsRow = {
 };
 
 const SCORE_FILTER_OPTIONS_LIMIT = 1000;
+const SCORE_CATEGORICAL_VALUE_LIMIT = 20;
 
 /**
  * Build query for experiment-run-level scores (scores with dataset_run_id matching experiment IDs).
@@ -507,13 +508,15 @@ const buildExperimentRunScoreFilterOptionsQuery = (params: {
   const query = `
     SELECT
       name AS name,
+      source AS source,
       data_type AS data_type,
-      groupUniqArrayIf(string_value, data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS values
+      groupUniqArrayIf(${SCORE_CATEGORICAL_VALUE_LIMIT})(string_value, data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS values
     FROM scores
     WHERE project_id = {projectId: String}
       AND dataset_run_id IN ({experimentIds: Array(String)})
       AND data_type IN ({allowedDataTypes: Array(String)})
-    GROUP BY name, data_type
+    GROUP BY name, data_type, source
+    ORDER BY name ASC
     LIMIT ${SCORE_FILTER_OPTIONS_LIMIT}
   `;
 
@@ -571,12 +574,20 @@ const buildScoreFilterOptionsQuery = (params: {
     .select(
       "s.name AS name",
       "s.data_type AS data_type",
-      "groupUniqArrayIf(s.string_value, s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS values",
+      "s.source AS source",
+      `groupUniqArrayIf(${SCORE_CATEGORICAL_VALUE_LIMIT})(s.string_value, s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS values`,
     )
-    .groupBy("s.name", "s.data_type")
+    .groupBy("s.name", "s.data_type", "s.source")
+    .orderBy("ORDER BY s.name ASC")
     .limit(SCORE_FILTER_OPTIONS_LIMIT);
 
   return queryBuilder.buildWithParams();
+};
+
+export type ScoreColumnDefinition = {
+  name: string;
+  dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
+  source: string;
 };
 
 const processScoreFilterOptionsResults = (
@@ -584,11 +595,20 @@ const processScoreFilterOptionsResults = (
 ): {
   numeric: string[];
   categorical: Array<{ label: string; values: string[] }>;
+  scoreColumns: ScoreColumnDefinition[];
 } => {
   const numeric = new Set<string>();
   const categorical = new Map<string, Set<string>>();
+  const scoreColumns: ScoreColumnDefinition[] = [];
 
   for (const row of rows) {
+    // Always add to scoreColumns (unique by name+source+data_type combination)
+    scoreColumns.push({
+      name: row.name,
+      dataType: row.data_type as "NUMERIC" | "BOOLEAN" | "CATEGORICAL",
+      source: row.source,
+    });
+
     if (row.data_type === "NUMERIC" || row.data_type === "BOOLEAN") {
       numeric.add(row.name);
     } else if (row.data_type === "CATEGORICAL") {
@@ -604,6 +624,7 @@ const processScoreFilterOptionsResults = (
       label,
       values: Array.from(values),
     })),
+    scoreColumns,
   };
 };
 
@@ -612,8 +633,10 @@ export const getExperimentItemsFilterOptions = async (
 ): Promise<{
   obs_scores_avg: string[];
   obs_score_categories: Array<{ label: string; values: string[] }>;
+  obs_score_columns: ScoreColumnDefinition[];
   trace_scores_avg: string[];
   trace_score_categories: Array<{ label: string; values: string[] }>;
+  trace_score_columns: ScoreColumnDefinition[];
   experiment_scores_avg: string[];
   experiment_score_categories: Array<{ label: string; values: string[] }>;
 }> => {
@@ -623,8 +646,10 @@ export const getExperimentItemsFilterOptions = async (
     return {
       obs_scores_avg: [],
       obs_score_categories: [],
+      obs_score_columns: [],
       trace_scores_avg: [],
       trace_score_categories: [],
+      trace_score_columns: [],
       experiment_scores_avg: [],
       experiment_score_categories: [],
     };
@@ -690,8 +715,10 @@ export const getExperimentItemsFilterOptions = async (
   return {
     obs_scores_avg: obsScores.numeric,
     obs_score_categories: obsScores.categorical,
+    obs_score_columns: obsScores.scoreColumns,
     trace_scores_avg: traceScores.numeric,
     trace_score_categories: traceScores.categorical,
+    trace_score_columns: traceScores.scoreColumns,
     experiment_scores_avg: runScores.numeric,
     experiment_score_categories: runScores.categorical,
   };
