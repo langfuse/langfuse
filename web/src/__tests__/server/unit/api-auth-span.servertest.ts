@@ -44,14 +44,6 @@ vi.mock("@langfuse/shared", () => ({
   CloudConfigSchema: {
     parse: vi.fn((value) => value),
   },
-  ForbiddenError: class ForbiddenError extends Error {
-    httpCode = 403;
-
-    constructor(description = "Forbidden") {
-      super(description);
-      this.name = "ForbiddenError";
-    }
-  },
   isPlan: vi.fn((plan) => typeof plan === "string"),
 }));
 

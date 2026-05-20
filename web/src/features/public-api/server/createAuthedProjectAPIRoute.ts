@@ -301,7 +301,7 @@ export const createAuthedProjectAPIRoute = <
         routeConfig.allowInAppAgentKey === true,
       );
     } catch (error: any) {
-      const statusCode = error.status || error.httpCode || 401;
+      const statusCode = error.status || 401;
       const message = error.message || "Authentication failed";
 
       if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
