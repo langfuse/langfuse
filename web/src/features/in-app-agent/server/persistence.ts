@@ -1,8 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import {
-  InAppAgentMessageRole,
-  InAppAgentRunStatus,
-} from "@langfuse/shared/src/db";
+import { InAppAgentMessageRole } from "@langfuse/shared/src/db";
 import type {
   Prisma,
   InAppAgentConversation,
@@ -134,7 +131,7 @@ export async function createRun(params: {
   conversationId: string;
   userId: string;
   model?: string;
-  modelProvider?: string;
+  modelParams?: Prisma.InputJsonValue;
   mcpApiKeyId?: string;
 }) {
   const existing = await params.prisma.inAppAgentRun.findUnique({
@@ -155,11 +152,13 @@ export async function createRun(params: {
     return params.prisma.inAppAgentRun.update({
       where: { id: params.runId },
       data: {
-        status: InAppAgentRunStatus.RUNNING,
         startedAt: existing.startedAt ?? new Date(),
         finishedAt: null,
         errorCode: null,
         errorMessage: null,
+        ...(params.modelParams !== undefined
+          ? { modelParams: params.modelParams }
+          : {}),
         mcpApiKeyId: params.mcpApiKeyId ?? existing.mcpApiKeyId,
       },
     });
@@ -171,21 +170,18 @@ export async function createRun(params: {
       projectId: params.projectId,
       conversationId: params.conversationId,
       createdByUserId: params.userId,
-      status: InAppAgentRunStatus.RUNNING,
       startedAt: new Date(),
       model: params.model,
-      modelProvider: params.modelProvider,
+      modelParams: params.modelParams,
       mcpApiKeyId: params.mcpApiKeyId,
-      allowedTools: [] satisfies Prisma.InputJsonValue,
     },
   });
 }
 
-export async function updateRunStatus(params: {
+export async function finishRun(params: {
   prisma: PrismaClient;
   runId: string;
   projectId: string;
-  status: InAppAgentRunStatus;
   errorCode?: string | null;
   errorMessage?: string | null;
 }) {
@@ -193,9 +189,7 @@ export async function updateRunStatus(params: {
     .update({
       where: { id: params.runId, projectId: params.projectId },
       data: {
-        status: params.status,
-        finishedAt:
-          params.status === InAppAgentRunStatus.RUNNING ? null : new Date(),
+        finishedAt: new Date(),
         errorCode: params.errorCode ?? null,
         errorMessage: params.errorMessage ?? null,
       },
@@ -232,9 +226,11 @@ export async function upsertConversationMessages(params: {
   }
 
   const lastMessageAt = new Date();
-  const firstUserText = persistableMessages.find(
-    (message) => message.role === InAppAgentMessageRole.USER,
-  )?.text;
+  const firstUserTitle = params.messages
+    .flatMap((message) =>
+      message.role === "user" ? [getUserMessageTitle(message)] : [],
+    )
+    .find((title): title is string => title !== null);
 
   await params.prisma.$transaction([
     ...persistableMessages.map((message) =>
@@ -254,7 +250,6 @@ export async function upsertConversationMessages(params: {
           sequenceNumber: message.sequenceNumber,
           role: message.role,
           content: message.content,
-          text: message.text,
           authorUserId:
             message.role === InAppAgentMessageRole.USER
               ? params.userId
@@ -265,7 +260,6 @@ export async function upsertConversationMessages(params: {
           sequenceNumber: message.sequenceNumber,
           role: message.role,
           content: message.content,
-          text: message.text,
         },
       }),
     ),
@@ -278,7 +272,7 @@ export async function upsertConversationMessages(params: {
         lastMessageAt,
       },
     }),
-    ...(firstUserText
+    ...(firstUserTitle
       ? [
           params.prisma.inAppAgentConversation.updateMany({
             where: {
@@ -287,7 +281,7 @@ export async function upsertConversationMessages(params: {
               title: null,
             },
             data: {
-              title: normalizeTitle(firstUserText),
+              title: normalizeTitle(firstUserTitle),
             },
           }),
         ]
@@ -312,7 +306,6 @@ type PersistableMessage = {
   sequenceNumber: number;
   role: InAppAgentMessageRole;
   content: Prisma.InputJsonValue;
-  text: string | null;
 };
 
 function toPersistableMessage(
@@ -328,15 +321,10 @@ function toPersistableMessage(
     sequenceNumber,
     role: AG_UI_ROLE_TO_DB_ROLE[message.role],
     content: toJsonValue(message),
-    text: getMessageText(message),
   };
 }
 
-function getMessageText(message: AgUiMessage): string | null {
-  if (message.role !== "user" && message.role !== "assistant") {
-    return null;
-  }
-
+function getUserMessageTitle(message: Extract<AgUiMessage, { role: "user" }>) {
   const content = message.content;
 
   if (typeof content === "string") {

@@ -15,8 +15,8 @@ import {
 import {
   createRun,
   ensureOwnedConversation,
+  finishRun,
   updateProviderSessionId,
-  updateRunStatus,
   upsertConversationMessages,
 } from "@/src/features/in-app-agent/server/persistence";
 import { getAuthOptions } from "@/src/server/auth";
@@ -27,7 +27,7 @@ import {
   InvalidRequestError,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { InAppAgentRunStatus, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { assertUnreachable } from "@/src/utils/types";
 import { TRPCError } from "@trpc/server";
 
@@ -192,7 +192,6 @@ export default async function handler(request: Request) {
       conversationId: conversation.id,
       userId: auth.userId,
       model: "haiku",
-      modelProvider: "anthropic",
     });
 
     await upsertConversationMessages({
@@ -228,27 +227,26 @@ export default async function handler(request: Request) {
           );
         },
         onComplete: () => {
-          void updateRunStatus({
+          void finishRun({
             prisma,
             runId: sanitizedInput.runId,
             projectId,
-            status: InAppAgentRunStatus.SUCCEEDED,
           });
         },
         onAbort: () => {
-          void updateRunStatus({
+          void finishRun({
             prisma,
             runId: sanitizedInput.runId,
             projectId,
-            status: InAppAgentRunStatus.CANCELLED,
+            errorCode: "cancelled",
+            errorMessage: "Client aborted request",
           });
         },
         onError: (error) => {
-          void updateRunStatus({
+          void finishRun({
             prisma,
             runId: sanitizedInput.runId,
             projectId,
-            status: InAppAgentRunStatus.FAILED,
             errorCode: "agent_error",
             errorMessage:
               error instanceof Error ? error.message : "Unknown agent error",

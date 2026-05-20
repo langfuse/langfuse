@@ -93,6 +93,7 @@ export function createAgUiStream(params: {
       };
 
       let subscription: { unsubscribe: () => void } | undefined;
+      let streamedRunError: string | null = null;
 
       const handleAbort = () => {
         subscription?.unsubscribe();
@@ -118,6 +119,14 @@ export function createAgUiStream(params: {
             params.options.createResumeStateForSessionId,
             params.options.onResumeSessionId,
           )) {
+            if (
+              agUiEvent.type === EventType.RUN_ERROR &&
+              streamedRunError === null
+            ) {
+              streamedRunError = getRunErrorMessage(agUiEvent);
+              params.options.onError?.(new Error(streamedRunError));
+            }
+
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify(agUiEvent)}\n\n`),
             );
@@ -146,7 +155,9 @@ export function createAgUiStream(params: {
           closeController();
         },
         complete() {
-          params.options.onComplete?.();
+          if (streamedRunError === null) {
+            params.options.onComplete?.();
+          }
           closeController();
         },
       });
@@ -201,4 +212,10 @@ function normalizeAdapterEvent(
 
 function isSystemInitEvent(event: AgUiEvent): event is AgUiCustomEvent {
   return event.type === EventType.CUSTOM && event.name === "system:init";
+}
+
+function getRunErrorMessage(event: AgUiEvent) {
+  return typeof event.message === "string" && event.message.trim()
+    ? event.message
+    : "Unknown assistant error";
 }
