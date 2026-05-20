@@ -630,7 +630,6 @@ export const PromptDetail = ({
                 {templateFormat === "jinja2" && jinja2Variables.length > 0 && (
                   <Jinja2ResolutionPanel
                     template={
-                      resolutionMode === "resolved" &&
                       promptGraph.data?.resolvedPrompt &&
                       typeof promptGraph.data.resolvedPrompt === "string"
                         ? promptGraph.data.resolvedPrompt
