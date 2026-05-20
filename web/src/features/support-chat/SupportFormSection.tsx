@@ -45,6 +45,7 @@ import { Paperclip, Trash2 } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { PLAIN_MAX_FILE_SIZE_BYTES } from "./plain/plainConstants";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 /** Make RHF generics match the resolver (Zod defaults => input can be undefined) */
 type SupportFormInput = z.input<typeof SupportFormSchema>;
@@ -168,9 +169,6 @@ export function SupportFormSection({
     [files],
   );
 
-  // Local submit guard to avoid flicker across multiple mutations
-  const [isSubmittingLocal, setIsSubmittingLocal] = useState(false);
-
   const form = useForm<SupportFormInput>({
     resolver: zodResolver(SupportFormSchema),
     defaultValues: {
@@ -207,12 +205,10 @@ export function SupportFormSection({
         onSuccess();
       }
     },
-    onSettled: () => setIsSubmittingLocal(false),
   });
 
   const prepareUploads = api.plainRouter.prepareAttachmentUploads.useMutation({
     onError: (error) => {
-      setIsSubmittingLocal(false);
       showErrorToast(
         "Upload Preparation Failed",
         error.message || "Failed to prepare file uploads. Please try again.",
@@ -270,101 +266,109 @@ export function SupportFormSection({
     return body.attachment_urls;
   }
 
-  const onSubmit = async (values: SupportFormInput) => {
-    const parsed: SupportFormValues = SupportFormSchema.parse(values);
-    const msgLen = (parsed.message ?? "").trim().length;
+  const [onSubmit, isSubmittingLocal] = useWatchedPromiseCallback(
+    async (values: SupportFormInput) => {
+      const parsed: SupportFormValues = SupportFormSchema.parse(values);
+      const msgLen = (parsed.message ?? "").trim().length;
 
-    if (msgLen < 50 && !warnedShortOnce) {
-      setWarnedShortOnce(true);
-      return;
-    }
-
-    try {
-      setIsSubmittingLocal(true);
-
-      // Validate files using centralized validation function
-      const validation = validateFiles(files);
-      if (!validation.isValid) {
-        throw new Error(validation.error);
+      if (msgLen < 50 && !warnedShortOnce) {
+        setWarnedShortOnce(true);
+        return;
       }
 
-      // 1) Request presigned S3 upload forms
-      const uploadPlans =
-        files && files.length
-          ? await prepareUploads.mutateAsync({
-              files: files.map((f) => ({
-                fileName: f.name,
-                fileSizeBytes: f.size,
-              })),
-            })
-          : {
-              uploads: [] as any[],
-              customerId: undefined as string | undefined,
-            };
+      try {
+        // Validate files using centralized validation function
+        const validation = validateFiles(files);
+        if (!validation.isValid) {
+          throw new Error(validation.error);
+        }
 
-      // 2) Upload blobs to Plain S3 and Pylon in parallel
-      let pylonAttachmentUrls: string[] = [];
-      if (files && files.length) {
-        const plainUploadPromise = Promise.all(
-          files.map(async (file, idx) => {
-            const plan = uploadPlans.uploads[idx];
-            if (!plan) throw new Error("Missing upload plan for a file.");
-            await uploadToPlainS3(
-              plan.uploadFormUrl,
-              plan.uploadFormData,
-              file,
-            );
-          }),
-        );
+        // 1) Request presigned S3 upload forms
+        const uploadPlans =
+          files && files.length
+            ? await prepareUploads.mutateAsync({
+                files: files.map((f) => ({
+                  fileName: f.name,
+                  fileSizeBytes: f.size,
+                })),
+              })
+            : {
+                uploads: [] as any[],
+                customerId: undefined as string | undefined,
+              };
 
-        const pylonUploadPromise = uploadFilesToPylon(files).catch((err) => {
-          console.warn("Pylon attachment upload failed (best-effort):", err);
-          return [] as string[];
+        // 2) Upload blobs to Plain S3 and Pylon in parallel
+        let pylonAttachmentUrls: string[] = [];
+        if (files && files.length) {
+          const plainUploadPromise = Promise.all(
+            files.map(async (file, idx) => {
+              const plan = uploadPlans.uploads[idx];
+              if (!plan) throw new Error("Missing upload plan for a file.");
+              await uploadToPlainS3(
+                plan.uploadFormUrl,
+                plan.uploadFormData,
+                file,
+              );
+            }),
+          );
+
+          const pylonUploadPromise = uploadFilesToPylon(files).catch((err) => {
+            console.warn("Pylon attachment upload failed (best-effort):", err);
+            return [] as string[];
+          });
+
+          const [, pylonUrls] = await Promise.all([
+            plainUploadPromise,
+            pylonUploadPromise,
+          ]);
+          pylonAttachmentUrls = pylonUrls;
+        }
+
+        // 3) Create thread with attachmentIds (Plain) and pylonAttachmentUrls (Pylon)
+        const attachmentIds =
+          uploadPlans.uploads?.map((u: any) => u.attachmentId) ?? [];
+
+        await createSupportThread.mutateAsync({
+          messageType: parsed.messageType,
+          severity: parsed.severity,
+          topic: parsed.topic as any,
+          integrationType: parsed.integrationType,
+          message: parsed.message,
+          url: window.location.href,
+          organizationId: organization?.id,
+          projectId: project?.id,
+          browserMetadata: {
+            userAgent: navigator.userAgent,
+            platform:
+              (
+                navigator as Navigator & {
+                  userAgentData?: { platform?: string };
+                }
+              ).userAgentData?.platform ?? undefined,
+            language: navigator.language,
+            viewport: { w: window.innerWidth, h: window.innerHeight },
+          },
+          attachmentIds,
+          pylonAttachmentUrls,
         });
-
-        const [, pylonUrls] = await Promise.all([
-          plainUploadPromise,
-          pylonUploadPromise,
-        ]);
-        pylonAttachmentUrls = pylonUrls;
+      } catch (err: any) {
+        console.error(err);
+        form.setError("message", {
+          type: "manual",
+          message: err?.message ?? "Failed to submit support request.",
+        });
       }
-
-      // 3) Create thread with attachmentIds (Plain) and pylonAttachmentUrls (Pylon)
-      const attachmentIds =
-        uploadPlans.uploads?.map((u: any) => u.attachmentId) ?? [];
-
-      await createSupportThread.mutateAsync({
-        messageType: parsed.messageType,
-        severity: parsed.severity,
-        topic: parsed.topic as any,
-        integrationType: parsed.integrationType,
-        message: parsed.message,
-        url: window.location.href,
-        organizationId: organization?.id,
-        projectId: project?.id,
-        browserMetadata: {
-          userAgent: navigator.userAgent,
-          platform:
-            (
-              navigator as Navigator & {
-                userAgentData?: { platform?: string };
-              }
-            ).userAgentData?.platform ?? undefined,
-          language: navigator.language,
-          viewport: { w: window.innerWidth, h: window.innerHeight },
-        },
-        attachmentIds,
-        pylonAttachmentUrls,
-      });
-    } catch (err: any) {
-      console.error(err);
-      setIsSubmittingLocal(false);
-      form.setError("message", {
-        type: "manual",
-        message: err?.message ?? "Failed to submit support request.",
-      });
-    }
-  };
+    },
+    [
+      createSupportThread,
+      files,
+      form,
+      organization?.id,
+      prepareUploads,
+      project?.id,
+      warnedShortOnce,
+    ],
+  );
 
   const messageIsShortAfterWarning =
     warnedShortOnce && (form.getValues("message") ?? "").trim().length < 50;

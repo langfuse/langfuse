@@ -14,6 +14,7 @@ import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
 import { toast } from "sonner";
 import { nanoid } from "nanoid";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 export const BillingDiscountCodeButton = ({
   orgId,
@@ -22,7 +23,6 @@ export const BillingDiscountCodeButton = ({
 }) => {
   const [code, setCode] = useState("");
   const [open, setOpen] = useState(false);
-  const [processing, setProcessing] = useState(false);
   const [opId, setOpId] = useState<string | null>(null);
 
   const utils = api.useUtils();
@@ -30,7 +30,6 @@ export const BillingDiscountCodeButton = ({
   const mutation = api.cloudBilling.applyPromotionCode.useMutation({
     onSuccess: async () => {
       toast.success("Promotion code applied");
-      setProcessing(false);
       setOpen(false);
       setCode("");
       setOpId(null);
@@ -40,10 +39,20 @@ export const BillingDiscountCodeButton = ({
       ]);
     },
     onError: (err) => {
-      setProcessing(false);
       toast.error(err.message || "Failed to apply promotion code");
     },
   });
+
+  const [handleApplyPromotionCode, processing] =
+    useWatchedPromiseCallback(async () => {
+      if (!orgId) return;
+      let id = opId;
+      if (!id) {
+        id = nanoid();
+        setOpId(id);
+      }
+      await mutation.mutateAsync({ orgId, code: code.trim(), opId: id });
+    }, [code, mutation, opId, orgId]);
 
   if (!orgId) return null;
 
@@ -76,15 +85,7 @@ export const BillingDiscountCodeButton = ({
           <Button
             variant="default"
             disabled={processing || !code.trim()}
-            onClick={() => {
-              setProcessing(true);
-              let id = opId;
-              if (!id) {
-                id = nanoid();
-                setOpId(id);
-              }
-              mutation.mutate({ orgId, code: code.trim(), opId: id });
-            }}
+            onClick={() => void handleApplyPromotionCode()}
           >
             {processing ? "Applying…" : "Apply"}
           </Button>

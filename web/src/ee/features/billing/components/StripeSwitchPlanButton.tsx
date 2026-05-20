@@ -15,6 +15,7 @@ import { planLabels } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { toast } from "sonner";
 import { nanoid } from "nanoid";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 export const StripeSwitchPlanButton = ({
   className,
@@ -24,8 +25,6 @@ export const StripeSwitchPlanButton = ({
   isLegacySubscription,
   isUpgrade,
   stripeProductId,
-  onProcessing,
-  processing,
 }: {
   orgId: string | undefined;
   currentPlan: keyof typeof planLabels | undefined;
@@ -33,8 +32,6 @@ export const StripeSwitchPlanButton = ({
   isLegacySubscription: boolean;
   isUpgrade: boolean;
   stripeProductId: string;
-  onProcessing: (id: string | null) => void;
-  processing: boolean;
   className?: string;
 }) => {
   const [_opId, setOpId] = useState<string | null>(null);
@@ -43,16 +40,25 @@ export const StripeSwitchPlanButton = ({
     api.cloudBilling.changeStripeSubscriptionProduct.useMutation({
       onSuccess: () => {
         toast.success("Plan changed successfully");
-        onProcessing(null);
         setOpId(null);
         setTimeout(() => window.location.reload(), 500);
       },
       onError: () => {
-        onProcessing(null);
         setOpId(null);
         toast.error("Failed to change plan");
       },
     });
+
+  const [handleChangePlan, processing] = useWatchedPromiseCallback(async () => {
+    if (!orgId) return;
+    // idempotency key for mutation operations with the stripe api
+    let opId = _opId;
+    if (!opId) {
+      opId = nanoid();
+      setOpId(opId);
+    }
+    await mutChangePlan.mutateAsync({ orgId, stripeProductId, opId });
+  }, [_opId, mutChangePlan, orgId, stripeProductId]);
 
   if (!orgId) return null;
 
@@ -124,16 +130,7 @@ export const StripeSwitchPlanButton = ({
             <Button variant="secondary">Cancel</Button>
           </DialogClose>
           <ActionButton
-            onClick={() => {
-              onProcessing(stripeProductId);
-              // idempotency key for mutation operations with the stripe api
-              let opId = _opId;
-              if (!opId) {
-                opId = nanoid();
-                setOpId(opId);
-              }
-              mutChangePlan.mutate({ orgId, stripeProductId, opId });
-            }}
+            onClick={() => void handleChangePlan()}
             loading={processing}
             className={className}
           >

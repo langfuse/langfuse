@@ -19,6 +19,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { env } from "@/src/env.mjs";
 import { captureException } from "@sentry/nextjs";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 const enterpriseSsoFormSchema = z.object({
   email: z.email(),
@@ -44,7 +45,6 @@ const PROVIDER_LABELS: Record<string, string> = {
 export default function EnterpriseSsoRequiredPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
   const emailFromQuery =
     typeof router.query.email === "string" ? router.query.email : "";
@@ -77,60 +77,59 @@ export default function EnterpriseSsoRequiredPage() {
     }
   }, [emailFromQuery, form]);
 
-  async function onSubmit(values: z.infer<typeof enterpriseSsoFormSchema>) {
-    setError(null);
-    setLoading(true);
+  const [onSubmit, loading] = useWatchedPromiseCallback(
+    async (values: z.infer<typeof enterpriseSsoFormSchema>) => {
+      setError(null);
 
-    const domain = values.email.split("@")[1]?.toLowerCase();
-    if (!domain) {
-      form.setError("email", { message: "Invalid email address" });
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/check-sso`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ domain }),
-        },
-      );
-
-      if (response.ok) {
-        const { providerId } = (await response.json()) as {
-          providerId: string;
-        };
-        await signIn(providerId, {
-          callbackUrl,
-        });
+      const domain = values.email.split("@")[1]?.toLowerCase();
+      if (!domain) {
+        form.setError("email", { message: "Invalid email address" });
         return;
       }
 
-      if (response.status === 404) {
-        setError(
-          "We couldn't find a custom Enterprise SSO configuration for this domain. Double-check your company email or contact your administrator.",
+      try {
+        const response = await fetch(
+          `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/check-sso`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ domain }),
+          },
         );
-        return;
-      }
 
-      const data = (await response.json().catch(() => null)) as {
-        message?: string;
-      } | null;
-      setError(
-        data?.message ??
-          "Unable to start the Enterprise SSO sign-in flow. Please try again.",
-      );
-    } catch (err) {
-      captureException(err);
-      setError(
-        "Something went wrong while checking your Enterprise SSO configuration. Please try again.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+        if (response.ok) {
+          const { providerId } = (await response.json()) as {
+            providerId: string;
+          };
+          await signIn(providerId, {
+            callbackUrl,
+          });
+          return;
+        }
+
+        if (response.status === 404) {
+          setError(
+            "We couldn't find a custom Enterprise SSO configuration for this domain. Double-check your company email or contact your administrator.",
+          );
+          return;
+        }
+
+        const data = (await response.json().catch(() => null)) as {
+          message?: string;
+        } | null;
+        setError(
+          data?.message ??
+            "Unable to start the Enterprise SSO sign-in flow. Please try again.",
+        );
+      } catch (err) {
+        captureException(err);
+        setError(
+          "Something went wrong while checking your Enterprise SSO configuration. Please try again.",
+        );
+      }
+    },
+    [callbackUrl, form],
+  );
 
   const description = friendlyProviderName
     ? `You tried signing in with ${friendlyProviderName}, but this domain requires your company's custom Enterprise SSO.`

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { env } from "@/src/env.mjs";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 export function RequestResetPasswordEmailButton({
   email,
@@ -19,7 +20,6 @@ export function RequestResetPasswordEmailButton({
 }) {
   const [isEmailSent, setIsEmailSent] = useState(false);
   const [code, setCode] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [isValidEmail, setIsValidEmail] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const session = useSession();
@@ -30,57 +30,55 @@ export function RequestResetPasswordEmailButton({
     setIsValidEmail(isValidEmail);
   }, [email]);
 
-  const handleResetPassword = async () => {
-    if (!isValidEmail) return;
-    capture("auth:reset_password_email_requested");
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      const targetCallbackUrl = callbackUrl
-        ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${callbackUrl}`
-        : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`;
-      const res = await signIn("email", {
-        email: email,
-        callbackUrl: targetCallbackUrl,
-        redirect: false,
-      });
-      if (res?.error) {
-        setErrorMessage(
-          res.error === "AccessDenied"
-            ? "This email is not associated with any account."
-            : res.error,
-        );
-      } else if (res?.ok) {
-        setIsEmailSent(true);
+  const [handleResetPassword, isResetLoading] =
+    useWatchedPromiseCallback(async () => {
+      if (!isValidEmail) return;
+      capture("auth:reset_password_email_requested");
+      setErrorMessage(null);
+      try {
+        const targetCallbackUrl = callbackUrl
+          ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${callbackUrl}`
+          : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`;
+        const res = await signIn("email", {
+          email: email,
+          callbackUrl: targetCallbackUrl,
+          redirect: false,
+        });
+        if (res?.error) {
+          setErrorMessage(
+            res.error === "AccessDenied"
+              ? "This email is not associated with any account."
+              : res.error,
+          );
+        } else if (res?.ok) {
+          setIsEmailSent(true);
+        }
+      } catch (error) {
+        console.error("Error sending reset password email:", error);
+        setErrorMessage("An unexpected error occurred. Please try again.");
       }
-    } catch (error) {
-      console.error("Error sending reset password email:", error);
-      setErrorMessage("An unexpected error occurred. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    }, [callbackUrl, capture, email, isValidEmail]);
 
-  const handleVerify = async (_e: React.MouseEvent<HTMLButtonElement>) => {
-    if (!code) return;
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      const formattedEmail = encodeURIComponent(email.toLowerCase().trim());
-      const formattedCode = encodeURIComponent(code.trim());
-      const targetCb = callbackUrl
-        ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${callbackUrl}`
-        : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`;
-      const callback = encodeURIComponent(targetCb);
-      const url = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
-      window.location.href = url;
-    } catch (error) {
-      console.error("Error verifying code:", error);
-      setErrorMessage("An unexpected error occurred. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [handleVerify, isVerifyLoading] =
+    useWatchedPromiseCallback(async () => {
+      if (!code) return;
+      setErrorMessage(null);
+      try {
+        const formattedEmail = encodeURIComponent(email.toLowerCase().trim());
+        const formattedCode = encodeURIComponent(code.trim());
+        const targetCb = callbackUrl
+          ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${callbackUrl}`
+          : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`;
+        const callback = encodeURIComponent(targetCb);
+        const url = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
+        window.location.href = url;
+      } catch (error) {
+        console.error("Error verifying code:", error);
+        setErrorMessage("An unexpected error occurred. Please try again.");
+      }
+    }, [callbackUrl, code, email]);
+
+  const isLoading = isResetLoading || isVerifyLoading;
 
   return (
     <>

@@ -19,6 +19,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { api } from "@/src/utils/api";
 import { type SlackChannel } from "@langfuse/shared/src/server";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 export type { SlackChannel };
 
@@ -86,7 +87,6 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [scrollNode, setScrollNode] = useState<HTMLDivElement | null>(null);
   const trimmedSearch = searchValue.trim();
   const effectiveName = trimmedSearch.replace(/^#/, "");
@@ -107,14 +107,9 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   );
 
   // Handle refresh
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await refetchChannels();
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
+  const [handleRefresh, isRefreshing] = useWatchedPromiseCallback(async () => {
+    await refetchChannels();
+  }, [refetchChannels]);
 
   // Filter and search channels
   const filteredChannels = useMemo(() => {

@@ -14,6 +14,7 @@ import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { toast } from "sonner";
 import { nanoid } from "nanoid";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 export const StripeCancellationButton = ({
   orgId,
@@ -25,18 +26,15 @@ export const StripeCancellationButton = ({
   className?: string;
 }) => {
   const { cancellation } = useBillingInformation();
-  const [loading, setLoading] = useState(false);
   const [_opId, setOpId] = useState<string | null>(null);
 
   const cancelMutation = api.cloudBilling.cancelStripeSubscription.useMutation({
     onSuccess: () => {
       toast.success("Subscription will be cancelled at period end");
-      setLoading(false);
       setOpId(null);
       setTimeout(() => window.location.reload(), 500);
     },
     onError: () => {
-      setLoading(false);
       setOpId(null);
       toast.error("Failed to cancel subscription");
     },
@@ -46,22 +44,18 @@ export const StripeCancellationButton = ({
     api.cloudBilling.reactivateStripeSubscription.useMutation({
       onSuccess: () => {
         toast.success("Subscription reactivated");
-        setLoading(false);
         setOpId(null);
         setTimeout(() => window.location.reload(), 500);
       },
       onError: () => {
-        setLoading(false);
         setOpId(null);
         toast.error("Failed to reactivate subscription");
       },
     });
 
-  if (!orgId) return null;
-
-  const onReactivate = async () => {
+  const [onReactivate, isReactivating] = useWatchedPromiseCallback(async () => {
+    if (!orgId) return;
     try {
-      setLoading(true);
       // idempotency key for mutation operations with the stripe api
       let opId = _opId;
       if (!opId) {
@@ -72,11 +66,11 @@ export const StripeCancellationButton = ({
     } catch (_e) {
       toast.error("Failed to reactivate subscription");
     }
-  };
+  }, [_opId, orgId, reactivateMutation]);
 
-  const onCancel = async () => {
+  const [onCancel, isCancelling] = useWatchedPromiseCallback(async () => {
+    if (!orgId) return;
     try {
-      setLoading(true);
       // idempotency key for mutation operations with the stripe api
       let opId = _opId;
       if (!opId) {
@@ -87,7 +81,11 @@ export const StripeCancellationButton = ({
     } catch (_e) {
       toast.error("Failed to cancel subscription");
     }
-  };
+  }, [_opId, cancelMutation, orgId]);
+
+  const loading = isReactivating || isCancelling;
+
+  if (!orgId) return null;
 
   // Reactivate with confirm dialog
   if (cancellation?.isCancelled) {

@@ -14,6 +14,7 @@ import { api } from "@/src/utils/api";
 import { TRACE_VIEW_CONFIG } from "@/src/components/trace/config/trace-view-config";
 import { type FlatLogItem } from "./log-view-types";
 import { formatDisplayName } from "./log-view-formatters";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 // Max concurrent requests when loading all observation data
 const FETCH_CONCURRENCY = TRACE_VIEW_CONFIG.logView.batchFetch.concurrency;
@@ -71,7 +72,6 @@ export function useLogViewAllObservationsIO({
   const utils = api.useUtils();
   const queryClient = useQueryClient();
 
-  const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [data, setData] = useState<ObservationIOData[] | null>(null);
   const [failedObservationIds, setFailedObservationIds] = useState<string[]>(
@@ -131,8 +131,9 @@ export function useLogViewAllObservationsIO({
    * Returns the combined data once all fetches complete.
    * Tracks failures and continues downloading remaining observations.
    */
-  const loadAllData = useCallback(async (): Promise<ObservationIOData[]> => {
-    setIsLoading(true);
+  const [loadAllData, isLoading] = useWatchedPromiseCallback(async (): Promise<
+    ObservationIOData[]
+  > => {
     setIsError(false);
     setFailedObservationIds([]);
 
@@ -252,11 +253,9 @@ export function useLogViewAllObservationsIO({
 
       setData(allResults);
       setFailedObservationIds(failures);
-      setIsLoading(false);
       return allResults;
     } catch {
       setIsError(true);
-      setIsLoading(false);
       throw new Error("Failed to load observation data");
     }
   }, [items, traceId, projectId, utils, queryClient]);
