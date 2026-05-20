@@ -48,19 +48,6 @@ export default async function handler(request: Request) {
       );
     }
 
-    if (
-      !env.LANGFUSE_AWS_BEDROCK_REGION ||
-      !env.AWS_ACCESS_KEY_ID ||
-      !env.AWS_SECRET_ACCESS_KEY
-    ) {
-      throw new BaseError(
-        "PreconditionFailedError",
-        412,
-        "Assistant is not configured",
-        true,
-      );
-    }
-
     const bodyResult = await readBoundedJsonBody(
       request,
       MAX_IN_APP_AGENT_INPUT_BYTES,
@@ -146,6 +133,11 @@ export default async function handler(request: Request) {
 
     const sanitizedInput = sanitizeAgentInput(input);
     const mcpApiKey = await createInAppAgentMcpApiKey(projectId);
+    const awsRegion =
+      env.LANGFUSE_AWS_BEDROCK_REGION ??
+      env.AWS_REGION ??
+      env.AWS_DEFAULT_REGION;
+    const awsProfile = getInAppAgentAwsProfile();
 
     const stream = createAgUiStream({
       input: sanitizedInput,
@@ -162,10 +154,9 @@ export default async function handler(request: Request) {
             langfuseTraceId,
           }),
         }),
-        awsCredentials: {
-          region: env.LANGFUSE_AWS_BEDROCK_REGION,
-          accessKeyId: env.AWS_ACCESS_KEY_ID,
-          secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+        awsBedrock: {
+          ...(awsRegion ? { region: awsRegion } : {}),
+          ...(awsProfile ? { profile: awsProfile } : {}),
         },
         langfuseMcp: {
           url: getLangfuseMcpUrl(),
@@ -216,6 +207,14 @@ export default async function handler(request: Request) {
 
     throw err;
   }
+}
+
+function getInAppAgentAwsProfile(): string | undefined {
+  if (env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE) {
+    return env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
+  }
+
+  return undefined;
 }
 
 function getLangfuseMcpUrl(): string {

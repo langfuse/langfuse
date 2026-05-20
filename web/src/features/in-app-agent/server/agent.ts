@@ -22,10 +22,9 @@ const MAX_AGENT_BUDGET_USD = 5;
 type CreateAgUiStreamOptions = {
   resumeSessionId?: string;
   createResumeStateForSessionId: (sessionId: string) => unknown;
-  awsCredentials: {
-    accessKeyId: string;
-    secretAccessKey: string;
-    region: string;
+  awsBedrock: {
+    region?: string;
+    profile?: string;
   };
   langfuseMcp: {
     url: string;
@@ -83,10 +82,18 @@ export function createAgUiStream(params: {
     env: {
       CLAUDE_CODE_USE_BEDROCK: "1",
       CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1",
-      AWS_DEFAULT_REGION: params.options.awsCredentials.region,
-      AWS_REGION: params.options.awsCredentials.region,
-      AWS_ACCESS_KEY_ID: params.options.awsCredentials.accessKeyId,
-      AWS_SECRET_ACCESS_KEY: params.options.awsCredentials.secretAccessKey,
+      ...(params.options.awsBedrock.region
+        ? {
+            AWS_DEFAULT_REGION: params.options.awsBedrock.region,
+            AWS_REGION: params.options.awsBedrock.region,
+          }
+        : {}),
+      ...(params.options.awsBedrock.profile
+        ? {
+            AWS_PROFILE: params.options.awsBedrock.profile,
+            AWS_SDK_LOAD_CONFIG: "1",
+          }
+        : {}),
     },
     includePartialMessages: true,
     model: "haiku",

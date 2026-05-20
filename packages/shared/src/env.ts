@@ -395,7 +395,10 @@ const EnvSchema = z.object({
     .positive()
     .default(120_000), // 2 minutes
 
+  AWS_REGION: z.string().optional(),
+  AWS_DEFAULT_REGION: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.
