@@ -233,6 +233,7 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  LANGFUSE_POSTHOG_FLUSH_DELAY_MS: z.coerce.number().int().min(0).default(500),
   QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
