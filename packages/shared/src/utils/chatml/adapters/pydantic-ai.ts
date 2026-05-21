@@ -4,6 +4,7 @@ import {
   parseMetadata,
   getNestedProperty,
   attachToolDefinitionsToMessages,
+  normalizeToolDefinitionsForChatMl,
 } from "../helpers";
 import { z } from "zod";
 
@@ -255,11 +256,21 @@ function preprocessData(data: unknown, ctx: NormalizerContext): unknown {
   // messages wrapper
   if (typeof data === "object" && "messages" in data) {
     const obj = data as Record<string, unknown>;
+    const messages = Array.isArray(obj.messages)
+      ? normalizeMessages(obj.messages)
+      : obj.messages;
+    const tools = normalizeToolDefinitionsForChatMl(obj.tools);
+
+    if (Array.isArray(messages) && tools.length > 0) {
+      return {
+        ...obj,
+        messages: attachToolDefinitionsToMessages(messages, tools),
+      };
+    }
+
     return {
       ...obj,
-      messages: Array.isArray(obj.messages)
-        ? normalizeMessages(obj.messages)
-        : obj.messages,
+      messages,
     };
   }
 

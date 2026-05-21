@@ -193,7 +193,7 @@ describe("Microsoft Agent Framework Adapter", () => {
       expect(result.data?.[0].tools?.[0].name).toBe("get_weather");
     });
 
-    it("should preserve wrapped messages with input tools without mutating ChatML", () => {
+    it("should attach tools from wrapped input tools", () => {
       const input = {
         messages: [
           {
@@ -238,7 +238,18 @@ describe("Microsoft Agent Framework Adapter", () => {
       expect(result.data?.[0].content).toBe(
         "What's the weather like in Portland?",
       );
-      expect(result.data?.[0].tools).toBeUndefined();
+      expect(result.data?.[0].tools).toEqual([
+        {
+          name: "get_weather",
+          description: "Get the weather for a given location.",
+          parameters: {
+            type: "object",
+            properties: {
+              location: { type: "string" },
+            },
+          },
+        },
+      ]);
     });
 
     it("should handle output with multiple parts", () => {

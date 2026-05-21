@@ -200,7 +200,7 @@ describe("Pydantic AI Adapter", () => {
       expect(result.data?.[0].tools?.[0].name).toBe("get_weather");
     });
 
-    it("should preserve wrapped messages with input tools without mutating ChatML", () => {
+    it("should attach tools from wrapped input tools", () => {
       const input = {
         messages: [
           {
@@ -241,7 +241,18 @@ describe("Pydantic AI Adapter", () => {
       expect(result.data?.[0].content).toBe(
         "Tell me a joke about programming.",
       );
-      expect(result.data?.[0].tools).toBeUndefined();
+      expect(result.data?.[0].tools).toEqual([
+        {
+          name: "get_pun_suggestion",
+          description: "Get a pun-style joke suggestion",
+          parameters: {
+            type: "object",
+            properties: {
+              topic: { type: "string" },
+            },
+          },
+        },
+      ]);
     });
   });
 });
