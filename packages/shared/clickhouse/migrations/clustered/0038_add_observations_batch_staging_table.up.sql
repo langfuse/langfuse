@@ -9,8 +9,6 @@
 -- multi-day grace period to recover the propagation job after an incident
 -- without losing staging data. `ttl_only_drop_parts = 1` ensures only complete
 -- partitions are dropped, never individual rows.
---
--- See LFE-7122 for the original design notes.
 CREATE TABLE IF NOT EXISTS observations_batch_staging ON CLUSTER default
 (
     id String,
