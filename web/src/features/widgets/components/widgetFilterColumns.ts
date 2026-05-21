@@ -167,14 +167,6 @@ const getWidgetFilterColumnSpecs = ({
             } satisfies WidgetFilterColumnSpec,
             {
               column: {
-                name: "Experiment Metadata",
-                id: "experimentMetadata",
-                type: "stringObject",
-                internal: "internalValue",
-              },
-            } satisfies WidgetFilterColumnSpec,
-            {
-              column: {
                 name: "Experiment ID",
                 id: "experimentId",
                 type: "null",

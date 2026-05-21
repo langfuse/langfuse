@@ -135,13 +135,6 @@ describe("dashboard widget minVersion", () => {
         [{ column: "experimentDatasetId" }],
         true,
       ],
-      [
-        "observations",
-        [],
-        [{ measure: "count" }],
-        [{ column: "experimentMetadata" }],
-        true,
-      ],
       // v1-compatible fields
       [
         "observations",

@@ -163,10 +163,6 @@ const viewFilterDefinitions: Record<
       sourceSpec("Experiment Dataset", { uiTableId: "experimentDatasetId" }),
     ),
     defineField(
-      "experimentMetadata",
-      sourceSpec("Experiment Metadata", { uiTableId: "experimentMetadata" }),
-    ),
-    defineField(
       "experimentId",
       sourceSpec("Experiment ID", { uiTableId: "experimentId" }),
     ),

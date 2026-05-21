@@ -1213,13 +1213,6 @@ export const eventsObservationsView: ViewDeclarationType = {
       highCardinality: true,
       uiHidden: true, // Only available as filter, not as breakdown dimension
     },
-    experimentMetadata: {
-      sql: "experiment_metadata",
-      alias: "experimentMetadata",
-      type: "stringObject",
-      description: "Metadata key-value pairs associated with the experiment.",
-      uiHidden: true, // Only available as filter, not as breakdown dimension
-    },
   },
   measures: {
     count: {
