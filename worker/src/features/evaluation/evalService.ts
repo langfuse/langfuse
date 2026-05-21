@@ -728,6 +728,7 @@ export const createEvalJobs = async ({
  * @param params.config - Pre-fetched job configuration
  * @param params.template - Pre-fetched eval template
  * @param params.extractedVariables - Pre-extracted variables from trace/observation data
+ * @param params.executionMetadata - Metadata identifying this eval execution
  * @param params.deps - Optional dependency injection for testing (defaults to production deps)
  */
 export async function runLLMAsJudgeEvaluation({
@@ -737,7 +738,7 @@ export async function runLLMAsJudgeEvaluation({
   config,
   template,
   extractedVariables,
-  metadata,
+  executionMetadata,
   deps,
 }: {
   projectId: string;
@@ -746,7 +747,7 @@ export async function runLLMAsJudgeEvaluation({
   config: JobConfiguration;
   template: EvalTemplateLlmAsAJudge;
   extractedVariables: ExtractedVariable[];
-  metadata: Record<string, string>;
+  executionMetadata: Record<string, string>;
   deps: EvalExecutionDeps;
 }): Promise<EvalExecutionResult> {
   return instrumentAsync(
@@ -893,7 +894,7 @@ export async function runLLMAsJudgeEvaluation({
                 traceName: `Execute evaluator: ${template.name}`,
                 environment: LangfuseInternalTraceEnvironment.LLMJudge,
                 metadata: {
-                  ...metadata,
+                  ...executionMetadata,
                   score_id: primaryScoreId,
                 },
               },
@@ -966,7 +967,7 @@ export async function runLLMAsJudgeEvaluation({
         scores,
         primaryScoreId,
         executionTraceId,
-        metadata,
+        metadata: executionMetadata,
       };
     },
   );
@@ -1012,21 +1013,25 @@ function toNormalizedScores(params: {
 export async function executeLLMAsJudgeEvaluation(
   params: Omit<
     Parameters<typeof runLLMAsJudgeEvaluation>[0],
-    "deps" | "metadata"
+    "deps" | "executionMetadata"
   > & {
     environment: string;
     deps?: EvalExecutionDeps;
   },
 ): Promise<void> {
   const deps = params.deps ?? createProductionEvalExecutionDeps();
-  const metadata = buildEvalExecutionMetadata({
+  const executionMetadata = buildEvalExecutionMetadata({
     jobExecutionId: params.jobExecutionId,
     jobConfigurationId: params.job.jobConfigurationId,
     targetTraceId: params.job.jobInputTraceId,
     targetObservationId: params.job.jobInputObservationId,
     targetDatasetItemId: params.job.jobInputDatasetItemId,
   });
-  const result = await runLLMAsJudgeEvaluation({ ...params, deps, metadata });
+  const result = await runLLMAsJudgeEvaluation({
+    ...params,
+    deps,
+    executionMetadata,
+  });
 
   await completeEvalExecution({
     projectId: params.projectId,

@@ -90,7 +90,7 @@ describe("executeCodeBasedEvaluation", () => {
       ],
       hasExperimentContext: true,
       environment: "default",
-      metadata: { job_execution_id: "job-1" },
+      executionMetadata: { job_execution_id: "job-1" },
     });
 
     expect(result.scores).toMatchObject([
@@ -173,7 +173,7 @@ describe("executeCodeBasedEvaluation", () => {
       } as any,
       extractedVariables: [],
       environment: "default",
-      metadata: { job_execution_id: "job-1" },
+      executionMetadata: { job_execution_id: "job-1" },
     });
 
     expect(result.scores).toMatchObject([
@@ -218,7 +218,7 @@ describe("executeCodeBasedEvaluation", () => {
       extractedVariables: [],
       hasExperimentContext: true,
       environment: "default",
-      metadata: { job_execution_id: "job-1" },
+      executionMetadata: { job_execution_id: "job-1" },
     });
 
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
@@ -263,7 +263,7 @@ describe("executeCodeBasedEvaluation", () => {
       extractedVariables: [{ var: "experimentExpectedOutput", value: "4" }],
       hasExperimentContext: false,
       environment: "default",
-      metadata: { job_execution_id: "job-1" },
+      executionMetadata: { job_execution_id: "job-1" },
     });
 
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
@@ -308,7 +308,7 @@ describe("executeCodeBasedEvaluation", () => {
       ],
       hasExperimentContext: true,
       environment: "default",
-      metadata: { job_execution_id: "job-1" },
+      executionMetadata: { job_execution_id: "job-1" },
     });
 
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
@@ -362,7 +362,7 @@ describe("executeCodeBasedEvaluation", () => {
       ],
       hasExperimentContext: true,
       environment: "default",
-      metadata: { job_execution_id: "job-1" },
+      executionMetadata: { job_execution_id: "job-1" },
     });
 
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
@@ -413,7 +413,7 @@ describe("executeCodeBasedEvaluation", () => {
         } as any,
         extractedVariables: [{ var: "input", value: "prompt" }],
         environment: "default",
-        metadata: { job_execution_id: "job-1" },
+        executionMetadata: { job_execution_id: "job-1" },
       }),
     ).resolves.toMatchObject({
       scores: [{ name: "score", value: 1, dataType: "NUMERIC" }],
@@ -453,7 +453,7 @@ describe("executeCodeBasedEvaluation", () => {
         } as any,
         extractedVariables: [{ var: "input", value: "prompt" }],
         environment: "default",
-        metadata: { job_execution_id: "job-1" },
+        executionMetadata: { job_execution_id: "job-1" },
       }),
     ).rejects.toBe(error);
 
@@ -531,7 +531,7 @@ describe("executeCodeBasedEvaluation", () => {
         } as any,
         extractedVariables: [{ var: "input", value: "prompt" }],
         environment: "default",
-        metadata: { job_execution_id: "job-1" },
+        executionMetadata: { job_execution_id: "job-1" },
       }),
     ).rejects.toBe(error);
 

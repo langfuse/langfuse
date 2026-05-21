@@ -24,7 +24,7 @@ export async function executeCodeBasedEvaluation(params: {
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
   environment: string;
-  metadata: Record<string, string>;
+  executionMetadata: Record<string, string>;
   // Unused; present for ObservationEvalExecutor interface symmetry.
   deps?: EvalExecutionDeps;
 }): Promise<EvalExecutionResult> {
@@ -40,7 +40,7 @@ export async function executeCodeBasedEvaluation(params: {
       const executionTraceId = createW3CTraceId(params.jobExecutionId);
       const primaryScoreId = randomUUID();
       const executionMetadata = {
-        ...params.metadata,
+        ...params.executionMetadata,
         dispatcher_name: dispatcher.name,
         code_eval_runtime: params.template.sourceCodeLanguage,
       };
