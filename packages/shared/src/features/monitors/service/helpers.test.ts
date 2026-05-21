@@ -9,7 +9,7 @@ import { describe, it, expect } from "vitest";
 import { z } from "zod";
 
 import { InvalidRequestError } from "../../../errors";
-import { type singleFilter } from "../../../interfaces/filters";
+import { singleFilter } from "../../../interfaces/filters";
 import {
   MonitorSeveritySchema,
   MonitorStatusSchema,
@@ -228,6 +228,50 @@ describe("calculateSchedulerBatchId", () => {
       ...base,
       filters: [metaEnv, metaTenant],
     });
+    expect(a).toBe(b);
+  });
+
+  it("hashes equally for a metadata filter parsed from inputs with different property orders", () => {
+    // Zod `.parse` rebuilds the object in schema-declared property order, so
+    // two raw inputs with the same content but different property orders
+    // produce identical canonical filters and identical hashes.
+    const canonical = singleFilter.parse({
+      type: "stringObject",
+      column: "metadata",
+      key: "env",
+      operator: "=",
+      value: "prod",
+    });
+    const reordered = singleFilter.parse({
+      value: "prod",
+      operator: "=",
+      key: "env",
+      column: "metadata",
+      type: "stringObject",
+    });
+    const a = calculateSchedulerBatchId({ ...base, filters: [canonical] });
+    const b = calculateSchedulerBatchId({ ...base, filters: [reordered] });
+    expect(a).toBe(b);
+  });
+
+  it("hashes equally for a set-semantics filter parsed from inputs with reordered value arrays", () => {
+    // The set-semantics canonicalization in `sortFiltersCanonically` sorts
+    // the value array, so a parsed filter with reordered `value` elements
+    // hashes the same as its canonically-ordered counterpart.
+    const canonical = singleFilter.parse({
+      type: "stringOptions",
+      column: "env",
+      operator: "any of",
+      value: ["prod", "staging"],
+    });
+    const reordered = singleFilter.parse({
+      type: "stringOptions",
+      column: "env",
+      operator: "any of",
+      value: ["staging", "prod"],
+    });
+    const a = calculateSchedulerBatchId({ ...base, filters: [canonical] });
+    const b = calculateSchedulerBatchId({ ...base, filters: [reordered] });
     expect(a).toBe(b);
   });
 
