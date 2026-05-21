@@ -4,7 +4,7 @@ import { EVENTS_TABLE_NAMES } from "../../clickhouse/schema";
 type StringOperator = (typeof filterOperators)["string"][number];
 type StringObjectOperator = (typeof filterOperators)["stringObject"][number];
 
-export const FTS_TEXT_NORMALIZER = "lowerUTF8";
+export const FTS_TEXT_NORMALIZER = "lower";
 
 export const FTS_EVENTS_TABLES: ReadonlySet<string> = new Set(
   EVENTS_TABLE_NAMES,
