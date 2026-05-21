@@ -8,7 +8,7 @@ import {
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError, LangfuseNotFoundError } from "../../../errors";
 import { singleFilter } from "../../../interfaces/filters";
 import {
   MonitorSeveritySchema,
@@ -479,13 +479,13 @@ describe("decimalToPrisma", () => {
 });
 
 describe("errorFromPrisma", () => {
-  it("maps P2025 (row not found) to InvalidRequestError", () => {
+  it("maps P2025 (row not found) to LangfuseNotFoundError", () => {
     const e = new Prisma.PrismaClientKnownRequestError("not found", {
       code: "P2025",
       clientVersion: "test",
     });
     const mapped = errorFromPrisma("mon_01", "proj_01", e);
-    expect(mapped).toBeInstanceOf(InvalidRequestError);
+    expect(mapped).toBeInstanceOf(LangfuseNotFoundError);
     expect(mapped.message).toContain("mon_01");
     expect(mapped.message).toContain("proj_01");
   });

@@ -12,7 +12,7 @@ import {
   Prisma,
 } from "@prisma/client";
 
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError, LangfuseNotFoundError } from "../../../errors";
 
 import { DAY, HOUR, MINUTE, WEEK } from "../helpers";
 import {
@@ -310,16 +310,14 @@ export const monitorFromPrisma = (monitor: PrismaMonitor): Monitor =>
 export const decimalToPrisma = (n: number | null): Prisma.Decimal | null =>
   n == null ? null : new Prisma.Decimal(n);
 
-/** errorFromPrisma maps a Prisma client error to a caller-facing Error:
- * P2025 (row not found) becomes `InvalidRequestError`; anything else passes
- * through unchanged. */
+/** errorFromPrisma converts a Prisma row-not-found error to LangfuseNotFoundError. */
 export const errorFromPrisma = (
   id: string,
   projectId: string,
   e: unknown,
 ): Error => {
   if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
-    return new InvalidRequestError(
+    return new LangfuseNotFoundError(
       `Monitor ${id} not found in project ${projectId}`,
     );
   }

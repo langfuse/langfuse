@@ -149,6 +149,22 @@ signoff of user-visible changes.
 3. Reuse auth/error patterns from `src/server/api/trpc.ts`.
 4. Add/adjust server tests under `src/__tests__/server/*`.
 
+#### Error handling in tRPC procedures
+
+Don't `try/catch` and remap `BaseError` subclasses
+(`InvalidRequestError`, `LangfuseNotFoundError`, `LangfuseConflictError`,
+etc.) into `TRPCError`s inside a procedure. The `withErrorHandling`
+middleware in [`src/server/api/trpc.ts`](src/server/api/trpc.ts) already
+reads `cause.httpCode` and maps to the right TRPC code via
+[`getTRPCErrorCodeFromHTTPStatusCode`](src/server/utils/trpc-utils.ts) — a
+manual remap duplicates the middleware, tends to pick the wrong code, and
+hides the original cause.
+
+Throw the right `BaseError` subclass from the service layer instead and let
+exceptions bubble. The only legitimate router-level `TRPCError` is for
+cases the service signals via return value (eg. a `null` from `getById`
+that should become `NOT_FOUND`).
+
 ### Add/Change public API endpoint
 
 1. Add route in `src/pages/api/public/*`.

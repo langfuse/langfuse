@@ -1,4 +1,4 @@
-/** service.ts contains the MonitorService */
+/** service.ts contains the MonitorService. */
 import { Prisma, prisma } from "../../../db";
 
 import { type Monitor } from "../types";
@@ -18,9 +18,12 @@ import {
   windowToMs,
 } from "./helpers";
 import {
-  type CreateMonitorInput,
-  type MonitorListInput,
-  type UpdateMonitorInput,
+  type CreateMonitor,
+  type DeleteMonitor,
+  type GetMonitorById,
+  type ListMonitors,
+  type SessionContext,
+  type UpdateMonitor,
 } from "./types";
 
 /**
@@ -32,10 +35,15 @@ import {
  *
  * Validation is handled directly by the zod schema found in `service/types`.
  * Services assume the inputs have been parsed and validated by tRPC or other
- * API adapters.
+ * API adapters. Project membership and scope checks (RBAC) are enforced by
+ * the caller (eg. tRPC middleware); this service trusts the supplied
+ * `SessionContext.userId` and `input.projectId`.
  */
 export class MonitorService {
-  public static async create(input: CreateMonitorInput): Promise<Monitor> {
+  public static async create(
+    session: SessionContext,
+    input: CreateMonitor,
+  ): Promise<Monitor> {
     const filters = sortFiltersCanonically(input.filters);
     const windowMs = windowToMs(input.window);
     const cadenceMs = calculateCadence(windowMs);
@@ -54,8 +62,8 @@ export class MonitorService {
     const created = await prisma.monitor.create({
       data: {
         projectId: input.projectId,
-        createdBy: input.createdBy,
-        updatedBy: input.createdBy,
+        createdBy: session.userId,
+        updatedBy: session.userId,
         view: viewToPrisma(input.view),
         filters,
         metric: input.metric,
@@ -76,7 +84,10 @@ export class MonitorService {
     return monitorFromPrisma(created);
   }
 
-  public static async update(input: UpdateMonitorInput): Promise<Monitor> {
+  public static async update(
+    session: SessionContext,
+    input: UpdateMonitor,
+  ): Promise<Monitor> {
     const filters = sortFiltersCanonically(input.filters);
     const windowMs = windowToMs(input.window);
     const cadenceMs = calculateCadence(windowMs);
@@ -98,7 +109,7 @@ export class MonitorService {
       const updated = await prisma.monitor.update({
         where: { id: input.id, projectId: input.projectId },
         data: {
-          updatedBy: input.updatedBy,
+          updatedBy: session.userId,
           view: viewToPrisma(input.view),
           filters,
           metric: input.metric,
@@ -123,17 +134,18 @@ export class MonitorService {
   }
 
   public static async getById(
-    monitorId: string,
-    projectId: string,
+    _session: SessionContext,
+    input: GetMonitorById,
   ): Promise<Monitor | null> {
     const monitor = await prisma.monitor.findFirst({
-      where: { id: monitorId, projectId },
+      where: { id: input.id, projectId: input.projectId },
     });
     return monitor ? monitorFromPrisma(monitor) : null;
   }
 
   public static async list(
-    input: MonitorListInput,
+    _session: SessionContext,
+    input: ListMonitors,
   ): Promise<{ monitors: Monitor[]; totalCount: number }> {
     const skip =
       input.page && input.limit ? (input.page - 1) * input.limit : undefined;
@@ -159,15 +171,15 @@ export class MonitorService {
   }
 
   public static async delete(
-    monitorId: string,
-    projectId: string,
+    _session: SessionContext,
+    input: DeleteMonitor,
   ): Promise<void> {
     try {
       await prisma.monitor.delete({
-        where: { id: monitorId, projectId },
+        where: { id: input.id, projectId: input.projectId },
       });
     } catch (e) {
-      throw errorFromPrisma(monitorId, projectId, e);
+      throw errorFromPrisma(input.id, input.projectId, e);
     }
   }
 }

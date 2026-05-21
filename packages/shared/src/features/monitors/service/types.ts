@@ -1,5 +1,4 @@
-/** service/types.ts contains the DTO schemas and types for the MonitorService
- * — the input contracts for `create`, `update`, and `list`. */
+/** service/types.ts contains the DTO schemas and types for the MonitorService. */
 import { z } from "zod";
 
 import { paginationZod } from "../../../utils/zod";
@@ -11,13 +10,18 @@ import {
   validateThresholdOrder,
 } from "../types";
 
-/**
- * omitOnWrite are the Monitor fields the service generates or owns. They are
- * omitted from every write DTO.
- */
+/** SessionContext identifies the authenticated caller. */
+export const SessionContextSchema = z.object({
+  userId: z.string(),
+});
+export type SessionContext = z.infer<typeof SessionContextSchema>;
+
+/** omitOnWrite are the Monitor fields the service owns and clients can't set. */
 const omitOnWrite = {
   createdAt: true,
   updatedAt: true,
+  createdBy: true,
+  updatedBy: true,
   severity: true,
   severityChangedAt: true,
   alertedAt: true,
@@ -26,38 +30,38 @@ const omitOnWrite = {
   lastCompletedRunAt: true,
 } as const;
 
-/**
- * CreateMonitorInputSchema is the input contract for `MonitorService.create`.
- * The caller supplies `createdBy`; the service mirrors it onto `updatedBy`.
- * `status` is narrowed to the caller-settable subset (`error-bad-query` is
- * scheduler-owned).
- */
-export const CreateMonitorInputSchema = MonitorSchema.omit({
+/** CreateMonitorSchema is the input for MonitorService.create. */
+export const CreateMonitorSchema = MonitorSchema.omit({
   ...omitOnWrite,
   id: true,
-  updatedBy: true,
 })
   .extend({ status: MonitorWriteStatusSchema.default("active") })
   .superRefine(validateQuery)
   .superRefine(validateThresholdOrder);
-export type CreateMonitorInput = z.infer<typeof CreateMonitorInputSchema>;
+export type CreateMonitor = z.infer<typeof CreateMonitorSchema>;
 
-/**
- * UpdateMonitorInputSchema is the input contract for `MonitorService.update`.
- * The caller supplies `id` (target row) and `updatedBy`; `createdBy` is
- * preserved from the existing row. `status` is narrowed to the
- * caller-settable subset.
- */
-export const UpdateMonitorInputSchema = MonitorSchema.omit({
-  ...omitOnWrite,
-  createdBy: true,
-})
+/** UpdateMonitorSchema is the input for MonitorService.update. */
+export const UpdateMonitorSchema = MonitorSchema.omit(omitOnWrite)
   .extend({ status: MonitorWriteStatusSchema.default("active") })
   .superRefine(validateQuery)
   .superRefine(validateThresholdOrder);
-export type UpdateMonitorInput = z.infer<typeof UpdateMonitorInputSchema>;
+export type UpdateMonitor = z.infer<typeof UpdateMonitorSchema>;
 
-/** MonitorListOrderBySchema is the list of fields that we can sort the Monitor collection by. */
+/** GetMonitorByIdSchema is the input for MonitorService.getById. */
+export const GetMonitorByIdSchema = z.object({
+  projectId: z.string(),
+  id: z.string(),
+});
+export type GetMonitorById = z.infer<typeof GetMonitorByIdSchema>;
+
+/** DeleteMonitorSchema is the input for MonitorService.delete. */
+export const DeleteMonitorSchema = z.object({
+  projectId: z.string(),
+  id: z.string(),
+});
+export type DeleteMonitor = z.infer<typeof DeleteMonitorSchema>;
+
+/** MonitorListOrderBySchema is the set of columns MonitorService.list can sort by. */
 export const MonitorListOrderBySchema = z.enum([
   "name",
   "status",
@@ -69,8 +73,8 @@ export const MonitorListOrderBySchema = z.enum([
 ]);
 export type MonitorListOrderBy = z.infer<typeof MonitorListOrderBySchema>;
 
-/** MonitorListInputSchema is the input contract for `MonitorService.list`. */
-export const MonitorListInputSchema = z.object({
+/** ListMonitorsSchema is the input for MonitorService.list. */
+export const ListMonitorsSchema = z.object({
   projectId: z.string(),
   orderBy: z
     .object({
@@ -80,4 +84,4 @@ export const MonitorListInputSchema = z.object({
     .nullable(),
   ...paginationZod,
 });
-export type MonitorListInput = z.infer<typeof MonitorListInputSchema>;
+export type ListMonitors = z.infer<typeof ListMonitorsSchema>;
