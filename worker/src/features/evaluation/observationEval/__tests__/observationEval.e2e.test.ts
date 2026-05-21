@@ -41,9 +41,6 @@ vi.mock("@langfuse/shared/src/db", () => ({
     jobConfiguration: {
       findFirst: vi.fn(),
     },
-    project: {
-      findUnique: vi.fn(),
-    },
   },
 }));
 
@@ -113,7 +110,6 @@ describe("Observation Eval E2E Pipeline", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (prisma.project.findUnique as Mock).mockResolvedValue({ orgId: "org-1" });
     (runLLMAsJudgeEvaluation as Mock).mockResolvedValue(
       mockEvalExecutionResult,
     );
@@ -256,6 +252,7 @@ describe("Observation Eval E2E Pipeline", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         evalTemplate: mockTemplate,
+        project: { orgId: "test-org-123" },
       };
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
@@ -280,6 +277,7 @@ describe("Observation Eval E2E Pipeline", () => {
       expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           projectId,
+          organizationId: "test-org-123",
           jobExecutionId: capturedJobExecutionId,
           extractedVariables: expect.arrayContaining([
             expect.objectContaining({
@@ -621,6 +619,7 @@ describe("Observation Eval E2E Pipeline", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         evalTemplate: mockTemplate,
+        project: { orgId: "test-org-123" },
       };
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
@@ -726,6 +725,7 @@ describe("Observation Eval E2E Pipeline", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         evalTemplate: mockTemplate,
+        project: { orgId: "test-org-123" },
       };
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);

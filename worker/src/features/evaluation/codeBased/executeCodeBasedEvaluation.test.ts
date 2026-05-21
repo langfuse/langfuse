@@ -13,19 +13,10 @@ const mocks = vi.hoisted(() => ({
     name: "test-dispatcher",
     dispatch: vi.fn(),
   },
-  projectFindUnique: vi.fn(),
   writeInternalTrace: vi.fn(),
   createW3CTraceId: vi.fn(() => "execution-trace-1"),
   span: {
     setAttribute: vi.fn(),
-  },
-}));
-
-vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: {
-    project: {
-      findUnique: mocks.projectFindUnique,
-    },
   },
 }));
 
@@ -56,7 +47,6 @@ import { executeCodeBasedEvaluation } from "./executeCodeBasedEvaluation";
 describe("executeCodeBasedEvaluation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.projectFindUnique.mockResolvedValue({ orgId: "org-1" });
     mocks.writeInternalTrace.mockResolvedValue(undefined);
   });
 
@@ -70,6 +60,7 @@ describe("executeCodeBasedEvaluation", () => {
 
     const result = await executeCodeBasedEvaluation({
       projectId: "project-1",
+      organizationId: "org-1",
       jobExecutionId: "job-1",
       job: {
         id: "job-1",
@@ -158,6 +149,7 @@ describe("executeCodeBasedEvaluation", () => {
 
     const result = await executeCodeBasedEvaluation({
       projectId: "project-1",
+      organizationId: "org-1",
       jobExecutionId: "job-1",
       job: {
         id: "job-1",
@@ -204,6 +196,7 @@ describe("executeCodeBasedEvaluation", () => {
 
     await executeCodeBasedEvaluation({
       projectId: "project-1",
+      organizationId: "org-1",
       jobExecutionId: "job-1",
       job: {
         id: "job-1",
@@ -248,6 +241,7 @@ describe("executeCodeBasedEvaluation", () => {
 
     await executeCodeBasedEvaluation({
       projectId: "project-1",
+      organizationId: "org-1",
       jobExecutionId: "job-1",
       job: {
         id: "job-1",
@@ -288,6 +282,7 @@ describe("executeCodeBasedEvaluation", () => {
 
     await executeCodeBasedEvaluation({
       projectId: "project-1",
+      organizationId: "org-1",
       jobExecutionId: "job-1",
       job: {
         id: "job-1",
@@ -340,6 +335,7 @@ describe("executeCodeBasedEvaluation", () => {
 
     await executeCodeBasedEvaluation({
       projectId: "project-1",
+      organizationId: "org-1",
       jobExecutionId: "job-1",
       job: {
         id: "job-1",
@@ -395,6 +391,7 @@ describe("executeCodeBasedEvaluation", () => {
     await expect(
       executeCodeBasedEvaluation({
         projectId: "project-1",
+        organizationId: "org-1",
         jobExecutionId: "job-1",
         job: {
           id: "job-1",
@@ -434,6 +431,7 @@ describe("executeCodeBasedEvaluation", () => {
     await expect(
       executeCodeBasedEvaluation({
         projectId: "project-1",
+        organizationId: "org-1",
         jobExecutionId: "job-1",
         job: {
           id: "job-1",
@@ -511,6 +509,7 @@ describe("executeCodeBasedEvaluation", () => {
     await expect(
       executeCodeBasedEvaluation({
         projectId: "project-1",
+        organizationId: "org-1",
         jobExecutionId: "job-1",
         job: {
           id: "job-1",

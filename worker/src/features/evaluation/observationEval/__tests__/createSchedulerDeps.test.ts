@@ -45,6 +45,7 @@ describe("createObservationEvalSchedulerDeps", () => {
       expect.objectContaining({
         name: "llm-as-a-judge-execution-job",
         id: "job-1",
+        payload: expect.objectContaining({ projectId: "project-1" }),
       }),
       { delay: 10 },
     );
@@ -71,6 +72,7 @@ describe("createObservationEvalSchedulerDeps", () => {
       expect.objectContaining({
         name: "code-eval-execution-job",
         id: "job-2",
+        payload: expect.objectContaining({ projectId: "project-1" }),
       }),
       { delay: 20 },
     );

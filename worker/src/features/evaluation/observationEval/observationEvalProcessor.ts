@@ -34,6 +34,7 @@ import { type ObservationForEval } from "./types";
  */
 export type ObservationEvalExecutionBaseParams = {
   projectId: string;
+  organizationId: string;
   jobExecutionId: string;
   job: JobExecution;
   config: JobConfiguration;
@@ -136,6 +137,11 @@ export async function processObservationEval<TTemplate extends EvalTemplate>(
     },
     include: {
       evalTemplate: true,
+      project: {
+        select: {
+          orgId: true,
+        },
+      },
     },
   });
 
@@ -217,6 +223,7 @@ export async function processObservationEval<TTemplate extends EvalTemplate>(
 
   const executionParams = {
     projectId: event.projectId,
+    organizationId: evalJobConfig.project.orgId,
     jobExecutionId: event.jobExecutionId,
     job,
     config: evalJobConfig,

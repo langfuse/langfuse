@@ -487,6 +487,7 @@ describe("processObservationEval", () => {
       expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           projectId,
+          organizationId: "test-org-123",
           jobExecutionId,
           job: expect.objectContaining({ id: jobExecutionId }),
           config: expect.objectContaining({ id: "config-123" }),
@@ -641,6 +642,7 @@ describe("processObservationEval", () => {
       expect(executeCodeBasedEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           projectId,
+          organizationId: "test-org-123",
           jobExecutionId,
           template: expect.objectContaining({
             id: "template-456",

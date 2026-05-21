@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { type JobConfiguration, type JobExecution } from "@prisma/client";
 import { type EvalTemplateCodeBased } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
 import {
   instrumentAsync,
   logger,
@@ -17,6 +16,7 @@ import { type EvalExecutionDeps } from "../evalExecutionDeps";
 
 export async function executeCodeBasedEvaluation(params: {
   projectId: string;
+  organizationId: string;
   jobExecutionId: string;
   job: JobExecution;
   config: JobConfiguration;
@@ -35,17 +35,6 @@ export async function executeCodeBasedEvaluation(params: {
 
       if (!dispatcher) {
         throw new UnrecoverableError("Code eval dispatcher is not configured");
-      }
-
-      const project = await prisma.project.findUnique({
-        where: { id: params.projectId },
-        select: { orgId: true },
-      });
-
-      if (!project) {
-        throw new UnrecoverableError(
-          `Project ${params.projectId} not found for code eval execution`,
-        );
       }
 
       const executionTraceId = createW3CTraceId(params.jobExecutionId);
@@ -73,7 +62,7 @@ export async function executeCodeBasedEvaluation(params: {
 
       const dispatchOutcome = await runCodeBasedEvaluationDispatch({
         dispatcher,
-        organizationId: project.orgId,
+        organizationId: params.organizationId,
         projectId: params.projectId,
         executionTraceId,
         jobExecutionId: params.jobExecutionId,
@@ -94,7 +83,6 @@ export async function executeCodeBasedEvaluation(params: {
         throw dispatchOutcome.cause;
       }
 
-      span.setAttribute("eval.result.count", dispatchOutcome.scores.length);
       span.setAttribute("eval.score.count", dispatchOutcome.scores.length);
       span.setAttribute("eval.score.id", primaryScoreId);
 
