@@ -98,6 +98,7 @@ export const EvalTemplateForm = (props: {
                 vars: props.existingEvalTemplate.vars,
                 outputDefinition: props.existingEvalTemplate
                   .outputDefinition as PersistedEvalOutputDefinition,
+                type: props.existingEvalTemplate.type,
                 selectedModel: props.existingEvalTemplate.provider
                   ? {
                       provider: props.existingEvalTemplate.provider as string,
@@ -189,7 +190,7 @@ const formSchema = z
   });
 
 const toOutputDefinitionFormValues = (
-  outputDefinition?: PersistedEvalOutputDefinition,
+  outputDefinition?: PersistedEvalOutputDefinition | null,
 ) => {
   if (!outputDefinition) {
     return getDefaultOutputDefinitionFormValues();
@@ -218,9 +219,10 @@ const toOutputDefinitionFormValues = (
 
 export type EvalTemplateFormPreFill = {
   name: string;
+  type?: EvalTemplateType;
   prompt: string;
   vars: string[];
-  outputDefinition: PersistedEvalOutputDefinition;
+  outputDefinition?: PersistedEvalOutputDefinition | null;
   selectedModel?: {
     provider: string;
     model: string;
@@ -297,7 +299,7 @@ export const InnerEvalTemplateForm = (props: {
     defaultValues: {
       name:
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
-      type: EvalTemplateType.LLM_AS_JUDGE,
+      type: props.preFilledFormValues?.type ?? EvalTemplateType.LLM_AS_JUDGE,
       prompt: props.preFilledFormValues?.prompt ?? undefined,
       variables: props.preFilledFormValues?.vars ?? [],
       scoreDataType: outputDefinitionFormValues.scoreDataType,
@@ -323,7 +325,7 @@ export const InnerEvalTemplateForm = (props: {
   const useDefaultModel = form.watch("shouldUseDefaultModel");
   const evalTemplateType = form.watch("type");
   const showTypeScriptTemplatePlaceholder =
-    showEvalTemplateTypeSelector && evalTemplateType === EvalTemplateType.CODE;
+    isCodeEvalEnabled && evalTemplateType === EvalTemplateType.CODE;
   const scoreDataType = form.watch("scoreDataType");
   const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
   const isBooleanOutput = scoreDataType === ScoreDataTypeEnum.BOOLEAN;

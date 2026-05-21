@@ -109,13 +109,14 @@ const ConfigWithTemplateSchema = z.object({
       createdAt: z.coerce.date(),
       updatedAt: z.coerce.date(),
       projectId: z.string().nullable(),
-      prompt: z.string(),
+      prompt: z.string().nullable(),
       provider: z.string().nullable(),
       model: z.string().nullable(),
       modelParams: jsonSchema.nullable(),
       vars: z.array(z.string()),
-      outputDefinition: jsonSchema,
+      outputDefinition: jsonSchema.nullable(),
       version: z.number(),
+      type: z.enum(EvalTemplateType),
     })
     .nullish(),
 });
@@ -238,6 +239,7 @@ const validateEvalTemplateCanRun = async ({
     projectId,
     template: {
       name: template.name,
+      type: template.type,
       provider: template.provider,
       model: template.model,
       modelParams: template.modelParams,
@@ -481,6 +483,9 @@ export const evalRouter = createTRPCRouter({
           ...(input.isUserManaged
             ? { projectId: input.projectId }
             : { projectId: null }),
+          ...(isCodeEvalEnabled()
+            ? {}
+            : { type: { not: EvalTemplateType.CODE } }),
         },
         orderBy: [{ version: "desc" }],
       });
@@ -510,6 +515,9 @@ export const evalRouter = createTRPCRouter({
         input.searchQuery && input.searchQuery.trim() !== ""
           ? Prisma.sql`AND name ILIKE ${`%${input.searchQuery}%`}`
           : Prisma.empty;
+      const typeCondition = isCodeEvalEnabled()
+        ? Prisma.empty
+        : Prisma.sql`AND type != ${EvalTemplateType.CODE}::"EvalTemplateType"`;
 
       const [templates, count] = await Promise.all([
         ctx.prisma.$queryRaw<
@@ -523,6 +531,7 @@ export const evalRouter = createTRPCRouter({
             partner?: string;
             provider?: string;
             model?: string;
+            type: EvalTemplateType;
             outputDefinition: unknown;
           }>
         >`
@@ -533,6 +542,7 @@ export const evalRouter = createTRPCRouter({
             et.project_id,
             et.provider,
             et.model,
+            et.type,
             et.partner,
             et.version,
             et.created_at,
@@ -544,16 +554,18 @@ export const evalRouter = createTRPCRouter({
                 SELECT id 
                 FROM eval_templates 
                 WHERE name = et.name AND 
+                      type = et.type AND
                       (project_id = et.project_id OR (project_id IS NULL AND et.project_id IS NULL))
               )
               AND jc.project_id = ${input.projectId}
             ) as usage_count
           FROM (
-            SELECT DISTINCT ON (project_id, name) *
+            SELECT DISTINCT ON (project_id, name, type) *
             FROM eval_templates
             WHERE (project_id = ${input.projectId} OR project_id IS NULL)
             ${searchCondition}
-            ORDER BY project_id, name, version DESC
+            ${typeCondition}
+            ORDER BY project_id, name, type, version DESC
           ) et
         )
         SELECT 
@@ -561,6 +573,7 @@ export const evalRouter = createTRPCRouter({
           name,
           provider,
           model,
+          type,
           partner,
           project_id as "projectId",
           version,
@@ -569,17 +582,18 @@ export const evalRouter = createTRPCRouter({
           COALESCE(usage_count, 0)::int as "usageCount"
         FROM 
           latest_templates
-        ORDER BY project_id, partner, name
+        ORDER BY project_id, partner, name, type
         LIMIT ${input.limit}
         OFFSET ${input.page * input.limit}
         `,
         ctx.prisma.$queryRaw<Array<{ count: bigint }>>`
           SELECT COUNT(*) as count
           FROM (
-            SELECT DISTINCT project_id, name
+            SELECT DISTINCT project_id, name, type
             FROM eval_templates
             WHERE (project_id = ${input.projectId} OR project_id IS NULL)
             ${searchCondition}
+            ${typeCondition}
           ) t
         `,
       ]);
@@ -608,6 +622,9 @@ export const evalRouter = createTRPCRouter({
         where: {
           id: input.id,
           OR: [{ projectId: input.projectId }, { projectId: null }],
+          ...(isCodeEvalEnabled()
+            ? {}
+            : { type: { not: EvalTemplateType.CODE } }),
         },
       });
 
@@ -633,6 +650,9 @@ export const evalRouter = createTRPCRouter({
         where: {
           OR: [{ projectId: input.projectId }, { projectId: null }],
           ...(input.id ? { id: input.id } : undefined),
+          ...(isCodeEvalEnabled()
+            ? {}
+            : { type: { not: EvalTemplateType.CODE } }),
         },
         ...(input.limit && input.page
           ? { take: input.limit, skip: input.page * input.limit }
@@ -643,6 +663,9 @@ export const evalRouter = createTRPCRouter({
         where: {
           OR: [{ projectId: input.projectId }, { projectId: null }],
           ...(input.id ? { id: input.id } : undefined),
+          ...(isCodeEvalEnabled()
+            ? {}
+            : { type: { not: EvalTemplateType.CODE } }),
         },
       });
       return {

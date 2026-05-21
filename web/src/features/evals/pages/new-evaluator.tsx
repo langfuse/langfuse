@@ -15,7 +15,10 @@ import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { DefaultEvalModelSetup } from "@/src/features/evals/components/default-eval-model-setup";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
-import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
+import {
+  isCodeEvalTemplate,
+  shouldShowEvalTemplate,
+} from "@/src/features/evals/utils/code-eval-template-utils";
 
 // Multi-step setup process
 // 0. Set up default model (optional, only if no default model exists): /project/:projectId/evals/new
@@ -39,10 +42,6 @@ export default function NewEvaluatorPage() {
 
   const hasDefaultModel = !!defaultModel;
 
-  // Calculate step number. Code evaluators do not require a default model.
-  const stepInt =
-    !hasDefaultModel && !isCodeEvalEnabled ? 0 : !evaluatorId ? 1 : 2;
-
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "evalTemplate:CUD",
@@ -62,6 +61,20 @@ export default function NewEvaluatorPage() {
   const currentTemplate = evalTemplates.data?.templates
     .filter((template) => shouldShowEvalTemplate(template, isCodeEvalEnabled))
     .find((t) => t.id === evaluatorId);
+
+  const canSkipDefaultModel =
+    isCodeEvalEnabled && currentTemplate && isCodeEvalTemplate(currentTemplate);
+
+  // Calculate step number. Code evaluators do not require a default model.
+  const stepInt = hasDefaultModel
+    ? !evaluatorId
+      ? 1
+      : 2
+    : canSkipDefaultModel
+      ? 2
+      : isCodeEvalEnabled && !evaluatorId
+        ? 1
+        : 0;
 
   if (!hasAccess) {
     return <div>You do not have access to this page.</div>;

@@ -38,7 +38,9 @@ import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Badge } from "@/src/components/ui/badge";
 import { getTemplateResultType } from "@/src/features/evals/utils/template-output";
-import { type EvalTemplate } from "@langfuse/shared";
+import type { EvalTemplateType, EvalTemplate } from "@langfuse/shared";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -51,6 +53,7 @@ export type EvalsTemplateRow = {
   actions?: string;
   provider?: string;
   model?: string;
+  type?: EvalTemplateType;
 };
 
 const getMaintainerLabel = (maintainer: string) =>
@@ -68,6 +71,7 @@ export default function EvalsTemplateTable({
   projectId: string;
 }) {
   const router = useRouter();
+  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
@@ -162,11 +166,15 @@ export default function EvalsTemplateTable({
       const { templates: templateList = [] } = templates.data ?? {};
       setDetailPageList(
         "eval-templates",
-        templateList.map((template) => ({ id: template.latestId })),
+        templateList
+          .filter((template) =>
+            shouldShowEvalTemplate(template, isCodeEvalEnabled),
+          )
+          .map((template) => ({ id: template.latestId })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [templates.isSuccess, templates.data]);
+  }, [templates.isSuccess, templates.data, isCodeEvalEnabled]);
 
   const columnHelper = createColumnHelper<EvalsTemplateRow>();
 
@@ -253,7 +261,8 @@ export default function EvalsTemplateTable({
         const id = row.original.id;
         const provider = row.original.provider ?? null;
         const model = row.original.model ?? null;
-        const isInvalid = isTemplateInvalid({ provider, model });
+        const type = row.original.type;
+        const isInvalid = isTemplateInvalid({ provider, model, type });
 
         return (
           <div className="flex flex-row gap-2">
@@ -355,6 +364,7 @@ export default function EvalsTemplateTable({
       usageCount: template.usageCount,
       provider: template.provider,
       model: template.model,
+      type: template.type,
     };
   };
 
@@ -393,9 +403,11 @@ export default function EvalsTemplateTable({
                   : {
                       isLoading: false,
                       isError: false,
-                      data: safeExtract(templates.data, "templates", []).map(
-                        (t) => convertToTableRow(t),
-                      ),
+                      data: safeExtract(templates.data, "templates", [])
+                        .filter((template) =>
+                          shouldShowEvalTemplate(template, isCodeEvalEnabled),
+                        )
+                        .map((t) => convertToTableRow(t)),
                     }
             }
             pagination={{
@@ -464,6 +476,7 @@ export default function EvalsTemplateTable({
                     vars: cloneTemplate.data.vars,
                     outputDefinition: cloneTemplate.data
                       .outputDefinition as EvalTemplate["outputDefinition"],
+                    type: cloneTemplate.data.type,
                     provider: cloneTemplate.data.provider,
                     model: cloneTemplate.data.model,
                     modelParams: cloneTemplate.data.modelParams as any,
