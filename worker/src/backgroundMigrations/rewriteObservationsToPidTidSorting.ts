@@ -450,7 +450,7 @@ export default class RewriteObservationsToPidTidSorting implements IBackgroundMi
       where: { id: backgroundMigrationId },
       create: {
         id: backgroundMigrationId,
-        name: "20260509_v4_step_2_rewrite_observations_to_pid_tid_sorting",
+        name: "20260521_v4_step_2_rewrite_observations_to_pid_tid_sorting",
         script: "rewriteObservationsToPidTidSorting",
         args: {},
         state: {},

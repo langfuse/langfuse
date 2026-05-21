@@ -14,7 +14,7 @@
 INSERT INTO background_migrations (id, name, script, args)
 VALUES (
   '9c2d5a4f-7b8e-4f6a-a91c-3e5d7f8a2b1c',
-  '20260509_v4_step_2_rewrite_observations_to_pid_tid_sorting',
+  '20260521_v4_step_2_rewrite_observations_to_pid_tid_sorting',
   'rewriteObservationsToPidTidSorting',
   '{
     "envGate": "LANGFUSE_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL",

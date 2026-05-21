@@ -482,7 +482,7 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
       where: { id: backgroundMigrationId },
       create: {
         id: backgroundMigrationId,
-        name: "20260509_v4_step_3_backfill_events_full_from_observations",
+        name: "20260521_v4_step_3_backfill_events_full_from_observations",
         script: "backfillEventsFullFromObservations",
         args: {},
         state: {},

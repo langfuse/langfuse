@@ -268,7 +268,7 @@ export default class CreateRootSpansFromTraces implements IBackgroundMigration {
       where: { id: backgroundMigrationId },
       create: {
         id: backgroundMigrationId,
-        name: "20260509_v4_step_1_create_root_spans_from_traces",
+        name: "20260521_v4_step_1_create_root_spans_from_traces",
         script: "createRootSpansFromTraces",
         args: {},
         state: {},
