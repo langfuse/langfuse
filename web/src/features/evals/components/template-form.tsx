@@ -29,6 +29,7 @@ import {
   getIsCharOrUnderscore,
   resolvePersistedEvalOutputDefinition,
   EvalTemplateType,
+  EvalTemplateSourceCodeLanguage,
 } from "@langfuse/shared";
 import router from "next/router";
 import { type EvalTemplate } from "@langfuse/shared";
@@ -62,6 +63,12 @@ import {
 } from "@/src/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-eval-template-form-body";
+import {
+  DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
+  type CodeEvalValidationResult,
+  validateCodeEvalSourceWithTypescript,
+} from "@/src/features/evals/utils/code-eval-template-validation";
 
 type PartialEvalTemplate = Partial<EvalTemplate> &
   Pick<EvalTemplate, "name" | "prompt" | "vars" | "outputDefinition">;
@@ -99,6 +106,7 @@ export const EvalTemplateForm = (props: {
                 outputDefinition: props.existingEvalTemplate
                   .outputDefinition as PersistedEvalOutputDefinition,
                 type: props.existingEvalTemplate.type,
+                sourceCode: props.existingEvalTemplate.sourceCode,
                 selectedModel: props.existingEvalTemplate.provider
                   ? {
                       provider: props.existingEvalTemplate.provider as string,
@@ -135,8 +143,9 @@ const formSchema = z
       .default(EvalTemplateType.LLM_AS_JUDGE),
     prompt: z
       .string()
-      .min(1, "Enter a prompt")
+      .optional()
       .refine((val) => {
+        if (!val) return true;
         const variables = extractVariables(val);
         const matches = variables.map((variable) => {
           // check regex here
@@ -151,9 +160,10 @@ const formSchema = z
     variables: z.array(
       z.string().min(1, "Variables must have at least one character"),
     ),
+    sourceCode: z.string().optional(),
     scoreDataType: EvalOutputDataTypeSchema.default(ScoreDataTypeEnum.NUMERIC),
-    scoreDescription: z.string().min(1, "Enter a score function"),
-    reasoningDescription: z.string().min(1, "Enter a reasoning function"),
+    scoreDescription: z.string().optional(),
+    reasoningDescription: z.string().optional(),
     categories: z.array(categoricalOptionSchema).default([]),
     shouldAllowMultipleMatches: z.boolean().default(false),
     referencedEvaluators: z
@@ -163,6 +173,42 @@ const formSchema = z
     shouldUseDefaultModel: z.boolean().default(true),
   })
   .superRefine((value, ctx) => {
+    // TODO: clean up
+    if (value.type === EvalTemplateType.CODE) {
+      if (!value.sourceCode?.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Enter TypeScript source code",
+          path: ["sourceCode"],
+        });
+      }
+      return;
+    }
+
+    if (!value.prompt?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Enter a prompt",
+        path: ["prompt"],
+      });
+    }
+
+    if (!value.reasoningDescription?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Enter a reasoning function",
+        path: ["reasoningDescription"],
+      });
+    }
+
+    if (!value.scoreDescription?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Enter a score function",
+        path: ["scoreDescription"],
+      });
+    }
+
     if (value.scoreDataType !== ScoreDataTypeEnum.CATEGORICAL) {
       return;
     }
@@ -223,6 +269,7 @@ export type EvalTemplateFormPreFill = {
   prompt: string;
   vars: string[];
   outputDefinition?: PersistedEvalOutputDefinition | null;
+  sourceCode?: string | null;
   selectedModel?: {
     provider: string;
     model: string;
@@ -249,6 +296,9 @@ export const InnerEvalTemplateForm = (props: {
 }) => {
   const capture = usePostHogClientCapture();
   const [formError, setFormError] = useState<string | null>(null);
+  const [codeValidationResult, setCodeValidationResult] =
+    useState<CodeEvalValidationResult | null>(null);
+  const [isCodeValidationPending, setIsCodeValidationPending] = useState(false);
   const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
   const showEvalTemplateTypeSelector =
     isCodeEvalEnabled && !props.existingEvalTemplateId;
@@ -302,6 +352,9 @@ export const InnerEvalTemplateForm = (props: {
       type: props.preFilledFormValues?.type ?? EvalTemplateType.LLM_AS_JUDGE,
       prompt: props.preFilledFormValues?.prompt ?? undefined,
       variables: props.preFilledFormValues?.vars ?? [],
+      sourceCode:
+        props.preFilledFormValues?.sourceCode ??
+        DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
       scoreDataType: outputDefinitionFormValues.scoreDataType,
       reasoningDescription: outputDefinitionFormValues.reasoningDescription,
       scoreDescription: outputDefinitionFormValues.scoreDescription,
@@ -324,7 +377,7 @@ export const InnerEvalTemplateForm = (props: {
 
   const useDefaultModel = form.watch("shouldUseDefaultModel");
   const evalTemplateType = form.watch("type");
-  const showTypeScriptTemplatePlaceholder =
+  const showCodeTemplateForm =
     isCodeEvalEnabled && evalTemplateType === EvalTemplateType.CODE;
   const scoreDataType = form.watch("scoreDataType");
   const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
@@ -366,8 +419,9 @@ export const InnerEvalTemplateForm = (props: {
     }
   };
 
-  const extractedVariables = form.watch("prompt")
-    ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
+  const promptValue = form.watch("prompt");
+  const extractedVariables = promptValue
+    ? extractVariables(promptValue).filter(getIsCharOrUnderscore)
     : undefined;
 
   const utils = api.useUtils();
@@ -411,7 +465,39 @@ export const InnerEvalTemplateForm = (props: {
     }
   }, [evaluatorsByTemplateNameQuery.data, form]);
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  async function submitEvalTemplate(
+    evalTemplate: RouterInput["evals"]["createTemplate"],
+  ) {
+    // Check if we need to perform any pre-submission validation or confirmation
+    if (props.onBeforeSubmit && !props.onBeforeSubmit(evalTemplate)) {
+      return; // Stop submission - the parent will handle it
+    }
+
+    await createEvalTemplateMutation
+      .mutateAsync(evalTemplate)
+      .then((res) => {
+        props.onFormSuccess?.(res);
+        form.reset();
+        props.setIsEditing?.(false);
+        if (props.preventRedirect) {
+          return;
+        }
+        void router.push(
+          `/project/${props.projectId}/evals/templates/${res.id}`,
+        );
+      })
+      .catch((error) => {
+        if ("message" in error && typeof error.message === "string") {
+          setFormError(error.message as string);
+          return;
+        } else {
+          setFormError(JSON.stringify(error));
+          console.error(error);
+        }
+      });
+  }
+
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     capture(
       props.isEditing
         ? "eval_templates:update_form_submit"
@@ -419,33 +505,52 @@ export const InnerEvalTemplateForm = (props: {
     );
 
     if (values.type === EvalTemplateType.CODE) {
-      setFormError("Code evaluator template creation is not available yet.");
+      const validationResult = await validateCodeEvalSourceWithTypescript(
+        values.sourceCode ?? "",
+      );
+      setCodeValidationResult(validationResult);
+
+      if (validationResult.hasErrors) {
+        return;
+      }
+
+      const evalTemplate = {
+        type: EvalTemplateType.CODE,
+        name: values.name,
+        projectId: props.projectId,
+        sourceCode: values.sourceCode ?? "",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        referencedEvaluators: values.referencedEvaluators,
+        cloneSourceId: props.cloneSourceId ?? undefined,
+      } satisfies RouterInput["evals"]["createTemplate"];
+
+      await submitEvalTemplate(evalTemplate);
       return;
     }
 
     const outputDefinition =
       values.scoreDataType === ScoreDataTypeEnum.CATEGORICAL
         ? createCategoricalEvalOutputDefinition({
-            scoreDescription: values.scoreDescription,
-            reasoningDescription: values.reasoningDescription,
+            scoreDescription: values.scoreDescription ?? "",
+            reasoningDescription: values.reasoningDescription ?? "",
             categories: values.categories.map((category) => category.value),
             shouldAllowMultipleMatches: values.shouldAllowMultipleMatches,
           })
         : values.scoreDataType === ScoreDataTypeEnum.BOOLEAN
           ? createBooleanEvalOutputDefinition({
-              scoreDescription: values.scoreDescription,
-              reasoningDescription: values.reasoningDescription,
+              scoreDescription: values.scoreDescription ?? "",
+              reasoningDescription: values.reasoningDescription ?? "",
             })
           : createNumericEvalOutputDefinition({
-              scoreDescription: values.scoreDescription,
-              reasoningDescription: values.reasoningDescription,
+              scoreDescription: values.scoreDescription ?? "",
+              reasoningDescription: values.reasoningDescription ?? "",
             });
 
     const evalTemplate = {
-      type: values.type,
+      type: EvalTemplateType.LLM_AS_JUDGE,
       name: values.name,
       projectId: props.projectId,
-      prompt: values.prompt,
+      prompt: values.prompt ?? "",
       // Only include model details if not using default model
       provider: values.shouldUseDefaultModel
         ? undefined
@@ -458,7 +563,7 @@ export const InnerEvalTemplateForm = (props: {
       outputDefinition,
       referencedEvaluators: values.referencedEvaluators,
       cloneSourceId: props.cloneSourceId ?? undefined,
-    };
+    } satisfies RouterInput["evals"]["createTemplate"];
 
     // Only validate model if not using default
     if (!values.shouldUseDefaultModel) {
@@ -483,33 +588,7 @@ export const InnerEvalTemplateForm = (props: {
       }
     }
 
-    // Check if we need to perform any pre-submission validation or confirmation
-    if (props.onBeforeSubmit && !props.onBeforeSubmit(evalTemplate)) {
-      return; // Stop submission - the parent will handle it
-    }
-
-    createEvalTemplateMutation
-      .mutateAsync(evalTemplate)
-      .then((res) => {
-        props.onFormSuccess?.(res);
-        form.reset();
-        props.setIsEditing?.(false);
-        if (props.preventRedirect) {
-          return;
-        }
-        void router.push(
-          `/project/${props.projectId}/evals/templates/${res.id}`,
-        );
-      })
-      .catch((error) => {
-        if ("message" in error && typeof error.message === "string") {
-          setFormError(error.message as string);
-          return;
-        } else {
-          setFormError(JSON.stringify(error));
-          console.error(error);
-        }
-      });
+    await submitEvalTemplate(evalTemplate);
   }
 
   const llmAsJudgeFormBody = (
@@ -611,7 +690,7 @@ export const InnerEvalTemplateForm = (props: {
                     </FormDescription>
                     <FormControl>
                       <CodeMirrorEditor
-                        value={field.value}
+                        value={field.value ?? ""}
                         onChange={field.onChange}
                         editable={props.isEditing}
                         mode="prompt"
@@ -904,7 +983,27 @@ export const InnerEvalTemplateForm = (props: {
         />
       ) : null}
 
-      {showTypeScriptTemplatePlaceholder ? <div /> : llmAsJudgeFormBody}
+      {showCodeTemplateForm ? (
+        <FormField
+          control={form.control}
+          name="sourceCode"
+          render={({ field }) => (
+            <CodeEvalTemplateFormBody
+              sourceCode={field.value ?? ""}
+              onSourceCodeChange={(value) => {
+                field.onChange(value);
+                setFormError(null);
+              }}
+              editable={Boolean(props.isEditing)}
+              validationResult={codeValidationResult}
+              onValidationResultChange={setCodeValidationResult}
+              onValidationPendingChange={setIsCodeValidationPending}
+            />
+          )}
+        />
+      ) : (
+        llmAsJudgeFormBody
+      )}
     </>
   );
 
@@ -914,6 +1013,11 @@ export const InnerEvalTemplateForm = (props: {
         <Button
           type="submit"
           loading={createEvalTemplateMutation.isPending}
+          disabled={
+            showCodeTemplateForm &&
+            (isCodeValidationPending ||
+              (codeValidationResult?.hasErrors ?? true))
+          }
           className="w-full"
         >
           Save
