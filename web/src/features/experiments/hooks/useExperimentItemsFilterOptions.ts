@@ -1,6 +1,6 @@
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
-import { type ScoreFilterOptions } from "@/src/features/experiments/types/charts";
+import { type ExperimentItemScoreFilterOptions } from "@/src/features/experiments/types/charts";
 
 export type ScoreColumnDef = {
   name: string;
@@ -49,7 +49,7 @@ export const useExperimentItemsFilterOptions = ({
         obs_score_categories: undefined,
         trace_scores_avg: undefined,
         trace_score_categories: undefined,
-      } satisfies ScoreFilterOptions;
+      } satisfies ExperimentItemScoreFilterOptions;
     }
 
     return {
@@ -61,7 +61,7 @@ export const useExperimentItemsFilterOptions = ({
       trace_score_categories: processCategoricalScoreOptions(
         filterOptions.data.trace_score_categories,
       ),
-    } satisfies ScoreFilterOptions;
+    } satisfies ExperimentItemScoreFilterOptions;
   }, [filterOptions.data]);
 
   // Extract score column definitions for table columns

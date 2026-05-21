@@ -641,7 +641,8 @@ type ExperimentItemScoreOptionsByLevel = {
   trace: ProcessedScoreFilterOptions;
 };
 
-type ExperimentScoreOptionsByLevel = ExperimentItemScoreOptionsByLevel & {
+type ExperimentScoreOptionsByLevel = {
+  observation: ProcessedScoreFilterOptions;
   experiment: ProcessedScoreFilterOptions;
 };
 
@@ -733,20 +734,32 @@ const getExperimentScoreOptionsByLevel = async ({
   if (uniqueExperimentIds.length === 0) {
     return {
       observation: emptyScoreFilterOptions(),
-      trace: emptyScoreFilterOptions(),
       experiment: emptyScoreFilterOptions(),
     };
   }
+
+  const obsQuery = buildScoreFilterOptionsQuery({
+    projectId,
+    experimentIds: uniqueExperimentIds,
+    level: "observation",
+  });
 
   const runQuery = buildExperimentRunScoreFilterOptionsQuery({
     projectId,
     experimentIds: uniqueExperimentIds,
   });
 
-  const [itemScores, runResults] = await Promise.all([
-    getExperimentItemScoreOptionsByLevel({
-      projectId,
-      experimentIds: uniqueExperimentIds,
+  const [obsResults, runResults] = await Promise.all([
+    queryClickhouse<ScoreFilterOptionsRow>({
+      query: obsQuery.query,
+      params: obsQuery.params,
+      tags: {
+        feature: "experiments",
+        type: "filter-options",
+        kind: "observation-scores",
+        projectId,
+      },
+      preferredClickhouseService: "ReadOnly",
     }),
     queryClickhouse<ScoreFilterOptionsRow>({
       query: runQuery.query,
@@ -762,7 +775,7 @@ const getExperimentScoreOptionsByLevel = async ({
   ]);
 
   return {
-    ...itemScores,
+    observation: processScoreFilterOptionsResults(obsResults),
     experiment: processScoreFilterOptionsResults(runResults),
   };
 };
@@ -773,23 +786,17 @@ export const getExperimentScoreOptions = async (
   obs_scores_avg: string[];
   obs_score_categories: Array<{ label: string; values: string[] }>;
   obs_score_columns: ScoreColumnDefinition[];
-  trace_scores_avg: string[];
-  trace_score_categories: Array<{ label: string; values: string[] }>;
-  trace_score_columns: ScoreColumnDefinition[];
   experiment_scores_avg: string[];
   experiment_score_categories: Array<{ label: string; values: string[] }>;
   experiment_score_columns: ScoreColumnDefinition[];
 }> => {
-  const { observation, trace, experiment } =
+  const { observation, experiment } =
     await getExperimentScoreOptionsByLevel(props);
 
   return {
     obs_scores_avg: observation.numeric,
     obs_score_categories: observation.categorical,
     obs_score_columns: observation.scoreColumns,
-    trace_scores_avg: trace.numeric,
-    trace_score_categories: trace.categorical,
-    trace_score_columns: trace.scoreColumns,
     experiment_scores_avg: experiment.numeric,
     experiment_score_categories: experiment.categorical,
     experiment_score_columns: experiment.scoreColumns,

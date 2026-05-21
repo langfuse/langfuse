@@ -1506,13 +1506,13 @@ describe("Clickhouse Experiment Repository Test", () => {
         obs_scores_avg: [],
         obs_score_categories: [],
         obs_score_columns: [],
-        trace_scores_avg: [],
-        trace_score_categories: [],
-        trace_score_columns: [],
         experiment_scores_avg: [],
         experiment_score_categories: [],
         experiment_score_columns: [],
       });
+      expect(result).not.toHaveProperty("trace_scores_avg");
+      expect(result).not.toHaveProperty("trace_score_categories");
+      expect(result).not.toHaveProperty("trace_score_columns");
     });
 
     it("should return experiment-run score filter options", async () => {

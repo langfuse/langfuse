@@ -13,11 +13,12 @@ import type {
   MetricOption,
   ScoreChartDataType,
   ScoreFilterOptions,
+  ScoreLevel,
 } from "@/src/features/experiments/types/charts";
 
 // Build chart ID from type and score name
 export const buildScoreChartId = (
-  level: "obs" | "trace" | "experiment",
+  level: ScoreLevel,
   dataType: "numeric" | "categorical",
   scoreName: string,
 ): string => `${level}-score-${dataType}:${scoreName}`;
@@ -26,16 +27,16 @@ export const buildScoreChartId = (
 const parseScoreChartId = (
   chartId: string,
 ): {
-  level: "obs" | "trace" | "experiment";
+  level: ScoreLevel;
   dataType: "numeric" | "categorical";
   scoreName: string;
 } | null => {
   const match = chartId.match(
-    /^(obs|trace|experiment)-score-(numeric|categorical):(.+)$/,
+    /^(obs|experiment)-score-(numeric|categorical):(.+)$/,
   );
   if (!match) return null;
   return {
-    level: match[1] as "obs" | "trace" | "experiment",
+    level: match[1] as ScoreLevel,
     dataType: match[2] as "numeric" | "categorical",
     scoreName: match[3],
   };
@@ -52,7 +53,7 @@ function getScoreNamesFromFilterOption(
 }
 
 export function createScoreWidgetConfig(params: {
-  level: "obs" | "trace" | "experiment";
+  level: ScoreLevel;
   dataType: "numeric" | "categorical";
   scoreName: string;
 }) {

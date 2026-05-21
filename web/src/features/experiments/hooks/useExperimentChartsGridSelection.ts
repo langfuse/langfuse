@@ -31,10 +31,13 @@ export function useExperimentChartsGridSelection({
   // Default charts
   const defaultCharts = useMemo(() => getDefaultCharts(), []);
 
-  const scoreOptions = api.experiments.scoreOptions.useQuery({
-    projectId,
-    experimentIds,
-  });
+  const scoreOptions = api.experiments.scoreOptions.useQuery(
+    {
+      projectId,
+      experimentIds,
+    },
+    { enabled: experimentIds.length > 0 },
+  );
 
   // Session storage for chart selections
   const [rawCharts, setCharts] = useSessionStorage<string[]>(
@@ -60,10 +63,6 @@ export function useExperimentChartsGridSelection({
       obs_scores_avg: scoreOptions.data.obs_scores_avg,
       obs_score_categories: processCategoricalScoreOptions(
         scoreOptions.data.obs_score_categories,
-      ),
-      trace_scores_avg: scoreOptions.data.trace_scores_avg,
-      trace_score_categories: processCategoricalScoreOptions(
-        scoreOptions.data.trace_score_categories,
       ),
       experiment_scores_avg: scoreOptions.data.experiment_scores_avg,
       experiment_score_categories: processCategoricalScoreOptions(
