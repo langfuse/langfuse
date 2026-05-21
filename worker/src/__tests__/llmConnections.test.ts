@@ -7,6 +7,7 @@ import { encrypt } from "@langfuse/shared/encryption";
 import {
   buildEvalOutputResultSchema,
   ChatMessageType,
+  createBooleanEvalOutputDefinition,
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
   type PersistedEvalOutputDefinition,
@@ -22,7 +23,7 @@ import { z } from "zod";
  * Each adapter is tested with:
  * 1. Simple completion
  * 2. Streaming completion
- * 3. Structured output (legacy eval schema, v2 numeric schema, v2 categorical schema)
+ * 3. Structured output (legacy eval schema, v2 numeric schema, v2 boolean schema, v2 categorical schema)
  * 4. Tool calling
  *
  * Required environment variables (tests will FAIL if not set):
@@ -34,6 +35,7 @@ import { z } from "zod";
  * - LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID
  * - LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY
  * - LANGFUSE_LLM_CONNECTION_BEDROCK_REGION
+ * - LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY
  * - LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY
  * - LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY
  */
@@ -50,6 +52,11 @@ const numericEvalResponseSchema = z.object({
   reasoning: z.string().min(1),
 });
 
+const booleanEvalResponseSchema = z.object({
+  score: z.boolean(),
+  reasoning: z.string().min(1),
+});
+
 const categoricalScoreValues = ["correct", "incorrect"] as const;
 const categoricalEvalResponseSchema = z.object({
   score: z.enum(categoricalScoreValues),
@@ -61,7 +68,10 @@ type EvalStructuredOutputTestCase = {
   prompt: string;
   outputDefinition: PersistedEvalOutputDefinition;
   responseSchema: z.ZodTypeAny;
-  assertParsed?: (data: { score: number | string; reasoning: string }) => void;
+  assertParsed?: (data: {
+    score: number | boolean | string;
+    reasoning: string;
+  }) => void;
 };
 
 const evalStructuredOutputTestCases: EvalStructuredOutputTestCase[] = [
@@ -86,6 +96,20 @@ const evalStructuredOutputTestCases: EvalStructuredOutputTestCase[] = [
       reasoningDescription: "Explain briefly why you chose that score.",
     }),
     responseSchema: numericEvalResponseSchema,
+  },
+  {
+    name: "structured output - v2 boolean eval schema",
+    prompt:
+      "Judge whether the answer '2 + 2 = 5' is correct. Return true only if it is mathematically correct, otherwise false, and explain briefly.",
+    outputDefinition: createBooleanEvalOutputDefinition({
+      scoreDescription:
+        "Return true when the answer is mathematically correct, otherwise return false.",
+      reasoningDescription: "Explain briefly why you chose that verdict.",
+    }),
+    responseSchema: booleanEvalResponseSchema,
+    assertParsed: (data) => {
+      expect(data.score).toBe(false);
+    },
   },
   {
     name: "structured output - v2 categorical eval schema",
@@ -721,6 +745,105 @@ describe("LLM Connection Tests", () => {
     }, 30_000);
   });
 
+  describe("Bedrock (API Key)", () => {
+    const MODEL = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0";
+
+    const checkEnvVars = () => {
+      if (!process.env.LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY) {
+        throw new Error(
+          "LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY not set. " +
+            "This test requires a valid Bedrock API key to verify bearer-token auth. " +
+            "Set the environment variable to run this test.",
+        );
+      }
+      if (!process.env.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION) {
+        throw new Error(
+          "LANGFUSE_LLM_CONNECTION_BEDROCK_REGION not set. " +
+            "This test requires a valid AWS region (e.g., 'us-east-1') to verify the Bedrock LLM connection. " +
+            "Set the environment variable to run this test.",
+        );
+      }
+    };
+
+    const getApiKey = () => {
+      checkEnvVars();
+      return JSON.stringify({
+        apiKey: process.env.LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY!,
+      });
+    };
+
+    const getConfig = () => ({
+      region: process.env.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION!,
+    });
+
+    test("simple completion", async () => {
+      checkEnvVars();
+
+      const completion = await fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "bedrock",
+          adapter: LLMAdapter.Bedrock,
+          model: MODEL,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(getApiKey()),
+          config: getConfig(),
+        },
+      });
+
+      expect(typeof completion).toBe("string");
+      expect(completion).toContain("4");
+    }, 30_000);
+
+    test("streaming completion", async () => {
+      checkEnvVars();
+
+      const stream = await fetchLLMCompletion({
+        streaming: true,
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "bedrock",
+          adapter: LLMAdapter.Bedrock,
+          model: MODEL,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(getApiKey()),
+          config: getConfig(),
+        },
+      });
+
+      const decoder = new TextDecoder();
+      let fullResponse = "";
+      let chunkCount = 0;
+
+      for await (const chunk of stream) {
+        fullResponse += decoder.decode(chunk);
+        chunkCount++;
+      }
+
+      expect(chunkCount).toBeGreaterThan(0);
+      expect(fullResponse).toContain("4");
+    }, 30_000);
+  });
+
   describe("VertexAI", () => {
     const MODEL = "gemini-2.0-flash";
 
@@ -925,7 +1048,7 @@ describe("LLM Connection Tests", () => {
   });
 
   describe("GoogleAIStudio", () => {
-    const MODEL = "gemini-2.0-flash";
+    const MODEL = "gemini-2.5-flash-lite";
 
     const checkEnvVar = () => {
       if (!process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY) {

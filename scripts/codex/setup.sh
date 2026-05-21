@@ -14,12 +14,12 @@ ensure_env_file() {
 }
 
 if ! command -v corepack >/dev/null 2>&1; then
-  echo "corepack is required. Use a Codex base environment with Node.js 24 support."
+  echo "corepack is required. Use an environment with Node.js 24 support."
   exit 1
 fi
 
 corepack enable
-corepack prepare pnpm@9.5.0 --activate
+corepack prepare pnpm@11.1.3 --activate
 
 ensure_env_file .env .env.dev.example
 ensure_env_file .env.test .env.test.example
@@ -30,5 +30,9 @@ pnpm install --frozen-lockfile
 # browser review works on first bootstrap.
 pnpm run playwright:install
 
-# Prisma client generation is needed for typecheck/build tasks in Codex.
+# Generate the shared Prisma client explicitly in the current worktree before
+# the workspace-wide db:generate task, which may be satisfied by Turbo cache.
+pnpm --filter=shared run db:generate
+
+# Prisma client generation is needed for typecheck/build tasks.
 pnpm run db:generate

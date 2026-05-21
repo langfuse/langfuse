@@ -1,12 +1,19 @@
 import React from "react";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type DataPoint,
+  type MetricFormatterFunction,
+} from "@/src/features/widgets/chart-library/chart-props";
+import {
+  formatMetric,
+  toFullMetricString,
+} from "@/src/features/widgets/chart-library/utils";
 import { BarChart, Bar, XAxis, YAxis } from "recharts";
 import {
+  type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
-import { compactSmallNumberFormatter } from "@/src/utils/numbers";
 
 interface HistogramDataPoint {
   binLabel: string;
@@ -18,11 +25,23 @@ interface HistogramDataPoint {
 
 const HistogramChart = ({
   data,
+  config = {
+    count: {
+      label: "Count",
+      color: "hsl(var(--chart-1))",
+    },
+  },
   subtleFill = false,
+  metricFormatter = (value, options) => formatMetric(value, options),
 }: {
   data: DataPoint[];
+  config?: ChartConfig;
   subtleFill?: boolean;
+  metricFormatter?: MetricFormatterFunction;
 }) => {
+  const formatBinEdge = (value: number) =>
+    toFullMetricString(metricFormatter(value, { style: "compact" }));
+
   const transformHistogramData = (data: DataPoint[]): HistogramDataPoint[] => {
     if (!data.length) return [];
 
@@ -32,7 +51,7 @@ const HistogramChart = ({
       // ClickHouse histogram format: [(lower, upper, height), ...]
       return (firstDataPoint.metric as [number, number, number][]).map(
         ([lower, upper, height]) => ({
-          binLabel: `[${compactSmallNumberFormatter(lower)}, ${compactSmallNumberFormatter(upper)}]`,
+          binLabel: `[${formatBinEdge(lower)}, ${formatBinEdge(upper)}]`,
           count: height,
           lower,
           upper,
@@ -49,14 +68,6 @@ const HistogramChart = ({
   };
 
   const histogramData = transformHistogramData(data);
-
-  // Chart configuration
-  const config = {
-    count: {
-      label: "Count",
-      color: "hsl(var(--chart-1))",
-    },
-  };
 
   if (!histogramData.length) {
     return (
@@ -90,6 +101,7 @@ const HistogramChart = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          niceTicks="auto"
         />
         <Bar
           dataKey="count"
@@ -105,7 +117,11 @@ const HistogramChart = ({
               active={active}
               payload={payload}
               label={label}
-              valueFormatter={(v) => compactSmallNumberFormatter(Number(v))}
+              valueFormatter={(v) =>
+                toFullMetricString(
+                  formatMetric(Number(v), { style: "compact" }),
+                )
+              }
               nameFormatter={(name) => (name === "count" ? "Count" : name)}
               labelFormatter={(label) => `Bin: ${label}`}
             />

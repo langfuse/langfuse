@@ -13,7 +13,8 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { Trash, Loader2, Folder, FileText } from "lucide-react";
+import { Trash, Folder, FileText } from "lucide-react";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export function DeleteFolder({ folderPath }: { folderPath: string }) {
   const projectId = useProjectIdFromURL();
@@ -89,7 +90,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
             <h4 className="mb-2 text-sm font-medium">Prompts to delete:</h4>
             {prompts.isLoading ? (
               <div className="flex items-center justify-center py-4">
-                <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+                <Spinner size="sm" variant="muted" />
               </div>
             ) : prompts.isError ? (
               <div className="py-2 text-xs text-red-500">

@@ -5,30 +5,38 @@ on:
     branches:
       - main
     paths:
-      - 'fern/**'
+      - "fern/**"
   workflow_dispatch:
 
 concurrency:
   group: sdk-api-spec-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   generate-sdk-api-specs:
     runs-on: ubuntu-latest
+    environment: "protected branches"
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
         with:
-          version: 9
+          version: 11.1.3
 
+      # Keep this secret-bearing job cache-cold to avoid exposing Fern and
+      # GitHub write credentials to potentially poisoned shared package-manager state.
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: "24"
-          cache: "pnpm"
+          package-manager-cache: false
 
       - name: Install dependencies
         run: pnpm install
@@ -37,6 +45,11 @@ jobs:
         env:
           FERN_TOKEN: ${{ secrets.FERN_TOKEN }}
         run: npx fern-api generate --api server --force
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.2"
 
       - name: Update Python SDK
         env:
@@ -61,10 +74,9 @@ jobs:
           # (could not find the right option to prevent this in generation step)
           rm -rf langfuse/api/tests
 
-          # Install poetry and format
-          pip install poetry
-          poetry install --all-extras
-          poetry run ruff format langfuse/api
+          # Install dependencies and format
+          uv sync --all-extras --frozen
+          uv run ruff format langfuse/api
 
           # Check for changes and show diff for debugging
           if git diff --quiet; then
@@ -120,7 +132,8 @@ jobs:
           fi
 
           # Install dependencies and format
-          npm install -g pnpm
+          corepack enable
+          corepack prepare pnpm@11.1.3 --activate
           pnpm install
           pnpm format
 

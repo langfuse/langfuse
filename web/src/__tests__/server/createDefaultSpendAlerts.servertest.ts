@@ -1,4 +1,3 @@
-/** @jest-environment node */
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { createDefaultSpendAlerts } from "@/src/ee/features/billing/server/stripeWebhookHandler";
@@ -18,11 +17,14 @@ describe("createDefaultSpendAlerts", () => {
 
     const alerts = await prisma.cloudSpendAlert.findMany({
       where: { orgId },
+      orderBy: { threshold: "asc" },
     });
 
-    expect(alerts).toHaveLength(1);
+    expect(alerts).toHaveLength(2);
     expect(alerts[0].threshold.toNumber()).toBe(200);
     expect(alerts[0].title).toBe("Default Spend alert ($200)");
+    expect(alerts[1].threshold.toNumber()).toBe(4000);
+    expect(alerts[1].title).toBe("Default Spend alert ($4000)");
   });
 
   it("creates alerts with correct thresholds for pro plan", async () => {
@@ -38,10 +40,12 @@ describe("createDefaultSpendAlerts", () => {
 
     const alerts = await prisma.cloudSpendAlert.findMany({
       where: { orgId },
+      orderBy: { threshold: "asc" },
     });
 
-    expect(alerts).toHaveLength(1);
+    expect(alerts).toHaveLength(2);
     expect(alerts[0].threshold.toNumber()).toBe(1000);
+    expect(alerts[1].threshold.toNumber()).toBe(4000);
   });
 
   it("creates alerts with correct thresholds for enterprise plan", async () => {
@@ -57,10 +61,12 @@ describe("createDefaultSpendAlerts", () => {
 
     const alerts = await prisma.cloudSpendAlert.findMany({
       where: { orgId },
+      orderBy: { threshold: "asc" },
     });
 
-    expect(alerts).toHaveLength(1);
+    expect(alerts).toHaveLength(2);
     expect(alerts[0].threshold.toNumber()).toBe(2000);
+    expect(alerts[1].threshold.toNumber()).toBe(4000);
   });
 
   it("skips creation if org already has alerts", async () => {

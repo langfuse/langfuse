@@ -10,6 +10,7 @@ import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvi
 import { type PropsWithChildren } from "react";
 import { useMediaQuery } from "react-responsive";
 import dynamic from "next/dynamic";
+import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 const MobileLayout = dynamic(
   () =>
@@ -38,6 +39,15 @@ const SupportDrawer = dynamic(
     ssr: false,
   },
 );
+const ControlledInAppAgentDrawer = dynamic(
+  () =>
+    import("@/src/features/in-app-agent/components").then((mod) => ({
+      default: mod.ControlledInAppAgentDrawer,
+    })),
+  {
+    ssr: false,
+  },
+);
 
 /**
  * Resizable content for support drawer on the right side of the screen (desktop).
@@ -46,23 +56,38 @@ const SupportDrawer = dynamic(
  * Key optimization: Always renders ResizablePanelGroup on desktop to prevent
  * remounting children when drawer opens/closes. Uses refs for programmatic control.
  */
-export function ResizableContent({ children }: PropsWithChildren) {
+export function ResizableContent({
+  aiAgentEnabled,
+  children,
+}: PropsWithChildren<{ aiAgentEnabled?: boolean }>) {
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
-  const { open } = useSupportDrawer();
+  const { open: supportOpen } = useSupportDrawer();
+  const { open: aiAgentOpen, setOpen: setAiAgentOpen } = useInAppAiAgent();
+  const showAiAgent = Boolean(aiAgentEnabled && aiAgentOpen);
 
   if (!isDesktop) {
-    return <MobileLayout>{children}</MobileLayout>;
+    return (
+      <MobileLayout aiAgentEnabled={aiAgentEnabled}>{children}</MobileLayout>
+    );
   }
 
   return (
     <DesktopLayout
       mainContent={children}
-      sidebarContent={<SupportDrawer />}
-      open={open}
-      defaultMainSize={70}
-      defaultSidebarSize={30}
+      sidebarContent={
+        showAiAgent ? (
+          <ControlledInAppAgentDrawer onClose={() => setAiAgentOpen(false)} />
+        ) : (
+          <SupportDrawer />
+        )
+      }
+      open={showAiAgent || supportOpen}
+      showHandle={showAiAgent}
+      defaultMainSize={showAiAgent ? 72 : 70}
+      defaultSidebarSize={showAiAgent ? 28 : 30}
       minMainSize={30}
       maxSidebarSize={60}
+      persistId={showAiAgent ? "assistant-sidebar" : undefined}
     />
   );
 }

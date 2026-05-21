@@ -3,12 +3,12 @@
 set -euo pipefail
 
 if ! command -v corepack >/dev/null 2>&1; then
-  echo "corepack is required. Use a Codex base environment with Node.js 24 support."
+  echo "corepack is required. Use an environment with Node.js 24 support."
   exit 1
 fi
 
 corepack enable
-corepack prepare pnpm@9.5.0 --activate
+corepack prepare pnpm@11.1.3 --activate
 
 pnpm install --frozen-lockfile
 

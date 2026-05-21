@@ -56,8 +56,8 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - Lint: `pnpm --filter worker run lint`
 - Lint fix: `pnpm --filter worker run lint:fix`
 - Typecheck: `pnpm --filter worker run typecheck`
-- Tests: `pnpm --filter worker run test -- <file-or-pattern>`
-- Coverage: `pnpm --filter worker run coverage`
+- Tests: `pnpm --filter worker run test <file-or-pattern>`
+- Coverage: `pnpm --filter worker run coverage [file-or-pattern]`
 - Build: `pnpm --filter worker run build`
 
 ## Queue Playbook (Add/Change Queue Processor)
@@ -93,3 +93,9 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - Keep tests independent; no ordering assumptions.
 - Avoid editing `dist/*` directly.
 - Coordinate shared changes with `../packages/shared`.
+- Changes to `src/features/blobstorage/` (export pipeline, enrichment logic,
+  field additions, latency unit handling) should be reviewed against the
+  published blob storage docs for consistency — fetch the latest pages and
+  surface any discrepancies:
+  - https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage
+  - https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields

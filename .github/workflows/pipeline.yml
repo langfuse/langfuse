@@ -12,31 +12,74 @@ on:
     branches:
       - "**"
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  # Keep the test job node-version matrices in sync. GitHub does not allow the
+  # env context in jobs.<job_id>.name, so matrix jobs use matrix.node-version
+  # for their display names.
+  NODE_VERSION: 24
+
+  # Disable CI cache restores for fork PRs.
+  #
+  # Fork PRs can only read base-branch caches, and CI cache paths must not
+  # contain secrets. This is conservative defense-in-depth, not required for
+  # release cache integrity: PR-created caches are scoped to the PR merge ref,
+  # main does not restore them, and release image builds intentionally do not
+  # restore CI caches.
+  CI_CACHE_ALLOWED: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+
 jobs:
   pre-job:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       should_skip: ${{ steps.skip_check.outputs.should_skip }}
       llm_connections_changed: ${{ steps.filter.outputs.llm_connections }}
     timeout-minutes: 15
     permissions:
+      contents: read
       pull-requests: read
     steps:
+      # Replaces fkirc/skip-duplicate-actions — skips runs whose git tree
+      # was already tested in a prior successful run of this workflow.
       - id: skip_check
-        uses: fkirc/skip-duplicate-actions@v5
-        with:
-          do_not_skip: '["workflow_dispatch"]'
-      - uses: actions/checkout@v4
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CURRENT_TREE=$(gh api "repos/$REPOSITORY/git/commits/$COMMIT_SHA" --jq '.tree.sha')
+
+          MATCH=$(gh api "repos/$REPOSITORY/actions/workflows/pipeline.yml/runs?status=success&per_page=20" \
+            | jq -r --argjson run_id "$RUN_ID" --arg current_tree "$CURRENT_TREE" \
+              '[.workflow_runs[] | select(.id != $run_id and .head_commit.tree_id == $current_tree)] | first | .head_sha // empty')
+
+          if [[ -n "$MATCH" ]]; then
+            echo "::notice::Tree $CURRENT_TREE already tested in a prior successful run (commit $MATCH) — skipping"
+            echo "should_skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Recommended for paths-filter action
           # may save additional git fetch roundtrip if
           # merge-base is found within latest N commits
           fetch-depth: 20
-      - uses: dorny/paths-filter@v3
+          persist-credentials: false
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: filter
         with:
           filters: |
@@ -45,22 +88,33 @@ jobs:
               - 'packages/shared/src/server/llm/fetchLLMCompletion.ts'
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v3
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          version: 9.5.0
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
         with:
-          node-version: 24
+          version: 11.1.3
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] lint job dependency cache only; no released artifacts are built or published from this cached state
+        with:
+          node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Setup Turbo cache
-        uses: actions/cache@v4
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] lint cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-lint-${{ github.sha }}
@@ -75,22 +129,33 @@ jobs:
           cp .env.dev.example .env
       - name: lint web
         run: pnpm run lint
+      - name: typecheck
+        run: pnpm run typecheck
 
   prettier-check:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v3
+          persist-credentials: false
+      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
         with:
-          version: 9.5.0
-      - uses: actions/setup-node@v4
+          version: 11.1.3
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] prettier check dependency cache only; no released artifacts are built or published from this cached state
+        with:
+          node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -100,28 +165,102 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: Check formatting on changed files
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE_SHA=${{ github.event.pull_request.base.sha }}
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE_SHA="$PR_BASE_SHA"
           else
             BASE_SHA=$(git merge-base origin/main HEAD)
           fi
 
           echo "Checking files changed from $BASE_SHA to HEAD"
 
-          # Get changed files
-          CHANGED_FILES=$(git diff --name-only $BASE_SHA HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | tr '\n' ' ')
-
-          if [ -n "$CHANGED_FILES" ] && [ "$CHANGED_FILES" != " " ]; then
-            echo "Files to check: $CHANGED_FILES"
-            pnpm prettier --check --experimental-cli $CHANGED_FILES
-          else
+          if git diff --quiet --exit-code --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css'; then
             echo "No JS/TS/CSS files changed - skipping prettier check"
+          else
+            # --experimental-cli is intentionally omitted: its glob resolver treats bracket characters
+            # in Next.js dynamic-route paths (e.g. [projectId]) as glob character classes, causing
+            # "No files matching the given patterns were found" (exit 123) for any PR that touches a
+            # file inside a bracket-named directory. Standard prettier resolves explicit paths correctly.
+            # Parallelism and the ephemeral cache (the only extras --experimental-cli adds) provide no
+            # benefit when checking a handful of per-PR changed files.
+            git diff --name-only -z --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' \
+              | xargs -0 --no-run-if-empty pnpm prettier --check --
           fi
+
+  tests-eslint-plugin:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
+        with:
+          version: 11.1.3
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] eslint-plugin test dependency cache only; no published artifacts are built from this cached state
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm install
+      - name: run eslint-plugin tests
+        run: pnpm --filter @repo/eslint-plugin run test
+
+  tests-shared:
+    timeout-minutes: 15
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
+        with:
+          version: 11.1.3
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] shared test dependency cache only; no published artifacts are built from this cached state
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm install
+      - name: Load default env (for prisma generate)
+        run: |
+          cp .env.dev.example .env
+      - name: generate prisma client
+        run: pnpm --filter=shared run db:generate
+      - name: run shared tests
+        run: pnpm --filter @langfuse/shared run test
 
   test-docker-build:
     timeout-minutes: 20
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
@@ -129,10 +268,12 @@ jobs:
       DOCKER_COMPOSE_FILE: docker-compose.build.yml
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -178,42 +319,53 @@ jobs:
           done
       - name: Upload docker diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-docker-build-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: /tmp/docker-diagnostics
           if-no-files-found: ignore
   tests-web:
     timeout-minutes: 30
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }}, shard${{ matrix.shard }}/3)
+    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
         node-version: [24]
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
-        shard: [1, 2, 3]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
         with:
-          version: 9.5.0
+          version: 11.1.3
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - name: Use Node.js ${{ matrix.node-version }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ matrix.node-version }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] test job dependency cache only; no released artifacts are built or published from this cached state
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
@@ -228,18 +380,22 @@ jobs:
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
           echo "LANGFUSE_CACHE_PROMPT_ENABLED=false" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
+          echo "LANGFUSE_TRACE_DELETE_DELAY_MS=1" >> .env
           echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100" >> .env
           echo "ADMIN_API_KEY=admin-api-key" >> .env
           echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test" >> .env
+          echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true" >> .env
       - name: Setup Turbo cache
-        uses: actions/cache@v4
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-turbo-
       - name: Cache Next.js builds
-        uses: actions/cache@v4
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] test-only Next.js cache; not consumed by artifact publishing or release jobs
         with:
           path: |
             ~/.npm
@@ -250,9 +406,7 @@ jobs:
             ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-
       - name: Run dev containers
         run: |
-          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
-          sleep 5
-
+          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
           docker compose ps
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
@@ -278,6 +432,9 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -293,15 +450,15 @@ jobs:
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
         working-directory: web
-        run: npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects server --shard=${{ matrix.shard }}/3
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-unit
       - name: run test-client
-        if: matrix.deploy-mode == '' && matrix.shard == 1
+        if: matrix.deploy-mode == ''
         working-directory: web
-        run: npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects client
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project client
 
   tests-worker:
     timeout-minutes: 20
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
@@ -312,18 +469,27 @@ jobs:
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v3
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          version: 9.5.0
+          persist-credentials: false
+      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
+        with:
+          version: 11.1.3
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - name: Use Node.js ${{ matrix.node-version }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ matrix.node-version }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] worker test dependency cache only; no release artifacts are produced from this cache
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
@@ -333,7 +499,10 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -343,9 +512,7 @@ jobs:
           cp .env.dev${{ matrix.deploy-mode }}.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
-          sleep 5
-
+          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
           docker compose ps
       - name: Ensure no unhealthy status
         run: |
@@ -379,34 +546,40 @@ jobs:
 
   test-worker-llm-connections:
     timeout-minutes: 20
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: startsWith(github.ref, 'refs/tags/') || (needs.pre-job.outputs.should_skip != 'true' && (needs.pre-job.outputs.llm_connections_changed == 'true' || github.event_name == 'workflow_dispatch'))
     name: test-worker-llm-connections (node24, pg15)
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v3
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          version: 9.5.0
+          persist-credentials: false
+      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
+        with:
+          version: 11.1.3
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-      - name: Use Node.js 24
-        uses: actions/setup-node@v4
+      # Keep this secret-bearing job cache-cold to avoid exposing real provider
+      # credentials to potentially poisoned shared package-manager state.
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: 24
-          cache: "pnpm"
-          cache-dependency-path: "pnpm-lock.yaml"
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
       - name: install dependencies
         run: |
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -416,9 +589,7 @@ jobs:
           cp .env.dev.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
-          sleep 5
-
+          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
           docker compose ps
         env:
           POSTGRES_VERSION: 15
@@ -448,32 +619,44 @@ jobs:
           LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID }}
           LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY }}
           LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY }}
           LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY }}
           LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
 
   e2e-tests:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v3
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          version: 9.5.0
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
         with:
-          node-version: 24
+          version: 11.1.3
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] e2e dependency cache only; release images are rebuilt later without restoring this cache
+        with:
+          node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Setup Turbo cache
-        uses: actions/cache@v4
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] e2e cache only; no published artifact path restores this cache
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-e2e-${{ github.sha }}
@@ -481,7 +664,8 @@ jobs:
             ${{ runner.os }}-turbo-e2e-
             ${{ runner.os }}-turbo-
       - name: Cache Next.js builds
-        uses: actions/cache@v4
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] e2e-only Next.js cache; not part of any artifact build or publishing flow
         with:
           path: |
             ~/.npm
@@ -499,19 +683,20 @@ jobs:
           cp .env.dev.example web/.env
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
-          sleep 5
-
+          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
           docker compose ps
       - name: Ensure Docker dependencies are healthy
         run: |
           if docker compose ps | grep "(unhealthy)"; then
-            echo "One or more services are unhealthy" 
+            echo "One or more services are unhealthy"
             exit 1
           else
             echo "All services are healthy"
@@ -525,30 +710,43 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Install playwright
-        run: pnpm --filter=web exec playwright install --with-deps
+        run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
 
   e2e-server-tests:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
         with:
-          version: 9.5.0
-      - uses: actions/setup-node@v4
+          version: 11.1.3
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] server e2e dependency cache only; release/publish steps rebuild separately
+        with:
+          node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -556,7 +754,10 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -564,9 +765,7 @@ jobs:
           cp .env.dev.example .env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
-          sleep 5
-
+          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
           docker compose ps
       - name: Ensure Docker dependencies are healthy
         run: |
@@ -585,6 +784,9 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Run server
         run: (pnpm run start&)
       - name: Check worker health
@@ -598,10 +800,13 @@ jobs:
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
-    runs-on: ubuntu-latest
-    needs: [
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      [
         lint,
         prettier-check,
+        tests-eslint-plugin,
+        tests-shared,
         tests-web,
         tests-worker,
         test-worker-llm-connections,
@@ -630,64 +835,124 @@ jobs:
         run: exit 1
         working-directory: .
       - name: Notify Slack
-        uses: ravsamhq/notify-slack-action@v2
-        if: always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
         with:
-          status: ${{ job.status }}
-          notify_when: "failure"
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "❌ CI failed on ${{ github.ref_name }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "❌ CI Failed",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch/Tag:*\n`${{ github.ref_name }}`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Triggered by:*\n${{ github.actor }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow Logs",
+                        "emoji": true
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                      "style": "danger"
+                    }
+                  ]
+                }
+              ]
+            }
       - name: Output job results
         run: |
-          echo "Job results: ${{ steps.set-success-output.outputs.success }}"
+          echo "Job results: ${STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS}"
+        env:
+          STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS: ${{ steps.set-success-output.outputs.success }}
 
-  push-docker-image:
+  build-docker-image-release:
     needs: all-ci-passed
     # if something inside all-ci-passed was skipped, but everything that ran passed, we still want to deploy
     if: always() && needs.all-ci-passed.outputs.success == 'true' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     environment: "protected branches"
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: web
+            image_name: langfuse
+            dockerfile: ./web/Dockerfile
+            platform: linux/amd64
+            platform_tag: amd64
+            runner: blacksmith-4vcpu-ubuntu-2404
+          - component: web
+            image_name: langfuse
+            dockerfile: ./web/Dockerfile
+            platform: linux/arm64
+            platform_tag: arm64
+            runner: blacksmith-4vcpu-ubuntu-2404-arm
+          - component: worker
+            image_name: langfuse-worker
+            dockerfile: ./worker/Dockerfile
+            platform: linux/amd64
+            platform_tag: amd64
+            runner: blacksmith-4vcpu-ubuntu-2404
+          - component: worker
+            image_name: langfuse-worker
+            dockerfile: ./worker/Dockerfile
+            platform: linux/arm64
+            platform_tag: arm64
+            runner: blacksmith-4vcpu-ubuntu-2404-arm
+    runs-on: ${{ matrix.runner }}
     permissions:
       packages: write
       contents: read
 
     steps:
-      - uses: pnpm/action-setup@v3
-        with:
-          version: 9.5.0
-      - name: Setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache-dependency-path: "pnpm-lock.yaml"
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Log in to the GitHub Container registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Log in to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: network=host
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta-web
-        uses: docker/metadata-action@v4
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1.8.0
+      - name: Extract metadata (labels) for Docker
+        id: meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
           images: |
-            ghcr.io/langfuse/langfuse # GitHub
-            langfuse/langfuse # Docker Hub
+            ghcr.io/langfuse/${{ matrix.image_name }}
+            langfuse/${{ matrix.image_name }}
           flavor: |
             latest=false
           tags: |
@@ -698,50 +963,241 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
             type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
-      - name: Build and push Docker image (web)
-        uses: docker/build-push-action@v4
+      - name: Build and push image by digest to GitHub Container Registry (${{ matrix.component }}, ${{ matrix.platform_tag }})
+        id: build-ghcr
+        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
         with:
           context: .
-          file: ./web/Dockerfile
-          push: true
-          tags: ${{ steps.meta-web.outputs.tags }}
-          labels: ${{ steps.meta-web.outputs.labels }}
-          platforms: |
-            linux/amd64
-            ${{ startsWith(github.ref, 'refs/tags/') && 'linux/arm64' || '' }}
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta-worker
-        uses: docker/metadata-action@v4
-        with:
-          images: |
-            ghcr.io/langfuse/langfuse-worker # GitHub
-            langfuse/langfuse-worker # Docker Hub
-          flavor: |
-            latest=false
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
-            type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
-      - name: Build and push Docker image (worker)
-        uses: docker/build-push-action@v4
+          file: ${{ matrix.dockerfile }}
+          outputs: type=image,name=ghcr.io/langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: ${{ matrix.platform }}
+          provenance: false
+          sbom: false
+      - name: Build and push image by digest to Docker Hub (${{ matrix.component }}, ${{ matrix.platform_tag }})
+        id: build-dockerhub
+        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
         with:
           context: .
-          file: ./worker/Dockerfile
-          push: true
-          tags: ${{ steps.meta-worker.outputs.tags }}
-          labels: ${{ steps.meta-worker.outputs.labels }}
-          platforms: |
-            linux/amd64
-            ${{ startsWith(github.ref, 'refs/tags/') && 'linux/arm64' || '' }}
-      - name: Notify Slack
-        uses: ravsamhq/notify-slack-action@v2
-        if: always()
-        with:
-          status: ${{ job.status }}
-          notify_when: "failure"
+          file: ${{ matrix.dockerfile }}
+          outputs: type=image,name=langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: ${{ matrix.platform }}
+          provenance: false
+          sbom: false
+      - name: Record pushed digests
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          DIGEST_GHCR: ${{ steps.build-ghcr.outputs.digest }}
+          DIGEST_DOCKERHUB: ${{ steps.build-dockerhub.outputs.digest }}
+          PLATFORM_TAG: ${{ matrix.platform_tag }}
+        run: |
+          if [ -z "$DIGEST_GHCR" ] || [ -z "$DIGEST_DOCKERHUB" ]; then
+            echo "Missing registry digest output"
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/digests/ghcr" "$RUNNER_TEMP/digests/dockerhub"
+          printf '%s\n' "$DIGEST_GHCR" > "$RUNNER_TEMP/digests/ghcr/${PLATFORM_TAG}.txt"
+          printf '%s\n' "$DIGEST_DOCKERHUB" > "$RUNNER_TEMP/digests/dockerhub/${PLATFORM_TAG}.txt"
+      - name: Upload release digests
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-digests-${{ matrix.component }}-${{ matrix.platform_tag }}
+          path: |
+            ${{ runner.temp }}/digests/ghcr/${{ matrix.platform_tag }}.txt
+            ${{ runner.temp }}/digests/dockerhub/${{ matrix.platform_tag }}.txt
+          if-no-files-found: error
+
+  publish-docker-image-release:
+    needs:
+      - build-docker-image-release
+    if: always() && needs.build-docker-image-release.result == 'success' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    environment: "protected branches"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: web
+            image_name: langfuse
+          - component: worker
+            image_name: langfuse-worker
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - name: Log in to the GitHub Container registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to Docker Hub
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1.8.0
+      - name: Download release digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-digests-${{ matrix.component }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/digests
+      - name: Extract metadata (tags) for GitHub Container Registry
+        id: meta-ghcr
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        with:
+          images: ghcr.io/langfuse/${{ matrix.image_name }}
+          flavor: |
+            latest=false
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
+            type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
+      - name: Extract metadata (tags) for Docker Hub
+        id: meta-dockerhub
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        with:
+          images: langfuse/${{ matrix.image_name }}
+          flavor: |
+            latest=false
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
+            type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
+      - name: Publish multi-platform manifest to GitHub Container Registry
+        env:
+          STEPS_META_GHCR_OUTPUTS_TAGS: ${{ steps.meta-ghcr.outputs.tags }}
+          IMAGE_NAME: ${{ matrix.image_name }}
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          ghcr_tags=()
+          ghcr_sources=()
+
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            ghcr_tags+=("-t" "$tag")
+          done <<EOF
+          ${STEPS_META_GHCR_OUTPUTS_TAGS}
+          EOF
+
+          shopt -s nullglob
+          for digest_file in "$RUNNER_TEMP"/digests/ghcr/*.txt; do
+            digest="$(cat "$digest_file")"
+            ghcr_sources+=("ghcr.io/langfuse/${IMAGE_NAME}@$digest")
+          done
+
+          if [ "${#ghcr_sources[@]}" -lt 2 ]; then
+            echo "Expected amd64 and arm64 GHCR digests for $COMPONENT"
+            exit 1
+          fi
+
+          docker buildx imagetools create "${ghcr_tags[@]}" "${ghcr_sources[@]}"
+      - name: Publish multi-platform manifest to Docker Hub
+        env:
+          STEPS_META_DOCKERHUB_OUTPUTS_TAGS: ${{ steps.meta-dockerhub.outputs.tags }}
+          IMAGE_NAME: ${{ matrix.image_name }}
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          dockerhub_tags=()
+          dockerhub_sources=()
+
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            dockerhub_tags+=("-t" "$tag")
+          done <<EOF
+          ${STEPS_META_DOCKERHUB_OUTPUTS_TAGS}
+          EOF
+
+          shopt -s nullglob
+          for digest_file in "$RUNNER_TEMP"/digests/dockerhub/*.txt; do
+            digest="$(cat "$digest_file")"
+            dockerhub_sources+=("langfuse/${IMAGE_NAME}@$digest")
+          done
+
+          if [ "${#dockerhub_sources[@]}" -lt 2 ]; then
+            echo "Expected amd64 and arm64 Docker Hub digests for $COMPONENT"
+            exit 1
+          fi
+
+          docker buildx imagetools create "${dockerhub_tags[@]}" "${dockerhub_sources[@]}"
+      - name: Inspect published manifests
+        run: |
+          ghcr_first_tag="$(printf '%s\n' "${STEPS_META_GHCR_OUTPUTS_TAGS}" | sed -n '1p')"
+          dockerhub_first_tag="$(printf '%s\n' "${STEPS_META_DOCKERHUB_OUTPUTS_TAGS}" | sed -n '1p')"
+
+          docker buildx imagetools inspect "$ghcr_first_tag"
+          docker buildx imagetools inspect "$dockerhub_first_tag"
+        env:
+          STEPS_META_GHCR_OUTPUTS_TAGS: ${{ steps.meta-ghcr.outputs.tags }}
+          STEPS_META_DOCKERHUB_OUTPUTS_TAGS: ${{ steps.meta-dockerhub.outputs.tags }}
+
+  notify-docker-image-release:
+    needs:
+      - build-docker-image-release
+      - publish-docker-image-release
+    if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Fail when a release image job failed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+      - name: Notify Slack
+        if: failure()
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "❌ Docker release failed on ${{ github.ref_name }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "❌ Docker Release Failed",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Tag:*\n`${{ github.ref_name }}`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Triggered by:*\n${{ github.actor }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow Logs",
+                        "emoji": true
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                      "style": "danger"
+                    }
+                  ]
+                }
+              ]
+            }

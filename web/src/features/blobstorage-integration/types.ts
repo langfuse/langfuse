@@ -4,12 +4,17 @@ import {
   BlobStorageIntegrationFileType,
   BlobStorageExportMode,
   AnalyticsIntegrationExportSource,
+  OBSERVATION_FIELD_GROUPS_FULL,
 } from "@langfuse/shared";
+import {
+  validateAzureContainerName,
+  validateExportFieldGroups,
+} from "@/src/features/blobstorage-integration/validation";
 
-export const blobStorageIntegrationFormSchema = z.object({
+export const blobStorageIntegrationFormSchemaBase = z.object({
   type: z.enum(BlobStorageIntegrationType),
   bucketName: z.string().min(1, { message: "Bucket name is required" }),
-  endpoint: z.string().url().optional().nullable(),
+  endpoint: z.url().optional().nullable(),
   region: z.string().default("auto"),
   accessKeyId: z.string().optional(),
   secretAccessKey: z.string().nullable().optional(),
@@ -20,7 +25,7 @@ export const blobStorageIntegrationFormSchema = z.object({
     })
     .optional()
     .or(z.literal("")),
-  exportFrequency: z.enum(["hourly", "daily", "weekly"]),
+  exportFrequency: z.enum(["every_20_minutes", "hourly", "daily", "weekly"]),
   enabled: z.boolean(),
   forcePathStyle: z.boolean(),
   fileType: z
@@ -33,7 +38,16 @@ export const blobStorageIntegrationFormSchema = z.object({
   exportSource: z
     .enum(AnalyticsIntegrationExportSource)
     .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+  exportFieldGroups: z
+    .array(z.enum(OBSERVATION_FIELD_GROUPS_FULL))
+    .default([...OBSERVATION_FIELD_GROUPS_FULL]),
+  compressed: z.boolean().default(true),
 });
+
+export const blobStorageIntegrationFormSchema =
+  blobStorageIntegrationFormSchemaBase
+    .superRefine(validateAzureContainerName)
+    .superRefine(validateExportFieldGroups);
 
 export type BlobStorageIntegrationFormSchema = z.infer<
   typeof blobStorageIntegrationFormSchema

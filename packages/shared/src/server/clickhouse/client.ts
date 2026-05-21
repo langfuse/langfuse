@@ -1,5 +1,6 @@
 import { createClient } from "@clickhouse/client";
 import { env } from "../../env";
+import { VERSION } from "../../constants/VERSION";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { getCurrentSpan } from "../instrumentation";
 import { propagation, context } from "@opentelemetry/api";
@@ -117,6 +118,7 @@ export class ClickHouseClientManager {
       const client = createClient({
         ...opts,
         ...settings,
+        application: `langfuse/${VERSION.replace("v", "")}`,
         keep_alive: {
           idle_socket_ttl: env.CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL,
         },
@@ -150,6 +152,12 @@ export class ClickHouseClientManager {
                 lightweight_delete_mode: env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE,
                 update_parallel_mode: env.CLICKHOUSE_UPDATE_PARALLEL_MODE,
               }
+            : {}),
+          // Workaround for a 25.12 bug where lightweight updates/deletes
+          // interact incorrectly with lazy materialization. Remove after
+          // ClickHouse 26.4, or earlier if the fix is backported.
+          ...(env.CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION === "true"
+            ? { query_plan_optimize_lazy_materialization: 0 }
             : {}),
           ...cloudOptions,
           ...opts.clickhouse_settings,

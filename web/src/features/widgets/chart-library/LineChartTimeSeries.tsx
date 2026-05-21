@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
+  ChartActiveReferenceLine,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
@@ -7,10 +8,11 @@ import {
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
+  formatMetric,
   getUniqueDimensions,
   groupDataByTimeDimension,
+  toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
-import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
 /**
@@ -30,7 +32,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
     },
   },
   accessibilityLayer = true,
-  valueFormatter,
+  metricFormatter = (value, options) => formatMetric(value, options),
   legendPosition = "none",
   showDataPointDots = true,
 }) => {
@@ -41,7 +43,8 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
 
-  const tooltipFormatter = valueFormatter ?? compactNumberFormatter;
+  const tooltipFormatter = (value: number) =>
+    toFullMetricString(metricFormatter(value, { style: "compact" }));
 
   const handleLegendClick = (dimension: string) => {
     setHighlightedDimension((prev) => (prev === dimension ? null : dimension));
@@ -103,6 +106,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
             fontSize={12}
             tickLine={false}
             axisLine={false}
+            niceTicks="auto"
             tickFormatter={(value) => tooltipFormatter(Number(value))}
           />
           {dimensions.map((dimension, index) => {
@@ -127,6 +131,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
               />
             );
           })}
+          <ChartActiveReferenceLine />
           <ChartTooltip
             contentStyle={{ backgroundColor: "hsl(var(--background))" }}
             content={({ active, payload, label }) => (
@@ -134,6 +139,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                 active={active}
                 payload={payload}
                 label={label}
+                indicator="line"
                 valueFormatter={tooltipFormatter}
                 sortPayloadByValue="desc"
               />

@@ -100,6 +100,14 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     queryPrefix: "t",
   },
   {
+    // Alias for tags so canonical traceTags filters work on the traces table too.
+    uiTableName: "Trace Tags",
+    uiTableId: "traceTags",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "tags",
+    queryPrefix: "t",
+  },
+  {
     uiTableName: "Warning Level Count",
     uiTableId: "warningCount",
     clickhouseTableName: "observations",

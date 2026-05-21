@@ -9,11 +9,8 @@ import {
 } from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
-import {
-  type QueryType,
-  type ViewVersion,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
@@ -160,6 +157,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
           data: transformedObservations,
           totalMetric: totalObservations,
           metricDescription: `Observations tracked`,
+          chartMetricLabel: "Observations",
         },
       ]
     : [
@@ -168,12 +166,14 @@ export const TracesAndObservationsTimeSeriesChart = ({
           data: transformedTraces,
           totalMetric: total,
           metricDescription: `Traces tracked`,
+          chartMetricLabel: "Traces",
         },
         {
           tabTitle: "Observations by Level",
           data: transformedObservations,
           totalMetric: totalObservations,
           metricDescription: `Observations tracked`,
+          chartMetricLabel: "Observations",
         },
       ];
 
@@ -205,6 +205,11 @@ export const TracesAndObservationsTimeSeriesChart = ({
                     <Chart
                       chartType="LINE_TIME_SERIES"
                       data={timeSeriesToDataPoints(item.data, agg)}
+                      config={{
+                        metric: {
+                          label: item.chartMetricLabel,
+                        },
+                      }}
                       rowLimit={100}
                       chartConfig={{
                         type: "LINE_TIME_SERIES",

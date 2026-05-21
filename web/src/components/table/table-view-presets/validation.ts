@@ -7,19 +7,41 @@ import {
 import { normalizeFilterColumnNames } from "@/src/features/filters/lib/filter-transform";
 
 /**
- * Validates if an orderBy state references valid columns
+ * Validates if an orderBy state references valid columns.
+ * Normalizes legacy column IDs (e.g. "name" → "traceName") via aliases.
  */
 export function validateOrderBy(
   orderBy: OrderByState | null,
   columns?: LangfuseColumnDef<any, any>[],
+  filterColumnDefinitions?: ColumnDefinition[],
 ): OrderByState | null {
   if (!orderBy || !columns || columns.length === 0) return null;
 
-  // Check if the column exists and supports sorting
-  const isValid = columns.some(
-    (col) => col.id === orderBy.column && col.enableSorting !== false,
-  );
-  return isValid ? orderBy : null;
+  const isSortableColumn = (columnId: string) =>
+    columns.some((col) => col.id === columnId && col.enableSorting !== false);
+
+  // If the column already exists in the active table, keep it.
+  if (isSortableColumn(orderBy.column)) {
+    return orderBy;
+  }
+
+  // Resolve legacy/canonical IDs via filter-layer aliases (e.g. "name" ↔ "traceName")
+  let resolvedColumn: string | null = null;
+  if (filterColumnDefinitions) {
+    const colDef = filterColumnDefinitions.find(
+      (c) =>
+        c.id === orderBy.column ||
+        c.name === orderBy.column ||
+        c.aliases?.includes(orderBy.column),
+    );
+    if (colDef) {
+      const candidates = [colDef.id, ...(colDef.aliases ?? [])];
+      resolvedColumn =
+        candidates.find((candidate) => isSortableColumn(candidate)) ?? null;
+    }
+  }
+
+  return resolvedColumn ? { ...orderBy, column: resolvedColumn } : null;
 }
 
 /**
@@ -52,9 +74,8 @@ export function validateFilters(
   );
 
   // Validate that columns exist (remove invalid ones)
+  // After normalization, filter.column is always a canonical ID
   return normalized.filter((filter) => {
-    return filterColumnDefinition.some(
-      (def) => def.id === filter.column || def.name === filter.column,
-    );
+    return filterColumnDefinition.some((def) => def.id === filter.column);
   });
 }

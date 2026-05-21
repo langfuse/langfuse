@@ -113,7 +113,11 @@ export const events = {
   ],
   sign_in: ["cloud_region_switch", "button_click"],
   sign_up: ["button_click"],
-  auth: ["reset_password_email_requested", "update_password_form_submit"],
+  auth: [
+    "reset_password_email_requested",
+    "update_password_form_submit",
+    "set_password_form_submit",
+  ],
   playground: [
     "execute_button_click",
     "save_to_new_prompt_button_click",
@@ -133,13 +137,16 @@ export const events = {
     "delete_form_open",
     "delete_dataset_button_click",
     "update_form_open",
-    "delete_form_open",
     "new_form_open",
     "new_form_submit",
     "update_form_submit",
     "delete_form_submit",
   ],
-  organizations: ["new_form_submit", "new_form_open"],
+  organizations: [
+    "new_form_submit",
+    "new_form_open",
+    "demo_project_button_click",
+  ],
   projects: ["new_form_submit", "new_form_open"],
   dataset_item: [
     "archive_toggle",
@@ -165,13 +172,19 @@ export const events = {
     "compare_run_removed",
   ],
   notification: ["click_link", "dismiss_notification"],
+  toast: ["report_issue", "dismiss"],
   tag: [
     "add_existing_tag",
     "remove_tag",
     "modal_open",
     "create_new_button_click",
   ],
-  onboarding: ["code_example_tab_switch", "tracing_check_active"],
+  onboarding: [
+    "code_example_tab_switch",
+    "tracing_check_active",
+    "tracing_agent_prompt_copy_clicked",
+    "tracing_manual_docs_link_clicked",
+  ],
   user_settings: ["theme_changed"],
   project_settings: [
     "project_delete",

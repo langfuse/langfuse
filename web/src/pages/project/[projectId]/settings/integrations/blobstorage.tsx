@@ -14,6 +14,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Switch } from "@/src/components/ui/switch";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -51,8 +52,13 @@ import {
   AnalyticsIntegrationExportSource,
   type BlobStorageIntegration,
   EXPORT_SOURCE_OPTIONS,
+  EXPORT_FIELD_GROUP_OPTIONS,
+  OBSERVATION_FIELD_GROUPS_FULL,
+  type ObservationFieldGroupFull,
+  isLegacyBlobExportAllowed,
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Info, ExternalLink } from "lucide-react";
 
@@ -75,7 +81,7 @@ export default function BlobStorageIntegrationSettings() {
   );
 
   const syncStatus =
-    state.isInitialLoading || !hasAccess || !state.data
+    state.isLoading || !hasAccess || !state.data
       ? undefined
       : deriveSyncStatus({
           enabled: state.data.enabled,
@@ -229,11 +235,20 @@ const BlobStorageIntegrationSettingsForm = ({
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { isBetaEnabled } = useV4Beta();
+  const { project } = useQueryProject();
   const [integrationType, setIntegrationType] =
     useState<BlobStorageIntegrationType>(BlobStorageIntegrationType.S3);
 
   // Check if this is a self-hosted instance (no cloud region set)
   const isSelfHosted = !isLangfuseCloud;
+
+  // Post-cutoff Cloud projects may only use OBSERVATIONS_V2 (EVENTS). The
+  // Export Source field is hidden in that case; the form value is pinned to
+  // EVENTS via the default below.
+  const isPostCutoffCloud =
+    project?.createdAt != null &&
+    !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
+  const showExportSourceField = isBetaEnabled && !isPostCutoffCloud;
 
   const blobStorageForm = useForm({
     resolver: zodResolver(blobStorageIntegrationFormSchema),
@@ -246,6 +261,7 @@ const BlobStorageIntegrationSettingsForm = ({
       secretAccessKey: state?.secretAccessKey || null,
       prefix: state?.prefix || "",
       exportFrequency: (state?.exportFrequency || "daily") as
+        | "every_20_minutes"
         | "daily"
         | "weekly"
         | "hourly",
@@ -254,11 +270,17 @@ const BlobStorageIntegrationSettingsForm = ({
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
-      exportSource:
-        state?.exportSource ||
-        (isBetaEnabled
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportSource: isPostCutoffCloud
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : state?.exportSource ||
+          (isBetaEnabled
+            ? AnalyticsIntegrationExportSource.EVENTS
+            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportFieldGroups:
+        (state?.exportFieldGroups as ObservationFieldGroupFull[]) ?? [
+          ...OBSERVATION_FIELD_GROUPS_FULL,
+        ],
+      compressed: state?.compressed ?? true,
     },
     disabled: isLoading,
   });
@@ -274,6 +296,7 @@ const BlobStorageIntegrationSettingsForm = ({
       secretAccessKey: state?.secretAccessKey || null,
       prefix: state?.prefix || "",
       exportFrequency: (state?.exportFrequency || "daily") as
+        | "every_20_minutes"
         | "daily"
         | "weekly"
         | "hourly",
@@ -282,19 +305,31 @@ const BlobStorageIntegrationSettingsForm = ({
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
-      exportSource:
-        state?.exportSource ||
-        (isBetaEnabled
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportSource: isPostCutoffCloud
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : state?.exportSource ||
+          (isBetaEnabled
+            ? AnalyticsIntegrationExportSource.EVENTS
+            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportFieldGroups:
+        (state?.exportFieldGroups as ObservationFieldGroupFull[]) ?? [
+          ...OBSERVATION_FIELD_GROUPS_FULL,
+        ],
+      compressed: state?.compressed ?? true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
+
+  const watchedExportSource = blobStorageForm.watch("exportSource");
+  const watchedExportMode = blobStorageForm.watch("exportMode");
 
   const utils = api.useUtils();
   const mut = api.blobStorageIntegration.update.useMutation({
     onSuccess: () => {
       utils.blobStorageIntegration.invalidate();
+    },
+    onError: (error) => {
+      showErrorToast("Failed to save integration", error.message);
     },
   });
   const mutDelete = api.blobStorageIntegration.delete.useMutation({
@@ -390,7 +425,7 @@ const BlobStorageIntegrationSettingsForm = ({
               </FormControl>
               <FormDescription>
                 {integrationType === "AZURE_BLOB_STORAGE"
-                  ? "The Azure storage container name"
+                  ? "Azure container name (3-63 chars, lowercase letters, numbers, and hyphens only)"
                   : "The S3 bucket name"}
               </FormDescription>
               <FormMessage />
@@ -569,6 +604,9 @@ const BlobStorageIntegrationSettingsForm = ({
                     <SelectValue placeholder="Select frequency" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="every_20_minutes">
+                      Every 20 Minutes
+                    </SelectItem>
                     <SelectItem value="hourly">Hourly</SelectItem>
                     <SelectItem value="daily">Daily</SelectItem>
                     <SelectItem value="weekly">Weekly</SelectItem>
@@ -644,7 +682,7 @@ const BlobStorageIntegrationSettingsForm = ({
           )}
         />
 
-        {isBetaEnabled && (
+        {showExportSourceField && (
           <FormField
             control={blobStorageForm.control}
             name="exportSource"
@@ -706,8 +744,96 @@ const BlobStorageIntegrationSettingsForm = ({
           />
         )}
 
-        {blobStorageForm.watch("exportMode") ===
-          BlobStorageExportMode.FROM_CUSTOM_DATE && (
+        {isBetaEnabled &&
+          (watchedExportSource === AnalyticsIntegrationExportSource.EVENTS ||
+            watchedExportSource ===
+              AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS) && (
+            <FormField
+              control={blobStorageForm.control}
+              name="exportFieldGroups"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Export Field Groups</FormLabel>
+                  <FormDescription>
+                    Choose which field groups to include in the enriched
+                    observations export. Deselect large groups (e.g. Input /
+                    Output) to reduce export size, or privacy-sensitive groups
+                    (e.g. Metadata) to avoid storing user data. Scores are
+                    always exported.
+                    {watchedExportSource ===
+                      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS &&
+                      " Traces and legacy observations are also exported in full."}
+                  </FormDescription>
+                  <div className="mt-2 space-y-2">
+                    {EXPORT_FIELD_GROUP_OPTIONS.map((option) => {
+                      const isCore = option.value === "core";
+                      return (
+                        <div
+                          key={option.value}
+                          className="flex items-start gap-2"
+                        >
+                          <Checkbox
+                            id={`field-group-${option.value}`}
+                            checked={
+                              isCore
+                                ? true
+                                : (field.value ?? []).includes(option.value)
+                            }
+                            disabled={isCore}
+                            onCheckedChange={
+                              isCore
+                                ? undefined
+                                : (checked) => {
+                                    const current = field.value ?? [];
+                                    const next =
+                                      checked === true
+                                        ? current.includes(option.value)
+                                          ? current
+                                          : [...current, option.value]
+                                        : current.filter(
+                                            (v: ObservationFieldGroupFull) =>
+                                              v !== option.value,
+                                          );
+                                    field.onChange(next);
+                                  }
+                            }
+                          />
+                          <label
+                            htmlFor={`field-group-${option.value}`}
+                            className={
+                              isCore
+                                ? "space-y-0.5"
+                                : "cursor-pointer space-y-0.5"
+                            }
+                          >
+                            <div className="text-sm leading-none font-medium">
+                              {option.label}
+                              {isCore && (
+                                <span className="text-muted-foreground ml-1 font-normal">
+                                  (required)
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-muted-foreground text-xs">
+                              {option.description}
+                            </div>
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <FormMessage>
+                    {
+                      blobStorageForm.formState.errors.exportFieldGroups
+                        ?.message
+                    }
+                  </FormMessage>
+                </FormItem>
+              )}
+            />
+          )}
+
+        {watchedExportMode === BlobStorageExportMode.FROM_CUSTOM_DATE && (
           <FormField
             control={blobStorageForm.control}
             name="exportStartDate"
@@ -739,6 +865,27 @@ const BlobStorageIntegrationSettingsForm = ({
             )}
           />
         )}
+
+        <FormField
+          control={blobStorageForm.control}
+          name="compressed"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Gzip Compression</FormLabel>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  className="mt-1 ml-4"
+                />
+              </FormControl>
+              <FormDescription>
+                Compress exported files with gzip (.csv.gz, .json.gz, .jsonl.gz)
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={blobStorageForm.control}

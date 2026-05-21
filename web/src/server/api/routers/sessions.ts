@@ -19,7 +19,7 @@ import {
   timeFilter,
   type SessionOptions,
   type ScoreDomain,
-  AGGREGATABLE_SCORE_TYPES,
+  LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
@@ -127,7 +127,7 @@ const handleGetSessionById = async (input: {
 
   const validatedScores = filterAndValidateDbScoreList({
     scores,
-    dataTypes: AGGREGATABLE_SCORE_TYPES,
+    dataTypes: LISTABLE_SCORE_TYPES,
     onParseError: traceException,
   });
 
@@ -405,7 +405,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,
-        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        dataTypes: LISTABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -474,7 +474,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,
-        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        dataTypes: LISTABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -657,7 +657,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores: ScoreDomain[] = filterAndValidateDbScoreList({
         scores,
-        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        dataTypes: LISTABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -701,7 +701,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores: ScoreDomain[] = filterAndValidateDbScoreList({
         scores,
-        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        dataTypes: LISTABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -747,7 +747,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,
-        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        dataTypes: LISTABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -789,26 +789,18 @@ export const sessionRouter = createTRPCRouter({
       let offset: number | undefined;
 
       if (positionFilter) {
-        if (positionFilter.key === "root") {
-          filterState.push({
-            column: "hasParentObservation",
-            type: "boolean",
-            operator: "=",
-            value: false,
-          });
-          orderBy = { column: "startTime", order: "ASC" };
-          limit = 1;
-        } else {
-          const fromEnd =
-            positionFilter.key === "last" ||
-            positionFilter.key === "nthFromEnd";
-          orderBy = { column: "startTime", order: fromEnd ? "DESC" : "ASC" };
-          const rawIndex =
-            positionFilter.key === "last" ? 1 : (positionFilter.value ?? 1);
-          const safeIndex = Math.max(1, rawIndex);
-          offset = safeIndex - 1;
-          limit = 1;
-        }
+        const fromEnd =
+          positionFilter.key === "last" || positionFilter.key === "nthFromEnd";
+        orderBy = { column: "startTime", order: fromEnd ? "DESC" : "ASC" };
+        const rawIndex =
+          positionFilter.key === "last" ||
+          positionFilter.key === "first" ||
+          positionFilter.key === "root"
+            ? 1
+            : (positionFilter.value ?? 1);
+        const safeIndex = Math.max(1, rawIndex);
+        offset = safeIndex - 1;
+        limit = 1;
       }
 
       const observations = await getObservationsWithModelDataFromEventsTable({

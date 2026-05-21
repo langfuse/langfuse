@@ -2940,7 +2940,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(resultInput).toEqual([
         {
-          value: '["Hello world"]',
+          value: "Hello world",
           var: "user_message",
         },
       ]);
@@ -2965,7 +2965,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(resultOutput).toEqual([
         {
-          value: '["positive"]',
+          value: "positive",
           var: "expected_label",
         },
       ]);
@@ -3015,12 +3015,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(result).toEqual([
         {
-          value: '["What is the weather?"]',
+          value: "What is the weather?",
           var: "user_input",
           environment: "production",
         },
         {
-          value: '["It is sunny"]',
+          value: "It is sunny",
           var: "response_text",
           environment: "production",
         },
@@ -3031,12 +3031,23 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
   test("requiresDatabaseLookup correctly identifies complex filters", () => {
     // Simple filters that can be evaluated with trace data only
     const simpleFilters = [
-      { column: "name", type: "string", operator: "=", value: "test-trace" },
+      {
+        column: "traceName",
+        type: "string",
+        operator: "=",
+        value: "test-trace",
+      },
       {
         column: "environment",
         type: "string",
         operator: "=",
         value: "production",
+      },
+      {
+        column: "traceTags",
+        type: "arrayOptions",
+        operator: "any of",
+        value: ["prod"],
       },
       { column: "bookmarked", type: "boolean", operator: "=", value: true },
     ];
@@ -3052,7 +3063,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
     // Mixed filters - should return false if any filter requires observation data
     const mixedFilters = [
-      { column: "name", type: "string", operator: "=", value: "test-trace" },
+      {
+        column: "traceName",
+        type: "string",
+        operator: "=",
+        value: "test-trace",
+      },
       { column: "level", type: "string", operator: "=", value: "ERROR" }, // This requires observation data
     ];
 

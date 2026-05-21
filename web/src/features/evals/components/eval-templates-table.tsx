@@ -84,6 +84,7 @@ export default function EvalsTemplateTable({
   const [pendingCloneSubmission, setPendingCloneSubmission] = useState<
     RouterInput["evals"]["createTemplate"] | null
   >(null);
+
   const utils = api.useUtils();
   const templates = api.evals.templateNames.useQuery({
     projectId,
@@ -336,10 +337,9 @@ export default function EvalsTemplateTable({
           "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
         ],
       },
-      children: <PeekViewEvaluatorTemplateDetail projectId={projectId} />,
       ...peekNavigationProps,
     }),
-    [projectId, peekNavigationProps],
+    [peekNavigationProps],
   );
 
   const convertToTableRow = (
@@ -408,7 +408,9 @@ export default function EvalsTemplateTable({
           />
         </div>
       </div>
-      <TablePeekView peekView={peekConfig} />
+      <TablePeekView {...peekConfig}>
+        <PeekViewEvaluatorTemplateDetail projectId={projectId} />
+      </TablePeekView>
       <Dialog
         open={!!editTemplateId && template.isSuccess}
         onOpenChange={(open) => {

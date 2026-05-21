@@ -6,7 +6,6 @@ import {
 } from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
-import { latencyFormatter } from "@/src/utils/numbers";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
@@ -16,11 +15,8 @@ import {
   ModelSelectorPopover,
   useModelSelection,
 } from "@/src/features/dashboard/components/ModelSelector";
-import {
-  type QueryType,
-  type ViewVersion,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import type { DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
@@ -193,12 +189,17 @@ export const GenerationLatencyChart = ({
                     <Chart
                       chartType="LINE_TIME_SERIES"
                       data={timeSeriesToDataPoints(item.data, agg)}
+                      config={{
+                        metric: {
+                          label: "Latency",
+                        },
+                      }}
                       rowLimit={100}
                       chartConfig={{
                         type: "LINE_TIME_SERIES",
+                        unit: "millisecond",
                         show_data_point_dots: false,
                       }}
-                      valueFormatter={latencyFormatter}
                       legendPosition="above"
                     />
                   </div>

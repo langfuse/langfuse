@@ -142,6 +142,7 @@ export function AppLayout(props: PropsWithChildren) {
       session={session.data}
       navigation={navigation}
       metadata={metadata}
+      aiFeaturesEnabled={organization?.aiFeaturesEnabled ?? false}
       onSignOut={handleSignOut}
     >
       {props.children}

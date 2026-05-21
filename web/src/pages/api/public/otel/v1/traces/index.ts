@@ -116,6 +116,22 @@ export default withMiddlewares({
         return {};
       }
 
+      // Warn on oversized OTEL request bodies (16MB threshold)
+      const bodyBytes = body.byteLength;
+      if (bodyBytes > 16 * 1024 * 1024) {
+        let spanCount = 0;
+        for (const rs of resourceSpans) {
+          for (const ss of rs?.scopeSpans ?? []) {
+            spanCount += ss?.spans?.length ?? 0;
+          }
+        }
+        logger.warn("OTEL request body exceeds 16MB", {
+          projectId: auth.scope.projectId,
+          bodyBytes,
+          spanCount,
+        });
+      }
+
       // Extract SDK headers for write path decision (supports both hyphen and underscore formats)
       const sdkName = getLangfuseHeader(req.headers, "x-langfuse-sdk-name");
       const sdkVersion = getLangfuseHeader(

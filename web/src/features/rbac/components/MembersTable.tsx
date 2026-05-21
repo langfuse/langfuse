@@ -19,7 +19,6 @@ import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import type { RouterOutput } from "@/src/utils/types";
 import { Role } from "@langfuse/shared";
-import { type Row } from "@tanstack/react-table";
 import { Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
@@ -254,7 +253,7 @@ export function MembersTable({
       },
     },
     ...(project
-      ? [
+      ? ([
           {
             accessorKey: "projectRole",
             id: "projectRole",
@@ -264,11 +263,7 @@ export function MembersTable({
                 "The role for this user in this specific project. This role overrides the default project role.",
               href: "https://langfuse.com/docs/administration/rbac",
             },
-            cell: ({
-              row,
-            }: {
-              row: Row<MembersTableRow>; // need to specify the type here due to conditional rendering
-            }) => {
+            cell: ({ row }) => {
               const projectRole = row.getValue(
                 "projectRole",
               ) as MembersTableRow["projectRole"];
@@ -292,7 +287,7 @@ export function MembersTable({
               );
             },
           },
-        ]
+        ] satisfies LangfuseColumnDef<MembersTableRow>[])
       : []),
     {
       accessorKey: "createdAt",
@@ -432,6 +427,7 @@ export function MembersTable({
             onColumnVisibilityChange={setColumnVisibility}
             columnOrder={columnOrder}
             onColumnOrderChange={setColumnOrder}
+            cellPadding="comfortable"
           />
         </SettingsTableCard>
       ) : (
@@ -464,6 +460,7 @@ export function MembersTable({
           onColumnVisibilityChange={setColumnVisibility}
           columnOrder={columnOrder}
           onColumnOrderChange={setColumnOrder}
+          cellPadding="comfortable"
         />
       )}
     </>

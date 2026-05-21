@@ -7,9 +7,6 @@ interface BaseFacet {
   tooltip?: string;
   isDisabled?: boolean;
   disabledReason?: string;
-  // Mutually exclusive with these facet columns. If both are active,
-  // the last added filter wins and the other facet is disabled.
-  mutuallyExclusiveWith?: string[];
 }
 
 interface CategoricalFacet extends BaseFacet {
@@ -52,10 +49,6 @@ interface StringKeyValueFacet extends BaseFacet {
   keyOptions?: string[];
 }
 
-interface PositionInTraceFacet extends BaseFacet {
-  type: "positionInTrace";
-}
-
 export type Facet =
   | CategoricalFacet
   | BooleanFacet
@@ -63,8 +56,7 @@ export type Facet =
   | StringFacet
   | KeyValueFacet
   | NumericKeyValueFacet
-  | StringKeyValueFacet
-  | PositionInTraceFacet;
+  | StringKeyValueFacet;
 
 export interface FilterConfig {
   tableName: string;
@@ -72,4 +64,25 @@ export interface FilterConfig {
   defaultExpanded?: string[];
   defaultSidebarCollapsed?: boolean;
   facets: Facet[];
+}
+
+export function omitFilterFacets(
+  config: FilterConfig,
+  omittedColumns: string[],
+): FilterConfig {
+  if (omittedColumns.length === 0) {
+    return config;
+  }
+
+  const omittedColumnSet = new Set(omittedColumns);
+
+  return {
+    ...config,
+    defaultExpanded: config.defaultExpanded?.filter(
+      (column) => !omittedColumnSet.has(column),
+    ),
+    facets: config.facets.filter(
+      (facet) => !omittedColumnSet.has(facet.column),
+    ),
+  };
 }

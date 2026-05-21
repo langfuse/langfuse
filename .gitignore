@@ -9,6 +9,7 @@ migrate
 
 # testing
 /coverage
+**/coverage/
 /certs/
 
 # database
@@ -46,6 +47,7 @@ yarn-error.log*
 !.env.dev-redis-cluster.example
 !.env.prod.example
 !.env.test.example
+!.env.dev-oci.example
 
 # vercel
 .vercel
@@ -73,6 +75,20 @@ node_modules
 
 web/test-results/*
 .playwright-mcp/*
+.codex-artifacts/
+
+# Local DeepSec workspace and generated scan state
+.deepsec/
+
+.mcp.json
+.claude/settings.json
+.claude/skills/
+.claude/launch.json
+.cursor/mcp.json
+.cursor/environment.json
+.vscode/mcp.json
+.codex/config.toml
+.codex/environments/environment.toml
 
 # local config files
 *.local.*
@@ -82,3 +98,10 @@ web/test-results/*
 
 # Refactoring planning files (local only)
 **/.refactor/
+**/.pi-lens/
+
+# Serena MCP server config (local only)
+.serena/
+
+# Local overrides for AGENTS.md
+**/AGENTS.override.md
