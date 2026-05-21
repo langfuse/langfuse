@@ -1,6 +1,4 @@
-import { type GetServerSideProps } from "next";
 import { useRouter } from "next/router";
-import { prisma } from "@langfuse/shared/src/db";
 import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
 import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBarListChart";
@@ -42,8 +40,6 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
-import { resolveProjectHomeRoute } from "@/src/features/projects/server/projectHomeRoute";
-import { getServerAuthSession } from "@/src/server/auth";
 
 const HOME_DASHBOARD_CARD_IDS = {
   traces: "home:traces",
@@ -358,46 +354,3 @@ export default function Dashboard() {
     </DashboardQuerySchedulerProvider>
   );
 }
-
-export const getServerSideProps: GetServerSideProps = async (context) => {
-  const projectId =
-    typeof context.params?.projectId === "string"
-      ? context.params.projectId
-      : null;
-
-  if (!projectId) {
-    return {
-      notFound: true,
-    };
-  }
-
-  const session = await getServerAuthSession({
-    req: context.req,
-    res: context.res,
-  });
-
-  const routeResolution = await resolveProjectHomeRoute({
-    prisma,
-    session,
-    projectId,
-  });
-
-  switch (routeResolution.kind) {
-    case "redirect-sign-in":
-    case "redirect-traces":
-      return {
-        redirect: {
-          destination: routeResolution.destination,
-          permanent: false,
-        },
-      };
-    case "not-found":
-      return {
-        notFound: true,
-      };
-    case "render":
-      return {
-        props: {},
-      };
-  }
-};

@@ -15,13 +15,16 @@ import {
 
 const makeMembership = ({
   orgId,
+  orgName = `Org ${orgId}`,
   role = Role.OWNER,
   projects,
 }: {
   orgId: string;
+  orgName?: string;
   role?: Role;
   projects: Array<{
     id: string;
+    name?: string;
   }>;
 }) =>
   ({
@@ -29,19 +32,38 @@ const makeMembership = ({
     ProjectMemberships: [],
     organization: {
       id: orgId,
+      name: orgName,
       projects,
     },
   }) as RealOrganizationMembership;
 
 describe("resolveOnboardingRedirectTarget", () => {
+  it("routes the auto-created starter project to tracing", () => {
+    const result = resolveOnboardingRedirectTarget({
+      organizationMemberships: [
+        makeMembership({
+          orgId: "org-1",
+          orgName: "Taylor's Organization",
+          projects: [{ id: "project-1", name: "My Project" }],
+        }),
+      ],
+      userName: "Taylor Test",
+    });
+
+    expect(result).toEqual({
+      redirectTo: "/project/project-1/traces",
+    });
+  });
+
   it("routes existing readable projects through project home", () => {
     const result = resolveOnboardingRedirectTarget({
       organizationMemberships: [
         makeMembership({
           orgId: "org-1",
-          projects: [{ id: "project-1" }],
+          projects: [{ id: "project-1", name: "Existing Project" }],
         }),
       ],
+      userName: "Taylor Test",
     });
 
     expect(result).toEqual({

@@ -16,6 +16,7 @@ export const onboardingRouter = createTRPCRouter({
 
     const existingTarget = resolveOnboardingRedirectTarget({
       organizationMemberships: realOrganizationMemberships,
+      userName: ctx.session.user.name,
     });
 
     if (existingTarget) {

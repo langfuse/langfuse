@@ -79,9 +79,39 @@ export const getRealOrganizationMemberships = async ({
 
 export const resolveOnboardingRedirectTarget = ({
   organizationMemberships,
+  userName,
 }: {
   organizationMemberships: RealOrganizationMembership[];
+  userName?: string | null;
 }): OnboardingRedirectTarget | null => {
+  const starterOrganizationMembership =
+    organizationMemberships.length === 1 ? organizationMemberships[0] : null;
+
+  if (
+    starterOrganizationMembership &&
+    starterOrganizationMembership.role === Role.OWNER &&
+    starterOrganizationMembership.organization.name ===
+      getStarterOrganizationName(userName) &&
+    starterOrganizationMembership.organization.projects.length === 1
+  ) {
+    const starterProject =
+      starterOrganizationMembership.organization.projects[0];
+    const starterProjectRole = resolveProjectRole({
+      projectId: starterProject.id,
+      projectMemberships: starterOrganizationMembership.ProjectMemberships,
+      orgMembershipRole: starterOrganizationMembership.role,
+    });
+
+    if (
+      starterProject.name === DEFAULT_STARTER_PROJECT_NAME &&
+      projectRoleAccessRights[starterProjectRole].includes("project:read")
+    ) {
+      return {
+        redirectTo: `/project/${starterProject.id}/traces`,
+      };
+    }
+  }
+
   const accessibleProjects = organizationMemberships.flatMap((membership) =>
     membership.organization.projects
       .map((project) => ({

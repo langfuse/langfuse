@@ -118,7 +118,7 @@ describe("onboarding router", () => {
       organizationMembership?.organization.projects[0]?.id;
     expect(starterProjectId).toBeTruthy();
     expect(result).toEqual({
-      redirectTo: `/project/${starterProjectId}`,
+      redirectTo: `/project/${starterProjectId}/traces`,
     });
     expect(organizationMembership?.role).toBe(Role.OWNER);
     expect(organizationMembership?.organization.projects).toHaveLength(1);
