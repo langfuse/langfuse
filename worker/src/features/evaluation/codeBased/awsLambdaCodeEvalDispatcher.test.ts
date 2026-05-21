@@ -10,7 +10,6 @@ const baseInput: DispatchInput = {
     organizationId: "org-1",
     projectId: "project-1",
     evaluatorId: "evaluator-1",
-    environment: "code-based-eval",
   },
   runtime: { language: "TYPESCRIPT" },
   execution: { jobExecutionId: "job-1" },

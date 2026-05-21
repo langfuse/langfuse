@@ -25,34 +25,6 @@ export type EvalTemplateWithType =
   | EvalTemplateLlmAsAJudge
   | EvalTemplateCodeBased;
 
-export const assertLLMAsJudgeEvalTemplate = (
-  template: EvalTemplate,
-): asserts template is EvalTemplateLlmAsAJudge => {
-  if (
-    template.type !== EvalTemplateType.LLM_AS_JUDGE ||
-    template.prompt === null ||
-    template.outputDefinition === null ||
-    template.sourceCode != null ||
-    template.sourceCodeLanguage != null
-  ) {
-    throw new Error("Expected LLM-as-judge evaluation template");
-  }
-};
-
-export const assertCodeBasedEvalTemplate = (
-  template: EvalTemplate,
-): asserts template is EvalTemplateCodeBased => {
-  if (
-    template.type !== EvalTemplateType.CODE ||
-    template.prompt !== null ||
-    template.outputDefinition !== null ||
-    template.sourceCode === null ||
-    template.sourceCodeLanguage === null
-  ) {
-    throw new Error("Expected code-based evaluation template");
-  }
-};
-
 export const EvalTargetObject = {
   TRACE: "trace",
   DATASET: "dataset",

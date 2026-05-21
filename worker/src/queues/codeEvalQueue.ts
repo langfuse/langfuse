@@ -1,10 +1,5 @@
 import { Job, Processor } from "bullmq";
-import { JobExecutionStatus } from "@prisma/client";
-import {
-  assertCodeBasedEvalTemplate,
-  type EvalTemplate,
-  type EvalTemplateCodeBased,
-} from "@langfuse/shared";
+import { EvalTemplateType, JobExecutionStatus } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   CodeEvalDispatcherError,
@@ -15,7 +10,6 @@ import {
   TQueueJobTypes,
   traceException,
 } from "@langfuse/shared/src/server";
-import { executeCodeBasedEvaluation } from "../features/evaluation/codeBased";
 import { processObservationEval } from "../features/evaluation/observationEval";
 import { createW3CTraceId } from "../features/utils";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
@@ -46,8 +40,7 @@ export const codeEvalExecutionQueueProcessorBuilder = (
 
       await processObservationEval({
         event: job.data.payload,
-        validateTemplate: validateCodeBasedTemplate,
-        executor: executeCodeBasedEvaluation,
+        executionType: EvalTemplateType.CODE,
       });
 
       return true;
@@ -91,13 +84,6 @@ export const codeEvalExecutionQueueProcessorBuilder = (
       throw e;
     }
   };
-};
-
-const validateCodeBasedTemplate = (
-  template: EvalTemplate,
-): EvalTemplateCodeBased => {
-  assertCodeBasedEvalTemplate(template);
-  return template;
 };
 
 // Returns a user-visible message for JobExecution.error. Dispatcher errors

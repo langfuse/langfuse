@@ -18,7 +18,6 @@ const baseInput: DispatchInput = {
     organizationId: "org-floci-integration",
     projectId: "project-floci-integration",
     evaluatorId: "evaluator-floci-integration",
-    environment: "code-based-eval",
   },
   runtime: { language: "TYPESCRIPT" },
   execution: { jobExecutionId: "job-floci-integration" },

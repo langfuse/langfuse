@@ -18,12 +18,7 @@ import {
   createMockJobExecution,
 } from "./fixtures";
 import {
-  assertCodeBasedEvalTemplate,
-  assertLLMAsJudgeEvalTemplate,
   EvalTargetObject,
-  type EvalTemplate,
-  type EvalTemplateCodeBased,
-  type EvalTemplateLlmAsAJudge,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 
@@ -40,9 +35,6 @@ vi.mock("@langfuse/shared/src/db", () => ({
     },
     jobConfiguration: {
       findFirst: vi.fn(),
-    },
-    project: {
-      findUnique: vi.fn(),
     },
   },
 }));
@@ -77,22 +69,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { prisma } from "@langfuse/shared/src/db";
-import { executeCodeBasedEvaluation } from "../../codeBased";
 import { runLLMAsJudgeEvaluation } from "../../evalService";
-
-const validateLLMAsJudgeTemplate = (
-  template: EvalTemplate,
-): EvalTemplateLlmAsAJudge => {
-  assertLLMAsJudgeEvalTemplate(template);
-  return template;
-};
-
-const validateCodeBasedTemplate = (
-  template: EvalTemplate,
-): EvalTemplateCodeBased => {
-  assertCodeBasedEvalTemplate(template);
-  return template;
-};
 
 const mockEvalExecutionResult = {
   scores: [
@@ -112,7 +89,6 @@ describe("Observation Eval E2E Pipeline", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (prisma.project.findUnique as Mock).mockResolvedValue({ orgId: "org-1" });
     (runLLMAsJudgeEvaluation as Mock).mockResolvedValue(
       mockEvalExecutionResult,
     );
@@ -255,6 +231,7 @@ describe("Observation Eval E2E Pipeline", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         evalTemplate: mockTemplate,
+        project: { orgId: "test-org-123" },
       };
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
@@ -267,8 +244,7 @@ describe("Observation Eval E2E Pipeline", () => {
           jobExecutionId: capturedJobExecutionId!,
           observationS3Path,
         },
-        validateTemplate: validateLLMAsJudgeTemplate,
-        executor: runLLMAsJudgeEvaluation,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps: pipeline.processorDeps,
       });
 
@@ -279,6 +255,7 @@ describe("Observation Eval E2E Pipeline", () => {
       expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           projectId,
+          organizationId: "test-org-123",
           jobExecutionId: capturedJobExecutionId,
           extractedVariables: expect.arrayContaining([
             expect.objectContaining({
@@ -373,8 +350,7 @@ describe("Observation Eval E2E Pipeline", () => {
           jobExecutionId: job.id,
           observationS3Path: "test-path",
         },
-        validateTemplate: validateCodeBasedTemplate,
-        executor: executeCodeBasedEvaluation,
+        executionType: EvalTemplateType.CODE,
         deps: pipeline.processorDeps,
       });
 
@@ -620,6 +596,7 @@ describe("Observation Eval E2E Pipeline", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         evalTemplate: mockTemplate,
+        project: { orgId: "test-org-123" },
       };
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
@@ -631,8 +608,7 @@ describe("Observation Eval E2E Pipeline", () => {
           jobExecutionId: "job-123",
           observationS3Path: "test-path",
         },
-        validateTemplate: validateLLMAsJudgeTemplate,
-        executor: runLLMAsJudgeEvaluation,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps: pipeline.processorDeps,
       });
 
@@ -725,6 +701,7 @@ describe("Observation Eval E2E Pipeline", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         evalTemplate: mockTemplate,
+        project: { orgId: "test-org-123" },
       };
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
@@ -736,8 +713,7 @@ describe("Observation Eval E2E Pipeline", () => {
           jobExecutionId: "job-123",
           observationS3Path: "test-path",
         },
-        validateTemplate: validateLLMAsJudgeTemplate,
-        executor: runLLMAsJudgeEvaluation,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps: pipeline.processorDeps,
       });
 

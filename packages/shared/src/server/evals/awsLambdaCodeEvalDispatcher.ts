@@ -23,6 +23,9 @@ export const DEFAULT_LAMBDA_FUNCTION_BY_LANGUAGE = {
   TYPESCRIPT: "code-based-eval-executor-node",
 } satisfies Record<CodeEvalRuntimeLanguage, string>;
 
+// Synchronous Lambda invokes hold the HTTP request open through cold starts and user code execution.
+const LAMBDA_INVOKE_REQUEST_TIMEOUT_MS = 10_000;
+
 type CodeEvalDispatcherErrorClassification = {
   code: CodeEvalDispatcherErrorCode;
   retryable?: boolean;
@@ -126,7 +129,13 @@ function getSharedLambdaClient(endpoint?: string): LambdaClient {
   if (sharedLambdaClient && sharedLambdaClientEndpoint === endpoint) {
     return sharedLambdaClient;
   }
-  sharedLambdaClient = new LambdaClient(endpoint ? { endpoint } : {});
+  sharedLambdaClient = new LambdaClient({
+    ...(endpoint ? { endpoint } : {}),
+    requestHandler: {
+      requestTimeout: LAMBDA_INVOKE_REQUEST_TIMEOUT_MS,
+      throwOnRequestTimeout: true,
+    },
+  });
   sharedLambdaClientEndpoint = endpoint;
   return sharedLambdaClient;
 }

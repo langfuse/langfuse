@@ -72,7 +72,7 @@ export class CodeEvalExecutionQueue {
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 10_000,
-            attempts: 10,
+            attempts: 3,
             backoff: {
               type: "exponential",
               delay: 1000,

@@ -478,6 +478,7 @@ jobs:
           docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
           docker compose ps
         env:
+          # Only start the extra floci container for default worker tests to avoid overhead elsewhere.
           COMPOSE_PROFILES: ${{ matrix.deploy-mode == '' && 'worker-tests' || '' }}
       - name: Ensure no unhealthy status
         run: |
