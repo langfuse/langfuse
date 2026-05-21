@@ -16,15 +16,6 @@ test("should redirect to home if signed in", async ({ page }) => {
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
-  await page.waitForTimeout(2000);
-
-  const errorElement = page.locator(".text-destructive");
-  const hasError = await errorElement.isVisible().catch(() => false);
-  if (hasError) {
-    const errorText = await errorElement.textContent();
-    throw new Error(`Sign-in failed with error: ${errorText}`);
-  }
-
   await expect(page).toHaveURL("/");
 });
 
@@ -55,15 +46,13 @@ test("Signup input validation", async ({ page }) => {
   await page.fill('input[name="email"]', "notanemail");
   await page.fill('input[type="password"]', "shortPw");
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
-  await page.waitForTimeout(2000);
   await expect(page.getByText("Invalid email")).toBeVisible();
   await expect(
     page.getByText("Password must be at least 8 characters long."),
   ).toBeVisible();
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
-  await page.waitForTimeout(2000);
-  // don't see get started page
-  await expect(page).not.toHaveURL("/");
+  // invalid input is rejected, so we stay on the sign-up page
+  await expect(page).toHaveURL(/\/auth\/sign-up/);
 });
 
 // random email address to be used in tests
@@ -82,15 +71,6 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
   ).toBeEnabled();
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
-
-  await page.waitForTimeout(2000);
-
-  const errorElement = page.locator(".text-destructive");
-  const hasError = await errorElement.isVisible().catch(() => false);
-  if (hasError) {
-    const errorText = await errorElement.textContent();
-    throw new Error(`Sign-in failed with error: ${errorText}`);
-  }
 
   await expect(page).toHaveURL("/");
 
@@ -117,15 +97,6 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
-  await page.waitForTimeout(2000);
-
-  const errorElement2 = page.locator(".text-destructive");
-  const hasError2 = await errorElement2.isVisible().catch(() => false);
-  if (hasError2) {
-    const errorText = await errorElement2.textContent();
-    throw new Error(`Sign-in failed with error: ${errorText}`);
-  }
-
   await expect(page).toHaveURL(promptUrl);
 });
 
@@ -145,15 +116,6 @@ test("Unauthenticated user should not be redirected to non-relative URLs after l
   ).toBeEnabled();
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
-
-  await page.waitForTimeout(2000);
-
-  const errorElement = page.locator(".text-destructive");
-  const hasError = await errorElement.isVisible().catch(() => false);
-  if (hasError) {
-    const errorText = await errorElement.textContent();
-    throw new Error(`Sign-in failed with error: ${errorText}`);
-  }
 
   // Expect to be redirected to the home page, not the non-relative URL
   await expect(page).toHaveURL("/");
@@ -178,15 +140,6 @@ test("Unauthenticated user should be redirected to relative URL after login", as
   ).toBeEnabled();
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
-
-  await page.waitForTimeout(2000);
-
-  const errorElement = page.locator(".text-destructive");
-  const hasError = await errorElement.isVisible().catch(() => false);
-  if (hasError) {
-    const errorText = await errorElement.textContent();
-    throw new Error(`Sign-in failed with error: ${errorText}`);
-  }
 
   // Expect to be redirected to the relative URL
   await expect(page).toHaveURL(relativeUrl);
