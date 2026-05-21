@@ -149,22 +149,6 @@ signoff of user-visible changes.
 3. Reuse auth/error patterns from `src/server/api/trpc.ts`.
 4. Add/adjust server tests under `src/__tests__/server/*`.
 
-#### Error handling in tRPC procedures
-
-Don't `try/catch` and remap `BaseError` subclasses
-(`InvalidRequestError`, `LangfuseNotFoundError`, `LangfuseConflictError`,
-etc.) into `TRPCError`s inside a procedure. The `withErrorHandling`
-middleware in [`src/server/api/trpc.ts`](src/server/api/trpc.ts) already
-reads `cause.httpCode` and maps to the right TRPC code via
-[`getTRPCErrorCodeFromHTTPStatusCode`](src/server/utils/trpc-utils.ts) — a
-manual remap duplicates the middleware, tends to pick the wrong code, and
-hides the original cause.
-
-Throw the right `BaseError` subclass from the service layer instead and let
-exceptions bubble. The only legitimate router-level `TRPCError` is for
-cases the service signals via return value (eg. a `null` from `getById`
-that should become `NOT_FOUND`).
-
 ### Add/Change public API endpoint
 
 1. Add route in `src/pages/api/public/*`.
@@ -172,6 +156,15 @@ that should become `NOT_FOUND`).
 3. Add/adjust server tests in `src/__tests__/server/*`.
 4. If API contract changed, update Fern source (`../fern/apis/**`) and regenerate
    outputs (do not hand-edit `../generated/**`).
+
+### Error handling (tRPC + REST)
+
+Both the tRPC `withErrorHandling` middleware ([`src/server/api/trpc.ts`](src/server/api/trpc.ts)) and the REST `withMiddlewares` wrapper ([`src/features/public-api/server/withMiddlewares.ts`](src/features/public-api/server/withMiddlewares.ts)) translate `BaseError.httpCode` into the response status automatically.
+
+- Throw `BaseError` subclasses (`LangfuseNotFoundError`, `InvalidRequestError`, `LangfuseConflictError`, …) from services and let them bubble all the way out of the handler.
+- Don't `try/catch` and rethrow as `TRPCError` / `res.status(...).json(...)` in the handler — duplicates the middleware and usually picks the wrong status.
+- Only throw a transport-specific error directly when the service signals a condition via return value (eg. a `null` that means `NOT_FOUND`).
+- Need a new HTTP status? Add a `BaseError` subclass in [`packages/shared/src/errors/`](../packages/shared/src/errors/) with the right `httpCode`.
 
 ### Add frontend feature
 
