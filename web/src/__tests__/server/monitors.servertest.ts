@@ -176,6 +176,15 @@ describe("monitors trpc", () => {
       ).rejects.toThrow(/access/i);
     });
 
+    it("allows monitors.create from MEMBER role (monitors:CUD)", async () => {
+      const { project, caller } = await prepare({ projectRole: "MEMBER" });
+
+      const created = await caller.monitors.create(
+        validMonitorInput(project.id),
+      );
+      expect(created.id).toBeDefined();
+    });
+
     it("allows monitors.all from VIEWER role (read-only scope)", async () => {
       const { project, caller } = await prepare({ projectRole: "VIEWER" });
 
