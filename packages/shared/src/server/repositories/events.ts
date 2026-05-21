@@ -3021,7 +3021,7 @@ export const getEventsForBlobStorageExport = function (
     } else if (group === "model") {
       queryBuilder.selectFieldSet("model_export"); // "model_export" is the SQL field set name for the "model" group
     } else {
-      queryBuilder.selectFieldSet(group as FieldSetName);
+      queryBuilder.selectFieldSet(group);
     }
   }
 
