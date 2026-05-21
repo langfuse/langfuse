@@ -46,6 +46,14 @@ import {
   handleListObservations,
 } from "@/src/features/mcp/features/observations/tools/listObservations";
 import {
+  getMetricsSchemaTool,
+  handleGetMetricsSchema,
+} from "@/src/features/mcp/features/metrics/tools/getMetricsSchema";
+import {
+  queryMetricsTool,
+  handleQueryMetrics,
+} from "@/src/features/mcp/features/metrics/tools/queryMetrics";
+import {
   getPromptTool,
   handleGetPrompt,
 } from "@/src/features/mcp/features/prompts/tools/getPrompt";
@@ -751,6 +759,226 @@ describe("MCP Read Tools", () => {
 
       expect(result1.data.map((item) => item.id)).toContain(observation.id);
       expect(result2.data).toEqual([]);
+    });
+  });
+
+  maybeEventsTable("queryMetrics tool", () => {
+    const metricsWindow = {
+      fromTimestamp: "2025-12-31T00:00:00.000Z",
+      toTimestamp: "2026-01-02T00:00:00.000Z",
+    };
+
+    const getMetricRows = (result: unknown) => {
+      expect(result).toMatchObject({ data: expect.any(Array) });
+      return Reflect.get(Object(result), "data");
+    };
+
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(queryMetricsTool, { readOnlyHint: true });
+    });
+
+    it("should expose object-shaped metrics query input in the tool schema", () => {
+      const properties = queryMetricsTool.inputSchema.properties;
+
+      expect(properties.view).toBeDefined();
+      expect(properties.dimensions).toBeDefined();
+      expect(properties.metrics).toBeDefined();
+      expect(properties.filters).toBeDefined();
+      expect(properties.timeDimension).toBeDefined();
+      expect(properties.fromTimestamp).toBeDefined();
+      expect(properties.toTimestamp).toBeDefined();
+      expect(properties.orderBy).toBeDefined();
+      expect(properties.config).toBeDefined();
+    });
+
+    it("should query observations metrics for the current project", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+
+      await createEventsCh(
+        Array.from({ length: 3 }, (_, index) =>
+          createObservationEvent({
+            projectId,
+            traceId,
+            name: `mcp-metrics-count-${index}-${nanoid()}`,
+            startTime: new Date(`2026-01-01T00:00:0${index}.000Z`),
+          }),
+        ),
+      );
+
+      const rows = getMetricRows(
+        await handleQueryMetrics(
+          {
+            view: "observations",
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "traceId",
+                operator: "=",
+                value: traceId,
+              },
+            ],
+            ...metricsWindow,
+          },
+          context,
+        ),
+      );
+
+      expect(rows).toHaveLength(1);
+      expect(Number(rows[0].count_count)).toBe(3);
+    });
+
+    it("should apply default row_limit of 100 when omitted", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+
+      await createEventsCh(
+        Array.from({ length: 150 }, (_, index) =>
+          createObservationEvent({
+            projectId,
+            traceId,
+            name: `mcp-metrics-default-limit-${index}-${nanoid()}`,
+            startTime: new Date(Date.UTC(2026, 0, 1, 0, 0, 0) + index * 1000),
+          }),
+        ),
+      );
+
+      const rows = getMetricRows(
+        await handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "name" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "traceId",
+                operator: "=",
+                value: traceId,
+              },
+            ],
+            ...metricsWindow,
+          },
+          context,
+        ),
+      );
+
+      expect(rows.length).toBeLessThanOrEqual(100);
+    });
+
+    it("should respect explicit row_limit", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+
+      await createEventsCh(
+        Array.from({ length: 20 }, (_, index) =>
+          createObservationEvent({
+            projectId,
+            traceId,
+            name: `mcp-metrics-custom-limit-${index}-${nanoid()}`,
+            startTime: new Date(`2026-01-01T00:00:${index}.000Z`),
+          }),
+        ),
+      );
+
+      const rows = getMetricRows(
+        await handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "name" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "traceId",
+                operator: "=",
+                value: traceId,
+              },
+            ],
+            config: { row_limit: 5 },
+            ...metricsWindow,
+          },
+          context,
+        ),
+      );
+
+      expect(rows.length).toBeLessThanOrEqual(5);
+    });
+
+    it("should validate high-cardinality queries before applying default row_limit", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "traceId" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            orderBy: [{ field: "count_count", direction: "desc" }],
+            ...metricsWindow,
+          },
+          context,
+        ),
+      ).rejects.toThrow(
+        /require both 'config\.row_limit' and 'orderBy' with direction 'desc'/i,
+      );
+    });
+  });
+
+  maybeEventsTable("getMetricsSchema tool", () => {
+    const getMetricsSchemaViews = (result: unknown) => {
+      expect(result).toMatchObject({ views: expect.any(Object) });
+      return Reflect.get(Object(result), "views");
+    };
+
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getMetricsSchemaTool, { readOnlyHint: true });
+    });
+
+    it("should return v2 metrics schema metadata", async () => {
+      const { context } = await createMcpTestSetup();
+
+      const result = await handleGetMetricsSchema({}, context);
+      const views = getMetricsSchemaViews(result);
+
+      expect(result).toMatchObject({
+        supportedViews: [
+          "observations",
+          "scores-numeric",
+          "scores-categorical",
+        ],
+        granularities: expect.arrayContaining(["day"]),
+        config: {
+          row_limit: { min: 1, max: 1000, default: 100 },
+          bins: { min: 1, max: 100 },
+        },
+        views: {
+          observations: {
+            dimensions: {
+              traceId: { highCardinality: true },
+            },
+            measures: {
+              count: {
+                validAggregations: expect.arrayContaining(["count"]),
+              },
+            },
+          },
+        },
+      });
+      expect(Reflect.get(Object(views), "traces")).toBeUndefined();
+    });
+
+    it("should return one requested metrics view", async () => {
+      const { context } = await createMcpTestSetup();
+
+      const result = await handleGetMetricsSchema(
+        { view: "scores-numeric" },
+        context,
+      );
+      const views = getMetricsSchemaViews(result);
+
+      expect(Object.keys(views)).toEqual(["scores-numeric"]);
     });
   });
 
