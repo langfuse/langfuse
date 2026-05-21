@@ -22,7 +22,7 @@ describe("mail transport dispatch", () => {
 
     it("builds an SES transport when the URL uses ses:// with a region", () => {
       const transport = createMailTransport("ses://us-east-1");
-      expect(transport.transporter.name).toBe("SES");
+      expect(transport.transporter.name).toBe("SESTransport");
       // The configured SESv2 client must report the region from the URL.
       // nodemailer keeps the SES options on `transporter.ses`.
       const ses = (
