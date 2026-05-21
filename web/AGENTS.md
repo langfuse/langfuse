@@ -159,12 +159,9 @@ signoff of user-visible changes.
 
 ### Error handling (tRPC + REST)
 
-Both the tRPC `withErrorHandling` middleware ([`src/server/api/trpc.ts`](src/server/api/trpc.ts)) and the REST `withMiddlewares` wrapper ([`src/features/public-api/server/withMiddlewares.ts`](src/features/public-api/server/withMiddlewares.ts)) translate `BaseError.httpCode` into the response status automatically.
-
-- Throw `BaseError` subclasses (`LangfuseNotFoundError`, `InvalidRequestError`, `LangfuseConflictError`, …) from services and let them bubble all the way out of the handler.
-- Don't `try/catch` and rethrow as `TRPCError` / `res.status(...).json(...)` in the handler — duplicates the middleware and usually picks the wrong status.
-- Only throw a transport-specific error directly when the service signals a condition via return value (eg. a `null` that means `NOT_FOUND`).
-- Need a new HTTP status? Add a `BaseError` subclass in [`packages/shared/src/errors/`](../packages/shared/src/errors/) with the right `httpCode`.
+1. Throw `BaseError` subclasses (eg `LangfuseNotFoundError`) from handlers and services. 
+2. Let `BaseError`s bubble up to the tRPC and REST middlewares (eg. don't `try/catch` and rethrow in to `TRPCError` the handler)
+3. Extend the `BaseError` or its subclasses in [`packages/shared/src/errors/`](../packages/shared/src/errors/) as needed.
 
 ### Add frontend feature
 
