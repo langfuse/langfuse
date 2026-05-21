@@ -245,7 +245,7 @@ async function writeTraceViaIngestion(trace: InternalTraceWriteInput) {
   }
 }
 
-function getInternalEvalEnvironment(environment: string) {
+function getInternalEvalEnvironment(environment: string | undefined) {
   return environment === LangfuseInternalTraceEnvironment.CodeEval
     ? LangfuseInternalTraceEnvironment.CodeEval
     : LangfuseInternalTraceEnvironment.LLMJudge;
