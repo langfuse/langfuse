@@ -34,7 +34,7 @@ export async function getEvaluatorDefinitionPreflightError(params: {
     const parsedOutputDefinition = PersistedEvalOutputDefinitionSchema.parse(
       params.template.outputDefinition,
     );
-    const compiledOutputDefinition = compilePersistedEvalOutputDefinition(
+    const _compiledOutputDefinition = compilePersistedEvalOutputDefinition(
       parsedOutputDefinition,
     );
 
@@ -54,7 +54,6 @@ export async function getEvaluatorDefinitionPreflightError(params: {
       model: modelConfig.config.model,
       apiKey: modelConfig.config.apiKey,
       modelConfig: modelConfig.config.modelParams,
-      structuredOutputSchema: compiledOutputDefinition.outputResultSchema,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

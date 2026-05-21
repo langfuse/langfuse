@@ -156,6 +156,7 @@ const formSchema = z
       .optional()
       .default(EvalReferencedEvaluators.PERSIST),
     shouldUseDefaultModel: z.boolean().default(true),
+    templateFormat: z.enum(["default", "jinja2"]).default("default"),
   })
   .superRefine((value, ctx) => {
     if (value.scoreDataType !== ScoreDataTypeEnum.CATEGORICAL) {
@@ -217,6 +218,7 @@ export type EvalTemplateFormPreFill = {
   prompt: string;
   vars: string[];
   outputDefinition: PersistedEvalOutputDefinition;
+  templateFormat?: "default" | "jinja2";
   selectedModel?: {
     provider: string;
     model: string;
@@ -299,6 +301,9 @@ export const InnerEvalTemplateForm = (props: {
       shouldAllowMultipleMatches:
         outputDefinitionFormValues.shouldAllowMultipleMatches,
       shouldUseDefaultModel: isExistingUsingDefault,
+      templateFormat:
+        (props.preFilledFormValues?.templateFormat as "default" | "jinja2") ??
+        "default",
     },
   });
 
@@ -437,6 +442,7 @@ export const InnerEvalTemplateForm = (props: {
         : getFinalModelParams(modelParams),
       vars: extractedVariables ?? [],
       outputDefinition,
+      templateFormat: values.templateFormat,
       referencedEvaluators: values.referencedEvaluators,
       sourceTemplateId: props.cloneSourceId ?? undefined,
     };
@@ -629,6 +635,39 @@ export const InnerEvalTemplateForm = (props: {
                     />
                   </FormItem>
                 </>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="templateFormat"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Template Format</FormLabel>
+                  <FormDescription>
+                    <b>Default</b> — use{" "}
+                    <code className="text-xs">{"{{variable}}"}</code>{" "}
+                    substitution only. <b>Jinja2</b> — also enables{" "}
+                    <code className="text-xs">{"{% if %}...{% endif %}"}</code>{" "}
+                    conditionals and loops.
+                  </FormDescription>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    disabled={!props.isEditing}
+                  >
+                    <SelectTrigger className="w-52">
+                      <SelectValue placeholder="Select format" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">
+                        Default ({"{{var}}"} only)
+                      </SelectItem>
+                      <SelectItem value="jinja2">
+                        Jinja2 (conditionals + loops)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
               )}
             />
           </div>

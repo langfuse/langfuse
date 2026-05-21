@@ -41,11 +41,6 @@ export const testModelCall = async ({
       adapter: apiKey.adapter,
       ...modelConfig,
     },
-    structuredOutputSchema:
-      structuredOutputSchema ??
-      z.object({
-        score: z.string(),
-        reasoning: z.string(),
-      }),
+    structuredOutputSchema: structuredOutputSchema,
   });
 };

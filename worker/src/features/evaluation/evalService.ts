@@ -778,6 +778,9 @@ export async function executeLLMAsJudgeEvaluation({
         prompt = compileEvalPrompt({
           templatePrompt: template.prompt,
           variables: extractedVariables,
+          templateFormat: (template.templateFormat ?? "default") as
+            | "default"
+            | "jinja2",
         });
       } catch (e) {
         logger.error(

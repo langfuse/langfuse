@@ -282,16 +282,24 @@ export const PromptDetail = ({
       : JSON.stringify(prompt?.prompt ?? "");
 
   const jinja2Variables = useMemo(() => {
-    if (templateFormat !== "jinja2" || !promptText) return [];
+    if (templateFormat !== "jinja2") return [];
+    // Scan the resolved template so variables from all referenced child prompts
+    // (and deeply nested chains) surface as inputs, not just the top-level template.
+    const templateToScan =
+      promptGraph.data?.resolvedPrompt &&
+      typeof promptGraph.data.resolvedPrompt === "string"
+        ? promptGraph.data.resolvedPrompt
+        : promptText;
+    if (!templateToScan) return [];
     const matches = new Set<string>();
     const varRegex = /{{\s*([\w.]+)\s*(?:\|[^}]*)?\s*}}/g;
     let m;
-    while ((m = varRegex.exec(promptText)) !== null) {
+    while ((m = varRegex.exec(templateToScan)) !== null) {
       const name = m[1].split(".")[0];
       if (name && !["loop"].includes(name)) matches.add(name);
     }
     const forRegex = /{%[-\s]*for\s+\w+\s+in\s+([\w.]+)\s*[-\s]*%}/g;
-    while ((m = forRegex.exec(promptText)) !== null) {
+    while ((m = forRegex.exec(templateToScan)) !== null) {
       if (m[1]) matches.add(m[1]);
     }
     const ifRegex = /{%[-\s]*(?:if|elif)\s+([^%]*?)[-\s]*%}/g;
@@ -309,7 +317,7 @@ export const PromptDetail = ({
       "none",
       "null",
     ]);
-    while ((m = ifRegex.exec(promptText)) !== null) {
+    while ((m = ifRegex.exec(templateToScan)) !== null) {
       if (m[1]) {
         // Strip string literals so quoted values like 'napan' aren't treated as variable names
         const conditionWithoutStrings = m[1]
@@ -326,7 +334,7 @@ export const PromptDetail = ({
       }
     }
     return Array.from(matches);
-  }, [templateFormat, promptText]);
+  }, [templateFormat, promptText, promptGraph.data?.resolvedPrompt]);
 
   if (!promptHistory.data || !prompt) {
     return <div className="p-3">Loading...</div>;

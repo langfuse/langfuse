@@ -9,7 +9,7 @@ import {
   DEFAULT_TRACE_JOB_DELAY,
   ZodModelConfig,
   PersistedEvalOutputDefinitionSchema,
-  compilePersistedEvalOutputDefinition,
+  _compilePersistedEvalOutputDefinition,
   deriveEvaluatorDisplayStateFromExecutionCounts,
   type OrderByState,
   singleFilter,
@@ -148,6 +148,7 @@ export const CreateEvalTemplateInputSchema = z.object({
   modelParams: ZodModelConfig.nullish(),
   vars: z.array(z.string()),
   outputDefinition: PersistedEvalOutputDefinitionSchema,
+  templateFormat: z.enum(["default", "jinja2"]).default("default"),
   cloneSourceId: z.string().optional(),
   referencedEvaluators: z
     .enum(EvalReferencedEvaluators)
@@ -882,9 +883,6 @@ export const evalRouter = createTRPCRouter({
           model: modelConfig.config.model,
           apiKey: modelConfig.config.apiKey,
           modelConfig: input.modelParams,
-          structuredOutputSchema: compilePersistedEvalOutputDefinition(
-            input.outputDefinition,
-          ).outputResultSchema,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
@@ -940,6 +938,7 @@ export const evalRouter = createTRPCRouter({
             modelParams: input.modelParams ?? undefined,
             vars: input.vars,
             outputDefinition: input.outputDefinition,
+            templateFormat: input.templateFormat ?? "default",
           },
         });
 

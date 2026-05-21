@@ -34,7 +34,18 @@ export const Jinja2ResolutionPanel = ({ template, variables }: Props) => {
     });
   }, [variables]);
 
+  const allEmpty = useMemo(
+    () => Object.values(varValues).every((v) => v === ""),
+    [varValues],
+  );
+
   const compiled = useMemo(() => {
+    // When no values have been entered yet, show the raw template so users can
+    // see the full structure (all {% if %} / {% for %} blocks) before filling in.
+    if (allEmpty) {
+      setErrors([]);
+      return template;
+    }
     try {
       // Parse JSON values
       const parsed: Record<string, unknown> = {};
@@ -52,7 +63,7 @@ export const Jinja2ResolutionPanel = ({ template, variables }: Props) => {
       setErrors([String(e)]);
       return template;
     }
-  }, [template, varValues]);
+  }, [template, varValues, allEmpty]);
 
   if (variables.length === 0) return null;
 
