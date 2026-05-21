@@ -1,6 +1,6 @@
 import { UiColumnMappings } from "./types";
 
-// Make sure to update web/src/features/query/dashboardUiTableToViewMapping.ts if you make changes
+// Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
 
 export const dashboardColumnDefinitions: UiColumnMappings = [
   {

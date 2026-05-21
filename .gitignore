@@ -76,9 +76,14 @@ node_modules
 web/test-results/*
 .playwright-mcp/*
 .codex-artifacts/
+
+# Local DeepSec workspace and generated scan state
+.deepsec/
+
 .mcp.json
 .claude/settings.json
 .claude/skills/
+.claude/launch.json
 .cursor/mcp.json
 .cursor/environment.json
 .vscode/mcp.json
@@ -97,3 +102,6 @@ web/test-results/*
 
 # Serena MCP server config (local only)
 .serena/
+
+# Local overrides for AGENTS.md
+**/AGENTS.override.md

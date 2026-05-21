@@ -148,6 +148,7 @@ export function withMiddlewares(
             errorType: resourceError.errorType,
             message: resourceError.message,
             suggestion: errorMessage,
+            tags: resourceError.tags,
           });
 
           return res.status(422).json({
