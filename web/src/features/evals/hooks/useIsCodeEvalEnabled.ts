@@ -1,7 +1,7 @@
-import { isCodeEvalEnabled } from "@/src/features/evals/server/isCodeEvalEnabled";
+import { env } from "@/src/env.mjs";
 
 export function useIsCodeEvalEnabled(): { enabled: boolean } {
   return {
-    enabled: isCodeEvalEnabled(),
+    enabled: env.NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED === "true",
   };
 }
