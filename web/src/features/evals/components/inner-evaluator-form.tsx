@@ -106,6 +106,13 @@ import {
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import {
+  getCodeEvalVariableMapping,
+  isCodeEvalTemplate,
+  resolveCodeEvalTarget,
+} from "@/src/features/evals/utils/code-eval-template-utils";
+import { CodeEvalTestRunCard } from "@/src/features/evals/components/code-eval-test-run-card";
 
 /**
  * Adds propagation warnings to columns that require OTEL SDK with span propagation
@@ -318,6 +325,9 @@ export const InnerEvaluatorForm = (props: {
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
+  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const isCodeEvalConfig =
+    isCodeEvalEnabled && isCodeEvalTemplate(props.evalTemplate);
 
   // Destructure eval capabilities passed from parent
   const { allowLegacy, allowPropagationFilters } = props.evalCapabilities;
@@ -359,9 +369,41 @@ export const InnerEvaluatorForm = (props: {
       props.defaultTarget ??
       EvalTargetObject.EVENT,
   );
-  const defaultTarget = defaultTargetResult.success
+  const parsedDefaultTarget = defaultTargetResult.success
     ? defaultTargetResult.data
     : EvalTargetObject.EVENT;
+  const defaultTarget = isCodeEvalConfig
+    ? resolveCodeEvalTarget(parsedDefaultTarget)
+    : parsedDefaultTarget;
+
+  const getDefaultMapping = () => {
+    if (isCodeEvalConfig) {
+      return getCodeEvalVariableMapping();
+    }
+
+    if (props.existingEvaluator?.variableMapping) {
+      return isEventTarget(props.existingEvaluator.targetObject) ||
+        isExperimentTarget(props.existingEvaluator.targetObject)
+        ? z
+            .array(observationVariableMapping)
+            .parse(props.existingEvaluator.variableMapping)
+        : z
+            .array(variableMapping)
+            .parse(props.existingEvaluator.variableMapping);
+    }
+
+    return z.array(variableMapping).parse(
+      props.evalTemplate
+        ? props.evalTemplate.vars.map((v) => ({
+            templateVariable: v,
+            langfuseObject: "trace" as const,
+            objectName: null,
+            selectedColumnId: "input",
+            jsonSelector: null,
+          }))
+        : [],
+    );
+  };
 
   const form = useForm({
     resolver: zodResolver(evalConfigFormSchema),
@@ -379,26 +421,7 @@ export const InnerEvaluatorForm = (props: {
             ? // For new observation evaluators, default to GENERATION type
               DEFAULT_OBSERVATION_FILTER
             : [],
-      mapping: props.existingEvaluator?.variableMapping
-        ? isEventTarget(props.existingEvaluator.targetObject) ||
-          isExperimentTarget(props.existingEvaluator.targetObject)
-          ? z
-              .array(observationVariableMapping)
-              .parse(props.existingEvaluator.variableMapping)
-          : z
-              .array(variableMapping)
-              .parse(props.existingEvaluator.variableMapping)
-        : z.array(variableMapping).parse(
-            props.evalTemplate
-              ? props.evalTemplate.vars.map((v) => ({
-                  templateVariable: v,
-                  langfuseObject: "trace" as const,
-                  objectName: null,
-                  selectedColumnId: "input",
-                  jsonSelector: null,
-                }))
-              : [],
-          ),
+      mapping: getDefaultMapping(),
       sampling: props.existingEvaluator?.sampling
         ? props.existingEvaluator.sampling.toNumber()
         : 1,
@@ -417,12 +440,13 @@ export const InnerEvaluatorForm = (props: {
 
   const currentMapping = form.watch("mapping") ?? [];
   const syncStatus = useVariableMappingSync({
-    templateVars: props.evalTemplate?.vars,
+    templateVars: isCodeEvalConfig ? [] : props.evalTemplate?.vars,
     currentMapping: currentMapping,
   });
 
   useEffect(() => {
     if (!props.evalTemplate) return;
+    if (isCodeEvalConfig) return;
 
     const mapping = form.getValues("mapping");
 
@@ -471,6 +495,7 @@ export const InnerEvaluatorForm = (props: {
     props.disabled,
     props.existingEvaluator,
     syncStatus,
+    isCodeEvalConfig,
   ]);
 
   const utils = api.useUtils();
@@ -550,8 +575,21 @@ export const InnerEvaluatorForm = (props: {
       return;
     }
 
+    if (
+      isCodeEvalConfig &&
+      !isEventTarget(values.target) &&
+      !isExperimentTarget(values.target)
+    ) {
+      form.setError("target", {
+        type: "manual",
+        message: "Code evaluators can only run on observations or experiments.",
+      });
+      return;
+    }
+
     // Block NEW trace-level evals that target observations
     if (
+      !isCodeEvalConfig &&
       props.mode !== "edit" &&
       isTraceTarget(values.target) &&
       values.mapping.some(
@@ -566,10 +604,15 @@ export const InnerEvaluatorForm = (props: {
       return;
     }
 
-    const validatedVarMapping = validateAndTransformVariableMapping(
-      values.mapping,
-      values.target as EvalTargetObject,
-    );
+    const validatedVarMapping = isCodeEvalConfig
+      ? {
+          success: true as const,
+          data: getCodeEvalVariableMapping(),
+        }
+      : validateAndTransformVariableMapping(
+          values.mapping,
+          values.target as EvalTargetObject,
+        );
 
     if (!validatedVarMapping.success) {
       form.setError("mapping", {
@@ -671,18 +714,19 @@ export const InnerEvaluatorForm = (props: {
     } else if (newUserFacingTarget === "event") {
       actualTarget = EvalTargetObject.EVENT;
     } else {
-      // offline-experiment: only use EXPERIMENT if beta is enabled AND OTEL is selected
-      actualTarget = useOtelDataForExperiment
+      // offline-experiment: code evaluators always use the observation-backed experiment target
+      actualTarget = isCodeEvalConfig
         ? EvalTargetObject.EXPERIMENT
-        : EvalTargetObject.DATASET;
+        : useOtelDataForExperiment
+          ? EvalTargetObject.EXPERIMENT
+          : EvalTargetObject.DATASET;
     }
 
     // Transform variable mapping for new target type
     const currentMapping = form.getValues("mapping");
-    const newMapping = targetState.transformMapping(
-      currentMapping,
-      actualTarget,
-    );
+    const newMapping = isCodeEvalConfig
+      ? getCodeEvalVariableMapping()
+      : targetState.transformMapping(currentMapping, actualTarget);
 
     // Update form state with target-appropriate default filters
     form.setValue(
@@ -769,7 +813,7 @@ export const InnerEvaluatorForm = (props: {
                             <CircleDot className="h-3.5 w-3.5" />
                             Observations
                           </TabsTrigger>
-                          {allowLegacy && (
+                          {allowLegacy && !isCodeEvalConfig && (
                             <TabsTrigger
                               value="trace"
                               disabled={props.disabled || props.mode === "edit"}
@@ -806,7 +850,8 @@ export const InnerEvaluatorForm = (props: {
             {/* Second tab bar for experiment data source selection */}
             {!props.hideTargetSelection &&
               userFacingTarget === "offline-experiment" &&
-              props.evalCapabilities.allowLegacy && (
+              props.evalCapabilities.allowLegacy &&
+              !isCodeEvalConfig && (
                 <div className="flex flex-col gap-2">
                   <FormLabel className="text-sm">Experiment Method</FormLabel>
                   <Tabs
@@ -1208,20 +1253,29 @@ export const InnerEvaluatorForm = (props: {
           </div>
         </Card>
       )}
-      <VariableMappingCard
-        projectId={props.projectId}
-        availableVariables={availableVariables}
-        evalTemplate={props.evalTemplate}
-        form={form}
-        disabled={props.disabled}
-        shouldWrapVariables={props.shouldWrapVariables}
-        hideAdvancedSettings={props.hideAdvancedSettings}
-        oldConfigId={props.oldConfigId}
-        isNewCompatible={props.evalCapabilities.isNewCompatible}
-        compatibilityCheckWasPerformed={
-          props.evalCapabilities.compatibilityCheckWasPerformed
-        }
-      />
+      {isCodeEvalConfig ? (
+        <CodeEvalTestRunCard
+          projectId={props.projectId}
+          evalTemplate={props.evalTemplate}
+          form={form}
+          disabled={props.disabled}
+        />
+      ) : (
+        <VariableMappingCard
+          projectId={props.projectId}
+          availableVariables={availableVariables}
+          evalTemplate={props.evalTemplate}
+          form={form}
+          disabled={props.disabled}
+          shouldWrapVariables={props.shouldWrapVariables}
+          hideAdvancedSettings={props.hideAdvancedSettings}
+          oldConfigId={props.oldConfigId}
+          isNewCompatible={props.evalCapabilities.isNewCompatible}
+          compatibilityCheckWasPerformed={
+            props.evalCapabilities.compatibilityCheckWasPerformed
+          }
+        />
+      )}
     </div>
   );
 

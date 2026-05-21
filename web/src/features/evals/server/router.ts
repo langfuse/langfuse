@@ -70,6 +70,7 @@ import {
   CreateEvalTemplateInputSchema,
   validateEvalTemplateCreation,
 } from "@/src/features/evals/server/evalTemplateCreation";
+import { isCodeEvalEnabled } from "@/src/features/evals/server/isCodeEvalEnabled";
 export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
 
 // Filter columns that used to be backed by the Postgres `traces` and
@@ -762,6 +763,12 @@ export const evalRouter = createTRPCRouter({
         );
         throw new Error("Template not found");
       }
+      if (evalTemplate.type === EvalTemplateType.CODE && !isCodeEvalEnabled()) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Code evals are not enabled",
+        });
+      }
 
       const variableMappingForTarget = validateVariableMappingForTarget({
         targetObject: input.target,
@@ -859,6 +866,13 @@ export const evalRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "evalJob:CUD",
       });
+
+      if (!isCodeEvalEnabled()) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Code evals are not enabled",
+        });
+      }
 
       validateVariableMappingForTarget({
         targetObject: input.target,

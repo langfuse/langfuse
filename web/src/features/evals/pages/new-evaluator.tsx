@@ -14,6 +14,8 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { DefaultEvalModelSetup } from "@/src/features/evals/components/default-eval-model-setup";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
 
 // Multi-step setup process
 // 0. Set up default model (optional, only if no default model exists): /project/:projectId/evals/new
@@ -23,6 +25,7 @@ export default function NewEvaluatorPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const evaluatorId = router.query.evaluator as string | undefined;
+  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
 
   const hasDefaultModelReadAccess = useHasProjectAccess({
     projectId,
@@ -36,8 +39,9 @@ export default function NewEvaluatorPage() {
 
   const hasDefaultModel = !!defaultModel;
 
-  // Calculate step number: if no default model, start at 0, otherwise start at 1
-  const stepInt = !hasDefaultModel ? 0 : !evaluatorId ? 1 : 2;
+  // Calculate step number. Code evaluators do not require a default model.
+  const stepInt =
+    !hasDefaultModel && !isCodeEvalEnabled ? 0 : !evaluatorId ? 1 : 2;
 
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -55,9 +59,9 @@ export default function NewEvaluatorPage() {
     },
   );
 
-  const currentTemplate = evalTemplates.data?.templates.find(
-    (t) => t.id === evaluatorId,
-  );
+  const currentTemplate = evalTemplates.data?.templates
+    .filter((template) => shouldShowEvalTemplate(template, isCodeEvalEnabled))
+    .find((t) => t.id === evaluatorId);
 
   if (!hasAccess) {
     return <div>You do not have access to this page.</div>;

@@ -3,6 +3,11 @@ import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evalua
 import { type PartialConfig } from "@/src/features/evals/types";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import {
+  isCodeEvalTemplate,
+  shouldShowEvalTemplate,
+} from "@/src/features/evals/utils/code-eval-template-utils";
 
 export const EvaluatorForm = (props: {
   projectId: string;
@@ -23,12 +28,18 @@ export const EvaluatorForm = (props: {
   defaultTarget?: EvalTargetObject;
 }) => {
   const evalCapabilities = useEvalCapabilities(props.projectId);
+  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
 
   const currentTemplate =
     props.existingEvaluator?.evalTemplate ??
-    props.evalTemplates.find((t) => t.id === props.templateId);
+    props.evalTemplates
+      .filter((template) => shouldShowEvalTemplate(template, isCodeEvalEnabled))
+      .find((t) => t.id === props.templateId);
 
-  if (!currentTemplate) {
+  if (
+    !currentTemplate ||
+    (isCodeEvalTemplate(currentTemplate) && !isCodeEvalEnabled)
+  ) {
     return null;
   }
 

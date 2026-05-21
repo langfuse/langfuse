@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from "@/src/utils/api";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { isCodeEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
 
 export function useTemplatesValidation({
   projectId,
@@ -9,6 +11,7 @@ export function useTemplatesValidation({
   selectedTemplateIds?: string[];
 }) {
   const [isSelectionValid, setIsSelectionValid] = useState(true);
+  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
 
   // Fetch default model
   const { data: defaultModel, isLoading: isLoadingDefaultModel } =
@@ -34,8 +37,10 @@ export function useTemplatesValidation({
       );
 
       // Check if any template requires a default model (has no provider/model specified)
-      const requiresDefaultModel = selectedTemplates.some(
-        (template) => !template.provider || !template.model,
+      const requiresDefaultModel = selectedTemplates.some((template) =>
+        isCodeEvalTemplate(template)
+          ? !isCodeEvalEnabled
+          : !template.provider || !template.model,
       );
 
       setIsSelectionValid(!requiresDefaultModel);
@@ -46,6 +51,7 @@ export function useTemplatesValidation({
   }, [
     defaultModel,
     isLoadingDefaultModel,
+    isCodeEvalEnabled,
     selectedTemplateIds,
     templatesData?.templates,
   ]);
@@ -62,6 +68,7 @@ export function useTemplatesValidation({
     // Find the template
     const template = templatesData.templates.find((t) => t.id === templateId);
     if (!template) return true;
+    if (isCodeEvalTemplate(template)) return isCodeEvalEnabled;
 
     // If template has no provider or model, it requires a default model
     return !(template.provider === undefined || template.model === undefined);
