@@ -92,6 +92,7 @@ maybe("evals.testRunCodeEval", () => {
     const { project, caller } = await prepare();
     const observationId = randomUUID();
     const traceId = randomUUID();
+    const startTime = new Date();
     const savedSource = `
       export function evaluate(ctx) {
         const matched =
@@ -122,6 +123,7 @@ maybe("evals.testRunCodeEval", () => {
         trace_id: traceId,
         span_id: observationId,
         id: observationId,
+        start_time: startTime.getTime() * 1000,
         input: JSON.stringify({ question: "2+2" }),
         output: "4",
         metadata_names: ["quality"],
@@ -142,6 +144,8 @@ maybe("evals.testRunCodeEval", () => {
       target: EvalTargetObject.EVENT,
       scoreName: "unsaved-score",
       observationId,
+      traceId,
+      startTime,
       mapping: [
         {
           templateVariable: "input",
@@ -198,6 +202,8 @@ maybe("evals.testRunCodeEval", () => {
   it("returns user-code dispatcher failures as structured failures", async () => {
     const { project, caller } = await prepare();
     const observationId = randomUUID();
+    const traceId = randomUUID();
+    const startTime = new Date();
     const template = await createCodeTemplate(
       project.id,
       `export function evaluate() {
@@ -208,9 +214,10 @@ maybe("evals.testRunCodeEval", () => {
     await createEventsCh([
       createEvent({
         project_id: project.id,
-        trace_id: randomUUID(),
+        trace_id: traceId,
         span_id: observationId,
         id: observationId,
+        start_time: startTime.getTime() * 1000,
       }),
     ]);
 
@@ -220,6 +227,8 @@ maybe("evals.testRunCodeEval", () => {
       target: EvalTargetObject.EVENT,
       scoreName: "unsaved-score",
       observationId,
+      traceId,
+      startTime,
       mapping: [],
     });
 
@@ -236,14 +245,17 @@ maybe("evals.testRunCodeEval", () => {
   it("persists an internal trace for the test run", async () => {
     const { project, caller } = await prepare();
     const observationId = randomUUID();
+    const traceId = randomUUID();
+    const startTime = new Date();
     const template = await createCodeTemplate(project.id);
 
     await createEventsCh([
       createEvent({
         project_id: project.id,
-        trace_id: randomUUID(),
+        trace_id: traceId,
         span_id: observationId,
         id: observationId,
+        start_time: startTime.getTime() * 1000,
       }),
     ]);
 
@@ -253,6 +265,8 @@ maybe("evals.testRunCodeEval", () => {
       target: EvalTargetObject.EVENT,
       scoreName: "unsaved-score",
       observationId,
+      traceId,
+      startTime,
       mapping: [],
     });
 
@@ -297,12 +311,15 @@ maybe("evals.testRunCodeEval", () => {
     const template = await createCodeTemplate(callerProject.id);
 
     const otherProjectObservationId = randomUUID();
+    const otherProjectTraceId = randomUUID();
+    const otherProjectStartTime = new Date();
     await createEventsCh([
       createEvent({
         project_id: otherProject.id,
-        trace_id: randomUUID(),
+        trace_id: otherProjectTraceId,
         span_id: otherProjectObservationId,
         id: otherProjectObservationId,
+        start_time: otherProjectStartTime.getTime() * 1000,
       }),
     ]);
 
@@ -313,6 +330,8 @@ maybe("evals.testRunCodeEval", () => {
         target: EvalTargetObject.EVENT,
         scoreName: "unsaved-score",
         observationId: otherProjectObservationId,
+        traceId: otherProjectTraceId,
+        startTime: otherProjectStartTime,
         mapping: [],
       }),
     ).rejects.toThrow(/Observation not found/);
@@ -322,15 +341,18 @@ maybe("evals.testRunCodeEval", () => {
     const { project: callerProject, caller } = await prepare();
     const { project: otherProject } = await prepare();
     const observationId = randomUUID();
+    const traceId = randomUUID();
+    const startTime = new Date();
 
     const otherProjectTemplate = await createCodeTemplate(otherProject.id);
 
     await createEventsCh([
       createEvent({
         project_id: callerProject.id,
-        trace_id: randomUUID(),
+        trace_id: traceId,
         span_id: observationId,
         id: observationId,
+        start_time: startTime.getTime() * 1000,
       }),
     ]);
 
@@ -341,6 +363,8 @@ maybe("evals.testRunCodeEval", () => {
         target: EvalTargetObject.EVENT,
         scoreName: "unsaved-score",
         observationId,
+        traceId,
+        startTime,
         mapping: [],
       }),
     ).rejects.toThrow(/Evaluator template not found/);

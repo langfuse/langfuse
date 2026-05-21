@@ -45,6 +45,8 @@ export async function runCodeEvalTest(params: {
   mapping: ObservationVariableMapping[];
   scoreName: string;
   observationId: string;
+  traceId: string;
+  startTime: Date;
 }): Promise<CodeEvalTestRunResult> {
   const dispatcher = resolveConfiguredCodeEvalDispatcher();
 
@@ -75,6 +77,8 @@ export async function runCodeEvalTest(params: {
   const observation = await getObservationForEvalById({
     projectId: params.projectId,
     id: params.observationId,
+    traceId: params.traceId,
+    startTime: params.startTime,
   });
   const extractedVariables = extractObservationVariables({
     observation,
@@ -126,10 +130,32 @@ export async function runCodeEvalTest(params: {
 async function getObservationForEvalById(params: {
   projectId: string;
   id: string;
+  traceId: string;
+  startTime: Date;
 }): Promise<ObservationForEval> {
+  const startTimeUpperBound = new Date(params.startTime.getTime() + 1);
+
   const stream = await getEventsStreamForEval({
     projectId: params.projectId,
     filter: [
+      {
+        type: "string",
+        column: "traceId",
+        operator: "=",
+        value: params.traceId,
+      },
+      {
+        type: "datetime",
+        column: "startTime",
+        operator: ">=",
+        value: params.startTime,
+      },
+      {
+        type: "datetime",
+        column: "startTime",
+        operator: "<",
+        value: startTimeUpperBound,
+      },
       {
         type: "stringOptions",
         column: "id",
