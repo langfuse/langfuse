@@ -775,6 +775,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     type: "string",
     relationTable: "events_observations",
     description: "Name of the experiment associated with the score.",
+    highCardinality: true,
     uiHidden: true,
   },
   experimentId: {
@@ -783,6 +784,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     type: "string",
     relationTable: "events_observations",
     description: "ID of the experiment associated with the score.",
+    highCardinality: true,
     uiHidden: true,
   },
 };
