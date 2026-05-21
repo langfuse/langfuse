@@ -64,12 +64,13 @@ const EXPORT_FIELD_GROUP_LABELS = {
   },
   model: {
     label: "Model",
-    description: "provided_model_name, model_id, model_parameters",
+    description:
+      "provided_model_name, model_id, model_parameters, input_price, output_price, total_price",
   },
   usage: {
     label: "Usage",
     description:
-      "usage_details, cost_details, total_cost, input_price, output_price, total_price, usage_pricing_tier_name",
+      "usage_details, cost_details, total_cost, usage_pricing_tier_id, usage_pricing_tier_name",
   },
   prompt: {
     label: "Prompt",

@@ -20,6 +20,8 @@ import {
   BlobStorageIntegrationProcessingQueue,
   QueueJobs,
   StorageServiceFactory,
+  blobStorageEndpointConnectionValidationOptions,
+  validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -325,6 +327,10 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           ? decrypt(encryptedSecretAccessKey)
           : undefined;
 
+        if (endpoint) {
+          await validateBlobStorageEndpoint(endpoint);
+        }
+
         // Create storage service with provided configuration
         const storageService = StorageServiceFactory.getInstance({
           accessKeyId: accessKeyId || undefined,
@@ -340,6 +346,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           awsSse: undefined,
           awsSseKmsKeyId: undefined,
           externalEndpoint: undefined,
+          connectionValidation:
+            blobStorageEndpointConnectionValidationOptions(),
         });
 
         // Create a test file

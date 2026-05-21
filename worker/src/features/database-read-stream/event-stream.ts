@@ -454,6 +454,7 @@ export const getEventsStreamForEval = async (props: {
     experiment_id: string | null;
     experiment_item_root_span_id: string | null;
     experiment_item_expected_output: string | null;
+    experiment_item_metadata: Record<string, unknown> | null;
   };
 
   const asyncGenerator = queryClickhouseStream<EvalEventRow>({

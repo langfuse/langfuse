@@ -6,9 +6,15 @@ export const eventsTableHasParentObservationSql =
 export const eventsTableIsRootObservationSql =
   "(e.parent_span_id = '' OR e.parent_span_id IS NULL OR e.is_app_root = true)";
 
+type MutableDeep<T> = T extends readonly (infer U)[]
+  ? MutableDeep<U>[]
+  : T extends object
+    ? { -readonly [K in keyof T]: MutableDeep<T[K]> }
+    : T;
+
 // Column definitions for the ClickHouse events table
 // Used for filtering, sorting, and mapping UI columns to ClickHouse columns
-export const eventsTableCols: ColumnDefinition[] = [
+const eventsTableColsDefinition = [
   {
     name: "ID",
     id: "id",
@@ -342,4 +348,54 @@ export const eventsTableCols: ColumnDefinition[] = [
     type: "boolean",
     internal: "e.experiment_item_root_span_id = e.span_id",
   },
-];
+] as const satisfies readonly ColumnDefinition[];
+
+// TODO: Remove MutableDeep once consumers accept readonly column definitions.
+export const eventsTableCols =
+  eventsTableColsDefinition as unknown as MutableDeep<
+    typeof eventsTableColsDefinition
+  > &
+    ColumnDefinition[];
+
+type EventsTableColumnId = (typeof eventsTableColsDefinition)[number]["id"];
+
+// Subset of columns that are allowed to be used as filters in the MCP observations API
+const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS = [
+  "id",
+  "traceId",
+  "startTime",
+  "endTime",
+  "name",
+  "type",
+  "environment",
+  "version",
+  "userId",
+  "sessionId",
+  "traceName",
+  "level",
+  "statusMessage",
+  "promptName",
+  "promptVersion",
+  "modelId",
+  "providedModelName",
+  "totalCost",
+  "inputTokens",
+  "outputTokens",
+  "totalTokens",
+  "inputCost",
+  "outputCost",
+  "latency",
+  "timeToFirstToken",
+  "input",
+  "output",
+  "metadata",
+  "traceTags",
+  "hasParentObservation",
+  "isRootObservation",
+] as const satisfies readonly EventsTableColumnId[];
+
+export type ObservationMcpAllowedEventsTableFilterColumn =
+  (typeof OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS)[number];
+
+export const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS: ReadonlySet<EventsTableColumnId> =
+  new Set(OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS);

@@ -14,14 +14,40 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { nanoid } from "nanoid";
+import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
+import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
 import {
   createMcpTestSetup,
   createPromptInDb,
+  mockServerContext,
   verifyToolAnnotations,
 } from "./mcp-helpers";
+import { env } from "@/src/env.mjs";
+import "@/src/features/mcp/server/bootstrap";
+import { toolRegistry } from "@/src/features/mcp/server/registry";
 
 // Import MCP tool handlers directly
+import {
+  getObservationTool,
+  handleGetObservation,
+} from "@/src/features/mcp/features/observations/tools/getObservation";
+import {
+  getObservationFieldSchemaTool,
+  handleGetObservationFieldSchema,
+} from "@/src/features/mcp/features/observations/tools/getObservationFieldSchema";
+import {
+  getObservationFilterSchemaTool,
+  handleGetObservationFilterSchema,
+} from "@/src/features/mcp/features/observations/tools/getObservationFilterSchema";
+import {
+  getObservationFilterValuesTool,
+  handleGetObservationFilterValues,
+} from "@/src/features/mcp/features/observations/tools/getObservationFilterValues";
+import {
+  listObservationsTool,
+  handleListObservations,
+} from "@/src/features/mcp/features/observations/tools/listObservations";
 import {
   getPromptTool,
   handleGetPrompt,
@@ -35,10 +61,1072 @@ import {
   handleListPrompts,
 } from "@/src/features/mcp/features/prompts/tools/listPrompts";
 
+const maybeEventsTable =
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+    ? describe
+    : describe.skip;
+const maybeEventsTableIt =
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true" ? it : it.skip;
+
+const createObservationEvent = (params: {
+  projectId: string;
+  traceId?: string;
+  observationId?: string;
+  name?: string;
+  type?: "GENERATION" | "SPAN" | "EVENT";
+  startTime?: Date;
+  parentObservationId?: string | null;
+  isAppRoot?: boolean;
+  providedModelName?: string;
+  input?: string;
+  output?: string;
+  metadata?: Record<string, string>;
+  tags?: string[];
+  userId?: string;
+  sessionId?: string;
+  totalCost?: number;
+}) => {
+  const observationId = params.observationId ?? randomUUID();
+  const startTime = params.startTime ?? new Date();
+  const metadata = params.metadata ?? { source: "mcp-test" };
+  const metadataKeys = Object.keys(metadata).sort();
+
+  return createEvent({
+    id: observationId,
+    span_id: observationId,
+    trace_id: params.traceId ?? randomUUID(),
+    parent_span_id: params.parentObservationId ?? null,
+    project_id: params.projectId,
+    name: params.name ?? `mcp-observation-${nanoid()}`,
+    type: params.type ?? "GENERATION",
+    level: "DEFAULT",
+    start_time: startTime.getTime() * 1000,
+    end_time: startTime.getTime() * 1000 + 1000 * 1000,
+    input: params.input ?? "Observation input",
+    output: params.output ?? "Observation output",
+    metadata_names: metadataKeys,
+    metadata_values: metadataKeys.map((key) => metadata[key]),
+    provided_model_name: params.providedModelName ?? "gpt-4o-mini",
+    ...(params.totalCost === undefined
+      ? {}
+      : { cost_details: { total: params.totalCost } }),
+    tags: params.tags ?? [],
+    user_id: params.userId ?? null,
+    session_id: params.sessionId ?? null,
+    is_app_root: params.isAppRoot ?? false,
+  });
+};
+
 describe("MCP Read Tools", () => {
+  describe("getObservationFieldSchema tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getObservationFieldSchemaTool, {
+        readOnlyHint: true,
+      });
+    });
+
+    maybeEventsTableIt("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(
+          getObservationFieldSchemaTool.name,
+          context,
+        ),
+      ).resolves.toBeDefined();
+    });
+
+    it("should return the observation projection field schema", async () => {
+      const { context } = await createMcpTestSetup();
+
+      const result = (await handleGetObservationFieldSchema({}, context)) as {
+        resource: string;
+        defaultFields: string[];
+        fields: Record<
+          string,
+          {
+            type: string;
+            nullable: boolean;
+            default: boolean;
+            expensive: boolean;
+            sensitive: boolean;
+            description?: string;
+          }
+        >;
+      };
+
+      expect(result.resource).toBe("observation");
+      expect(result.defaultFields).toEqual(
+        expect.arrayContaining([
+          "id",
+          "traceId",
+          "parentObservationId",
+          "name",
+          "type",
+          "level",
+          "statusMessage",
+          "startTime",
+          "endTime",
+          "latency",
+          "providedModelName",
+        ]),
+      );
+      expect(result.fields.providedModelName.default).toBe(true);
+      expect(result.fields.providedModelName.type).toBe("string");
+      expect(result.fields.providedModelName.nullable).toBe(true);
+      expect(result.fields.startTime.type).toBe("datetime");
+      expect(result.fields.startTime.nullable).toBe(false);
+      expect(result.fields.costDetails.type).toBe("map<string, number>");
+      expect(result.fields.input.expensive).toBe(true);
+      expect(result.fields.input.sensitive).toBe(true);
+      expect(result.fields.metadata.expensive).toBe(true);
+      expect(result.fields.metadata.description).toContain(
+        "truncated to 200 UTF-8 characters per key",
+      );
+      expect(result.fields.userId.sensitive).toBe(true);
+    });
+  });
+
+  describe("getObservationFilterSchema tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getObservationFilterSchemaTool, {
+        readOnlyHint: true,
+      });
+    });
+
+    maybeEventsTableIt("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(
+          getObservationFilterSchemaTool.name,
+          context,
+        ),
+      ).resolves.toBeDefined();
+    });
+
+    it("should return public-compatible observation filter schema", async () => {
+      const { context } = await createMcpTestSetup();
+
+      const result = (await handleGetObservationFilterSchema({}, context)) as {
+        resource: string;
+        columns: Record<string, { type: string; operators: string[] }>;
+      };
+
+      expect(result.resource).toBe("observation");
+      expect(result.columns.providedModelName.type).toBe("stringOptions");
+      expect(result.columns.tags.type).toBe("arrayOptions");
+      expect(result.columns.traceTags).toBeUndefined();
+      expect(result.columns.comments).toBeUndefined();
+      expect(result.columns.scores).toBeUndefined();
+      expect(result.columns.name.operators).toContain("any of");
+    });
+
+    it.each([
+      ["name", "stringOptions", true],
+      ["type", "stringOptions", false],
+      ["environment", "stringOptions", true],
+      ["version", "string", true],
+      ["userId", "string", true],
+      ["sessionId", "string", true],
+      ["traceName", "stringOptions", true],
+      ["level", "stringOptions", false],
+      ["promptName", "stringOptions", true],
+      ["modelId", "stringOptions", true],
+      ["providedModelName", "stringOptions", true],
+      ["tags", "arrayOptions", false],
+      ["hasParentObservation", "boolean", false],
+      ["isRootObservation", "boolean", false],
+    ])(
+      "should expose the %s column used by observation filter values",
+      async (column, type, nullable) => {
+        const { context } = await createMcpTestSetup();
+
+        const result = (await handleGetObservationFilterSchema(
+          {},
+          context,
+        )) as {
+          columns: Record<
+            string,
+            { type: string; operators: string[]; nullable: boolean }
+          >;
+        };
+
+        expect(result.columns[column]).toEqual(
+          expect.objectContaining({
+            type,
+            nullable,
+            operators: expect.any(Array),
+          }),
+        );
+        expect(result.columns[column]?.operators.length).toBeGreaterThan(0);
+      },
+    );
+  });
+
+  maybeEventsTable("listObservations tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(listObservationsTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(listObservationsTool.name, context),
+      ).resolves.toBeDefined();
+    });
+
+    it("should expose object-shaped advanced filters in the tool schema", () => {
+      const filterSchema = listObservationsTool.inputSchema.properties
+        .filter as
+        | {
+            type?: string;
+            items?: {
+              anyOf?: Array<{
+                type?: string;
+                properties?: Record<
+                  string,
+                  {
+                    const?: unknown;
+                    enum?: unknown[];
+                    type?: string;
+                  }
+                >;
+                required?: string[];
+              }>;
+              oneOf?: Array<{
+                type?: string;
+                properties?: Record<
+                  string,
+                  {
+                    const?: unknown;
+                    enum?: unknown[];
+                    type?: string;
+                  }
+                >;
+                required?: string[];
+              }>;
+            };
+          }
+        | undefined;
+
+      expect(filterSchema?.type).toBe("array");
+      const filterVariants =
+        filterSchema?.items?.anyOf ?? filterSchema?.items?.oneOf;
+      const totalCostSchemas =
+        filterVariants?.filter(
+          (schema) =>
+            schema.properties?.column?.const === "totalCost" ||
+            schema.properties?.column?.enum?.includes("totalCost"),
+        ) ?? [];
+      const totalCostSchema = totalCostSchemas[0];
+
+      expect(totalCostSchemas).not.toHaveLength(0);
+      expect(
+        totalCostSchemas.every(
+          (schema) => schema.properties?.type?.const === "number",
+        ),
+      ).toBe(true);
+
+      expect(totalCostSchema?.type).toBe("object");
+      expect(totalCostSchema?.required).toEqual(
+        expect.arrayContaining(["column", "operator", "value"]),
+      );
+      expect(totalCostSchema?.required).not.toContain("type");
+      expect(totalCostSchema?.properties?.type?.const).toBe("number");
+      expect(totalCostSchema?.properties?.operator?.enum).toEqual(
+        expect.arrayContaining([">", "<", ">=", "<="]),
+      );
+      expect(totalCostSchema?.properties?.value?.type).toBe("number");
+    });
+
+    it("should list observations with compact default projection", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const observation = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-list-default-${nanoid()}`,
+        input: "hidden input",
+        output: "hidden output",
+        metadata: { hidden: "metadata" },
+      });
+
+      await createEventsCh([observation]);
+
+      const result = (await handleListObservations(
+        { traceId, limit: 100 },
+        context,
+      )) as {
+        data: Array<Record<string, unknown>>;
+        meta: Record<string, unknown>;
+      };
+
+      const createdObservation = result.data.find(
+        (item) => item.id === observation.id,
+      );
+
+      expect(createdObservation).toBeDefined();
+      expect(createdObservation).toMatchObject({
+        id: observation.id,
+        traceId,
+        name: observation.name,
+        type: "GENERATION",
+        level: "DEFAULT",
+        providedModelName: "gpt-4o-mini",
+      });
+      expect(createdObservation?.input).toBeUndefined();
+      expect(createdObservation?.output).toBeUndefined();
+      expect(createdObservation?.metadata).toBeUndefined();
+      expect(result.meta).toBeDefined();
+    });
+
+    it("should list observations with an in-app agent context", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const observation = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-list-in-app-agent-${nanoid()}`,
+      });
+
+      await createEventsCh([observation]);
+
+      const result = (await handleListObservations(
+        { traceId, fields: ["id"], limit: 100 },
+        { ...context, isInAppAgentKey: true },
+      )) as { data: Array<{ id: string }> };
+
+      expect(result.data.map((item) => item.id)).toContain(observation.id);
+    });
+
+    it("should project only requested fields", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const observation = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-list-fields-${nanoid()}`,
+      });
+
+      await createEventsCh([observation]);
+
+      const result = (await handleListObservations(
+        { traceId, fields: ["id", "name", "type"], limit: 100 },
+        context,
+      )) as { data: Array<Record<string, unknown>> };
+
+      const createdObservation = result.data.find(
+        (item) => item.id === observation.id,
+      );
+
+      expect(createdObservation).toEqual({
+        id: observation.id,
+        name: observation.name,
+        type: "GENERATION",
+      });
+    });
+
+    it("should include payload fields when requested with wildcard projection", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const observation = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-list-wildcard-${nanoid()}`,
+        input: "visible input",
+        output: "visible output",
+        metadata: { customer: "acme" },
+      });
+
+      await createEventsCh([observation]);
+
+      const result = (await handleListObservations(
+        { traceId, fields: ["*"], limit: 100 },
+        context,
+      )) as { data: Array<Record<string, unknown>> };
+
+      const createdObservation = result.data.find(
+        (item) => item.id === observation.id,
+      );
+
+      expect(createdObservation?.input).toBe("visible input");
+      expect(createdObservation?.output).toBe("visible output");
+      expect(createdObservation?.metadata).toEqual({ customer: "acme" });
+      expect(createdObservation).toHaveProperty("userId");
+    });
+
+    it("should filter by advanced filters", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const matchingUserId = `mcp-filter-user-${nanoid()}`;
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          traceId,
+          userId: matchingUserId,
+        }),
+        createObservationEvent({
+          projectId,
+          traceId,
+          userId: `mcp-filter-user-miss-${nanoid()}`,
+        }),
+      ]);
+
+      const result = (await handleListObservations(
+        {
+          traceId,
+          filter: [
+            {
+              type: "string",
+              column: "userId",
+              operator: "=",
+              value: matchingUserId,
+            },
+          ],
+          fields: ["id", "userId"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string; userId: string | null }> };
+
+      expect(result.data).toEqual([
+        { userId: matchingUserId, id: expect.any(String) },
+      ]);
+    });
+
+    it("should match advanced input filters beyond the events_core truncation boundary", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const needle = `needle-${nanoid()}`;
+      const matchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        input: `${"x".repeat(250)}${needle}`,
+      });
+
+      await createEventsCh([
+        matchingObservation,
+        createObservationEvent({
+          projectId,
+          traceId,
+          input: "short-input-without-match",
+        }),
+      ]);
+
+      const result = (await handleListObservations(
+        {
+          traceId,
+          filter: [
+            {
+              type: "string",
+              column: "input",
+              operator: "contains",
+              value: needle,
+            },
+          ],
+          fields: ["id"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string }> };
+
+      expect(result.data).toEqual([{ id: matchingObservation.id }]);
+    });
+
+    it("should require selective scope for full io and metadata access", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListObservations({ fields: ["input"], limit: 100 }, context),
+      ).rejects.toThrow(
+        /requires traceId, an id filter, or both fromStartTime and toStartTime/i,
+      );
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["id"],
+            filter: [
+              {
+                type: "string",
+                column: "input",
+                operator: "contains",
+                value: "secret",
+              },
+            ],
+            limit: 100,
+          },
+          context,
+        ),
+      ).rejects.toThrow(
+        /requires traceId, an id filter, or both fromStartTime and toStartTime/i,
+      );
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["input"],
+            filter: [
+              {
+                type: "stringOptions",
+                column: "id",
+                operator: "any of",
+                value: [randomUUID()],
+              },
+            ],
+            limit: 100,
+          },
+          context,
+        ),
+      ).resolves.toMatchObject({ data: [] });
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["metadata"],
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-01-02T00:00:00.000Z",
+            limit: 100,
+          },
+          context,
+        ),
+      ).resolves.toMatchObject({ data: [] });
+    });
+
+    it("should infer advanced filter type from the column", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const matchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-filter-infer-match-${nanoid()}`,
+        totalCost: 0.003,
+      });
+
+      await createEventsCh([
+        matchingObservation,
+        createObservationEvent({
+          projectId,
+          traceId,
+          name: `mcp-filter-infer-miss-${nanoid()}`,
+          totalCost: 0.001,
+        }),
+      ]);
+
+      const result = (await handleListObservations(
+        {
+          traceId,
+          filter: [
+            { column: "totalCost", operator: ">", value: 0.0029 } as any,
+          ],
+          fields: ["id", "name"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string; name: string }> };
+
+      expect(result.data).toEqual([
+        { id: matchingObservation.id, name: matchingObservation.name },
+      ]);
+    });
+
+    it("should reject explicit advanced filters with a mismatched column type", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListObservations(
+          {
+            filter: [
+              {
+                type: "string",
+                column: "totalCost",
+                operator: "=",
+                value: "abc",
+              },
+            ],
+            limit: 100,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/Validation failed: filter\.0: Invalid input/i);
+    });
+
+    it("should reject hidden/internal advanced filter columns", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListObservations(
+          {
+            filter: [
+              {
+                type: "arrayOptions",
+                column: "toolNames",
+                operator: "any of",
+                value: ["internal-tool"],
+              },
+            ],
+            limit: 100,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/getObservationFilterSchema/i);
+
+      await expect(
+        handleListObservations(
+          {
+            filter: [
+              {
+                type: "stringOptions",
+                column: "traceTags",
+                operator: "any of",
+                value: ["internal-name"],
+              },
+            ],
+            limit: 100,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/getObservationFilterSchema/i);
+    });
+
+    it("should allow the public tags advanced filter column", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const matchingTag = `mcp-filter-tag-${nanoid()}`;
+      const matchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-filter-tag-match-${nanoid()}`,
+        tags: [matchingTag],
+      });
+
+      await createEventsCh([
+        matchingObservation,
+        createObservationEvent({
+          projectId,
+          traceId,
+          name: `mcp-filter-tag-miss-${nanoid()}`,
+          tags: [`mcp-filter-tag-miss-${nanoid()}`],
+        }),
+      ]);
+
+      const result = (await handleListObservations(
+        {
+          traceId,
+          filter: [
+            {
+              type: "arrayOptions",
+              column: "tags",
+              operator: "any of",
+              value: [matchingTag],
+            },
+          ],
+          fields: ["id"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string }> };
+
+      expect(result.data).toEqual([{ id: matchingObservation.id }]);
+    });
+
+    it("should return a cursor when more results are available", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          traceId,
+          name: `mcp-cursor-1-${nanoid()}`,
+          startTime: new Date("2026-01-01T00:00:00.000Z"),
+        }),
+        createObservationEvent({
+          projectId,
+          traceId,
+          name: `mcp-cursor-2-${nanoid()}`,
+          startTime: new Date("2026-01-02T00:00:00.000Z"),
+        }),
+      ]);
+
+      const result = (await handleListObservations(
+        { traceId, fields: ["id"], limit: 1 },
+        context,
+      )) as { data: Array<{ id: string }>; meta: { cursor?: string } };
+
+      expect(result.data).toHaveLength(1);
+      expect(result.meta.cursor).toEqual(expect.any(String));
+    });
+
+    it("should reject invalid field projections", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListObservations({ fields: ["*", "id"], limit: 50 }, context),
+      ).rejects.toThrow(/mixed wildcard projection/i);
+
+      await expect(
+        handleListObservations(
+          { fields: ["unknownField"], limit: 50 },
+          context,
+        ),
+      ).rejects.toThrow(/getObservationFieldSchema/i);
+    });
+
+    it("should enforce max limit of 100", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListObservations({ limit: 101 }, context),
+      ).rejects.toThrow(/<=100/i);
+    });
+
+    it("should use context.projectId for tenant isolation", async () => {
+      const { context: context1, projectId: projectId1 } =
+        await createMcpTestSetup();
+      const { context: context2 } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const observation = createObservationEvent({
+        projectId: projectId1,
+        traceId,
+        name: `mcp-list-isolation-${nanoid()}`,
+      });
+
+      await createEventsCh([observation]);
+
+      const result1 = (await handleListObservations(
+        { traceId, fields: ["id"], limit: 100 },
+        context1,
+      )) as { data: Array<{ id: string }> };
+      const result2 = (await handleListObservations(
+        { traceId, fields: ["id"], limit: 100 },
+        context2,
+      )) as { data: Array<{ id: string }> };
+
+      expect(result1.data.map((item) => item.id)).toContain(observation.id);
+      expect(result2.data).toEqual([]);
+    });
+  });
+
+  maybeEventsTable("getObservation tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getObservationTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(getObservationTool.name, context),
+      ).resolves.toBeDefined();
+    });
+
+    it("should fetch a single observation by id with compact default projection", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const observation = createObservationEvent({
+        projectId,
+        name: `mcp-get-default-${nanoid()}`,
+        input: "hidden input",
+      });
+
+      await createEventsCh([observation]);
+
+      const result = (await handleGetObservation(
+        { observationId: observation.id },
+        context,
+      )) as Record<string, unknown>;
+
+      expect(result).toMatchObject({
+        id: observation.id,
+        traceId: observation.trace_id,
+        name: observation.name,
+        type: "GENERATION",
+        providedModelName: "gpt-4o-mini",
+      });
+      expect(result.input).toBeUndefined();
+      expect(result.output).toBeUndefined();
+      expect(result.metadata).toBeUndefined();
+    });
+
+    it("should fetch an observation with an in-app agent context", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const observation = createObservationEvent({
+        projectId,
+        name: `mcp-get-in-app-agent-${nanoid()}`,
+      });
+
+      await createEventsCh([observation]);
+
+      const result = (await handleGetObservation(
+        { observationId: observation.id, fields: ["id"] },
+        { ...context, isInAppAgentKey: true },
+      )) as Record<string, unknown>;
+
+      expect(result).toEqual({ id: observation.id });
+    });
+
+    it("should return requested fields for a single observation", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const observation = createObservationEvent({
+        projectId,
+        name: `mcp-get-fields-${nanoid()}`,
+        metadata: { customer: "acme" },
+      });
+
+      await createEventsCh([observation]);
+
+      const result = (await handleGetObservation(
+        { observationId: observation.id, fields: ["id", "metadata"] },
+        context,
+      )) as Record<string, unknown>;
+
+      expect(result).toEqual({
+        id: observation.id,
+        metadata: { customer: "acme" },
+      });
+    });
+
+    it("should reject missing observations", async () => {
+      const { context } = await createMcpTestSetup();
+      const observationId = randomUUID();
+
+      await expect(
+        handleGetObservation({ observationId }, context),
+      ).rejects.toThrow(new RegExp(`Observation ${observationId} not found`));
+    });
+
+    it("should not fetch cross-project observations", async () => {
+      const { projectId: projectId1 } = await createMcpTestSetup();
+      const { context: context2 } = await createMcpTestSetup();
+      const observation = createObservationEvent({
+        projectId: projectId1,
+        name: `mcp-get-isolation-${nanoid()}`,
+      });
+
+      await createEventsCh([observation]);
+
+      await expect(
+        handleGetObservation({ observationId: observation.id }, context2),
+      ).rejects.toThrow(/not found/i);
+    });
+  });
+
+  maybeEventsTable("getObservationFilterValues tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getObservationFilterValuesTool, {
+        readOnlyHint: true,
+      });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(
+          getObservationFilterValuesTool.name,
+          context,
+        ),
+      ).resolves.toBeDefined();
+    });
+
+    it("should return values for a dynamic filter column", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const uniqueModel = `mcp-model-${nanoid()}`;
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-values-${nanoid()}`,
+          providedModelName: uniqueModel,
+        }),
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-values-${nanoid()}`,
+          providedModelName: uniqueModel,
+        }),
+      ]);
+
+      const result = (await handleGetObservationFilterValues(
+        { column: "providedModelName", limit: 100 },
+        context,
+      )) as {
+        column: string;
+        values: Array<{ value: string; count?: number }>;
+        meta: Record<string, unknown>;
+      };
+
+      expect(result.column).toBe("providedModelName");
+      expect(result.values).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ value: uniqueModel, count: 2 }),
+        ]),
+      );
+      expect(result.meta).toBeDefined();
+    });
+
+    it("should map public tags column to traceTags option source", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const uniqueTag = `mcp-tag-${nanoid()}`;
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-tags-${nanoid()}`,
+          tags: [uniqueTag],
+        }),
+      ]);
+
+      const result = (await handleGetObservationFilterValues(
+        { column: "tags", limit: 100 },
+        context,
+      )) as { column: string; values: Array<{ value: string }> };
+
+      expect(result.column).toBe("tags");
+      expect(result.values).toEqual(
+        expect.arrayContaining([expect.objectContaining({ value: uniqueTag })]),
+      );
+    });
+
+    it("should return boolean values for hasParentObservation with counts", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-has-parent-${nanoid()}`,
+          parentObservationId: randomUUID(),
+        }),
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-root-${nanoid()}`,
+          parentObservationId: null,
+        }),
+      ]);
+
+      const result = (await handleGetObservationFilterValues(
+        { column: "hasParentObservation", limit: 100 },
+        context,
+      )) as {
+        column: string;
+        values: Array<{ value: boolean; count?: number }>;
+      };
+
+      expect(result.column).toBe("hasParentObservation");
+      expect(result.values).toEqual([
+        expect.objectContaining({ value: false, count: 1 }),
+        expect.objectContaining({ value: true, count: 1 }),
+      ]);
+    });
+
+    it("should return app-root-aware boolean values for isRootObservation with counts", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-root-parentless-${nanoid()}`,
+          parentObservationId: null,
+        }),
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-root-app-${nanoid()}`,
+          parentObservationId: randomUUID(),
+          isAppRoot: true,
+        }),
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-non-root-${nanoid()}`,
+          parentObservationId: randomUUID(),
+        }),
+      ]);
+
+      const result = (await handleGetObservationFilterValues(
+        { column: "isRootObservation", limit: 100 },
+        context,
+      )) as {
+        column: string;
+        values: Array<{ value: boolean; count?: number }>;
+      };
+
+      expect(result.column).toBe("isRootObservation");
+      expect(result.values).toEqual([
+        expect.objectContaining({ value: false, count: 1 }),
+        expect.objectContaining({ value: true, count: 2 }),
+      ]);
+    });
+
+    it("should preserve backend order and paginate filter values with an opaque cursor", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const topName = `mcp-filter-page-top-${nanoid()}`;
+      const nextName = `mcp-filter-page-next-${nanoid()}`;
+      const lastName = `mcp-filter-page-last-${nanoid()}`;
+
+      await createEventsCh([
+        createObservationEvent({ projectId, name: topName }),
+        createObservationEvent({ projectId, name: topName }),
+        createObservationEvent({ projectId, name: topName }),
+        createObservationEvent({ projectId, name: nextName }),
+        createObservationEvent({ projectId, name: nextName }),
+        createObservationEvent({ projectId, name: lastName }),
+      ]);
+
+      const firstPage = (await handleGetObservationFilterValues(
+        { column: "name", limit: 2 },
+        context,
+      )) as {
+        values: Array<{ value: string; count?: number }>;
+        meta: { cursor?: string };
+      };
+
+      expect(firstPage.values).toEqual([
+        { value: topName, count: 3 },
+        { value: nextName, count: 2 },
+      ]);
+      expect(firstPage.meta.cursor).toEqual(expect.any(String));
+
+      const secondPage = (await handleGetObservationFilterValues(
+        { column: "name", limit: 2, cursor: firstPage.meta.cursor },
+        context,
+      )) as {
+        values: Array<{ value: string; count?: number }>;
+      };
+
+      expect(secondPage.values).toEqual([{ value: lastName, count: 1 }]);
+    });
+
+    it("should reject invalid cursors and unavailable columns", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleGetObservationFilterValues(
+          { column: "name", limit: 100, cursor: "not-base64-json" },
+          context,
+        ),
+      ).rejects.toThrow(/invalid cursor format/i);
+
+      await expect(
+        handleGetObservationFilterValues(
+          { column: "input", limit: 100 } as any,
+          context,
+        ),
+      ).rejects.toThrow(/validation failed/i);
+    });
+  });
+
   describe("getPrompt tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getPromptTool, { readOnlyHint: true });
+    });
+
+    it("should not be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(getPromptTool.name, context),
+      ).resolves.toBeUndefined();
     });
 
     it("should fetch prompt by name only (defaults to production label)", async () => {
@@ -278,6 +1366,14 @@ describe("MCP Read Tools", () => {
   describe("listPrompts tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(listPromptsTool, { readOnlyHint: true });
+    });
+
+    it("should not be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(listPromptsTool.name, context),
+      ).resolves.toBeUndefined();
     });
 
     it("should list all prompts for project", async () => {
@@ -649,6 +1745,14 @@ describe("MCP Read Tools", () => {
   describe("getPromptUnresolved tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getPromptUnresolvedTool, { readOnlyHint: true });
+    });
+
+    it("should not be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(getPromptUnresolvedTool.name, context),
+      ).resolves.toBeUndefined();
     });
 
     it("should fetch prompt without resolving dependencies (by name only)", async () => {
