@@ -154,24 +154,24 @@ export const severityFromPrisma = (
   switch (s) {
     case PrismaMonitorSeverity.UNKNOWN:
       return "unknown";
+    case PrismaMonitorSeverity.NO_DATA:
+      return "no-data";
     case PrismaMonitorSeverity.OK:
       return "ok";
     case PrismaMonitorSeverity.WARNING:
       return "warning";
     case PrismaMonitorSeverity.ALERT:
       return "alert";
-    case PrismaMonitorSeverity.NO_DATA:
-      return "no-data";
   }
 };
 
 /** statusToPrisma converts the MonitorStatus api enum to the Prisma MonitorStatus enum. */
 export const statusToPrisma = (s: MonitorStatus): PrismaMonitorStatus => {
   switch (s) {
-    case "active":
-      return PrismaMonitorStatus.ACTIVE;
     case "paused":
       return PrismaMonitorStatus.PAUSED;
+    case "active":
+      return PrismaMonitorStatus.ACTIVE;
     case "error-bad-query":
       return PrismaMonitorStatus.ERROR_BAD_QUERY;
   }
@@ -180,10 +180,10 @@ export const statusToPrisma = (s: MonitorStatus): PrismaMonitorStatus => {
 /** statusFromPrisma converts the Prisma MonitorStatus enum to the MonitorStatus api enum. */
 export const statusFromPrisma = (s: PrismaMonitorStatus): MonitorStatus => {
   switch (s) {
-    case PrismaMonitorStatus.ACTIVE:
-      return "active";
     case PrismaMonitorStatus.PAUSED:
       return "paused";
+    case PrismaMonitorStatus.ACTIVE:
+      return "active";
     case PrismaMonitorStatus.ERROR_BAD_QUERY:
       return "error-bad-query";
   }

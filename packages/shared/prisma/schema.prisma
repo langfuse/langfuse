@@ -1597,16 +1597,16 @@ enum MonitorView {
 
 enum MonitorSeverity {
   UNKNOWN
+  NO_DATA
   OK
   WARNING
   ALERT
-  NO_DATA
 }
 
 // Scheduler evaluates only ACTIVE; any other state is skipped.
 enum MonitorStatus {
-  ACTIVE
   PAUSED
+  ACTIVE
   ERROR_BAD_QUERY
 }
 
@@ -1650,7 +1650,6 @@ model Monitor {
 
   // === Alerts ===
   name      String
-  message   String    @default("")
   tags      String[]  @default([])
   alertedAt DateTime? @map("alerted_at")
 

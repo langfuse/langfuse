@@ -23,10 +23,10 @@ export type MonitorFilters = z.infer<typeof MonitorFiltersSchema>;
  */
 export const MonitorSeveritySchema = z.enum([
   "unknown",
+  "no-data",
   "ok",
   "warning",
   "alert",
-  "no-data",
 ]);
 export type MonitorSeverity = z.infer<typeof MonitorSeveritySchema>;
 
@@ -35,8 +35,8 @@ export type MonitorSeverity = z.infer<typeof MonitorSeveritySchema>;
  * enum.
  */
 export const MonitorStatusSchema = z.enum([
-  "active",
   "paused",
+  "active",
   "error-bad-query",
 ]);
 export type MonitorStatus = z.infer<typeof MonitorStatusSchema>;
