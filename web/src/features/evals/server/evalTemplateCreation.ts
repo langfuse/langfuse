@@ -1,0 +1,137 @@
+import { z } from "zod";
+import {
+  compilePersistedEvalOutputDefinition,
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
+  PersistedEvalOutputDefinitionSchema,
+  ZodModelConfig,
+} from "@langfuse/shared";
+import {
+  CODE_EVAL_SOURCE_MAX_BYTES,
+  DefaultEvalModelService,
+  testModelCall,
+} from "@langfuse/shared/src/server";
+import { TRPCError } from "@trpc/server";
+import { assertUnreachable } from "@/src/utils/types";
+import { EvalReferencedEvaluators } from "@/src/features/evals/types";
+import { isCodeEvalEnabled } from "@/src/features/evals/server/isCodeEvalEnabled";
+
+export const CODE_EVAL_TEMPLATE_VARIABLES = [
+  "input",
+  "output",
+  "observationMetadata",
+  "experimentItemExpectedOutput",
+  "experimentItemMetadata",
+] as const;
+
+const CreateEvalTemplateBaseInputSchema = z.object({
+  name: z.string().min(1),
+  projectId: z.string(),
+  cloneSourceId: z.string().optional(),
+  referencedEvaluators: z
+    .enum(EvalReferencedEvaluators)
+    .optional()
+    .default(EvalReferencedEvaluators.PERSIST),
+});
+
+const CreateLlmAsJudgeEvalTemplateInputSchema =
+  CreateEvalTemplateBaseInputSchema.extend({
+    type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
+    prompt: z.string(),
+    provider: z.string().nullish(),
+    model: z.string().nullish(),
+    modelParams: ZodModelConfig.nullish(),
+    vars: z.array(z.string()),
+    outputDefinition: PersistedEvalOutputDefinitionSchema,
+  });
+
+const CreateCodeEvalTemplateInputSchema =
+  CreateEvalTemplateBaseInputSchema.extend({
+    type: z.literal(EvalTemplateType.CODE),
+    sourceCode: z
+      .string()
+      .min(1)
+      .refine(
+        (sourceCode) =>
+          Buffer.byteLength(sourceCode, "utf8") <= CODE_EVAL_SOURCE_MAX_BYTES,
+        {
+          message: `Source code must be ${CODE_EVAL_SOURCE_MAX_BYTES} bytes or less`,
+        },
+      ),
+    sourceCodeLanguage: z.literal(EvalTemplateSourceCodeLanguage.TYPESCRIPT),
+  });
+
+// Use preprocess to default type to LLM_AS_JUDGE for backwards compatibility
+export const CreateEvalTemplateInputSchema = z.preprocess(
+  (data) => {
+    if (typeof data === "object" && data !== null && !("type" in data)) {
+      return { ...data, type: EvalTemplateType.LLM_AS_JUDGE };
+    }
+    return data;
+  },
+  z.discriminatedUnion("type", [
+    CreateLlmAsJudgeEvalTemplateInputSchema,
+    CreateCodeEvalTemplateInputSchema,
+  ]),
+);
+
+type CreateEvalTemplateInput = z.infer<typeof CreateEvalTemplateInputSchema>;
+type CreateLlmAsJudgeEvalTemplateInput = z.infer<
+  typeof CreateLlmAsJudgeEvalTemplateInputSchema
+>;
+
+async function validateLlmAsJudgeTemplateModel(
+  input: CreateLlmAsJudgeEvalTemplateInput,
+) {
+  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+    input.projectId,
+    input.provider ?? undefined,
+    input.model ?? undefined,
+    input.modelParams,
+  );
+
+  if (!modelConfig.valid) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "No valid llm model found for this project",
+    });
+  }
+
+  try {
+    await testModelCall({
+      provider: modelConfig.config.provider,
+      model: modelConfig.config.model,
+      apiKey: modelConfig.config.apiKey,
+      modelConfig: input.modelParams,
+      structuredOutputSchema: compilePersistedEvalOutputDefinition(
+        input.outputDefinition,
+      ).outputResultSchema,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `Model configuration not valid for evaluation. ${message}`,
+    });
+  }
+}
+
+export async function validateEvalTemplateCreation(
+  input: CreateEvalTemplateInput,
+) {
+  switch (input.type) {
+    case EvalTemplateType.LLM_AS_JUDGE:
+      await validateLlmAsJudgeTemplateModel(input);
+      return;
+    case EvalTemplateType.CODE:
+      if (!isCodeEvalEnabled()) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Code evals are not enabled",
+        });
+      }
+      return;
+    default:
+      assertUnreachable(input);
+  }
+}

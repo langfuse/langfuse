@@ -7,9 +7,6 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
-  ZodModelConfig,
-  PersistedEvalOutputDefinitionSchema,
-  compilePersistedEvalOutputDefinition,
   deriveEvaluatorDisplayStateFromExecutionCounts,
   type OrderByState,
   singleFilter,
@@ -29,6 +26,7 @@ import {
   EvalTargetObjectSchema,
   validateEvaluatorFiltersForTarget,
   InvalidRequestError,
+  EvalTemplateType,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -41,15 +39,13 @@ import {
   QueueJobs,
   tableColumnsToSqlFilterAndPrefix,
   orderByToPrismaSql,
-  DefaultEvalModelService,
-  testModelCall,
   invalidateProjectEvalConfigCaches,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
 import { EvaluatorStatus } from "../types";
 import { traceException } from "@langfuse/shared/src/server";
-import { isNotNullOrUndefined } from "@/src/utils/types";
+import { assertUnreachable, isNotNullOrUndefined } from "@/src/utils/types";
 import { v4 as uuidv4 } from "uuid";
 import { env } from "@/src/env.mjs";
 import { type JobExecution, type PrismaClient } from "@prisma/client";
@@ -69,6 +65,12 @@ import {
 } from "@/src/features/evals/server/audit-log-resource-types";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import { runCodeEvalTest } from "@/src/features/evals/server/codeEvalTestRun";
+import {
+  CODE_EVAL_TEMPLATE_VARIABLES,
+  CreateEvalTemplateInputSchema,
+  validateEvalTemplateCreation,
+} from "@/src/features/evals/server/evalTemplateCreation";
+export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
 
 // Filter columns that used to be backed by the Postgres `traces` and
 // `scores` JOINs.  Those tables now live in ClickHouse, so the eval logs
@@ -139,22 +141,6 @@ const filterAndValidateDbEvaluatorList = (
     }
     return acc;
   }, [] as EvalJobConfigWithTemplate[]);
-
-export const CreateEvalTemplateInputSchema = z.object({
-  name: z.string().min(1),
-  projectId: z.string(),
-  prompt: z.string(),
-  provider: z.string().nullish(),
-  model: z.string().nullish(),
-  modelParams: ZodModelConfig.nullish(),
-  vars: z.array(z.string()),
-  outputDefinition: PersistedEvalOutputDefinitionSchema,
-  cloneSourceId: z.string().optional(),
-  referencedEvaluators: z
-    .enum(EvalReferencedEvaluators)
-    .optional()
-    .default(EvalReferencedEvaluators.PERSIST),
-});
 
 const CreateEvalJobSchema = z.object({
   projectId: z.string(),
@@ -898,38 +884,7 @@ export const evalRouter = createTRPCRouter({
         scope: "evalTemplate:CUD",
       });
 
-      const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
-        input.projectId,
-        input.provider ?? undefined,
-        input.model ?? undefined,
-        input.modelParams,
-      );
-
-      if (!modelConfig.valid) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "No valid llm model found for this project",
-        });
-      }
-
-      try {
-        // Make a test structured output call to validate the LLM key
-        await testModelCall({
-          provider: modelConfig.config.provider,
-          model: modelConfig.config.model,
-          apiKey: modelConfig.config.apiKey,
-          modelConfig: input.modelParams,
-          structuredOutputSchema: compilePersistedEvalOutputDefinition(
-            input.outputDefinition,
-          ).outputResultSchema,
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: `Model configuration not valid for evaluation. ${message}`,
-        });
-      }
+      await validateEvalTemplateCreation(input);
 
       /**
        * CREATION OF PROJECT-LEVEL TEMPLATE
@@ -962,23 +917,51 @@ export const evalRouter = createTRPCRouter({
         const latestTemplate = Boolean(templates.length)
           ? templates[0]
           : undefined;
+        const baseTemplateData = {
+          version: (latestTemplate?.version ?? 0) + 1,
+          name: input.name,
+          projectId: input.projectId,
+        };
 
         // Create a new project-level template either by cloning a langfuse managed template or by creating a new project-level template
-        const evalTemplate = await tx.evalTemplate.create({
-          data: {
-            version: (latestTemplate?.version ?? 0) + 1,
-            name: input.name,
-            projectId: input.projectId,
-            prompt: input.prompt,
-            // if using default model, leave model, provider and modelParams empty
-            // otherwise we will not pull the most recent default evaluation model
-            provider: input.provider,
-            model: input.model,
-            modelParams: input.modelParams ?? undefined,
-            vars: input.vars,
-            outputDefinition: input.outputDefinition,
-          },
-        });
+        const evalTemplate = await (async () => {
+          switch (input.type) {
+            case EvalTemplateType.CODE:
+              return tx.evalTemplate.create({
+                data: {
+                  ...baseTemplateData,
+                  type: EvalTemplateType.CODE,
+                  prompt: null,
+                  provider: null,
+                  model: null,
+                  modelParams: undefined,
+                  vars: [...CODE_EVAL_TEMPLATE_VARIABLES],
+                  outputDefinition: undefined,
+                  sourceCode: input.sourceCode,
+                  sourceCodeLanguage: input.sourceCodeLanguage,
+                },
+              });
+            case EvalTemplateType.LLM_AS_JUDGE:
+              return tx.evalTemplate.create({
+                data: {
+                  ...baseTemplateData,
+                  type: EvalTemplateType.LLM_AS_JUDGE,
+                  prompt: input.prompt,
+                  // if using default model, leave model, provider and modelParams empty
+                  // otherwise we will not pull the most recent default evaluation model
+                  provider: input.provider,
+                  model: input.model,
+                  modelParams: input.modelParams ?? undefined,
+                  vars: input.vars,
+                  outputDefinition: input.outputDefinition,
+                  sourceCode: null,
+                  sourceCodeLanguage: null,
+                },
+              });
+            default:
+              return assertUnreachable(input);
+          }
+        })();
 
         /**
          * END OF CREATION OF PROJECT-LEVEL TEMPLATE

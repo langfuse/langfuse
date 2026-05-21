@@ -28,6 +28,7 @@ import {
   extractVariables,
   getIsCharOrUnderscore,
   resolvePersistedEvalOutputDefinition,
+  EvalTemplateType,
 } from "@langfuse/shared";
 import router from "next/router";
 import { type EvalTemplate } from "@langfuse/shared";
@@ -64,8 +65,6 @@ import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEn
 
 type PartialEvalTemplate = Partial<EvalTemplate> &
   Pick<EvalTemplate, "name" | "prompt" | "vars" | "outputDefinition">;
-
-type EvalTemplateType = "llm-as-judge" | "typescript";
 
 export const EvalTemplateForm = (props: {
   projectId: string;
@@ -130,9 +129,9 @@ const categoricalOptionSchema = z.object({
 const formSchema = z
   .object({
     name: z.string().min(1, "Enter a name"),
-    evalTemplateType: z
-      .enum(["llm-as-judge", "typescript"])
-      .default("llm-as-judge"),
+    type: z
+      .enum([EvalTemplateType.LLM_AS_JUDGE, EvalTemplateType.CODE])
+      .default(EvalTemplateType.LLM_AS_JUDGE),
     prompt: z
       .string()
       .min(1, "Enter a prompt")
@@ -298,7 +297,7 @@ export const InnerEvalTemplateForm = (props: {
     defaultValues: {
       name:
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
-      evalTemplateType: "llm-as-judge" as EvalTemplateType,
+      type: EvalTemplateType.LLM_AS_JUDGE,
       prompt: props.preFilledFormValues?.prompt ?? undefined,
       variables: props.preFilledFormValues?.vars ?? [],
       scoreDataType: outputDefinitionFormValues.scoreDataType,
@@ -322,9 +321,9 @@ export const InnerEvalTemplateForm = (props: {
   });
 
   const useDefaultModel = form.watch("shouldUseDefaultModel");
-  const evalTemplateType = form.watch("evalTemplateType");
+  const evalTemplateType = form.watch("type");
   const showTypeScriptTemplatePlaceholder =
-    showEvalTemplateTypeSelector && evalTemplateType === "typescript";
+    showEvalTemplateTypeSelector && evalTemplateType === EvalTemplateType.CODE;
   const scoreDataType = form.watch("scoreDataType");
   const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
   const isBooleanOutput = scoreDataType === ScoreDataTypeEnum.BOOLEAN;
@@ -417,6 +416,11 @@ export const InnerEvalTemplateForm = (props: {
         : "eval_templates:new_form_submit",
     );
 
+    if (values.type === EvalTemplateType.CODE) {
+      setFormError("Code evaluator template creation is not available yet.");
+      return;
+    }
+
     const outputDefinition =
       values.scoreDataType === ScoreDataTypeEnum.CATEGORICAL
         ? createCategoricalEvalOutputDefinition({
@@ -436,6 +440,7 @@ export const InnerEvalTemplateForm = (props: {
             });
 
     const evalTemplate = {
+      type: values.type,
       name: values.name,
       projectId: props.projectId,
       prompt: values.prompt,
@@ -869,17 +874,23 @@ export const InnerEvalTemplateForm = (props: {
       {showEvalTemplateTypeSelector ? (
         <FormField
           control={form.control}
-          name="evalTemplateType"
+          name="type"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Type</FormLabel>
               <FormControl>
                 <Tabs value={field.value} onValueChange={field.onChange}>
                   <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
-                    <TabsTrigger value="llm-as-judge" className="min-w-[100px]">
+                    <TabsTrigger
+                      value={EvalTemplateType.LLM_AS_JUDGE}
+                      className="min-w-[100px]"
+                    >
                       LLM-as-judge
                     </TabsTrigger>
-                    <TabsTrigger value="typescript" className="min-w-[100px]">
+                    <TabsTrigger
+                      value={EvalTemplateType.CODE}
+                      className="min-w-[100px]"
+                    >
                       TypeScript
                     </TabsTrigger>
                   </TabsList>
