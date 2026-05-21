@@ -8,10 +8,6 @@ vi.mock("@/src/features/audit-logs/auditLog", () => ({
 
 import { Role } from "@langfuse/shared/src/db";
 import {
-  buildStarterProjectMetadata,
-  type StarterProjectMetadata,
-} from "@/src/features/onboarding/lib/starterProjectMetadata";
-import {
   provisionStarterOrganizationForNewUser,
   resolveOnboardingRedirectTarget,
   type RealOrganizationMembership,
@@ -26,7 +22,6 @@ const makeMembership = ({
   role?: Role;
   projects: Array<{
     id: string;
-    metadata?: Record<string, unknown> | StarterProjectMetadata;
   }>;
 }) =>
   ({
@@ -41,40 +36,16 @@ const makeMembership = ({
 describe("resolveOnboardingRedirectTarget", () => {
   it("routes existing readable projects through project home", () => {
     const result = resolveOnboardingRedirectTarget({
-      userId: "user-1",
       organizationMemberships: [
         makeMembership({
           orgId: "org-1",
-          projects: [{ id: "project-1", metadata: {} }],
+          projects: [{ id: "project-1" }],
         }),
       ],
     });
 
     expect(result).toEqual({
       redirectTo: "/project/project-1",
-    });
-  });
-
-  it("routes onboarding starter projects directly to traces", () => {
-    const result = resolveOnboardingRedirectTarget({
-      userId: "user-1",
-      organizationMemberships: [
-        makeMembership({
-          orgId: "org-1",
-          projects: [
-            {
-              id: "project-1",
-              metadata: buildStarterProjectMetadata({
-                userId: "user-1",
-              }),
-            },
-          ],
-        }),
-      ],
-    });
-
-    expect(result).toEqual({
-      redirectTo: "/project/project-1/traces",
     });
   });
 });
@@ -114,7 +85,6 @@ describe("provisionStarterOrganizationForNewUser", () => {
       prisma,
       userId: "user-1",
       userName: "Taylor",
-      canCreateOrganizations: true,
     });
 
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
@@ -154,7 +124,6 @@ describe("provisionStarterOrganizationForNewUser", () => {
     const result = await provisionStarterOrganizationForNewUser({
       prisma,
       userId: "user-1",
-      canCreateOrganizations: true,
     });
 
     expect(result).toBeNull();

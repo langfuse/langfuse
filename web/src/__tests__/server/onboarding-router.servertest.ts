@@ -1,13 +1,10 @@
 import type { Session } from "next-auth";
 import { randomUUID } from "crypto";
+import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
-import {
-  ONBOARDING_STARTER_PROJECT_METADATA_KEY,
-  buildStarterProjectMetadata,
-} from "@/src/features/onboarding/lib/starterProjectMetadata";
 import { prisma, Role } from "@langfuse/shared/src/db";
 
 const makeSession = ({
@@ -99,8 +96,6 @@ describe("onboarding router", () => {
 
     const result = await caller.onboarding.complete();
 
-    expect(result.redirectTo).toMatch(/^\/project\/.+\/traces$/);
-
     const organizationMembership =
       await prisma.organizationMembership.findFirst({
         where: {
@@ -119,22 +114,17 @@ describe("onboarding router", () => {
     if (organizationMembership) {
       createdOrgIds.push(organizationMembership.organization.id);
     }
+    const starterProjectId =
+      organizationMembership?.organization.projects[0]?.id;
+    expect(starterProjectId).toBeTruthy();
+    expect(result).toEqual({
+      redirectTo: `/project/${starterProjectId}`,
+    });
     expect(organizationMembership?.role).toBe(Role.OWNER);
     expect(organizationMembership?.organization.projects).toHaveLength(1);
     expect(organizationMembership?.organization.projects[0]?.name).toBe(
       "My Project",
     );
-    expect(
-      (
-        organizationMembership?.organization.projects[0]?.metadata as Record<
-          string,
-          unknown
-        >
-      )[ONBOARDING_STARTER_PROJECT_METADATA_KEY],
-    ).toMatchObject({
-      createdByUserId: userId,
-      showInviteMembersPrompt: true,
-    });
   });
 
   it("falls back to manual org creation when no real org exists", async () => {
@@ -229,6 +219,88 @@ describe("onboarding router", () => {
     expect(projectCount).toBe(1);
   });
 
+  it("does not create starter resources when signup consumes a real invitation", async () => {
+    const userId = randomUUID();
+    const email = `invited-${userId}@example.com`;
+    createdUserIds.push(userId);
+
+    const user = await prisma.user.create({
+      data: {
+        id: userId,
+        email,
+      },
+    });
+
+    const organization = await prisma.organization.create({
+      data: {
+        name: `Invited Org ${userId}`,
+      },
+    });
+    createdOrgIds.push(organization.id);
+
+    const project = await prisma.project.create({
+      data: {
+        name: `Invited Project ${userId}`,
+        orgId: organization.id,
+      },
+    });
+
+    await prisma.membershipInvitation.create({
+      data: {
+        orgId: organization.id,
+        projectId: project.id,
+        email,
+        orgRole: Role.NONE,
+        projectRole: Role.MEMBER,
+      },
+    });
+
+    await createProjectMembershipsOnSignup(user, {
+      userWasJustCreated: true,
+    });
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession({
+          userId,
+          email,
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    const result = await caller.onboarding.complete();
+
+    expect(result).toEqual({
+      redirectTo: `/project/${project.id}`,
+    });
+
+    const organizationMemberships =
+      await prisma.organizationMembership.findMany({
+        where: {
+          userId,
+        },
+        select: {
+          orgId: true,
+        },
+      });
+
+    const realOrganizationIds = organizationMemberships
+      .map((membership) => membership.orgId)
+      .filter((orgId) => orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID);
+
+    expect(realOrganizationIds).toEqual([organization.id]);
+
+    const invitationCount = await prisma.membershipInvitation.count({
+      where: {
+        email,
+      },
+    });
+
+    expect(invitationCount).toBe(0);
+  });
+
   it("falls back to manual project creation when a real org exists without a project", async () => {
     const userId = randomUUID();
     const email = `org-only-${userId}@example.com`;
@@ -269,93 +341,6 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: createProjectRoute(organization.id),
-    });
-  });
-
-  it("clears the starter-project invite prompt after it is consumed", async () => {
-    const userId = randomUUID();
-    const email = `consume-${userId}@example.com`;
-    createdUserIds.push(userId);
-
-    await prisma.user.create({
-      data: {
-        id: userId,
-        email,
-      },
-    });
-
-    const organization = await prisma.organization.create({
-      data: {
-        name: `Prompt Org ${userId}`,
-      },
-    });
-    createdOrgIds.push(organization.id);
-
-    const project = await prisma.project.create({
-      data: {
-        name: `Prompt Project ${userId}`,
-        orgId: organization.id,
-        metadata: buildStarterProjectMetadata({
-          userId,
-        }),
-      },
-    });
-
-    const caller = appRouter.createCaller({
-      ...createInnerTRPCContext({
-        session: makeSession({
-          userId,
-          email,
-          organizations: [
-            {
-              id: organization.id,
-              name: organization.name,
-              role: Role.OWNER,
-              plan: "cloud:hobby",
-              cloudConfig: undefined,
-              metadata: {},
-              aiFeaturesEnabled: false,
-              projects: [
-                {
-                  id: project.id,
-                  name: project.name,
-                  deletedAt: null,
-                  retentionDays: null,
-                  hasTraces: false,
-                  metadata: (project.metadata as Record<string, unknown>) ?? {},
-                  role: Role.OWNER,
-                },
-              ],
-            },
-          ],
-        }),
-        headers: {},
-      }),
-      prisma,
-    });
-
-    const result = await caller.onboarding.consumeStarterProjectInvitePrompt({
-      projectId: project.id,
-    });
-
-    expect(result.updated).toBe(true);
-
-    const updatedProject = await prisma.project.findUniqueOrThrow({
-      where: {
-        id: project.id,
-      },
-      select: {
-        metadata: true,
-      },
-    });
-
-    expect(
-      (updatedProject.metadata as Record<string, unknown>)[
-        ONBOARDING_STARTER_PROJECT_METADATA_KEY
-      ],
-    ).toMatchObject({
-      createdByUserId: userId,
-      showInviteMembersPrompt: false,
     });
   });
 });

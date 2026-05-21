@@ -3,10 +3,6 @@ import { resolveProjectRole } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
-  buildStarterProjectMetadata,
-  shouldShowStarterProjectInvitePrompt,
-} from "@/src/features/onboarding/lib/starterProjectMetadata";
-import {
   organizationRoleAccessRights,
   type OrganizationScope,
 } from "@/src/features/rbac/constants/organizationAccessRights";
@@ -83,16 +79,13 @@ export const getRealOrganizationMemberships = async ({
 
 export const resolveOnboardingRedirectTarget = ({
   organizationMemberships,
-  userId,
 }: {
   organizationMemberships: RealOrganizationMembership[];
-  userId: string;
 }): OnboardingRedirectTarget | null => {
   const accessibleProjects = organizationMemberships.flatMap((membership) =>
     membership.organization.projects
       .map((project) => ({
         projectId: project.id,
-        metadata: project.metadata,
         role: resolveProjectRole({
           projectId: project.id,
           projectMemberships: membership.ProjectMemberships,
@@ -103,19 +96,6 @@ export const resolveOnboardingRedirectTarget = ({
         projectRoleAccessRights[project.role].includes("project:read"),
       ),
   );
-
-  const starterProject = accessibleProjects.find((project) =>
-    shouldShowStarterProjectInvitePrompt({
-      metadata: project.metadata,
-      userId,
-    }),
-  );
-
-  if (starterProject) {
-    return {
-      redirectTo: `/project/${starterProject.projectId}/traces`,
-    };
-  }
 
   const firstProject = accessibleProjects[0];
 
@@ -152,17 +132,11 @@ export const provisionStarterOrganizationForNewUser = async ({
   prisma,
   userId,
   userName,
-  canCreateOrganizations,
 }: {
   prisma: PrismaClient;
   userId: string;
   userName?: string | null;
-  canCreateOrganizations: boolean;
 }) => {
-  if (!canCreateOrganizations) {
-    return null;
-  }
-
   const createdResources = await prisma.$transaction(async (tx) => {
     // Serialize starter provisioning per user so concurrent first-login flows
     // cannot both observe "no real orgs yet" and create duplicate starters.
@@ -198,9 +172,6 @@ export const provisionStarterOrganizationForNewUser = async ({
       data: {
         name: DEFAULT_STARTER_PROJECT_NAME,
         orgId: organization.id,
-        metadata: buildStarterProjectMetadata({
-          userId,
-        }),
       },
     });
 

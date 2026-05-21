@@ -157,14 +157,20 @@ export async function createProjectMembershipsOnSignup(
     }
 
     // Invites do not work for users without emails (some future SSO users)
-    if (user.email) await processMembershipInvitations(user.email, user.id);
+    const joinedRealOrganizationViaInvitation = user.email
+      ? await processMembershipInvitations(user.email, user.id)
+      : false;
 
-    if (isCloudDeployment && (options?.userWasJustCreated || isNewUser)) {
+    if (
+      isCloudDeployment &&
+      !joinedRealOrganizationViaInvitation &&
+      canCreateOrganizations(user.email) &&
+      (options?.userWasJustCreated || isNewUser)
+    ) {
       await provisionStarterOrganizationForNewUser({
         prisma,
         userId: user.id,
         userName: user.name,
-        canCreateOrganizations: canCreateOrganizations(user.email),
       });
 
       const userRolloutState = await prisma.user.findUnique({
@@ -254,7 +260,11 @@ async function processMembershipInvitations(email: string, userId: string) {
       email: email.toLowerCase(),
     },
   });
-  if (invitationsForUser.length === 0) return;
+  if (invitationsForUser.length === 0) return false;
+
+  const joinedRealOrganizationViaInvitation = invitationsForUser.some(
+    (invitation) => invitation.orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID,
+  );
 
   // Map to individual payloads instead of using createMany as we can thereby use nested writes for ProjectMemberships
   const createOrgMembershipData = invitationsForUser.map((invitation) => ({
@@ -289,4 +299,6 @@ async function processMembershipInvitations(email: string, userId: string) {
       },
     }),
   ]);
+
+  return joinedRealOrganizationViaInvitation;
 }
