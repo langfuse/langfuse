@@ -74,13 +74,14 @@ clickhouse client \
 
 -- The observations_batch_staging definition has been promoted to production
 -- CH migrations:
---   packages/shared/clickhouse/migrations/{clustered,unclustered}/0037_add_observations_batch_staging_table.up.sql
+--   packages/shared/clickhouse/migrations/{clustered,unclustered}/0038_add_observations_batch_staging_table.up.sql
 -- Do not duplicate the DDL here.
 
 -- The events_full + events_core + events_core_mv definitions have been promoted
 -- to production CH migrations:
 --   packages/shared/clickhouse/migrations/{clustered,unclustered}/0035_add_events_full_table.up.sql
 --   packages/shared/clickhouse/migrations/{clustered,unclustered}/0036_add_events_core_table.up.sql
+--   packages/shared/clickhouse/migrations/{clustered,unclustered}/0037_add_events_core_mv.up.sql
 -- Do not duplicate the DDL here.
 
 -- Diagnostic table to track event size distributions across projects.

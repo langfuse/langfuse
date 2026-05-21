@@ -1,4 +1,4 @@
-CREATE TABLE events_full
+CREATE TABLE IF NOT EXISTS events_full
 (
     project_id String,
     trace_id String,

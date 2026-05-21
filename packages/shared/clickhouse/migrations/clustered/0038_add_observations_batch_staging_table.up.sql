@@ -11,7 +11,7 @@
 -- partitions are dropped, never individual rows.
 --
 -- See LFE-7122 for the original design notes.
-CREATE TABLE observations_batch_staging ON CLUSTER default
+CREATE TABLE IF NOT EXISTS observations_batch_staging ON CLUSTER default
 (
     id String,
     trace_id String,
