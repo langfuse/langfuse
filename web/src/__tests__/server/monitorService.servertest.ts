@@ -185,19 +185,20 @@ describe("MonitorService (integration)", () => {
         projectId,
         id: created.id,
       });
-      expect(fetched?.id).toBe(created.id);
+      expect(fetched.id).toBe(created.id);
     });
 
-    it("returns null when fetching from a different project", async () => {
+    it("throws LangfuseNotFoundError when fetching from a different project", async () => {
       const created = await MonitorService.create(
         creator,
         baseMonitorInput(projectId),
       );
-      const fetched = await MonitorService.getById(creator, {
-        projectId: "other_project",
-        id: created.id,
-      });
-      expect(fetched).toBeNull();
+      await expect(
+        MonitorService.getById(creator, {
+          projectId: "other_project",
+          id: created.id,
+        }),
+      ).rejects.toBeInstanceOf(LangfuseNotFoundError);
     });
 
     it("paginates list results", async () => {
@@ -217,17 +218,15 @@ describe("MonitorService (integration)", () => {
       expect(page.monitors).toHaveLength(2);
     });
 
-    it("deletes a monitor", async () => {
+    it("deletes a monitor and getById then throws LangfuseNotFoundError", async () => {
       const created = await MonitorService.create(
         creator,
         baseMonitorInput(projectId),
       );
       await MonitorService.delete(creator, { projectId, id: created.id });
-      const fetched = await MonitorService.getById(creator, {
-        projectId,
-        id: created.id,
-      });
-      expect(fetched).toBeNull();
+      await expect(
+        MonitorService.getById(creator, { projectId, id: created.id }),
+      ).rejects.toBeInstanceOf(LangfuseNotFoundError);
     });
 
     it.each(["name", "status", "severity", "createdAt", "updatedAt"] as const)(

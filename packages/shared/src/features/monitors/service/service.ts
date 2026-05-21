@@ -22,6 +22,7 @@ import {
   type DeleteMonitor,
   type GetMonitorById,
   type ListMonitors,
+  MonitorNotFoundError,
   type SessionContext,
   type UpdateMonitor,
 } from "./types";
@@ -136,11 +137,14 @@ export class MonitorService {
   public static async getById(
     _session: SessionContext,
     input: GetMonitorById,
-  ): Promise<Monitor | null> {
+  ): Promise<Monitor> {
     const monitor = await prisma.monitor.findFirst({
       where: { id: input.id, projectId: input.projectId },
     });
-    return monitor ? monitorFromPrisma(monitor) : null;
+    if (!monitor) {
+      throw new MonitorNotFoundError(input.id, input.projectId);
+    }
+    return monitorFromPrisma(monitor);
   }
 
   public static async list(

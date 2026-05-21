@@ -12,7 +12,7 @@ import {
   Prisma,
 } from "@prisma/client";
 
-import { InvalidRequestError, LangfuseNotFoundError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors";
 
 import { DAY, HOUR, MINUTE, WEEK } from "../helpers";
 import {
@@ -26,7 +26,7 @@ import {
   MonitorSchema,
 } from "../types";
 
-import { type MonitorListOrderBy } from "./types";
+import { MonitorNotFoundError, type MonitorListOrderBy } from "./types";
 
 /** nullableOrderColumns is the list of sortable columns that are nullable. */
 export const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
@@ -310,16 +310,14 @@ export const monitorFromPrisma = (monitor: PrismaMonitor): Monitor =>
 export const decimalToPrisma = (n: number | null): Prisma.Decimal | null =>
   n == null ? null : new Prisma.Decimal(n);
 
-/** errorFromPrisma converts a Prisma row-not-found error to LangfuseNotFoundError. */
+/** errorFromPrisma converts a Prisma row-not-found error to MonitorNotFoundError. */
 export const errorFromPrisma = (
   id: string,
   projectId: string,
   e: unknown,
 ): Error => {
   if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
-    return new LangfuseNotFoundError(
-      `Monitor ${id} not found in project ${projectId}`,
-    );
+    return new MonitorNotFoundError(id, projectId);
   }
   return e as Error;
 };

@@ -1,4 +1,3 @@
-import { TRPCError } from "@trpc/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -14,7 +13,6 @@ import {
   type SessionContext,
   UpdateMonitorSchema,
 } from "@langfuse/shared/src/server";
-import { InvalidRequestError } from "@langfuse/shared";
 
 /** monitorsProcedure protects every monitors route behind the `monitors` flag. */
 const monitorsProcedure = protectedProjectProcedure.use(
@@ -25,14 +23,6 @@ const monitorsProcedure = protectedProjectProcedure.use(
 const sessionContextFromCtx = (ctx: {
   session: { user: { id: string } };
 }): SessionContext => ({ userId: ctx.session.user.id });
-
-/** trpcErrorFromServiceError translates a MonitorService error into a TRPCError. */
-const trpcErrorFromServiceError = (e: unknown): never => {
-  if (e instanceof InvalidRequestError) {
-    throw new TRPCError({ code: "NOT_FOUND", message: e.message });
-  }
-  throw e;
-};
 
 export const monitorsRouter = createTRPCRouter({
   create: monitorsProcedure
@@ -54,11 +44,7 @@ export const monitorsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "monitors:CUD",
       });
-      try {
-        return await MonitorService.update(sessionContextFromCtx(ctx), input);
-      } catch (e) {
-        return trpcErrorFromServiceError(e);
-      }
+      return MonitorService.update(sessionContextFromCtx(ctx), input);
     }),
 
   delete: monitorsProcedure
@@ -69,12 +55,8 @@ export const monitorsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "monitors:CUD",
       });
-      try {
-        await MonitorService.delete(sessionContextFromCtx(ctx), input);
-        return { success: true as const };
-      } catch (e) {
-        return trpcErrorFromServiceError(e);
-      }
+      await MonitorService.delete(sessionContextFromCtx(ctx), input);
+      return { success: true as const };
     }),
 
   get: monitorsProcedure
@@ -85,17 +67,7 @@ export const monitorsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "monitors:read",
       });
-      const monitor = await MonitorService.getById(
-        sessionContextFromCtx(ctx),
-        input,
-      );
-      if (!monitor) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Monitor not found",
-        });
-      }
-      return monitor;
+      return MonitorService.getById(sessionContextFromCtx(ctx), input);
     }),
 
   all: monitorsProcedure

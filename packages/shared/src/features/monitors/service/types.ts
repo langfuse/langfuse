@@ -1,6 +1,7 @@
-/** service/types.ts contains the DTO schemas and types for the MonitorService. */
+/** service/types.ts contains the DTOs, schemas, and errors for the MonitorService. */
 import { z } from "zod";
 
+import { LangfuseNotFoundError } from "../../../errors";
 import { paginationZod } from "../../../utils/zod";
 
 import {
@@ -9,6 +10,13 @@ import {
   validateQuery,
   validateThresholdOrder,
 } from "../types";
+
+/** MonitorNotFoundError is thrown when a monitor row doesn't exist in the project. */
+export class MonitorNotFoundError extends LangfuseNotFoundError {
+  constructor(monitorId: string, projectId: string) {
+    super(`Monitor ${monitorId} not found in project ${projectId}`);
+  }
+}
 
 /** SessionContext identifies the authenticated caller. */
 export const SessionContextSchema = z.object({
