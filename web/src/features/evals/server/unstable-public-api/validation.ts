@@ -73,7 +73,13 @@ const SUPPORTED_FILTER_COLUMNS_BY_TARGET = {
 
 const SUPPORTED_MAPPING_SOURCES_BY_TARGET = {
   observation: new Set(["input", "output", "metadata"]),
-  experiment: new Set(["input", "output", "metadata", "expected_output"]),
+  experiment: new Set([
+    "input",
+    "output",
+    "metadata",
+    "expected_output",
+    "experiment_item_metadata",
+  ]),
 } as const satisfies Record<PublicEvaluationRuleTargetType, Set<string>>;
 
 export function validateEvaluationRuleFilters(params: {

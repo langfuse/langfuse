@@ -189,4 +189,16 @@ describe("EventsQueryBuilder", () => {
       },
     );
   });
+
+  it("should include experiment item metadata in eval field set", () => {
+    const query = new EventsQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("eval")
+      .buildWithParams().query;
+
+    expect(query).toContain(
+      "mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) as experiment_item_metadata",
+    );
+  });
 });
