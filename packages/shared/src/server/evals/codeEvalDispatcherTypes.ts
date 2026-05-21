@@ -12,7 +12,6 @@ export type CodeEvalScope = {
   organizationId: string;
   projectId: string;
   evaluatorId: string;
-  environment: string;
 };
 
 export type CodeEvalPayload = {

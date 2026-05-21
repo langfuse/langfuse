@@ -21,7 +21,6 @@ import {
 } from "./codeEvalDispatcherTypes";
 import type { ExtractedVariable } from "./extractObservationVariables";
 
-const CODE_EVAL_SCOPE_ENVIRONMENT = "code-based-eval";
 const INTERNAL_CODE_EVAL_ERROR_MESSAGE = "An internal error occurred";
 
 const INTERNAL_CODE_EVAL_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
@@ -168,7 +167,6 @@ export async function runCodeBasedEvaluationDispatch(params: {
         organizationId: params.organizationId,
         projectId: params.projectId,
         evaluatorId: params.template.id,
-        environment: CODE_EVAL_SCOPE_ENVIRONMENT,
       },
       runtime: { language: params.template.sourceCodeLanguage },
       execution: { jobExecutionId: params.jobExecutionId },

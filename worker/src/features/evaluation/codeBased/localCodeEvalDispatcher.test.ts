@@ -11,7 +11,6 @@ const baseInput: Omit<DispatchInput, "runtime" | "code"> = {
     organizationId: "org-1",
     projectId: "project-1",
     evaluatorId: "evaluator-1",
-    environment: "default",
   },
   execution: {
     jobExecutionId: "job-1",
