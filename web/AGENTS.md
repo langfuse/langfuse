@@ -157,6 +157,12 @@ signoff of user-visible changes.
 4. If API contract changed, update Fern source (`../fern/apis/**`) and regenerate
    outputs (do not hand-edit `../generated/**`).
 
+### Error handling (tRPC + REST)
+
+1. Throw `BaseError` subclasses (eg `LangfuseNotFoundError`) from handlers and services. 
+2. Let `BaseError`s bubble up to the tRPC and REST middlewares (eg. don't `try/catch` and rethrow in to `TRPCError` the handler)
+3. Extend the `BaseError` or its subclasses in [`packages/shared/src/errors/`](../packages/shared/src/errors/) as needed.
+
 ### Add frontend feature
 
 1. Prefer `src/features/<feature>/*` for feature-local code.
