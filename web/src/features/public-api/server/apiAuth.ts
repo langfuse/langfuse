@@ -214,12 +214,13 @@ export class ApiAuthService {
 
             const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
               this.extractOrgIdAndCloudConfig(dbKey);
+            const plan = getOrganizationPlanServerSide(cloudConfig);
 
             addUserToSpan(
               {
                 projectId: dbKey.projectId ?? undefined,
                 orgId,
-                plan: getOrganizationPlanServerSide(cloudConfig),
+                plan,
                 apiKeyId: dbKey.id,
               },
               span,
@@ -231,7 +232,7 @@ export class ApiAuthService {
                 projectId: dbKey.projectId,
                 accessLevel: "scores",
                 orgId,
-                plan: getOrganizationPlanServerSide(cloudConfig),
+                plan,
                 rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
                 apiKeyId: dbKey.id,
                 scope: dbKey.scope,

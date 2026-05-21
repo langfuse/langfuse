@@ -6,11 +6,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { Session } from "next-auth";
-import { requiresV2 } from "@/src/features/query/dataModel";
+import { requiresV2 } from "@langfuse/shared/query";
 import {
   mapLegacyUiTableFilterToView,
   mapWidgetUiTableFilterToView,
-} from "@/src/features/query";
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 describe("dashboard widget minVersion", () => {
   let projectId: string;
@@ -111,6 +111,28 @@ describe("dashboard widget minVersion", () => {
         [],
         [{ measure: "count" }],
         [{ column: "release" }],
+        true,
+      ],
+      // v2-only experiment filters
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentId" }],
+        true,
+      ],
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentName" }],
+        true,
+      ],
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentDatasetId" }],
         true,
       ],
       // v1-compatible fields

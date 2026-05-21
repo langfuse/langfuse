@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { singleFilter } from "@langfuse/shared";
-import { type views } from "@/src/features/query/types";
+import { type views } from "@langfuse/shared/query";
 
 // Exported to silence @typescript-eslint/no-unused-vars v8 warning
 // (used for type extraction via typeof, which is a legitimate pattern)
@@ -153,6 +153,19 @@ const viewFilterDefinitions: Record<
       sourceSpec("Observation Release", { uiTableId: "release" }),
     ),
     defineField("version", sourceSpec("Version", { uiTableId: "version" })),
+    // Experiment fields (v2 only - experiment data only exists in events table)
+    defineField(
+      "experimentName",
+      sourceSpec("Experiment Name", { uiTableId: "experimentName" }),
+    ),
+    defineField(
+      "experimentDatasetId",
+      sourceSpec("Experiment Dataset", { uiTableId: "experimentDatasetId" }),
+    ),
+    defineField(
+      "experimentId",
+      sourceSpec("Experiment ID", { uiTableId: "experimentId" }),
+    ),
   ],
   "scores-numeric": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),

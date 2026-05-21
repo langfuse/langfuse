@@ -21,6 +21,8 @@ import {
   getProjectAdminEmails,
   enrichObservationWithModelData,
   createModelCache,
+  blobStorageEndpointConnectionValidationOptions,
+  validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
 import {
   BlobStorageIntegrationType,
@@ -44,29 +46,18 @@ export async function* enrichObservationStream(
 ): AsyncGenerator<Record<string, unknown>> {
   const { getModel } = createModelCache(projectId);
 
-  const includePricing = !fieldGroups || fieldGroups.includes("usage");
   const includeModelId = !fieldGroups || fieldGroups.includes("model");
 
   for await (const row of stream) {
     const enriched: Record<string, unknown> = { ...row };
 
-    if (includePricing) {
+    if (includeModelId) {
       const modelId = row[modelIdField] as string | null | undefined;
       const model = await getModel(modelId);
       const pricing = enrichObservationWithModelData(model);
       enriched.input_price = pricing.inputPrice;
       enriched.output_price = pricing.outputPrice;
       enriched.total_price = pricing.totalPrice;
-    }
-
-    // model_export (provided_model_name, model_id, model_parameters) is fetched
-    // whenever usage OR model is requested — usage needs model_id for the
-    // pricing lookup. Drop all three when the model group was not requested so
-    // they don't leak into a usage-only export.
-    if (!includeModelId) {
-      delete enriched[modelIdField];
-      delete enriched.provided_model_name;
-      delete enriched.model_parameters;
     }
 
     // ClickHouse returns {} for Map columns even when not SELECTed — drop it
@@ -243,6 +234,9 @@ const processBlobStorageExport = async (config: {
     awsSse: undefined,
     awsSseKmsKeyId: undefined,
     useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
+    useGoogleCloudStorage: false, // Not supported in blob storage integration
+    useOCIObjectStorage: false, // Not supported in blob storage integration
+    connectionValidation: blobStorageEndpointConnectionValidationOptions(),
   });
 
   try {
@@ -431,6 +425,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 
   try {
+    // Preflight the persisted integration endpoint once per job inside the
+    // export error path. StorageService connection-time validation remains the
+    // DNS-rebinding defense for each SDK connection.
+    if (blobStorageIntegration.endpoint) {
+      await validateBlobStorageEndpoint(blobStorageIntegration.endpoint);
+    }
+
     // Process the export based on the integration configuration
     // Convert v4 (events table) latency/time_to_first_token from ms to seconds
     // for integrations created on or after 2026-04-01. Before this date, v4 blob

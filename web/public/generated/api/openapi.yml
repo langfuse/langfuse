@@ -6189,7 +6189,8 @@ paths:
 
         - every evaluator prompt variable must be mapped exactly once
 
-        - `expected_output` mappings are only valid for `target=experiment`
+        - `expected_output` and `experiment_item_metadata` mappings are only
+        valid for `target=experiment`
 
         - if `enabled=true`, Langfuse validates that the referenced evaluator
         can currently run
@@ -8126,7 +8127,30 @@ components:
         modelId:
           type: string
           nullable: true
-          description: The matched model ID
+          description: >-
+            The matched model ID. Null when the `model` field group is not
+            requested.
+        inputPrice:
+          type: string
+          nullable: true
+          description: >-
+            The input token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
+        outputPrice:
+          type: string
+          nullable: true
+          description: >-
+            The output token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
+        totalPrice:
+          type: string
+          nullable: true
+          description: >-
+            The total token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
         traceName:
           type: string
           nullable: true
@@ -12146,7 +12170,7 @@ components:
         generations, spans, and events.
           It supports mapping from `input`, `output`, and `metadata`.
         - `experiment` evaluates live experiment executions and can additionally
-        map `expected_output`.
+        map `expected_output` and `experiment_item_metadata`.
           It currently supports filtering by `datasetId`.
           Discover valid dataset IDs with `GET /api/public/v2/datasets`, then use the returned dataset `id` values in your filter.
     unstableEvaluationRuleStatus:
@@ -12174,6 +12198,7 @@ components:
         - output
         - metadata
         - expected_output
+        - experiment_item_metadata
       description: >-
         Source field used to populate a prompt variable.
 
@@ -12185,8 +12210,8 @@ components:
 
         - `target=observation` supports `input`, `output`, and `metadata`
 
-        - `target=experiment` supports `input`, `output`, `metadata`, and
-        `expected_output`
+        - `target=experiment` supports `input`, `output`, `metadata`,
+        `expected_output`, and `experiment_item_metadata`
 
 
         Source semantics:
@@ -12200,6 +12225,9 @@ components:
 
         - `expected_output`: the experiment item's expected output. Only valid
         for `target=experiment`.
+
+        - `experiment_item_metadata`: the experiment item's metadata object.
+        Only valid for `target=experiment`.
     unstableEvaluatorModelConfig:
       title: unstableEvaluatorModelConfig
       type: object
@@ -12740,7 +12768,7 @@ components:
             - `target=observation`: `input`, `output`, `metadata`
 
             - `target=experiment`: `input`, `output`, `metadata`,
-            `expected_output`
+            `expected_output`, `experiment_item_metadata`
         jsonPath:
           type: string
           nullable: true

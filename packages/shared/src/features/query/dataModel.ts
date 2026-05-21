@@ -1,14 +1,14 @@
-import type z from "zod";
-import type {
-  ViewVersion,
-  ViewDeclarationType,
-  DimensionsDeclarationType,
-  views,
-} from "@/src/features/query/types";
-import { InvalidRequestError } from "@langfuse/shared";
+import { z } from "zod";
+import {
+  type ViewVersion,
+  type ViewDeclarationType,
+  type DimensionsDeclarationType,
+  type views,
+} from "./types";
+import { InvalidRequestError } from "../../errors";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
-// Make sure to update ./dashboardUiTableToViewMapping.ts if you make changes
+// Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
 
 export const traceView: ViewDeclarationType = {
   name: "traces",
@@ -1147,6 +1147,29 @@ export const eventsObservationsView: ViewDeclarationType = {
         valueAlias: "usage_value",
       },
     },
+    // Experiment dimensions (v2 only - experiment data only exists in events table)
+    experimentName: {
+      sql: "nullIf(events_observations.experiment_name, '')",
+      alias: "experimentName",
+      type: "string",
+      description: "Name of the experiment this observation belongs to.",
+      highCardinality: true,
+    },
+    experimentDatasetId: {
+      sql: "nullIf(events_observations.experiment_dataset_id, '')",
+      alias: "experimentDatasetId",
+      type: "string",
+      description: "Dataset used in the experiment.",
+      highCardinality: true,
+    },
+    experimentId: {
+      sql: "nullIf(events_observations.experiment_id, '')",
+      alias: "experimentId",
+      type: "string",
+      description: "ID of the experiment this observation belongs to.",
+      highCardinality: true,
+      uiHidden: true, // Only available as filter, not as breakdown dimension
+    },
   },
   measures: {
     count: {
@@ -1437,3 +1460,15 @@ export function getResultUnit(
   if (aggregation === "count" || aggregation === "uniq") return "integer";
   return getMeasureUnit(viewName, measureName, version);
 }
+
+const measureNamesSet = new Set<string>();
+for (const versionViews of Object.values(viewDeclarations)) {
+  for (const view of Object.values(versionViews)) {
+    Object.keys(view.measures).forEach((m) => measureNamesSet.add(m));
+  }
+}
+const measureNames = Array.from(measureNamesSet).sort() as [
+  string,
+  ...string[],
+];
+export const measures = z.enum(measureNames);
