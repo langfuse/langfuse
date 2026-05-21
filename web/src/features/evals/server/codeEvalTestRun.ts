@@ -13,14 +13,13 @@ import {
 import { TRPCError } from "@trpc/server";
 
 import {
-  assertCodeBasedEvalTemplate,
   observationForEvalSchema,
   type EvalTargetObject,
   type EvalTemplateCodeBased,
   type ObservationForEval,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
-import type { PrismaClient } from "@langfuse/shared/src/db";
+import { EvalTemplateType, type PrismaClient } from "@langfuse/shared/src/db";
 
 export type CodeEvalTestRunResult =
   | {
@@ -39,6 +38,7 @@ export type CodeEvalTestRunResult =
 
 export async function runCodeEvalTest(params: {
   prisma: PrismaClient;
+  orgId: string;
   projectId: string;
   evalTemplateId: string;
   target: EvalTargetObject;
@@ -55,44 +55,20 @@ export async function runCodeEvalTest(params: {
     });
   }
 
-  const [project, template] = await Promise.all([
-    params.prisma.project.findUnique({
-      where: { id: params.projectId },
-      select: { orgId: true },
-    }),
-    params.prisma.evalTemplate.findFirst({
-      where: {
-        id: params.evalTemplateId,
-        OR: [{ projectId: params.projectId }, { projectId: null }],
-      },
-    }),
-  ]);
+  const codeTemplate = (await params.prisma.evalTemplate.findFirst({
+    where: {
+      id: params.evalTemplateId,
+      type: EvalTemplateType.CODE,
+      sourceCode: { not: null },
+      sourceCodeLanguage: { not: null },
+      OR: [{ projectId: params.projectId }, { projectId: null }],
+    },
+  })) as EvalTemplateCodeBased | null;
 
-  if (!project) {
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Project not found",
-    });
-  }
-
-  if (!template) {
+  if (!codeTemplate) {
     throw new TRPCError({
       code: "NOT_FOUND",
       message: "Evaluator template not found",
-    });
-  }
-
-  let codeTemplate: EvalTemplateCodeBased;
-  try {
-    assertCodeBasedEvalTemplate(template);
-    codeTemplate = template;
-  } catch (error) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Evaluator template is not a code-based template",
     });
   }
 
@@ -119,7 +95,7 @@ export async function runCodeEvalTest(params: {
 
   const dispatchOutcome = await runCodeBasedEvaluationDispatch({
     dispatcher,
-    organizationId: project.orgId,
+    organizationId: params.orgId,
     projectId: params.projectId,
     executionTraceId,
     jobExecutionId: executionTraceId,

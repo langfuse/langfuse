@@ -881,6 +881,7 @@ export const evalRouter = createTRPCRouter({
 
       return runCodeEvalTest({
         prisma: ctx.prisma,
+        orgId: ctx.session.orgId,
         projectId: input.projectId,
         evalTemplateId: input.evalTemplateId,
         target: input.target,
