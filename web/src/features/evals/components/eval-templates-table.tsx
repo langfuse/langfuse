@@ -469,6 +469,8 @@ export default function EvalsTemplateTable({
                     modelParams: cloneTemplate.data.modelParams as any,
                     partner: cloneTemplate.data.partner,
                     projectId,
+                    templateFormat:
+                      cloneTemplate.data.templateFormat ?? "default",
                   }
                 : undefined
             }
