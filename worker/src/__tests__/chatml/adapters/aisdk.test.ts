@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   aisdkAdapter,
   normalizeInput,
+  normalizeOutput,
   type NormalizerContext,
 } from "@langfuse/shared";
 
@@ -41,6 +42,17 @@ describe("AI SDK Adapter", () => {
               "operation.name": "ai.generateText.doGenerate",
               "ai.model.provider": "openai.responses",
             },
+          },
+        }),
+      ).toBe(true);
+    });
+
+    it("should detect AI SDK via flat v4 event metadata", () => {
+      expect(
+        aisdkAdapter.detect({
+          metadata: {
+            "scope.name": "ai",
+            "attributes.operation.name": "ai.generateText.doGenerate",
           },
         }),
       ).toBe(true);
@@ -582,6 +594,37 @@ describe("AI SDK Adapter", () => {
       // Tool call should still be present
       expect(msg?.tool_calls?.length).toBe(1);
       expect(msg?.tool_calls?.[0].name).toBe("calculator");
+    });
+
+    it("should normalize raw tool calls with flat v4 event metadata", () => {
+      const rawToolCallArray = [
+        {
+          toolCallId: "call_abc",
+          toolName: "get_weather",
+          input: { city: "NYC" },
+        },
+      ];
+
+      const result = normalizeOutput(rawToolCallArray, {
+        metadata: {
+          "scope.name": "ai",
+          "attributes.operation.name": "ai.generateText.doGenerate",
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.[0]).toMatchObject({
+        role: "assistant",
+        content: "",
+        tool_calls: [
+          {
+            id: "call_abc",
+            name: "get_weather",
+            arguments: '{"city":"NYC"}',
+            type: "function",
+          },
+        ],
+      });
     });
   });
 });

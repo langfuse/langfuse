@@ -423,6 +423,8 @@ export const aisdkAdapter: ProviderAdapter = {
         if (scope.name === "ai") return true;
       }
 
+      if (meta["scope.name"] === "ai") return true;
+
       if ("attributes" in meta && typeof meta.attributes === "object") {
         const attrs = meta.attributes as Record<string, unknown> | null;
         if (
@@ -432,6 +434,22 @@ export const aisdkAdapter: ProviderAdapter = {
         ) {
           return true;
         }
+      }
+
+      const flatOperationName = meta["attributes.operation.name"];
+      if (
+        typeof flatOperationName === "string" &&
+        flatOperationName.startsWith("ai.")
+      ) {
+        return true;
+      }
+
+      const flatAiOperationId = meta["attributes.ai.operationId"];
+      if (
+        typeof flatAiOperationId === "string" &&
+        flatAiOperationId.startsWith("ai.")
+      ) {
+        return true;
       }
     }
 

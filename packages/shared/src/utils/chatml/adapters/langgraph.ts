@@ -304,6 +304,9 @@ export const langgraphAdapter: ProviderAdapter = {
         if (scope?.name === "pydantic-ai") return false;
       }
 
+      // Reject AI SDK metadata
+      if (meta["scope.name"] === "ai") return false;
+
       // Check attributes["operation.name"] for AI SDK pattern
       if ("attributes" in meta && typeof meta.attributes === "object") {
         const attrs = meta.attributes as Record<string, unknown> | null;
@@ -314,6 +317,22 @@ export const langgraphAdapter: ProviderAdapter = {
         ) {
           return false;
         }
+      }
+
+      const flatOperationName = meta["attributes.operation.name"];
+      if (
+        typeof flatOperationName === "string" &&
+        flatOperationName.startsWith("ai.")
+      ) {
+        return false;
+      }
+
+      const flatAiOperationId = meta["attributes.ai.operationId"];
+      if (
+        typeof flatAiOperationId === "string" &&
+        flatAiOperationId.startsWith("ai.")
+      ) {
+        return false;
       }
     }
 
