@@ -13,6 +13,7 @@ import {
 import { TRPCError } from "@trpc/server";
 
 import {
+  LangfuseInternalTraceEnvironment,
   observationForEvalSchema,
   type EvalTargetObject,
   type EvalTemplateCodeBased,
@@ -193,7 +194,7 @@ async function writeTraceViaIngestion(trace: InternalTraceWriteInput) {
       id: rootEventInput.traceId,
       timestamp: rootEventInput.startTimeISO,
       name: rootEventInput.traceName ?? rootEventInput.name,
-      environment: rootEventInput.environment,
+      environment: getInternalEvalEnvironment(rootEventInput.environment),
       input: rootEventInput.input,
       output: rootEventInput.output,
       metadata: rootEventInput.metadata,
@@ -214,7 +215,7 @@ async function writeTraceViaIngestion(trace: InternalTraceWriteInput) {
       id: eventInput.spanId,
       traceId: eventInput.traceId,
       name: eventInput.name,
-      environment: eventInput.environment,
+      environment: getInternalEvalEnvironment(eventInput.environment),
       startTime: eventInput.startTimeISO,
       endTime: eventInput.endTimeISO,
       input: eventInput.input,
@@ -242,4 +243,10 @@ async function writeTraceViaIngestion(trace: InternalTraceWriteInput) {
   if (result.errors.length > 0) {
     throw new Error(result.errors[0]?.error ?? "Failed to write trace");
   }
+}
+
+function getInternalEvalEnvironment(environment: string) {
+  return environment === LangfuseInternalTraceEnvironment.CodeEval
+    ? LangfuseInternalTraceEnvironment.CodeEval
+    : LangfuseInternalTraceEnvironment.LLMJudge;
 }
