@@ -223,6 +223,24 @@ describe("MonitorService (integration)", () => {
       expect(fetched).toBeNull();
     });
 
+    it.each(["name", "status", "severity", "createdAt", "updatedAt"] as const)(
+      "lists by %s (non-nullable column) without a PrismaClientValidationError",
+      async (column) => {
+        // Verifies whether Prisma accepts `{ sort, nulls: "last" }` on
+        // non-nullable columns. If it doesn't, this throws
+        // PrismaClientValidationError at runtime and we need to gate `nulls`
+        // on the nullable subset instead.
+        await MonitorService.create(baseCreateInput(projectId));
+        const result = await MonitorService.list({
+          projectId,
+          orderBy: { column, order: "ASC" },
+          page: 1,
+          limit: 10,
+        });
+        expect(result.monitors.length).toBeGreaterThan(0);
+      },
+    );
+
     it.each(["alertedAt", "severityChangedAt"] as const)(
       "sorts %s with NULLS LAST regardless of direction",
       async (column) => {

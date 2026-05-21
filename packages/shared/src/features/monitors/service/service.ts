@@ -10,6 +10,7 @@ import {
   decimalToPrisma,
   errorFromPrisma,
   monitorFromPrisma,
+  nullableOrderColumns,
   sortFiltersCanonically,
   statusToPrisma,
   thresholdOperatorToPrisma,
@@ -137,19 +138,16 @@ export class MonitorService {
     const skip =
       input.page && input.limit ? (input.page - 1) * input.limit : undefined;
 
+    const sortOrder = input.orderBy?.order.toLowerCase();
+    const orderByValue =
+      input.orderBy && nullableOrderColumns.has(input.orderBy.column)
+        ? { sort: sortOrder, nulls: "last" as const }
+        : sortOrder;
     const [monitors, totalCount] = await Promise.all([
       prisma.monitor.findMany({
         where: { projectId: input.projectId },
         orderBy: input.orderBy
-          ? [
-              {
-                [input.orderBy.column]: {
-                  sort: input.orderBy.order.toLowerCase(),
-                  nulls: "last",
-                },
-              },
-              { id: "asc" },
-            ]
+          ? [{ [input.orderBy.column]: orderByValue }, { id: "asc" }]
           : [{ severity: "desc" }, { id: "asc" }],
         skip,
         take: input.limit,

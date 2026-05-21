@@ -64,19 +64,23 @@ export type UpdateMonitorInput = z.infer<typeof UpdateMonitorInputSchema>;
  * narrowing, an unknown column would reach Prisma and raise a 500-class
  * `PrismaClientValidationError` rather than a clean validation error.
  */
+/** MonitorListOrderBySchema is the list of fields that we can sort the Monitor collection by. */
+export const MonitorListOrderBySchema = z.enum([
+  "name",
+  "status",
+  "severity",
+  "severityChangedAt",
+  "alertedAt",
+  "createdAt",
+  "updatedAt",
+]);
+export type MonitorListOrderBy = z.infer<typeof MonitorListOrderBySchema>;
+
 export const MonitorListInputSchema = z.object({
   projectId: z.string(),
   orderBy: z
     .object({
-      column: z.enum([
-        "name",
-        "status",
-        "severity",
-        "severityChangedAt",
-        "alertedAt",
-        "createdAt",
-        "updatedAt",
-      ]),
+      column: MonitorListOrderBySchema,
       order: z.enum(["ASC", "DESC"]),
     })
     .nullable(),

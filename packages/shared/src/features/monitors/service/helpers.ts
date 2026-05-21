@@ -26,6 +26,14 @@ import {
   MonitorSchema,
 } from "../types";
 
+import { type MonitorListOrderBy } from "./types";
+
+/** nullableOrderColumns is the list of sortable columns that are nullable. */
+export const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
+  "severityChangedAt",
+  "alertedAt",
+]);
+
 /**
  * canonicalizeFilter normalizes a single filter for canonical comparison.
  * For the set-semantics filter variants (`stringOptions` / `categoryOptions` /
