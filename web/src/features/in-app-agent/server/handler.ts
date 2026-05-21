@@ -51,11 +51,7 @@ export default async function handler(request: Request) {
       );
     }
 
-    if (
-      !env.LANGFUSE_AWS_BEDROCK_REGION ||
-      !env.AWS_ACCESS_KEY_ID ||
-      !env.AWS_SECRET_ACCESS_KEY
-    ) {
+    if (!env.LANGFUSE_AWS_BEDROCK_REGION) {
       throw new BaseError(
         "PreconditionFailedError",
         412,
@@ -175,6 +171,7 @@ export default async function handler(request: Request) {
     }
 
     const sanitizedInput = sanitizeAgentInput(input);
+    const awsProfile = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
 
     const conversation = await ensureOwnedConversation({
       prisma,
@@ -250,10 +247,9 @@ export default async function handler(request: Request) {
               error instanceof Error ? error.message : "Unknown agent error",
           });
         },
-        awsCredentials: {
+        awsBedrock: {
           region: env.LANGFUSE_AWS_BEDROCK_REGION,
-          accessKeyId: env.AWS_ACCESS_KEY_ID,
-          secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+          ...(awsProfile ? { profile: awsProfile } : {}),
         },
       },
     });

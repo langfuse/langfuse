@@ -1,16 +1,15 @@
 import { describe, it, expect } from "vitest";
 
 import {
-  CreateMonitorInputSchema,
-  MonitorListInputSchema,
-  UpdateMonitorInputSchema,
+  CreateMonitorSchema,
+  ListMonitorsSchema,
+  UpdateMonitorSchema,
 } from "./types";
 
-// Minimal valid `CreateMonitorInputSchema` payload. Tests override one field
+// Minimal valid `CreateMonitorSchema` payload. Tests override one field
 // at a time to exercise the refinements wired onto the input schema.
 const validCreateInput = {
   projectId: "proj_01",
-  createdBy: null,
 
   view: "observations" as const,
   filters: [],
@@ -31,18 +30,15 @@ const validCreateInput = {
 const validUpdateInput = {
   ...validCreateInput,
   id: "mon_01",
-  updatedBy: null,
 };
 
-describe("CreateMonitorInputSchema", () => {
+describe("CreateMonitorSchema", () => {
   it("parses a minimal valid input", () => {
-    expect(CreateMonitorInputSchema.safeParse(validCreateInput).success).toBe(
-      true,
-    );
+    expect(CreateMonitorSchema.safeParse(validCreateInput).success).toBe(true);
   });
 
   it("rejects warning >= alert for gt (validateThresholdOrder is wired)", () => {
-    const result = CreateMonitorInputSchema.safeParse({
+    const result = CreateMonitorSchema.safeParse({
       ...validCreateInput,
       thresholdOperator: "gt" as const,
       alertThreshold: 100,
@@ -54,7 +50,7 @@ describe("CreateMonitorInputSchema", () => {
   it.each(["gt", "gte"] as const)(
     "%s emits a `>` strict-ordering message (not the operator name)",
     (op) => {
-      const result = CreateMonitorInputSchema.safeParse({
+      const result = CreateMonitorSchema.safeParse({
         ...validCreateInput,
         thresholdOperator: op,
         alertThreshold: 100,
@@ -74,7 +70,7 @@ describe("CreateMonitorInputSchema", () => {
   it.each(["lt", "lte"] as const)(
     "%s emits a `<` strict-ordering message (not the operator name)",
     (op) => {
-      const result = CreateMonitorInputSchema.safeParse({
+      const result = CreateMonitorSchema.safeParse({
         ...validCreateInput,
         thresholdOperator: op,
         alertThreshold: 100,
@@ -90,7 +86,7 @@ describe("CreateMonitorInputSchema", () => {
   );
 
   it("rejects an unknown measure (validateQuery is wired)", () => {
-    const result = CreateMonitorInputSchema.safeParse({
+    const result = CreateMonitorSchema.safeParse({
       ...validCreateInput,
       metric: { measure: "bogus_measure", aggregation: "count" as const },
     });
@@ -98,7 +94,7 @@ describe("CreateMonitorInputSchema", () => {
   });
 
   it("rejects status `error-bad-query` on create (scheduler-owned)", () => {
-    const result = CreateMonitorInputSchema.safeParse({
+    const result = CreateMonitorSchema.safeParse({
       ...validCreateInput,
       status: "error-bad-query",
     });
@@ -106,15 +102,13 @@ describe("CreateMonitorInputSchema", () => {
   });
 });
 
-describe("UpdateMonitorInputSchema", () => {
+describe("UpdateMonitorSchema", () => {
   it("parses a minimal valid input", () => {
-    expect(UpdateMonitorInputSchema.safeParse(validUpdateInput).success).toBe(
-      true,
-    );
+    expect(UpdateMonitorSchema.safeParse(validUpdateInput).success).toBe(true);
   });
 
   it("rejects warning <= alert for lt (validateThresholdOrder is wired)", () => {
-    const result = UpdateMonitorInputSchema.safeParse({
+    const result = UpdateMonitorSchema.safeParse({
       ...validUpdateInput,
       thresholdOperator: "lt" as const,
       alertThreshold: 100,
@@ -124,7 +118,7 @@ describe("UpdateMonitorInputSchema", () => {
   });
 
   it("rejects an unknown filter column (validateQuery is wired)", () => {
-    const result = UpdateMonitorInputSchema.safeParse({
+    const result = UpdateMonitorSchema.safeParse({
       ...validUpdateInput,
       filters: [
         {
@@ -142,7 +136,7 @@ describe("UpdateMonitorInputSchema", () => {
     // `error-bad-query` is flipped by the scheduler when a monitor's query
     // fails to evaluate. Callers must not be able to set or clear it
     // directly — narrowing the input DTO to active/paused enforces that.
-    const result = UpdateMonitorInputSchema.safeParse({
+    const result = UpdateMonitorSchema.safeParse({
       ...validUpdateInput,
       status: "error-bad-query",
     });
@@ -150,9 +144,9 @@ describe("UpdateMonitorInputSchema", () => {
   });
 });
 
-describe("MonitorListInputSchema", () => {
+describe("ListMonitorsSchema", () => {
   it("parses a minimal input with defaults filled in", () => {
-    const result = MonitorListInputSchema.safeParse({
+    const result = ListMonitorsSchema.safeParse({
       projectId: "proj_01",
       orderBy: null,
     });
@@ -164,7 +158,7 @@ describe("MonitorListInputSchema", () => {
   });
 
   it("accepts an orderBy + explicit pagination", () => {
-    const result = MonitorListInputSchema.safeParse({
+    const result = ListMonitorsSchema.safeParse({
       projectId: "proj_01",
       orderBy: { column: "name", order: "ASC" },
       page: 2,
@@ -182,7 +176,7 @@ describe("MonitorListInputSchema", () => {
     "createdAt",
     "updatedAt",
   ] as const)("accepts %s as orderBy.column", (column) => {
-    const result = MonitorListInputSchema.safeParse({
+    const result = ListMonitorsSchema.safeParse({
       projectId: "proj_01",
       orderBy: { column, order: "DESC" },
     });
@@ -190,7 +184,7 @@ describe("MonitorListInputSchema", () => {
   });
 
   it("rejects an unknown orderBy.column (Prisma would otherwise raise a 500)", () => {
-    const result = MonitorListInputSchema.safeParse({
+    const result = ListMonitorsSchema.safeParse({
       projectId: "proj_01",
       orderBy: { column: "bogus", order: "DESC" },
     });
@@ -198,7 +192,7 @@ describe("MonitorListInputSchema", () => {
   });
 
   it("rejects a missing projectId", () => {
-    const result = MonitorListInputSchema.safeParse({ orderBy: null });
+    const result = ListMonitorsSchema.safeParse({ orderBy: null });
     expect(result.success).toBe(false);
   });
 });

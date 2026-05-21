@@ -26,6 +26,9 @@ export interface RegisteredTool {
   /** Tool handler function - accepts any input type */
 
   handler: ToolHandler<any>;
+
+  /** Whether in-app agent API keys may discover and call this tool. */
+  allowInAppAgentKey?: boolean;
 }
 
 /**
@@ -125,6 +128,10 @@ class ToolRegistry {
 
       // Add all tools from enabled feature
       for (const tool of feature.tools) {
+        if (!this.canUseTool(tool, context)) {
+          continue;
+        }
+
         definitions.push(tool.definition);
       }
     }
@@ -156,11 +163,23 @@ class ToolRegistry {
     const feature = this.getFeatureForTool(name);
     if (!feature) return undefined;
 
+    if (!this.canUseTool(tool, context)) {
+      return undefined;
+    }
+
     if (feature.isEnabled && !(await feature.isEnabled(context))) {
       return undefined;
     }
 
     return tool;
+  }
+
+  private canUseTool(tool: RegisteredTool, context: ServerContext): boolean {
+    if (context.isInAppAgentKey === true && tool.allowInAppAgentKey !== true) {
+      return false;
+    }
+
+    return true;
   }
 
   /**
