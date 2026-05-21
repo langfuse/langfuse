@@ -855,8 +855,6 @@ export async function runLLMAsJudgeEvaluation({
       // Prepare LLM call
       const messages = buildEvalMessages(prompt);
 
-      const primaryScoreId = randomUUID();
-      span.setAttribute("eval.score.id", primaryScoreId);
       const executionTraceId = createW3CTraceId(jobExecutionId);
 
       // Call LLM
@@ -894,7 +892,6 @@ export async function runLLMAsJudgeEvaluation({
                 environment: LangfuseInternalTraceEnvironment.LLMJudge,
                 metadata: {
                   ...metadata,
-                  score_id: primaryScoreId,
                 },
               },
             });
@@ -964,7 +961,6 @@ export async function runLLMAsJudgeEvaluation({
 
       return {
         scores,
-        primaryScoreId,
         executionTraceId,
         metadata,
       };

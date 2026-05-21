@@ -233,10 +233,26 @@ maybe("evals.testRunCodeEval", () => {
     });
   });
 
-  it("persists an internal trace for the test run", async () => {
+  it("passes experiment context to test runs", async () => {
     const { project, caller } = await prepare();
     const observationId = randomUUID();
-    const template = await createCodeTemplate(project.id);
+    const expectedOutput = "expected answer";
+    const template = await createCodeTemplate(
+      project.id,
+      `
+        export function evaluate(ctx) {
+          if (!ctx.experiment) {
+            throw new Error("missing experiment context");
+          }
+
+          const matched =
+            ctx.observation.output === ctx.experiment.expectedOutput &&
+            ctx.experiment.itemMetadata.difficulty === "easy";
+
+          return { scores: [{ value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
+        }
+      `,
+    );
 
     await createEventsCh([
       createEvent({
@@ -244,23 +260,55 @@ maybe("evals.testRunCodeEval", () => {
         trace_id: randomUUID(),
         span_id: observationId,
         id: observationId,
+        output: expectedOutput,
+        experiment_id: randomUUID(),
+        experiment_item_expected_output: expectedOutput,
+        experiment_item_metadata_names: ["difficulty"],
+        experiment_item_metadata_values: ["easy"],
       }),
     ]);
 
     const response = await caller.evals.testRunCodeEval({
       projectId: project.id,
       evalTemplateId: template.id,
-      target: EvalTargetObject.EVENT,
-      scoreName: "unsaved-score",
+      target: EvalTargetObject.EXPERIMENT,
+      scoreName: "experiment-score",
       observationId,
-      mapping: [],
+      mapping: [
+        {
+          templateVariable: "output",
+          selectedColumnId: "output",
+          jsonSelector: null,
+        },
+        {
+          templateVariable: "experimentExpectedOutput",
+          selectedColumnId: "experimentItemExpectedOutput",
+          jsonSelector: null,
+        },
+        {
+          templateVariable: "experimentItemMetadata",
+          selectedColumnId: "experimentItemMetadata",
+          jsonSelector: null,
+        },
+      ],
+    });
+
+    expect(response).toEqual({
+      success: true,
+      result: {
+        scores: [
+          {
+            value: 1,
+            dataType: "BOOLEAN",
+          },
+        ],
+      },
+      executionTraceId: expect.stringMatching(/^[0-9a-f]{32}$/),
     });
 
     if (!response.success) {
       throw new Error("Expected successful test run");
     }
-
-    const executionTraceId = response.executionTraceId;
 
     const findTrace = async () => {
       const rows = await queryClickhouse<{
@@ -268,7 +316,7 @@ maybe("evals.testRunCodeEval", () => {
         sourceCode: string;
       }>({
         query: `SELECT environment, metadata['code_eval_source_code'] as sourceCode FROM traces WHERE project_id = {projectId: String} AND id = {traceId: String} LIMIT 1`,
-        params: { projectId: project.id, traceId: executionTraceId },
+        params: { projectId: project.id, traceId: response.executionTraceId },
         tags: {
           feature: "evals",
           type: "traces",

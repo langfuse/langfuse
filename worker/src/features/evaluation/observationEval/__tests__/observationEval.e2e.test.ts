@@ -103,7 +103,6 @@ const mockEvalExecutionResult = {
       comment: "Good response",
     },
   ],
-  primaryScoreId: "score-123",
   executionTraceId: "trace-123",
   metadata: {},
 };
