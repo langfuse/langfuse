@@ -111,6 +111,7 @@ const ConfigWithTemplateSchema = z.object({
       vars: z.array(z.string()),
       outputDefinition: jsonSchema,
       version: z.number(),
+      templateFormat: z.string().default("default"),
     })
     .nullish(),
 });
