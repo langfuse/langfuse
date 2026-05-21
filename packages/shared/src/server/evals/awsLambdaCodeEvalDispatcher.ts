@@ -23,7 +23,8 @@ export const DEFAULT_LAMBDA_FUNCTION_BY_LANGUAGE = {
   TYPESCRIPT: "code-based-eval-executor-node",
 } satisfies Record<CodeEvalRuntimeLanguage, string>;
 
-const LAMBDA_INVOKE_REQUEST_TIMEOUT_MS = 3_000;
+// Synchronous Lambda invokes hold the HTTP request open through cold starts and user code execution.
+const LAMBDA_INVOKE_REQUEST_TIMEOUT_MS = 10_000;
 
 type CodeEvalDispatcherErrorClassification = {
   code: CodeEvalDispatcherErrorCode;
