@@ -10,17 +10,30 @@ vi.mock("@langfuse/shared/src/server", async () => {
         disconnect: vi.fn(),
       }),
     },
+    ScoreDeleteQueue: {
+      getInstance: () => ({
+        add: vi.fn().mockResolvedValue(undefined),
+        disconnect: vi.fn(),
+      }),
+    },
   };
 });
 
 import { nanoid } from "nanoid";
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
-import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
+import {
+  createEvent,
+  createEventsCh,
+  createScoresCh,
+  createTraceScore,
+} from "@langfuse/shared/src/server";
+import { ScoreConfigDataType } from "@langfuse/shared";
 import {
   createMcpTestSetup,
   createPromptInDb,
   mockServerContext,
+  verifyAuditLog,
   verifyToolAnnotations,
 } from "./mcp-helpers";
 import { env } from "@/src/env.mjs";
@@ -60,6 +73,42 @@ import {
   listPromptsTool,
   handleListPrompts,
 } from "@/src/features/mcp/features/prompts/tools/listPrompts";
+import {
+  createScoreConfigTool,
+  handleCreateScoreConfig,
+} from "@/src/features/mcp/features/scores/tools/createScoreConfig";
+import {
+  createScoreTool,
+  handleCreateScore,
+} from "@/src/features/mcp/features/scores/tools/createScore";
+import {
+  deleteScoreTool,
+  handleDeleteScore,
+} from "@/src/features/mcp/features/scores/tools/deleteScore";
+import {
+  deleteScoreConfigTool,
+  handleDeleteScoreConfig,
+} from "@/src/features/mcp/features/scores/tools/deleteScoreConfig";
+import {
+  getScoreTool,
+  handleGetScore,
+} from "@/src/features/mcp/features/scores/tools/getScore";
+import {
+  getScoreConfigTool,
+  handleGetScoreConfig,
+} from "@/src/features/mcp/features/scores/tools/getScoreConfig";
+import {
+  listScoreConfigsTool,
+  handleListScoreConfigs,
+} from "@/src/features/mcp/features/scores/tools/listScoreConfigs";
+import {
+  listScoresTool,
+  handleListScores,
+} from "@/src/features/mcp/features/scores/tools/listScores";
+import {
+  updateScoreConfigTool,
+  handleUpdateScoreConfig,
+} from "@/src/features/mcp/features/scores/tools/updateScoreConfig";
 
 const maybeEventsTable =
   env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
@@ -113,6 +162,42 @@ const createObservationEvent = (params: {
     user_id: params.userId ?? null,
     session_id: params.sessionId ?? null,
   });
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const containsStringValue = (value: unknown, expected: string): boolean => {
+  if (typeof value === "string") {
+    return value.includes(expected);
+  }
+
+  if (Array.isArray(value)) {
+    return value.some((item) => containsStringValue(item, expected));
+  }
+
+  if (isRecord(value)) {
+    return Object.values(value).some((item) =>
+      containsStringValue(item, expected),
+    );
+  }
+
+  return false;
+};
+
+const containsPropertyName = (value: unknown, expected: string): boolean => {
+  if (Array.isArray(value)) {
+    return value.some((item) => containsPropertyName(item, expected));
+  }
+
+  if (isRecord(value)) {
+    return (
+      Object.keys(value).includes(expected) ||
+      Object.values(value).some((item) => containsPropertyName(item, expected))
+    );
+  }
+
+  return false;
 };
 
 describe("MCP Read Tools", () => {
@@ -1073,6 +1158,537 @@ describe("MCP Read Tools", () => {
           context,
         ),
       ).rejects.toThrow(/validation failed/i);
+    });
+  });
+
+  describe("listScores tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(listScoresTool, { readOnlyHint: true });
+    });
+
+    it("should return paginated scores with object-shaped filters", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const matchingScore = createTraceScore({
+        project_id: projectId,
+        id: randomUUID(),
+        name: `mcp-score-${nanoid()}`,
+        data_type: "NUMERIC",
+        value: 0.9,
+      });
+      const otherScore = createTraceScore({
+        project_id: projectId,
+        id: randomUUID(),
+        name: `mcp-score-${nanoid()}`,
+        data_type: "BOOLEAN",
+        value: 1,
+        string_value: "True",
+      });
+
+      await createScoresCh([matchingScore, otherScore]);
+
+      const result = (await handleListScores(
+        {
+          limit: 10,
+          page: 1,
+          scoreIds: [matchingScore.id, otherScore.id],
+          dataType: "NUMERIC",
+          fields: ["score"],
+        },
+        context,
+      )) as any;
+      const data = result.data;
+
+      expect(Object.keys(result).sort()).toEqual(["data", "meta"]);
+      expect(result.meta).toMatchObject({
+        page: 1,
+        limit: 10,
+        totalItems: 1,
+      });
+      expect(data).toHaveLength(1);
+      expect(data).toEqual([
+        expect.objectContaining({
+          id: matchingScore.id,
+          dataType: "NUMERIC",
+        }),
+      ]);
+      expect(data).toEqual([
+        expect.not.objectContaining({ trace: expect.anything() }),
+      ]);
+    });
+
+    it("should enforce public v2 score field validation", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListScores({ fields: ["trace"], limit: 10, page: 1 }, context),
+      ).rejects.toThrow(/Scores needs to be selected always/i);
+
+      await expect(
+        handleListScores(
+          { fields: ["score"], userId: "user-1", limit: 10, page: 1 },
+          context,
+        ),
+      ).rejects.toThrow(/Cannot filter by trace properties/i);
+
+      await expect(
+        handleListScores(
+          { fields: ["score"], traceTags: [], limit: 10, page: 1 },
+          context,
+        ),
+      ).resolves.toMatchObject({ data: [] });
+    });
+  });
+
+  describe("getScore tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getScoreTool, { readOnlyHint: true });
+    });
+
+    it("should fetch a score by id", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const score = createTraceScore({
+        project_id: projectId,
+        id: randomUUID(),
+        name: `mcp-get-score-${nanoid()}`,
+        data_type: "NUMERIC",
+        value: 0.8,
+      });
+
+      await createScoresCh([score]);
+
+      const result = await handleGetScore({ scoreId: score.id }, context);
+
+      expect(result).toMatchObject({
+        id: score.id,
+        name: score.name,
+        dataType: "NUMERIC",
+        value: 0.8,
+      });
+    });
+
+    it("should reject missing and cross-project scores", async () => {
+      const { projectId } = await createMcpTestSetup();
+      const { context: otherContext } = await createMcpTestSetup();
+      const score = createTraceScore({
+        project_id: projectId,
+        id: randomUUID(),
+      });
+
+      await createScoresCh([score]);
+
+      await expect(
+        handleGetScore({ scoreId: randomUUID() }, otherContext),
+      ).rejects.toThrow(/Score not found/i);
+      await expect(
+        handleGetScore({ scoreId: score.id }, otherContext),
+      ).rejects.toThrow(/Score not found/i);
+    });
+  });
+
+  describe("createScore tool", () => {
+    it("should have destructiveHint annotation", () => {
+      verifyToolAnnotations(createScoreTool, { destructiveHint: true });
+    });
+
+    it("should create a score using v1 route semantics", async () => {
+      const { context } = await createMcpTestSetup();
+      const scoreId = randomUUID();
+
+      const result = await handleCreateScore(
+        {
+          id: scoreId,
+          traceId: randomUUID(),
+          name: `mcp-create-score-${nanoid(8)}`,
+          value: 1,
+          dataType: "NUMERIC",
+          environment: "default",
+          source: "API",
+        },
+        context,
+      );
+
+      expect(result).toEqual({ id: scoreId });
+    });
+  });
+
+  describe("deleteScore tool", () => {
+    it("should have destructiveHint annotation", () => {
+      verifyToolAnnotations(deleteScoreTool, { destructiveHint: true });
+    });
+
+    it("should queue score deletion using v1 route semantics", async () => {
+      const { context, projectId, apiKeyId } = await createMcpTestSetup();
+      const scoreId = randomUUID();
+
+      const result = await handleDeleteScore({ scoreId }, context);
+
+      expect(result).toEqual({
+        message: "Score deletion queued successfully",
+      });
+      await expect(
+        verifyAuditLog({
+          projectId,
+          resourceType: "score",
+          resourceId: scoreId,
+          action: "delete",
+          apiKeyId,
+        }),
+      ).resolves.toMatchObject({ action: "delete" });
+    });
+  });
+
+  describe("listScoreConfigs tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(listScoreConfigsTool, { readOnlyHint: true });
+    });
+
+    it("should return paginated score configs for the current project", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const { context: otherContext, projectId: otherProjectId } =
+        await createMcpTestSetup();
+      const name = `mcp-config-${nanoid()}`;
+
+      await prisma.scoreConfig.createMany({
+        data: [
+          {
+            id: randomUUID(),
+            projectId,
+            name,
+            dataType: ScoreConfigDataType.NUMERIC,
+            minValue: 0,
+            maxValue: 1,
+          },
+          {
+            id: randomUUID(),
+            projectId: otherProjectId,
+            name,
+            dataType: ScoreConfigDataType.NUMERIC,
+            minValue: 0,
+            maxValue: 1,
+          },
+        ],
+      });
+
+      const result = (await handleListScoreConfigs(
+        { limit: 10, page: 1 },
+        context,
+      )) as any;
+      const otherResult = (await handleListScoreConfigs(
+        { limit: 10, page: 1 },
+        otherContext,
+      )) as any;
+
+      expect(Object.keys(result).sort()).toEqual(["data", "meta"]);
+      expect(result.data).toEqual(
+        expect.arrayContaining([expect.objectContaining({ projectId, name })]),
+      );
+      expect(result.data).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ projectId: otherProjectId, name }),
+        ]),
+      );
+      expect(otherResult.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ projectId: otherProjectId, name }),
+        ]),
+      );
+    });
+  });
+
+  describe("getScoreConfig tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getScoreConfigTool, { readOnlyHint: true });
+    });
+
+    it("should fetch a score config by id", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const config = await prisma.scoreConfig.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          name: `mcp-get-${nanoid(8)}`,
+          dataType: ScoreConfigDataType.BOOLEAN,
+          categories: [
+            { label: "True", value: 1 },
+            { label: "False", value: 0 },
+          ],
+        },
+      });
+
+      const result = await handleGetScoreConfig(
+        { configId: config.id },
+        context,
+      );
+
+      expect(result).toMatchObject({
+        id: config.id,
+        name: config.name,
+        dataType: ScoreConfigDataType.BOOLEAN,
+      });
+    });
+
+    it("should reject missing and cross-project score configs", async () => {
+      const { projectId } = await createMcpTestSetup();
+      const { context: otherContext } = await createMcpTestSetup();
+      const config = await prisma.scoreConfig.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          name: `mcp-cross-${nanoid(8)}`,
+          dataType: ScoreConfigDataType.TEXT,
+        },
+      });
+
+      await expect(
+        handleGetScoreConfig({ configId: randomUUID() }, otherContext),
+      ).rejects.toThrow(/Score config not found/i);
+      await expect(
+        handleGetScoreConfig({ configId: config.id }, otherContext),
+      ).rejects.toThrow(/Score config not found/i);
+    });
+  });
+
+  describe("createScoreConfig tool", () => {
+    it("should have destructiveHint annotation", () => {
+      verifyToolAnnotations(createScoreConfigTool, { destructiveHint: true });
+    });
+
+    it("should describe allowed score config name characters in the input schema", () => {
+      expect(
+        containsStringValue(
+          createScoreConfigTool.inputSchema,
+          "Allowed characters: letters, numbers, spaces, underscores, periods, parentheses, and hyphens.",
+        ),
+      ).toBe(true);
+    });
+
+    it.each([
+      [
+        "numeric",
+        {
+          name: `mcp-num-${nanoid(8)}`,
+          dataType: "NUMERIC" as const,
+          minValue: 0,
+          maxValue: 1,
+        },
+      ],
+      [
+        "categorical",
+        {
+          name: `mcp-cat-${nanoid(8)}`,
+          dataType: "CATEGORICAL" as const,
+          categories: [
+            { label: "High", value: 1 },
+            { label: "Low", value: 0 },
+          ],
+        },
+      ],
+      [
+        "text",
+        {
+          name: `mcp-text-${nanoid(8)}`,
+          dataType: "TEXT" as const,
+          categories: undefined,
+        },
+      ],
+    ])("should create %s score configs", async (_type, input) => {
+      const { context, projectId, apiKeyId } = await createMcpTestSetup();
+
+      const result = (await handleCreateScoreConfig(input, context)) as any;
+
+      expect(result).toMatchObject({
+        projectId,
+        name: input.name,
+        dataType: input.dataType,
+      });
+
+      await expect(
+        verifyAuditLog({
+          projectId,
+          resourceType: "scoreConfig",
+          resourceId: result.id,
+          action: "create",
+          apiKeyId,
+        }),
+      ).resolves.toMatchObject({ action: "create" });
+    });
+
+    it("should create boolean configs with inferred categories", async () => {
+      const { context } = await createMcpTestSetup();
+
+      const result = await handleCreateScoreConfig(
+        {
+          name: `mcp-bool-${nanoid(8)}`,
+          dataType: "BOOLEAN",
+          categories: undefined,
+        },
+        context,
+      );
+
+      expect(result).toMatchObject({
+        dataType: ScoreConfigDataType.BOOLEAN,
+        categories: [
+          { label: "True", value: 1 },
+          { label: "False", value: 0 },
+        ],
+      });
+    });
+
+    it("should reject invalid categories", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleCreateScoreConfig(
+          {
+            name: `mcp-invalid-${nanoid(8)}`,
+            dataType: "CATEGORICAL",
+            categories: [
+              { label: "Duplicate", value: 1 },
+              { label: "Duplicate", value: 2 },
+            ],
+          },
+          context,
+        ),
+      ).rejects.toThrow(/Category labels must be unique/i);
+    });
+  });
+
+  describe("updateScoreConfig tool", () => {
+    it("should have destructiveHint annotation", () => {
+      verifyToolAnnotations(updateScoreConfigTool, { destructiveHint: true });
+    });
+
+    it("should describe allowed score config name characters in the input schema", () => {
+      expect(
+        containsStringValue(
+          updateScoreConfigTool.inputSchema,
+          "Allowed characters: letters, numbers, spaces, underscores, periods, parentheses, and hyphens.",
+        ),
+      ).toBe(true);
+    });
+
+    it("should not expose archive state in the input schema", () => {
+      expect(
+        containsPropertyName(updateScoreConfigTool.inputSchema, "isArchived"),
+      ).toBe(false);
+    });
+
+    it("should update allowed fields and write an audit log", async () => {
+      const { context, projectId, apiKeyId } = await createMcpTestSetup();
+      const config = await prisma.scoreConfig.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          name: `mcp-update-${nanoid(8)}`,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: 0,
+          maxValue: 1,
+        },
+      });
+
+      const result = await handleUpdateScoreConfig(
+        {
+          configId: config.id,
+          name: "mcp-updated",
+          description: "Updated through MCP",
+          minValue: -1,
+        },
+        context,
+      );
+
+      expect(result).toMatchObject({
+        id: config.id,
+        name: "mcp-updated",
+        description: "Updated through MCP",
+        minValue: -1,
+      });
+
+      await expect(
+        verifyAuditLog({
+          projectId,
+          resourceType: "scoreConfig",
+          resourceId: config.id,
+          action: "update",
+          apiKeyId,
+        }),
+      ).resolves.toMatchObject({ action: "update" });
+    });
+
+    it("should reject empty update bodies", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleUpdateScoreConfig({ configId: randomUUID() }, context),
+      ).rejects.toThrow(/Request body cannot be empty/i);
+    });
+
+    it("should not archive score configs through update", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const config = await prisma.scoreConfig.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          name: `mcp-update-no-archive-${nanoid(8)}`,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: 0,
+          maxValue: 1,
+        },
+      });
+
+      const result = await handleUpdateScoreConfig(
+        {
+          configId: config.id,
+          name: "mcp-still-active",
+          isArchived: true,
+        } as unknown as Parameters<typeof handleUpdateScoreConfig>[0],
+        context,
+      );
+
+      expect(result).toMatchObject({
+        id: config.id,
+        name: "mcp-still-active",
+        isArchived: false,
+      });
+    });
+  });
+
+  describe("deleteScoreConfig tool", () => {
+    it("should have destructiveHint annotation", () => {
+      verifyToolAnnotations(deleteScoreConfigTool, { destructiveHint: true });
+    });
+
+    it("should archive the score config", async () => {
+      const { context, projectId, apiKeyId } = await createMcpTestSetup();
+      const config = await prisma.scoreConfig.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          name: `mcp-delete-config-${nanoid(8)}`,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: 0,
+          maxValue: 1,
+        },
+      });
+
+      const result = await handleDeleteScoreConfig(
+        { configId: config.id },
+        context,
+      );
+
+      expect(result).toMatchObject({
+        id: config.id,
+        isArchived: true,
+      });
+
+      await expect(
+        verifyAuditLog({
+          projectId,
+          resourceType: "scoreConfig",
+          resourceId: config.id,
+          action: "update",
+          apiKeyId,
+        }),
+      ).resolves.toMatchObject({ action: "update" });
     });
   });
 

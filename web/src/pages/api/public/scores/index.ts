@@ -1,5 +1,3 @@
-import { v4 } from "uuid";
-
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
@@ -9,11 +7,7 @@ import {
   PostScoresBodyV1,
   PostScoresResponseV1,
 } from "@langfuse/shared";
-import {
-  eventTypes,
-  logger,
-  processEventBatch,
-} from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { ForbiddenError } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 
@@ -30,16 +24,8 @@ export default withMiddlewares({
         );
       }
 
-      const event = {
-        id: v4(),
-        type: eventTypes.SCORE_CREATE,
-        timestamp: new Date().toISOString(),
-        body,
-      };
-      if (!event.body.id) {
-        event.body.id = v4();
-      }
-      const result = await processEventBatch([event], auth);
+      const scoresApiService = new ScoresApiService("v1");
+      const { id, result } = await scoresApiService.createScore({ body, auth });
       if (result.errors.length > 0) {
         const error = result.errors[0];
         res
@@ -51,7 +37,7 @@ export default withMiddlewares({
         logger.error("Failed to create score", { result });
         throw new Error("Failed to create score");
       }
-      return { id: event.body.id };
+      return { id };
     },
   }),
   GET: createAuthedProjectAPIRoute({
