@@ -57,13 +57,7 @@ export const UpdateMonitorInputSchema = MonitorSchema.omit({
   .superRefine(validateThresholdOrder);
 export type UpdateMonitorInput = z.infer<typeof UpdateMonitorInputSchema>;
 
-/**
- * MonitorListInputSchema is the input contract for `MonitorService.list`.
- * `orderBy.column` is narrowed to the columns the admin table can sort on;
- * null falls back to the service default (`updatedAt DESC`). Without this
- * narrowing, an unknown column would reach Prisma and raise a 500-class
- * `PrismaClientValidationError` rather than a clean validation error.
- */
+/** MonitorListInputSchema is the input contract for `MonitorService.list`. */
 /** MonitorListOrderBySchema is the list of fields that we can sort the Monitor collection by. */
 export const MonitorListOrderBySchema = z.enum([
   "name",
