@@ -3015,24 +3015,14 @@ export const getEventsForBlobStorageExport = function (
     ? fieldGroups
     : (["core", ...fieldGroups] as ObservationFieldGroupFull[]);
 
-  // model_export must be selected whenever model or usage is requested:
-  // - model group: include model identification fields in the output
-  // - usage group (without model): pricing enrichment needs model_id for the
-  //   lookup; the field is dropped afterward by enrichObservationStream
-  const needsModelFields =
-    fieldGroups.includes("model") || fieldGroups.includes("usage");
-
   for (const group of effectiveGroups) {
     if (group === "io") {
       queryBuilder.selectIO(false); // Full I/O, no truncation
-    } else if (group !== "model") {
-      // model_export is selected below via needsModelFields to avoid double-selecting
+    } else if (group === "model") {
+      queryBuilder.selectFieldSet("model_export"); // "model_export" is the SQL field set name for the "model" group
+    } else {
       queryBuilder.selectFieldSet(group);
     }
-  }
-
-  if (needsModelFields) {
-    queryBuilder.selectFieldSet("model_export");
   }
 
   queryBuilder
