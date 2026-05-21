@@ -651,7 +651,7 @@ export const eventRecordBaseSchema = z.object({
   trace_name: z.string().nullish(),
   user_id: z.string().nullish(),
   session_id: z.string().nullish(),
-  is_app_root: z.boolean().nullish(),
+  is_app_root: z.boolean().default(false),
 
   // User updatable flags
   tags: z.array(z.string()).default([]),

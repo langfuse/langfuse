@@ -3,7 +3,10 @@ import {
   omitFilterFacets,
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
+import type {
+  ColumnToBackendKeyMap,
+  FilterMigration,
+} from "@/src/features/filters/lib/filter-transform";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 
 // Helper function to get column name from eventsTableCols by ID
@@ -25,12 +28,30 @@ export const OBSERVATION_EVENTS_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
 
 export type ObservationEventsOmittableFilterColumn = "sessionId" | "userId";
 
+export const migrateLegacyRootObservationFilter: FilterMigration = (filter) => {
+  if (
+    filter.column === "hasParentObservation" &&
+    filter.type === "boolean" &&
+    typeof filter.value === "boolean"
+  ) {
+    return {
+      ...filter,
+      column: "isRootObservation",
+      value: !filter.value,
+    };
+  }
+
+  return filter;
+};
+
 export const observationEventsFilterConfig: FilterConfig = {
   tableName: "observations-events",
 
   columnDefinitions: eventsTableCols,
 
-  defaultExpanded: ["environment", "name", "hasParentObservation", "type"],
+  filterMigrations: [migrateLegacyRootObservationFilter],
+
+  defaultExpanded: ["environment", "name", "isRootObservation", "type"],
 
   facets: [
     {
@@ -46,11 +67,10 @@ export const observationEventsFilterConfig: FilterConfig = {
     },
     {
       type: "boolean" as const,
-      column: "hasParentObservation",
+      column: "isRootObservation",
       label: "Is Root Observation",
       tooltip:
-        "A root observation is the top-level observation in a trace. It has no parent observation ID. Filter to 'True' to see only root-level observations.",
-      invertValue: true, // "True" = hasParentObservation=false (is root)
+        "A root observation is top-level in a trace or marked as an app root by the SDK. Filter to 'True' to see root-level observations.",
     },
     {
       type: "categorical" as const,

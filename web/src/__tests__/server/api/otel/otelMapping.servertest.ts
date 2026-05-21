@@ -1211,6 +1211,7 @@ describe("OTel Resource Span Mapping", () => {
     };
 
     it.each([
+      ["missing attribute", undefined, false],
       ["boolean true", { boolValue: true }, true],
       ["string true", { stringValue: "true" }, true],
       ["boolean false", { boolValue: false }, false],
@@ -1219,21 +1220,24 @@ describe("OTel Resource Span Mapping", () => {
       "should extract isAppRoot from %s",
       (
         _name: string,
-        otelAttributeValue: Record<string, unknown>,
+        otelAttributeValue: Record<string, unknown> | undefined,
         expectedIsAppRoot: boolean,
       ) => {
+        const attributes = otelAttributeValue
+          ? [
+              {
+                key: "langfuse.internal.is_app_root",
+                value: otelAttributeValue,
+              },
+            ]
+          : [];
         const resourceSpan = {
           scopeSpans: [
             {
               spans: [
                 {
                   ...defaultSpanProps,
-                  attributes: [
-                    {
-                      key: "langfuse.internal.is_app_root",
-                      value: otelAttributeValue,
-                    },
-                  ],
+                  attributes,
                 },
               ],
             },

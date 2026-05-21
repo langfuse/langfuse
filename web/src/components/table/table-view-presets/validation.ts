@@ -4,7 +4,11 @@ import {
   type ColumnDefinition,
   type OrderByState,
 } from "@langfuse/shared";
-import { normalizeFilterColumnNames } from "@/src/features/filters/lib/filter-transform";
+import {
+  applyFilterMigrations,
+  normalizeFilterColumnNames,
+  type FilterMigration,
+} from "@/src/features/filters/lib/filter-transform";
 
 /**
  * Validates if an orderBy state references valid columns.
@@ -63,13 +67,16 @@ export function validateOrderBy(
 export function validateFilters(
   filters: FilterState,
   filterColumnDefinition?: ColumnDefinition[],
+  filterMigrations?: readonly FilterMigration[],
 ): FilterState {
   if (!filterColumnDefinition || filterColumnDefinition.length === 0)
     return filters;
 
+  const migrated = applyFilterMigrations(filters, filterMigrations);
+
   // Normalize display names to column IDs for backward compatibility
   const normalized = normalizeFilterColumnNames(
-    filters,
+    migrated,
     filterColumnDefinition,
   );
 

@@ -1,5 +1,11 @@
 import { type ColumnDefinition } from "./tableDefinitions";
 
+export const eventsTableHasParentObservationSql =
+  "(e.parent_span_id != '' AND e.parent_span_id IS NOT NULL)";
+
+export const eventsTableIsRootObservationSql =
+  "(e.parent_span_id = '' OR e.parent_span_id IS NULL OR e.is_app_root = true)";
+
 // Column definitions for the ClickHouse events table
 // Used for filtering, sorting, and mapping UI columns to ClickHouse columns
 export const eventsTableCols: ColumnDefinition[] = [
@@ -268,7 +274,13 @@ export const eventsTableCols: ColumnDefinition[] = [
     name: "Has Parent Observation",
     id: "hasParentObservation",
     type: "boolean",
-    internal: "e.parent_span_id != ''",
+    internal: eventsTableHasParentObservationSql,
+  },
+  {
+    name: "Is Root Observation",
+    id: "isRootObservation",
+    type: "boolean",
+    internal: eventsTableIsRootObservationSql,
   },
   {
     name: "Experiment Dataset ID",
