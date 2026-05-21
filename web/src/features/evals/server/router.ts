@@ -9,7 +9,7 @@ import {
   DEFAULT_TRACE_JOB_DELAY,
   ZodModelConfig,
   PersistedEvalOutputDefinitionSchema,
-  _compilePersistedEvalOutputDefinition,
+  compilePersistedEvalOutputDefinition,
   deriveEvaluatorDisplayStateFromExecutionCounts,
   type OrderByState,
   singleFilter,
