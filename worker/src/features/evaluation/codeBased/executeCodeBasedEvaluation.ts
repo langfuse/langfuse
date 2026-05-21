@@ -17,7 +17,6 @@ import { type EvalExecutionDeps } from "../evalExecutionDeps";
 export async function executeCodeBasedEvaluation(params: {
   projectId: string;
   organizationId: string;
-  jobExecutionId: string;
   job: JobExecution;
   config: JobConfiguration;
   template: EvalTemplateCodeBased;
@@ -31,12 +30,13 @@ export async function executeCodeBasedEvaluation(params: {
     { name: "eval.execute-code-based-eval" },
     async (span) => {
       const dispatcher = resolveConfiguredCodeEvalDispatcher();
+      const jobExecutionId = params.job.id;
 
       if (!dispatcher) {
         throw new UnrecoverableError("Code eval dispatcher is not configured");
       }
 
-      const executionTraceId = createW3CTraceId(params.jobExecutionId);
+      const executionTraceId = createW3CTraceId(jobExecutionId);
       const primaryScoreId = randomUUID();
       const executionMetadata = {
         ...params.executionMetadata,
@@ -45,7 +45,7 @@ export async function executeCodeBasedEvaluation(params: {
       };
 
       span.setAttribute("langfuse.project.id", params.projectId);
-      span.setAttribute("eval.job_execution.id", params.jobExecutionId);
+      span.setAttribute("eval.job_execution.id", jobExecutionId);
       span.setAttribute("eval.job_configuration.id", params.config.id);
       span.setAttribute("eval.template.id", params.template.id);
       span.setAttribute("eval.template.version", params.template.version);
@@ -56,7 +56,7 @@ export async function executeCodeBasedEvaluation(params: {
       );
 
       logger.debug(
-        `Executing code-based evaluation for job ${params.jobExecutionId} in project ${params.projectId}`,
+        `Executing code-based evaluation for job ${jobExecutionId} in project ${params.projectId}`,
       );
 
       const dispatchOutcome = await runCodeBasedEvaluationDispatch({
@@ -64,7 +64,7 @@ export async function executeCodeBasedEvaluation(params: {
         organizationId: params.organizationId,
         projectId: params.projectId,
         executionTraceId,
-        jobExecutionId: params.jobExecutionId,
+        jobExecutionId,
         template: params.template,
         scoreName: params.config.scoreName,
         extractedVariables: params.extractedVariables,

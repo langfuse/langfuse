@@ -61,7 +61,6 @@ describe("executeCodeBasedEvaluation", () => {
     const result = await executeCodeBasedEvaluation({
       projectId: "project-1",
       organizationId: "org-1",
-      jobExecutionId: "job-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -149,7 +148,6 @@ describe("executeCodeBasedEvaluation", () => {
     const result = await executeCodeBasedEvaluation({
       projectId: "project-1",
       organizationId: "org-1",
-      jobExecutionId: "job-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -195,7 +193,6 @@ describe("executeCodeBasedEvaluation", () => {
     await executeCodeBasedEvaluation({
       projectId: "project-1",
       organizationId: "org-1",
-      jobExecutionId: "job-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -239,7 +236,6 @@ describe("executeCodeBasedEvaluation", () => {
     await executeCodeBasedEvaluation({
       projectId: "project-1",
       organizationId: "org-1",
-      jobExecutionId: "job-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -279,7 +275,6 @@ describe("executeCodeBasedEvaluation", () => {
     await executeCodeBasedEvaluation({
       projectId: "project-1",
       organizationId: "org-1",
-      jobExecutionId: "job-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -331,7 +326,6 @@ describe("executeCodeBasedEvaluation", () => {
     await executeCodeBasedEvaluation({
       projectId: "project-1",
       organizationId: "org-1",
-      jobExecutionId: "job-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -386,7 +380,6 @@ describe("executeCodeBasedEvaluation", () => {
       executeCodeBasedEvaluation({
         projectId: "project-1",
         organizationId: "org-1",
-        jobExecutionId: "job-1",
         job: {
           id: "job-1",
           jobConfigurationId: "config-1",
@@ -425,7 +418,6 @@ describe("executeCodeBasedEvaluation", () => {
       executeCodeBasedEvaluation({
         projectId: "project-1",
         organizationId: "org-1",
-        jobExecutionId: "job-1",
         job: {
           id: "job-1",
           jobConfigurationId: "config-1",
@@ -502,7 +494,6 @@ describe("executeCodeBasedEvaluation", () => {
       executeCodeBasedEvaluation({
         projectId: "project-1",
         organizationId: "org-1",
-        jobExecutionId: "job-1",
         job: {
           id: "job-1",
           jobConfigurationId: "config-1",
