@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { z } from "zod";
 
 import { env } from "../../env";
@@ -36,6 +36,42 @@ import {
 } from "../redis/s3SlowdownTracking";
 
 let s3StorageServiceClient: StorageService;
+
+const S3_OBJECT_KEY_SEGMENT_MAX_BYTES = 255;
+
+const safeS3ObjectKeySegment = (
+  segment: string,
+  maxBytes = S3_OBJECT_KEY_SEGMENT_MAX_BYTES,
+) => {
+  if (Buffer.byteLength(segment, "utf8") <= maxBytes) {
+    return segment;
+  }
+
+  const hash = createHash("sha256").update(segment).digest("hex").slice(0, 16);
+  const suffix = `_${hash}`;
+  const suffixBytes = Buffer.byteLength(suffix, "utf8");
+  const prefixMaxBytes = Math.max(0, maxBytes - suffixBytes);
+
+  const prefixBuf = Buffer.from(segment, "utf8").subarray(0, prefixMaxBytes);
+  let prefix = prefixBuf.toString("utf8");
+  while (
+    Buffer.byteLength(prefix, "utf8") > prefixMaxBytes &&
+    prefix.length > 0
+  ) {
+    prefix = prefix.slice(0, -1);
+  }
+
+  return `${prefix}${suffix}`;
+};
+
+const safeS3ObjectKeyFileName = (baseName: string, extension: string) => {
+  const extensionBytes = Buffer.byteLength(extension, "utf8");
+  const safeBase = safeS3ObjectKeySegment(
+    baseName,
+    Math.max(0, S3_OBJECT_KEY_SEGMENT_MAX_BYTES - extensionBytes),
+  );
+  return `${safeBase}${extension}`;
+};
 
 const getS3StorageServiceClient = (bucketName: string): StorageService => {
   if (!s3StorageServiceClient) {
@@ -234,7 +270,9 @@ export const processEventBatch = async (
         // That way we batch updates from the same invocation into a single file and reduce
         // write operations on S3.
         const { data, key, type, eventBodyId } = sortedBatchByEventBodyId[id];
-        const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`;
+        const safeEventBodyId = safeS3ObjectKeySegment(eventBodyId);
+        const safeFileName = safeS3ObjectKeyFileName(key, ".json");
+        const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${safeEventBodyId}/${safeFileName}`;
         return getS3StorageServiceClient(
           env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
         ).uploadJson(bucketPath, data);
