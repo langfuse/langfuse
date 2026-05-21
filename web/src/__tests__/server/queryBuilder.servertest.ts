@@ -4232,6 +4232,51 @@ describe("validateQuery", () => {
     );
   });
 
+  it("should return invalid when non-allowlisted high cardinality entityDimension is used without row_limit", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      entityDimension: { field: "experimentId" }, // high cardinality
+      orderBy: [{ field: "sum_totalCost", direction: "desc" }],
+      // no chartConfig.row_limit
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension(s) 'experimentId'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "require both 'config.row_limit' and 'orderBy' with direction 'desc'",
+    );
+  });
+
+  it("should return valid for allowlisted experimentName entityDimension", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      entityDimension: { field: "experimentName" },
+      orderBy: [{ field: "sum_totalCost", direction: "desc" }],
+      // no chartConfig.row_limit required for the internal experiment chart bucket
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result).toEqual({ valid: true });
+  });
+
+  it("should return valid when non-allowlisted high cardinality entityDimension has top-N protection", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      entityDimension: { field: "experimentId" },
+      chartConfig: { type: "table", row_limit: 10 },
+      orderBy: [{ field: "sum_totalCost", direction: "desc" }],
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result).toEqual({ valid: true });
+  });
+
   it("should return invalid when high cardinality dimension is used without ORDER DESC", () => {
     const query: QueryType = {
       ...baseQuery,

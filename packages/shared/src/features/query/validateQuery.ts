@@ -9,6 +9,8 @@ export type QueryValidationResult =
   | { valid: true }
   | { valid: false; reason: string };
 
+const ALLOWED_HIGH_CARDINALITY_ENTITY_DIMENSIONS = new Set(["experimentName"]);
+
 /**
  * Gets the list of high cardinality dimension fields used in the query.
  *
@@ -20,14 +22,21 @@ function getHighCardinalityDimensions(
   query: QueryType,
   version: ViewVersion,
 ): string[] {
-  if (!query.dimensions || query.dimensions.length === 0) {
-    return [];
-  }
-
   const view = getViewDeclaration(query.view, version);
-  return query.dimensions
+  const regularDimensions = query.dimensions
     .filter((dim) => view.dimensions[dim.field]?.highCardinality)
     .map((dim) => dim.field);
+
+  const entityDimensionField = query.entityDimension?.field;
+  // Experiment charts set this internally; public metrics and widget UI do not expose entityDimension selection.
+  const entityDimension =
+    entityDimensionField &&
+    view.dimensions[entityDimensionField]?.highCardinality &&
+    !ALLOWED_HIGH_CARDINALITY_ENTITY_DIMENSIONS.has(entityDimensionField)
+      ? [entityDimensionField]
+      : [];
+
+  return [...regularDimensions, ...entityDimension];
 }
 
 /**
@@ -66,7 +75,6 @@ function findMeasureInOrderByField(
  * 1. timeDimension is NOT set (timeseries with high cardinality produces unbounded results)
  * 2. config.row_limit (or chartConfig.row_limit) is explicitly specified (LIMIT)
  * 3. orderBy with direction 'desc' on a measure field is specified (for top-N queries)
- *
  * @param query - The query configuration (with original config, before defaults applied)
  * @param version - The view version (v1 or v2)
  * @returns Validation result: { valid: true } or { valid: false, reason: string }
@@ -80,7 +88,7 @@ export function validateQuery(
     return { valid: true };
   }
 
-  // 1. Check for high cardinality dimensions
+  // 1. Check for high cardinality dimensions, including entityDimension.
   const highCardDims = getHighCardinalityDimensions(query, version);
 
   if (highCardDims.length === 0) {
