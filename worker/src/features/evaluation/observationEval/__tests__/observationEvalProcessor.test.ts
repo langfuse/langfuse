@@ -49,8 +49,11 @@ vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   const { extractObservationVariables } =
     await import("../../../../../../packages/shared/src/server/evals/extractObservationVariables");
+  const { buildDeterministicEvalScoreIds } =
+    await import("../../../../../../packages/shared/src/server/evals/evalScoreIds");
   return {
     ...actual,
+    buildDeterministicEvalScoreIds,
     extractObservationVariables,
     logger: {
       debug: vi.fn(),
@@ -69,6 +72,13 @@ import {
   type EvalExecutionDeps,
 } from "../../evalExecutionDeps";
 import { runLLMAsJudgeEvaluation } from "../../evalService";
+import { createDeterministicEvalScoreId } from "../../../../../../packages/shared/src/server/evals/evalScoreIds";
+
+const mockScoreId = createDeterministicEvalScoreId({
+  jobExecutionId: "job-exec-456",
+  scoreName: "test-score",
+  occurrenceIndex: 0,
+});
 
 const mockEvalExecutionResult = {
   scores: [
@@ -79,7 +89,6 @@ const mockEvalExecutionResult = {
       comment: "Mock eval result",
     },
   ],
-  primaryScoreId: "score-123",
   executionTraceId: "trace-123",
   metadata: {},
 };
@@ -500,7 +509,7 @@ describe("processObservationEval", () => {
       expect(uploadScore).toHaveBeenCalledWith(
         expect.objectContaining({
           projectId,
-          scoreId: mockEvalExecutionResult.primaryScoreId,
+          scoreId: mockScoreId,
           event: expect.objectContaining({
             body: expect.objectContaining({
               environment: "production",
@@ -511,7 +520,7 @@ describe("processObservationEval", () => {
       expect(enqueueScoreIngestion).toHaveBeenCalledWith(
         expect.objectContaining({
           projectId,
-          scoreId: mockEvalExecutionResult.primaryScoreId,
+          scoreId: mockScoreId,
         }),
       );
       expect(updateJobExecution).toHaveBeenCalledWith({
@@ -519,7 +528,7 @@ describe("processObservationEval", () => {
         projectId,
         data: expect.objectContaining({
           status: JobExecutionStatus.COMPLETED,
-          jobOutputScoreId: mockEvalExecutionResult.primaryScoreId,
+          jobOutputScoreId: mockScoreId,
           executionTraceId: mockEvalExecutionResult.executionTraceId,
         }),
       });

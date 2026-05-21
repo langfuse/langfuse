@@ -242,6 +242,85 @@ maybe("evals.testRunCodeEval", () => {
     });
   });
 
+  it("passes experiment context to test runs", async () => {
+    const { project, caller } = await prepare();
+    const observationId = randomUUID();
+    const traceId = randomUUID();
+    const startTime = new Date();
+    const expectedOutput = "expected answer";
+    const template = await createCodeTemplate(
+      project.id,
+      `
+        export function evaluate(ctx) {
+          if (!ctx.experiment) {
+            throw new Error("missing experiment context");
+          }
+
+          const matched =
+            ctx.observation.output === ctx.experiment.expectedOutput &&
+            ctx.experiment.itemMetadata.difficulty === "easy";
+
+          return { scores: [{ value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
+        }
+      `,
+    );
+
+    await createEventsCh([
+      createEvent({
+        project_id: project.id,
+        trace_id: traceId,
+        span_id: observationId,
+        id: observationId,
+        start_time: startTime.getTime() * 1000,
+        output: expectedOutput,
+        experiment_id: randomUUID(),
+        experiment_item_expected_output: expectedOutput,
+        experiment_item_metadata_names: ["difficulty"],
+        experiment_item_metadata_values: ["easy"],
+      }),
+    ]);
+
+    const response = await caller.evals.testRunCodeEval({
+      projectId: project.id,
+      evalTemplateId: template.id,
+      target: EvalTargetObject.EXPERIMENT,
+      scoreName: "experiment-score",
+      observationId,
+      traceId,
+      startTime,
+      mapping: [
+        {
+          templateVariable: "output",
+          selectedColumnId: "output",
+          jsonSelector: null,
+        },
+        {
+          templateVariable: "experimentExpectedOutput",
+          selectedColumnId: "experimentItemExpectedOutput",
+          jsonSelector: null,
+        },
+        {
+          templateVariable: "experimentItemMetadata",
+          selectedColumnId: "experimentItemMetadata",
+          jsonSelector: null,
+        },
+      ],
+    });
+
+    expect(response).toEqual({
+      success: true,
+      result: {
+        scores: [
+          {
+            value: 1,
+            dataType: "BOOLEAN",
+          },
+        ],
+      },
+      executionTraceId: expect.stringMatching(/^[0-9a-f]{32}$/),
+    });
+  });
+
   it("persists an internal trace for the test run", async () => {
     const { project, caller } = await prepare();
     const observationId = randomUUID();

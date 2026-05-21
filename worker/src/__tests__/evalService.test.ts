@@ -3181,9 +3181,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         job_execution_id: jobExecutionId,
         job_configuration_id: configId,
         target_trace_id: traceId,
-        score_id: capturedTraceSinkParams.metadata.score_id,
       });
-      expect(capturedTraceSinkParams.metadata.score_id).toBeDefined();
     }, 15_000);
   });
 

@@ -107,6 +107,7 @@ export async function runCodeEvalTest(params: {
     template: codeTemplate,
     scoreName: params.scoreName,
     extractedVariables,
+    hasExperimentContext: Boolean(observation.experiment_id),
     traceName,
     metadata: executionMetadata,
     maskErrorsInTrace: true,

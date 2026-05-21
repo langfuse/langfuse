@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import { type JobConfiguration, type JobExecution } from "@prisma/client";
 import { type EvalTemplateCodeBased } from "@langfuse/shared";
 import {
@@ -37,13 +36,11 @@ export async function executeCodeBasedEvaluation(params: {
       }
 
       const executionTraceId = createW3CTraceId(jobExecutionId);
-      const primaryScoreId = randomUUID();
       const executionMetadata = {
         ...params.executionMetadata,
         dispatcher_name: dispatcher.name,
         code_eval_runtime: params.template.sourceCodeLanguage,
       };
-
       span.setAttribute("langfuse.project.id", params.projectId);
       span.setAttribute("eval.job_execution.id", jobExecutionId);
       span.setAttribute("eval.job_configuration.id", params.config.id);
@@ -70,10 +67,7 @@ export async function executeCodeBasedEvaluation(params: {
         extractedVariables: params.extractedVariables,
         hasExperimentContext: params.hasExperimentContext ?? false,
         traceName: `Execute evaluator: ${params.template.name}`,
-        metadata: {
-          ...executionMetadata,
-          score_id: primaryScoreId,
-        },
+        metadata: executionMetadata,
         maskErrorsInTrace: true,
         writeTrace: (trace) => createInternalEventsWriter().write(trace),
       });
@@ -83,11 +77,9 @@ export async function executeCodeBasedEvaluation(params: {
       }
 
       span.setAttribute("eval.score.count", dispatchOutcome.scores.length);
-      span.setAttribute("eval.score.id", primaryScoreId);
 
       return {
         scores: dispatchOutcome.scores,
-        primaryScoreId,
         executionTraceId,
         metadata: executionMetadata,
       };
