@@ -319,9 +319,17 @@ export async function upsertConversationMessages(params: {
 
   const lastMessageAt = new Date();
 
-  await params.prisma.$transaction([
-    ...persistableMessages.map((message) =>
-      params.prisma.inAppAgentMessage.upsert({
+  await params.prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT 1
+      FROM "in_app_agent_conversations"
+      WHERE "id" = ${params.conversationId}
+        AND "project_id" = ${params.projectId}
+      FOR UPDATE
+    `;
+
+    for (const message of persistableMessages) {
+      await tx.inAppAgentMessage.upsert({
         where: {
           projectId_conversationId_externalId: {
             projectId: params.projectId,
@@ -346,9 +354,10 @@ export async function upsertConversationMessages(params: {
           role: message.role,
           content: message.content,
         },
-      }),
-    ),
-    params.prisma.inAppAgentConversation.update({
+      });
+    }
+
+    await tx.inAppAgentConversation.update({
       where: {
         id: params.conversationId,
         projectId: params.projectId,
@@ -356,8 +365,8 @@ export async function upsertConversationMessages(params: {
       data: {
         lastMessageAt,
       },
-    }),
-  ]);
+    });
+  });
 }
 
 type PersistableMessage = {

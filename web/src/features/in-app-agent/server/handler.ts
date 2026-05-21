@@ -189,70 +189,87 @@ export default async function handler(request: Request) {
       model: "haiku",
     });
 
-    await appendConversationMessage({
-      prisma,
-      projectId,
-      conversationId: conversation.id,
-      userId: auth.userId,
-      message: sanitizedInput.messages[0]!,
-      runId: sanitizedInput.runId,
-    });
+    let stream: ReadableStream<Uint8Array>;
 
-    const resumeSessionId =
-      tokenClaudeSessionId ?? conversation.providerSessionId ?? undefined;
+    try {
+      await appendConversationMessage({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+        userId: auth.userId,
+        message: sanitizedInput.messages[0]!,
+        runId: sanitizedInput.runId,
+      });
 
-    const stream = createAgUiStream({
-      input: sanitizedInput,
-      signal: request.signal,
-      options: {
-        resumeSessionId,
-        createResumeStateForSessionId: (_claudeSessionId) => ({
-          type: "existingConversation",
-          projectId,
-          conversationId: conversation.id,
-        }),
-        onResumeSessionId: (claudeSessionId) => {
-          void updateProviderSessionId({
-            prisma,
+      const resumeSessionId =
+        tokenClaudeSessionId ?? conversation.providerSessionId ?? undefined;
+
+      stream = createAgUiStream({
+        input: sanitizedInput,
+        signal: request.signal,
+        options: {
+          resumeSessionId,
+          createResumeStateForSessionId: (_claudeSessionId) => ({
+            type: "existingConversation",
             projectId,
             conversationId: conversation.id,
-            providerSessionId: claudeSessionId,
-          }).catch((error) =>
-            console.error("Failed to persist agent session id", error),
-          );
+          }),
+          onResumeSessionId: (claudeSessionId) => {
+            void updateProviderSessionId({
+              prisma,
+              projectId,
+              conversationId: conversation.id,
+              providerSessionId: claudeSessionId,
+            }).catch((error) =>
+              console.error("Failed to persist agent session id", error),
+            );
+          },
+          onComplete: () => {
+            void finishRun({
+              prisma,
+              runId: sanitizedInput.runId,
+              projectId,
+            });
+          },
+          onAbort: () => {
+            void finishRun({
+              prisma,
+              runId: sanitizedInput.runId,
+              projectId,
+              errorCode: "cancelled",
+              errorMessage: "Client aborted request",
+            });
+          },
+          onError: (error) => {
+            void finishRun({
+              prisma,
+              runId: sanitizedInput.runId,
+              projectId,
+              errorCode: "agent_error",
+              errorMessage:
+                error instanceof Error ? error.message : "Unknown agent error",
+            });
+          },
+          awsBedrock: {
+            region: env.LANGFUSE_AWS_BEDROCK_REGION,
+            ...(awsProfile ? { profile: awsProfile } : {}),
+          },
         },
-        onComplete: () => {
-          void finishRun({
-            prisma,
-            runId: sanitizedInput.runId,
-            projectId,
-          });
-        },
-        onAbort: () => {
-          void finishRun({
-            prisma,
-            runId: sanitizedInput.runId,
-            projectId,
-            errorCode: "cancelled",
-            errorMessage: "Client aborted request",
-          });
-        },
-        onError: (error) => {
-          void finishRun({
-            prisma,
-            runId: sanitizedInput.runId,
-            projectId,
-            errorCode: "agent_error",
-            errorMessage:
-              error instanceof Error ? error.message : "Unknown agent error",
-          });
-        },
-        awsBedrock: {
-          region: env.LANGFUSE_AWS_BEDROCK_REGION,
-          ...(awsProfile ? { profile: awsProfile } : {}),
-        },
-      },
-    });
+      });
+    } catch (error) {
+      await finishRun({
+        prisma,
+        runId: sanitizedInput.runId,
+        projectId,
+        errorCode: "init_failed",
+        errorMessage:
+          error instanceof Error
+            ? error.message
+            : "Agent initialization failed",
+      });
+
+      throw error;
+    }
 
     return new Response(stream, {
       headers: {
