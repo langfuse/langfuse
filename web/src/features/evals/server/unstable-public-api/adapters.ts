@@ -59,6 +59,7 @@ const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
   output: "output",
   metadata: "metadata",
   expected_output: "experimentItemExpectedOutput",
+  experiment_item_metadata: "experimentItemMetadata",
 };
 
 const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
@@ -72,6 +73,8 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   expectedOutput: "expected_output",
   experiment_item_expected_output: "expected_output",
   experimentItemExpectedOutput: "expected_output",
+  experimentItemMetadata: "experiment_item_metadata",
+  experiment_item_metadata: "experiment_item_metadata",
 };
 
 function getPublicFilterArraySchema(target: PublicEvaluationRuleTargetType) {
