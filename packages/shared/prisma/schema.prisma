@@ -931,6 +931,7 @@ model EvalTemplate {
   modelParams      Json?              @map("model_params")
   vars             String[]           @default([])
   outputDefinition Json               @map("output_schema")
+  templateFormat   String             @default("default") @map("template_format")
   JobConfiguration JobConfiguration[]
   JobExecution     JobExecution[]
 
