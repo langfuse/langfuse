@@ -450,7 +450,7 @@ jobs:
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
         working-directory: web
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-unit
       - name: run test-client
         if: matrix.deploy-mode == ''
         working-directory: web
