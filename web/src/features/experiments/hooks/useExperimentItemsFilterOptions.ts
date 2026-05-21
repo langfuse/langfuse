@@ -1,11 +1,23 @@
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
+import { type ScoreFilterOptions } from "@/src/features/experiments/types/charts";
 
 export type ScoreColumnDef = {
   name: string;
   dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
   source: string;
 };
+
+const processCategoricalScoreOptions = (
+  categories: Array<{ label: string; values: string[] }>,
+): Record<string, string[]> =>
+  categories.reduce(
+    (acc, score) => {
+      acc[score.label] = score.values;
+      return acc;
+    },
+    {} as Record<string, string[]>,
+  );
 
 /**
  * Hook to fetch experiment item filter options (scores) scoped to specific experiment IDs.
@@ -37,36 +49,19 @@ export const useExperimentItemsFilterOptions = ({
         obs_score_categories: undefined,
         trace_scores_avg: undefined,
         trace_score_categories: undefined,
-        experiment_scores_avg: undefined,
-        experiment_score_categories: undefined,
-      };
+      } satisfies ScoreFilterOptions;
     }
-
-    const processCategoricalScores = (
-      categories: Array<{ label: string; values: string[] }>,
-    ): Record<string, string[]> =>
-      categories.reduce(
-        (acc, score) => {
-          acc[score.label] = score.values;
-          return acc;
-        },
-        {} as Record<string, string[]>,
-      );
 
     return {
       obs_scores_avg: filterOptions.data.obs_scores_avg,
-      obs_score_categories: processCategoricalScores(
+      obs_score_categories: processCategoricalScoreOptions(
         filterOptions.data.obs_score_categories,
       ),
       trace_scores_avg: filterOptions.data.trace_scores_avg,
-      trace_score_categories: processCategoricalScores(
+      trace_score_categories: processCategoricalScoreOptions(
         filterOptions.data.trace_score_categories,
       ),
-      experiment_scores_avg: filterOptions.data.experiment_scores_avg,
-      experiment_score_categories: processCategoricalScores(
-        filterOptions.data.experiment_score_categories,
-      ),
-    };
+    } satisfies ScoreFilterOptions;
   }, [filterOptions.data]);
 
   // Extract score column definitions for table columns

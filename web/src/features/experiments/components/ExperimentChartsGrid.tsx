@@ -1,14 +1,12 @@
 import { Plus } from "lucide-react";
 import { ExperimentChartSlot } from "./ExperimentChartSlot";
 import { useExperimentChartsGridSelection } from "../hooks/useExperimentChartsGridSelection";
-import type { ScoreFilterOptions } from "../types/charts";
 
 type ExperimentChartsGridProps = {
   projectId: string;
   experimentIds: string[];
   fromTimestamp: Date;
   toTimestamp: Date;
-  scoreFilterOptions: ScoreFilterOptions;
   isExternalLoading?: boolean;
 };
 
@@ -64,7 +62,6 @@ export function ExperimentChartsGrid({
   experimentIds,
   fromTimestamp,
   toTimestamp,
-  scoreFilterOptions,
   isExternalLoading = false,
 }: ExperimentChartsGridProps) {
   const {
@@ -75,9 +72,10 @@ export function ExperimentChartsGrid({
     canAddChart,
     canDeleteChart,
     availableMetricOptions,
+    isLoading,
   } = useExperimentChartsGridSelection({
     projectId,
-    scoreFilterOptions,
+    experimentIds,
   });
 
   const gridClass = getGridClass(charts.length);
@@ -98,7 +96,7 @@ export function ExperimentChartsGrid({
           experimentIds={experimentIds}
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
-          isExternalLoading={isExternalLoading}
+          isExternalLoading={isExternalLoading || isLoading}
         />
       ))}
 

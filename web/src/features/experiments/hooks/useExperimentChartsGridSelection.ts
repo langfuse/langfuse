@@ -9,7 +9,13 @@ import {
   BASE_CHART_IDS,
   MAX_CHARTS,
 } from "@/src/features/experiments/constants/charts";
-import type { ScoreFilterOptions } from "@/src/features/experiments/types/charts";
+import { api } from "@/src/utils/api";
+import { type ScoreFilterOptions } from "@/src/features/experiments/types/charts";
+
+const processCategoricalScoreOptions = (
+  categories: Array<{ label: string; values: string[] }>,
+): Record<string, string[]> =>
+  Object.fromEntries(categories.map(({ label, values }) => [label, values]));
 
 /**
  * Hook to manage dynamic experiment chart selection with session storage persistence.
@@ -17,13 +23,18 @@ import type { ScoreFilterOptions } from "@/src/features/experiments/types/charts
  */
 export function useExperimentChartsGridSelection({
   projectId,
-  scoreFilterOptions,
+  experimentIds,
 }: {
   projectId: string;
-  scoreFilterOptions: ScoreFilterOptions;
+  experimentIds: string[];
 }) {
   // Default charts
   const defaultCharts = useMemo(() => getDefaultCharts(), []);
+
+  const scoreOptions = api.experiments.scoreOptions.useQuery({
+    projectId,
+    experimentIds,
+  });
 
   // Session storage for chart selections
   const [rawCharts, setCharts] = useSessionStorage<string[]>(
@@ -40,10 +51,31 @@ export function useExperimentChartsGridSelection({
     return defaultCharts;
   }, [rawCharts, defaultCharts]);
 
+  // Transform API response to ScoreFilterOptions format
+  const transformedScoreOptions = useMemo((): ScoreFilterOptions => {
+    if (!scoreOptions.data) {
+      return {};
+    }
+    return {
+      obs_scores_avg: scoreOptions.data.obs_scores_avg,
+      obs_score_categories: processCategoricalScoreOptions(
+        scoreOptions.data.obs_score_categories,
+      ),
+      trace_scores_avg: scoreOptions.data.trace_scores_avg,
+      trace_score_categories: processCategoricalScoreOptions(
+        scoreOptions.data.trace_score_categories,
+      ),
+      experiment_scores_avg: scoreOptions.data.experiment_scores_avg,
+      experiment_score_categories: processCategoricalScoreOptions(
+        scoreOptions.data.experiment_score_categories,
+      ),
+    };
+  }, [scoreOptions.data]);
+
   // Build all available metric options for the dropdowns
   const availableMetricOptions = useMemo(
-    () => buildMetricOptions(scoreFilterOptions),
-    [scoreFilterOptions],
+    () => buildMetricOptions(transformedScoreOptions),
+    [transformedScoreOptions],
   );
 
   // Check if we can add more charts
@@ -112,5 +144,7 @@ export function useExperimentChartsGridSelection({
     resetToDefaults,
     // All available metric options (for dropdown)
     availableMetricOptions,
+    // Loading state
+    isLoading: scoreOptions.isLoading,
   };
 }
