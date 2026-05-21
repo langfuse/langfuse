@@ -901,7 +901,7 @@ export const evalRouter = createTRPCRouter({
 
       // find all versions of the project-level template, should return null if input.cloneSourceId is provided
       return ctx.prisma.$transaction(async (tx) => {
-        const templates = await tx.evalTemplate.findMany({
+        const templatesWithSameName = await tx.evalTemplate.findMany({
           where: {
             projectId: input.projectId,
             name: input.name,
@@ -910,8 +910,22 @@ export const evalRouter = createTRPCRouter({
           select: {
             id: true,
             version: true,
+            type: true,
           },
         });
+        const templates = templatesWithSameName.filter(
+          (template) => template.type === input.type,
+        );
+
+        if (
+          templatesWithSameName.some((template) => template.type !== input.type)
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Evaluator type cannot be changed. Use a different name for this evaluator type.",
+          });
+        }
 
         // find the latest user managed template, should be null if input.cloneSourceId is provided
         const latestTemplate = Boolean(templates.length)
@@ -995,12 +1009,19 @@ export const evalRouter = createTRPCRouter({
                 message: "Langfuse managed template not found",
               });
             }
+            if (cloneSourceTemplate.type !== input.type) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Evaluator type cannot be changed.",
+              });
+            }
 
             // find all versions of the langfuse managed template
             const cloneSourceTemplateList = await tx.evalTemplate.findMany({
               where: {
                 projectId: null,
                 name: cloneSourceTemplate.name,
+                type: cloneSourceTemplate.type,
               },
             });
 

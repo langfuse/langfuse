@@ -455,7 +455,7 @@ export const InnerEvalTemplateForm = (props: {
       vars: extractedVariables ?? [],
       outputDefinition,
       referencedEvaluators: values.referencedEvaluators,
-      sourceTemplateId: props.cloneSourceId ?? undefined,
+      cloneSourceId: props.cloneSourceId ?? undefined,
     };
 
     // Only validate model if not using default

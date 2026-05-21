@@ -45,6 +45,20 @@ const CreateLlmAsJudgeEvalTemplateInputSchema =
     outputDefinition: PersistedEvalOutputDefinitionSchema,
   });
 
+const CreateLegacyLlmAsJudgeEvalTemplateInputSchema =
+  CreateEvalTemplateBaseInputSchema.extend({
+    type: z.undefined().optional(),
+    prompt: z.string(),
+    provider: z.string().nullish(),
+    model: z.string().nullish(),
+    modelParams: ZodModelConfig.nullish(),
+    vars: z.array(z.string()),
+    outputDefinition: PersistedEvalOutputDefinitionSchema,
+  }).transform((input) => ({
+    ...input,
+    type: EvalTemplateType.LLM_AS_JUDGE,
+  }));
+
 const CreateCodeEvalTemplateInputSchema =
   CreateEvalTemplateBaseInputSchema.extend({
     type: z.literal(EvalTemplateType.CODE),
@@ -61,19 +75,15 @@ const CreateCodeEvalTemplateInputSchema =
     sourceCodeLanguage: z.literal(EvalTemplateSourceCodeLanguage.TYPESCRIPT),
   });
 
-// Use preprocess to default type to LLM_AS_JUDGE for backwards compatibility
-export const CreateEvalTemplateInputSchema = z.preprocess(
-  (data) => {
-    if (typeof data === "object" && data !== null && !("type" in data)) {
-      return { ...data, type: EvalTemplateType.LLM_AS_JUDGE };
-    }
-    return data;
-  },
-  z.discriminatedUnion("type", [
-    CreateLlmAsJudgeEvalTemplateInputSchema,
-    CreateCodeEvalTemplateInputSchema,
-  ]),
-);
+const CreateTypedEvalTemplateInputSchema = z.discriminatedUnion("type", [
+  CreateLlmAsJudgeEvalTemplateInputSchema,
+  CreateCodeEvalTemplateInputSchema,
+]);
+
+export const CreateEvalTemplateInputSchema = z.union([
+  CreateTypedEvalTemplateInputSchema,
+  CreateLegacyLlmAsJudgeEvalTemplateInputSchema,
+]);
 
 type CreateEvalTemplateInput = z.infer<typeof CreateEvalTemplateInputSchema>;
 type CreateLlmAsJudgeEvalTemplateInput = z.infer<
