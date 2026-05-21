@@ -13,8 +13,13 @@
 import { toolRegistry } from "./registry";
 import { promptsFeature } from "../features/prompts";
 import { observationsFeature } from "../features/observations";
+import { annotationQueuesFeature } from "../features/annotationQueues";
+import { commentsFeature } from "../features/comments";
+import { datasetsFeature } from "../features/datasets";
+import { healthFeature } from "../features/health";
+import { modelsFeature } from "../features/models";
+import { scoreConfigsFeature } from "../features/scoreConfigs";
 // Import future features as they're added:
-// import { datasetsFeature } from "../features/datasets";
 // import { tracesFeature } from "../features/traces";
 // import { evalsFeature } from "../features/evals";
 
@@ -28,9 +33,14 @@ export function bootstrapMcpFeatures(): void {
   // Register all feature modules
   toolRegistry.register(promptsFeature);
   toolRegistry.register(observationsFeature);
+  toolRegistry.register(annotationQueuesFeature);
+  toolRegistry.register(commentsFeature);
+  toolRegistry.register(datasetsFeature);
+  toolRegistry.register(healthFeature);
+  toolRegistry.register(modelsFeature);
+  toolRegistry.register(scoreConfigsFeature);
 
   // Add future features here:
-  // toolRegistry.register(datasetsFeature);
   // toolRegistry.register(tracesFeature);
   // toolRegistry.register(evalsFeature);
 }
