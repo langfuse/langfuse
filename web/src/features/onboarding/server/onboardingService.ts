@@ -63,7 +63,7 @@ export const getRealOrganizationMemberships = async ({
 }: {
   prisma: Pick<PrismaClient, "organizationMembership">;
   userId: string;
-}): Promise<RealOrganizationMembership[]> =>
+}) =>
   prisma.organizationMembership.findMany({
     where: getRealOrganizationMembershipWhere(userId),
     include: realOrganizationMembershipInclude,
