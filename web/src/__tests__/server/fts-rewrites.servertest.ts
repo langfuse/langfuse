@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import {
   FTS_EVENTS_TABLES,
   FTS_TEXT_FIELDS,
@@ -6,6 +7,11 @@ import {
   StringObjectFilter,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
+
+const maybeEventsTable =
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+    ? describe
+    : describe.skip;
 
 type FilterResult = {
   query: string;
@@ -109,7 +115,7 @@ const metadataBaselineFilter = (opts: {
   };
 };
 
-describe("FTS filter rewrites", () => {
+maybeEventsTable("FTS filter rewrites", () => {
   it.each(
     Array.from(FTS_EVENTS_TABLES).flatMap((table) =>
       Array.from(FTS_TEXT_FIELDS).flatMap((field) =>

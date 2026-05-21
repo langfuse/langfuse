@@ -1,8 +1,14 @@
+import { env } from "@/src/env.mjs";
 import { type TracingSearchType } from "@langfuse/shared";
 import {
   clickhouseSearchCondition,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
+
+const maybeEventsTable =
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+    ? describe
+    : describe.skip;
 
 const searchFixture = `
   SELECT *
@@ -77,72 +83,74 @@ describe("clickhouseSearchCondition", () => {
     },
   );
 
-  it.each([
-    {
-      query: "alpha",
-      searchType: ["content"],
-      expectedIds: [
-        "input-match-lowercase",
-        "input-match-substring",
-        "input-match-uppercase",
-        "output-match-lowercase",
-        "output-match-substring",
-        "output-match-uppercase",
-      ],
-    },
-    {
-      query: "alpha",
-      searchType: ["input"],
-      expectedIds: [
-        "input-match-lowercase",
-        "input-match-substring",
-        "input-match-uppercase",
-      ],
-    },
-    {
-      query: "alpha",
-      searchType: ["output"],
-      expectedIds: [
-        "output-match-lowercase",
-        "output-match-substring",
-        "output-match-uppercase",
-      ],
-    },
-    {
-      query: "привет",
-      searchType: ["content"],
-      expectedIds: ["input-match-cyrillic", "output-match-cyrillic"],
-    },
-    {
-      query: "東京",
-      searchType: ["content"],
-      expectedIds: ["input-match-cjk", "output-match-cjk"],
-    },
-  ])(
-    "preserves baseline substring search semantics for $query $searchType search",
-    async ({ query, searchType, expectedIds }) => {
-      await expect(
-        matchingIds({
-          query,
-          searchType: searchType as TracingSearchType[],
-        }),
-      ).resolves.toEqual(expectedIds);
-    },
-  );
+  maybeEventsTable("EventsReadOnly-backed search conditions", () => {
+    it.each([
+      {
+        query: "alpha",
+        searchType: ["content"],
+        expectedIds: [
+          "input-match-lowercase",
+          "input-match-substring",
+          "input-match-uppercase",
+          "output-match-lowercase",
+          "output-match-substring",
+          "output-match-uppercase",
+        ],
+      },
+      {
+        query: "alpha",
+        searchType: ["input"],
+        expectedIds: [
+          "input-match-lowercase",
+          "input-match-substring",
+          "input-match-uppercase",
+        ],
+      },
+      {
+        query: "alpha",
+        searchType: ["output"],
+        expectedIds: [
+          "output-match-lowercase",
+          "output-match-substring",
+          "output-match-uppercase",
+        ],
+      },
+      {
+        query: "привет",
+        searchType: ["content"],
+        expectedIds: ["input-match-cyrillic", "output-match-cyrillic"],
+      },
+      {
+        query: "東京",
+        searchType: ["content"],
+        expectedIds: ["input-match-cjk", "output-match-cjk"],
+      },
+    ])(
+      "preserves baseline substring search semantics for $query $searchType search",
+      async ({ query, searchType, expectedIds }) => {
+        await expect(
+          matchingIds({
+            query,
+            searchType: searchType as TracingSearchType[],
+          }),
+        ).resolves.toEqual(expectedIds);
+      },
+    );
 
-  it("does not add FTS to id search on events tables", async () => {
-    const baseIds = await matchingIds({
-      query: "alpha",
-      searchType: ["id"],
-    });
-    const ftsIds = await matchingIds({
-      query: "alpha",
-      searchType: ["id"],
-      useEventsTablePath: true,
-    });
+    it("does not add FTS to id search on events tables", async () => {
+      const baseIds = await matchingIds({
+        query: "alpha",
+        searchType: ["id"],
+      });
+      const ftsIds = await matchingIds({
+        query: "alpha",
+        searchType: ["id"],
+        useEventsTablePath: true,
+      });
 
-    expect(baseIds).toEqual(["id-match"]);
-    expect(ftsIds).toEqual(baseIds);
+      expect(baseIds).toEqual(["id-match"]);
+      expect(ftsIds).toEqual(baseIds);
+    });
   });
 
   it("generates FTS predicates for events input/output searches", () => {
