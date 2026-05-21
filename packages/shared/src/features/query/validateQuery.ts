@@ -9,7 +9,10 @@ export type QueryValidationResult =
   | { valid: true }
   | { valid: false; reason: string };
 
-const ALLOWED_HIGH_CARDINALITY_ENTITY_DIMENSIONS = new Set(["experimentName"]);
+const ALLOWED_HIGH_CARDINALITY_ENTITY_DIMENSIONS = new Set([
+  "experimentName",
+  "datasetRunId",
+]);
 
 /**
  * Gets the list of high cardinality dimension fields used in the query.
@@ -28,7 +31,7 @@ function getHighCardinalityDimensions(
     .map((dim) => dim.field);
 
   const entityDimensionField = query.entityDimension?.field;
-  // Experiment charts set this internally; public metrics and widget UI do not expose entityDimension selection.
+  // Experiment charts set these internally; public metrics and widget UI do not expose entityDimension selection.
   const entityDimension =
     entityDimensionField &&
     view.dimensions[entityDimensionField]?.highCardinality &&

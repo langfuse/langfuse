@@ -5,6 +5,7 @@ import {
   EXPERIMENT_LATENCY_WIDGET_CONFIG,
   MAX_CHARTS,
   NUMERIC_SCORE_CHART_CONFIG,
+  SCORE_LEVEL_ENTITY_DIMENSIONS,
   SCORE_LEVEL_FILTERS,
   SCORE_METRIC_SPECS,
 } from "@/src/features/experiments/constants/charts";
@@ -69,6 +70,7 @@ export function createScoreWidgetConfig(params: {
     ...(params.dataType === "numeric"
       ? NUMERIC_SCORE_CHART_CONFIG
       : CATEGORICAL_SCORE_CHART_CONFIG),
+    entityDimension: SCORE_LEVEL_ENTITY_DIMENSIONS[params.level],
     filters: [...levelFilters, scoreNameFilter],
   };
 }

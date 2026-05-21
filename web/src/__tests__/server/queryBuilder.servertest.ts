@@ -4264,6 +4264,21 @@ describe("validateQuery", () => {
     expect(result).toEqual({ valid: true });
   });
 
+  it("should return valid for allowlisted datasetRunId entityDimension", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      view: "scores-numeric",
+      metrics: [{ measure: "value", aggregation: "avg" }],
+      entityDimension: { field: "datasetRunId" },
+      orderBy: [{ field: "avg_value", direction: "desc" }],
+      // no chartConfig.row_limit required for the internal run-level score chart bucket
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result).toEqual({ valid: true });
+  });
+
   it("should return valid when non-allowlisted high cardinality entityDimension has top-N protection", () => {
     const query: QueryType = {
       ...baseQuery,
@@ -4448,6 +4463,49 @@ describe("getValidAggregationsForMeasureType", () => {
 });
 
 describe("query builder measure-aggregation validation", () => {
+  it("should build run-level score entity queries without joining events", async () => {
+    const query: QueryType = {
+      view: "scores-numeric",
+      dimensions: [],
+      metrics: [
+        { measure: "value", aggregation: "avg" },
+        { measure: "timestamp", aggregation: "min" },
+      ],
+      filters: [
+        {
+          column: "datasetRunId",
+          operator: "is not null",
+          value: "",
+          type: "null",
+        },
+        {
+          column: "name",
+          operator: "=",
+          value: "run_accuracy",
+          type: "string",
+        },
+        {
+          column: "datasetRunId",
+          operator: "any of",
+          value: ["experiment-1", "experiment-2"],
+          type: "stringOptions",
+        },
+      ],
+      timeDimension: null,
+      entityDimension: { field: "datasetRunId" },
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: [{ field: "min_timestamp", direction: "desc" }],
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    const result = await queryBuilder.build(query, randomUUID());
+
+    expect(result.query).toContain("scores.dataset_run_id");
+    expect(result.query).toContain("entity_dimension");
+    expect(result.query).not.toContain("JOIN events_core");
+  });
+
   it("should reject invalid aggregation for string measure", async () => {
     const query: QueryType = {
       view: "observations",

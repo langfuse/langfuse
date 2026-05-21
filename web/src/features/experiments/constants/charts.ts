@@ -93,6 +93,15 @@ const BASE_SCORE_CHART_CONFIG = {
   orderBy: [{ field: "min_timestamp", direction: "desc" }],
 } as const;
 
+export const SCORE_LEVEL_ENTITY_DIMENSIONS: Record<
+  ScoreLevel,
+  { field: string }
+> = {
+  obs: { field: "experimentName" },
+  trace: { field: "experimentName" },
+  experiment: { field: "datasetRunId" },
+};
+
 export const NUMERIC_SCORE_CHART_CONFIG = {
   ...BASE_SCORE_CHART_CONFIG,
   view: "scores-numeric",

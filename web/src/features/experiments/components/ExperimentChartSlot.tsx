@@ -61,6 +61,9 @@ export function ExperimentChartSlot({
   const query: QueryType | null = useMemo(() => {
     if (!widgetConfig) return null;
 
+    const isExperimentScoreMetric =
+      selectedMetricId.startsWith("experiment-score-");
+
     return {
       view: widgetConfig.view,
       dimensions: [...widgetConfig.dimensions],
@@ -73,13 +76,17 @@ export function ExperimentChartSlot({
       })),
       filters: [
         ...(widgetConfig.filters ?? []),
-        {
-          column: "experimentId" as const,
-          operator: "any of" as const,
-          value: experimentIds,
-          type: "stringOptions" as const,
-        },
-        ...(selectedMetricOption?.id.includes("experiment:")
+        ...(!isExperimentScoreMetric
+          ? [
+              {
+                column: "experimentId" as const,
+                operator: "any of" as const,
+                value: experimentIds,
+                type: "stringOptions" as const,
+              },
+            ]
+          : []),
+        ...(isExperimentScoreMetric
           ? [
               {
                 column: "datasetRunId" as const,
@@ -98,7 +105,7 @@ export function ExperimentChartSlot({
     experimentIds,
     fromTimestamp,
     toTimestamp,
-    selectedMetricOption,
+    selectedMetricId,
   ]);
 
   // Group options by their group for the dropdown
