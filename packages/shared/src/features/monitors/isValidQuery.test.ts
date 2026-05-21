@@ -116,6 +116,32 @@ describe("isValidQuery", () => {
     }
   });
 
+  it.each([
+    {
+      type: "stringOptions" as const,
+      column: "environment",
+      operator: "any of" as const,
+      value: ["prod", "prod", "staging"],
+    },
+    {
+      type: "arrayOptions" as const,
+      column: "tags",
+      operator: "all of" as const,
+      value: ["a", "a"],
+    },
+  ])("rejects a $type filter with duplicate value entries", (filter) => {
+    const result = isValidQuery({
+      view: "observations",
+      metric: { measure: "count", aggregation: "count" },
+      filters: [filter],
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.reason).toContain("unique");
+      expect(result.reason).toContain(filter.type);
+    }
+  });
+
   it("rejects a non-stringObject filter on the metadata column", () => {
     // queryBuilder requires metadata filters to be `type: "stringObject"`.
     // Without this, a `{type: "string", column: "metadata"}` filter would

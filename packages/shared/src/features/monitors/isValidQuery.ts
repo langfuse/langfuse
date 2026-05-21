@@ -78,6 +78,23 @@ export function isValidQuery(input: {
           `Must be a dimension on the view or the special "metadata" column.`,
       };
     }
+    // Set-semantics value arrays must not contain duplicates — `any of` /
+    // `none of` / `all of` are set operators, so duplicate elements produce
+    // a logically identical filter that would fragment schedulerBatchId.
+    if (
+      filter.type === "stringOptions" ||
+      filter.type === "categoryOptions" ||
+      filter.type === "arrayOptions"
+    ) {
+      if (new Set(filter.value).size !== filter.value.length) {
+        return {
+          valid: false,
+          reason:
+            `Filter on "${filter.column}" (type "${filter.type}") must have unique values; ` +
+            `duplicates are not allowed for set-semantics operators.`,
+        };
+      }
+    }
   }
 
   return { valid: true };

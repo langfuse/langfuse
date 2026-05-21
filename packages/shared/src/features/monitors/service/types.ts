@@ -57,7 +57,6 @@ export const UpdateMonitorInputSchema = MonitorSchema.omit({
   .superRefine(validateThresholdOrder);
 export type UpdateMonitorInput = z.infer<typeof UpdateMonitorInputSchema>;
 
-/** MonitorListInputSchema is the input contract for `MonitorService.list`. */
 /** MonitorListOrderBySchema is the list of fields that we can sort the Monitor collection by. */
 export const MonitorListOrderBySchema = z.enum([
   "name",
@@ -70,6 +69,7 @@ export const MonitorListOrderBySchema = z.enum([
 ]);
 export type MonitorListOrderBy = z.infer<typeof MonitorListOrderBySchema>;
 
+/** MonitorListInputSchema is the input contract for `MonitorService.list`. */
 export const MonitorListInputSchema = z.object({
   projectId: z.string(),
   orderBy: z
