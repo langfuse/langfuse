@@ -60,7 +60,6 @@ import {
   AccordionTrigger,
 } from "@/src/components/ui/accordion";
 import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
-import { useExperimentItemsFilterOptions } from "../../hooks/useExperimentItemsFilterOptions";
 import useSessionStorage from "@/src/components/useSessionStorage";
 
 export default function ExperimentsTable({
@@ -515,15 +514,6 @@ export default function ExperimentsTable({
     return rows.map((row) => row.id);
   }, [rows]);
 
-  // Fetch score filter options for charts (scoped to experiments in view)
-  const {
-    filterOptions: scoreFilterOptions,
-    isLoading: isScoreFilterOptionsLoading,
-  } = useExperimentItemsFilterOptions({
-    projectId,
-    experimentIds: allExperimentIds,
-  });
-
   // Charts accordion collapsed state (persisted in session storage)
   const [chartsAccordionValue, setChartsAccordionValue] = useSessionStorage<
     string | undefined
@@ -693,11 +683,7 @@ export default function ExperimentsTable({
                     experimentIds={allExperimentIds}
                     fromTimestamp={tableDateRange.from}
                     toTimestamp={tableDateRange.to}
-                    scoreFilterOptions={scoreFilterOptions}
-                    isExternalLoading={
-                      experiments.status === "loading" ||
-                      isScoreFilterOptionsLoading
-                    }
+                    isExternalLoading={experiments.status === "loading"}
                   />
                 </AccordionContent>
               </AccordionItem>

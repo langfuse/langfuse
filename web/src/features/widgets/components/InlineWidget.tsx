@@ -5,7 +5,7 @@ import {
   type QueryType,
   type ViewVersion,
   getResultUnit,
-} from "@/src/features/query";
+} from "@langfuse/shared/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";

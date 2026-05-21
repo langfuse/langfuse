@@ -7,17 +7,15 @@ import {
   type ViewVersion,
   type views,
   type metricAggregations,
-  mapLegacyUiTableFilterToView,
   requiresV2,
-} from "@/src/features/query";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import {
   validateQuery,
   toQueryChartConfig,
   isV2BreakdownChart,
   buildWidgetOrderBy,
   type QueryValidationResult,
-} from "@/src/features/query/validateQuery";
+} from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 // ============================================================================

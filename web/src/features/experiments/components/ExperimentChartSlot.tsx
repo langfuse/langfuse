@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/select";
 import { Button } from "@/src/components/ui/button";
 import { WidgetContent } from "@/src/features/widgets/components/InlineWidget";
-import { type QueryType } from "@/src/features/query";
+import { type QueryType } from "@langfuse/shared/query";
 import type { MetricOption } from "../types/charts";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { buildWidgetConfigFromId } from "@/src/features/experiments/utils/charts";

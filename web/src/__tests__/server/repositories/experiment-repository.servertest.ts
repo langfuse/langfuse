@@ -7,7 +7,9 @@ import {
   getExperimentsFromEvents,
   getExperimentMetricsFromEvents,
   getExperimentItemsFilterOptions,
+  getExperimentScoreOptions,
   createTraceScore,
+  createDatasetRunScore,
   createScoresCh,
 } from "@langfuse/shared/src/server";
 
@@ -1164,8 +1166,6 @@ describe("Clickhouse Experiment Repository Test", () => {
         trace_scores_avg: [],
         trace_score_categories: [],
         trace_score_columns: [],
-        experiment_scores_avg: [],
-        experiment_score_categories: [],
       });
     });
 
@@ -1182,8 +1182,6 @@ describe("Clickhouse Experiment Repository Test", () => {
         trace_scores_avg: [],
         trace_score_categories: [],
         trace_score_columns: [],
-        experiment_scores_avg: [],
-        experiment_score_categories: [],
       });
     });
 
@@ -1494,6 +1492,77 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(ratingCategory).toBeDefined();
       expect(ratingCategory?.values).toContain("excellent");
       expect(ratingCategory?.values).toContain("poor");
+    });
+  });
+
+  maybe("getExperimentScoreOptions", () => {
+    it("should return empty arrays when no experiment IDs provided", async () => {
+      const result = await getExperimentScoreOptions({
+        projectId,
+        experimentIds: [],
+      });
+
+      expect(result).toEqual({
+        obs_scores_avg: [],
+        obs_score_categories: [],
+        obs_score_columns: [],
+        trace_scores_avg: [],
+        trace_score_categories: [],
+        trace_score_columns: [],
+        experiment_scores_avg: [],
+        experiment_score_categories: [],
+        experiment_score_columns: [],
+      });
+    });
+
+    it("should return experiment-run score filter options", async () => {
+      const experimentId = randomUUID();
+
+      const numericScore = createDatasetRunScore({
+        project_id: projectId,
+        dataset_run_id: experimentId,
+        name: "run_accuracy",
+        value: 0.91,
+        source: "API",
+        data_type: "NUMERIC",
+      });
+
+      const categoricalScore = createDatasetRunScore({
+        project_id: projectId,
+        dataset_run_id: experimentId,
+        name: "run_grade",
+        value: null,
+        string_value: "pass",
+        source: "API",
+        data_type: "CATEGORICAL",
+      });
+
+      await createScoresCh([numericScore, categoricalScore]);
+
+      const result = await getExperimentScoreOptions({
+        projectId,
+        experimentIds: [experimentId],
+      });
+
+      expect(result.experiment_scores_avg).toContain("run_accuracy");
+      expect(result.experiment_score_categories).toContainEqual({
+        label: "run_grade",
+        values: expect.arrayContaining(["pass"]),
+      });
+      expect(result.experiment_score_columns).toEqual(
+        expect.arrayContaining([
+          {
+            name: "run_accuracy",
+            dataType: "NUMERIC",
+            source: "API",
+          },
+          {
+            name: "run_grade",
+            dataType: "CATEGORICAL",
+            source: "API",
+          },
+        ]),
+      );
     });
   });
 });
