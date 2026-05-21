@@ -34,6 +34,13 @@ export const clickhouseSearchCondition = ({
   );
   const inputCol = `${prefix}input`;
   const outputCol = `${prefix}output`;
+  const requiresEventsFull =
+    Boolean(query) &&
+    Boolean(
+      searchType?.includes("content") ||
+      searchType?.includes("input") ||
+      searchType?.includes("output"),
+    );
 
   // The default cols include t.user_id for callers querying via traces CTE (traces.ts, observations.ts).
   const conditions = [
@@ -53,6 +60,7 @@ export const clickhouseSearchCondition = ({
 
   return {
     query: query ? `AND (${conditions.join(" OR ")})` : "",
+    requiresEventsFull,
     params: query
       ? {
           searchString: `${regexIndefiniteCharacters}${query}${regexIndefiniteCharacters}`,

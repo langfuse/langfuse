@@ -58,6 +58,26 @@ const matchingIds = async (opts: {
 
 describe("clickhouseSearchCondition", () => {
   it.each([
+    { query: undefined, searchType: ["content"], expected: false },
+    { query: "alpha", searchType: undefined, expected: false },
+    { query: "alpha", searchType: ["id"], expected: false },
+    { query: "alpha", searchType: ["content"], expected: true },
+    { query: "alpha", searchType: ["input"], expected: true },
+    { query: "alpha", searchType: ["output"], expected: true },
+    { query: "alpha", searchType: ["id", "content"], expected: true },
+  ])(
+    "detects whether $searchType search needs the full events table",
+    ({ query, searchType, expected }) => {
+      expect(
+        clickhouseSearchCondition({
+          query,
+          searchType: searchType as TracingSearchType[] | undefined,
+        }).requiresEventsFull,
+      ).toBe(expected);
+    },
+  );
+
+  it.each([
     {
       query: "alpha",
       searchType: ["content"],

@@ -162,6 +162,7 @@ export const getEventsStream = async (props: {
       "scores_agg s",
       "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
     )
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
     .where(search)
     .whereRaw("e.is_deleted = 0")
@@ -423,6 +424,7 @@ export const getEventsStreamForEval = async (props: {
     .selectFieldSet("eval")
     .selectIO(false)
     .selectFieldSet("metadata")
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
     .where(search)
     .whereRaw("e.is_deleted = 0")
@@ -564,6 +566,7 @@ export const getEventsStreamForDataset = async (props: {
     .selectFieldSet("core")
     .selectIO(false)
     .selectFieldSet("metadata")
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
     .where(search)
     .whereRaw("e.is_deleted = 0")
@@ -673,6 +676,7 @@ export const getEventsStreamForAnnotationQueue = async (props: {
 
   const eventsQuery = new EventsQueryBuilder({ projectId })
     .selectFieldSet("core")
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
     .where(search)
     .whereRaw("e.is_deleted = 0")
