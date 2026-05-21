@@ -5,7 +5,7 @@
 -- release, tags, public, bookmarked); metadata is intentionally not copied to
 -- keep the join cheap on self-hoster hardware.
 --
--- Gated by `LANGFUSE_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL`.
+-- Gated by `LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL`.
 --
 -- The UUID, name, and script must stay in sync with
 -- worker/src/backgroundMigrations/backfillEventsFullFromObservations.ts.
@@ -15,7 +15,7 @@ VALUES (
   '20260521_v4_step_3_backfill_events_full_from_observations',
   'backfillEventsFullFromObservations',
   '{
-    "envGate": "LANGFUSE_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL",
+    "envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL",
     "concurrency": 1,
     "pollIntervalMs": 30000,
     "maxRetries": 3

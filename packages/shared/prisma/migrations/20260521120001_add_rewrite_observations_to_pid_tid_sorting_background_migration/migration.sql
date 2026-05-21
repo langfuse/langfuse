@@ -7,7 +7,7 @@
 -- `SYSTEM STOP MERGES` against it during the rewrite. The scratch table is
 -- dropped by M5 once the operator confirms the v4 path is healthy.
 --
--- Gated by `LANGFUSE_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL`.
+-- Gated by `LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL`.
 --
 -- The UUID, name, and script must stay in sync with
 -- worker/src/backgroundMigrations/rewriteObservationsToPidTidSorting.ts.
@@ -17,7 +17,7 @@ VALUES (
   '20260521_v4_step_2_rewrite_observations_to_pid_tid_sorting',
   'rewriteObservationsToPidTidSorting',
   '{
-    "envGate": "LANGFUSE_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL",
+    "envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL",
     "concurrency": 1,
     "pollIntervalMs": 30000,
     "maxRetries": 3

@@ -2,7 +2,7 @@
 -- Cleanup-only migration: drops `observations_pid_tid_sorting` and
 -- `backfill_chunks` once the operator confirms the v4 read path is healthy.
 --
--- Gated by `LANGFUSE_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES` (separate from
+-- Gated by `LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES` (separate from
 -- the other gate) so users keep scratch tables for forensics until they're
 -- confident.
 --
@@ -14,7 +14,7 @@ VALUES (
   '20260521_v4_step_5_drop_pid_tid_sorting_tables',
   'dropPidTidSortingTables',
   '{
-    "envGate": "LANGFUSE_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES"
+    "envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES"
   }'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;

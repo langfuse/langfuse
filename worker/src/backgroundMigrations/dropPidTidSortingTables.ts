@@ -32,7 +32,7 @@ function onClusterClause(): string {
  *   - `backfill_chunks` — populated by M3 (chunk planner).
  *
  * This is a single-step migration with no chunking. It is gated by
- * `LANGFUSE_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES` so self-hosters can keep
+ * `LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES` so self-hosters can keep
  * the scratch tables around for forensics/restartability until they're
  * confident the new path is healthy.
  *

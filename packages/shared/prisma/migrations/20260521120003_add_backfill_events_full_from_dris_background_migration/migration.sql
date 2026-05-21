@@ -12,7 +12,7 @@
 --   - lookbackDays: padding applied to the DRI created_at min/max when
 --     fetching observations/traces (default 90).
 --
--- Gated by `LANGFUSE_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL`.
+-- Gated by `LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL`.
 --
 -- The UUID, name, and script must stay in sync with
 -- worker/src/backgroundMigrations/backfillEventsFullFromDatasetRunItems.ts.
@@ -22,7 +22,7 @@ VALUES (
   '20260521_v4_step_4_backfill_events_full_from_dataset_run_items',
   'backfillEventsFullFromDatasetRunItems',
   '{
-    "envGate": "LANGFUSE_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL",
+    "envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL",
     "concurrency": 1,
     "pollIntervalMs": 30000,
     "maxRetries": 3,
