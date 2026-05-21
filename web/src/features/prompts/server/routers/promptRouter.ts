@@ -1467,6 +1467,8 @@ export const promptRouter = createTRPCRouter({
       const prompts = await ctx.prisma.prompt.findMany({
         where: { projectId: input.projectId },
         orderBy: [{ name: "asc" }, { version: "asc" }],
+        // Cap at 10 000 rows to avoid unbounded memory growth for very large projects
+        take: 10_000,
         select: {
           name: true,
           version: true,
@@ -1498,17 +1500,19 @@ export const promptRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        prompts: z.array(
-          z.object({
-            name: z.string(),
-            type: z.enum(["text", "chat"]).optional(),
-            prompt: z.union([z.string(), z.array(z.any())]),
-            config: z.any().optional(),
-            tags: z.array(z.string()).optional(),
-            labels: z.array(z.string()).optional(),
-            commitMessage: z.string().nullish(),
-          }),
-        ),
+        prompts: z
+          .array(
+            z.object({
+              name: z.string(),
+              type: z.enum(["text", "chat"]).optional(),
+              prompt: z.union([z.string(), z.array(z.any())]),
+              config: z.any().optional(),
+              tags: z.array(z.string()).optional(),
+              labels: z.array(z.string()).optional(),
+              commitMessage: z.string().nullish(),
+            }),
+          )
+          .max(500),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -1543,19 +1547,30 @@ export const promptRouter = createTRPCRouter({
               email: ctx.session.user.email ?? null,
             },
           };
+          let createdPrompt;
           if (item.type === "chat") {
-            await createPrompt({
+            createdPrompt = await createPrompt({
               ...sharedParams,
               type: PromptType.Chat,
               prompt: item.prompt as Array<{ role: string; content: string }>,
             });
           } else {
-            await createPrompt({
+            createdPrompt = await createPrompt({
               ...sharedParams,
               type: PromptType.Text,
               prompt: item.prompt as string,
             });
           }
+          await auditLog(
+            {
+              session: ctx.session,
+              resourceType: "prompt",
+              resourceId: createdPrompt.id,
+              action: "create",
+              after: createdPrompt,
+            },
+            ctx.prisma,
+          );
           results.push({ name: item.name, success: true });
         } catch (e) {
           results.push({

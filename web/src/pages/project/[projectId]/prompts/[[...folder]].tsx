@@ -11,7 +11,7 @@ import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
 import PromptMetrics from "./metrics";
 import { useQueryParams, StringParam } from "use-query-params";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
 import { ImportPromptsButton } from "@/src/features/prompts/components/ImportPromptsDialog";
 import { Button } from "@/src/components/ui/button";
@@ -58,6 +58,10 @@ export default function PromptsWithFolder() {
   const [exportVersions, setExportVersions] = useState<"latest" | "all" | null>(
     null,
   );
+  // Incremented on each export click so the effect always fires even when
+  // React Query returns the same cached data object reference.
+  const exportRequestIdRef = useRef(0);
+  const consumedRequestIdRef = useRef(0);
 
   const exportQuery = api.prompts.exportAll.useQuery(
     {
@@ -71,7 +75,13 @@ export default function PromptsWithFolder() {
   );
 
   React.useEffect(() => {
-    if (!exportQuery.data || !exportVersions) return;
+    if (
+      !exportQuery.data ||
+      !exportVersions ||
+      consumedRequestIdRef.current === exportRequestIdRef.current
+    )
+      return;
+    consumedRequestIdRef.current = exportRequestIdRef.current;
     const json = JSON.stringify(exportQuery.data, null, 2);
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -83,7 +93,7 @@ export default function PromptsWithFolder() {
     setExportVersions(null);
     capture("prompts:bulk_export", { mode: exportVersions });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exportQuery.data]);
+  }, [exportQuery.data, exportRequestIdRef.current]);
 
   // Check if the project has any prompts
   const { data: hasAnyPrompt, isLoading } = api.prompts.hasAny.useQuery(
@@ -145,10 +155,20 @@ export default function PromptsWithFolder() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setExportVersions("latest")}>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      exportRequestIdRef.current += 1;
+                      setExportVersions("latest");
+                    }}
+                  >
                     Latest version per prompt
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setExportVersions("all")}>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      exportRequestIdRef.current += 1;
+                      setExportVersions("all");
+                    }}
+                  >
                     All versions
                   </DropdownMenuItem>
                 </DropdownMenuContent>
