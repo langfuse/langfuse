@@ -141,8 +141,16 @@ export class MonitorService {
       prisma.monitor.findMany({
         where: { projectId: input.projectId },
         orderBy: input.orderBy
-          ? [{ [input.orderBy.column]: input.orderBy.order.toLowerCase() }]
-          : [{ updatedAt: "desc" }],
+          ? [
+              {
+                [input.orderBy.column]: {
+                  sort: input.orderBy.order.toLowerCase(),
+                  nulls: "last",
+                },
+              },
+              { id: "asc" },
+            ]
+          : [{ severity: "desc" }, { id: "asc" }],
         skip,
         take: input.limit,
       }),

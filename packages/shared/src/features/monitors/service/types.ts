@@ -68,7 +68,15 @@ export const MonitorListInputSchema = z.object({
   projectId: z.string(),
   orderBy: z
     .object({
-      column: z.enum(["name", "status", "severity", "createdAt", "updatedAt"]),
+      column: z.enum([
+        "name",
+        "status",
+        "severity",
+        "severityChangedAt",
+        "alertedAt",
+        "createdAt",
+        "updatedAt",
+      ]),
       order: z.enum(["ASC", "DESC"]),
     })
     .nullable(),

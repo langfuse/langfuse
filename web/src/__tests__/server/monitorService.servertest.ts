@@ -222,5 +222,60 @@ describe("MonitorService (integration)", () => {
       const fetched = await MonitorService.getById(created.id, projectId);
       expect(fetched).toBeNull();
     });
+
+    it.each(["alertedAt", "severityChangedAt"] as const)(
+      "sorts %s with NULLS LAST regardless of direction",
+      async (column) => {
+        const dbColumn =
+          column === "alertedAt" ? "alertedAt" : "severityChangedAt";
+
+        // Three monitors: one never-touched (NULL), one older, one newer.
+        const neverTouched = await MonitorService.create({
+          ...baseCreateInput(projectId),
+          name: "never",
+        });
+        const older = await MonitorService.create({
+          ...baseCreateInput(projectId),
+          name: "older",
+        });
+        const newer = await MonitorService.create({
+          ...baseCreateInput(projectId),
+          name: "newer",
+        });
+
+        await prisma.monitor.update({
+          where: { id: older.id },
+          data: { [dbColumn]: new Date("2026-01-01T00:00:00.000Z") },
+        });
+        await prisma.monitor.update({
+          where: { id: newer.id },
+          data: { [dbColumn]: new Date("2026-06-01T00:00:00.000Z") },
+        });
+
+        const desc = await MonitorService.list({
+          projectId,
+          orderBy: { column, order: "DESC" },
+          page: 1,
+          limit: 10,
+        });
+        expect(desc.monitors.map((m) => m.id)).toEqual([
+          newer.id,
+          older.id,
+          neverTouched.id,
+        ]);
+
+        const asc = await MonitorService.list({
+          projectId,
+          orderBy: { column, order: "ASC" },
+          page: 1,
+          limit: 10,
+        });
+        expect(asc.monitors.map((m) => m.id)).toEqual([
+          older.id,
+          newer.id,
+          neverTouched.id,
+        ]);
+      },
+    );
   });
 });

@@ -173,16 +173,21 @@ describe("MonitorListInputSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it.each(["name", "status", "severity", "createdAt", "updatedAt"] as const)(
-    "accepts %s as orderBy.column",
-    (column) => {
-      const result = MonitorListInputSchema.safeParse({
-        projectId: "proj_01",
-        orderBy: { column, order: "DESC" },
-      });
-      expect(result.success).toBe(true);
-    },
-  );
+  it.each([
+    "name",
+    "status",
+    "severity",
+    "severityChangedAt",
+    "alertedAt",
+    "createdAt",
+    "updatedAt",
+  ] as const)("accepts %s as orderBy.column", (column) => {
+    const result = MonitorListInputSchema.safeParse({
+      projectId: "proj_01",
+      orderBy: { column, order: "DESC" },
+    });
+    expect(result.success).toBe(true);
+  });
 
   it("rejects an unknown orderBy.column (Prisma would otherwise raise a 500)", () => {
     const result = MonitorListInputSchema.safeParse({
