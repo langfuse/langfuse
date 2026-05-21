@@ -533,7 +533,6 @@ describe("monitorFromPrisma", () => {
     lastPublishedRunAt: null,
     lastCompletedRunAt: null,
     name: "High error rate",
-    message: "",
     tags: [] as string[],
   };
 
