@@ -59,9 +59,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 
 type PartialEvalTemplate = Partial<EvalTemplate> &
   Pick<EvalTemplate, "name" | "prompt" | "vars" | "outputDefinition">;
+
+type EvalTemplateType = "llm-as-judge" | "typescript";
 
 export const EvalTemplateForm = (props: {
   projectId: string;
@@ -126,6 +130,9 @@ const categoricalOptionSchema = z.object({
 const formSchema = z
   .object({
     name: z.string().min(1, "Enter a name"),
+    evalTemplateType: z
+      .enum(["llm-as-judge", "typescript"])
+      .default("llm-as-judge"),
     prompt: z
       .string()
       .min(1, "Enter a prompt")
@@ -241,6 +248,9 @@ export const InnerEvalTemplateForm = (props: {
 }) => {
   const capture = usePostHogClientCapture();
   const [formError, setFormError] = useState<string | null>(null);
+  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const showEvalTemplateTypeSelector =
+    isCodeEvalEnabled && !props.existingEvalTemplateId;
 
   // Determine if we should use default model or custom model
   // If existing template has no provider, it was using default model
@@ -288,6 +298,7 @@ export const InnerEvalTemplateForm = (props: {
     defaultValues: {
       name:
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
+      evalTemplateType: "llm-as-judge" as EvalTemplateType,
       prompt: props.preFilledFormValues?.prompt ?? undefined,
       variables: props.preFilledFormValues?.vars ?? [],
       scoreDataType: outputDefinitionFormValues.scoreDataType,
@@ -311,6 +322,9 @@ export const InnerEvalTemplateForm = (props: {
   });
 
   const useDefaultModel = form.watch("shouldUseDefaultModel");
+  const evalTemplateType = form.watch("evalTemplateType");
+  const showTypeScriptTemplatePlaceholder =
+    showEvalTemplateTypeSelector && evalTemplateType === "typescript";
   const scoreDataType = form.watch("scoreDataType");
   const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
   const isBooleanOutput = scoreDataType === ScoreDataTypeEnum.BOOLEAN;
@@ -491,31 +505,8 @@ export const InnerEvalTemplateForm = (props: {
       });
   }
 
-  const formBody = (
+  const llmAsJudgeFormBody = (
     <>
-      {!props.existingEvalTemplateId ? (
-        <>
-          <div className="col-span-1 row-span-1 lg:col-span-2">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <>
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Select a template name" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                </>
-              )}
-            />
-          </div>
-          <div className="col-span-1 row-span-1 lg:col-span-0"></div>
-        </>
-      ) : undefined}
-
       {/* Model Selection Section */}
       <Card>
         <CardContent>
@@ -847,6 +838,60 @@ export const InnerEvalTemplateForm = (props: {
           />
         </CardContent>
       </Card>
+    </>
+  );
+
+  const formBody = (
+    <>
+      {!props.existingEvalTemplateId ? (
+        <>
+          <div className="col-span-1 row-span-1 lg:col-span-2">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <>
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Select a template name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                </>
+              )}
+            />
+          </div>
+          <div className="col-span-1 row-span-1 lg:col-span-0"></div>
+        </>
+      ) : undefined}
+
+      {showEvalTemplateTypeSelector ? (
+        <FormField
+          control={form.control}
+          name="evalTemplateType"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Type</FormLabel>
+              <FormControl>
+                <Tabs value={field.value} onValueChange={field.onChange}>
+                  <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
+                    <TabsTrigger value="llm-as-judge" className="min-w-[100px]">
+                      LLM-as-judge
+                    </TabsTrigger>
+                    <TabsTrigger value="typescript" className="min-w-[100px]">
+                      TypeScript
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      ) : null}
+
+      {showTypeScriptTemplatePlaceholder ? <div /> : llmAsJudgeFormBody}
     </>
   );
 
