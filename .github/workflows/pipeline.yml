@@ -676,6 +676,16 @@ jobs:
           # TypeScript is checked explicitly in the lint job; skip duplicate
           # Next.js type checks in test builds to reduce CI runtime.
           NEXT_IGNORE_BUILD_ERRORS: "true"
+      - name: Cache apt archives on a sticky disk
+        uses: useblacksmith/stickydisk@13af8883542ca949a717e70fef89d15edbb29d88 # v1.2.0
+        with:
+          key: ${{ github.repository }}-e2e-apt-archives
+          path: /var/cache/apt/archives
+      - name: Cache Playwright browsers on a sticky disk
+        uses: useblacksmith/stickydisk@13af8883542ca949a717e70fef89d15edbb29d88 # v1.2.0
+        with:
+          key: ${{ github.repository }}-e2e-ms-playwright
+          path: /home/runner/.cache/ms-playwright
       - name: Install playwright
         run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
       - name: Run e2e tests
