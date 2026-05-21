@@ -26,7 +26,7 @@ import {
   MonitorSchema,
 } from "../types";
 
-import { type MonitorListOrderBy } from "./types";
+import { MonitorNotFoundError, type MonitorListOrderBy } from "./types";
 
 /** nullableOrderColumns is the list of sortable columns that are nullable. */
 export const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
@@ -310,18 +310,14 @@ export const monitorFromPrisma = (monitor: PrismaMonitor): Monitor =>
 export const decimalToPrisma = (n: number | null): Prisma.Decimal | null =>
   n == null ? null : new Prisma.Decimal(n);
 
-/** errorFromPrisma maps a Prisma client error to a caller-facing Error:
- * P2025 (row not found) becomes `InvalidRequestError`; anything else passes
- * through unchanged. */
+/** errorFromPrisma converts a Prisma row-not-found error to MonitorNotFoundError. */
 export const errorFromPrisma = (
   id: string,
   projectId: string,
   e: unknown,
 ): Error => {
   if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
-    return new InvalidRequestError(
-      `Monitor ${id} not found in project ${projectId}`,
-    );
+    return new MonitorNotFoundError(id, projectId);
   }
   return e as Error;
 };

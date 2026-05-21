@@ -29,22 +29,27 @@ export const observationsFeature: McpFeatureModule = {
     {
       definition: listObservationsTool,
       handler: handleListObservations,
+      allowInAppAgentKey: true,
     },
     {
       definition: getObservationTool,
       handler: handleGetObservation,
+      allowInAppAgentKey: true,
     },
     {
       definition: getObservationFieldSchemaTool,
       handler: handleGetObservationFieldSchema,
+      allowInAppAgentKey: true,
     },
     {
       definition: getObservationFilterSchemaTool,
       handler: handleGetObservationFilterSchema,
+      allowInAppAgentKey: true,
     },
     {
       definition: getObservationFilterValuesTool,
       handler: handleGetObservationFilterValues,
+      allowInAppAgentKey: true,
     },
   ],
   isEnabled: async () => env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true",

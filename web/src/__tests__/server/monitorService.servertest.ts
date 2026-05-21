@@ -2,36 +2,13 @@ import { v4 as uuidv4 } from "uuid";
 import {
   createOrgProjectAndApiKey,
   MonitorService,
+  type SessionContext,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { InvalidRequestError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 
-const baseCreateInput = (
-  projectId: string,
-  createdBy: string | null = null,
-) => ({
+const baseMonitorInput = (projectId: string) => ({
   projectId,
-  createdBy,
-  view: "observations" as const,
-  filters: [],
-  metric: { measure: "count", aggregation: "count" as const },
-  window: "5m" as const,
-  thresholdOperator: "gt" as const,
-  alertThreshold: 100,
-  warningThreshold: null,
-  noData: { mode: "SILENT" as const },
-  renotify: { mode: "OFF" as const },
-  status: "active" as const,
-  name: "High error rate",
-  tags: [],
-});
-
-const baseUpdateInput = (
-  projectId: string,
-  updatedBy: string | null = null,
-) => ({
-  projectId,
-  updatedBy,
   view: "observations" as const,
   filters: [],
   metric: { measure: "count", aggregation: "count" as const },
@@ -48,28 +25,28 @@ const baseUpdateInput = (
 
 describe("MonitorService (integration)", () => {
   let projectId: string;
-  let creatorUserId: string;
-  let editorUserId: string;
+  let creator: SessionContext;
+  let editor: SessionContext;
 
   beforeAll(async () => {
     const org = await createOrgProjectAndApiKey();
     projectId = org.projectId;
-    const creator = await prisma.user.create({
+    const creatorUser = await prisma.user.create({
       data: {
         id: uuidv4(),
         email: `monitor-creator-${uuidv4().substring(0, 8)}@test.com`,
         name: "Creator",
       },
     });
-    const editor = await prisma.user.create({
+    const editorUser = await prisma.user.create({
       data: {
         id: uuidv4(),
         email: `monitor-editor-${uuidv4().substring(0, 8)}@test.com`,
         name: "Editor",
       },
     });
-    creatorUserId = creator.id;
-    editorUserId = editor.id;
+    creator = { userId: creatorUser.id };
+    editor = { userId: editorUser.id };
   });
 
   afterEach(async () => {
@@ -78,7 +55,10 @@ describe("MonitorService (integration)", () => {
 
   describe("create", () => {
     it("creates a monitor and persists derived fields", async () => {
-      const created = await MonitorService.create(baseCreateInput(projectId));
+      const created = await MonitorService.create(
+        creator,
+        baseMonitorInput(projectId),
+      );
 
       const row = await prisma.monitor.findUnique({
         where: { id: created.id },
@@ -90,6 +70,8 @@ describe("MonitorService (integration)", () => {
       expect(row!.schedulerBatchId).toBeGreaterThan(0n);
       expect(row!.nextRunAt.getTime()).toBeLessThanOrEqual(Date.now());
       expect(row!.severity).toBe("UNKNOWN");
+      expect(row!.createdBy).toBe(creator.userId);
+      expect(row!.updatedBy).toBe(creator.userId);
     });
 
     it("canonicalizes filter order so permutations share the same schedulerBatchId", async () => {
@@ -106,12 +88,12 @@ describe("MonitorService (integration)", () => {
         type: "string" as const,
       };
 
-      const first = await MonitorService.create({
-        ...baseCreateInput(projectId),
+      const first = await MonitorService.create(creator, {
+        ...baseMonitorInput(projectId),
         filters: [filterA, filterB],
       });
-      const second = await MonitorService.create({
-        ...baseCreateInput(projectId),
+      const second = await MonitorService.create(creator, {
+        ...baseMonitorInput(projectId),
         filters: [filterB, filterA],
       });
 
@@ -126,8 +108,14 @@ describe("MonitorService (integration)", () => {
       const otherOrg = await createOrgProjectAndApiKey();
       const otherProject = otherOrg.projectId;
 
-      const here = await MonitorService.create(baseCreateInput(projectId));
-      const there = await MonitorService.create(baseCreateInput(otherProject));
+      const here = await MonitorService.create(
+        creator,
+        baseMonitorInput(projectId),
+      );
+      const there = await MonitorService.create(
+        creator,
+        baseMonitorInput(otherProject),
+      );
 
       const rows = await prisma.monitor.findMany({
         where: { id: { in: [here.id, there.id] } },
@@ -143,7 +131,8 @@ describe("MonitorService (integration)", () => {
   describe("update", () => {
     it("updates user-editable fields and preserves worker-owned lifecycle state", async () => {
       const created = await MonitorService.create(
-        baseCreateInput(projectId, creatorUserId),
+        creator,
+        baseMonitorInput(projectId),
       );
 
       // Simulate the worker writing lifecycle state between create and update.
@@ -157,8 +146,8 @@ describe("MonitorService (integration)", () => {
         },
       });
 
-      const updated = await MonitorService.update({
-        ...baseUpdateInput(projectId, editorUserId),
+      const updated = await MonitorService.update(editor, {
+        ...baseMonitorInput(projectId),
         id: created.id,
         name: "Renamed",
       });
@@ -172,41 +161,54 @@ describe("MonitorService (integration)", () => {
       const row = await prisma.monitor.findUnique({
         where: { id: created.id },
       });
-      expect(row!.createdBy).toBe(creatorUserId);
-      expect(row!.updatedBy).toBe(editorUserId);
+      expect(row!.createdBy).toBe(creator.userId);
+      expect(row!.updatedBy).toBe(editor.userId);
     });
 
-    it("throws InvalidRequestError when the monitor does not exist", async () => {
+    it("throws LangfuseNotFoundError when the monitor does not exist", async () => {
       await expect(
-        MonitorService.update({
-          ...baseUpdateInput(projectId),
+        MonitorService.update(editor, {
+          ...baseMonitorInput(projectId),
           id: "mon_missing",
         }),
-      ).rejects.toBeInstanceOf(InvalidRequestError);
+      ).rejects.toBeInstanceOf(LangfuseNotFoundError);
     });
   });
 
   describe("getById / list / delete", () => {
     it("returns the monitor by id within the project", async () => {
-      const created = await MonitorService.create(baseCreateInput(projectId));
-      const fetched = await MonitorService.getById(created.id, projectId);
-      expect(fetched?.id).toBe(created.id);
+      const created = await MonitorService.create(
+        creator,
+        baseMonitorInput(projectId),
+      );
+      const fetched = await MonitorService.getById(creator, {
+        projectId,
+        id: created.id,
+      });
+      expect(fetched.id).toBe(created.id);
     });
 
-    it("returns null when fetching from a different project", async () => {
-      const created = await MonitorService.create(baseCreateInput(projectId));
-      const fetched = await MonitorService.getById(created.id, "other_project");
-      expect(fetched).toBeNull();
+    it("throws LangfuseNotFoundError when fetching from a different project", async () => {
+      const created = await MonitorService.create(
+        creator,
+        baseMonitorInput(projectId),
+      );
+      await expect(
+        MonitorService.getById(creator, {
+          projectId: "other_project",
+          id: created.id,
+        }),
+      ).rejects.toBeInstanceOf(LangfuseNotFoundError);
     });
 
     it("paginates list results", async () => {
       for (let i = 0; i < 3; i++) {
-        await MonitorService.create({
-          ...baseCreateInput(projectId),
+        await MonitorService.create(creator, {
+          ...baseMonitorInput(projectId),
           name: `M${i}`,
         });
       }
-      const page = await MonitorService.list({
+      const page = await MonitorService.list(creator, {
         projectId,
         orderBy: null,
         limit: 2,
@@ -216,11 +218,15 @@ describe("MonitorService (integration)", () => {
       expect(page.monitors).toHaveLength(2);
     });
 
-    it("deletes a monitor", async () => {
-      const created = await MonitorService.create(baseCreateInput(projectId));
-      await MonitorService.delete(created.id, projectId);
-      const fetched = await MonitorService.getById(created.id, projectId);
-      expect(fetched).toBeNull();
+    it("deletes a monitor and getById then throws LangfuseNotFoundError", async () => {
+      const created = await MonitorService.create(
+        creator,
+        baseMonitorInput(projectId),
+      );
+      await MonitorService.delete(creator, { projectId, id: created.id });
+      await expect(
+        MonitorService.getById(creator, { projectId, id: created.id }),
+      ).rejects.toBeInstanceOf(LangfuseNotFoundError);
     });
 
     it.each(["name", "status", "severity", "createdAt", "updatedAt"] as const)(
@@ -230,8 +236,8 @@ describe("MonitorService (integration)", () => {
         // non-nullable columns. If it doesn't, this throws
         // PrismaClientValidationError at runtime and we need to gate `nulls`
         // on the nullable subset instead.
-        await MonitorService.create(baseCreateInput(projectId));
-        const result = await MonitorService.list({
+        await MonitorService.create(creator, baseMonitorInput(projectId));
+        const result = await MonitorService.list(creator, {
           projectId,
           orderBy: { column, order: "ASC" },
           page: 1,
@@ -248,16 +254,16 @@ describe("MonitorService (integration)", () => {
           column === "alertedAt" ? "alertedAt" : "severityChangedAt";
 
         // Three monitors: one never-touched (NULL), one older, one newer.
-        const neverTouched = await MonitorService.create({
-          ...baseCreateInput(projectId),
+        const neverTouched = await MonitorService.create(creator, {
+          ...baseMonitorInput(projectId),
           name: "never",
         });
-        const older = await MonitorService.create({
-          ...baseCreateInput(projectId),
+        const older = await MonitorService.create(creator, {
+          ...baseMonitorInput(projectId),
           name: "older",
         });
-        const newer = await MonitorService.create({
-          ...baseCreateInput(projectId),
+        const newer = await MonitorService.create(creator, {
+          ...baseMonitorInput(projectId),
           name: "newer",
         });
 
@@ -270,7 +276,7 @@ describe("MonitorService (integration)", () => {
           data: { [dbColumn]: new Date("2026-06-01T00:00:00.000Z") },
         });
 
-        const desc = await MonitorService.list({
+        const desc = await MonitorService.list(creator, {
           projectId,
           orderBy: { column, order: "DESC" },
           page: 1,
@@ -282,7 +288,7 @@ describe("MonitorService (integration)", () => {
           neverTouched.id,
         ]);
 
-        const asc = await MonitorService.list({
+        const asc = await MonitorService.list(creator, {
           projectId,
           orderBy: { column, order: "ASC" },
           page: 1,

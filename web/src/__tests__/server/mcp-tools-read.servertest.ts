@@ -20,9 +20,12 @@ import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
 import {
   createMcpTestSetup,
   createPromptInDb,
+  mockServerContext,
   verifyToolAnnotations,
 } from "./mcp-helpers";
 import { env } from "@/src/env.mjs";
+import "@/src/features/mcp/server/bootstrap";
+import { toolRegistry } from "@/src/features/mcp/server/registry";
 
 // Import MCP tool handlers directly
 import {
@@ -62,6 +65,8 @@ const maybeEventsTable =
   env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
     ? describe
     : describe.skip;
+const maybeEventsTableIt =
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true" ? it : it.skip;
 
 const createObservationEvent = (params: {
   projectId: string;
@@ -116,6 +121,17 @@ describe("MCP Read Tools", () => {
       verifyToolAnnotations(getObservationFieldSchemaTool, {
         readOnlyHint: true,
       });
+    });
+
+    maybeEventsTableIt("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(
+          getObservationFieldSchemaTool.name,
+          context,
+        ),
+      ).resolves.toBeDefined();
     });
 
     it("should return the observation projection field schema", async () => {
@@ -174,6 +190,17 @@ describe("MCP Read Tools", () => {
       verifyToolAnnotations(getObservationFilterSchemaTool, {
         readOnlyHint: true,
       });
+    });
+
+    maybeEventsTableIt("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(
+          getObservationFilterSchemaTool.name,
+          context,
+        ),
+      ).resolves.toBeDefined();
     });
 
     it("should return public-compatible observation filter schema", async () => {
@@ -237,6 +264,14 @@ describe("MCP Read Tools", () => {
   maybeEventsTable("listObservations tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(listObservationsTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(listObservationsTool.name, context),
+      ).resolves.toBeDefined();
     });
 
     it("should expose object-shaped advanced filters in the tool schema", () => {
@@ -342,6 +377,25 @@ describe("MCP Read Tools", () => {
       expect(createdObservation?.output).toBeUndefined();
       expect(createdObservation?.metadata).toBeUndefined();
       expect(result.meta).toBeDefined();
+    });
+
+    it("should list observations with an in-app agent context", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const observation = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-list-in-app-agent-${nanoid()}`,
+      });
+
+      await createEventsCh([observation]);
+
+      const result = (await handleListObservations(
+        { traceId, fields: ["id"], limit: 100 },
+        { ...context, isInAppAgentKey: true },
+      )) as { data: Array<{ id: string }> };
+
+      expect(result.data.map((item) => item.id)).toContain(observation.id);
     });
 
     it("should project only requested fields", async () => {
@@ -759,6 +813,14 @@ describe("MCP Read Tools", () => {
       verifyToolAnnotations(getObservationTool, { readOnlyHint: true });
     });
 
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(getObservationTool.name, context),
+      ).resolves.toBeDefined();
+    });
+
     it("should fetch a single observation by id with compact default projection", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const observation = createObservationEvent({
@@ -784,6 +846,23 @@ describe("MCP Read Tools", () => {
       expect(result.input).toBeUndefined();
       expect(result.output).toBeUndefined();
       expect(result.metadata).toBeUndefined();
+    });
+
+    it("should fetch an observation with an in-app agent context", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const observation = createObservationEvent({
+        projectId,
+        name: `mcp-get-in-app-agent-${nanoid()}`,
+      });
+
+      await createEventsCh([observation]);
+
+      const result = (await handleGetObservation(
+        { observationId: observation.id, fields: ["id"] },
+        { ...context, isInAppAgentKey: true },
+      )) as Record<string, unknown>;
+
+      expect(result).toEqual({ id: observation.id });
     });
 
     it("should return requested fields for a single observation", async () => {
@@ -837,6 +916,17 @@ describe("MCP Read Tools", () => {
       verifyToolAnnotations(getObservationFilterValuesTool, {
         readOnlyHint: true,
       });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(
+          getObservationFilterValuesTool.name,
+          context,
+        ),
+      ).resolves.toBeDefined();
     });
 
     it("should return values for a dynamic filter column", async () => {
@@ -989,6 +1079,14 @@ describe("MCP Read Tools", () => {
   describe("getPrompt tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getPromptTool, { readOnlyHint: true });
+    });
+
+    it("should not be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(getPromptTool.name, context),
+      ).resolves.toBeUndefined();
     });
 
     it("should fetch prompt by name only (defaults to production label)", async () => {
@@ -1228,6 +1326,14 @@ describe("MCP Read Tools", () => {
   describe("listPrompts tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(listPromptsTool, { readOnlyHint: true });
+    });
+
+    it("should not be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(listPromptsTool.name, context),
+      ).resolves.toBeUndefined();
     });
 
     it("should list all prompts for project", async () => {
@@ -1599,6 +1705,14 @@ describe("MCP Read Tools", () => {
   describe("getPromptUnresolved tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getPromptUnresolvedTool, { readOnlyHint: true });
+    });
+
+    it("should not be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(getPromptUnresolvedTool.name, context),
+      ).resolves.toBeUndefined();
     });
 
     it("should fetch prompt without resolving dependencies (by name only)", async () => {
