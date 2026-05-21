@@ -60,7 +60,7 @@ import {
   AccordionTrigger,
 } from "@/src/components/ui/accordion";
 import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
-import useSessionStorage from "@/src/components/useSessionStorage";
+import { useExperimentChartsAccordion } from "../../hooks/useExperimentChartsAccordion";
 
 export default function ExperimentsTable({
   projectId,
@@ -515,9 +515,8 @@ export default function ExperimentsTable({
   }, [rows]);
 
   // Charts accordion collapsed state (persisted in session storage)
-  const [chartsAccordionValue, setChartsAccordionValue] = useSessionStorage<
-    string | undefined
-  >(`experiment-charts-accordion-${projectId}`, "charts");
+  const { accordionValue, setAccordionValue } =
+    useExperimentChartsAccordion(projectId);
 
   // Get selected experiment IDs in the order they appear in the table
   const selectedExperimentIds = useMemo(() => {
@@ -668,8 +667,8 @@ export default function ExperimentsTable({
             <Accordion
               type="single"
               collapsible
-              value={chartsAccordionValue}
-              onValueChange={setChartsAccordionValue}
+              value={accordionValue}
+              onValueChange={setAccordionValue}
             >
               <AccordionItem value="charts" className="border-t">
                 <AccordionTrigger className="px-3 pt-2 pb-1 hover:no-underline">
