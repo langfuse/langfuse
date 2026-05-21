@@ -308,7 +308,7 @@ describe("executeCodeBasedEvaluation", () => {
       } as any,
       extractedVariables: [
         { var: "output", value: "true" },
-        { var: "observationMetadata", value: "42" },
+        { var: "metadata", value: "42" },
         { var: "experimentExpectedOutput", value: "null" },
       ],
       hasExperimentContext: true,

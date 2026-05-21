@@ -27,7 +27,7 @@ export function getCodeEvalVariableMapping(): ObservationVariableMapping[] {
       jsonSelector: null,
     },
     {
-      templateVariable: "observationMetadata",
+      templateVariable: "metadata",
       selectedColumnId: "metadata",
       jsonSelector: null,
     },

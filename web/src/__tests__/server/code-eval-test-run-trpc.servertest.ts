@@ -154,7 +154,7 @@ maybe("evals.testRunCodeEval", () => {
           jsonSelector: null,
         },
         {
-          templateVariable: "observationMetadata",
+          templateVariable: "metadata",
           selectedColumnId: "metadata",
           jsonSelector: "$.quality",
         },

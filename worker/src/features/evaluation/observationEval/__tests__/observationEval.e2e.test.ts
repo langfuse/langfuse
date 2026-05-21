@@ -306,7 +306,7 @@ describe("Observation Eval E2E Pipeline", () => {
         { templateVariable: "input", selectedColumnId: "input" },
         { templateVariable: "output", selectedColumnId: "output" },
         {
-          templateVariable: "observationMetadata",
+          templateVariable: "metadata",
           selectedColumnId: "metadata",
         },
         {

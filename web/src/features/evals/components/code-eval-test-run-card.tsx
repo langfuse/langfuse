@@ -43,14 +43,10 @@ export function CodeEvalTestRunCard({
   const testRunMutation = api.evals.testRunCodeEval.useMutation({
     onSuccess: (result) => {
       if (result.success) {
-        toast.success("Test run completed");
         return;
       }
 
       toast.error(result.error.message);
-    },
-    onError: (error) => {
-      toast.error(error.message);
     },
   });
 

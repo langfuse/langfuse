@@ -19,7 +19,7 @@ import { isCodeEvalEnabled } from "@/src/features/evals/server/isCodeEvalEnabled
 export const CODE_EVAL_TEMPLATE_VARIABLES = [
   "input",
   "output",
-  "observationMetadata",
+  "metadata",
   "experimentItemExpectedOutput",
   "experimentItemMetadata",
 ] as const;
