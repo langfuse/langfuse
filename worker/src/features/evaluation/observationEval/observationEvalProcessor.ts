@@ -40,7 +40,6 @@ export type ObservationEvalExecutionBaseParams = {
   config: JobConfiguration;
   extractedVariables: ExtractedVariable[];
   hasExperimentContext: boolean;
-  environment: string;
   executionMetadata: Record<string, string>;
   deps: EvalExecutionDeps;
 };
@@ -229,7 +228,6 @@ export async function processObservationEval<TTemplate extends EvalTemplate>(
     config: evalJobConfig,
     extractedVariables,
     hasExperimentContext: Boolean(observationData.experiment_id),
-    environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
     executionMetadata: buildEvalExecutionMetadata({
       jobExecutionId: event.jobExecutionId,
       jobConfigurationId: job.jobConfigurationId,
@@ -250,7 +248,7 @@ export async function processObservationEval<TTemplate extends EvalTemplate>(
     jobExecutionId: executionParams.jobExecutionId,
     traceId: executionParams.job.jobInputTraceId,
     observationId: executionParams.job.jobInputObservationId,
-    environment: executionParams.environment,
+    environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
     deps: executionParams.deps,
     result: executionResult,
   });

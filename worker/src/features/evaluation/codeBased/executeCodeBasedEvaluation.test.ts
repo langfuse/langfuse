@@ -89,7 +89,6 @@ describe("executeCodeBasedEvaluation", () => {
         { var: "experimentExpectedOutput", value: "4" },
       ],
       hasExperimentContext: true,
-      environment: "default",
       executionMetadata: { job_execution_id: "job-1" },
     });
 
@@ -172,7 +171,6 @@ describe("executeCodeBasedEvaluation", () => {
         outputDefinition: null,
       } as any,
       extractedVariables: [],
-      environment: "default",
       executionMetadata: { job_execution_id: "job-1" },
     });
 
@@ -217,7 +215,6 @@ describe("executeCodeBasedEvaluation", () => {
       } as any,
       extractedVariables: [],
       hasExperimentContext: true,
-      environment: "default",
       executionMetadata: { job_execution_id: "job-1" },
     });
 
@@ -262,7 +259,6 @@ describe("executeCodeBasedEvaluation", () => {
       } as any,
       extractedVariables: [{ var: "experimentExpectedOutput", value: "4" }],
       hasExperimentContext: false,
-      environment: "default",
       executionMetadata: { job_execution_id: "job-1" },
     });
 
@@ -307,7 +303,6 @@ describe("executeCodeBasedEvaluation", () => {
         { var: "experimentExpectedOutput", value: "null" },
       ],
       hasExperimentContext: true,
-      environment: "default",
       executionMetadata: { job_execution_id: "job-1" },
     });
 
@@ -361,7 +356,6 @@ describe("executeCodeBasedEvaluation", () => {
         },
       ],
       hasExperimentContext: true,
-      environment: "default",
       executionMetadata: { job_execution_id: "job-1" },
     });
 
@@ -412,7 +406,6 @@ describe("executeCodeBasedEvaluation", () => {
           outputDefinition: null,
         } as any,
         extractedVariables: [{ var: "input", value: "prompt" }],
-        environment: "default",
         executionMetadata: { job_execution_id: "job-1" },
       }),
     ).resolves.toMatchObject({
@@ -452,7 +445,6 @@ describe("executeCodeBasedEvaluation", () => {
           outputDefinition: null,
         } as any,
         extractedVariables: [{ var: "input", value: "prompt" }],
-        environment: "default",
         executionMetadata: { job_execution_id: "job-1" },
       }),
     ).rejects.toBe(error);
@@ -530,7 +522,6 @@ describe("executeCodeBasedEvaluation", () => {
           outputDefinition: null,
         } as any,
         extractedVariables: [{ var: "input", value: "prompt" }],
-        environment: "default",
         executionMetadata: { job_execution_id: "job-1" },
       }),
     ).rejects.toBe(error);

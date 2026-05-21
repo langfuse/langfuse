@@ -23,7 +23,6 @@ export async function executeCodeBasedEvaluation(params: {
   template: EvalTemplateCodeBased;
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
-  environment: string;
   executionMetadata: Record<string, string>;
   // Unused; present for ObservationEvalExecutor interface symmetry.
   deps?: EvalExecutionDeps;

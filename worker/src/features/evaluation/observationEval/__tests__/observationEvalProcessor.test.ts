@@ -499,7 +499,6 @@ describe("processObservationEval", () => {
             }),
           ]),
           hasExperimentContext: true,
-          environment: "production",
         }),
       );
     });
@@ -569,6 +568,11 @@ describe("processObservationEval", () => {
         expect.objectContaining({
           projectId,
           scoreId: mockEvalExecutionResult.primaryScoreId,
+          event: expect.objectContaining({
+            body: expect.objectContaining({
+              environment: "production",
+            }),
+          }),
         }),
       );
       expect(enqueueScoreIngestion).toHaveBeenCalledWith(
@@ -654,13 +658,12 @@ describe("processObservationEval", () => {
               value: '{"response": "test output"}',
             }),
           ]),
-          environment: "production",
         }),
       );
       expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
     });
 
-    it("should use default environment when observation environment is null", async () => {
+    it("should use default environment for persisted scores when observation environment is null", async () => {
       const job = createMockJobExecution({
         id: jobExecutionId,
         projectId,
@@ -680,10 +683,16 @@ describe("processObservationEval", () => {
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
 
+      const uploadScore = vi
+        .fn<EvalExecutionDeps["uploadScore"]>()
+        .mockResolvedValue(undefined);
       const deps = createMockProcessorDeps({
         downloadObservationFromS3: vi
           .fn()
           .mockResolvedValue(JSON.stringify(observation)),
+        evalExecutionDeps: createMockEvalExecutionDeps({
+          uploadScore,
+        }),
       });
 
       await processObservationEval({
@@ -693,9 +702,13 @@ describe("processObservationEval", () => {
         deps,
       });
 
-      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+      expect(uploadScore).toHaveBeenCalledWith(
         expect.objectContaining({
-          environment: "default",
+          event: expect.objectContaining({
+            body: expect.objectContaining({
+              environment: "default",
+            }),
+          }),
         }),
       );
     });
