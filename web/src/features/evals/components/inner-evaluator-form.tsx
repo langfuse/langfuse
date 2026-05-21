@@ -743,21 +743,39 @@ export const InnerEvaluatorForm = (props: {
     return actualTarget;
   }
 
-  const formBody = (
-    <div className="grid gap-4">
-      <FormField
-        control={form.control}
-        name="scoreName"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Generated Score Name</FormLabel>
-            <FormControl>
-              <Input {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
+  const codeEvalTestPanel =
+    isCodeEvalConfig && isEventTarget(watchedTarget) && !props.disabled ? (
+      <CodeEvalTestRunCard
+        projectId={props.projectId}
+        evalTemplate={props.evalTemplate}
+        form={form}
+        disabled={props.disabled}
       />
+    ) : null;
+
+  const formBody = (
+    <div
+      className={`grid gap-4 ${
+        codeEvalTestPanel
+          ? "xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:items-start"
+          : ""
+      }`}
+    >
+      <div className={codeEvalTestPanel ? "xl:col-span-2" : undefined}>
+        <FormField
+          control={form.control}
+          name="scoreName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Generated Score Name</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
       {!props.hideTargetSection && (
         <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
           {hasInvalidTraceFilters && (
@@ -1253,14 +1271,7 @@ export const InnerEvaluatorForm = (props: {
           </div>
         </Card>
       )}
-      {isCodeEvalConfig ? (
-        <CodeEvalTestRunCard
-          projectId={props.projectId}
-          evalTemplate={props.evalTemplate}
-          form={form}
-          disabled={props.disabled}
-        />
-      ) : (
+      {isCodeEvalConfig ? null : (
         <VariableMappingCard
           projectId={props.projectId}
           availableVariables={availableVariables}
@@ -1276,6 +1287,7 @@ export const InnerEvaluatorForm = (props: {
           }
         />
       )}
+      {codeEvalTestPanel}
     </div>
   );
 
