@@ -9,12 +9,11 @@ import { type EvalExecutionDeps } from "./evalExecutionDeps";
 
 /**
  * Common result returned by every evaluator executor (LLM-as-judge,
- * code-based, future executors). The first entry of `scores` is the primary
- * score and is persisted on `JobExecution.jobOutputScoreId`.
+ * code-based, future executors). The first persisted score payload is treated
+ * as primary and is persisted on `JobExecution.jobOutputScoreId`.
  */
 export type EvalExecutionResult = {
   scores: CodeEvalScoreWithName[];
-  primaryScoreId: string;
   executionTraceId: string;
   metadata: Record<string, string>;
 };
@@ -38,13 +37,19 @@ export async function completeEvalExecution({
 }): Promise<{ scoreCount: number }> {
   const scoreWritePayloads = buildEvalScoreWritePayloads({
     scores: result.scores,
-    primaryScoreId: result.primaryScoreId,
+    jobExecutionId,
     traceId,
     observationId,
     environment,
     executionTraceId: result.executionTraceId,
     executionMetadata: result.metadata,
   });
+  const [firstScorePayload] = scoreWritePayloads;
+
+  if (!firstScorePayload) {
+    throw new Error(`Evaluation job ${jobExecutionId} returned no scores`);
+  }
+  const jobOutputScoreId = firstScorePayload.scoreId;
 
   try {
     await Promise.all(
@@ -67,7 +72,7 @@ export async function completeEvalExecution({
     logger.error(`Failed to persist score: ${e}`, e);
     traceException(e);
     throw new Error(
-      `Failed to write score ${result.primaryScoreId} into IngestionQueue`,
+      `Failed to write score ${jobOutputScoreId} into IngestionQueue`,
     );
   }
 
@@ -81,7 +86,7 @@ export async function completeEvalExecution({
     data: {
       status: JobExecutionStatus.COMPLETED,
       endTime: new Date(),
-      jobOutputScoreId: result.primaryScoreId,
+      jobOutputScoreId,
       executionTraceId: result.executionTraceId,
     },
   });
