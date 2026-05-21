@@ -110,7 +110,7 @@ PRIMARY KEY (project_id, toStartOfMinute(start_time), xxHash32(trace_id))
 ORDER BY (project_id, toStartOfMinute(start_time), xxHash32(trace_id), span_id, start_time)
 SAMPLE BY xxHash32(trace_id)
 SETTINGS
-    index_granularity_bytes = '64Mi',
+    index_granularity_bytes = '64Mi', -- Default 10MiB. Prevents very small granules due to large rows.
     merge_max_block_size_bytes = '64Mi',
     enable_block_number_column = 1,
     enable_block_offset_column = 1,
