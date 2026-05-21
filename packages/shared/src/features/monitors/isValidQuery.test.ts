@@ -142,6 +142,73 @@ describe("isValidQuery", () => {
     }
   });
 
+  it("rejects a string filter on an array-typed dimension (tags is string[])", () => {
+    const result = isValidQuery({
+      view: "observations",
+      metric: { measure: "count", aggregation: "count" },
+      filters: [
+        { type: "string", column: "tags", operator: "=", value: "foo" },
+      ],
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.reason).toContain("tags");
+      expect(result.reason).toContain("arrayOptions");
+    }
+  });
+
+  it("rejects a stringOptions filter on an array-typed dimension (tags is string[])", () => {
+    const result = isValidQuery({
+      view: "observations",
+      metric: { measure: "count", aggregation: "count" },
+      filters: [
+        {
+          type: "stringOptions",
+          column: "tags",
+          operator: "any of",
+          value: ["foo"],
+        },
+      ],
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.reason).toContain("tags");
+      expect(result.reason).toContain("arrayOptions");
+    }
+  });
+
+  it("accepts a stringOptions filter on a scalar string dimension", () => {
+    const result = isValidQuery({
+      view: "observations",
+      metric: { measure: "count", aggregation: "count" },
+      filters: [
+        {
+          type: "stringOptions",
+          column: "environment",
+          operator: "any of",
+          value: ["production", "staging"],
+        },
+      ],
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts an arrayOptions filter on a string[] dimension", () => {
+    const result = isValidQuery({
+      view: "observations",
+      metric: { measure: "count", aggregation: "count" },
+      filters: [
+        {
+          type: "arrayOptions",
+          column: "tags",
+          operator: "all of",
+          value: ["alpha", "beta"],
+        },
+      ],
+    });
+    expect(result.valid).toBe(true);
+  });
+
   it("rejects a non-stringObject filter on the metadata column", () => {
     // queryBuilder requires metadata filters to be `type: "stringObject"`.
     // Without this, a `{type: "string", column: "metadata"}` filter would

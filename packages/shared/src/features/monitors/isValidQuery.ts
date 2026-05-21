@@ -78,6 +78,18 @@ export function isValidQuery(input: {
           `Must be a dimension on the view or the special "metadata" column.`,
       };
     }
+    // Array-typed dimensions (e.g. `tags`) require the `arrayOptions` filter
+    // variant; queryBuilder rejects scalar filters on them. Fail fast at the
+    // input boundary instead of letting the scheduler tick fail.
+    const dimension = declaration.dimensions[filter.column];
+    if (dimension.type === "string[]" && filter.type !== "arrayOptions") {
+      return {
+        valid: false,
+        reason:
+          `Filter on "${filter.column}" must be type "arrayOptions" — the dimension is an array ` +
+          `(got "${filter.type}"). queryBuilder requires scalar dimensions for non-array filter types.`,
+      };
+    }
     // Set-semantics value arrays must not contain duplicates — `any of` /
     // `none of` / `all of` are set operators, so duplicate elements produce
     // a logically identical filter that would fragment schedulerBatchId.
