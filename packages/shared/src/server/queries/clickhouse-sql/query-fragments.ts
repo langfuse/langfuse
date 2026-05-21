@@ -395,6 +395,7 @@ export const buildScoreRowsCTE = (params: BaseScoresParams): CTEWithSchema => {
     FROM scores s
     WHERE
       project_id = {projectId: String}
+      AND trace_id != ''
       ${observationFilter}
       AND data_type IN ({dataTypes: Array(String)})
       ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
