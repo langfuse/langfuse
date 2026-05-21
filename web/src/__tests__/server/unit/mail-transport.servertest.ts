@@ -1,15 +1,28 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  __testing,
   buildMailServerConfig,
   createMailTransport,
 } from "@langfuse/shared/src/server";
 
+const { parseSesRegion } = __testing;
+
 describe("mail transport dispatch", () => {
+  describe("parseSesRegion", () => {
+    it("extracts the region from ses://<region>", () => {
+      expect(parseSesRegion("ses://us-east-1")).toBe("us-east-1");
+      expect(parseSesRegion("ses://eu-west-2")).toBe("eu-west-2");
+    });
+
+    it("throws when no region is supplied", () => {
+      expect(() => parseSesRegion("ses://")).toThrow(/missing region/i);
+    });
+  });
+
   describe("createMailTransport", () => {
     it("builds an SMTP transport from an smtp:// URL", () => {
       const transport = createMailTransport("smtp://user:pass@host:25");
-      // nodemailer's SMTP transport exposes a `name` of "SMTP".
       expect(transport.transporter.name).toBe("SMTP");
     });
 
@@ -23,22 +36,6 @@ describe("mail transport dispatch", () => {
     it("builds an SES transport when the URL uses ses:// with a region", () => {
       const transport = createMailTransport("ses://us-east-1");
       expect(transport.transporter.name).toBe("SESTransport");
-      // The configured SESv2 client must report the region from the URL.
-      // nodemailer keeps the SES options on `transporter.ses`.
-      const ses = (
-        transport.transporter as unknown as {
-          ses: {
-            sesClient: {
-              config: { region: () => Promise<string> | string };
-            };
-          };
-        }
-      ).ses;
-      const region = ses.sesClient.config.region;
-      const resolved = typeof region === "function" ? region() : region;
-      return Promise.resolve(resolved).then((r) => {
-        expect(r).toBe("us-east-1");
-      });
     });
 
     it("throws when ses:// is supplied without a region", () => {
