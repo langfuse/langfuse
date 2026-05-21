@@ -88,7 +88,7 @@ export class ApiAuthService {
   ): Promise<AuthHeaderVerificationResult> {
     const result: AuthHeaderVerificationResult = await instrumentAsync(
       { name: "api-auth-verify" },
-      async () => {
+      async (span) => {
         if (!authHeader) {
           logger.debug("No authorization header");
           return {
@@ -172,11 +172,15 @@ export class ApiAuthService {
               throw new Error("Invalid credentials");
             }
 
-            addUserToSpan({
-              projectId: finalApiKey.projectId ?? undefined,
-              orgId: finalApiKey.orgId,
-              plan,
-            });
+            addUserToSpan(
+              {
+                projectId: finalApiKey.projectId ?? undefined,
+                orgId: finalApiKey.orgId,
+                plan,
+                apiKeyId: finalApiKey.id,
+              },
+              span,
+            );
 
             const accessLevel =
               finalApiKey.scope === "ORGANIZATION" ? "organization" : "project";
@@ -210,12 +214,17 @@ export class ApiAuthService {
 
             const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
               this.extractOrgIdAndCloudConfig(dbKey);
+            const plan = getOrganizationPlanServerSide(cloudConfig);
 
-            addUserToSpan({
-              projectId: dbKey.projectId ?? undefined,
-              orgId,
-              plan: getOrganizationPlanServerSide(cloudConfig),
-            });
+            addUserToSpan(
+              {
+                projectId: dbKey.projectId ?? undefined,
+                orgId,
+                plan,
+                apiKeyId: dbKey.id,
+              },
+              span,
+            );
 
             return {
               validKey: true,
@@ -223,7 +232,7 @@ export class ApiAuthService {
                 projectId: dbKey.projectId,
                 accessLevel: "scores",
                 orgId,
-                plan: getOrganizationPlanServerSide(cloudConfig),
+                plan,
                 rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
                 apiKeyId: dbKey.id,
                 scope: dbKey.scope,
@@ -316,10 +325,10 @@ export class ApiAuthService {
     // add the key to redis for future use if available, this does not throw
     // only do so if the new hashkey exists already.
     if (apiKeyAndOrganisation && apiKeyAndOrganisation.fastHashedSecretKey) {
-      await this.addApiKeyToRedis(
-        hash,
-        this.convertToRedisRepresentation(apiKeyAndOrganisation),
+      const cachedApiKey = this.convertToRedisRepresentation(
+        apiKeyAndOrganisation,
       );
+      await this.addApiKeyToRedis(hash, cachedApiKey);
     }
     return apiKeyAndOrganisation
       ? this.convertToRedisRepresentation(apiKeyAndOrganisation)

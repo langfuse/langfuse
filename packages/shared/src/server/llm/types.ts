@@ -5,6 +5,10 @@ import {
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { JSONObjectSchema } from "../../utils/zod";
+import type {
+  InternalTraceEventInput,
+  InternalTraceExperimentContext,
+} from "./internalTraceEvents";
 
 // disable lint as this is exported and used in web/worker
 
@@ -19,7 +23,7 @@ export const JSONSchemaFormSchema = z
       return parsed;
     } catch {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "Parameters must be valid JSON",
       });
       return z.NEVER;
@@ -33,7 +37,7 @@ export const JSONSchemaFormSchema = z
         required: z.array(z.string()).optional(),
         additionalProperties: z.boolean().optional(),
       })
-      .passthrough()
+      .loose()
       .transform((data) => JSON.stringify(data, null, 2)),
   );
 
@@ -429,6 +433,7 @@ export type OpenAIModel = (typeof openAIModels)[number];
 export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
   "claude-haiku-4-5-20251001",
+  "claude-opus-4-7",
   "claude-sonnet-4-6",
   "claude-opus-4-6",
   "claude-opus-4-5-20251101",
@@ -451,7 +456,9 @@ export const anthropicModels = [
 export const vertexAIModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.5-flash",
   "gemini-3.1-pro-preview",
+  "gemini-3.1-flash-lite",
   "gemini-3.1-flash-lite-preview",
   "gemini-3-pro-preview",
   "gemini-3-flash-preview",
@@ -472,7 +479,9 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.5-flash",
   "gemini-3.1-pro-preview",
+  "gemini-3.1-flash-lite",
   "gemini-3.1-flash-lite-preview",
   "gemini-3-pro-preview",
   "gemini-3-flash-preview",
@@ -499,7 +508,7 @@ export const supportedModels = {
 export type LLMFunctionCall = {
   name: string;
   description: string;
-  parameters: z.ZodTypeAny; // this has to be a json schema for OpenAI
+  parameters: z.ZodType; // this has to be a json schema for OpenAI
 };
 
 export const LLMApiKeySchema = z
@@ -533,16 +542,22 @@ export enum LangfuseInternalTraceEnvironment {
   LLMJudge = "langfuse-llm-as-a-judge",
 }
 
+export type ProcessedTraceEvent = {
+  type: string;
+  timestamp: string;
+  body: Record<string, unknown>;
+};
+
 /**
- * Details of a generation extracted from traced events.
- * Used to pass generation information from internal tracing to callbacks.
+ * Configuration for direct writing of trace events to the events table.
+ * Used by internal tracing (prompt experiments, evaluations).
  */
-export type GenerationDetails = {
-  observationId: string;
-  name: string;
-  input: unknown;
-  output: unknown;
-  metadata: Record<string, unknown>;
+export type InternalEventsWriter = {
+  experimentContext?: InternalTraceExperimentContext;
+  write: (params: {
+    rootSpanId: string;
+    eventInputs: InternalTraceEventInput[];
+  }) => Promise<void>;
 };
 
 export type TraceSinkParams = {
@@ -561,8 +576,10 @@ export type TraceSinkParams = {
     version: number;
   };
   /**
-   * Optional callback invoked after the generation events have been processed.
-   * Called with merged generation details (from create + update events).
+   * When provided, traced events are written directly to the events table,
+   * bypassing the legacy traces/observations ingestion pipeline for the events write.
+   * Used for internal tracing (prompt experiments, LLM-as-a-judge evaluations). Traced
+   * events are still written to the legacy traces/observations tables.
    */
-  onGenerationComplete?: (details: GenerationDetails) => void;
+  eventsWriter?: InternalEventsWriter;
 };

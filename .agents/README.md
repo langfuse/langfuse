@@ -10,6 +10,8 @@ or `.vscode/`.
 ## Layout
 
 - `AGENTS.md`: canonical shared root instructions
+- `ARCHITECTURE_PRINCIPLES.md`: architecture principles for high-scale
+  observability
 - `config.json`: shared bootstrap and MCP configuration used to generate
   tool-specific shims
 - `skills/`: shared, tool-neutral implementation guidance for recurring
@@ -38,15 +40,42 @@ Current shape:
     "playwright": {
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"]
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--isolated",
+        "--save-session",
+        "--output-dir",
+        ".playwright-mcp",
+        "--test-id-attribute",
+        "data-testid"
+      ]
     },
-    "datadog": {
+    "langfuse-docs": {
       "transport": "http",
-      "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp"
+      "url": "https://langfuse.com/api/mcp"
+    },
+    "linear": {
+      "transport": "http",
+      "url": "https://mcp.linear.app/mcp"
     }
   },
   "claude": {
-    "settings": {}
+    "settings": {
+      "permissions": {
+        "allow": [
+          "Bash(find:*)",
+          "Bash(rg:*)",
+          "Bash(grep:*)",
+          "Bash(ls:*)",
+          "Bash(cat:*)",
+          "Bash(head:*)",
+          "Bash(tail:*)"
+        ],
+        "deny": []
+      },
+      "enableAllProjectMcpServers": true
+    }
   },
   "codex": {
     "environment": {
@@ -175,6 +204,7 @@ Use them for durable, reusable guidance such as:
 
 Do not use skills for one-off task notes or tool runtime configuration.
 
+Use `skills/skill-creator/SKILL.md` when creating or editing shared skills.
 `pnpm run agents:sync` projects the shared skills into `.claude/skills/` so
 Claude can discover the same repo-owned skills.
 

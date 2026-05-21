@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
+import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
 import {
   toAbsoluteTimeRange,
   type TimeRange,
@@ -10,11 +11,6 @@ type UseDashboardFilterOptionsParams = {
   isBetaEnabled: boolean;
   timeRange: TimeRange;
 };
-
-const toNameOption = (n: { value: string; count: string | number }) => ({
-  value: n.value,
-  count: Number(n.count),
-});
 
 export function useDashboardFilterOptions({
   projectId,
@@ -34,6 +30,31 @@ export function useDashboardFilterOptions({
     [timeRange],
   );
 
+  const traceTimestampFilter = useMemo(
+    () =>
+      absoluteTimeRange
+        ? [
+            {
+              column: "timestamp",
+              type: "datetime" as const,
+              operator: ">=" as const,
+              value: absoluteTimeRange.from,
+            },
+            ...(absoluteTimeRange.to
+              ? [
+                  {
+                    column: "timestamp",
+                    type: "datetime" as const,
+                    operator: "<=" as const,
+                    value: absoluteTimeRange.to,
+                  },
+                ]
+              : []),
+          ]
+        : undefined,
+    [absoluteTimeRange],
+  );
+
   const startTimeFilter = useMemo(
     () =>
       absoluteTimeRange
@@ -41,7 +62,7 @@ export function useDashboardFilterOptions({
             {
               column: "startTime",
               type: "datetime" as const,
-              operator: ">" as const,
+              operator: ">=" as const,
               value: absoluteTimeRange.from,
             },
             ...(absoluteTimeRange.to
@@ -49,7 +70,7 @@ export function useDashboardFilterOptions({
                   {
                     column: "startTime",
                     type: "datetime" as const,
-                    operator: "<" as const,
+                    operator: "<=" as const,
                     value: absoluteTimeRange.to,
                   },
                 ]
@@ -60,7 +81,7 @@ export function useDashboardFilterOptions({
   );
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
-    { projectId },
+    { projectId, timestampFilter: traceTimestampFilter },
     { ...commonQueryOptions, enabled: !isBetaEnabled },
   );
 
@@ -72,8 +93,8 @@ export function useDashboardFilterOptions({
   const nameOptions = useMemo(
     () =>
       isBetaEnabled
-        ? (eventsFilterOptions.data?.traceName?.map(toNameOption) ?? [])
-        : (traceFilterOptions.data?.name?.map(toNameOption) ?? []),
+        ? normalizeSingleValueOptions(eventsFilterOptions.data?.traceName)
+        : normalizeSingleValueOptions(traceFilterOptions.data?.name),
     [
       isBetaEnabled,
       eventsFilterOptions.data?.traceName,

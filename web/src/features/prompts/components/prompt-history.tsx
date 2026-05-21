@@ -15,8 +15,6 @@ const PromptHistoryTraceNode = (props: {
   currentPromptVersion: number | undefined;
   setCurrentPromptVersion: (version: number | undefined) => void;
   router: NextRouter;
-  projectId: string;
-  totalCount: number;
   commentCounts?: Map<string, number>;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -176,11 +174,9 @@ export const PromptHistoryNode = (props: {
   prompts: RouterOutputs["prompts"]["allVersions"]["promptVersions"];
   currentPromptVersion: number | undefined;
   setCurrentPromptVersion: (id: number | undefined) => void;
-  totalCount: number;
   commentCounts?: Map<string, number>;
 }) => {
   const router = useRouter();
-  const projectId = router.query.projectId as string;
   const currentPrompt = props.prompts.find(
     (p) => p.version === props.currentPromptVersion,
   );
@@ -196,8 +192,6 @@ export const PromptHistoryNode = (props: {
           currentPromptVersion={props.currentPromptVersion}
           setCurrentPromptVersion={props.setCurrentPromptVersion}
           router={router}
-          projectId={projectId}
-          totalCount={props.totalCount}
           commentCounts={props.commentCounts}
         />
       ))}

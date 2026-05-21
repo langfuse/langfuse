@@ -79,15 +79,7 @@ type ValidatedAPITraceScore<IncludeHasMetadata extends boolean> = APIScoreV1 & {
   hasMetadata: IncludeHasMetadata extends true ? boolean : never;
 };
 
-/**
- * @deprecated
- * Use `filterAndValidateDbScoreList` instead. This function is only used for the legacy v1 API where scores were only associated with traces.
- * Use this function when pulling a list of scores from the database before using in the application to ensure type safety.
- * All scores are expected to pass the validation. If a score fails validation, it will be logged to Otel.
- * @param scores
- * @returns list of validated scores
- */
-export const filterAndValidateDbTraceScoreList = <
+export const filterAndValidateDbLegacyTraceScoreList = <
   IncludeHasMetadata extends boolean,
 >({
   scores,
@@ -114,3 +106,14 @@ export const filterAndValidateDbTraceScoreList = <
     return acc;
   }, [] as ValidatedAPITraceScore<IncludeHasMetadata>[]);
 };
+
+/**
+ * @deprecated
+ * Use `filterAndValidateDbScoreList` instead. This function is only used for the legacy v1 API where scores were only associated with traces.
+ * Use this function when pulling a list of scores from the database before using in the application to ensure type safety.
+ * All scores are expected to pass the validation. If a score fails validation, it will be logged to Otel.
+ * @param scores
+ * @returns list of validated scores
+ */
+export const filterAndValidateDbTraceScoreList =
+  filterAndValidateDbLegacyTraceScoreList;

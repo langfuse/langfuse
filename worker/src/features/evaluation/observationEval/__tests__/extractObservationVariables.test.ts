@@ -58,6 +58,7 @@ describe("extractObservationVariables", () => {
     experiment_dataset_id: null,
     experiment_item_id: null,
     experiment_item_expected_output: "expected response",
+    experiment_item_metadata: { cohort: "control", region: "eu" },
 
     // Data fields
     input: JSON.stringify({
@@ -252,6 +253,26 @@ describe("extractObservationVariables", () => {
       expect(result[0].var).toBe("expected");
       expect(result[0].value).toBe("expected response");
     });
+
+    it("should extract experimentItemMetadata variable as JSON string", () => {
+      const variableMapping: ObservationVariableMapping[] = [
+        {
+          templateVariable: "item_metadata",
+          selectedColumnId: "experimentItemMetadata",
+        },
+      ];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].var).toBe("item_metadata");
+      expect(result[0].value).toBe(
+        JSON.stringify(mockObservation.experiment_item_metadata),
+      );
+    });
   });
 
   describe("usage extraction", () => {
@@ -311,8 +332,8 @@ describe("extractObservationVariables", () => {
         variableMapping,
       });
 
-      // JSONPath returns an array, which gets JSON-stringified
-      expect(result[0].value).toBe(JSON.stringify(["Hello, how are you?"]));
+      // Single-match results are unwrapped
+      expect(result[0].value).toBe("Hello, how are you?");
     });
 
     it("should apply JSON selector to extract nested field from output", () => {
@@ -332,7 +353,25 @@ describe("extractObservationVariables", () => {
         availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
       );
 
-      expect(result[0].value).toBe(JSON.stringify(["I am fine, thank you!"]));
+      // Single-match results are unwrapped
+      expect(result[0].value).toBe("I am fine, thank you!");
+    });
+
+    it("should apply JSON selector to extract nested field from experiment item metadata", () => {
+      const variableMapping: ObservationVariableMapping[] = [
+        {
+          templateVariable: "cohort",
+          selectedColumnId: "experimentItemMetadata",
+          jsonSelector: "$.cohort",
+        },
+      ];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result[0].value).toBe("control");
     });
 
     // OTel ingestion stringifies metadata.attributes.* values; ingestion stringifies the whole metadata.attributes object
@@ -453,8 +492,8 @@ describe("extractObservationVariables", () => {
         availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
       );
 
-      // JSONPath returns empty array for non-matching paths
-      expect(result[0].value).toBe("[]");
+      // Non-matching JSONPath returns empty string
+      expect(result[0].value).toBe("");
     });
 
     it("should handle non-JSON string column with JSON selector", () => {

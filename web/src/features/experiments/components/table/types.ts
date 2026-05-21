@@ -3,13 +3,40 @@ import { type VisibilityState } from "@tanstack/react-table";
 import { type ReactNode } from "react";
 
 // Shared font color palette for experiment rows/columns
-export const EXPERIMENT_COLORS = [
-  "text-dark-gray", // Baseline - index 0
-  "text-blue-700", // Comparison 1
-  "text-pink-700", // Comparison 2
-  "text-purple-700", // Comparison 3
-  "text-orange-700", // Comparison 4
+export const EXPERIMENT_COLOR_STYLES = [
+  {
+    textClass: "text-dark-gray",
+    markerClass: "bg-slate-500 dark:bg-slate-400",
+    badgeClass:
+      "border-slate-400/80 bg-slate-100/70 text-slate-700 dark:border-slate-500/70 dark:bg-slate-900/60 dark:text-slate-300",
+  }, // Baseline - index 0
+  {
+    textClass: "text-blue-700 dark:text-blue-300",
+    markerClass: "bg-blue-500/80 dark:bg-blue-400/80",
+    badgeClass:
+      "border-blue-500/45 bg-blue-500/12 text-blue-700 dark:border-blue-400/45 dark:bg-blue-400/15 dark:text-blue-300",
+  }, // Comparison 1
+  {
+    textClass: "text-violet-700 dark:text-violet-300",
+    markerClass: "bg-violet-500/80 dark:bg-violet-400/80",
+    badgeClass:
+      "border-violet-500/45 bg-violet-500/12 text-violet-700 dark:border-violet-400/45 dark:bg-violet-400/15 dark:text-violet-300",
+  }, // Comparison 2
+  {
+    textClass: "text-teal-700 dark:text-teal-300",
+    markerClass: "bg-teal-500/80 dark:bg-teal-400/80",
+    badgeClass:
+      "border-teal-500/45 bg-teal-500/12 text-teal-700 dark:border-teal-400/45 dark:bg-teal-400/15 dark:text-teal-300",
+  }, // Comparison 3
+  {
+    textClass: "text-amber-700 dark:text-amber-300",
+    markerClass: "bg-amber-500/80 dark:bg-amber-400/80",
+    badgeClass:
+      "border-amber-500/45 bg-amber-500/12 text-amber-700 dark:border-amber-400/45 dark:bg-amber-400/15 dark:text-amber-300",
+  }, // Comparison 4
 ] as const;
+
+export type ExperimentColorStyle = (typeof EXPERIMENT_COLOR_STYLES)[number];
 
 /**
  * Get the text color class for an experiment based on its index.
@@ -18,8 +45,19 @@ export const getExperimentColor = (
   experimentId: string,
   allExperimentIds: string[],
 ): string => {
+  const styles = getExperimentColorStyles(experimentId, allExperimentIds);
+  return styles.textClass;
+};
+
+export const getExperimentColorStyles = (
+  experimentId: string,
+  allExperimentIds: string[],
+): ExperimentColorStyle => {
   const index = allExperimentIds.indexOf(experimentId);
-  return EXPERIMENT_COLORS[index % EXPERIMENT_COLORS.length];
+  return (
+    EXPERIMENT_COLOR_STYLES[index % EXPERIMENT_COLOR_STYLES.length] ??
+    EXPERIMENT_COLOR_STYLES[0]
+  );
 };
 
 export type ExperimentsTableRow = {
@@ -54,6 +92,8 @@ export type ExperimentsTableProps = {
   hideControls?: boolean;
   /** Default filters to apply on mount when no existing filters are set */
   defaultFilter?: FilterState;
+  /** Hidden filters that scope the table but should not be user-visible */
+  fixedFilter?: FilterState;
   /** Unique context ID to isolate filter state from other ExperimentsTable instances */
   sessionFilterContextId?: string;
 };

@@ -107,7 +107,16 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
       data: {
         ...shape.data,
         zodError:
-          error.cause instanceof ZodError ? error.cause.flatten() : null,
+          error.cause instanceof ZodError ? z.flattenError(error.cause) : null,
+        errorName:
+          error.cause instanceof ClickHouseResourceError
+            ? "ClickHouseResourceError"
+            : null,
+        // do not expose stack traces for CH errors as they may contain sensitive info
+        stack:
+          error.cause instanceof ClickHouseResourceError
+            ? null
+            : shape.data.stack,
       },
     };
   },
@@ -161,10 +170,17 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
     if (res.error.cause instanceof ClickHouseResourceError) {
       // Surface ClickHouse errors using an advice message
       // which is supposed to provide a bit of guidance to the user.
+      logger.warn("ClickHouse resource limit exceeded", {
+        errorType: res.error.cause.errorType,
+        message: res.error.cause.message,
+        tags: res.error.cause.tags,
+      });
       logErrorByCode("UNPROCESSABLE_CONTENT", res.error);
       res.error = new TRPCError({
         code: "UNPROCESSABLE_CONTENT",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+        // Keep the original error, it will be removed by `errorFormatter`
+        cause: res.error.cause,
       });
     } else {
       // Throw a new TRPC error with:

@@ -32,8 +32,11 @@ import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration
 import {
   AnalyticsIntegrationExportSource,
   EXPORT_SOURCE_OPTIONS,
+  isLegacyBlobExportAllowed,
 } from "@langfuse/shared";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -62,7 +65,7 @@ export default function PosthogIntegrationSettings() {
   );
 
   const status =
-    state.isInitialLoading || !hasAccess
+    state.isLoading || !hasAccess
       ? undefined
       : state.data?.enabled
         ? "active"
@@ -141,17 +144,29 @@ const PostHogIntegrationSettings = ({
 }) => {
   const capture = usePostHogClientCapture();
   const { isBetaEnabled } = useV4Beta();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { project } = useQueryProject();
+
+  // Post-cutoff Cloud projects may only use OBSERVATIONS_V2 (EVENTS). The
+  // Export Source field is hidden in that case; the form value is pinned to
+  // EVENTS via the default below. Mirrors blob-storage settings (LFE-9688 / 9830).
+  const isPostCutoffCloud =
+    project?.createdAt != null &&
+    !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
+  const showExportSourceField = isBetaEnabled && !isPostCutoffCloud;
+
   const posthogForm = useForm({
     resolver: zodResolver(posthogIntegrationFormSchema),
     defaultValues: {
       posthogHostname: state?.posthogHostName ?? "",
       posthogProjectApiKey: state?.posthogApiKey ?? "",
       enabled: state?.enabled ?? false,
-      exportSource:
-        state?.exportSource ??
-        (isBetaEnabled
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportSource: isPostCutoffCloud
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : (state?.exportSource ??
+          (isBetaEnabled
+            ? AnalyticsIntegrationExportSource.EVENTS
+            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS)),
     },
     disabled: isLoading,
   });
@@ -161,11 +176,12 @@ const PostHogIntegrationSettings = ({
       posthogHostname: state?.posthogHostName ?? "",
       posthogProjectApiKey: state?.posthogApiKey ?? "",
       enabled: state?.enabled ?? false,
-      exportSource:
-        state?.exportSource ??
-        (isBetaEnabled
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportSource: isPostCutoffCloud
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : (state?.exportSource ??
+          (isBetaEnabled
+            ? AnalyticsIntegrationExportSource.EVENTS
+            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS)),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -225,7 +241,7 @@ const PostHogIntegrationSettings = ({
             </FormItem>
           )}
         />
-        {isBetaEnabled && (
+        {showExportSourceField && (
           <FormField
             control={posthogForm.control}
             name="exportSource"

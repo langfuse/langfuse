@@ -69,6 +69,7 @@ export const upsertManagedEvaluators = async (force = false) => {
         version: evaluator.version,
         outputDefinition: evaluator.outputDefinition,
         prompt: evaluator.prompt,
+        vars: parsePromptVariables(evaluator.prompt),
         updatedAt: evaluator.updated_at,
       };
 
@@ -83,7 +84,6 @@ export const upsertManagedEvaluators = async (force = false) => {
             id: evaluator.id,
             projectId: null,
             updatedAt: evaluator.updated_at,
-            vars: parsePromptVariables(evaluator.prompt),
           },
         })
         .then(() =>
@@ -99,7 +99,7 @@ export const upsertManagedEvaluators = async (force = false) => {
 
     await Promise.all(upsertPromises);
     logger.info(
-      `Finished upserting Langfuse dashboards and widgets in ${Date.now() - startTime}ms`,
+      `Finished upserting Langfuse evaluators in ${Date.now() - startTime}ms`,
     );
   } catch (error) {
     logger.error(

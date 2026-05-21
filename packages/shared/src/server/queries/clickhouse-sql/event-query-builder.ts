@@ -1,3 +1,7 @@
+import {
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
+  ObservationFieldGroupPublicApi,
+} from "../../../domain/observation-field-groups";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import { FilterList, StringFilter } from "./clickhouse-filter";
 
@@ -102,6 +106,7 @@ const EVENTS_FIELDS = {
   toolCallNames: 'e.tool_call_names as "tool_call_names"',
 
   // Pricing tier
+  usagePricingTierId: 'e.usage_pricing_tier_id as "usage_pricing_tier_id"',
   usagePricingTierName:
     'e.usage_pricing_tier_name as "usage_pricing_tier_name"',
 
@@ -174,6 +179,8 @@ const FIELD_SETS = {
     "updatedAt",
     "providedModelName",
     "totalCost",
+    "usagePricingTierId",
+    "usagePricingTierName",
     "promptId",
     "promptName",
     "promptVersion",
@@ -181,14 +188,57 @@ const FIELD_SETS = {
     "userId",
     "sessionId",
     "traceName",
+    "release",
+    "tags",
     "toolDefinitions",
     "toolCalls",
+    "toolCallNames",
+  ],
+  baseWithoutTools: [
+    "id",
+    "type",
+    "projectId",
+    "name",
+    "modelParameters",
+    "startTime",
+    "endTime",
+    "traceId",
+    "completionStartTime",
+    "providedUsageDetails",
+    "usageDetails",
+    "providedCostDetails",
+    "costDetails",
+    "level",
+    "environment",
+    "bookmarked",
+    "public",
+    "statusMessage",
+    "version",
+    "parentObservationId",
+    "createdAt",
+    "updatedAt",
+    "providedModelName",
+    "totalCost",
+    "usagePricingTierId",
+    "usagePricingTierName",
+    "promptId",
+    "promptName",
+    "promptVersion",
+    "internalModelId",
+    "userId",
+    "sessionId",
+    "traceName",
+    "release",
+    "tags",
+    // Keep lightweight tool names available even when heavy tool payloads are omitted.
     "toolCallNames",
   ],
   calculated: ["latency", "timeToFirstToken"],
   io: ["input", "output"],
   metadata: ["metadata"],
   tools: ["toolDefinitions", "toolCalls", "toolCallNames"],
+  trace_context: ["tags", "release", "traceName"],
+  model_export: ["providedModelName", "modelId", "modelParameters"],
   eventTs: ["eventTs"],
 
   // getById field sets (reuse the same fields - all queries use `FROM events_<type> e`)
@@ -206,6 +256,13 @@ const FIELD_SETS = {
     "level",
     "statusMessage",
     "version",
+    "release",
+    "userId",
+    "sessionId",
+    "traceName",
+    "tags",
+    "bookmarked",
+    "public",
     "toolDefinitions",
     "toolCalls",
     "toolCallNames",
@@ -219,6 +276,8 @@ const FIELD_SETS = {
     "providedCostDetails",
     "costDetails",
     "totalCost",
+    "usagePricingTierId",
+    "usagePricingTierName",
     "completionStartTime",
   ],
   byIdPrompt: ["promptId", "promptName", "promptVersion"],
@@ -247,7 +306,13 @@ const FIELD_SETS = {
   ],
   time: ["completionStartTime", "createdAt", "updatedAt"],
   model: ["providedModelName", "internalModelId", "modelParameters"],
-  usage: ["usageDetails", "costDetails", "totalCost"],
+  usage: [
+    "usageDetails",
+    "costDetails",
+    "totalCost",
+    "usagePricingTierId",
+    "usagePricingTierName",
+  ],
   prompt: ["promptId", "promptName", "promptVersion"],
   metrics: ["latency", "timeToFirstToken"],
 
@@ -289,6 +354,7 @@ const FIELD_SETS = {
     "toolDefinitions",
     "toolCalls",
     "toolCallNames",
+    "usagePricingTierId",
     "usagePricingTierName",
   ],
 
@@ -320,6 +386,10 @@ const FIELD_SETS = {
     "toolDefinitions",
     "toolCalls",
     "toolCallNames",
+    "experimentId",
+    "experimentItemRootSpanId",
+    "experimentItemExpectedOutput",
+    "experimentItemMetadata",
   ],
 
   // Experiment items field set
@@ -349,6 +419,15 @@ const FIELD_SETS = {
 } as const;
 
 export type FieldSetName = keyof typeof FIELD_SETS;
+
+export const OBSERVATION_FIELD_GROUP_FIELD_NAMES = Object.fromEntries(
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API.map((group) => [
+    group,
+    FIELD_SETS[group],
+  ]),
+) as {
+  [K in ObservationFieldGroupPublicApi]: (typeof FIELD_SETS)[K];
+};
 
 /**
  * Aggregation fields for trace-level queries
@@ -861,6 +940,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   private ioFields: { truncated: boolean; charLimit?: number } | null = null;
   // Metadata expansion config: null = use truncated (default), string[] = expand specific keys, empty array = expand all
   private metadataExpansionKeys: string[] | null = null;
+  private shouldForceFullTable = false;
   // Raw SELECT expressions for custom columns (e.g., from CTEs)
   private rawSelectExpressions: string[] = [];
 
@@ -927,6 +1007,14 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    */
   selectIO(truncated: boolean = false, charLimit?: number): this {
     this.ioFields = { truncated, charLimit };
+    return this;
+  }
+
+  /**
+   * Force queries to read from events_full instead of events_core.
+   */
+  forceFullTable(): this {
+    this.shouldForceFullTable = true;
     return this;
   }
 
@@ -1012,7 +1100,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     const needsFullMetadata =
       this.metadataExpansionKeys !== null && this.selectFields.has("metadata");
 
-    return needsFullIO || needsFullMetadata;
+    return needsFullIO || needsFullMetadata || this.shouldForceFullTable;
   }
 
   /**
@@ -1677,6 +1765,11 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
     "groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts",
   experimentMetadata:
     "any(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values)) AS experiment_metadata",
+
+  // Metrics fields
+  totalCost: "SUM(e.total_cost) AS total_cost",
+  latencyAvg:
+    "avgIf(date_diff('millisecond', e.start_time, e.end_time), e.span_id = e.experiment_item_root_span_id AND e.end_time IS NOT NULL) AS latency_avg",
 } as const;
 
 /**
@@ -1695,6 +1788,7 @@ const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
     "prompts",
     "experimentMetadata",
   ] as const,
+  metrics: ["experimentId", "totalCost", "latencyAvg"] as const,
 } as const;
 
 export type ExperimentsAggregationFieldSetName =
@@ -1703,9 +1797,9 @@ export type ExperimentsAggregationFieldSetName =
 /**
  * ExperimentsAggregationQueryBuilder - Aggregates events by (experiment_id, project_id).
  *
- * For metrics requiring trace-level aggregation first (cost, latency), use CTEQueryBuilder
- * to wrap a trace CTE and re-aggregate at experiment level with selectRaw() + groupBy().
- * selectRaw() is intentionally used for explicit two-level aggregation semantics.
+ * Use the "metrics" field set for cost and latency aggregations:
+ * - Cost: SUM of all event costs for the experiment
+ * - Latency: AVG of root span duration (where span_id = experiment_item_root_span_id)
  */
 export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EXPERIMENTS_AGGREGATION_FIELDS

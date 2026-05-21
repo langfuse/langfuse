@@ -10,19 +10,52 @@ export const ScoreSourceEnum = {
 export const ScoreSourceDomain = z.enum(ScoreSourceArray);
 export type ScoreSourceType = z.infer<typeof ScoreSourceDomain>;
 
+/**
+ * Source values external callers may set on the public create-score endpoint.
+ * EVAL is reserved for internal evaluator outputs. The `satisfies` clause
+ * keeps this a provable subset of {@link ScoreSourceArray} at compile time.
+ */
+export const PublicApiCreateScoreSourceDomain = z.enum([
+  ScoreSourceEnum.API,
+  ScoreSourceEnum.ANNOTATION,
+] as const satisfies readonly ScoreSourceType[]);
+
+/**
+ * Annotation scores need a matching score config so they can render in the
+ * annotation queue UI. CORRECTION scores are the one exception — by design
+ * they never carry a configId. This predicate + message are shared by the
+ * zod refine on {@link PostScoresBody} (sync 400 on REST) and the check in
+ * `validateAndInflateScore` (async drop for ingestion/SDK callers).
+ */
+export const ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE =
+  "configId is required when source is ANNOTATION (except for CORRECTION scores).";
+
+export const isAnnotationScoreMissingConfigId = (body: {
+  source?: ScoreSourceType | null;
+  configId?: string | null;
+  dataType?: ScoreDataTypeType;
+}): boolean =>
+  body.source === ScoreSourceEnum.ANNOTATION &&
+  !body.configId &&
+  body.dataType !== ScoreDataTypeEnum.CORRECTION;
+
 export const CORRECTION_NAME = "output" as const;
+
+export const TEXT_SCORE_MAX_LENGTH = 500 as const;
 
 export const ScoreDataTypeArray = [
   "NUMERIC",
   "CATEGORICAL",
   "BOOLEAN",
   "CORRECTION",
+  "TEXT",
 ] as const;
 export const ScoreDataTypeEnum = {
   NUMERIC: "NUMERIC",
   CATEGORICAL: "CATEGORICAL",
   BOOLEAN: "BOOLEAN",
   CORRECTION: "CORRECTION",
+  TEXT: "TEXT",
 } as const;
 export const ScoreDataTypeDomain = z.enum(ScoreDataTypeArray);
 export type ScoreDataTypeType = z.infer<typeof ScoreDataTypeDomain>;
@@ -45,6 +78,11 @@ export const BooleanData = z.object({
 const CorrectionData = z.object({
   stringValue: z.null(),
   dataType: z.literal("CORRECTION"),
+});
+
+export const TextData = z.object({
+  stringValue: z.string().min(1).max(TEXT_SCORE_MAX_LENGTH),
+  dataType: z.literal("TEXT"),
 });
 
 // Only used for backwards compatibility with old score API schemas
@@ -89,6 +127,7 @@ export const ScoreSchema = ScoreFoundationSchema.and(
     CategoricalData,
     BooleanData,
     CorrectionData,
+    TextData,
   ]),
 );
 
@@ -119,3 +158,13 @@ export type AggregatableScoreDataType =
 export type AggregatableScore = ScoresByDataTypes<
   typeof AGGREGATABLE_SCORE_TYPES
 >;
+
+export const LISTABLE_SCORE_TYPES = [
+  "NUMERIC",
+  "BOOLEAN",
+  "CATEGORICAL",
+  "TEXT",
+] as const satisfies readonly ScoreDataTypeType[];
+
+export type ListableScoreDataType = (typeof LISTABLE_SCORE_TYPES)[number];
+export type ListableScore = ScoresByDataTypes<typeof LISTABLE_SCORE_TYPES>;

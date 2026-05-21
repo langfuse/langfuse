@@ -7,7 +7,7 @@ import {
 } from "@/src/features/dashboard/components/hooks";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
+import { costFormatter } from "@/src/utils/numbers";
 import { api } from "@/src/utils/api";
 import {
   type DashboardDateRangeAggregationOption,
@@ -19,11 +19,8 @@ import {
   ModelSelectorPopover,
   useModelSelection,
 } from "@/src/features/dashboard/components/ModelSelector";
-import {
-  type QueryType,
-  type ViewVersion,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
@@ -302,16 +299,18 @@ export const ModelUsageChart = ({
     {
       tabTitle: "Cost by model",
       data: costByModel,
-      totalMetric: totalCostDashboardFormatted(totalCost),
+      totalMetric: costFormatter(totalCost),
       metricDescription: `Cost`,
-      formatter: totalCostDashboardFormatted,
+      chartMetricLabel: "USD",
+      chartUnit: "USD",
     },
     {
       tabTitle: "Cost by type",
       data: costByType,
-      totalMetric: totalCostDashboardFormatted(totalCost),
+      totalMetric: costFormatter(totalCost),
       metricDescription: `Cost`,
-      formatter: totalCostDashboardFormatted,
+      chartMetricLabel: "USD",
+      chartUnit: "USD",
     },
     {
       tabTitle: "Usage by model",
@@ -320,6 +319,8 @@ export const ModelUsageChart = ({
         ? compactNumberFormatter(totalTokens)
         : compactNumberFormatter(0),
       metricDescription: `Units`,
+      chartMetricLabel: "Tokens",
+      chartUnit: "tokens",
     },
     {
       tabTitle: "Usage by type",
@@ -328,6 +329,8 @@ export const ModelUsageChart = ({
         ? compactNumberFormatter(totalTokens)
         : compactNumberFormatter(0),
       metricDescription: `Units`,
+      chartMetricLabel: "Tokens",
+      chartUnit: "tokens",
     },
   ];
 
@@ -373,12 +376,17 @@ export const ModelUsageChart = ({
                     <Chart
                       chartType="LINE_TIME_SERIES"
                       data={timeSeriesToDataPoints(item.data, agg)}
+                      config={{
+                        metric: {
+                          label: item.chartMetricLabel,
+                        },
+                      }}
                       rowLimit={100}
                       chartConfig={{
                         type: "LINE_TIME_SERIES",
+                        unit: item.chartUnit,
                         show_data_point_dots: false,
                       }}
-                      valueFormatter={item.formatter}
                       legendPosition="above"
                     />
                   </div>

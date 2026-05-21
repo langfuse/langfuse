@@ -28,10 +28,10 @@ import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { cn } from "@/src/utils/tailwind";
 
 type ExperimentGridCellProps = {
   projectId: string;
-  experimentId: string;
   itemId: string;
   output: unknown;
   level: string;
@@ -49,6 +49,7 @@ type ExperimentGridCellProps = {
   baselineTraceScores?: ScoreAggregate;
   isLoading?: boolean;
   columnVisibility?: VisibilityState;
+  markerClassName?: string;
 };
 
 /**
@@ -263,15 +264,27 @@ const MetadataItem = ({
 const GroupSection = ({
   header,
   children,
+  markerClassName,
 }: {
   header?: string;
   children: React.ReactNode;
+  markerClassName?: string;
 }) => (
   <div className="flex shrink-0 flex-col gap-1 px-2 py-1.5">
     {header && (
-      <span className="text-muted-foreground text-[10px] font-semibold uppercase">
-        {header}
-      </span>
+      <div className="flex items-center gap-1.5">
+        {markerClassName !== undefined && (
+          <span
+            className={cn(
+              "h-3 w-0.5 shrink-0 rounded-full",
+              markerClassName || "bg-transparent",
+            )}
+          />
+        )}
+        <span className="text-muted-foreground text-[10px] font-semibold uppercase">
+          {header}
+        </span>
+      </div>
     )}
     {children}
   </div>
@@ -300,6 +313,7 @@ export const ExperimentGridCell = ({
   baselineTraceScores,
   isLoading = false,
   columnVisibility = {},
+  markerClassName,
 }: ExperimentGridCellProps) => {
   const scoreDiffs = useMemo(
     () =>
@@ -492,45 +506,50 @@ export const ExperimentGridCell = ({
     .filter((section) => section.content !== null);
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden">
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        {sectionsToRender.map((section, index) => {
-          const { row, content } = section;
-          const isLast = index === sectionsToRender.length - 1;
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-y-auto">
+      {sectionsToRender.map((section, index) => {
+        const { row, content } = section;
+        const isFirst = index === 0;
+        const isLast = index === sectionsToRender.length - 1;
 
-          // Output section - special handling for MemoizedIOTableCell
-          if (row.accessorKey === "output" && row.cell) {
-            return (
-              <Fragment key={row.accessorKey}>
-                <GroupSection header={row.header}>
-                  {row.cell({ data: cellData })}
-                </GroupSection>
-                {!isLast && <Separator />}
-              </Fragment>
-            );
-          }
+        // Output section - special handling for MemoizedIOTableCell
+        if (row.accessorKey === "output" && row.cell) {
+          return (
+            <Fragment key={row.accessorKey}>
+              <GroupSection
+                header={row.header}
+                markerClassName={isFirst ? markerClassName : undefined}
+              >
+                {row.cell({ data: cellData })}
+              </GroupSection>
+              {!isLast && <Separator />}
+            </Fragment>
+          );
+        }
 
-          // Groups with children (metadata, scores)
-          if (row.children && content) {
-            return (
-              <Fragment key={row.accessorKey}>
-                <GroupSection header={row.header}>
-                  <div className="flex flex-col gap-0.5">
-                    {(content as CellRowDef<GridCellData>[]).map((child) => (
-                      <div key={child.accessorKey}>
-                        {child.cell?.({ data: cellData })}
-                      </div>
-                    ))}
-                  </div>
-                </GroupSection>
-                {!isLast && <Separator />}
-              </Fragment>
-            );
-          }
+        // Groups with children (metadata, scores)
+        if (row.children && content) {
+          return (
+            <Fragment key={row.accessorKey}>
+              <GroupSection
+                header={row.header}
+                markerClassName={isFirst ? markerClassName : undefined}
+              >
+                <div className="flex flex-col gap-0.5">
+                  {(content as CellRowDef<GridCellData>[]).map((child) => (
+                    <div key={child.accessorKey}>
+                      {child.cell?.({ data: cellData })}
+                    </div>
+                  ))}
+                </div>
+              </GroupSection>
+              {!isLast && <Separator />}
+            </Fragment>
+          );
+        }
 
-          return null;
-        })}
-      </div>
+        return null;
+      })}
     </div>
   );
 };

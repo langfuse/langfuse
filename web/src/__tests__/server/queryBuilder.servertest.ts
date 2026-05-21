@@ -1,13 +1,10 @@
-import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
+import { QueryBuilder, executeQuery } from "@langfuse/shared/query/server";
 import {
-  type QueryType,
   getValidAggregationsForMeasureType,
   metricAggregations,
-} from "@/src/features/query/types";
-import {
-  executeQuery,
   validateQuery,
-} from "@/src/features/query/server/queryExecutor";
+  type QueryType,
+} from "@langfuse/shared/query";
 import { env } from "@/src/env.mjs";
 import {
   createTrace,
@@ -313,7 +310,7 @@ describe("queryBuilder", () => {
         observationId?: string;
         value?: number;
         stringValue?: string;
-        dataType: "NUMERIC" | "CATEGORICAL" | "BOOLEAN";
+        dataType: "NUMERIC" | "CATEGORICAL" | "BOOLEAN" | "TEXT" | "CORRECTION";
         source?: string;
         environment?: string;
       }>,
@@ -328,7 +325,9 @@ describe("queryBuilder", () => {
             observation_id: data.observationId,
             name: data.name,
             value: data.dataType === "NUMERIC" ? data.value || 0 : null,
-            string_value: ["CATEGORICAL", "BOOLEAN"].includes(data.dataType)
+            string_value: ["CATEGORICAL", "BOOLEAN", "TEXT"].includes(
+              data.dataType,
+            )
               ? data.stringValue || ""
               : null,
             environment: data.environment || "default",
@@ -1871,6 +1870,25 @@ describe("queryBuilder", () => {
             dataType: "CATEGORICAL" as const,
             source: "human",
           },
+
+          // Adding a TEXT (free-text) score that should also be excluded by the segments filter
+          {
+            name: "feedback",
+            traceId: traces[0].id,
+            observationId: observations[0].id,
+            stringValue: "looks good to me",
+            dataType: "TEXT" as const,
+            source: "human",
+          },
+
+          // Adding a CORRECTION score that should also be excluded by the segments filter
+          {
+            name: "correction",
+            traceId: traces[0].id,
+            observationId: observations[0].id,
+            dataType: "CORRECTION" as const,
+            source: "human",
+          },
         ];
 
         await setupScores(projectId, scores);
@@ -1902,18 +1920,33 @@ describe("queryBuilder", () => {
           projectId,
         );
 
-        // Verify SQL includes segment filter for NUMERIC types
-        // Verify SQL includes segment filter for non-NUMERIC types
-        expect(compiledQuery).toContain("position(scores_numeric.data_type, {");
-        expect(compiledQuery).toContain(": String}) = 0");
-        expect(Object.values(parameters)).toContain("CATEGORICAL");
+        // Verify SQL restricts scores-numeric to the NUMERIC/BOOLEAN allow-list
+        expect(compiledQuery).toContain(
+          "scores_numeric.data_type IN ({stringOptionsFilter",
+        );
+        expect(compiledQuery).toContain(": Array(String)})");
+        expect(Object.values(parameters)).toContainEqual([
+          "NUMERIC",
+          "BOOLEAN",
+        ]);
 
         // Execute query
         const result: { data: Array<any> } = { data: [] };
         result.data = await executeQuery(projectId, query);
 
         // Assert
+        // CATEGORICAL ("evaluation"), TEXT ("feedback"), and CORRECTION ("correction")
+        // scores must be excluded by the segments allow-list
         expect(result.data).toHaveLength(3); // accuracy, relevance, coherence
+        expect(
+          result.data.find((row: any) => row.name === "feedback"),
+        ).toBeUndefined();
+        expect(
+          result.data.find((row: any) => row.name === "evaluation"),
+        ).toBeUndefined();
+        expect(
+          result.data.find((row: any) => row.name === "correction"),
+        ).toBeUndefined();
 
         // Check each score type
         const accuracyRow = result.data.find(
@@ -4775,52 +4808,34 @@ describe("query builder measure-aggregation validation", () => {
     };
 
     it("should include rootEventCondition subquery when window is within threshold", async () => {
-      const originalValue = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
-      try {
-        // 168 hours (7 days) threshold, 72-hour window → should include subquery
-        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = 168;
-        const builder = new QueryBuilder(undefined, "v2");
-        const { query: sql } = await builder.build(tracesV2Query, randomUUID());
-        expect(sql).toContain("IN (SELECT trace_id");
-      } finally {
-        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
-          originalValue;
-      }
+      // 168 hours (7 days) threshold, 72-hour window → should include subquery
+      const builder = new QueryBuilder(undefined, "v2");
+      builder.setRootEventConditionMaxWindowHours(168);
+      const { query: sql } = await builder.build(tracesV2Query, randomUUID());
+      expect(sql).toContain("IN (SELECT trace_id");
     });
 
     it("should skip rootEventCondition subquery when window exceeds threshold", async () => {
-      const originalValue = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
-      try {
-        // 24-hour threshold, 72-hour window → should skip subquery
-        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = 24;
-        const builder = new QueryBuilder(undefined, "v2");
-        const { query: sql } = await builder.build(tracesV2Query, randomUUID());
-        expect(sql).not.toContain("IN (SELECT trace_id");
-      } finally {
-        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
-          originalValue;
-      }
+      // 24-hour threshold, 72-hour window → should skip subquery
+      const builder = new QueryBuilder(undefined, "v2");
+      builder.setRootEventConditionMaxWindowHours(24);
+      const { query: sql } = await builder.build(tracesV2Query, randomUUID());
+      expect(sql).not.toContain("IN (SELECT trace_id");
     });
 
     it("should always include rootEventCondition subquery when threshold is 0", async () => {
-      const originalValue = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
-      try {
-        // 0 = always apply, even for a very wide window
-        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = 0;
-        const builder = new QueryBuilder(undefined, "v2");
-        const { query: sql } = await builder.build(
-          {
-            ...tracesV2Query,
-            fromTimestamp: "2024-01-01T00:00:00.000Z",
-            toTimestamp: "2025-01-01T00:00:00.000Z", // 1-year window
-          },
-          randomUUID(),
-        );
-        expect(sql).toContain("IN (SELECT trace_id");
-      } finally {
-        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
-          originalValue;
-      }
+      // 0 = always apply, even for a very wide window
+      const builder = new QueryBuilder(undefined, "v2");
+      builder.setRootEventConditionMaxWindowHours(0);
+      const { query: sql } = await builder.build(
+        {
+          ...tracesV2Query,
+          fromTimestamp: "2024-01-01T00:00:00.000Z",
+          toTimestamp: "2025-01-01T00:00:00.000Z", // 1-year window
+        },
+        randomUUID(),
+      );
+      expect(sql).toContain("IN (SELECT trace_id");
     });
   });
 });
