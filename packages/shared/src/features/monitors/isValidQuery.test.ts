@@ -115,4 +115,27 @@ describe("isValidQuery", () => {
       expect(result.reason).toContain("not supported for monitors");
     }
   });
+
+  it("rejects a non-stringObject filter on the metadata column", () => {
+    // queryBuilder requires metadata filters to be `type: "stringObject"`.
+    // Without this, a `{type: "string", column: "metadata"}` filter would
+    // parse cleanly here but fail at every scheduler tick downstream.
+    const result = isValidQuery({
+      view: "observations",
+      metric: { measure: "count", aggregation: "count" },
+      filters: [
+        {
+          type: "string",
+          column: "metadata",
+          operator: "=",
+          value: "acme",
+        },
+      ],
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.reason).toContain("metadata");
+      expect(result.reason).toContain("stringObject");
+    }
+  });
 });

@@ -59,7 +59,17 @@ export function isValidQuery(input: {
   }
 
   for (const filter of input.filters) {
-    if (filter.column === "metadata") continue;
+    if (filter.column === "metadata") {
+      if (filter.type !== "stringObject") {
+        return {
+          valid: false,
+          reason:
+            `Filter on "metadata" must be type "stringObject" with a "key" property ` +
+            `(got "${filter.type}"). queryBuilder rejects other metadata filter types.`,
+        };
+      }
+      continue;
+    }
     if (!Object.hasOwn(declaration.dimensions, filter.column)) {
       return {
         valid: false,
