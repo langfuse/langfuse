@@ -21,9 +21,8 @@
  *   `outputPrice`, `totalPrice`.
  * - For the v2 public API, the Postgres lookup that populates them only runs
  *   when `"model"` is in `fields`; otherwise the fields are returned as null.
- * - For the blob export path, the gate is broader: `"model"` OR `"usage"`
- *   triggers selection of the `model_export` SQL field set so pricing can be
- *   enriched into the usage payload.
+ * - For the blob export path `"model"` triggers selection of the `model_export`
+ *   SQL field set so pricing can be enriched into the usage payload.
  * - Code references:
  *   - packages/shared/src/server/repositories/events.ts:
  *     `enrichObservationsWithModelData` (v2 read path) and the export

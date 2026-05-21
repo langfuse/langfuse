@@ -6,6 +6,7 @@ export type LangfuseContextProps = {
   headers?: IncomingHttpHeaders;
   userId?: string;
   projectId?: string;
+  apiKeyId?: string;
 };
 
 /**
@@ -52,6 +53,11 @@ export const contextWithLangfuseProps = (
   if (props.projectId) {
     baggage = baggage.setEntry("langfuse.project.id", {
       value: props.projectId,
+    });
+  }
+  if (props.apiKeyId) {
+    baggage = baggage.setEntry("langfuse.api_key.id", {
+      value: props.apiKeyId,
     });
   }
 

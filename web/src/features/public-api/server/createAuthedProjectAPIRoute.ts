@@ -370,6 +370,7 @@ export const createAuthedProjectAPIRoute = <
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
       projectId: auth.scope.projectId,
+      apiKeyId: auth.scope.apiKeyId,
     });
     return opentelemetry.context.with(ctx, async () => {
       const response = await routeConfig.fn({
