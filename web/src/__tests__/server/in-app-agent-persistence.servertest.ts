@@ -6,6 +6,7 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import {
+  appendConversationMessage,
   createRun,
   finishRun,
 } from "@/src/features/in-app-agent/server/persistence";
@@ -195,6 +196,71 @@ describe("in-app agent persistence", () => {
         },
       ],
     });
+
+    const emptyConversation = await caller.create({ projectId });
+    const listedAfterEmptyCreate = await caller.list({ projectId });
+
+    expect(listedAfterEmptyCreate[0]?.id).toBe(conversation.id);
+    expect(listedAfterEmptyCreate.at(-1)?.id).toBe(emptyConversation.id);
+
+    await appendConversationMessage({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      message: {
+        id: "user-message-2",
+        role: "user",
+        content: "Rename this conversation",
+      },
+      runId: run.id,
+    });
+
+    await appendConversationMessage({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      message: {
+        id: "user-message-3",
+        role: "user",
+        content: "Inspect the next trace",
+      },
+      runId: run.id,
+    });
+
+    await expect(
+      prisma.inAppAgentMessage.findMany({
+        where: { projectId, conversationId: conversation.id },
+        orderBy: [{ sequenceNumber: "asc" }, { createdAt: "asc" }],
+        select: {
+          externalId: true,
+          sequenceNumber: true,
+          runId: true,
+        },
+      }),
+    ).resolves.toEqual([
+      {
+        externalId: "user-message-1",
+        sequenceNumber: 0,
+        runId: null,
+      },
+      {
+        externalId: "assistant-message-1",
+        sequenceNumber: 1,
+        runId: null,
+      },
+      {
+        externalId: "user-message-2",
+        sequenceNumber: 2,
+        runId: run.id,
+      },
+      {
+        externalId: "user-message-3",
+        sequenceNumber: 3,
+        runId: run.id,
+      },
+    ]);
 
     await expect(
       caller.get({

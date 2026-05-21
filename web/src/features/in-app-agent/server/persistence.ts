@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { InAppAgentMessageRole } from "@langfuse/shared/src/db";
+import { logger } from "@langfuse/shared/src/server";
 import type {
   Prisma,
   InAppAgentConversation,
@@ -190,7 +191,13 @@ export async function finishRun(params: {
         errorMessage: params.errorMessage ?? null,
       },
     })
-    .catch(() => undefined);
+    .catch((error) =>
+      logger.error("Failed to finish in-app agent run", {
+        error,
+        runId: params.runId,
+        projectId: params.projectId,
+      }),
+    );
 }
 
 export async function updateProviderSessionId(params: {
@@ -205,13 +212,102 @@ export async function updateProviderSessionId(params: {
   });
 }
 
+export async function appendConversationMessage(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  userId: string;
+  message: AgUiMessage;
+  runId?: string;
+}) {
+  const persistableMessage = toPersistableMessage(params.message, 0);
+
+  if (!persistableMessage) {
+    return;
+  }
+
+  const lastMessageAt = new Date();
+
+  await params.prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT 1
+      FROM "in_app_agent_conversations"
+      WHERE "id" = ${params.conversationId}
+        AND "project_id" = ${params.projectId}
+      FOR UPDATE
+    `;
+
+    const where = {
+      projectId_conversationId_externalId: {
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        externalId: persistableMessage.externalId,
+      },
+    };
+    const existing = await tx.inAppAgentMessage.findUnique({
+      where,
+      select: {
+        id: true,
+        authorUserId: true,
+      },
+    });
+
+    if (existing) {
+      await tx.inAppAgentMessage.update({
+        where: { id: existing.id },
+        data: {
+          ...(params.runId !== undefined ? { runId: params.runId } : {}),
+          ...(persistableMessage.role === InAppAgentMessageRole.USER &&
+          !existing.authorUserId
+            ? { authorUserId: params.userId }
+            : {}),
+        },
+      });
+    } else {
+      const latestMessage = await tx.inAppAgentMessage.findFirst({
+        where: {
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+        },
+        select: { sequenceNumber: true },
+        orderBy: { sequenceNumber: "desc" },
+      });
+
+      await tx.inAppAgentMessage.create({
+        data: {
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+          runId: params.runId,
+          externalId: persistableMessage.externalId,
+          sequenceNumber: (latestMessage?.sequenceNumber ?? -1) + 1,
+          role: persistableMessage.role,
+          content: persistableMessage.content,
+          authorUserId:
+            persistableMessage.role === InAppAgentMessageRole.USER
+              ? params.userId
+              : undefined,
+        },
+      });
+    }
+
+    await tx.inAppAgentConversation.update({
+      where: {
+        id: params.conversationId,
+        projectId: params.projectId,
+      },
+      data: {
+        lastMessageAt,
+      },
+    });
+  });
+}
+
 export async function upsertConversationMessages(params: {
   prisma: PrismaClient;
   projectId: string;
   conversationId: string;
   userId: string;
   messages: AgUiMessage[];
-  runId?: string;
 }) {
   const persistableMessages = params.messages
     .map((message, index) => toPersistableMessage(message, index))
@@ -236,7 +332,6 @@ export async function upsertConversationMessages(params: {
         create: {
           projectId: params.projectId,
           conversationId: params.conversationId,
-          runId: params.runId,
           externalId: message.externalId,
           sequenceNumber: message.sequenceNumber,
           role: message.role,
@@ -247,7 +342,6 @@ export async function upsertConversationMessages(params: {
               : undefined,
         },
         update: {
-          runId: params.runId,
           sequenceNumber: message.sequenceNumber,
           role: message.role,
           content: message.content,

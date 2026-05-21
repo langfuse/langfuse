@@ -41,6 +41,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   open: false,
   setOpen: () => undefined,
   isRunning: false,
+  isInputDisabled: false,
   error: null,
   messages: [],
   conversations: [],
@@ -64,6 +65,7 @@ type InAppAiAgentContextType = {
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
   isRunning: boolean;
+  isInputDisabled: boolean;
   error: string | null;
   messages: InAppAiAgentMessage[];
   conversations: InAppAiAgentConversation[];
@@ -142,8 +144,10 @@ function InAppAiAgentProviderInner({
   >(`${SELECTED_CONVERSATION_STORAGE_KEY_PREFIX}:${projectId}`, null);
   const [messages, setMessages] = useState<InAppAiAgentMessage[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const agentRef = useRef<HttpAgent | null>(null);
+  const submitInFlightRef = useRef(false);
   const subscriptionRef = useRef<ReturnType<HttpAgent["subscribe"]> | null>(
     null,
   );
@@ -166,6 +170,12 @@ function InAppAiAgentProviderInner({
     () => conversationsQuery.data ?? [],
     [conversationsQuery.data],
   );
+  const isSelectedConversationHydrating =
+    Boolean(selectedConversationId) &&
+    conversationQuery.isLoading &&
+    !conversationQuery.data;
+  const isInputDisabled =
+    isRunning || isSubmitting || isSelectedConversationHydrating;
 
   const resetAgent = useCallback(() => {
     subscriptionRef.current?.unsubscribe();
@@ -187,28 +197,39 @@ function InAppAiAgentProviderInner({
       return;
     }
 
-    resetAgent();
-    setMessages(
-      conversationQuery.data.messages.filter(isAgentConversationMessage),
+    const storedMessages = conversationQuery.data.messages.filter(
+      isAgentConversationMessage,
     );
-  }, [conversationQuery.data, isRunning, resetAgent, selectedConversationId]);
 
-  useEffect(() => {
-    if (!selectedConversationId || !conversationsQuery.data) {
+    if (messages.length > storedMessages.length) {
       return;
     }
 
-    const selectedStillExists = conversationsQuery.data.some(
-      (conversation) => conversation.id === selectedConversationId,
-    );
-
-    if (!selectedStillExists) {
-      resetAgent();
-      setMessages([]);
-      setSelectedConversationId(null);
-    }
+    resetAgent();
+    setMessages(storedMessages);
   }, [
-    conversationsQuery.data,
+    conversationQuery.data,
+    isRunning,
+    messages.length,
+    resetAgent,
+    selectedConversationId,
+  ]);
+
+  useEffect(() => {
+    if (
+      !selectedConversationId ||
+      isRunning ||
+      !isNotFoundTrpcError(conversationQuery.error)
+    ) {
+      return;
+    }
+
+    resetAgent();
+    setMessages([]);
+    setSelectedConversationId(null);
+  }, [
+    conversationQuery.error,
+    isRunning,
     resetAgent,
     selectedConversationId,
     setSelectedConversationId,
@@ -292,6 +313,11 @@ function InAppAiAgentProviderInner({
     [projectId, resetAgent],
   );
 
+  const releaseSubmitLock = useCallback(() => {
+    submitInFlightRef.current = false;
+    setIsSubmitting(false);
+  }, []);
+
   const runAgent = useCallback(
     (
       agent: HttpAgent,
@@ -341,9 +367,10 @@ function InAppAiAgentProviderInner({
 
           setIsRunning(false);
           syncMessages(conversationId, agent.messages);
+          releaseSubmitLock();
         });
     },
-    [ensureSubscription, projectId, syncMessages],
+    [ensureSubscription, projectId, releaseSubmitLock, syncMessages],
   );
 
   const selectConversation = useCallback(
@@ -365,13 +392,22 @@ function InAppAiAgentProviderInner({
 
   const submit = useCallback(
     (content: string) => {
-      if (!content || isRunning) {
+      if (
+        !content ||
+        isRunning ||
+        isSelectedConversationHydrating ||
+        submitInFlightRef.current
+      ) {
         return;
       }
 
+      submitInFlightRef.current = true;
+      setIsSubmitting(true);
       setError(null);
 
       void (async () => {
+        let startedRun = false;
+
         try {
           const conversationId =
             selectedConversationId ??
@@ -386,8 +422,14 @@ function InAppAiAgentProviderInner({
             void utils.inAppAgent.list.invalidate({ projectId });
           }
 
+          const storedMessages =
+            conversationQuery.data?.conversation.id === conversationId
+              ? conversationQuery.data.messages
+              : undefined;
           const initialMessages =
-            selectedConversationId === conversationId ? messages : [];
+            selectedConversationId === conversationId
+              ? getHydratedMessages(messages, storedMessages)
+              : [];
           const agent = getOrCreateAgent(conversationId, initialMessages);
 
           if (agent.isRunning) {
@@ -404,22 +446,30 @@ function InAppAiAgentProviderInner({
 
           agent.addMessage(userMessage);
           setMessages(agent.messages.filter(isAgentConversationMessage));
+          startedRun = true;
           runAgent(agent, conversationId);
         } catch (error) {
           const errorMessage = getAgentErrorMessage(error);
           setError(errorMessage);
           showErrorToast("Assistant failed", errorMessage);
           console.error("Failed to start in-app agent conversation", error);
+        } finally {
+          if (!startedRun) {
+            releaseSubmitLock();
+          }
         }
       })();
     },
     [
       createConversationMutation,
+      conversationQuery.data,
       ensureSubscription,
       getOrCreateAgent,
+      isSelectedConversationHydrating,
       isRunning,
       messages,
       projectId,
+      releaseSubmitLock,
       runAgent,
       selectedConversationId,
       setSelectedConversationId,
@@ -433,6 +483,7 @@ function InAppAiAgentProviderInner({
       open,
       setOpen,
       isRunning,
+      isInputDisabled,
       error,
       messages,
       conversations,
@@ -444,6 +495,7 @@ function InAppAiAgentProviderInner({
     [
       conversations,
       error,
+      isInputDisabled,
       isRunning,
       messages,
       open,
@@ -477,6 +529,21 @@ function isInvalidSessionTokenError(error: unknown): boolean {
   );
 }
 
+function isNotFoundTrpcError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const data = "data" in error ? error.data : undefined;
+
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "code" in data &&
+    data.code === "NOT_FOUND"
+  );
+}
+
 function isAgentConversationMessage(
   message: unknown,
 ): message is InAppAiAgentMessage {
@@ -486,6 +553,17 @@ function isAgentConversationMessage(
     result.success &&
     (result.data.role === "user" || result.data.role === "assistant")
   );
+}
+
+function getHydratedMessages(
+  localMessages: InAppAiAgentMessage[],
+  storedMessages: readonly unknown[] | undefined,
+): InAppAiAgentMessage[] {
+  if (localMessages.length > 0) {
+    return localMessages;
+  }
+
+  return storedMessages?.filter(isAgentConversationMessage) ?? [];
 }
 
 function getAgentErrorMessage(error: unknown): string {

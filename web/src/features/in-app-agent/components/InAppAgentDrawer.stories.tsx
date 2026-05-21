@@ -31,7 +31,7 @@ const meta = preview.meta({
   ],
   args: {
     error: null,
-    isRunning: false,
+    isInputDisabled: false,
     conversations,
     selectedConversationId: undefined,
     onNewConversation: fn(),
@@ -124,7 +124,7 @@ export const LoadingResponse = meta.story({
 
 export const Connecting = meta.story({
   args: {
-    isRunning: true,
+    isInputDisabled: true,
     messages: [
       {
         id: "user-1",

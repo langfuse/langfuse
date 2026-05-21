@@ -36,7 +36,10 @@ export const inAppAgentRouter = createTRPCRouter({
           createdByUserId: ctx.session.user.id,
           deletedAt: null,
         },
-        orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }],
+        orderBy: [
+          { lastMessageAt: { sort: "desc", nulls: "last" } },
+          { updatedAt: "desc" },
+        ],
         take: 50,
       });
 
@@ -99,7 +102,6 @@ export const inAppAgentRouter = createTRPCRouter({
   syncMessages: protectedProjectProcedureWithoutTracing
     .input(
       ConversationIdInput.extend({
-        runId: z.string().optional(),
         messages: z.array(AgUiMessageSchema).max(200),
       }),
     )
@@ -118,7 +120,6 @@ export const inAppAgentRouter = createTRPCRouter({
         conversationId: input.conversationId,
         userId: ctx.session.user.id,
         messages: input.messages,
-        runId: input.runId,
       });
 
       return { ok: true };

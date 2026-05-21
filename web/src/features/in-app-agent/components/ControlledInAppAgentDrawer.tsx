@@ -25,6 +25,7 @@ export function ControlledInAppAgentDrawer(
   const {
     conversations,
     error,
+    isInputDisabled,
     isRunning,
     messages,
     selectConversation,
@@ -125,7 +126,7 @@ export function ControlledInAppAgentDrawer(
   return (
     <InAppAgentDrawer
       error={error}
-      isRunning={isRunning}
+      isInputDisabled={isInputDisabled}
       messages={drawerMessages}
       conversations={conversations}
       selectedConversationId={selectedConversationId}

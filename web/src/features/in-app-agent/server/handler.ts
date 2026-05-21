@@ -13,11 +13,11 @@ import {
   verifyInAppAgentSessionToken,
 } from "@/src/features/in-app-agent/server/auth";
 import {
+  appendConversationMessage,
   createRun,
   ensureOwnedConversation,
   finishRun,
   updateProviderSessionId,
-  upsertConversationMessages,
 } from "@/src/features/in-app-agent/server/persistence";
 import { getAuthOptions } from "@/src/server/auth";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
@@ -192,12 +192,12 @@ export default async function handler(request: Request) {
       model: "haiku",
     });
 
-    await upsertConversationMessages({
+    await appendConversationMessage({
       prisma,
       projectId,
       conversationId: conversation.id,
       userId: auth.userId,
-      messages: sanitizedInput.messages,
+      message: sanitizedInput.messages[0]!,
       runId: sanitizedInput.runId,
     });
 

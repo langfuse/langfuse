@@ -45,7 +45,7 @@ type InAppAgentDrawerCloseButtonProps =
 
 export type InAppAgentDrawerProps = {
   error: string | null;
-  isRunning: boolean;
+  isInputDisabled: boolean;
   messages: InAppAgentDrawerMessage[];
   conversations: InAppAgentDrawerConversation[];
   selectedConversationId: string | undefined;
@@ -58,7 +58,7 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
   const {
     conversations,
     error,
-    isRunning,
+    isInputDisabled,
     messages,
     onNewConversation,
     onSelectConversation,
@@ -127,7 +127,7 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
 
               onSelectConversation(value);
             }}
-            disabled={isRunning}
+            disabled={isInputDisabled}
           >
             <SelectTrigger
               aria-label="Select agent conversation"
@@ -152,7 +152,7 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
             size="icon"
             className="h-8 w-8 shrink-0"
             onClick={onNewConversation}
-            disabled={isRunning}
+            disabled={isInputDisabled}
             aria-label="Start new AI agent conversation"
           >
             <Plus className="h-4 w-4" />
@@ -231,7 +231,7 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
 
               const content = input.trim();
 
-              if (!content || isRunning) {
+              if (!content || isInputDisabled) {
                 return;
               }
 
@@ -253,7 +253,7 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
                   event.currentTarget.form?.requestSubmit();
                 }
               }}
-              disabled={isRunning}
+              disabled={isInputDisabled}
               aria-label="Ask about Langfuse"
               placeholder="Ask about Langfuse..."
               rows={1}
@@ -264,7 +264,7 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
               size="icon"
               className="h-10 w-10 rounded-md"
               aria-label="Send message"
-              disabled={isRunning || !input.trim()}
+              disabled={isInputDisabled || !input.trim()}
             >
               <SendHorizontal className="h-4 w-4" />
             </Button>

@@ -138,6 +138,11 @@ export function createAgUiStream(params: {
             return;
           }
 
+          if (streamedRunError !== null) {
+            closeController();
+            return;
+          }
+
           console.error("Error in agent execution:", error);
           params.options.onError?.(error);
 
@@ -155,6 +160,11 @@ export function createAgUiStream(params: {
           closeController();
         },
         complete() {
+          if (closed || params.signal.aborted) {
+            abort();
+            return;
+          }
+
           if (streamedRunError === null) {
             params.options.onComplete?.();
           }
