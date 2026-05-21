@@ -27,6 +27,9 @@ const JobExecutionStatus = {
 
 vi.mock("@langfuse/shared", () => ({
   removeEmptyEnvVariables: <T>(value: T) => value,
+  EvalTemplateType: {
+    LLM_AS_JUDGE: "LLM_AS_JUDGE",
+  },
   JobExecutionStatus: {
     DELAYED: "DELAYED",
     ERROR: "ERROR",
@@ -108,7 +111,6 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { retryLLMRateLimitError } from "../../features/utils";
-import { runLLMAsJudgeEvaluation } from "../../features/evaluation/evalService";
 import { isUnrecoverableError } from "../../errors/UnrecoverableError";
 
 describe("llmAsJudgeExecutionQueueProcessor", () => {
@@ -171,8 +173,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           jobExecutionId,
           observationS3Path,
         },
-        validateTemplate: expect.any(Function),
-        executor: runLLMAsJudgeEvaluation,
+        executionType: "LLM_AS_JUDGE",
       });
     });
 

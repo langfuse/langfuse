@@ -18,12 +18,7 @@ import {
   createMockJobExecution,
 } from "./fixtures";
 import {
-  assertCodeBasedEvalTemplate,
-  assertLLMAsJudgeEvalTemplate,
   EvalTargetObject,
-  type EvalTemplate,
-  type EvalTemplateCodeBased,
-  type EvalTemplateLlmAsAJudge,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 
@@ -74,22 +69,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { prisma } from "@langfuse/shared/src/db";
-import { executeCodeBasedEvaluation } from "../../codeBased";
 import { runLLMAsJudgeEvaluation } from "../../evalService";
-
-const validateLLMAsJudgeTemplate = (
-  template: EvalTemplate,
-): EvalTemplateLlmAsAJudge => {
-  assertLLMAsJudgeEvalTemplate(template);
-  return template;
-};
-
-const validateCodeBasedTemplate = (
-  template: EvalTemplate,
-): EvalTemplateCodeBased => {
-  assertCodeBasedEvalTemplate(template);
-  return template;
-};
 
 const mockEvalExecutionResult = {
   scores: [
@@ -265,8 +245,7 @@ describe("Observation Eval E2E Pipeline", () => {
           jobExecutionId: capturedJobExecutionId!,
           observationS3Path,
         },
-        validateTemplate: validateLLMAsJudgeTemplate,
-        executor: runLLMAsJudgeEvaluation,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps: pipeline.processorDeps,
       });
 
@@ -372,8 +351,7 @@ describe("Observation Eval E2E Pipeline", () => {
           jobExecutionId: job.id,
           observationS3Path: "test-path",
         },
-        validateTemplate: validateCodeBasedTemplate,
-        executor: executeCodeBasedEvaluation,
+        executionType: EvalTemplateType.CODE,
         deps: pipeline.processorDeps,
       });
 
@@ -631,8 +609,7 @@ describe("Observation Eval E2E Pipeline", () => {
           jobExecutionId: "job-123",
           observationS3Path: "test-path",
         },
-        validateTemplate: validateLLMAsJudgeTemplate,
-        executor: runLLMAsJudgeEvaluation,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps: pipeline.processorDeps,
       });
 
@@ -737,8 +714,7 @@ describe("Observation Eval E2E Pipeline", () => {
           jobExecutionId: "job-123",
           observationS3Path: "test-path",
         },
-        validateTemplate: validateLLMAsJudgeTemplate,
-        executor: runLLMAsJudgeEvaluation,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps: pipeline.processorDeps,
       });
 

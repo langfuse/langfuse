@@ -23,7 +23,7 @@ export async function executeCodeBasedEvaluation(params: {
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
   executionMetadata: Record<string, string>;
-  // Unused; present for ObservationEvalExecutor interface symmetry.
+  // Unused by code-based eval; the shared observation processor passes it.
   deps?: EvalExecutionDeps;
 }): Promise<EvalExecutionResult> {
   return instrumentAsync(

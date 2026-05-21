@@ -8,6 +8,7 @@ import {
   type Mock,
 } from "vitest";
 import { Job } from "bullmq";
+import { EvalTemplateType } from "@prisma/client";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 
 const QueueName = {
@@ -89,7 +90,6 @@ vi.mock("../../errors/UnrecoverableError", async () => {
 import { prisma } from "@langfuse/shared/src/db";
 import { processObservationEval } from "../../features/evaluation/observationEval";
 import { traceException } from "@langfuse/shared/src/server";
-import { executeCodeBasedEvaluation } from "../../features/evaluation/codeBased";
 import { isUnrecoverableError } from "../../errors/UnrecoverableError";
 
 describe("codeEvalExecutionQueueProcessor", () => {
@@ -147,8 +147,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
         jobExecutionId,
         observationS3Path,
       },
-      validateTemplate: expect.any(Function),
-      executor: executeCodeBasedEvaluation,
+      executionType: EvalTemplateType.CODE,
     });
   });
 

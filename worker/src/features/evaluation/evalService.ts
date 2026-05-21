@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import {
+  EvalTemplateType,
   JobConfigState,
   JobExecutionStatus,
   type JobExecution,
@@ -52,7 +53,6 @@ import {
   Observation,
   EvalTargetObject,
   EvaluatorBlockReason,
-  assertLLMAsJudgeEvalTemplate,
   getEvaluatorBlockMetadata,
   getBlockReasonForInvalidModelConfig,
   isJobConfigExecutable,
@@ -1118,6 +1118,7 @@ export const evaluate = async ({
   const template = await prisma.evalTemplate.findFirst({
     where: {
       id: config.evalTemplateId,
+      type: EvalTemplateType.LLM_AS_JUDGE,
       OR: [{ projectId: event.projectId }, { projectId: null }],
     },
   });
@@ -1126,11 +1127,6 @@ export const evaluate = async ({
     throw new UnrecoverableError(
       `Evaluation template ${config.evalTemplateId} not found`,
     );
-  }
-  try {
-    assertLLMAsJudgeEvalTemplate(template);
-  } catch (e) {
-    throw new UnrecoverableError(e instanceof Error ? e.message : String(e));
   }
 
   // Extract variables from tracing data
@@ -1158,7 +1154,7 @@ export const evaluate = async ({
     jobExecutionId: event.jobExecutionId,
     job,
     config,
-    template,
+    template: template as EvalTemplateLlmAsAJudge,
     extractedVariables,
     environment:
       getEnvironmentFromVariables(extractedVariables) ??

@@ -17,19 +17,6 @@ import {
 } from "./fixtures";
 import { UnrecoverableError } from "../../../../errors/UnrecoverableError";
 
-const validateLLMAsJudgeTemplate = vi.fn((template) => {
-  if (template.type !== EvalTemplateType.LLM_AS_JUDGE) {
-    throw new Error("Expected LLM-as-judge evaluation template");
-  }
-  return template;
-});
-const validateCodeBasedTemplate = vi.fn((template) => {
-  if (template.type !== EvalTemplateType.CODE) {
-    throw new Error("Expected code-based evaluation template");
-  }
-  return template;
-});
-
 // Mock prisma
 vi.mock("@langfuse/shared/src/db", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/db");
@@ -126,8 +113,7 @@ describe("processObservationEval", () => {
 
       await processObservationEval({
         event: baseEvent,
-        validateTemplate: validateLLMAsJudgeTemplate,
-        executor: runLLMAsJudgeEvaluation,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
       });
 
@@ -158,16 +144,14 @@ describe("processObservationEval", () => {
       await expect(
         processObservationEval({
           event: baseEvent,
-          validateTemplate: validateLLMAsJudgeTemplate,
-          executor: runLLMAsJudgeEvaluation,
+          executionType: EvalTemplateType.LLM_AS_JUDGE,
           deps,
         }),
       ).rejects.toThrow(UnrecoverableError);
       await expect(
         processObservationEval({
           event: baseEvent,
-          validateTemplate: validateLLMAsJudgeTemplate,
-          executor: runLLMAsJudgeEvaluation,
+          executionType: EvalTemplateType.LLM_AS_JUDGE,
           deps,
         }),
       ).rejects.toThrow("Job configuration or template not found");
@@ -196,8 +180,7 @@ describe("processObservationEval", () => {
       await expect(
         processObservationEval({
           event: baseEvent,
-          validateTemplate: validateLLMAsJudgeTemplate,
-          executor: runLLMAsJudgeEvaluation,
+          executionType: EvalTemplateType.LLM_AS_JUDGE,
           deps,
         }),
       ).rejects.toThrow(UnrecoverableError);
@@ -223,54 +206,7 @@ describe("processObservationEval", () => {
 
       await processObservationEval({
         event: baseEvent,
-        validateTemplate: validateLLMAsJudgeTemplate,
-        executor: runLLMAsJudgeEvaluation,
-        deps,
-      });
-
-      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
-        where: {
-          id: job.id,
-          projectId,
-        },
-        data: {
-          status: JobExecutionStatus.CANCELLED,
-          endTime: expect.any(Date),
-        },
-      });
-      expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
-      expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
-    });
-
-    it("should cancel blocked jobs before validating the evaluator template type", async () => {
-      const job = createMockJobExecution({
-        id: jobExecutionId,
-        projectId,
-        status: JobExecutionStatus.PENDING,
-        jobConfigurationId: "config-123",
-      });
-      const config = createMockJobConfiguration({
-        id: "config-123",
-        projectId,
-        blockedAt: new Date(),
-        evalTemplate: createMockEvalTemplate({
-          type: EvalTemplateType.CODE,
-          prompt: null,
-          outputDefinition: null,
-          sourceCode: "def evaluate(): pass",
-          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.PYTHON,
-        }),
-      });
-
-      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
-      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
-
-      const deps = createMockProcessorDeps();
-
-      await processObservationEval({
-        event: baseEvent,
-        validateTemplate: validateLLMAsJudgeTemplate,
-        executor: runLLMAsJudgeEvaluation,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
       });
 
@@ -289,47 +225,38 @@ describe("processObservationEval", () => {
     });
   });
 
-  describe("template type validation", () => {
-    it("should throw UnrecoverableError when the default LLM path receives a code template", async () => {
+  describe("template type filtering", () => {
+    it("should throw UnrecoverableError when no template matches the requested execution type", async () => {
       const job = createMockJobExecution({
         id: jobExecutionId,
         projectId,
         status: JobExecutionStatus.PENDING,
         jobConfigurationId: "config-123",
       });
-      const config = createMockJobConfiguration({
-        id: "config-123",
-        projectId,
-        evalTemplate: createMockEvalTemplate({
-          type: EvalTemplateType.CODE,
-          prompt: null,
-          outputDefinition: null,
-          sourceCode: "def evaluate(): pass",
-          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.PYTHON,
-        }),
-      });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
-      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
+      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(null);
 
       const deps = createMockProcessorDeps();
 
       await expect(
         processObservationEval({
           event: baseEvent,
-          validateTemplate: validateLLMAsJudgeTemplate,
-          executor: runLLMAsJudgeEvaluation,
+          executionType: EvalTemplateType.LLM_AS_JUDGE,
           deps,
         }),
       ).rejects.toThrow(UnrecoverableError);
-      await expect(
-        processObservationEval({
-          event: baseEvent,
-          validateTemplate: validateLLMAsJudgeTemplate,
-          executor: runLLMAsJudgeEvaluation,
-          deps,
+      expect(prisma.jobConfiguration.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            evalTemplate: {
+              is: {
+                type: EvalTemplateType.LLM_AS_JUDGE,
+              },
+            },
+          }),
         }),
-      ).rejects.toThrow("Expected LLM-as-judge evaluation template");
+      );
       expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
       expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
     });
@@ -361,8 +288,7 @@ describe("processObservationEval", () => {
       await expect(
         processObservationEval({
           event: baseEvent,
-          validateTemplate: validateLLMAsJudgeTemplate,
-          executor: runLLMAsJudgeEvaluation,
+          executionType: EvalTemplateType.LLM_AS_JUDGE,
           deps,
         }),
       ).rejects.toThrow("Failed to download observation from S3");
@@ -393,8 +319,7 @@ describe("processObservationEval", () => {
       await expect(
         processObservationEval({
           event: baseEvent,
-          validateTemplate: validateLLMAsJudgeTemplate,
-          executor: runLLMAsJudgeEvaluation,
+          executionType: EvalTemplateType.LLM_AS_JUDGE,
           deps,
         }),
       ).rejects.toThrow(UnrecoverableError);
@@ -427,8 +352,7 @@ describe("processObservationEval", () => {
       await expect(
         processObservationEval({
           event: baseEvent,
-          validateTemplate: validateLLMAsJudgeTemplate,
-          executor: runLLMAsJudgeEvaluation,
+          executionType: EvalTemplateType.LLM_AS_JUDGE,
           deps,
         }),
       ).rejects.toThrow(UnrecoverableError);
@@ -479,11 +403,21 @@ describe("processObservationEval", () => {
 
       await processObservationEval({
         event: baseEvent,
-        validateTemplate: validateLLMAsJudgeTemplate,
-        executor: runLLMAsJudgeEvaluation,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
       });
 
+      expect(prisma.jobConfiguration.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            evalTemplate: {
+              is: {
+                type: EvalTemplateType.LLM_AS_JUDGE,
+              },
+            },
+          }),
+        }),
+      );
       expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           projectId,
@@ -559,8 +493,7 @@ describe("processObservationEval", () => {
 
       await processObservationEval({
         event: baseEvent,
-        validateTemplate: validateLLMAsJudgeTemplate,
-        executor: runLLMAsJudgeEvaluation,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
       });
 
@@ -638,8 +571,7 @@ describe("processObservationEval", () => {
 
       await processObservationEval({
         event: baseEvent,
-        validateTemplate: validateCodeBasedTemplate,
-        executor: executeCodeBasedEvaluation,
+        executionType: EvalTemplateType.CODE,
         deps,
       });
 
@@ -697,8 +629,7 @@ describe("processObservationEval", () => {
 
       await processObservationEval({
         event: baseEvent,
-        validateTemplate: validateLLMAsJudgeTemplate,
-        executor: runLLMAsJudgeEvaluation,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
       });
 
@@ -745,8 +676,7 @@ describe("processObservationEval", () => {
 
       await processObservationEval({
         event: baseEvent,
-        validateTemplate: validateLLMAsJudgeTemplate,
-        executor: runLLMAsJudgeEvaluation,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps,
       });
 
@@ -789,8 +719,7 @@ describe("processObservationEval", () => {
       await expect(
         processObservationEval({
           event: baseEvent,
-          validateTemplate: validateLLMAsJudgeTemplate,
-          executor: runLLMAsJudgeEvaluation,
+          executionType: EvalTemplateType.LLM_AS_JUDGE,
         }),
       ).rejects.toThrow();
     });
