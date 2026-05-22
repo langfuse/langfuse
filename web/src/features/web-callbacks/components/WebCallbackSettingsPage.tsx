@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Pencil, Plus, Trash2, Webhook, X } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -340,6 +340,14 @@ function WebCallbackEndpointDialog(props: {
     resolver: zodResolver(webCallbackFormSchema),
     defaultValues: endpointToFormValues(props.endpoint),
   });
+  const [langfuseOrigin, setLangfuseOrigin] = useState(
+    "https://cloud.langfuse.com",
+  );
+  const watchedHeaders = form.watch("headers");
+  const corsSnippet = useMemo(
+    () => createCorsSnippet(langfuseOrigin, watchedHeaders),
+    [langfuseOrigin, watchedHeaders],
+  );
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -351,6 +359,10 @@ function WebCallbackEndpointDialog(props: {
       form.reset(endpointToFormValues(props.endpoint));
     }
   }, [form, props.endpoint, props.open]);
+
+  useEffect(() => {
+    setLangfuseOrigin(window.location.origin);
+  }, []);
 
   const onSubmit = (values: WebCallbackFormValues) => {
     upsertMutation.mutate({
@@ -384,6 +396,25 @@ function WebCallbackEndpointDialog(props: {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <DialogBody>
+              <Alert>
+                <AlertTitle>Browser request requirements</AlertTitle>
+                <AlertDescription className="space-y-3">
+                  <p>
+                    Your callback route must handle the browser preflight and
+                    return these CORS headers on <code>OPTIONS</code> and{" "}
+                    <code>POST</code> responses.
+                  </p>
+                  <pre className="bg-muted overflow-x-auto rounded-md p-3 text-xs whitespace-pre-wrap">
+                    {corsSnippet}
+                  </pre>
+                  <p>
+                    All headers configured below are sent to the user&apos;s
+                    frontend and are visible in developer tools. Do not put API
+                    keys or other secrets in web callback headers.
+                  </p>
+                </AlertDescription>
+              </Alert>
+
               <FormField
                 control={form.control}
                 name="name"
@@ -620,6 +651,24 @@ function DeleteEndpointButton(props: {
       </DialogContent>
     </Dialog>
   );
+}
+
+function createCorsSnippet(
+  langfuseOrigin: string,
+  headers: WebCallbackFormValues["headers"],
+) {
+  const configuredHeaderNames = headers
+    .map((header) => header.name.trim().toLowerCase())
+    .filter(Boolean);
+  const allowedHeaderNames = Array.from(
+    new Set(["content-type"].concat(configuredHeaderNames)),
+  );
+
+  return [
+    "Access-Control-Allow-Origin: " + langfuseOrigin,
+    "Access-Control-Allow-Methods: POST, OPTIONS",
+    "Access-Control-Allow-Headers: " + allowedHeaderNames.join(", "),
+  ].join("\n");
 }
 
 const endpointToFormValues = (
