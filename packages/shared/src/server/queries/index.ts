@@ -32,10 +32,7 @@ export {
   FTS_EVENTS_TABLES,
   FTS_TEXT_FIELDS,
   FTS_TEXT_OPERATORS,
-  FTS_METADATA_SUBSTRING_OPERATORS,
   isFtsEventsTable,
-  isFtsMetadataEqualsTarget,
-  isFtsMetadataSubstringTarget,
   isFtsTextTarget,
 } from "./clickhouse-sql/fts";
 export { postgresSearchCondition } from "./postgres-sql/search";

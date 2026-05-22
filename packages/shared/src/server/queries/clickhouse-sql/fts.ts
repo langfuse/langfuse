@@ -2,7 +2,6 @@ import { filterOperators } from "../../../interfaces/filters";
 import { EVENTS_TABLE_NAMES } from "../../clickhouse/schema";
 
 type StringOperator = (typeof filterOperators)["string"][number];
-type StringObjectOperator = (typeof filterOperators)["stringObject"][number];
 
 export const FTS_TEXT_NORMALIZER = "lower";
 
@@ -15,13 +14,11 @@ export const FTS_TEXT_FIELDS: ReadonlySet<string> = new Set([
   "output",
 ]);
 
-// Token prefilters are only safe when the original predicate implies token
-// presence. Substring predicates can match inside a larger token.
+// StringFilter rewrites must preserve filter API semantics. Limit transparent
+// text-index rewrites to equality because substring filters are expected to
+// match inside larger tokens.
 export const FTS_TEXT_OPERATORS: ReadonlySet<StringOperator> =
   new Set<StringOperator>(["="]);
-
-export const FTS_METADATA_SUBSTRING_OPERATORS: ReadonlySet<StringObjectOperator> =
-  new Set<StringObjectOperator>();
 
 // Column mappings may carry a table prefix (e.g. "e.input"); strip to the bare
 // field name before set lookup.
@@ -46,18 +43,6 @@ export const isFtsTextTarget = (
   FTS_TEXT_FIELDS.has(bareField(field)) &&
   FTS_TEXT_OPERATORS.has(operator);
 
-export const isFtsMetadataEqualsTarget = (
-  clickhouseTable: string,
-  operator: StringObjectOperator,
-): boolean => operator === "=" && isFtsEventsTable(clickhouseTable);
-
-export const isFtsMetadataSubstringTarget = (
-  clickhouseTable: string,
-  operator: StringObjectOperator,
-): boolean =>
-  isFtsEventsTable(clickhouseTable) &&
-  FTS_METADATA_SUBSTRING_OPERATORS.has(operator);
-
 const normalizeFtsTextExpr = (expr: string): string =>
   `${FTS_TEXT_NORMALIZER}(${expr})`;
 
@@ -71,8 +56,3 @@ export const ftsMetadataArrayHas = (
   arrayExpr: string,
   valueParam: string,
 ): string => `has(${arrayExpr}, ${valueParam})`;
-
-export const ftsMetadataArrayTokenConjunct = (
-  arrayExpr: string,
-  valueParam: string,
-): string => `hasAllTokens(${arrayExpr}, ${valueParam})`;

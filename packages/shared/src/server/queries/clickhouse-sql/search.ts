@@ -24,6 +24,9 @@ export const clickhouseSearchCondition = ({
     col: string,
     param: string = "{searchString: String}",
   ) =>
+    // Fast-mode UI search intentionally narrows IO search to token matches
+    // before applying ILIKE. This gives ClickHouse an inverted-index lookup,
+    // but drops embedded-word substring matches like "foobarneedle".
     useEventsTablePath
       ? `(${col} ILIKE ${param} AND ${ftsTextTokenConjunct(col, param)})`
       : `${col} ILIKE ${param}`;
