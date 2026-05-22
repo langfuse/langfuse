@@ -15,6 +15,7 @@ import {
   assertSafePartition,
   fireQuery,
   generateQueryId,
+  loadPartitionsFromClickhouse,
   recoverInProgressTodos,
 } from "./utils/backfillBase";
 
@@ -146,59 +147,6 @@ export default class RewriteObservationsToPidTidSorting implements IBackgroundMi
       where: { id: backgroundMigrationId },
       data: { state: state as any },
     });
-  }
-
-  // ============================================================================
-  // Partition Discovery
-  // ============================================================================
-
-  /**
-   * Lists active yyyymm partitions of `observations` from the local node,
-   * newest-first. Optionally restricted to a caller-provided list.
-   */
-  private async loadPartitionsFromClickhouse(
-    restrictTo?: string[],
-  ): Promise<ChunkTodo[]> {
-    logger.info(
-      "[Backfill PidTid Sorting] Discovering observations partitions from system.parts",
-    );
-
-    const rows = await queryClickhouse<{ partition_id: string }>({
-      query: `
-        SELECT DISTINCT partition_id
-        FROM system.parts
-        WHERE table = 'observations'
-          AND active = 1
-          AND partition_id != 'all'
-        ORDER BY partition_id DESC
-      `,
-      tags: {
-        feature: "background-migration",
-        operation: "loadPartitionsFromClickhouse",
-      },
-    });
-
-    const partitions = rows
-      .map((r) => r.partition_id)
-      .filter((p) => p && p !== "all");
-
-    const filterSet =
-      restrictTo && restrictTo.length > 0 ? new Set(restrictTo) : null;
-    const selected = filterSet
-      ? partitions.filter((p) => filterSet.has(p))
-      : partitions;
-
-    const todos: ChunkTodo[] = selected.map((partition) => ({
-      id: `p-${partition}`,
-      partition,
-      status: "pending" as const,
-    }));
-
-    logger.info(
-      `[Backfill PidTid Sorting] Loaded ${todos.length} partitions: ${selected.join(", ")}`,
-    );
-
-    return todos;
   }
 
   // ============================================================================
@@ -545,8 +493,10 @@ export default class RewriteObservationsToPidTidSorting implements IBackgroundMi
         state.phase = "loading_chunks";
         await this.updateState(state);
 
-        state.todos = await this.loadPartitionsFromClickhouse(
+        state.todos = await loadPartitionsFromClickhouse(
+          "observations",
           migrationArgs.partitions,
+          "[Backfill PidTid Sorting]",
         );
         state.chunksLoaded = true;
         state.phase = "backfill";

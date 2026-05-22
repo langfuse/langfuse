@@ -1,10 +1,5 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
-import {
-  clickhouseClient,
-  logger,
-  queryClickhouse,
-  sleep,
-} from "@langfuse/shared/src/server";
+import { clickhouseClient, logger, sleep } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { parseArgs } from "node:util";
 import {
@@ -13,6 +8,7 @@ import {
   assertSafePartition,
   fireQuery,
   generateQueryId,
+  loadPartitionsFromClickhouse,
   recoverInProgressTodos,
 } from "./utils/backfillBase";
 
@@ -103,57 +99,6 @@ export default class CreateRootSpansFromTraces implements IBackgroundMigration {
       where: { id: backgroundMigrationId },
       data: { state: state as any },
     });
-  }
-
-  // ============================================================================
-  // Partition Discovery
-  // ============================================================================
-
-  /**
-   * Lists active yyyymm partitions of `traces` from the local node, newest-first.
-   * Optionally restricted to a caller-provided list of partitions.
-   */
-  private async loadPartitionsFromClickhouse(
-    restrictTo?: string[],
-  ): Promise<ChunkTodo[]> {
-    logger.info(
-      "[Backfill Root Spans] Discovering traces partitions from system.parts",
-    );
-
-    const rows = await queryClickhouse<{ partition_id: string }>({
-      query: `
-        SELECT DISTINCT partition_id
-        FROM system.parts
-        WHERE table = 'traces'
-          AND active = 1
-          AND partition_id NOT LIKE 'patch-%'
-        ORDER BY partition_id DESC
-      `,
-      tags: {
-        feature: "background-migration",
-        operation: "loadPartitionsFromClickhouse",
-      },
-    });
-
-    const partitions = rows.map((r) => r.partition_id);
-
-    const filterSet =
-      restrictTo && restrictTo.length > 0 ? new Set(restrictTo) : null;
-    const selected = filterSet
-      ? partitions.filter((p) => filterSet.has(p))
-      : partitions;
-
-    const todos: ChunkTodo[] = selected.map((partition) => ({
-      id: `p-${partition}`,
-      partition,
-      status: "pending" as const,
-    }));
-
-    logger.info(
-      `[Backfill Root Spans] Loaded ${todos.length} partitions: ${selected.join(", ")}`,
-    );
-
-    return todos;
   }
 
   // ============================================================================
@@ -325,8 +270,10 @@ export default class CreateRootSpansFromTraces implements IBackgroundMigration {
         state.phase = "loading_chunks";
         await this.updateState(state);
 
-        state.todos = await this.loadPartitionsFromClickhouse(
+        state.todos = await loadPartitionsFromClickhouse(
+          "traces",
           migrationArgs.partitions,
+          "[Backfill Root Spans]",
         );
         state.chunksLoaded = true;
         state.phase = "backfill";

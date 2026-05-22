@@ -4,6 +4,7 @@ import {
   getQueryError,
   logger,
   pollQueryStatus,
+  queryClickhouse,
   sleep,
 } from "@langfuse/shared/src/server";
 
@@ -130,6 +131,62 @@ export function assertSafePartition(partition: string): void {
   if (!PARTITION_RE.test(partition)) {
     throw new Error(`Invalid partition_id: ${partition}`);
   }
+}
+
+// ============================================================================
+// Partition discovery
+// ============================================================================
+
+/**
+ * Lists active yyyymm partitions of a ClickHouse table from `system.parts`,
+ * newest-first. Skips the meta partitions that aren't yyyymm data ranges:
+ *
+ *   - `all` — appears on tables defined without a PARTITION BY clause.
+ *   - `patch-%` — used by patch tables for ad hoc data corrections.
+ *
+ * Optionally restricted to a caller-provided list of yyyymm partitions.
+ */
+export async function loadPartitionsFromClickhouse(
+  table: string,
+  restrictTo?: string[],
+  logPrefix = "[Backfill]",
+): Promise<BaseChunkTodo[]> {
+  logger.info(`${logPrefix} Discovering ${table} partitions from system.parts`);
+
+  const rows = await queryClickhouse<{ partition_id: string }>({
+    query: `
+      SELECT DISTINCT partition_id
+      FROM system.parts
+      WHERE table = {table: String}
+        AND active = 1
+        AND partition_id NOT LIKE 'patch-%'
+        AND partition_id != 'all'
+      ORDER BY partition_id DESC
+    `,
+    params: { table },
+    tags: {
+      feature: "background-migration",
+      operation: "loadPartitionsFromClickhouse",
+    },
+  });
+
+  const partitions = rows.map((r) => r.partition_id);
+
+  const filterSet =
+    restrictTo && restrictTo.length > 0 ? new Set(restrictTo) : null;
+  const selected = filterSet
+    ? partitions.filter((p) => filterSet.has(p))
+    : partitions;
+
+  logger.info(
+    `${logPrefix} Loaded ${selected.length} partitions: ${selected.join(", ")}`,
+  );
+
+  return selected.map((partition) => ({
+    id: `p-${partition}`,
+    partition,
+    status: "pending" as const,
+  }));
 }
 
 // ============================================================================
