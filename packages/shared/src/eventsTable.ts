@@ -1,10 +1,8 @@
 import { type ColumnDefinition } from "./tableDefinitions";
 
-export const eventsTableHasParentObservationSql =
-  "(e.parent_span_id != '' AND e.parent_span_id IS NOT NULL)";
-
+export const eventsTableHasParentObservationSql = "e.parent_span_id != ''";
 export const eventsTableIsRootObservationSql =
-  "(e.parent_span_id = '' OR e.parent_span_id IS NULL OR e.is_app_root = true)";
+  "(e.parent_span_id = '' OR e.is_app_root = true)";
 
 type MutableDeep<T> = T extends readonly (infer U)[]
   ? MutableDeep<U>[]
