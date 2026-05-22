@@ -401,7 +401,11 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           throw new Error(`Unknown select type: ${select}`);
       }
 
-      const search = clickhouseSearchCondition(searchQuery, searchType, "t");
+      const search = clickhouseSearchCondition({
+        query: searchQuery,
+        searchType,
+        tablePrefix: "t",
+      });
 
       const defaultOrder = orderBy?.order && orderBy?.column === "timestamp";
       const orderByCols = [

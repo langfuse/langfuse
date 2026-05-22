@@ -114,6 +114,27 @@ type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   "trace_tags" | "trace_name" | "trace_user_id"
 >;
 
+const EVENT_SEARCH_COLUMNS = [
+  "span_id",
+  "name",
+  "trace_name",
+  "user_id",
+  "session_id",
+  "trace_id",
+] as const;
+
+const eventSearchCondition = (opts: {
+  query?: string;
+  searchType?: TracingSearchType[];
+}) =>
+  clickhouseSearchCondition({
+    query: opts.query,
+    searchType: opts.searchType,
+    tablePrefix: "e",
+    searchColumns: EVENT_SEARCH_COLUMNS,
+    useEventsTablePath: true,
+  });
+
 /**
  * Internal helper: enrich observations with model pricing data
  * Uses events-specific converter to include userId and sessionId
@@ -492,13 +513,6 @@ async function getObservationsFromEventsTableInternal<T>(
       column === "trace scores (categorical)"
     );
   });
-  const search = clickhouseSearchCondition(
-    opts.searchQuery,
-    opts.searchType,
-    "e",
-    ["span_id", "name", "trace_name", "user_id", "session_id", "trace_id"],
-  );
-
   const orderByEntries = orderByToEntries(
     [orderBy ?? null],
     eventsTableUiColumnDefinitions,
@@ -523,6 +537,11 @@ async function getObservationsFromEventsTableInternal<T>(
         .selectFieldSet("metadata");
     }
   }
+
+  const search = eventSearchCondition({
+    query: opts.searchQuery,
+    searchType: opts.searchType,
+  });
 
   // Handle positionInTrace via CTE with ROW_NUMBER()
   // All modes use the same pattern: rank observations per trace, pick rn = N.
@@ -553,6 +572,7 @@ async function getObservationsFromEventsTableInternal<T>(
         "e.span_id",
         `ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn`,
       )
+      .when(search.requiresEventsFull, (b) => b.forceFullTable())
       .where(appliedNativeFilter)
       .where(search);
 
@@ -593,6 +613,7 @@ async function getObservationsFromEventsTableInternal<T>(
         "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
       ),
     )
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .applyFilters(observationsFilter)
     .where(search)
     .when(orderByEntries.length > 0, (b) => b.orderByColumns(orderByEntries))
@@ -745,19 +766,16 @@ export const getEventsStreamForEval = async (props: {
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
-    "span_id",
-    "name",
-    "trace_name",
-    "user_id",
-    "session_id",
-    "trace_id",
-  ]);
+  const search = eventSearchCondition({
+    query: searchQuery,
+    searchType,
+  });
 
   const eventsQuery = new EventsQueryBuilder({ projectId })
     .selectFieldSet("eval")
     .selectIO(false)
     .selectFieldSet("metadata")
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
     .where(search)
     .whereRaw("e.is_deleted = 0")

@@ -35,6 +35,26 @@ import { fetchCommentsForExport } from "./fetchCommentsForExport";
 import { BatchExportEventsRow } from "./types";
 
 const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
+const EVENT_SEARCH_COLUMNS = [
+  "span_id",
+  "name",
+  "trace_name",
+  "user_id",
+  "session_id",
+  "trace_id",
+] as const;
+
+const eventSearchCondition = (opts: {
+  query?: string;
+  searchType?: TracingSearchType[];
+}) =>
+  clickhouseSearchCondition({
+    query: opts.query,
+    searchType: opts.searchType,
+    tablePrefix: "e",
+    searchColumns: EVENT_SEARCH_COLUMNS,
+    useEventsTablePath: true,
+  });
 
 /**
  * Creates a stream of events from ClickHouse for batch export.
@@ -119,14 +139,10 @@ export const getEventsStream = async (props: {
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
-    "span_id",
-    "name",
-    "trace_name",
-    "user_id",
-    "session_id",
-    "trace_id",
-  ]);
+  const search = eventSearchCondition({
+    query: searchQuery,
+    searchType,
+  });
 
   // Build the query using EventsQueryBuilder
   const eventsQuery = new EventsQueryBuilder({ projectId })
@@ -146,6 +162,7 @@ export const getEventsStream = async (props: {
       "scores_agg s",
       "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
     )
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
     .where(search)
     .whereRaw("e.is_deleted = 0")
@@ -394,19 +411,16 @@ export const getEventsStreamForDataset = async (props: {
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
-    "span_id",
-    "name",
-    "trace_name",
-    "user_id",
-    "session_id",
-    "trace_id",
-  ]);
+  const search = eventSearchCondition({
+    query: searchQuery,
+    searchType,
+  });
 
   const eventsQuery = new EventsQueryBuilder({ projectId })
     .selectFieldSet("core")
     .selectIO(false)
     .selectFieldSet("metadata")
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
     .where(search)
     .whereRaw("e.is_deleted = 0")
@@ -509,17 +523,14 @@ export const getEventsStreamForAnnotationQueue = async (props: {
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
-    "span_id",
-    "name",
-    "trace_name",
-    "user_id",
-    "session_id",
-    "trace_id",
-  ]);
+  const search = eventSearchCondition({
+    query: searchQuery,
+    searchType,
+  });
 
   const eventsQuery = new EventsQueryBuilder({ projectId })
     .selectFieldSet("core")
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
     .where(search)
     .whereRaw("e.is_deleted = 0")
