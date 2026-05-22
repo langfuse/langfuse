@@ -565,21 +565,31 @@ export const [
           );
         }
 
-        const assignment = await prisma.annotationQueueAssignment.upsert({
-          where: {
-            projectId_queueId_userId: {
-              projectId: context.projectId,
-              queueId: input.queueId,
-              userId: input.userId,
-            },
-          },
-          create: {
+        const assignmentWhere = {
+          projectId: context.projectId,
+          queueId: input.queueId,
+          userId: input.userId,
+        };
+
+        const createResult = await prisma.annotationQueueAssignment.createMany({
+          data: [assignmentWhere],
+          skipDuplicates: true,
+        });
+
+        if (createResult.count === 0) {
+          return CreateAnnotationQueueAssignmentResponse.parse({
             userId: input.userId,
             projectId: context.projectId,
             queueId: input.queueId,
-          },
-          update: {},
-        });
+          });
+        }
+
+        const assignment =
+          await prisma.annotationQueueAssignment.findUniqueOrThrow({
+            where: {
+              projectId_queueId_userId: assignmentWhere,
+            },
+          });
 
         await auditLog({
           action: "create",
@@ -624,8 +634,9 @@ export const [
           queueId: input.queueId,
         });
 
+        let assignment;
         try {
-          const assignment = await prisma.annotationQueueAssignment.delete({
+          assignment = await prisma.annotationQueueAssignment.delete({
             where: {
               projectId_queueId_userId: {
                 projectId: context.projectId,
@@ -634,26 +645,28 @@ export const [
               },
             },
           });
-
-          await auditLog({
-            action: "delete",
-            resourceType: "annotationQueueAssignment",
-            resourceId: assignment.id,
-            projectId: context.projectId,
-            orgId: context.orgId,
-            apiKeyId: context.apiKeyId,
-            before: assignment,
-          });
         } catch (error) {
           if (
-            error &&
-            typeof error === "object" &&
-            "code" in error &&
-            error.code !== "P2025"
+            error instanceof SharedPrisma.PrismaClientKnownRequestError &&
+            error.code === "P2025"
           ) {
-            throw error;
+            return DeleteAnnotationQueueAssignmentResponse.parse({
+              success: true,
+            });
           }
+
+          throw error;
         }
+
+        await auditLog({
+          action: "delete",
+          resourceType: "annotationQueueAssignment",
+          resourceId: assignment.id,
+          projectId: context.projectId,
+          orgId: context.orgId,
+          apiKeyId: context.apiKeyId,
+          before: assignment,
+        });
 
         return DeleteAnnotationQueueAssignmentResponse.parse({
           success: true,
