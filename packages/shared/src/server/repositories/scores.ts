@@ -480,6 +480,7 @@ export const getScoresForExperimentItems = async (
       kind: "list",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   const includeMetadataPayload = false;
@@ -844,7 +845,9 @@ export const getScoresGroupedByNameSourceType = async ({
       kind: "list",
       projectId,
     },
-    preferredClickhouseService: "ReadOnly",
+    preferredClickhouseService: hasEventsFilters
+      ? "EventsReadOnly"
+      : "ReadOnly",
   });
 
   return rows.map((row) => ({
@@ -1432,6 +1435,9 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         params: input.params,
         tags: input.tags,
         clickhouseConfigs,
+        preferredClickhouseService: needsTracesCTE
+          ? "EventsReadOnly"
+          : undefined,
       });
     },
   });
