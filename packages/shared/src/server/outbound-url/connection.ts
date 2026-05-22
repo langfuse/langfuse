@@ -18,7 +18,7 @@ const DEFAULT_OUTBOUND_URL_VALIDATION_WHITELIST: OutboundUrlValidationWhitelist 
     ips: [],
     ip_ranges: [],
   };
-type RequestInitWithDispatcher = RequestInit & { dispatcher?: unknown };
+export type RequestInitWithDispatcher = RequestInit & { dispatcher?: unknown };
 
 export interface OutboundUrlConnectionValidationOptions {
   whitelist?: OutboundUrlValidationWhitelist;
@@ -36,8 +36,10 @@ export function addSecureOutboundConnectionValidation(
   validationOptions: OutboundUrlConnectionValidationOptions,
 ): RequestInit {
   if ((options as RequestInitWithDispatcher).dispatcher) {
-    // Proxy dispatchers own the socket path and cannot be wrapped without
-    // changing CONNECT semantics. URL and redirect validation still run before
+    // A caller-provided dispatcher owns the socket path (e.g. a proxy
+    // dispatcher whose CONNECT semantics cannot be wrapped). Skip injecting
+    // our secure-lookup dispatcher and rely on the caller to enforce
+    // connection-time safety; URL and redirect validation still run before
     // the request is dispatched.
     return options;
   }

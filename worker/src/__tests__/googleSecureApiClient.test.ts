@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { encrypt } from "../../../packages/shared/src/encryption";
+import { env } from "../../../packages/shared/src/env";
 import {
   ChatMessageType,
   LLMAdapter,
@@ -13,8 +14,25 @@ import {
 import { GoogleAuth } from "google-auth-library";
 
 describe("Google AI Studio secure API client", () => {
+  const originalWhitelistedHosts = env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST;
+  const originalCloudRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+  beforeEach(() => {
+    delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = [
+      "example.com",
+      "us-central1-aiplatform.googleapis.com",
+    ];
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
+    env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = originalWhitelistedHosts;
+    if (originalCloudRegion === undefined) {
+      delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    } else {
+      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    }
   });
 
   test.each([
