@@ -52,17 +52,33 @@ export interface DefineToolOptions<TInput> {
 export interface ToolDefinition {
   name: string;
   description: string;
-  inputSchema: {
-    type: "object";
-    properties: Record<string, unknown>;
-    required?: string[];
-    additionalProperties?: boolean;
-  };
+  inputSchema: Record<string, unknown>;
   annotations?: {
     readOnlyHint?: boolean;
     destructiveHint?: boolean;
     expensiveHint?: boolean;
   };
+}
+
+type JsonSchemaObject = Record<string, unknown>;
+
+function isObjectLikeJsonSchema(schema: JsonSchemaObject): boolean {
+  if (schema.type === "object") return true;
+
+  if ("oneOf" in schema || "anyOf" in schema || "discriminator" in schema) {
+    return true;
+  }
+
+  if (Array.isArray(schema.allOf)) {
+    return schema.allOf.every(
+      (subSchema) =>
+        typeof subSchema === "object" &&
+        subSchema !== null &&
+        isObjectLikeJsonSchema(subSchema as JsonSchemaObject),
+    );
+  }
+
+  return false;
 }
 
 /**
@@ -114,13 +130,9 @@ export function defineTool<TInput>(
     );
   }
 
-  // Validate that we got a usable schema (object or union of objects)
-  const hasObjectType = (jsonSchema as { type?: string }).type === "object";
-  const hasUnionType =
-    "oneOf" in jsonSchema ||
-    "anyOf" in jsonSchema ||
-    "discriminator" in jsonSchema;
-  if (!hasObjectType && !hasUnionType) {
+  // Validate that we got a usable schema. Intersections of object schemas are
+  // emitted as top-level allOf by Zod's JSON Schema converter.
+  if (!isObjectLikeJsonSchema(jsonSchema)) {
     throw new Error(
       `Failed to convert Zod schema to JSON Schema for tool: ${name}. Expected object or union schema, got: ${JSON.stringify(jsonSchema).slice(0, 100)}`,
     );
@@ -130,7 +142,7 @@ export function defineTool<TInput>(
   const toolDefinition: ToolDefinition = {
     name,
     description,
-    inputSchema: jsonSchema as ToolDefinition["inputSchema"],
+    inputSchema: jsonSchema,
   };
 
   // Add annotations if provided

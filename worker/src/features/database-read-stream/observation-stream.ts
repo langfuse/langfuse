@@ -125,7 +125,11 @@ export const getObservationStream = async (props: {
 
   const appliedObservationsFilter = observationsFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery, searchType, "o");
+  const search = clickhouseSearchCondition({
+    query: searchQuery,
+    searchType,
+    tablePrefix: "o",
+  });
 
   const query = `
 
