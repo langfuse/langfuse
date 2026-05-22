@@ -1,16 +1,10 @@
-import {
-  fetchWithSecureRedirects,
-  type OutboundUrlValidationWhitelist,
-} from "../outbound-url";
+import { type OutboundUrlValidationWhitelist } from "../outbound-url";
 import { GoogleAuth, type GoogleAuthOptions } from "google-auth-library";
-import {
-  llmBaseUrlWhitelistFromEnv,
-  validateLlmConnectionBaseURL,
-} from "./baseUrlValidation";
+import { llmBaseUrlWhitelistFromEnv } from "./baseUrlValidation";
+import { fetchSecureLlmUrl } from "./secureLlmFetch";
 
 const GOOGLE_AI_STUDIO_ORIGIN = "https://generativelanguage.googleapis.com";
 const GOOGLE_API_KEY_HEADER = "X-Goog-Api-Key";
-const MAX_GOOGLE_LLM_REDIRECTS = 10;
 const VERTEX_AI_AUTH_SCOPES = [
   "https://www.googleapis.com/auth/cloud-platform",
 ];
@@ -132,13 +126,11 @@ async function fetchGoogleLlmRequest({
   logContext: string;
   additionalSensitiveHeaders?: string[];
 }): Promise<Response> {
-  await validateLlmConnectionBaseURL(url, whitelist);
-
   const body = ["GET", "HEAD"].includes(request.method)
     ? undefined
     : await request.text();
 
-  const { response } = await fetchWithSecureRedirects(
+  return fetchSecureLlmUrl(
     url,
     {
       method: request.method,
@@ -147,15 +139,9 @@ async function fetchGoogleLlmRequest({
       signal: request.signal,
     },
     {
-      maxRedirects: MAX_GOOGLE_LLM_REDIRECTS,
+      whitelist,
+      logContext,
       additionalSensitiveHeaders,
-      redirectValidation: {
-        validateUrl: validateLlmConnectionBaseURL,
-        whitelist,
-        logContext,
-      },
     },
   );
-
-  return response;
 }

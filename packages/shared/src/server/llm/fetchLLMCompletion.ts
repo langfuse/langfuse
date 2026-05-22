@@ -54,6 +54,7 @@ import {
   createSecureGoogleAIStudioApiClient,
   createSecureVertexAIApiClient,
 } from "./googleSecureApiClient";
+import { createSecureLlmFetch } from "./secureLlmFetch";
 
 export type CompletionWithReasoning = { text: string; reasoning?: string };
 type AIMessageContent = AIMessage["content"];
@@ -73,6 +74,8 @@ const NON_RETRYABLE_LLM_ERROR_PATTERNS = [
 ] as const;
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+const AZURE_OPENAI_API_KEY_HEADER = "api-key";
+const ANTHROPIC_API_KEY_HEADER = "x-api-key";
 
 // Maps adapters to the content block types that represent "thinking".
 // Used to extract reasoning separately and strip thinking parts from parsed output.
@@ -335,6 +338,10 @@ export async function fetchLLMCompletion(
         maxRetries,
         defaultHeaders: extraHeaders,
         timeout: timeoutMs,
+        fetch: createSecureLlmFetch({
+          logContext: "Anthropic LLM base URL",
+          additionalSensitiveHeaders: [ANTHROPIC_API_KEY_HEADER],
+        }),
         ...(proxyDispatcher && {
           fetchOptions: { dispatcher: proxyDispatcher },
         }),
@@ -388,6 +395,9 @@ export async function fetchLLMCompletion(
         baseURL: processedBaseURL,
         timeout: timeoutMs,
         defaultHeaders: extraHeaders,
+        fetch: createSecureLlmFetch({
+          logContext: "OpenAI LLM base URL",
+        }),
         ...(proxyDispatcher && {
           fetchOptions: { dispatcher: proxyDispatcher },
         }),
@@ -410,6 +420,10 @@ export async function fetchLLMCompletion(
       configuration: {
         timeout: timeoutMs,
         defaultHeaders: extraHeaders,
+        fetch: createSecureLlmFetch({
+          logContext: "Azure OpenAI LLM base URL",
+          additionalSensitiveHeaders: [AZURE_OPENAI_API_KEY_HEADER],
+        }),
         ...(proxyDispatcher && {
           fetchOptions: { dispatcher: proxyDispatcher },
         }),
