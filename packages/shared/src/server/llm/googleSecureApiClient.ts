@@ -1,6 +1,7 @@
 import { type OutboundUrlValidationWhitelist } from "../outbound-url";
 import { type ChatGoogleParams } from "@langchain/google";
 import { GoogleAuth, type GoogleAuthOptions } from "google-auth-library";
+import type { Dispatcher } from "undici";
 import { llmBaseUrlWhitelistFromEnv } from "./baseUrlValidation";
 import { fetchSecureLlmUrl } from "./secureLlmFetch";
 
@@ -16,17 +17,20 @@ type SecureGoogleAIStudioApiClientParams = {
   apiKey: string;
   baseURL?: string | null;
   whitelist?: OutboundUrlValidationWhitelist;
+  dispatcher?: Dispatcher;
 };
 
 type SecureVertexAIApiClientParams = {
   authOptions?: GoogleAuthOptions;
   whitelist?: OutboundUrlValidationWhitelist;
+  dispatcher?: Dispatcher;
 };
 
 export function createSecureGoogleAIStudioApiClient({
   apiKey,
   baseURL,
   whitelist = llmBaseUrlWhitelistFromEnv(),
+  dispatcher,
 }: SecureGoogleAIStudioApiClientParams): GoogleApiClient {
   return {
     hasApiKey: () => true,
@@ -44,6 +48,7 @@ export function createSecureGoogleAIStudioApiClient({
         whitelist,
         logContext: "Google AI Studio LLM base URL",
         additionalSensitiveHeaders: [GOOGLE_API_KEY_HEADER],
+        dispatcher,
       });
     },
   };
@@ -52,6 +57,7 @@ export function createSecureGoogleAIStudioApiClient({
 export function createSecureVertexAIApiClient({
   authOptions,
   whitelist = llmBaseUrlWhitelistFromEnv(),
+  dispatcher,
 }: SecureVertexAIApiClientParams): GoogleApiClient {
   const googleAuth = new GoogleAuth({
     ...authOptions,
@@ -75,6 +81,7 @@ export function createSecureVertexAIApiClient({
         headers,
         whitelist,
         logContext: "Vertex AI LLM endpoint",
+        dispatcher,
       });
     },
   };
@@ -104,6 +111,7 @@ async function fetchGoogleLlmRequest({
   whitelist,
   logContext,
   additionalSensitiveHeaders,
+  dispatcher,
 }: {
   url: string;
   request: Request;
@@ -111,6 +119,7 @@ async function fetchGoogleLlmRequest({
   whitelist: OutboundUrlValidationWhitelist;
   logContext: string;
   additionalSensitiveHeaders?: string[];
+  dispatcher?: Dispatcher;
 }): Promise<Response> {
   const body = ["GET", "HEAD"].includes(request.method)
     ? undefined
@@ -128,6 +137,7 @@ async function fetchGoogleLlmRequest({
       whitelist,
       logContext,
       additionalSensitiveHeaders,
+      dispatcher,
     },
   );
 }

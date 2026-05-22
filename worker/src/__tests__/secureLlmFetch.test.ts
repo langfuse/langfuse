@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import type { Dispatcher } from "undici";
 import { encrypt } from "../../../packages/shared/src/encryption";
 import { env } from "../../../packages/shared/src/env";
 import {
@@ -53,6 +54,54 @@ describe("secure LLM fetch", () => {
         redirect: "manual",
       }),
     );
+  });
+
+  test("preserves the caller-provided dispatcher", async () => {
+    const dispatcher = {} as Dispatcher;
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const secureFetch = createSecureLlmFetch({
+      logContext: "Test LLM endpoint",
+    });
+
+    await secureFetch("https://example.com/v1/messages", {
+      method: "POST",
+      body: JSON.stringify({ messages: [] }),
+      dispatcher,
+    } as RequestInit);
+
+    const [, requestOptions] = fetchMock.mock.calls[0];
+    expect(
+      (requestOptions as RequestInit & { dispatcher?: Dispatcher }).dispatcher,
+    ).toBe(dispatcher);
+  });
+
+  test("uses the configured dispatcher when init does not provide one", async () => {
+    const dispatcher = {} as Dispatcher;
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const secureFetch = createSecureLlmFetch({
+      logContext: "Test LLM endpoint",
+      dispatcher,
+    });
+
+    await secureFetch("https://example.com/v1/messages", {
+      method: "POST",
+      body: JSON.stringify({ messages: [] }),
+    });
+
+    const [, requestOptions] = fetchMock.mock.calls[0];
+    expect(
+      (requestOptions as RequestInit & { dispatcher?: Dispatcher }).dispatcher,
+    ).toBe(dispatcher);
   });
 
   test("supports Request input", async () => {

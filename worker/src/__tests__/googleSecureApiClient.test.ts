@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
+import type { Dispatcher } from "undici";
 import { encrypt } from "../../../packages/shared/src/encryption";
 import {
   ChatMessageType,
@@ -10,7 +11,7 @@ import {
   createSecureVertexAIApiClient,
   rewriteGoogleAIStudioUrl,
 } from "../../../packages/shared/src/server/llm/googleSecureApiClient";
-import { GoogleAuth } from "../../../packages/shared/node_modules/google-auth-library";
+import { GoogleAuth } from "google-auth-library";
 
 describe("Google AI Studio secure API client", () => {
   afterEach(() => {
@@ -46,6 +47,7 @@ describe("Google AI Studio secure API client", () => {
   });
 
   test("fetches through the rewritten URL with API key auth", async () => {
+    const dispatcher = {} as Dispatcher;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), {
         status: 200,
@@ -55,6 +57,7 @@ describe("Google AI Studio secure API client", () => {
     const client = createSecureGoogleAIStudioApiClient({
       apiKey: "google-api-key",
       baseURL: "https://example.com/google",
+      dispatcher,
       whitelist: {
         hosts: ["example.com"],
         ips: [],
@@ -85,6 +88,9 @@ describe("Google AI Studio secure API client", () => {
     expect(new Headers(requestOptions?.headers).get("X-Goog-Api-Key")).toBe(
       "google-api-key",
     );
+    expect(
+      (requestOptions as RequestInit & { dispatcher?: Dispatcher }).dispatcher,
+    ).toBe(dispatcher);
   });
 
   test("fetchLLMCompletion uses the secure client for Google AI Studio", async () => {
@@ -140,6 +146,7 @@ describe("Google AI Studio secure API client", () => {
   });
 
   test("Vertex AI client authenticates and uses secure fetch", async () => {
+    const dispatcher = {} as Dispatcher;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), {
         status: 200,
@@ -153,6 +160,7 @@ describe("Google AI Studio secure API client", () => {
       new Headers({ authorization: "Bearer test-token" }),
     );
     const client = createSecureVertexAIApiClient({
+      dispatcher,
       whitelist: {
         hosts: ["us-central1-aiplatform.googleapis.com"],
         ips: [],
@@ -182,5 +190,8 @@ describe("Google AI Studio secure API client", () => {
     expect(new Headers(requestOptions?.headers).get("authorization")).toBe(
       "Bearer test-token",
     );
+    expect(
+      (requestOptions as RequestInit & { dispatcher?: Dispatcher }).dispatcher,
+    ).toBe(dispatcher);
   });
 });

@@ -2,7 +2,7 @@ import dns from "node:dns";
 import { Agent as HttpAgent } from "node:http";
 import { Agent as HttpsAgent } from "node:https";
 import type { LookupFunction } from "node:net";
-import { Agent as UndiciAgent } from "undici";
+import { Agent as UndiciAgent, type Dispatcher } from "undici";
 import type { OutboundUrlValidationWhitelist } from "./validation";
 import { validateOutboundResolvedIp } from "./validation";
 
@@ -34,6 +34,13 @@ export function addSecureOutboundConnectionValidation(
   options: RequestInit,
   validationOptions: OutboundUrlConnectionValidationOptions,
 ): RequestInit {
+  if ((options as RequestInit & { dispatcher?: Dispatcher }).dispatcher) {
+    // Proxy dispatchers own the socket path and cannot be wrapped without
+    // changing CONNECT semantics. URL and redirect validation still run before
+    // the request is dispatched.
+    return options;
+  }
+
   return {
     ...options,
     dispatcher: getSecureOutboundDispatcher(validationOptions),

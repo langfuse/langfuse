@@ -321,7 +321,12 @@ export async function fetchLLMCompletion(
   const secureLlmFetch = (
     logContext: string,
     additionalSensitiveHeaders?: string[],
-  ) => createSecureLlmFetch({ logContext, additionalSensitiveHeaders });
+  ) =>
+    createSecureLlmFetch({
+      logContext,
+      additionalSensitiveHeaders,
+      dispatcher: proxyDispatcher,
+    });
 
   let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse | ChatGoogle;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
@@ -493,7 +498,10 @@ export async function fetchLLMCompletion(
       maxRetries,
       location,
       vertexai: true,
-      apiClient: createSecureVertexAIApiClient({ authOptions }),
+      apiClient: createSecureVertexAIApiClient({
+        authOptions,
+        dispatcher: proxyDispatcher,
+      }),
       ...(modelParams.maxReasoningTokens !== undefined && {
         maxReasoningTokens: modelParams.maxReasoningTokens,
       }),
@@ -512,7 +520,11 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
-      apiClient: createSecureGoogleAIStudioApiClient({ apiKey, baseURL }),
+      apiClient: createSecureGoogleAIStudioApiClient({
+        apiKey,
+        baseURL,
+        dispatcher: proxyDispatcher,
+      }),
       ...(googleProviderOptions
         ? {
             thinkingConfig: googleProviderOptions as any, // Typecast as thinkingLevel is intentionally looser typed
