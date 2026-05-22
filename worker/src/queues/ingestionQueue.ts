@@ -15,6 +15,7 @@ import {
   recordIncrement,
   redis,
   SecondaryIngestionQueue,
+  safeS3ObjectKeySegment,
   TQueueJobTypes,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -65,6 +66,9 @@ export const ingestionQueueProcessorBuilder = (
         job.data.payload.data.fileKey
       ) {
         const fileName = `${job.data.payload.data.fileKey}.json`;
+        const safeEventBodyId = safeS3ObjectKeySegment(
+          job.data.payload.data.eventBodyId,
+        );
         clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, {
           id: randomUUID(),
           project_id: job.data.payload.authCheck.scope.projectId,
@@ -72,7 +76,7 @@ export const ingestionQueueProcessorBuilder = (
           entity_id: job.data.payload.data.eventBodyId,
           event_id: job.data.payload.data.fileKey,
           bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-          bucket_path: `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/${fileName}`,
+          bucket_path: `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${safeEventBodyId}/${fileName}`,
           created_at: new Date().getTime(),
           updated_at: new Date().getTime(),
           event_ts: new Date().getTime(),
@@ -158,7 +162,10 @@ export const ingestionQueueProcessorBuilder = (
       const shouldSkipS3List =
         // The producer sets skipS3List to true if it's an OTel observation
         job.data.payload.data.skipS3List && job.data.payload.data.fileKey;
-      const s3Prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`;
+      const safeEventBodyId = safeS3ObjectKeySegment(
+        job.data.payload.data.eventBodyId,
+      );
+      const s3Prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${safeEventBodyId}/`;
 
       let totalS3DownloadSizeBytes = 0;
 

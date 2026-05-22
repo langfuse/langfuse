@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { z } from "zod";
 
 import { env } from "../../env";
@@ -36,6 +36,37 @@ import {
 } from "../redis/s3SlowdownTracking";
 
 let s3StorageServiceClient: StorageService;
+
+const MAX_S3_OBJECT_KEY_SEGMENT_BYTES = 255;
+const S3_OBJECT_KEY_SEGMENT_SAFE_RE = /[^A-Za-z0-9._-]/g;
+
+export const safeS3ObjectKeySegment = (raw: string): string => {
+  const normalized = raw.normalize("NFKC");
+  const sanitized = normalized
+    .replace(S3_OBJECT_KEY_SEGMENT_SAFE_RE, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  const base =
+    sanitized && sanitized !== "." && sanitized !== ".."
+      ? sanitized
+      : "unknown";
+
+  const needsSuffix =
+    base !== raw || Buffer.byteLength(base) > MAX_S3_OBJECT_KEY_SEGMENT_BYTES;
+
+  if (!needsSuffix) {
+    return base;
+  }
+
+  const hash = createHash("sha256").update(raw).digest("hex").slice(0, 16);
+  const suffix = `_${hash}`;
+  const maxBaseBytes =
+    MAX_S3_OBJECT_KEY_SEGMENT_BYTES - Buffer.byteLength(suffix);
+  const truncatedBase = base.slice(0, Math.max(0, maxBaseBytes));
+  const resultBase = truncatedBase || "unknown";
+  return `${resultBase}${suffix}`;
+};
 
 const getS3StorageServiceClient = (bucketName: string): StorageService => {
   if (!s3StorageServiceClient) {
@@ -234,7 +265,8 @@ export const processEventBatch = async (
         // That way we batch updates from the same invocation into a single file and reduce
         // write operations on S3.
         const { data, key, type, eventBodyId } = sortedBatchByEventBodyId[id];
-        const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`;
+        const safeEventBodyId = safeS3ObjectKeySegment(eventBodyId);
+        const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${safeEventBodyId}/${key}.json`;
         return getS3StorageServiceClient(
           env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
         ).uploadJson(bucketPath, data);
