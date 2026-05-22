@@ -199,6 +199,7 @@ export const getExperimentMetricsFromEvents = async (props: {
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -362,6 +363,7 @@ const getExperimentsFromEventsGeneric = async <T>(
         query: finalQuery,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -468,6 +470,7 @@ export const getExperimentItemsCountFromEvents = async (
       type: "experiment-items-count",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -730,6 +733,7 @@ export const getExperimentItemsFromEvents = async (
       type: "experiment-items-filter",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   const itemIds = itemIdsResult.map((r) => r.item_id);
@@ -774,6 +778,7 @@ export const getExperimentItemsFromEvents = async (
       type: "experiment-items-data",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   // Group by item_id, preserving pagination order
@@ -881,6 +886,7 @@ export const getExperimentItemsBatchIO = async (props: {
       type: "experiment-items-batch-io",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   // Group by item_id
@@ -964,6 +970,7 @@ export const getExperimentNamesFromEvents = async (props: {
       kind: "analytic",
       projectId: props.projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return res;
