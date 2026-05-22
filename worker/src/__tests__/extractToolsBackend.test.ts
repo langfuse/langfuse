@@ -228,6 +228,38 @@ describe("extractToolsFromObservation", () => {
       });
     });
 
+    it("preserves user metadata.tools objects with generic id or type fields", () => {
+      const input = [{ role: "user", content: "Need weather" }];
+      const metadata = {
+        tools: [{ id: "hammer" }, { type: "manual" }],
+        attributes: {
+          "custom.attribute": "keep-me",
+        },
+      };
+
+      const result = normalizeToolsForObservation(input, null, metadata);
+
+      expect(result.input).toEqual(input);
+      expect(result.metadata).toEqual(metadata);
+      expect(result.toolDefinitions).toEqual({});
+    });
+
+    it("preserves invalid OTel gen_ai.tool.definitions without tool names", () => {
+      const input = [{ role: "user", content: "Need weather" }];
+      const metadata = {
+        attributes: {
+          "gen_ai.tool.definitions": [{ type: "manual" }],
+          "custom.attribute": "keep-me",
+        },
+      };
+
+      const result = normalizeToolsForObservation(input, null, metadata);
+
+      expect(result.input).toEqual(input);
+      expect(result.metadata).toEqual(metadata);
+      expect(result.toolDefinitions).toEqual({});
+    });
+
     it("preserves unnamed provider tools in normalized input while extracting only named definitions", () => {
       const input = [{ role: "user", content: "Need current weather" }];
       const functionTool = {

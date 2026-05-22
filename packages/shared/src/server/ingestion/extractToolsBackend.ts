@@ -430,20 +430,26 @@ function isToolDefinitionLike(tool: unknown): boolean {
   return Boolean(flattenToolDefinition(tool).name);
 }
 
-function isToolMetadataEntryLike(tool: unknown): boolean {
+function isToolMetadataEntryLike(
+  tool: unknown,
+  options: { allowProviderToolWithoutName?: boolean } = {},
+): boolean {
   const parsedTool = parseIfString(tool);
   if (!isPlainRecord(parsedTool)) return false;
+  if (isToolDefinitionLike(parsedTool)) return true;
 
   return (
-    isToolDefinitionLike(parsedTool) ||
-    typeof parsedTool.type === "string" ||
-    typeof parsedTool.id === "string"
+    options.allowProviderToolWithoutName === true &&
+    typeof parsedTool.type === "string"
   );
 }
 
 function parseToolDefinitionArray(
   tools: unknown,
-  options: { requireEveryItem?: boolean } = {},
+  options: {
+    requireEveryItem?: boolean;
+    allowProviderToolWithoutName?: boolean;
+  } = {},
 ): unknown[] | undefined {
   const parsedTools = parseArrayIfString(tools);
   if (!parsedTools) return undefined;
@@ -451,7 +457,12 @@ function parseToolDefinitionArray(
   const normalizedTools = parsedTools.map(parseIfString);
   if (normalizedTools.length === 0) return [];
 
-  const toolLikeEntries = normalizedTools.filter(isToolMetadataEntryLike);
+  const toolLikeEntries = normalizedTools.filter((tool) =>
+    isToolMetadataEntryLike(tool, {
+      allowProviderToolWithoutName:
+        options.allowProviderToolWithoutName ?? true,
+    }),
+  );
   if (
     options.requireEveryItem &&
     toolLikeEntries.length !== normalizedTools.length
@@ -461,6 +472,10 @@ function parseToolDefinitionArray(
 
   return toolLikeEntries.length > 0 ? toolLikeEntries : undefined;
 }
+
+type ToolDefinitionArrayOptions = Parameters<
+  typeof parseToolDefinitionArray
+>[1];
 
 function dedupeToolDefinitions(tools: unknown[]): unknown[] {
   const seenToolNames = new Set<string>();
@@ -480,14 +495,18 @@ function collectAndRemoveToolDefinitionsFromMetadata(
   const cleanedMetadata = { ...metadata };
   const addTools = (
     value: unknown,
-    options: { requireEveryItem?: boolean } = {},
+    options: ToolDefinitionArrayOptions = {},
   ) => {
     const parsedTools = parseToolDefinitionArray(value, options);
-    if (parsedTools) tools = tools.concat(parsedTools);
+    if (!parsedTools) return false;
+
+    tools = tools.concat(parsedTools);
+    return true;
   };
 
   const metadataTools = parseToolDefinitionArray(metadata.tools, {
     requireEveryItem: true,
+    allowProviderToolWithoutName: false,
   });
   if (metadataTools && metadataTools.length > 0) {
     tools = tools.concat(metadataTools);
@@ -502,20 +521,37 @@ function collectAndRemoveToolDefinitionsFromMetadata(
 
   const cleanedAttributes = { ...attributes };
 
-  addTools(attributes["ai.prompt.tools"]);
-  delete cleanedAttributes["ai.prompt.tools"];
+  if (
+    addTools(attributes["ai.prompt.tools"], {
+      requireEveryItem: true,
+      allowProviderToolWithoutName: true,
+    })
+  ) {
+    delete cleanedAttributes["ai.prompt.tools"];
+  }
 
-  addTools(attributes["gen_ai.tool.definitions"]);
-  delete cleanedAttributes["gen_ai.tool.definitions"];
+  if (
+    addTools(attributes["gen_ai.tool.definitions"], {
+      requireEveryItem: true,
+      allowProviderToolWithoutName: false,
+    })
+  ) {
+    delete cleanedAttributes["gen_ai.tool.definitions"];
+  }
 
   const modelRequestParameters = parseIfString(
     attributes.model_request_parameters,
   );
   if (isPlainRecord(modelRequestParameters)) {
-    addTools(modelRequestParameters.function_tools);
+    const movedFunctionTools = addTools(modelRequestParameters.function_tools, {
+      requireEveryItem: true,
+      allowProviderToolWithoutName: false,
+    });
 
     const cleanedModelRequestParameters = { ...modelRequestParameters };
-    delete cleanedModelRequestParameters.function_tools;
+    if (movedFunctionTools) {
+      delete cleanedModelRequestParameters.function_tools;
+    }
 
     if (Object.keys(cleanedModelRequestParameters).length > 0) {
       cleanedAttributes.model_request_parameters =
@@ -539,8 +575,15 @@ function collectAndRemoveToolDefinitionsFromMetadata(
     .sort((left, right) => Number(left.match[1]) - Number(right.match[1]));
 
   for (const { key } of indexedToolKeys) {
-    tools.push(parseIfString(attributes[key]));
-    delete cleanedAttributes[key];
+    const parsedTool = parseIfString(attributes[key]);
+    if (
+      isToolMetadataEntryLike(parsedTool, {
+        allowProviderToolWithoutName: false,
+      })
+    ) {
+      tools.push(parsedTool);
+      delete cleanedAttributes[key];
+    }
   }
 
   if (Object.keys(cleanedAttributes).length > 0) {
