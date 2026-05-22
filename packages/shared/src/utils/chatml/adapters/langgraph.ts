@@ -5,6 +5,7 @@ import {
   parseMetadata,
   isRichToolResult,
   attachToolDefinitionsToMessages,
+  normalizeToolDefinitionsForChatMl,
 } from "../helpers";
 import { z } from "zod";
 
@@ -240,15 +241,14 @@ function preprocessData(data: unknown): unknown {
     const obj = data as Record<string, unknown>;
     if (Array.isArray(obj.messages)) {
       const extractedTools = extractToolDefinitions(obj.messages);
+      const rootTools = normalizeToolDefinitionsForChatMl(obj.tools);
+      const tools = [...extractedTools, ...rootTools];
       const normalizedMessages = filterAndNormalizeMessages(obj.messages);
 
-      if (extractedTools.length > 0) {
+      if (tools.length > 0) {
         return {
           ...obj,
-          messages: attachToolDefinitionsToMessages(
-            normalizedMessages,
-            extractedTools,
-          ),
+          messages: attachToolDefinitionsToMessages(normalizedMessages, tools),
         };
       }
 
