@@ -16,11 +16,6 @@ VALUES (
   '9c2d5a4f-7b8e-4f6a-a91c-3e5d7f8a2b1c',
   '20260521_v4_step_2_rewrite_observations_to_pid_tid_sorting',
   'rewriteObservationsToPidTidSorting',
-  '{
-    "envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL",
-    "concurrency": 1,
-    "pollIntervalMs": 30000,
-    "maxRetries": 3
-  }'::jsonb
+  '{"envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL"}'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;

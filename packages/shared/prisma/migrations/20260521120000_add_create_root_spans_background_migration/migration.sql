@@ -12,11 +12,6 @@ VALUES (
   '8e1f4a2b-5c63-4d8e-9a47-1b2f3c4d5e6f',
   '20260521_v4_step_1_create_root_spans_from_traces',
   'createRootSpansFromTraces',
-  '{
-    "envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL",
-    "concurrency": 1,
-    "pollIntervalMs": 30000,
-    "maxRetries": 3
-  }'::jsonb
+  '{"envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL"}'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;

@@ -13,8 +13,6 @@ VALUES (
   'b3f1c5d8-9e47-4a26-8b3f-5c6d7e8f9a01',
   '20260521_v4_step_5_drop_pid_tid_sorting_tables',
   'dropPidTidSortingTables',
-  '{
-    "envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES"
-  }'::jsonb
+  '{"envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES"}'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;

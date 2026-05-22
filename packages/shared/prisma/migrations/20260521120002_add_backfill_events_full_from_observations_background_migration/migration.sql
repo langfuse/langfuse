@@ -14,11 +14,6 @@ VALUES (
   '7a3f8d6e-2c91-4b5e-8d72-f4a5b6c7d8e9',
   '20260521_v4_step_3_backfill_events_full_from_observations',
   'backfillEventsFullFromObservations',
-  '{
-    "envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL",
-    "concurrency": 1,
-    "pollIntervalMs": 30000,
-    "maxRetries": 3
-  }'::jsonb
+  '{"envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL"}'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;

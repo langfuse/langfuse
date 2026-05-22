@@ -21,14 +21,6 @@ VALUES (
   '9d4f8a12-7b35-4e6c-9f48-a2b3c4d5e6f7',
   '20260521_v4_step_4_backfill_events_full_from_dataset_run_items',
   'backfillEventsFullFromDatasetRunItems',
-  '{
-    "envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL",
-    "concurrency": 1,
-    "pollIntervalMs": 30000,
-    "maxRetries": 3,
-    "batchSize": 200,
-    "maxDescendantsPerDri": 50000,
-    "lookbackDays": 90
-  }'::jsonb
+  '{"envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL"}'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;

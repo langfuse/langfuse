@@ -6,7 +6,6 @@ import {
   sleep,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { env } from "../env";
 import { parseArgs } from "node:util";
 import {
   BaseChunkTodo,
@@ -127,7 +126,7 @@ export default class CreateRootSpansFromTraces implements IBackgroundMigration {
         FROM system.parts
         WHERE table = 'traces'
           AND active = 1
-          AND partition_id != 'all'
+          AND partition_id NOT LIKE 'patch-%'
         ORDER BY partition_id DESC
       `,
       tags: {
@@ -136,9 +135,7 @@ export default class CreateRootSpansFromTraces implements IBackgroundMigration {
       },
     });
 
-    const partitions = rows
-      .map((r) => r.partition_id)
-      .filter((p) => p && p !== "all");
+    const partitions = rows.map((r) => r.partition_id);
 
     const filterSet =
       restrictTo && restrictTo.length > 0 ? new Set(restrictTo) : null;
@@ -262,38 +259,17 @@ export default class CreateRootSpansFromTraces implements IBackgroundMigration {
     args: Record<string, unknown>,
     attempts = 5,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
-    // Ensure the background migration record exists
-    // TODO: Remove for golive
-    await prisma.backgroundMigration.upsert({
-      where: { id: backgroundMigrationId },
-      create: {
-        id: backgroundMigrationId,
-        name: "20260521_v4_step_1_create_root_spans_from_traces",
-        script: "createRootSpansFromTraces",
-        args: {},
-        state: {},
-      },
-      update: {},
-    });
-
-    if (
-      !env.CLICKHOUSE_URL ||
-      !env.CLICKHOUSE_USER ||
-      !env.CLICKHOUSE_PASSWORD
-    ) {
-      return {
-        valid: false,
-        invalidReason:
-          "ClickHouse credentials must be configured to perform migration",
-      };
-    }
-
     const tables = await clickhouseClient().query({
       query: "SHOW TABLES",
     });
     const tableNames = (await tables.json()).data as { name: string }[];
 
-    for (const required of ["events_full", "traces"]) {
+    for (const required of [
+      "events_full",
+      "traces",
+      "events_core",
+      "events_core_mv",
+    ]) {
       if (!tableNames.some((r) => r.name === required)) {
         if (attempts > 0) {
           logger.info(
