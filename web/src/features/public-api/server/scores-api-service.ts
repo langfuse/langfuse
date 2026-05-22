@@ -1,14 +1,92 @@
+import { randomUUID } from "crypto";
+
 import {
   _handleGenerateScoresForPublicApi,
   _handleGetScoresCountForPublicApi,
   convertScoreToPublicApi,
   type ScoreQueryType,
 } from "@/src/features/public-api/server/scores";
-import { LISTABLE_SCORE_TYPES, type ScoreSourceType } from "@langfuse/shared";
-import { _handleGetScoreById } from "@langfuse/shared/src/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  InternalServerError,
+  LISTABLE_SCORE_TYPES,
+  type ScoreSourceType,
+  type PostScoresBodyV1,
+} from "@langfuse/shared";
+import {
+  _handleGetScoreById,
+  eventTypes,
+  processEventBatch,
+  QueueJobs,
+  ScoreDeleteQueue,
+  type AuthHeaderValidVerificationResultIngestion,
+} from "@langfuse/shared/src/server";
+import type { z } from "zod";
 
 export class ScoresApiService {
   constructor(private readonly apiVersion: "v1" | "v2") {}
+
+  async createScore({
+    body,
+    auth,
+    scoreId = body.id ?? randomUUID(),
+  }: {
+    body: z.infer<typeof PostScoresBodyV1>;
+    auth: AuthHeaderValidVerificationResultIngestion;
+    scoreId?: string;
+  }) {
+    const result = await processEventBatch(
+      [
+        {
+          id: randomUUID(),
+          type: eventTypes.SCORE_CREATE,
+          timestamp: new Date().toISOString(),
+          body: { ...body, id: scoreId },
+        },
+      ],
+      auth,
+    );
+
+    return { id: scoreId, result };
+  }
+
+  async deleteScore({
+    projectId,
+    orgId,
+    apiKeyId,
+    scoreId,
+  }: {
+    projectId: string;
+    orgId: string;
+    apiKeyId: string;
+    scoreId: string;
+  }) {
+    const scoreDeleteQueue = ScoreDeleteQueue.getInstance();
+    if (!scoreDeleteQueue) {
+      throw new InternalServerError("ScoreDeleteQueue not initialized");
+    }
+
+    await auditLog({
+      action: "delete",
+      resourceType: "score",
+      resourceId: scoreId,
+      projectId,
+      orgId,
+      apiKeyId,
+    });
+
+    await scoreDeleteQueue.add(QueueJobs.ScoreDelete, {
+      timestamp: new Date(),
+      id: randomUUID(),
+      payload: {
+        projectId,
+        scoreIds: [scoreId],
+      },
+      name: QueueJobs.ScoreDelete,
+    });
+
+    return { message: "Score deletion queued successfully" };
+  }
 
   /**
    * Get a specific score by ID

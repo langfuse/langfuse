@@ -9,6 +9,7 @@ import {
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
+import { validateBlobStorageEndpoint } from "@langfuse/shared/src/server";
 
 type UpsertBlobStorageIntegrationInput = {
   type: BlobStorageIntegrationType;
@@ -63,6 +64,16 @@ export async function upsertBlobStorageIntegration(params: {
   const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const canUseHostCredentials =
     isSelfHosted && data.type === BlobStorageIntegrationType.S3;
+
+  if (data.endpoint) {
+    try {
+      await validateBlobStorageEndpoint(data.endpoint);
+    } catch (error) {
+      throw new InvalidRequestError(
+        `Invalid blob storage endpoint: ${error instanceof Error ? error.message : "Endpoint validation failed"}`,
+      );
+    }
+  }
 
   if (!canUseHostCredentials && !data.accessKeyId) {
     throw new InvalidRequestError(

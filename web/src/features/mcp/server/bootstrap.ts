@@ -12,6 +12,9 @@
 
 import { toolRegistry } from "./registry";
 import { promptsFeature } from "../features/prompts";
+import { observationsFeature } from "../features/observations";
+import { scoresFeature } from "../features/scores";
+import { metricsFeature } from "../features/metrics";
 // Import future features as they're added:
 // import { datasetsFeature } from "../features/datasets";
 // import { tracesFeature } from "../features/traces";
@@ -26,6 +29,9 @@ import { promptsFeature } from "../features/prompts";
 export function bootstrapMcpFeatures(): void {
   // Register all feature modules
   toolRegistry.register(promptsFeature);
+  toolRegistry.register(observationsFeature);
+  toolRegistry.register(scoresFeature);
+  toolRegistry.register(metricsFeature);
 
   // Add future features here:
   // toolRegistry.register(datasetsFeature);

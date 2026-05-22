@@ -24,7 +24,17 @@ export {
   orderByToEntries,
 } from "./clickhouse-sql/orderby-factory";
 export { createFilterFromFilterState } from "./clickhouse-sql/factory";
-export { clickhouseSearchCondition } from "./clickhouse-sql/search";
+export {
+  clickhouseSearchCondition,
+  type ClickhouseSearchConditionOptions,
+} from "./clickhouse-sql/search";
+export {
+  FTS_EVENTS_TABLES,
+  FTS_TEXT_FIELDS,
+  FTS_TEXT_OPERATORS,
+  isFtsEventsTable,
+  isFtsTextTarget,
+} from "./clickhouse-sql/fts";
 export { postgresSearchCondition } from "./postgres-sql/search";
 export {
   convertApiProvidedFilterToClickhouseFilter,
@@ -40,6 +50,7 @@ export {
   EventsSessionAggregationQueryBuilder,
   EventsQueryBuilder,
   ExperimentsAggregationQueryBuilder,
+  OBSERVATION_FIELD_GROUP_FIELD_NAMES,
   buildEventsFullTableSplitQuery,
   type CTESchema,
   type CTEWithSchema,
