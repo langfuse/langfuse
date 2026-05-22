@@ -10,7 +10,7 @@ import {
 
 export const commentsFeature: McpFeatureModule = {
   name: "comments",
-  description: "Create and inspect public API comments",
+  description: "Create and inspect comments",
   tools: [
     { definition: createCommentTool, handler: handleCreateComment },
     {

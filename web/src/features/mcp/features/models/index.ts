@@ -12,7 +12,7 @@ import {
 
 export const modelsFeature: McpFeatureModule = {
   name: "models",
-  description: "Manage public API model definitions",
+  description: "Manage model definitions",
   tools: [
     {
       definition: listModelsTool,

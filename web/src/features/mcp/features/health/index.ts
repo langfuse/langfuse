@@ -3,7 +3,7 @@ import { getHealthTool, handleGetHealth } from "./tools";
 
 export const healthFeature: McpFeatureModule = {
   name: "health",
-  description: "Check public API health",
+  description: "Check Langfuse health",
   tools: [
     {
       definition: getHealthTool,

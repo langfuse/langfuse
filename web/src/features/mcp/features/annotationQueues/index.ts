@@ -24,7 +24,8 @@ import {
 
 export const annotationQueuesFeature: McpFeatureModule = {
   name: "annotationQueues",
-  description: "Manage annotation queues, queue items, and assignments",
+  description:
+    "Manage annotation queues, which collect traces or observations for human review and scoring, plus their items and assignments",
   tools: [
     {
       definition: listAnnotationQueuesTool,

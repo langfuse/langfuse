@@ -100,7 +100,7 @@ export const [listAnnotationQueuesTool, handleListAnnotationQueues] =
   defineTool({
     name: "listAnnotationQueues",
     description:
-      "List annotation queues in the current Langfuse project with public API pagination.",
+      "List annotation queues, which collect traces or observations for human review and scoring, in the current Langfuse project with pagination.",
     baseSchema: GetAnnotationQueuesQuery,
     inputSchema: GetAnnotationQueuesQuery,
     handler: async (input, context) =>
@@ -141,7 +141,7 @@ export const [createAnnotationQueueTool, handleCreateAnnotationQueue] =
   defineTool({
     name: "createAnnotationQueue",
     description:
-      "Create an annotation queue in the current Langfuse project via the public API contract.",
+      "Create an annotation queue to collect traces or observations for human review and scoring in the current Langfuse project.",
     baseSchema: CreateAnnotationQueueBody,
     inputSchema: CreateAnnotationQueueBody,
     handler: async (input, context) =>
@@ -222,7 +222,8 @@ export const [createAnnotationQueueTool, handleCreateAnnotationQueue] =
 
 export const [getAnnotationQueueTool, handleGetAnnotationQueue] = defineTool({
   name: "getAnnotationQueue",
-  description: "Get an annotation queue by ID from the current project.",
+  description:
+    "Get an annotation queue, a collection of traces or observations for human review and scoring, by ID from the current project.",
   baseSchema: GetAnnotationQueueByIdQuery,
   inputSchema: GetAnnotationQueueByIdQuery,
   handler: async (input, context) =>
@@ -248,7 +249,7 @@ export const [listAnnotationQueueItemsTool, handleListAnnotationQueueItems] =
   defineTool({
     name: "listAnnotationQueueItems",
     description:
-      "List items in an annotation queue with optional status filtering.",
+      "List trace or observation items in an annotation queue with optional status filtering.",
     baseSchema: GetAnnotationQueueItemsQuery,
     inputSchema: GetAnnotationQueueItemsQuery,
     handler: async (input, context) =>
@@ -298,7 +299,8 @@ export const [listAnnotationQueueItemsTool, handleListAnnotationQueueItems] =
 export const [getAnnotationQueueItemTool, handleGetAnnotationQueueItem] =
   defineTool({
     name: "getAnnotationQueueItem",
-    description: "Get a single annotation queue item by queue ID and item ID.",
+    description:
+      "Get a single trace or observation item from an annotation queue by queue ID and item ID.",
     baseSchema: GetAnnotationQueueItemByIdQuery,
     inputSchema: GetAnnotationQueueItemByIdQuery,
     handler: async (input, context) =>
@@ -344,7 +346,7 @@ const CreateAnnotationQueueItemToolSchema = z
 export const [createAnnotationQueueItemTool, handleCreateAnnotationQueueItem] =
   defineTool({
     name: "createAnnotationQueueItem",
-    description: "Add an item to an annotation queue.",
+    description: "Add a trace or observation item to an annotation queue.",
     baseSchema: CreateAnnotationQueueItemToolSchema,
     inputSchema: CreateAnnotationQueueItemToolSchema,
     handler: async (input, context) =>

@@ -95,7 +95,8 @@ const DeleteDatasetRunMcpInput = DeleteDatasetRunV1Query.extend({
 
 export const [createDatasetTool, handleCreateDataset] = defineTool({
   name: "createDataset",
-  description: "Create or update a v2 dataset in the current Langfuse project.",
+  description:
+    "Create or update a dataset, a reusable collection of examples for experiments and evaluations, in the current Langfuse project.",
   baseSchema: PostDatasetsV2Body,
   inputSchema: PostDatasetsV2Body,
   handler: async (input, context) =>
@@ -134,7 +135,8 @@ export const [createDatasetTool, handleCreateDataset] = defineTool({
 
 export const [listDatasetsTool, handleListDatasets] = defineTool({
   name: "listDatasets",
-  description: "List v2 datasets in the current Langfuse project.",
+  description:
+    "List datasets, reusable collections of examples for experiments and evaluations, in the current Langfuse project.",
   baseSchema: GetDatasetsV2Query,
   inputSchema: GetDatasetsV2Query,
   handler: async (input, context) =>
@@ -182,7 +184,8 @@ export const [listDatasetsTool, handleListDatasets] = defineTool({
 
 export const [getDatasetTool, handleGetDataset] = defineTool({
   name: "getDataset",
-  description: "Get a v2 dataset by name from the current Langfuse project.",
+  description:
+    "Get a dataset, a reusable collection of examples for experiments and evaluations, by name from the current Langfuse project.",
   baseSchema: GetDatasetMcpInput,
   inputSchema: GetDatasetMcpInput,
   handler: async (input, context) =>
@@ -212,7 +215,8 @@ export const [getDatasetTool, handleGetDataset] = defineTool({
 
 export const [createDatasetItemTool, handleCreateDatasetItem] = defineTool({
   name: "createDatasetItem",
-  description: "Create or upsert a dataset item via the public API contract.",
+  description:
+    "Create or upsert a dataset item, one example in a dataset with input and optional expected output.",
   baseSchema: PostDatasetItemsV1Body,
   inputSchema: PostDatasetItemsV1Body,
   handler: async (input, context) =>
@@ -281,7 +285,7 @@ export const [createDatasetItemTool, handleCreateDatasetItem] = defineTool({
 export const [listDatasetItemsTool, handleListDatasetItems] = defineTool({
   name: "listDatasetItems",
   description:
-    "List dataset items, optionally filtered by dataset name, source trace, source observation, or version.",
+    "List dataset items, individual examples with input and optional expected output, optionally filtered by dataset name, source trace, source observation, or version.",
   baseSchema: GetDatasetItemsV1Query,
   inputSchema: GetDatasetItemsV1Query,
   handler: async (input, context) =>
@@ -346,7 +350,8 @@ export const [listDatasetItemsTool, handleListDatasetItems] = defineTool({
 
 export const [getDatasetItemTool, handleGetDatasetItem] = defineTool({
   name: "getDatasetItem",
-  description: "Get a dataset item by ID.",
+  description:
+    "Get a dataset item, one example in a dataset with input and optional expected output, by ID.",
   baseSchema: GetDatasetItemV1Query,
   inputSchema: GetDatasetItemV1Query,
   handler: async (input, context) =>
@@ -402,7 +407,8 @@ export const [getDatasetItemTool, handleGetDatasetItem] = defineTool({
 
 export const [deleteDatasetItemTool, handleDeleteDatasetItem] = defineTool({
   name: "deleteDatasetItem",
-  description: "Delete a dataset item and all its run items.",
+  description:
+    "Delete a dataset item, one example in a dataset, and all its run items.",
   baseSchema: DeleteDatasetItemV1Query,
   inputSchema: DeleteDatasetItemV1Query,
   handler: async (input, context) =>
