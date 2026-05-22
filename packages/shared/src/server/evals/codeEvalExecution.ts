@@ -35,6 +35,7 @@ type CodeBasedEvaluationDispatchResult =
       scores: CodeEvalScoreWithName[];
       result: DispatchResult;
       executionTraceId: string;
+      executionTraceFromTimestamp: Date;
     }
   | {
       success: false;
@@ -44,6 +45,7 @@ type CodeBasedEvaluationDispatchResult =
       };
       cause: unknown;
       executionTraceId: string;
+      executionTraceFromTimestamp: Date;
     };
 
 function buildCodeEvalPayload(params: {
@@ -198,6 +200,7 @@ export async function runCodeBasedEvaluationDispatch(params: {
       scores,
       result: dispatchResult,
       executionTraceId: params.executionTraceId,
+      executionTraceFromTimestamp: traceStartTime,
     };
   } catch (error) {
     const serializedError = serializeCodeEvalError(error);
@@ -250,6 +253,7 @@ export async function runCodeBasedEvaluationDispatch(params: {
       error: visibleError,
       cause: error,
       executionTraceId: params.executionTraceId,
+      executionTraceFromTimestamp: traceStartTime,
     };
   }
 }

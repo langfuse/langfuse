@@ -27,6 +27,7 @@ export type CodeEvalTestRunResult =
       success: true;
       result: DispatchResult;
       executionTraceId: string;
+      executionTraceFromTimestamp: Date;
     }
   | {
       success: false;
@@ -35,6 +36,7 @@ export type CodeEvalTestRunResult =
         message: string;
       };
       executionTraceId: string;
+      executionTraceFromTimestamp: Date;
     };
 
 export async function runCodeEvalTest(params: {
@@ -119,6 +121,7 @@ export async function runCodeEvalTest(params: {
       success: true,
       result: dispatchOutcome.result,
       executionTraceId: dispatchOutcome.executionTraceId,
+      executionTraceFromTimestamp: dispatchOutcome.executionTraceFromTimestamp,
     };
   }
 
@@ -126,6 +129,7 @@ export async function runCodeEvalTest(params: {
     success: false,
     error: dispatchOutcome.error,
     executionTraceId: dispatchOutcome.executionTraceId,
+    executionTraceFromTimestamp: dispatchOutcome.executionTraceFromTimestamp,
   };
 }
 

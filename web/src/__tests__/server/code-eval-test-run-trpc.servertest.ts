@@ -176,6 +176,7 @@ maybe("evals.testRunCodeEval", () => {
         ],
       },
       executionTraceId: expect.stringMatching(/^[0-9a-f]{32}$/),
+      executionTraceFromTimestamp: expect.any(Date),
     });
 
     await expect(
@@ -239,6 +240,7 @@ maybe("evals.testRunCodeEval", () => {
         message: "User code raised ValueError",
       },
       executionTraceId: expect.stringMatching(/^[0-9a-f]{32}$/),
+      executionTraceFromTimestamp: expect.any(Date),
     });
   });
 
@@ -318,6 +320,7 @@ maybe("evals.testRunCodeEval", () => {
         ],
       },
       executionTraceId: expect.stringMatching(/^[0-9a-f]{32}$/),
+      executionTraceFromTimestamp: expect.any(Date),
     });
   });
 
