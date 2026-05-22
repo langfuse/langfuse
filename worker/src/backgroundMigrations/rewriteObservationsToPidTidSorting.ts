@@ -23,12 +23,6 @@ import {
 // Must match the Prisma migration that registers this row.
 const backgroundMigrationId = "9c2d5a4f-7b8e-4f6a-a91c-3e5d7f8a2b1c";
 
-// Multiplier applied to the source observations footprint when checking
-// system.disks.free_space. The scratch table mirrors observations 1:1, so
-// at minimum we need that much free space; we use 2x as a safety margin to
-// cover compression deltas and intermediate merge parts.
-const DISK_HEADROOM_MULTIPLIER = 2;
-
 // ============================================================================
 // Types
 // ============================================================================
@@ -48,12 +42,6 @@ interface MigrationArgs {
    * partitions present in `system.parts` are processed newest-first.
    */
   partitions?: string[];
-  /**
-   * If true, skip the disk-headroom precondition. Useful when a self-hoster
-   * has externally verified capacity (e.g. attached volume sized just over
-   * 1.x of the source) and is confident the 2x margin is too conservative.
-   */
-  skipDiskHeadroomCheck?: boolean;
 }
 
 interface MigrationState {
@@ -238,98 +226,59 @@ export default class RewriteObservationsToPidTidSorting implements IBackgroundMi
   }
 
   // ============================================================================
-  // Disk-headroom precondition
-  // ============================================================================
-
-  /**
-   * Ensures we have at least DISK_HEADROOM_MULTIPLIER × the source observations
-   * footprint free across the available disks before starting the rewrite.
-   *
-   * Returns an `invalidReason` string when the precondition fails so the
-   * caller can surface it through `validate()`. Returns `undefined` when the
-   * precondition passes.
-   */
-  private async checkDiskHeadroom(): Promise<string | undefined> {
-    const sourceSize = await queryClickhouse<{ total_bytes: string }>({
-      query: `
-        SELECT toString(coalesce(sum(bytes_on_disk), 0)) AS total_bytes
-        FROM system.parts
-        WHERE table = 'observations'
-          AND active = 1
-      `,
-      tags: {
-        feature: "background-migration",
-        operation: "checkDiskHeadroom-source",
-      },
-    });
-
-    const freeSpace = await queryClickhouse<{ free_space: string }>({
-      query: `
-        SELECT toString(coalesce(sum(free_space), 0)) AS free_space
-        FROM system.disks
-      `,
-      tags: {
-        feature: "background-migration",
-        operation: "checkDiskHeadroom-disks",
-      },
-    });
-
-    const sourceBytes = BigInt(sourceSize[0]?.total_bytes ?? "0");
-    const freeBytes = BigInt(freeSpace[0]?.free_space ?? "0");
-    const required = sourceBytes * BigInt(DISK_HEADROOM_MULTIPLIER);
-
-    logger.info(
-      `[Backfill PidTid Sorting] Disk headroom check: free=${freeBytes} required=${required} (source=${sourceBytes} × ${DISK_HEADROOM_MULTIPLIER})`,
-    );
-
-    if (freeBytes < required) {
-      return (
-        `Insufficient ClickHouse disk headroom: free_space=${freeBytes} bytes ` +
-        `but ${DISK_HEADROOM_MULTIPLIER}× observations footprint is ${required} bytes ` +
-        `(observations=${sourceBytes} bytes). Free up disk or pass ` +
-        `skipDiskHeadroomCheck:true in the migration args to override.`
-      );
-    }
-
-    return undefined;
-  }
-
-  // ============================================================================
   // Merge control
   // ============================================================================
 
-  private async stopMergesOnScratchTable(): Promise<void> {
-    logger.info(
-      "[Backfill PidTid Sorting] Stopping merges on observations_pid_tid_sorting",
-    );
-    await commandClickhouse({
-      query: `SYSTEM STOP MERGES ${onClusterClause()} observations_pid_tid_sorting`,
+  /**
+   * Returns the engine name ClickHouse actually picked for the scratch table.
+   * On ClickHouse Cloud the engine is silently rewritten to a `Shared*` variant
+   * (e.g. `SharedReplacingMergeTree`) regardless of what the DDL requested, so
+   * inspecting `system.tables` is the most reliable way to tell whether we're
+   * talking to a SharedMergeTree-based deployment.
+   */
+  private async detectScratchTableEngine(): Promise<string> {
+    const rows = await queryClickhouse<{ engine: string }>({
+      query: `
+        SELECT engine
+        FROM system.tables
+        WHERE database = currentDatabase()
+          AND name = 'observations_pid_tid_sorting'
+      `,
       tags: {
         feature: "background-migration",
-        operation: "stopMerges",
+        operation: "detectScratchTableEngine",
       },
     });
+    return rows[0]?.engine ?? "";
   }
 
-  private async startMergesOnScratchTable(): Promise<void> {
+  private async stopMergesOnScratchTable(): Promise<void> {
+    const engine = await this.detectScratchTableEngine();
+    const isSharedMergeTree = engine.startsWith("Shared");
+
     logger.info(
-      "[Backfill PidTid Sorting] Re-enabling merges on observations_pid_tid_sorting",
+      `[Backfill PidTid Sorting] Stopping merges on observations_pid_tid_sorting (engine=${engine || "unknown"})`,
     );
-    try {
+
+    if (isSharedMergeTree) {
+      // ClickHouse Cloud (SharedMergeTree) does not support `SYSTEM STOP MERGES`.
+      // The documented equivalent is the per-table setting below, which is
+      // assignment-scoped and persists until explicitly reset.
       await commandClickhouse({
-        query: `SYSTEM START MERGES ${onClusterClause()} observations_pid_tid_sorting`,
+        query: `ALTER TABLE observations_pid_tid_sorting MODIFY SETTING shared_merge_tree_disable_merges_and_mutations_assignment = 1`,
         tags: {
           feature: "background-migration",
-          operation: "startMerges",
+          operation: "stopMerges",
         },
       });
-    } catch (err) {
-      // Re-enabling merges is best-effort: if the table was already dropped
-      // (e.g. M5 ran out of order) we don't want to mask the real error.
-      logger.warn(
-        "[Backfill PidTid Sorting] Failed to re-enable merges (table may not exist)",
-        err,
-      );
+    } else {
+      await commandClickhouse({
+        query: `SYSTEM STOP MERGES ${onClusterClause()} observations_pid_tid_sorting`,
+        tags: {
+          feature: "background-migration",
+          operation: "stopMerges",
+        },
+      });
     }
   }
 
@@ -392,32 +341,6 @@ export default class RewriteObservationsToPidTidSorting implements IBackgroundMi
     args: Record<string, unknown>,
     attempts = 5,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
-    // Ensure the background migration record exists
-    // TODO: Remove for golive
-    await prisma.backgroundMigration.upsert({
-      where: { id: backgroundMigrationId },
-      create: {
-        id: backgroundMigrationId,
-        name: "20260521_v4_step_2_rewrite_observations_to_pid_tid_sorting",
-        script: "rewriteObservationsToPidTidSorting",
-        args: {},
-        state: {},
-      },
-      update: {},
-    });
-
-    if (
-      !env.CLICKHOUSE_URL ||
-      !env.CLICKHOUSE_USER ||
-      !env.CLICKHOUSE_PASSWORD
-    ) {
-      return {
-        valid: false,
-        invalidReason:
-          "ClickHouse credentials must be configured to perform migration",
-      };
-    }
-
     const tables = await clickhouseClient().query({ query: "SHOW TABLES" });
     const tableNames = (await tables.json()).data as { name: string }[];
 
@@ -438,24 +361,6 @@ export default class RewriteObservationsToPidTidSorting implements IBackgroundMi
 
     // Lazy-create the scratch table so it does not pollute fresh installs.
     await this.ensureScratchTable();
-
-    // Disk-headroom precondition. The scratch table mirrors observations
-    // 1:1, so we want at least 2x the source footprint free before starting.
-    const migrationArgs = args as MigrationArgs;
-    if (!migrationArgs.skipDiskHeadroomCheck) {
-      const headroomError = await this.checkDiskHeadroom();
-      if (headroomError) {
-        return { valid: false, invalidReason: headroomError };
-      }
-    } else {
-      logger.warn(
-        "[Backfill PidTid Sorting] skipDiskHeadroomCheck is set; skipping disk-space precondition",
-      );
-    }
-
-    // Stop merges so the heavy write doesn't compete with background
-    // merge work for IO. We re-enable merges on completion / abort.
-    await this.stopMergesOnScratchTable();
 
     logger.info(
       "[Backfill PidTid Sorting] All prerequisites validated successfully",
@@ -664,15 +569,18 @@ export default class RewriteObservationsToPidTidSorting implements IBackgroundMi
 
     if (this.isAborted) {
       logger.info(
-        "[Backfill PidTid Sorting] Migration aborted. Re-enabling merges and exiting.",
+        "[Backfill PidTid Sorting] Migration aborted before backfill completed.",
       );
-      await this.startMergesOnScratchTable();
       return;
     }
 
-    // Re-enable merges so the ReplacingMergeTree can compact and the table
-    // is in a healthy state for M3 to read against.
-    await this.startMergesOnScratchTable();
+    // Stop merges now that the backfill is done. The subsequent migration
+    // step depends on the post-backfill part layout staying frozen and owns
+    // re-enabling (or replacing the table entirely).
+    await this.stopMergesOnScratchTable();
+    logger.info(
+      `[Backfill PidTid Sorting] Stopped merges on observations_pid_tid_sorting for downstream processing`,
+    );
 
     const failed = state.todos.filter((t) => t.status === "failed");
     if (failed.length > 0) {
@@ -691,9 +599,6 @@ export default class RewriteObservationsToPidTidSorting implements IBackgroundMi
       "[Backfill PidTid Sorting] Aborting observations -> observations_pid_tid_sorting rewrite",
     );
     this.isAborted = true;
-    // Best-effort merge re-enable so the table is not left in a frozen
-    // state if the abort is the operator's last action.
-    await this.startMergesOnScratchTable();
   }
 }
 
@@ -728,7 +633,6 @@ async function main() {
       maxRetries: { type: "string", short: "r", default: "3" },
       retryFailed: { type: "boolean", short: "f", default: false },
       partitions: { type: "string", multiple: true },
-      skipDiskHeadroomCheck: { type: "boolean", default: false },
     },
   });
 
@@ -740,7 +644,6 @@ async function main() {
     maxRetries: parseInt(args.values.maxRetries as string, 10),
     retryFailed: args.values.retryFailed as boolean,
     partitions: args.values.partitions as string[] | undefined,
-    skipDiskHeadroomCheck: args.values.skipDiskHeadroomCheck as boolean,
   };
 
   const validation = await migration.validate(parsedArgs);
