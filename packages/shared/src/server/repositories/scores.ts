@@ -1437,7 +1437,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         clickhouseConfigs,
         preferredClickhouseService: needsTracesCTE
           ? "EventsReadOnly"
-          : undefined,
+          : "ReadOnly",
       });
     },
   });
