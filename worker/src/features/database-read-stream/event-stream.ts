@@ -210,6 +210,7 @@ export const getEventsStream = async (props: {
       kind: "export",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   // Helper function to process a single event row
@@ -473,6 +474,7 @@ export const getEventsStreamForEval = async (props: {
       kind: "eval",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   // Remap ClickHouse aliases to schema field names.
@@ -587,6 +589,7 @@ export const getEventsStreamForDataset = async (props: {
       kind: "dataset",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return Readable.from(
@@ -696,6 +699,7 @@ export const getEventsStreamForAnnotationQueue = async (props: {
       kind: "annotation",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return Readable.from(

@@ -849,7 +849,8 @@ export const getTraceByIdFromEventsTable = async ({
         query,
         params: input.params,
         tags: input.tags,
-        preferredClickhouseService,
+        preferredClickhouseService:
+          preferredClickhouseService ?? "EventsReadOnly",
       });
     },
   });
@@ -2571,6 +2572,7 @@ export async function getAgentGraphDataFromEventsTable(params: {
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -2824,6 +2826,7 @@ export const getUsersFromEventsTable = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 };
 
@@ -2868,6 +2871,7 @@ export const getUsersCountFromEventsTable = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 };
 
@@ -2950,6 +2954,7 @@ export const getUserMetricsFromEventsTable = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.map((row) => ({
@@ -3050,6 +3055,7 @@ export const getEventsForBlobStorageExport = function (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 };
 
@@ -3102,6 +3108,7 @@ export const getEventsForAnalyticsIntegrations = async function* (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
@@ -3216,6 +3223,7 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "EventsReadOnly",
       }),
   });
 };
@@ -3261,6 +3269,7 @@ export const getAvgCostByEvaluatorIds = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.map((row) => ({
@@ -3303,6 +3312,7 @@ export const getSessionMetricsFromEvents = async (props: {
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "EventsReadOnly",
       }),
   });
 

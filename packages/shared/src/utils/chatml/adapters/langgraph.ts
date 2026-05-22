@@ -4,6 +4,8 @@ import {
   stringifyToolResultContent,
   parseMetadata,
   isRichToolResult,
+  attachToolDefinitionsToMessages,
+  normalizeToolDefinitionsForChatMl,
 } from "../helpers";
 import { z } from "zod";
 
@@ -225,10 +227,10 @@ function preprocessData(data: unknown): unknown {
 
     if (extractedTools.length > 0) {
       // Attach tools to all messages
-      return normalizedMessages.map((msg) => ({
-        ...(msg as Record<string, unknown>),
-        tools: extractedTools,
-      }));
+      return attachToolDefinitionsToMessages(
+        normalizedMessages,
+        extractedTools,
+      );
     }
 
     return normalizedMessages;
@@ -239,15 +241,14 @@ function preprocessData(data: unknown): unknown {
     const obj = data as Record<string, unknown>;
     if (Array.isArray(obj.messages)) {
       const extractedTools = extractToolDefinitions(obj.messages);
+      const rootTools = normalizeToolDefinitionsForChatMl(obj.tools);
+      const tools = [...extractedTools, ...rootTools];
       const normalizedMessages = filterAndNormalizeMessages(obj.messages);
 
-      if (extractedTools.length > 0) {
+      if (tools.length > 0) {
         return {
           ...obj,
-          messages: normalizedMessages.map((msg) => ({
-            ...(msg as Record<string, unknown>),
-            tools: extractedTools,
-          })),
+          messages: attachToolDefinitionsToMessages(normalizedMessages, tools),
         };
       }
 
@@ -303,6 +304,9 @@ export const langgraphAdapter: ProviderAdapter = {
         if (scope?.name === "pydantic-ai") return false;
       }
 
+      // Reject AI SDK metadata
+      if (meta["scope.name"] === "ai") return false;
+
       // Check attributes["operation.name"] for AI SDK pattern
       if ("attributes" in meta && typeof meta.attributes === "object") {
         const attrs = meta.attributes as Record<string, unknown> | null;
@@ -313,6 +317,22 @@ export const langgraphAdapter: ProviderAdapter = {
         ) {
           return false;
         }
+      }
+
+      const flatOperationName = meta["attributes.operation.name"];
+      if (
+        typeof flatOperationName === "string" &&
+        flatOperationName.startsWith("ai.")
+      ) {
+        return false;
+      }
+
+      const flatAiOperationId = meta["attributes.ai.operationId"];
+      if (
+        typeof flatAiOperationId === "string" &&
+        flatAiOperationId.startsWith("ai.")
+      ) {
+        return false;
       }
     }
 
