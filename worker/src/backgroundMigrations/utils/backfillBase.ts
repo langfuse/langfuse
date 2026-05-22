@@ -28,15 +28,6 @@ export type OnQueryCompleteCallback<T extends BaseChunkTodo> = (
   error?: string,
 ) => Promise<void>;
 
-export interface BaseMigrationArgs {
-  concurrency?: number;
-  pollIntervalMs?: number;
-  maxRetries?: number;
-  retryFailed?: boolean;
-  envGate?: string;
-  dryRun?: boolean;
-}
-
 // ============================================================================
 // Concurrent query manager
 // ============================================================================
@@ -129,18 +120,6 @@ export class ConcurrentQueryManager<T extends BaseChunkTodo> {
 
 export function generateQueryId(chunkId: string): string {
   return `backfill-${chunkId}-${randomUUID().slice(0, 8)}`;
-}
-
-/**
- * UUID / cuid validation for IDs that flow into ClickHouse query parameters.
- * Defense-in-depth on top of bound parameter use — keeps obviously malformed
- * values out of the query path even before binding.
- */
-const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
-export function assertSafeId(value: string, label: string): void {
-  if (!ID_RE.test(value)) {
-    throw new Error(`Invalid ${label}: ${value}`);
-  }
 }
 
 /**

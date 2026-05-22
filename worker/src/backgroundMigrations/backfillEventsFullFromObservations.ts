@@ -12,7 +12,6 @@ import { parseArgs } from "node:util";
 import {
   BaseChunkTodo,
   ConcurrentQueryManager,
-  assertSafeId,
   assertSafePartition,
   fireQuery,
   generateQueryId,
@@ -351,13 +350,6 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
     query: string;
     params: Record<string, unknown>;
   } {
-    // Defense-in-depth on top of bound parameters.
-    assertSafeId(todo.lowerBound.projectId || "_", "lowerBound.projectId");
-    assertSafeId(todo.lowerBound.traceId || "_", "lowerBound.traceId");
-    if (todo.upperBound) {
-      assertSafeId(todo.upperBound.projectId, "upperBound.projectId");
-      assertSafeId(todo.upperBound.traceId, "upperBound.traceId");
-    }
     assertSafePartition(todo.partition);
 
     const whereClause = todo.upperBound
