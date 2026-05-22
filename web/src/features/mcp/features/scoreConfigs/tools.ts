@@ -162,14 +162,34 @@ export const [getScoreConfigTool, handleGetScoreConfig] = defineTool({
   readOnlyHint: true,
 });
 
-const UpdateScoreConfigToolSchema = PutScoreConfigBody.extend(
-  PutScoreConfigQuery.shape,
+const EMPTY_SCORE_CONFIG_UPDATE_MESSAGE =
+  "Request body cannot be empty. At least one field must be provided for update.";
+
+const scoreConfigUpdateFields = [
+  "isArchived",
+  "name",
+  "minValue",
+  "maxValue",
+  "categories",
+  "description",
+] satisfies Array<keyof z.infer<typeof PutScoreConfigBody>>;
+
+const UpdateScoreConfigToolBaseSchema = PutScoreConfigQuery.extend(
+  PutScoreConfigBody.shape,
+);
+
+const UpdateScoreConfigToolSchema = UpdateScoreConfigToolBaseSchema.refine(
+  (input) =>
+    scoreConfigUpdateFields.some((field) => input[field] !== undefined),
+  {
+    message: EMPTY_SCORE_CONFIG_UPDATE_MESSAGE,
+  },
 );
 
 export const [updateScoreConfigTool, handleUpdateScoreConfig] = defineTool({
   name: "updateScoreConfig",
   description: "Update a score config in the current Langfuse project.",
-  baseSchema: UpdateScoreConfigToolSchema,
+  baseSchema: UpdateScoreConfigToolBaseSchema,
   inputSchema: UpdateScoreConfigToolSchema,
   handler: async (input, context) =>
     runPublicApiTool({

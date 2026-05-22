@@ -619,6 +619,7 @@ export const [listDatasetRunsTool, handleListDatasetRuns] = defineTool({
           },
           include: {
             datasetRuns: {
+              where: { projectId: context.projectId },
               take: input.limit,
               skip: (input.page - 1) * input.limit,
               orderBy: { createdAt: "desc" },

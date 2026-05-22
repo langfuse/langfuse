@@ -212,7 +212,7 @@ export const [createModelTool, handleCreateModel] = defineTool({
         await clearModelCacheForProject(context.projectId);
 
         const modelWithTiers = await prisma.model.findUnique({
-          where: { id: model.id },
+          where: { id: model.id, projectId: context.projectId },
           include: modelPricingInclude,
         });
 
