@@ -59,6 +59,11 @@ export type AuthedProjectAPIRouteConfig<
    * (which receives accessLevel "scores").
    */
   allowedAccessLevels?: RouteAccessLevel[];
+  /**
+   * Whether in-app agent API keys can call this route without additional confirmation. Defaults to false.
+   * Only set this to true on non-mutating (GET) routes that should be callable by the in-app agent.
+   */
+  allowInAppAgentKey?: boolean;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -85,6 +90,7 @@ export type AuthedProjectAPIRouteConfig<
 async function verifyApiKeyAuth(
   authHeader: string | undefined,
   allowedAccessLevels: RouteAccessLevel[] = ["project"],
+  allowInAppAgentKey = false,
 ): Promise<
   AuthHeaderValidVerificationResult & {
     scope: { projectId: string; accessLevel: RouteAccessLevel };
@@ -93,7 +99,7 @@ async function verifyApiKeyAuth(
   const regularAuth = await new ApiAuthService(
     prisma,
     redis,
-  ).verifyAuthHeaderAndReturnScope(authHeader);
+  ).verifyAuthHeaderAndReturnScope(authHeader, { allowInAppAgentKey });
 
   if (!regularAuth.validKey) {
     throw { status: 401, message: regularAuth.error };
@@ -223,6 +229,7 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
       apiKeyId: "ADMIN_API_KEY", // Special identifier for audit logging
       publicKey: "ADMIN_API_KEY",
       isIngestionSuspended: false,
+      isInAppAgentKey: false,
     },
   };
 }
@@ -244,6 +251,7 @@ export async function verifyAuth(
   req: NextApiRequest,
   isAdminApiKeyAuthAllowed: boolean,
   allowedAccessLevels: RouteAccessLevel[] = ["project"],
+  allowInAppAgentKey = false,
 ): Promise<
   AuthHeaderValidVerificationResult & {
     scope: { projectId: string; accessLevel: RouteAccessLevel };
@@ -260,11 +268,16 @@ export async function verifyAuth(
     return await verifyApiKeyAuth(
       req.headers.authorization,
       allowedAccessLevels,
+      allowInAppAgentKey,
     );
   }
 
   // Only regular API key auth is allowed
-  return await verifyApiKeyAuth(req.headers.authorization, allowedAccessLevels);
+  return await verifyApiKeyAuth(
+    req.headers.authorization,
+    allowedAccessLevels,
+    allowInAppAgentKey,
+  );
 }
 
 export const createAuthedProjectAPIRoute = <
@@ -285,6 +298,7 @@ export const createAuthedProjectAPIRoute = <
         req,
         routeConfig.isAdminApiKeyAuthAllowed || false,
         routeConfig.allowedAccessLevels || ["project"],
+        routeConfig.allowInAppAgentKey === true,
       );
     } catch (error: any) {
       const statusCode = error.status || 401;

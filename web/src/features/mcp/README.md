@@ -47,7 +47,7 @@ Model Context Protocol (MCP) server for Langfuse, enabling AI assistants to inte
 
 ## Available Tools
 
-The MCP server provides prompt-management tools and read-only observation tools.
+The MCP server provides prompt-management tools, read-only observation tools, and read-only metrics tools.
 
 ### Prompt Tools
 
@@ -71,6 +71,17 @@ Observation tools read from the events table v2 and are project-scoped to the au
 - **`getObservationFilterValues`** - Discover available values for supported filter fields, such as names, types, levels, environments, model names, tags, users, or sessions
 
 **Implementation:** See [`/web/src/features/mcp/features/observations/tools/`](/web/src/features/mcp/features/observations/tools/) for detailed schemas and handlers.
+
+### Metrics Tools
+
+Metrics tools are project-scoped, read-only, and use the events table v2 backend.
+
+- **`queryMetrics`** - Query `/api/public/v2/metrics` semantics through MCP. The input is the v2 metrics query object directly, not the HTTP API's JSON-string `query` wrapper.
+- **`getMetricsSchema`** - Discover supported v2 metrics views, dimensions, measures, aggregation options, granularities, and config limits.
+
+`queryMetrics` supports the public v2 metrics views `observations`, `scores-numeric`, and `scores-categorical`. The internal `traces` v2 view is not exposed through MCP. Query validation matches the public v2 API, including high-cardinality safeguards and the default `row_limit` of `100`.
+
+**Implementation:** See [`/web/src/features/mcp/features/metrics/tools/`](/web/src/features/mcp/features/metrics/tools/) for schemas and handlers.
 
 ### Prompt Resolution: `getPrompt` vs `getPromptUnresolved`
 
@@ -187,7 +198,7 @@ Clients like Claude Code can use these annotations to:
 
 ### Audit Logging
 
-All write operations (createTextPrompt, createChatPrompt, updatePromptLabels) automatically create audit log entries with before/after snapshots. Observation tools are read-only and do not create audit log entries.
+All write operations (createTextPrompt, createChatPrompt, updatePromptLabels) automatically create audit log entries with before/after snapshots. Observation and metrics tools are read-only and do not create audit log entries.
 
 ---
 

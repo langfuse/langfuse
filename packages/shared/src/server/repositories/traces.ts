@@ -690,7 +690,10 @@ export const getTracesGroupedBySessionId = async (
   );
 
   const tracesFilterRes = tracesFilter.apply();
-  const search = clickhouseSearchCondition(searchQuery, undefined, "t");
+  const search = clickhouseSearchCondition({
+    query: searchQuery,
+    tablePrefix: "t",
+  });
 
   return measureAndReturn({
     operationName: "getTracesGroupedBySessionId",
@@ -764,7 +767,10 @@ export const getTracesGroupedByUsers = async (
   );
 
   const tracesFilterRes = tracesFilter.apply();
-  const search = clickhouseSearchCondition(searchQuery, undefined, "t");
+  const search = clickhouseSearchCondition({
+    query: searchQuery,
+    tablePrefix: "t",
+  });
 
   return measureAndReturn({
     operationName: "getTracesGroupedByUsers",
@@ -1168,7 +1174,10 @@ export const getTotalUserCount = async (
   );
 
   const tracesFilterRes = tracesFilter.apply();
-  const search = clickhouseSearchCondition(searchQuery, undefined, "t");
+  const search = clickhouseSearchCondition({
+    query: searchQuery,
+    tablePrefix: "t",
+  });
 
   return measureAndReturn({
     operationName: "getTotalUserCount",
