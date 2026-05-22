@@ -350,7 +350,7 @@ describe("MCP public API tools", () => {
       handleGetComment({ commentId: created.id }, context),
     ).resolves.toMatchObject({ id: created.id, objectId: prompt.id });
 
-    const modelName = `mcp-model-${uuidv4()}`;
+    const modelName = `0000-mcp-model-${uuidv4()}`;
     const model = (await handleCreateModel(
       {
         modelName,

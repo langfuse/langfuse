@@ -1,4 +1,5 @@
 import { v4 } from "uuid";
+import { z } from "zod";
 import {
   ApiError,
   type JSONValue,
@@ -73,6 +74,24 @@ const resolveMetadata = (metadata: JSONValue): Record<string, unknown> => {
   }
   return { metadata };
 };
+
+const GetDatasetMcpInput = GetDatasetV2Query.extend({
+  datasetName: z.string(),
+});
+
+const GetDatasetRunsMcpInput = GetDatasetRunsV1Query.extend({
+  name: z.string(),
+});
+
+const GetDatasetRunMcpInput = GetDatasetRunV1Query.extend({
+  name: z.string(),
+  runName: z.string(),
+});
+
+const DeleteDatasetRunMcpInput = DeleteDatasetRunV1Query.extend({
+  name: z.string(),
+  runName: z.string(),
+});
 
 export const [createDatasetTool, handleCreateDataset] = defineTool({
   name: "createDataset",
@@ -164,8 +183,8 @@ export const [listDatasetsTool, handleListDatasets] = defineTool({
 export const [getDatasetTool, handleGetDataset] = defineTool({
   name: "getDataset",
   description: "Get a v2 dataset by name from the current Langfuse project.",
-  baseSchema: GetDatasetV2Query,
-  inputSchema: GetDatasetV2Query,
+  baseSchema: GetDatasetMcpInput,
+  inputSchema: GetDatasetMcpInput,
   handler: async (input, context) =>
     runPublicApiTool({
       spanName: "mcp.datasets.get",
@@ -604,8 +623,8 @@ export const [listDatasetRunItemsTool, handleListDatasetRunItems] = defineTool({
 export const [listDatasetRunsTool, handleListDatasetRuns] = defineTool({
   name: "listDatasetRuns",
   description: "List runs for a dataset by dataset name.",
-  baseSchema: GetDatasetRunsV1Query,
-  inputSchema: GetDatasetRunsV1Query,
+  baseSchema: GetDatasetRunsMcpInput,
+  inputSchema: GetDatasetRunsMcpInput,
   handler: async (input, context) =>
     runPublicApiTool({
       spanName: "mcp.dataset_runs.list",
@@ -656,8 +675,8 @@ export const [listDatasetRunsTool, handleListDatasetRuns] = defineTool({
 export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
   name: "getDatasetRun",
   description: "Get a dataset run and its run items by dataset and run name.",
-  baseSchema: GetDatasetRunV1Query,
-  inputSchema: GetDatasetRunV1Query,
+  baseSchema: GetDatasetRunMcpInput,
+  inputSchema: GetDatasetRunMcpInput,
   handler: async (input, context) =>
     runPublicApiTool({
       spanName: "mcp.dataset_runs.get",
@@ -710,8 +729,8 @@ export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
 export const [deleteDatasetRunTool, handleDeleteDatasetRun] = defineTool({
   name: "deleteDatasetRun",
   description: "Delete a dataset run and enqueue deletion of its run items.",
-  baseSchema: DeleteDatasetRunV1Query,
-  inputSchema: DeleteDatasetRunV1Query,
+  baseSchema: DeleteDatasetRunMcpInput,
+  inputSchema: DeleteDatasetRunMcpInput,
   handler: async (input, context) =>
     runPublicApiTool({
       spanName: "mcp.dataset_runs.delete",
