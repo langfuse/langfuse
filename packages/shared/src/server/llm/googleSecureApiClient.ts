@@ -97,18 +97,14 @@ export function rewriteGoogleAIStudioUrl(
   if (!baseURL) return requestUrl;
 
   const parsedRequestUrl = new URL(requestUrl);
-  const parsedBaseUrl = new URL(baseURL);
 
   if (parsedRequestUrl.origin !== GOOGLE_AI_STUDIO_ORIGIN) {
     return requestUrl;
   }
 
-  const basePath = parsedBaseUrl.pathname.replace(/\/$/, "");
-  const requestPath = parsedRequestUrl.pathname.replace(/^\//, "");
-  parsedBaseUrl.pathname = [basePath, requestPath].filter(Boolean).join("/");
-  parsedBaseUrl.search = parsedRequestUrl.search;
-
-  return parsedBaseUrl.toString();
+  // Match the previous @google/generative-ai baseUrl behavior: append the
+  // generated Google path to the configured baseURL as-is.
+  return `${baseURL}${parsedRequestUrl.pathname}${parsedRequestUrl.search}`;
 }
 
 async function fetchGoogleLlmRequest({

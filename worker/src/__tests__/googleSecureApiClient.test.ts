@@ -27,6 +27,17 @@ describe("Google AI Studio secure API client", () => {
     );
   });
 
+  test("uses the custom base URL as an opaque prefix", () => {
+    const rewrittenUrl = rewriteGoogleAIStudioUrl(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse",
+      "https://86c599932057.ngrok.app?url=https://generativelanguage.googleapis.com",
+    );
+
+    expect(rewrittenUrl).toBe(
+      "https://86c599932057.ngrok.app?url=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse",
+    );
+  });
+
   test("keeps non-Google URLs unchanged", () => {
     const requestUrl = "https://other.example.com/v1beta/models/model:generate";
 

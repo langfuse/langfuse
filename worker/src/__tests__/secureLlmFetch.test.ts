@@ -55,6 +55,81 @@ describe("secure LLM fetch", () => {
     );
   });
 
+  test("supports Request input", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const secureFetch = createSecureLlmFetch({
+      logContext: "Test LLM endpoint",
+      additionalSensitiveHeaders: ["x-api-key"],
+    });
+
+    await secureFetch(
+      new Request("https://example.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": "test-key" },
+        body: JSON.stringify({ messages: [] }),
+      }),
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://example.com/v1/messages",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ messages: [] }),
+        redirect: "manual",
+      }),
+    );
+
+    const [, requestOptions] = fetchMock.mock.calls[0];
+    expect(new Headers(requestOptions?.headers).get("x-api-key")).toBe(
+      "test-key",
+    );
+  });
+
+  test("lets init override Request input options", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const secureFetch = createSecureLlmFetch({
+      logContext: "Test LLM endpoint",
+      additionalSensitiveHeaders: ["x-api-key"],
+    });
+
+    await secureFetch(
+      new Request("https://example.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": "request-key" },
+        body: JSON.stringify({ source: "request" }),
+      }),
+      {
+        method: "PUT",
+        headers: { "x-api-key": "init-key" },
+        body: JSON.stringify({ source: "init" }),
+      },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://example.com/v1/messages",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ source: "init" }),
+        redirect: "manual",
+      }),
+    );
+
+    const [, requestOptions] = fetchMock.mock.calls[0];
+    expect(new Headers(requestOptions?.headers).get("x-api-key")).toBe(
+      "init-key",
+    );
+  });
+
   test("fetchLLMCompletion uses secure fetch for OpenAI", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
