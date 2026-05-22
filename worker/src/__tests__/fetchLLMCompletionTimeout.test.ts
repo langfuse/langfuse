@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const invokeMock = vi.fn();
 const streamMock = vi.fn();
 const bedrockInvokeMock = vi.fn();
-const chatVertexAIConstructorMock = vi.fn().mockImplementation(function () {
+const chatGoogleConstructorMock = vi.fn().mockImplementation(function () {
   return {
     invoke: invokeMock,
     pipe: vi.fn().mockReturnValue({
@@ -68,12 +68,12 @@ describe("fetchLLMCompletion runtime timeouts", () => {
     vi.useFakeTimers();
     invokeMock.mockReset();
     streamMock.mockReset();
-    chatVertexAIConstructorMock.mockClear();
+    chatGoogleConstructorMock.mockClear();
     vi.resetModules();
     originalCloudRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    vi.doMock("@langchain/google-vertexai", () => ({
-      ChatVertexAI: chatVertexAIConstructorMock,
+    vi.doMock("@langchain/google", () => ({
+      ChatGoogle: chatGoogleConstructorMock,
     }));
     vi.doMock("../../../packages/shared/src/server/llm/errors", () => ({
       LLMCompletionError: MockLLMCompletionError,

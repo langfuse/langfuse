@@ -49,7 +49,7 @@
     "@ferrucc-io/emoji-picker": "^0.0.47",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.2.2",
-    "@langchain/core": "^1.1.39",
+    "@langchain/core": "^1.1.46",
     "@langfuse/ee": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",

@@ -1,9 +1,8 @@
 import { type ZodType, z } from "zod";
 
 import { ChatAnthropic, ChatAnthropicInput } from "@langchain/anthropic";
-import { ChatVertexAI } from "@langchain/google-vertexai";
+import { ChatGoogle } from "@langchain/google";
 import { ChatBedrockConverse } from "@langchain/aws";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import {
   AIMessage,
   BaseMessage,
@@ -51,6 +50,10 @@ import {
 } from "./utils";
 import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
+import {
+  createSecureGoogleAIStudioApiClient,
+  createSecureVertexAIApiClient,
+} from "./googleSecureApiClient";
 
 export type CompletionWithReasoning = { text: string; reasoning?: string };
 type AIMessageContent = AIMessage["content"];
@@ -313,12 +316,7 @@ export async function fetchLLMCompletion(
   const proxyDispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
   const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
 
-  let chatModel:
-    | ChatOpenAI
-    | ChatAnthropic
-    | ChatBedrockConverse
-    | ChatVertexAI
-    | ChatGoogleGenerativeAI;
+  let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse | ChatGoogle;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
     const isClaude45Family =
       modelParams.model?.includes("claude-sonnet-4-5") ||
@@ -472,7 +470,7 @@ export async function fetchLLMCompletion(
 
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
-    chatModel = new ChatVertexAI({
+    chatModel = new ChatGoogle({
       model: modelParams.model,
       temperature: modelParams.temperature,
       maxOutputTokens: modelParams.max_tokens,
@@ -480,7 +478,8 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       location,
-      authOptions,
+      vertexai: true,
+      apiClient: createSecureVertexAIApiClient({ authOptions }),
       ...(modelParams.maxReasoningTokens !== undefined && {
         maxReasoningTokens: modelParams.maxReasoningTokens,
       }),
@@ -491,15 +490,15 @@ export async function fetchLLMCompletion(
       modelParams.providerOptions,
     );
 
-    chatModel = new ChatGoogleGenerativeAI({
+    chatModel = new ChatGoogle({
       model: modelParams.model,
-      baseUrl: baseURL ?? undefined,
       temperature: modelParams.temperature,
       maxOutputTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
+      apiClient: createSecureGoogleAIStudioApiClient({ apiKey, baseURL }),
       ...(googleProviderOptions
         ? {
             thinkingConfig: googleProviderOptions as any, // Typecast as thinkingLevel is intentionally looser typed
