@@ -9,6 +9,10 @@ reusable implementation guidance rather than runtime automation.
 For the shared agent config and generated shim model, start with
 [`../README.md`](../README.md).
 
+When Codex creates or edits a shared skill, first use
+`skill-creator/SKILL.md`, then apply the repo-specific rules in this file and
+`agent-setup-maintenance/SKILL.md`.
+
 Claude discovers these shared skills through symlinks under `.claude/skills/`.
 Those discovery links are created and verified by `pnpm run agents:sync` and
 `pnpm run agents:check`.
@@ -20,6 +24,19 @@ Shared skills should use progressive disclosure:
 - `references/` holds focused prose references that agents should open only
   when the task needs them.
 - `scripts/` holds deterministic helpers for repetitive or fragile steps.
+
+## Learning Loop
+
+- Treat feature work and developer feedback as a source of durable agent
+  guidance.
+- When a task reveals a reusable repo workflow, recurring pitfall, missing
+  verification step, or package convention, update the smallest relevant context
+  surface in the same PR when practical.
+- Use root `.agents/AGENTS.md` for repo-wide defaults, package `AGENTS.md` files
+  for package-local guidance, and shared skills for reusable workflows that need
+  more than a short rule.
+- Do not codify one-off preferences, task-local decisions, or temporary
+  debugging notes.
 
 ## Available Skills
 
@@ -33,6 +50,17 @@ Use for:
 
 Open: [agent-setup-maintenance/SKILL.md](agent-setup-maintenance/SKILL.md)
 
+### skill-creator
+
+Use for:
+- creating new shared skills under `.agents/skills/`
+- editing or refining existing shared skills
+- choosing when to use `SKILL.md`, `references/`, `scripts/`, `assets/`, and
+  `agents/openai.yaml`
+- validating skills with `scripts/quick_validate.py`
+
+Open: [skill-creator/SKILL.md](skill-creator/SKILL.md)
+
 ### analyze-cloud-costs
 
 Use for:
@@ -42,6 +70,18 @@ Use for:
 - daily cost per tracing event and cost regression analysis
 
 Open: [analyze-cloud-costs/SKILL.md](analyze-cloud-costs/SKILL.md)
+
+### datadog-query-recipes
+
+Use for:
+- production telemetry research across `prod-us`, `prod-eu`, `prod-hipaa`,
+  and `prod-jp`
+- Datadog query recipes for spans, logs, metrics, tenants, public API usage,
+  and queue consumers
+- ad hoc measured questions where the task is not yet an incident root-cause
+  analysis
+
+Open: [datadog-query-recipes/SKILL.md](datadog-query-recipes/SKILL.md)
 
 ### frontend-browser-review
 
@@ -151,18 +191,20 @@ Open: [turborepo/SKILL.md](turborepo/SKILL.md)
 
 1. Codex may create or refine shared skills under `.agents/skills/` when a
    repo-specific workflow becomes repeated enough to justify durable guidance.
-2. Create a concise `.agents/skills/<skill-name>/SKILL.md`.
-3. Add `.agents/skills/<skill-name>/AGENTS.md` only when the skill benefits
+2. Start with [skill-creator/SKILL.md](skill-creator/SKILL.md); if it is not
+   available, follow these rules and the shape of nearby skills.
+3. Create a concise `.agents/skills/<skill-name>/SKILL.md`.
+4. Add `.agents/skills/<skill-name>/AGENTS.md` only when the skill benefits
    from a short router or checklist on top of `SKILL.md`.
-4. Prefer `references/` for detailed prose and `scripts/` for deterministic
+5. Prefer `references/` for detailed prose and `scripts/` for deterministic
    execution helpers.
-5. Keep the skill tightly scoped to one domain or workflow.
-6. Link the skill from `AGENTS.md` if it is relevant across the repo.
-7. Run `pnpm run agents:sync` and `pnpm run agents:check` so Claude's projected
+6. Keep the skill tightly scoped to one domain or workflow.
+7. Link the skill from `AGENTS.md` if it is relevant across the repo.
+8. Run `pnpm run agents:sync` and `pnpm run agents:check` so Claude's projected
    `.claude/skills/` view stays in sync.
-8. Update `AGENTS.md` or package-local `AGENTS.md` if the new skill changes the
+9. Update `AGENTS.md` or package-local `AGENTS.md` if the new skill changes the
    default reusable workflow for future agents.
-9. Run the relevant verification for the package or workflow the skill affects.
+10. Run the relevant verification for the package or workflow the skill affects.
 
 ## Skill Design Rules
 

@@ -1,7 +1,12 @@
+import { config } from "dotenv";
+import { expand } from "dotenv-expand";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { VitestCiReporter } from "../scripts/vitest/ci-reporter";
+
+expand(config({ path: "../.env.test" }));
+expand(config({ path: "../.env" }));
 
 const sharedExclude = [
   "**/node_modules/**",
@@ -55,10 +60,24 @@ export default defineConfig({
         test: {
           name: "server",
           include: ["src/**/server/**/*.servertest.{ts,tsx}"],
-          exclude: [...sharedExclude, "src/__e2e__/**"],
+          exclude: [
+            ...sharedExclude,
+            "src/__e2e__/**",
+            "src/__tests__/server/unit/**",
+          ],
           environment: "node",
           setupFiles: ["./src/__tests__/after-teardown.ts"],
-          globalSetup: ["./src/__tests__/vitest-global-teardown.ts"],
+          globalSetup: ["./src/__tests__/vitest-test-db-setup.ts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "server-unit",
+          include: ["src/__tests__/server/unit/**/*.servertest.{ts,tsx}"],
+          exclude: sharedExclude,
+          environment: "node",
+          setupFiles: ["./src/__tests__/after-teardown.ts"],
         },
       },
       {
@@ -69,7 +88,7 @@ export default defineConfig({
           exclude: [...sharedExclude, "src/__tests__/**"],
           environment: "node",
           setupFiles: ["./src/__tests__/after-teardown.ts"],
-          globalSetup: ["./src/__tests__/vitest-global-teardown.ts"],
+          globalSetup: ["./src/__tests__/vitest-test-db-setup.ts"],
         },
       },
     ],

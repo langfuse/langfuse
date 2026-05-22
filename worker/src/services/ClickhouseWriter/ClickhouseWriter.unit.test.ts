@@ -155,6 +155,11 @@ describe("ClickhouseWriter", () => {
       ),
     ).toBe(true);
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+    expect(serverExports.recordIncrement).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.rows_dropped",
+      1,
+      { entity_type: TableName.Traces },
+    );
   });
 
   it("should shutdown gracefully", async () => {

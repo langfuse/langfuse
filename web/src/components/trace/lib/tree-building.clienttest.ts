@@ -45,6 +45,7 @@ const createMockObservation = (
   inputUsage: 0,
   outputUsage: 0,
   totalUsage: 0,
+  providedUsageDetails: {},
   usageDetails: {},
   costDetails: {},
   providedCostDetails: {},

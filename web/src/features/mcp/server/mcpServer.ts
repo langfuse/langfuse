@@ -78,8 +78,9 @@ export function createMcpServer(context: ServerContext): Server {
       toolName: name,
     });
 
-    // Look up tool in registry
-    const registeredTool = toolRegistry.getTool(name);
+    // Look up tool in registry and apply feature gates. Direct calls should
+    // fail the same way as absent tools when a gated feature is disabled.
+    const registeredTool = await toolRegistry.getEnabledTool(name, context);
 
     if (!registeredTool) {
       throw new Error(`Unknown tool: ${name}`);

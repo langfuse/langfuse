@@ -7,14 +7,21 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { blobStorageIntegrationFormSchemaBase } from "@/src/features/blobstorage-integration/types";
-import { validateAzureContainerName } from "@/src/features/blobstorage-integration/validation";
+import {
+  validateAzureContainerName,
+  validateExportFieldGroups,
+} from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
+import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
 import { TRPCError } from "@trpc/server";
+import { env } from "@/src/env.mjs";
 import {
   logger,
   BlobStorageIntegrationProcessingQueue,
   QueueJobs,
   StorageServiceFactory,
+  blobStorageEndpointConnectionValidationOptions,
+  validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -70,7 +77,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(
       blobStorageIntegrationFormSchemaBase
         .extend({ projectId: z.string() })
-        .superRefine(validateAzureContainerName),
+        .superRefine(validateAzureContainerName)
+        .superRefine(validateExportFieldGroups),
     )
     .mutation(async ({ input, ctx }) => {
       try {
@@ -79,6 +87,19 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "integrations:CRUD",
         });
+
+        if (input.exportSource) {
+          const project = await ctx.prisma.project.findUniqueOrThrow({
+            where: { id: input.projectId },
+            select: { createdAt: true },
+          });
+          assertLegacyBlobExportSourceAllowed({
+            project,
+            nextInternalExportSource: input.exportSource,
+            isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+          });
+        }
+
         await auditLog({
           session: ctx.session,
           action: "update",
@@ -306,6 +327,10 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           ? decrypt(encryptedSecretAccessKey)
           : undefined;
 
+        if (endpoint) {
+          await validateBlobStorageEndpoint(endpoint);
+        }
+
         // Create storage service with provided configuration
         const storageService = StorageServiceFactory.getInstance({
           accessKeyId: accessKeyId || undefined,
@@ -321,6 +346,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           awsSse: undefined,
           awsSseKmsKeyId: undefined,
           externalEndpoint: undefined,
+          connectionValidation:
+            blobStorageEndpointConnectionValidationOptions(),
         });
 
         // Create a test file

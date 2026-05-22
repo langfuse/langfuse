@@ -26,6 +26,10 @@ import { API_KEY_NON_EXISTENT } from "@langfuse/shared/src/server";
 import { type z } from "zod";
 import { CloudConfigSchema, isPlan } from "@langfuse/shared";
 
+type VerifyAuthHeaderOptions = {
+  allowInAppAgentKey?: boolean;
+};
+
 export class ApiAuthService {
   prisma: PrismaClient;
   redis: Redis | Cluster | null;
@@ -85,10 +89,11 @@ export class ApiAuthService {
 
   async verifyAuthHeaderAndReturnScope(
     authHeader: string | undefined,
+    options: VerifyAuthHeaderOptions = {},
   ): Promise<AuthHeaderVerificationResult> {
     const result: AuthHeaderVerificationResult = await instrumentAsync(
       { name: "api-auth-verify" },
-      async () => {
+      async (span) => {
         if (!authHeader) {
           logger.debug("No authorization header");
           return {
@@ -172,17 +177,23 @@ export class ApiAuthService {
               throw new Error("Invalid credentials");
             }
 
-            addUserToSpan({
-              projectId: finalApiKey.projectId ?? undefined,
-              orgId: finalApiKey.orgId,
-              plan,
-            });
+            addUserToSpan(
+              {
+                projectId: finalApiKey.projectId ?? undefined,
+                orgId: finalApiKey.orgId,
+                plan,
+                apiKeyId: finalApiKey.id,
+              },
+              span,
+            );
 
             const accessLevel =
-              finalApiKey.scope === "ORGANIZATION" ? "organization" : "project";
+              finalApiKey.scope === "ORGANIZATION"
+                ? ("organization" as const)
+                : ("project" as const);
 
-            return {
-              validKey: true,
+            const result = {
+              validKey: true as const,
               scope: {
                 projectId: finalApiKey.projectId,
                 accessLevel,
@@ -193,8 +204,11 @@ export class ApiAuthService {
                 scope: finalApiKey.scope,
                 publicKey,
                 isIngestionSuspended: finalApiKey.isIngestionSuspended,
+                isInAppAgentKey: finalApiKey.isInAppAgentKey,
               },
             };
+
+            return result;
           }
           // Bearer auth, limited scope, only needs public key
           if (authHeader.startsWith("Bearer ")) {
@@ -210,28 +224,36 @@ export class ApiAuthService {
 
             const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
               this.extractOrgIdAndCloudConfig(dbKey);
+            const plan = getOrganizationPlanServerSide(cloudConfig);
 
-            addUserToSpan({
-              projectId: dbKey.projectId ?? undefined,
-              orgId,
-              plan: getOrganizationPlanServerSide(cloudConfig),
-            });
+            addUserToSpan(
+              {
+                projectId: dbKey.projectId ?? undefined,
+                orgId,
+                plan,
+                apiKeyId: dbKey.id,
+              },
+              span,
+            );
 
-            return {
-              validKey: true,
+            const result = {
+              validKey: true as const,
               scope: {
                 projectId: dbKey.projectId,
-                accessLevel: "scores",
+                accessLevel: "scores" as const,
                 orgId,
-                plan: getOrganizationPlanServerSide(cloudConfig),
+                plan,
                 rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
                 apiKeyId: dbKey.id,
                 scope: dbKey.scope,
                 publicKey,
+                isInAppAgentKey: dbKey.isInAppAgentKey,
                 isIngestionSuspended:
                   cloudFreeTierUsageThresholdState === "BLOCKED",
               },
             };
+
+            return result;
           }
         } catch (error: unknown) {
           logger.info(
@@ -256,6 +278,18 @@ export class ApiAuthService {
         };
       },
     );
+
+    if (
+      result.validKey &&
+      result.scope.isInAppAgentKey === true &&
+      options.allowInAppAgentKey !== true
+    ) {
+      return {
+        validKey: false,
+        error:
+          "Access denied - in-app agent keys are not allowed for this endpoint",
+      };
+    }
 
     return result;
   }

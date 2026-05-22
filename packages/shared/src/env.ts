@@ -3,6 +3,10 @@ import { removeEmptyEnvVariables } from "./utils/environment";
 
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
+  // Dev-only override: set to an ISO datetime string to shift the legacy blob
+  // export cutoff for local testing (e.g. "2020-01-01T00:00:00.000Z" makes
+  // every project post-cutoff; "2099-01-01T00:00:00.000Z" grandfathers all).
+  NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
@@ -95,7 +99,26 @@ const EnvSchema = z.object({
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])
     .default("auto"),
-
+  // Workaround for a 25.12 bug where lightweight updates/deletes interact
+  // incorrectly with lazy materialization. Remove after ClickHouse 26.4, or
+  // earlier if the fix is backported.
+  CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
+    .enum(["true", "false"])
+    .default("false"),
+  CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
+    .number()
+    .default(32_000_000_000), // ~32GB
+  CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(168), // 7 days
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
     .nonnegative()
@@ -310,6 +333,24 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
@@ -355,6 +396,7 @@ const EnvSchema = z.object({
     .default(120_000), // 2 minutes
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.

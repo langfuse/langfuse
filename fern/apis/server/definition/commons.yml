@@ -298,6 +298,9 @@ types:
       totalCost:
         type: optional<nullable<double>>
         docs: The total cost of the observation in USD
+      usagePricingTierName:
+        type: optional<nullable<string>>
+        docs: The name of the pricing tier applied to this observation's usage costs
 
       # Prompt fields (field group: prompt)
       promptId:
@@ -318,10 +321,30 @@ types:
         type: optional<nullable<double>>
         docs: The time to first token in seconds
 
-      # Enrichment fields (added by server-side enrichment)
+      # Enrichment fields (always present on v2 responses, null when `model` field group not requested)
       modelId:
+        type: nullable<string>
+        docs: The matched model ID. Null when the `model` field group is not requested.
+      inputPrice:
+        type: nullable<string>
+        docs: The input token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
+      outputPrice:
+        type: nullable<string>
+        docs: The output token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
+      totalPrice:
+        type: nullable<string>
+        docs: The total token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
+
+      # Trace context fields (field group: trace_context)
+      traceName:
         type: optional<nullable<string>>
-        docs: The matched model ID
+        docs: The name of the parent trace
+      tags:
+        type: optional<nullable<list<string>>>
+        docs: Tags from the parent trace (denormalized onto the observation)
+      release:
+        type: optional<nullable<string>>
+        docs: The release version of the parent trace
 
   Usage:
     docs: (Deprecated. Use usageDetails and costDetails instead.) Standard interface for usage and cost

@@ -2,8 +2,8 @@ import {
   type ColumnDefinition,
   type SingleValueOption,
 } from "@langfuse/shared";
-import { type views } from "@/src/features/query/types";
-import { type ViewVersion } from "@/src/features/query";
+import { type ViewVersion, type views } from "@langfuse/shared/query";
+
 import { type z } from "zod";
 
 type GetWidgetFilterColumnsParams = {
@@ -16,6 +16,9 @@ type GetWidgetFilterColumnsParams = {
   toolNamesOptions: SingleValueOption[];
   calledToolNamesOptions: SingleValueOption[];
   observationLevelOptions: SingleValueOption[];
+  experimentNameOptions: SingleValueOption[];
+  experimentDatasetOptions: SingleValueOption[];
+  observationTypeOptions: SingleValueOption[];
 };
 
 type WidgetFilterColumnSpec = {
@@ -33,6 +36,9 @@ const getWidgetFilterColumnSpecs = ({
   toolNamesOptions,
   calledToolNamesOptions,
   observationLevelOptions,
+  experimentNameOptions,
+  experimentDatasetOptions,
+  observationTypeOptions,
 }: GetWidgetFilterColumnsParams): WidgetFilterColumnSpec[] => {
   const filterColumns: WidgetFilterColumnSpec[] = [
     {
@@ -128,6 +134,7 @@ const getWidgetFilterColumnSpecs = ({
 
   if (selectedView === "observations") {
     filterColumns.push(
+      // v2-only filter columns (experiment data only exists in events table)
       ...(viewVersion === "v2"
         ? [
             {
@@ -135,6 +142,34 @@ const getWidgetFilterColumnSpecs = ({
                 name: "Observation Release",
                 id: "release",
                 type: "string",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Experiment Name",
+                id: "experimentName",
+                type: "stringOptions",
+                options: experimentNameOptions,
+                internal: "internalValue",
+              },
+              customSelect: true,
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Experiment Dataset",
+                id: "experimentDatasetId",
+                type: "stringOptions",
+                options: experimentDatasetOptions,
+                internal: "internalValue",
+              },
+              customSelect: true,
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Experiment ID",
+                id: "experimentId",
+                type: "null",
                 internal: "internalValue",
               },
             } satisfies WidgetFilterColumnSpec,
@@ -192,6 +227,15 @@ const getWidgetFilterColumnSpecs = ({
           id: "level",
           type: "stringOptions",
           options: observationLevelOptions,
+          internal: "internalValue",
+        },
+      },
+      {
+        column: {
+          name: "Type",
+          id: "type",
+          type: "stringOptions",
+          options: observationTypeOptions,
           internal: "internalValue",
         },
       },

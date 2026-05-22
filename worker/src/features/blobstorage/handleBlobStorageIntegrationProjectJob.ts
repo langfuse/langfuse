@@ -21,11 +21,15 @@ import {
   getProjectAdminEmails,
   enrichObservationWithModelData,
   createModelCache,
+  blobStorageEndpointConnectionValidationOptions,
+  validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
   BlobStorageExportMode,
+  OBSERVATION_FIELD_GROUPS_FULL,
+  type ObservationFieldGroupFull,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
@@ -33,31 +37,42 @@ import { env } from "../../env";
 
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
 
-async function* enrichObservationStream(
+export async function* enrichObservationStream(
   stream: AsyncGenerator<Record<string, unknown>>,
   projectId: string,
   modelIdField: string,
   convertLatencyToSeconds: boolean,
+  fieldGroups?: ObservationFieldGroupFull[],
 ): AsyncGenerator<Record<string, unknown>> {
   const { getModel } = createModelCache(projectId);
 
+  const includeModelId = !fieldGroups || fieldGroups.includes("model");
+
   for await (const row of stream) {
-    const modelId = row[modelIdField] as string | null | undefined;
-    const model = await getModel(modelId);
-    const pricing = enrichObservationWithModelData(model);
+    const enriched: Record<string, unknown> = { ...row };
 
-    const enriched: Record<string, unknown> = {
-      ...row,
-      model_id: pricing.modelId ?? modelId ?? null,
-      input_price: pricing.inputPrice,
-      output_price: pricing.outputPrice,
-      total_price: pricing.totalPrice,
-    };
+    if (includeModelId) {
+      const modelId = row[modelIdField] as string | null | undefined;
+      const model = await getModel(modelId);
+      const pricing = enrichObservationWithModelData(model);
+      enriched.input_price = pricing.inputPrice;
+      enriched.output_price = pricing.outputPrice;
+      enriched.total_price = pricing.totalPrice;
+    }
 
-    if (convertLatencyToSeconds) {
+    // ClickHouse returns {} for Map columns even when not SELECTed — drop it
+    // when the metadata group was not requested.
+    if (fieldGroups && !fieldGroups.includes("metadata")) {
+      delete enriched.metadata;
+    }
+
+    if (convertLatencyToSeconds && row.latency !== undefined) {
       const latency = row.latency as number | null;
-      const ttft = row.time_to_first_token as number | null;
       enriched.latency = latency != null ? latency / 1000 : null;
+    }
+
+    if (convertLatencyToSeconds && row.time_to_first_token !== undefined) {
+      const ttft = row.time_to_first_token as number | null;
       enriched.time_to_first_token = ttft != null ? ttft / 1000 : null;
     }
 
@@ -201,6 +216,7 @@ const processBlobStorageExport = async (config: {
   fileType: BlobStorageIntegrationFileType;
   compressed: boolean;
   convertV4LatencyToSeconds: boolean;
+  exportFieldGroups?: ObservationFieldGroupFull[];
 }) => {
   logger.info(
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
@@ -218,6 +234,9 @@ const processBlobStorageExport = async (config: {
     awsSse: undefined,
     awsSseKmsKeyId: undefined,
     useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
+    useGoogleCloudStorage: false, // Not supported in blob storage integration
+    useOCIObjectStorage: false, // Not supported in blob storage integration
+    connectionValidation: blobStorageEndpointConnectionValidationOptions(),
   });
 
   try {
@@ -237,6 +256,11 @@ const processBlobStorageExport = async (config: {
       : blobStorageProps.contentType;
 
     // Fetch data based on table type
+    const exportFieldGroups =
+      config.exportFieldGroups && config.exportFieldGroups.length > 0
+        ? config.exportFieldGroups
+        : [...OBSERVATION_FIELD_GROUPS_FULL];
+
     let dataStream: AsyncGenerator<Record<string, unknown>>;
 
     switch (config.table) {
@@ -272,10 +296,12 @@ const processBlobStorageExport = async (config: {
             config.projectId,
             config.minTimestamp,
             config.maxTimestamp,
+            exportFieldGroups,
           ),
           config.projectId,
           "model_id",
           config.convertV4LatencyToSeconds,
+          exportFieldGroups,
         );
         break;
       default:
@@ -399,6 +425,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 
   try {
+    // Preflight the persisted integration endpoint once per job inside the
+    // export error path. StorageService connection-time validation remains the
+    // DNS-rebinding defense for each SDK connection.
+    if (blobStorageIntegration.endpoint) {
+      await validateBlobStorageEndpoint(blobStorageIntegration.endpoint);
+    }
+
     // Process the export based on the integration configuration
     // Convert v4 (events table) latency/time_to_first_token from ms to seconds
     // for integrations created on or after 2026-04-01. Before this date, v4 blob
@@ -424,6 +457,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       fileType: blobStorageIntegration.fileType,
       compressed: blobStorageIntegration.compressed,
       convertV4LatencyToSeconds,
+      exportFieldGroups:
+        blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
     };
 
     // Check if this project should only export traces (legacy behavior via env var)
