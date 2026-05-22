@@ -1,7 +1,6 @@
 import { type OutboundUrlValidationWhitelist } from "../outbound-url";
 import { type ChatGoogleParams } from "@langchain/google";
 import { GoogleAuth, type GoogleAuthOptions } from "google-auth-library";
-import type { Dispatcher } from "undici";
 import { llmBaseUrlWhitelistFromEnv } from "./baseUrlValidation";
 import { fetchSecureLlmUrl } from "./secureLlmFetch";
 
@@ -17,13 +16,13 @@ type SecureGoogleAIStudioApiClientParams = {
   apiKey: string;
   baseURL?: string | null;
   whitelist?: OutboundUrlValidationWhitelist;
-  dispatcher?: Dispatcher;
+  dispatcher?: unknown;
 };
 
 type SecureVertexAIApiClientParams = {
   authOptions?: GoogleAuthOptions;
   whitelist?: OutboundUrlValidationWhitelist;
-  dispatcher?: Dispatcher;
+  dispatcher?: unknown;
 };
 
 export function createSecureGoogleAIStudioApiClient({
@@ -119,7 +118,7 @@ async function fetchGoogleLlmRequest({
   whitelist: OutboundUrlValidationWhitelist;
   logContext: string;
   additionalSensitiveHeaders?: string[];
-  dispatcher?: Dispatcher;
+  dispatcher?: unknown;
 }): Promise<Response> {
   const body = ["GET", "HEAD"].includes(request.method)
     ? undefined

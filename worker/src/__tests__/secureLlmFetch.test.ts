@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { Dispatcher } from "undici";
 import { encrypt } from "../../../packages/shared/src/encryption";
 import { env } from "../../../packages/shared/src/env";
 import {
@@ -57,7 +56,7 @@ describe("secure LLM fetch", () => {
   });
 
   test("preserves the caller-provided dispatcher", async () => {
-    const dispatcher = {} as Dispatcher;
+    const dispatcher = {};
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), {
         status: 200,
@@ -76,12 +75,12 @@ describe("secure LLM fetch", () => {
 
     const [, requestOptions] = fetchMock.mock.calls[0];
     expect(
-      (requestOptions as RequestInit & { dispatcher?: Dispatcher }).dispatcher,
+      (requestOptions as RequestInit & { dispatcher?: unknown }).dispatcher,
     ).toBe(dispatcher);
   });
 
   test("uses the configured dispatcher when init does not provide one", async () => {
-    const dispatcher = {} as Dispatcher;
+    const dispatcher = {};
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), {
         status: 200,
@@ -100,7 +99,7 @@ describe("secure LLM fetch", () => {
 
     const [, requestOptions] = fetchMock.mock.calls[0];
     expect(
-      (requestOptions as RequestInit & { dispatcher?: Dispatcher }).dispatcher,
+      (requestOptions as RequestInit & { dispatcher?: unknown }).dispatcher,
     ).toBe(dispatcher);
   });
 

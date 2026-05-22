@@ -2,7 +2,6 @@ import {
   fetchWithSecureRedirects,
   type OutboundUrlValidationWhitelist,
 } from "../outbound-url";
-import type { Dispatcher } from "undici";
 import {
   llmBaseUrlWhitelistFromEnv,
   validateLlmConnectionBaseURL,
@@ -10,11 +9,13 @@ import {
 
 const MAX_LLM_REDIRECTS = 10;
 
+type RequestInitWithDispatcher = RequestInit & { dispatcher?: unknown };
+
 type SecureLlmFetchParams = {
   whitelist?: OutboundUrlValidationWhitelist;
   logContext: string;
   additionalSensitiveHeaders?: string[];
-  dispatcher?: Dispatcher;
+  dispatcher?: unknown;
 };
 
 export function createSecureLlmFetch({
@@ -46,9 +47,9 @@ export async function fetchSecureLlmUrl(
   }: SecureLlmFetchParams,
 ): Promise<Response> {
   await validateLlmConnectionBaseURL(url, whitelist);
+  const requestOptions = options as RequestInitWithDispatcher;
   const fetchOptions =
-    dispatcher &&
-    !(options as RequestInit & { dispatcher?: Dispatcher }).dispatcher
+    dispatcher && !requestOptions.dispatcher
       ? ({ ...options, dispatcher } as RequestInit)
       : options;
 

@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { Dispatcher } from "undici";
 import { encrypt } from "../../../packages/shared/src/encryption";
 import {
   ChatMessageType,
@@ -47,7 +46,7 @@ describe("Google AI Studio secure API client", () => {
   });
 
   test("fetches through the rewritten URL with API key auth", async () => {
-    const dispatcher = {} as Dispatcher;
+    const dispatcher = {};
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), {
         status: 200,
@@ -89,7 +88,7 @@ describe("Google AI Studio secure API client", () => {
       "google-api-key",
     );
     expect(
-      (requestOptions as RequestInit & { dispatcher?: Dispatcher }).dispatcher,
+      (requestOptions as RequestInit & { dispatcher?: unknown }).dispatcher,
     ).toBe(dispatcher);
   });
 
@@ -146,7 +145,7 @@ describe("Google AI Studio secure API client", () => {
   });
 
   test("Vertex AI client authenticates and uses secure fetch", async () => {
-    const dispatcher = {} as Dispatcher;
+    const dispatcher = {};
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), {
         status: 200,
@@ -191,7 +190,7 @@ describe("Google AI Studio secure API client", () => {
       "Bearer test-token",
     );
     expect(
-      (requestOptions as RequestInit & { dispatcher?: Dispatcher }).dispatcher,
+      (requestOptions as RequestInit & { dispatcher?: unknown }).dispatcher,
     ).toBe(dispatcher);
   });
 });
