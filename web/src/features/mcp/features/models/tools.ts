@@ -311,18 +311,3 @@ export const [deleteModelTool, handleDeleteModel] = defineTool({
     }),
   destructiveHint: true,
 });
-
-export const modelTools = [
-  {
-    definition: listModelsTool,
-    handler: handleListModels,
-    allowInAppAgentKey: true,
-  },
-  { definition: createModelTool, handler: handleCreateModel },
-  {
-    definition: getModelTool,
-    handler: handleGetModel,
-    allowInAppAgentKey: true,
-  },
-  { definition: deleteModelTool, handler: handleDeleteModel },
-];

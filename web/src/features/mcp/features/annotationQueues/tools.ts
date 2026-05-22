@@ -33,7 +33,6 @@ import {
   UpdateAnnotationQueueItemResponse,
 } from "@/src/features/public-api/types/annotation-queues";
 import { defineTool } from "../../core/define-tool";
-import type { RegisteredTool } from "../../server/registry";
 import {
   getMcpPublicApiAuth,
   paginationMeta,
@@ -675,50 +674,3 @@ export const [
     }),
   destructiveHint: true,
 });
-
-export const annotationQueueTools = [
-  {
-    definition: listAnnotationQueuesTool,
-    handler: handleListAnnotationQueues,
-    allowInAppAgentKey: true,
-  },
-  {
-    definition: createAnnotationQueueTool,
-    handler: handleCreateAnnotationQueue,
-  },
-  {
-    definition: getAnnotationQueueTool,
-    handler: handleGetAnnotationQueue,
-    allowInAppAgentKey: true,
-  },
-  {
-    definition: listAnnotationQueueItemsTool,
-    handler: handleListAnnotationQueueItems,
-    allowInAppAgentKey: true,
-  },
-  {
-    definition: getAnnotationQueueItemTool,
-    handler: handleGetAnnotationQueueItem,
-    allowInAppAgentKey: true,
-  },
-  {
-    definition: createAnnotationQueueItemTool,
-    handler: handleCreateAnnotationQueueItem,
-  },
-  {
-    definition: updateAnnotationQueueItemTool,
-    handler: handleUpdateAnnotationQueueItem,
-  },
-  {
-    definition: deleteAnnotationQueueItemTool,
-    handler: handleDeleteAnnotationQueueItem,
-  },
-  {
-    definition: createAnnotationQueueAssignmentTool,
-    handler: handleCreateAnnotationQueueAssignment,
-  },
-  {
-    definition: deleteAnnotationQueueAssignmentTool,
-    handler: handleDeleteAnnotationQueueAssignment,
-  },
-] satisfies RegisteredTool[];

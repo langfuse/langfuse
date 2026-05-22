@@ -117,11 +117,3 @@ export const [getHealthTool, handleGetHealth] = defineTool({
     }),
   readOnlyHint: true,
 });
-
-export const healthTools = [
-  {
-    definition: getHealthTool,
-    handler: handleGetHealth,
-    allowInAppAgentKey: true,
-  },
-];

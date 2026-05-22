@@ -1,8 +1,27 @@
 import type { McpFeatureModule } from "../../server/registry";
-import { commentTools } from "./tools";
+import {
+  createCommentTool,
+  getCommentTool,
+  handleCreateComment,
+  handleGetComment,
+  handleListComments,
+  listCommentsTool,
+} from "./tools";
 
 export const commentsFeature: McpFeatureModule = {
   name: "comments",
   description: "Create and inspect public API comments",
-  tools: commentTools,
+  tools: [
+    { definition: createCommentTool, handler: handleCreateComment },
+    {
+      definition: listCommentsTool,
+      handler: handleListComments,
+      allowInAppAgentKey: true,
+    },
+    {
+      definition: getCommentTool,
+      handler: handleGetComment,
+      allowInAppAgentKey: true,
+    },
+  ],
 };

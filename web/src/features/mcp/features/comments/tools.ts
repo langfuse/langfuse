@@ -171,17 +171,3 @@ export const [getCommentTool, handleGetComment] = defineTool({
     }),
   readOnlyHint: true,
 });
-
-export const commentTools = [
-  { definition: createCommentTool, handler: handleCreateComment },
-  {
-    definition: listCommentsTool,
-    handler: handleListComments,
-    allowInAppAgentKey: true,
-  },
-  {
-    definition: getCommentTool,
-    handler: handleGetComment,
-    allowInAppAgentKey: true,
-  },
-];

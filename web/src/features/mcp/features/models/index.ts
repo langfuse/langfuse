@@ -1,8 +1,30 @@
 import type { McpFeatureModule } from "../../server/registry";
-import { modelTools } from "./tools";
+import {
+  createModelTool,
+  deleteModelTool,
+  getModelTool,
+  handleCreateModel,
+  handleDeleteModel,
+  handleGetModel,
+  handleListModels,
+  listModelsTool,
+} from "./tools";
 
 export const modelsFeature: McpFeatureModule = {
   name: "models",
   description: "Manage public API model definitions",
-  tools: modelTools,
+  tools: [
+    {
+      definition: listModelsTool,
+      handler: handleListModels,
+      allowInAppAgentKey: true,
+    },
+    { definition: createModelTool, handler: handleCreateModel },
+    {
+      definition: getModelTool,
+      handler: handleGetModel,
+      allowInAppAgentKey: true,
+    },
+    { definition: deleteModelTool, handler: handleDeleteModel },
+  ],
 };
