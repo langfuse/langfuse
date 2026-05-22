@@ -17,6 +17,7 @@ import { annotationQueuesFeature } from "../features/annotationQueues";
 import { commentsFeature } from "../features/comments";
 import { datasetsFeature } from "../features/datasets";
 import { healthFeature } from "../features/health";
+import { metricsFeature } from "../features/metrics";
 import { modelsFeature } from "../features/models";
 import { scoreConfigsFeature } from "../features/scoreConfigs";
 // Import future features as they're added:
@@ -37,6 +38,7 @@ export function bootstrapMcpFeatures(): void {
   toolRegistry.register(commentsFeature);
   toolRegistry.register(datasetsFeature);
   toolRegistry.register(healthFeature);
+  toolRegistry.register(metricsFeature);
   toolRegistry.register(modelsFeature);
   toolRegistry.register(scoreConfigsFeature);
 
