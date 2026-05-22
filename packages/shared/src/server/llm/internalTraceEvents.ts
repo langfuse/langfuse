@@ -53,7 +53,7 @@ export type InternalTraceEventInput = {
   tags?: string[];
   bookmarked?: boolean;
   public?: boolean;
-  isAppRoot?: boolean | null;
+  isAppRoot?: boolean;
   userId?: string;
   sessionId?: string;
   level?: string;

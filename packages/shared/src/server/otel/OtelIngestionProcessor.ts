@@ -948,10 +948,7 @@ export class OtelIngestionProcessor {
   private extractIsAppRoot(attributes?: Record<string, unknown>): boolean {
     const value = attributes?.[LangfuseOtelSpanAttributes.IS_APP_ROOT];
 
-    if (value === true || value === "true") return true;
-    if (value === false || value === "false") return false;
-
-    return false;
+    return value === true || value === "true";
   }
 
   private createObservationEvent(
