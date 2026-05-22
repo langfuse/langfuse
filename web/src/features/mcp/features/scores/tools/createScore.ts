@@ -1,8 +1,39 @@
 import { SpanKind } from "@opentelemetry/api";
-import { PostScoresBodyV1, PostScoresResponseV1 } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  LangfuseNotFoundError,
+  PostScoresBodyV1,
+  PostScoresResponseV1,
+  UnauthorizedError,
+} from "@langfuse/shared";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { defineTool } from "../../../core/define-tool";
+import { ApiServerError } from "../../../core/errors";
+
+type CreateScoreBatchError = {
+  status: number;
+  message?: string;
+  error?: string;
+};
+
+const throwCreateScoreBatchError = (error: CreateScoreBatchError): never => {
+  const message = error.error ?? error.message ?? "Failed to create score";
+
+  if (error.status === 400) {
+    throw new InvalidRequestError(message);
+  }
+
+  if (error.status === 401) {
+    throw new UnauthorizedError(message);
+  }
+
+  if (error.status === 404) {
+    throw new LangfuseNotFoundError(message);
+  }
+
+  throw new ApiServerError("Failed to create score");
+};
 
 export const [createScoreTool, handleCreateScore] = defineTool({
   name: "createScore",
@@ -40,14 +71,11 @@ export const [createScoreTool, handleCreateScore] = defineTool({
         span.setAttribute("mcp.score_id", scoreId);
 
         if (result.errors.length > 0) {
-          const error = result.errors[0];
-          throw new Error(
-            error.error ?? error.message ?? "Failed to create score",
-          );
+          throwCreateScoreBatchError(result.errors[0]);
         }
 
         if (result.successes.length !== 1) {
-          throw new Error("Failed to create score");
+          throw new ApiServerError("Failed to create score");
         }
 
         return PostScoresResponseV1.parse({ id: scoreId });
