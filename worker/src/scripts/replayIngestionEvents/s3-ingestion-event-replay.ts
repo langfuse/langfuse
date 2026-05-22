@@ -54,6 +54,7 @@ interface JsonOutputItem {
   data: {
     eventBodyId: string;
     fileKey: string;
+    bucketPath: string;
     type: string;
   };
 }
@@ -377,6 +378,7 @@ async function convertCsvToJsonl(
           data: {
             eventBodyId,
             fileKey: eventId,
+            bucketPath: keyValue,
             type: `${type}-create`,
           },
         };

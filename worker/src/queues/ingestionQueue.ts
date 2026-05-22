@@ -60,29 +60,20 @@ export const ingestionQueueProcessorBuilder = (
       // We write the new file into the ClickHouse event log to keep track for retention and deletions
       const clickhouseWriter = ClickhouseWriter.getInstance();
 
-      if (
-        env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true" &&
-        job.data.payload.data.fileKey &&
-        job.data.payload.data.fileKey
-      ) {
-        const fileName = `${job.data.payload.data.fileKey}.json`;
-        const safeEventBodyId = safeS3ObjectKeySegment(
-          job.data.payload.data.eventBodyId,
-        );
-        clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, {
-          id: randomUUID(),
-          project_id: job.data.payload.authCheck.scope.projectId,
-          entity_type: getClickhouseEntityType(job.data.payload.data.type),
-          entity_id: job.data.payload.data.eventBodyId,
-          event_id: job.data.payload.data.fileKey,
-          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-          bucket_path: `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${safeEventBodyId}/${fileName}`,
-          created_at: new Date().getTime(),
-          updated_at: new Date().getTime(),
-          event_ts: new Date().getTime(),
-          is_deleted: 0,
-        });
-      }
+      const projectId = job.data.payload.authCheck.scope.projectId;
+      const jobEventBodyId = job.data.payload.data.eventBodyId;
+      const clickhouseEntityType = getClickhouseEntityType(
+        job.data.payload.data.type,
+      );
+      const safeEventBodyId = safeS3ObjectKeySegment(jobEventBodyId);
+      const s3Prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${projectId}/${clickhouseEntityType}/${safeEventBodyId}/`;
+      const legacyS3Prefix =
+        safeEventBodyId === jobEventBodyId
+          ? null
+          : `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${projectId}/${clickhouseEntityType}/${jobEventBodyId}/`;
+      const fileKey = job.data.payload.data.fileKey;
+      const fileName = fileKey ? `${job.data.payload.data.fileKey}.json` : null;
+      const bucketPath = job.data.payload.data.bucketPath;
 
       // If fileKey was processed within the last minutes, i.e. has a match in redis, we skip processing.
       if (
@@ -110,7 +101,6 @@ export const ingestionQueueProcessorBuilder = (
       }
 
       // Check if project should be redirected to secondary queue
-      const projectId = job.data.payload.authCheck.scope.projectId;
       const shouldRedirectEnv =
         projectIdsToRedirectToSecondaryQueue.includes(projectId);
       const shouldRedirectSlowdown = await hasS3SlowdownFlag(projectId);
@@ -125,7 +115,7 @@ export const ingestionQueueProcessorBuilder = (
             reason: shouldRedirectSlowdown ? "s3_slowdown_flag" : "env_config",
           },
         );
-        const shardingKey = `${projectId}-${job.data.payload.data.eventBodyId}`;
+        const shardingKey = `${projectId}-${jobEventBodyId}`;
         const secondaryQueue = SecondaryIngestionQueue.getInstance({
           shardingKey,
         });
@@ -150,11 +140,6 @@ export const ingestionQueueProcessorBuilder = (
         },
       );
 
-      // Download all events from folder into a local array
-      const clickhouseEntityType = getClickhouseEntityType(
-        job.data.payload.data.type,
-      );
-
       let eventFiles: { file: string; createdAt: Date }[] = [];
       const events: IngestionEventType[] = [];
 
@@ -162,19 +147,41 @@ export const ingestionQueueProcessorBuilder = (
       const shouldSkipS3List =
         // The producer sets skipS3List to true if it's an OTel observation
         job.data.payload.data.skipS3List && job.data.payload.data.fileKey;
-      const safeEventBodyId = safeS3ObjectKeySegment(
-        job.data.payload.data.eventBodyId,
-      );
-      const s3Prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${safeEventBodyId}/`;
 
       let totalS3DownloadSizeBytes = 0;
 
       if (shouldSkipS3List) {
         // Direct file download - skip S3 list operation
-        const filePath = `${s3Prefix}${job.data.payload.data.fileKey}.json`;
+        if (!fileName) {
+          throw new Error("Missing fileKey for direct S3 ingestion download");
+        }
+        const filePath = bucketPath ?? `${s3Prefix}${fileName}`;
+        const legacyFilePath = legacyS3Prefix
+          ? `${legacyS3Prefix}${fileName}`
+          : null;
         eventFiles = [{ file: filePath, createdAt: new Date() }];
 
-        const file = await s3Client.download(filePath);
+        let file: string;
+        try {
+          file = await s3Client.download(filePath);
+        } catch (e) {
+          if (!legacyFilePath) {
+            throw e;
+          }
+
+          logger.warn(
+            "Failed to download ingestion file from sanitized S3 path, retrying legacy raw event body id path",
+            {
+              projectId,
+              type: job.data.payload.data.type,
+              eventBodyId: jobEventBodyId,
+              fileKey: job.data.payload.data.fileKey,
+              error: e,
+            },
+          );
+          file = await s3Client.download(legacyFilePath);
+          eventFiles = [{ file: legacyFilePath, createdAt: new Date() }];
+        }
         const fileSize = file.length;
 
         recordHistogram("langfuse.ingestion.s3_file_size_bytes", fileSize, {
@@ -185,7 +192,24 @@ export const ingestionQueueProcessorBuilder = (
         const parsedFile = JSON.parse(file);
         events.push(...(Array.isArray(parsedFile) ? parsedFile : [parsedFile]));
       } else {
-        eventFiles = await s3Client.listFiles(s3Prefix);
+        const listPrefix = bucketPath
+          ? bucketPath.slice(0, bucketPath.lastIndexOf("/") + 1)
+          : s3Prefix;
+        eventFiles = await s3Client.listFiles(listPrefix);
+        if (eventFiles.length === 0 && legacyS3Prefix) {
+          const legacyEventFiles = await s3Client.listFiles(legacyS3Prefix);
+          if (legacyEventFiles.length > 0) {
+            logger.warn(
+              "No ingestion files found under sanitized S3 prefix, retrying legacy raw event body id prefix",
+              {
+                projectId,
+                type: job.data.payload.data.type,
+                eventBodyId: jobEventBodyId,
+              },
+            );
+            eventFiles = legacyEventFiles;
+          }
+        }
 
         // Process files in batches
         // If a user has 5k events, this will likely take 100 seconds.
@@ -237,9 +261,35 @@ export const ingestionQueueProcessorBuilder = (
 
       if (events.length === 0) {
         logger.warn(
-          `No events found for project ${job.data.payload.authCheck.scope.projectId} and event ${job.data.payload.data.eventBodyId}`,
+          `No events found for project ${projectId} and event ${jobEventBodyId}`,
         );
         return;
+      }
+
+      const resolvedEventBodyId = events[0]?.body?.id ?? jobEventBodyId;
+
+      if (
+        env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true" &&
+        job.data.payload.data.fileKey &&
+        fileName
+      ) {
+        const bucketPath =
+          eventFiles.find((eventFile) =>
+            eventFile.file.endsWith(`/${fileName}`),
+          )?.file ?? `${s3Prefix}${fileName}`;
+        clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, {
+          id: randomUUID(),
+          project_id: projectId,
+          entity_type: clickhouseEntityType,
+          entity_id: resolvedEventBodyId,
+          event_id: job.data.payload.data.fileKey,
+          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          bucket_path: bucketPath,
+          created_at: new Date().getTime(),
+          updated_at: new Date().getTime(),
+          event_ts: new Date().getTime(),
+          is_deleted: 0,
+        });
       }
 
       // Set "seen" keys in Redis to avoid reprocessing for fast updates.
@@ -252,7 +302,7 @@ export const ingestionQueueProcessorBuilder = (
               .map((e) => e.file.split("/").pop() ?? "")
               .map((key) =>
                 redis!.set(
-                  `langfuse:ingestion:recently-processed:${job.data.payload.authCheck.scope.projectId}:${job.data.payload.data.type}:${job.data.payload.data.eventBodyId}:${key.replace(".json", "")}`,
+                  `langfuse:ingestion:recently-processed:${projectId}:${job.data.payload.data.type}:${resolvedEventBodyId}:${key.replace(".json", "")}`,
                   "1",
                   "EX",
                   60 * 5, // 5 minutes
@@ -284,8 +334,8 @@ export const ingestionQueueProcessorBuilder = (
         clickhouseClient(),
       ).mergeAndWrite(
         getClickhouseEntityType(events[0].type),
-        job.data.payload.authCheck.scope.projectId,
-        job.data.payload.data.eventBodyId,
+        projectId,
+        resolvedEventBodyId,
         firstS3WriteTime,
         events,
         forwardToEventsTable,

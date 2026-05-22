@@ -29,4 +29,13 @@ describe("safeS3ObjectKeySegment", () => {
     expect(Buffer.byteLength(safe)).toBeLessThanOrEqual(255);
     expect(safe).toMatch(/_[0-9a-f]{16}$/);
   });
+
+  it("bounds long normalized unicode segments by byte length", () => {
+    const raw = `resp_${"ａ".repeat(400)}`;
+    const safe = safeS3ObjectKeySegment(raw);
+
+    expect(Buffer.byteLength(safe)).toBeLessThanOrEqual(255);
+    expect(safe).toMatch(/_[0-9a-f]{16}$/);
+    expect(safe).not.toContain("\uFFFD");
+  });
 });

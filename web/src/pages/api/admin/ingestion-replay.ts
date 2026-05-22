@@ -180,6 +180,7 @@ export default async function handler(
               type: replayEventType,
               eventBodyId: eventBodyId!,
               fileKey: eventId!,
+              bucketPath: key,
             },
             authCheck: {
               validKey: true,

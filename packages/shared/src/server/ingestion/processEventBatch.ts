@@ -63,7 +63,9 @@ export const safeS3ObjectKeySegment = (raw: string): string => {
   const suffix = `_${hash}`;
   const maxBaseBytes =
     MAX_S3_OBJECT_KEY_SEGMENT_BYTES - Buffer.byteLength(suffix);
-  const truncatedBase = base.slice(0, Math.max(0, maxBaseBytes));
+  const truncatedBase = Buffer.from(base)
+    .subarray(0, Math.max(0, maxBaseBytes))
+    .toString();
   const resultBase = truncatedBase || "unknown";
   return `${resultBase}${suffix}`;
 };
@@ -362,6 +364,7 @@ export const processEventBatch = async (
                   type: eventData.type,
                   eventBodyId: eventData.eventBodyId,
                   fileKey: eventData.key,
+                  bucketPath: `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(eventData.type)}/${safeS3ObjectKeySegment(eventData.eventBodyId)}/${eventData.key}.json`,
                   skipS3List: shouldSkipS3List,
                   forwardToEventsTable,
                 },
