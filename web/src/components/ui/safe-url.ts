@@ -1,5 +1,10 @@
 const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:", "tel:"]);
 const SAFE_IMAGE_PROTOCOLS = new Set(["http:", "https:"]);
+const SAME_ORIGIN_URL_BASE = "https://langfuse.local";
+
+// Markdown image URLs intentionally stay limited to fetchable http(s) URLs and
+// same-origin paths. Do not add data: here; inline base64 media needs separate
+// handling from clickable/fetchable markdown URLs.
 
 // The old DOMPurify helper used ALLOWED_TAGS: [] and ALLOWED_ATTR: [], which is
 // correct for stripping HTML tags/attributes from a string. It does not validate
@@ -24,20 +29,29 @@ const getSafeUrl = (
 
   try {
     const parsed = new URL(trimmed);
-    return allowedProtocols.has(parsed.protocol) ? trimmed : null;
+    return allowedProtocols.has(parsed.protocol) ? parsed.href : null;
   } catch {
     // Markdown links may point to anchors inside the rendered content.
     if (allowHash && trimmed.startsWith("#")) {
       return trimmed;
     }
 
-    // Allow same-origin app paths, but block protocol-relative URLs.
+    // Allow same-origin app paths, but block protocol-relative and
+    // backslash-normalized URLs that browsers can resolve to another host.
     if (
       allowAbsolutePath &&
       trimmed.startsWith("/") &&
-      !trimmed.startsWith("//")
+      !trimmed.startsWith("//") &&
+      !trimmed.includes("\\")
     ) {
-      return trimmed;
+      try {
+        const parsedPath = new URL(trimmed, SAME_ORIGIN_URL_BASE);
+        return parsedPath.origin === SAME_ORIGIN_URL_BASE
+          ? `${parsedPath.pathname}${parsedPath.search}${parsedPath.hash}`
+          : null;
+      } catch {
+        return null;
+      }
     }
 
     return null;
