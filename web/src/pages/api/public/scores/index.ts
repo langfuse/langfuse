@@ -10,6 +10,7 @@ import {
 import { logger } from "@langfuse/shared/src/server";
 import { ForbiddenError } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { randomUUID } from "crypto";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -24,8 +25,19 @@ export default withMiddlewares({
         );
       }
 
+      const conformedBody = {
+        ...body,
+        // We previously used `if(!body.id)` to decide if a new ID should be generated,
+        // this would accept falsy values such as empty string as valid IDs, and generate a new ID in that case.
+        // The `createScore` uses `??` instead, which would break this behavior, so we use `||` here to maintain the old behavior.
+        id: body.id || randomUUID(),
+      };
+
       const scoresApiService = new ScoresApiService("v1");
-      const { id, result } = await scoresApiService.createScore({ body, auth });
+      const { id, result } = await scoresApiService.createScore({
+        body: conformedBody,
+        auth,
+      });
       if (result.errors.length > 0) {
         const error = result.errors[0];
         res
