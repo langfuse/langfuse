@@ -43,7 +43,7 @@ User Query: {{ user_query }}
 ```
 [System Role]
 {% if language == 'spanish' %}
-Eres un asistente de servicio al cliente.
+Eres un asistente de servicio al consumidor.
 {% else %}
 You are a customer support assistant.
 {% endif %}
