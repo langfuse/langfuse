@@ -387,6 +387,7 @@ describe("evaluation helpers", () => {
       const result = parseDispatchResult({
         scores: [
           {
+            name: "quality",
             dataType: ScoreDataTypeEnum.NUMERIC,
             value: 0.9,
             metadata: { rubric: "strict" },

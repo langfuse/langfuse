@@ -15,7 +15,6 @@ import {
   CodeEvalDispatcherErrorCode,
   type CodeEvalDispatcher,
   type CodeEvalPayload,
-  type CodeEvalScore,
   type CodeEvalScoreWithName,
   type DispatchResult,
 } from "./codeEvalDispatcherTypes";
@@ -71,17 +70,6 @@ function buildCodeEvalPayload(params: {
   }
 
   return payload;
-}
-
-function normalizeCodeEvalScores(params: {
-  scores: CodeEvalScore[];
-  defaultScoreName: string;
-}): CodeEvalScoreWithName[] {
-  return params.scores.map((score) =>
-    score.name
-      ? (score as CodeEvalScoreWithName)
-      : { ...score, name: params.defaultScoreName },
-  );
 }
 
 function serializeCodeEvalError(error: unknown): {
@@ -148,7 +136,6 @@ export async function runCodeBasedEvaluationDispatch(params: {
   executionTraceId: string;
   jobExecutionId: string;
   template: EvalTemplateCodeBased;
-  scoreName: string;
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
   traceName: string;
@@ -176,11 +163,6 @@ export async function runCodeBasedEvaluationDispatch(params: {
       payload,
     });
 
-    const scores = normalizeCodeEvalScores({
-      scores: dispatchResult.scores,
-      defaultScoreName: params.scoreName,
-    });
-
     await writeCodeEvalTraceSafely({
       writeTrace: params.writeTrace,
       trace: buildCodeEvalTraceInput({
@@ -197,7 +179,7 @@ export async function runCodeBasedEvaluationDispatch(params: {
 
     return {
       success: true,
-      scores,
+      scores: dispatchResult.scores,
       result: dispatchResult,
       executionTraceId: params.executionTraceId,
       executionTraceFromTimestamp: traceStartTime,

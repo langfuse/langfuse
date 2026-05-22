@@ -39,7 +39,7 @@ export type DispatchInput = {
 };
 
 const codeEvalScoreBase = {
-  name: z.string().min(1).optional(),
+  name: z.string().min(1),
   comment: z.string().nullish(),
   configId: z.string().nullish(),
   metadata: z.record(z.string(), z.unknown()).optional(),
@@ -102,7 +102,7 @@ const CodeEvalDispatchResultSchema = z.object({
 });
 
 export type CodeEvalScore = z.infer<typeof CodeEvalScoreSchema>;
-export type CodeEvalScoreWithName = CodeEvalScore & { name: string };
+export type CodeEvalScoreWithName = CodeEvalScore;
 export type DispatchResult = z.infer<typeof CodeEvalDispatchResultSchema>;
 
 export interface CodeEvalDispatcher {

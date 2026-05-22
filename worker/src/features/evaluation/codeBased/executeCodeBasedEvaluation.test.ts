@@ -50,10 +50,15 @@ describe("executeCodeBasedEvaluation", () => {
     mocks.writeInternalTrace.mockResolvedValue(undefined);
   });
 
-  it("defaults the first missing score name to the score config name and keeps additional names", async () => {
+  it("keeps score names returned by the dispatcher", async () => {
     mocks.dispatcher.dispatch.mockResolvedValue({
       scores: [
-        { value: 1, dataType: "BOOLEAN", metadata: { user: "value" } },
+        {
+          name: "primary-score",
+          value: 1,
+          dataType: "BOOLEAN",
+          metadata: { user: "value" },
+        },
         { name: "extra-score", value: "good", dataType: "CATEGORICAL" },
       ],
     });
@@ -93,7 +98,7 @@ describe("executeCodeBasedEvaluation", () => {
 
     expect(result.scores).toMatchObject([
       {
-        name: "default-score",
+        name: "primary-score",
         value: 1,
         dataType: "BOOLEAN",
         metadata: { user: "value" },
@@ -137,11 +142,11 @@ describe("executeCodeBasedEvaluation", () => {
     );
   });
 
-  it("defaults every unnamed score to the score config name", async () => {
+  it("keeps multiple dispatcher-provided score names", async () => {
     mocks.dispatcher.dispatch.mockResolvedValue({
       scores: [
-        { value: 1, dataType: "BOOLEAN" },
-        { value: "good", dataType: "CATEGORICAL" },
+        { name: "boolean-score", value: 1, dataType: "BOOLEAN" },
+        { name: "categorical-score", value: "good", dataType: "CATEGORICAL" },
       ],
     });
 
@@ -173,8 +178,8 @@ describe("executeCodeBasedEvaluation", () => {
     });
 
     expect(result.scores).toMatchObject([
-      { name: "default-score", value: 1, dataType: "BOOLEAN" },
-      { name: "default-score", value: "good", dataType: "CATEGORICAL" },
+      { name: "boolean-score", value: 1, dataType: "BOOLEAN" },
+      { name: "categorical-score", value: "good", dataType: "CATEGORICAL" },
     ]);
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -187,7 +192,7 @@ describe("executeCodeBasedEvaluation", () => {
 
   it("passes an empty experiment payload when the source observation has experiment context", async () => {
     mocks.dispatcher.dispatch.mockResolvedValue({
-      scores: [{ value: 1, dataType: "BOOLEAN" }],
+      scores: [{ name: "score", value: 1, dataType: "BOOLEAN" }],
     });
 
     await executeCodeBasedEvaluation({
@@ -230,7 +235,7 @@ describe("executeCodeBasedEvaluation", () => {
 
   it("does not infer experiment payload from mapped variables alone", async () => {
     mocks.dispatcher.dispatch.mockResolvedValue({
-      scores: [{ value: 1, dataType: "BOOLEAN" }],
+      scores: [{ name: "score", value: 1, dataType: "BOOLEAN" }],
     });
 
     await executeCodeBasedEvaluation({
@@ -269,7 +274,7 @@ describe("executeCodeBasedEvaluation", () => {
 
   it("passes extracted variable values through to the dispatcher payload as-is", async () => {
     mocks.dispatcher.dispatch.mockResolvedValue({
-      scores: [{ value: 1, dataType: "BOOLEAN" }],
+      scores: [{ name: "score", value: 1, dataType: "BOOLEAN" }],
     });
 
     await executeCodeBasedEvaluation({
@@ -320,7 +325,7 @@ describe("executeCodeBasedEvaluation", () => {
 
   it("passes experiment item metadata through without expected output", async () => {
     mocks.dispatcher.dispatch.mockResolvedValue({
-      scores: [{ value: 1, dataType: "BOOLEAN" }],
+      scores: [{ name: "score", value: 1, dataType: "BOOLEAN" }],
     });
 
     await executeCodeBasedEvaluation({

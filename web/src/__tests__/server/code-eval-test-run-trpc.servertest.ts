@@ -100,7 +100,7 @@ maybe("evals.testRunCodeEval", () => {
           ctx.observation.output === "4" &&
           ctx.observation.metadata.rubric === "math";
 
-        return { scores: [{ value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
+        return { scores: [{ name: "saved-test-score", value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
       }
     `;
 
@@ -170,6 +170,7 @@ maybe("evals.testRunCodeEval", () => {
       result: {
         scores: [
           {
+            name: "saved-test-score",
             value: 1,
             dataType: "BOOLEAN",
           },
@@ -262,7 +263,7 @@ maybe("evals.testRunCodeEval", () => {
             ctx.observation.output === ctx.experiment.expectedOutput &&
             ctx.experiment.itemMetadata.difficulty === "easy";
 
-          return { scores: [{ value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
+          return { scores: [{ name: "experiment-test-score", value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
         }
       `,
     );
@@ -314,6 +315,7 @@ maybe("evals.testRunCodeEval", () => {
       result: {
         scores: [
           {
+            name: "experiment-test-score",
             value: 1,
             dataType: "BOOLEAN",
           },
@@ -464,7 +466,7 @@ async function createCodeTemplate(projectId: string, sourceCode?: string) {
       outputDefinition: undefined,
       sourceCode:
         sourceCode ??
-        "export function evaluate() { return { scores: [{ value: 1 }] }; }",
+        'export function evaluate() { return { scores: [{ name: "test-score", value: 1 }] }; }',
       sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
     },
   });

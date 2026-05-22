@@ -49,8 +49,8 @@ class EvaluationContext:
 @dataclass
 class Score:
     value: Any
+    name: str
     data_type: str | None = None
-    name: str | None = None
     comment: str | None = None
     config_id: str | None = None
     metadata: dict[str, Any] | None = None

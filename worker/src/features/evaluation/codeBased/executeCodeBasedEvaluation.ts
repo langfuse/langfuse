@@ -63,7 +63,6 @@ export async function executeCodeBasedEvaluation(params: {
         executionTraceId,
         jobExecutionId,
         template: params.template,
-        scoreName: params.config.scoreName,
         extractedVariables: params.extractedVariables,
         hasExperimentContext: params.hasExperimentContext ?? false,
         traceName: `Execute evaluator: ${params.template.name}`,
