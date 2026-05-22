@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   microsoftAgentAdapter,
   selectAdapter,
-  SimpleChatMlArraySchema,
+  mapToChatMl,
+  mapOutputToChatMl,
   type NormalizerContext,
 } from "@langfuse/shared";
 
@@ -14,7 +15,7 @@ function normalizeInput(input: unknown, ctx: NormalizerContext = {}) {
     data: input,
   });
   const preprocessed = adapter.preprocess(input, "input", ctx);
-  return SimpleChatMlArraySchema.safeParse(preprocessed);
+  return mapToChatMl(preprocessed);
 }
 
 function normalizeOutput(output: unknown, ctx: NormalizerContext = {}) {
@@ -24,7 +25,7 @@ function normalizeOutput(output: unknown, ctx: NormalizerContext = {}) {
     data: output,
   });
   const preprocessed = adapter.preprocess(output, "output", ctx);
-  return SimpleChatMlArraySchema.safeParse(preprocessed);
+  return mapOutputToChatMl(preprocessed);
 }
 
 describe("Microsoft Agent Framework Adapter", () => {
@@ -190,6 +191,65 @@ describe("Microsoft Agent Framework Adapter", () => {
       );
       expect(result.data?.[0].tools).toBeDefined();
       expect(result.data?.[0].tools?.[0].name).toBe("get_weather");
+    });
+
+    it("should attach tools from wrapped input tools", () => {
+      const input = {
+        messages: [
+          {
+            role: "user",
+            parts: [
+              {
+                type: "text",
+                content: "What's the weather like in Portland?",
+              },
+            ],
+          },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "get_weather",
+              description: "Get the weather for a given location.",
+              parameters: {
+                type: "object",
+                properties: {
+                  location: { type: "string" },
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const result = normalizeInput(input, {
+        metadata: {
+          attributes: {
+            "gen_ai.provider.name": "microsoft.agent_framework",
+          },
+          scope: {
+            name: "agent_framework",
+          },
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].content).toBe(
+        "What's the weather like in Portland?",
+      );
+      expect(result.data?.[0].tools).toEqual([
+        {
+          name: "get_weather",
+          description: "Get the weather for a given location.",
+          parameters: {
+            type: "object",
+            properties: {
+              location: { type: "string" },
+            },
+          },
+        },
+      ]);
     });
 
     it("should handle output with multiple parts", () => {

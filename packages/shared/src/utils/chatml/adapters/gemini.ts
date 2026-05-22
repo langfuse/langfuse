@@ -404,7 +404,9 @@ function preprocessData(data: unknown): unknown {
 
       messages.push(...contents);
 
-      // Extract and attach tools if present
+      // Extract and attach Gemini ADK config tools if present. Top-level
+      // normalized input.tools are extracted separately, without changing
+      // normalized ChatML for existing traces.
       if ("tools" in config && Array.isArray(config.tools)) {
         const extractedTools = extractToolDeclarations(config.tools);
 
