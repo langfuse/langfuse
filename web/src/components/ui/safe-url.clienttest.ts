@@ -12,7 +12,8 @@ describe("safe URL helpers", () => {
     "//attacker.example.com/path",
     "/\\attacker.example.com/path",
     "/\\\\attacker.example.com/path",
-    "relative/path",
+    "\\attacker.example.com/path",
+    "relative\\path",
   ])("blocks unsafe link URL %s", (url) => {
     expect(getSafeLinkUrl(url)).toBeNull();
   });
@@ -23,9 +24,16 @@ describe("safe URL helpers", () => {
     ["https://example.com/foo\tbar", "https://example.com/foobar"],
     ["https://example.com/foo bar", "https://example.com/foo%20bar"],
     ["http://example.com/image.png", "http://example.com/image.png"],
+    ["irc://irc.example.com/langfuse", "irc://irc.example.com/langfuse"],
+    ["ircs://irc.example.com/langfuse", "ircs://irc.example.com/langfuse"],
     ["mailto:security@example.com", "mailto:security@example.com"],
     ["tel:+49123456789", "tel:+49123456789"],
+    ["xmpp:security@example.com", "xmpp:security@example.com"],
     ["/project/abc/traces/def", "/project/abc/traces/def"],
+    ["relative/path", "relative/path"],
+    ["./relative/path", "./relative/path"],
+    ["../relative/path", "../relative/path"],
+    ["?tab=foo", "?tab=foo"],
     ["#section", "#section"],
   ])("allows safe link URL %s", (url, expected) => {
     expect(getSafeLinkUrl(url)).toBe(expected);
@@ -39,6 +47,8 @@ describe("safe URL helpers", () => {
     "//attacker.example.com/path",
     "/\\attacker.example.com/path",
     "/\\\\attacker.example.com/path",
+    "\\attacker.example.com/path",
+    "relative\\path",
   ])("blocks non-image URL %s for image sources", (url) => {
     expect(getSafeImageUrl(url)).toBeNull();
   });
@@ -48,6 +58,9 @@ describe("safe URL helpers", () => {
     ["HTTPS://EXAMPLE.COM/image.png", "https://example.com/image.png"],
     ["http://example.com/image.png", "http://example.com/image.png"],
     ["/api/media/image.png", "/api/media/image.png"],
+    ["relative/image.png", "relative/image.png"],
+    ["./relative/image.png", "./relative/image.png"],
+    ["../relative/image.png", "../relative/image.png"],
   ])("allows safe image URL %s", (url, expected) => {
     expect(getSafeImageUrl(url)).toBe(expected);
   });

@@ -1,4 +1,12 @@
-const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:", "tel:"]);
+const SAFE_LINK_PROTOCOLS = new Set([
+  "http:",
+  "https:",
+  "irc:",
+  "ircs:",
+  "mailto:",
+  "tel:",
+  "xmpp:",
+]);
 const SAFE_IMAGE_PROTOCOLS = new Set(["http:", "https:"]);
 const SAME_ORIGIN_URL_BASE = "https://langfuse.local";
 
@@ -15,11 +23,13 @@ const getSafeUrl = (
   {
     allowedProtocols,
     allowHash = false,
-    allowAbsolutePath = true,
+    allowSearch = false,
+    allowRelativePath = true,
   }: {
     allowedProtocols: Set<string>;
     allowHash?: boolean;
-    allowAbsolutePath?: boolean;
+    allowSearch?: boolean;
+    allowRelativePath?: boolean;
   },
 ): string | null => {
   if (!value || typeof value !== "string") return null;
@@ -36,25 +46,34 @@ const getSafeUrl = (
       return trimmed;
     }
 
-    // Allow same-origin app paths, but block protocol-relative and
-    // backslash-normalized URLs that browsers can resolve to another host.
-    if (
-      allowAbsolutePath &&
-      trimmed.startsWith("/") &&
-      !trimmed.startsWith("//") &&
-      !trimmed.includes("\\")
-    ) {
-      try {
-        const parsedPath = new URL(trimmed, SAME_ORIGIN_URL_BASE);
-        return parsedPath.origin === SAME_ORIGIN_URL_BASE
-          ? `${parsedPath.pathname}${parsedPath.search}${parsedPath.hash}`
-          : null;
-      } catch {
-        return null;
-      }
+    if (allowSearch && trimmed.startsWith("?")) {
+      return isSafeSameOriginReference(trimmed) ? trimmed : null;
+    }
+
+    if (allowRelativePath && isRelativePathReference(trimmed)) {
+      return isSafeSameOriginReference(trimmed) ? trimmed : null;
     }
 
     return null;
+  }
+};
+
+const isRelativePathReference = (value: string): boolean =>
+  value.startsWith("/") ||
+  value.startsWith("./") ||
+  value.startsWith("../") ||
+  /^[^/?#]/.test(value);
+
+const isSafeSameOriginReference = (value: string): boolean => {
+  // Block protocol-relative and backslash-normalized URLs. Browsers can resolve
+  // values like "/\\attacker.example/x" to another host for http(s) documents.
+  if (value.startsWith("//") || value.includes("\\")) return false;
+
+  try {
+    const parsed = new URL(value, SAME_ORIGIN_URL_BASE);
+    return parsed.origin === SAME_ORIGIN_URL_BASE;
+  } catch {
+    return false;
   }
 };
 
@@ -64,6 +83,7 @@ export const getSafeLinkUrl = (
   getSafeUrl(value, {
     allowedProtocols: SAFE_LINK_PROTOCOLS,
     allowHash: true,
+    allowSearch: true,
   });
 
 export const getSafeImageUrl = (

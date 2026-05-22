@@ -344,7 +344,8 @@ function MarkdownRenderer({
               );
             },
             img({ src, alt }) {
-              const safeSrc = getSafeImageUrl(src);
+              const safeSrc =
+                typeof src === "string" ? getSafeImageUrl(src) : null;
               return safeSrc ? (
                 <ResizableImage src={safeSrc} alt={alt} />
               ) : null;
@@ -553,28 +554,26 @@ export function MarkdownView({
             }
 
             if (isOpenAIImageContentPart(content)) {
-              const safeImageUrl = OpenAIUrlImageUrl.safeParse(
-                content.image_url.url,
-              ).success
-                ? getSafeImageUrl(content.image_url.url)
-                : null;
+              const imageUrl = content.image_url.url;
+              const safeImageUrl =
+                typeof imageUrl === "string" &&
+                OpenAIUrlImageUrl.safeParse(imageUrl).success
+                  ? getSafeImageUrl(imageUrl)
+                  : null;
 
               return safeImageUrl ? (
                 <div key={index}>
                   <ResizableImage src={safeImageUrl} />
                 </div>
-              ) : MediaReferenceStringSchema.safeParse(content.image_url.url)
-                  .success ? (
-                <LangfuseMediaView
-                  mediaReferenceString={content.image_url.url}
-                />
+              ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
+                <LangfuseMediaView mediaReferenceString={imageUrl} />
               ) : (
                 <div className="grid grid-cols-[auto_1fr] items-center gap-2">
                   <span title="<Base64 data URI>" className="h-4 w-4">
                     <ImageOff className="h-4 w-4" />
                   </span>
                   <span className="truncate text-sm">
-                    {content.image_url.url.toString()}
+                    {imageUrl.toString()}
                   </span>
                 </div>
               );
