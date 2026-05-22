@@ -380,7 +380,7 @@ describe("MCP public API tools", () => {
 
   it("covers dataset, dataset item, run item, and run public API routes", async () => {
     const { context, projectId } = await createMcpTestSetup();
-    const datasetName = `mcp-dataset-${uuidv4()}`;
+    const datasetName = `mcp-dataset-100% accuracy %20 ${uuidv4()}`;
     const traceId = uuidv4();
     const observationId = uuidv4();
 
@@ -444,7 +444,7 @@ describe("MCP public API tools", () => {
       handleGetDatasetItem({ datasetItemId: datasetItem.id }, context),
     ).resolves.toMatchObject({ id: datasetItem.id, datasetName });
 
-    const runName = `mcp-run-${uuidv4()}`;
+    const runName = `mcp-run-50% accuracy %20 ${uuidv4()}`;
     const runItem = (await handleCreateDatasetRunItem(
       {
         datasetItemId: datasetItem.id,
