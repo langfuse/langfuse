@@ -11,53 +11,13 @@ import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 
 const DEFAULT_STARTER_PROJECT_NAME = "My Project";
 
-const realOrganizationMembershipInclude = {
-  ProjectMemberships: true,
-  organization: {
-    include: {
-      projects: {
-        where: {
-          deletedAt: null,
-        },
-        orderBy: [
-          {
-            createdAt: "asc",
-          },
-          {
-            id: "asc",
-          },
-        ],
-      },
-    },
-  },
-} satisfies Prisma.OrganizationMembershipInclude;
-
-export type RealOrganizationMembership =
-  Prisma.OrganizationMembershipGetPayload<{
-    include: typeof realOrganizationMembershipInclude;
-  }>;
-
-export type OnboardingRedirectTarget = {
-  redirectTo: string;
-};
-
 const getStarterOrganizationName = (userName?: string | null) => {
   const firstName = userName?.trim().split(/\s+/)[0];
 
   return firstName ? `${firstName}'s Organization` : "My Organization";
 };
 
-const hasOrganizationScope = (role: Role, scope: OrganizationScope): boolean =>
-  organizationRoleAccessRights[role].includes(scope);
-
-const getRealOrganizationMembershipWhere = (userId: string) => ({
-  userId,
-  ...(env.NEXT_PUBLIC_DEMO_ORG_ID
-    ? { orgId: { not: env.NEXT_PUBLIC_DEMO_ORG_ID } }
-    : {}),
-});
-
-export const getRealOrganizationMemberships = async ({
+const getRealOrganizationMemberships = ({
   prisma,
   userId,
 }: {
@@ -65,8 +25,34 @@ export const getRealOrganizationMemberships = async ({
   userId: string;
 }) =>
   prisma.organizationMembership.findMany({
-    where: getRealOrganizationMembershipWhere(userId),
-    include: realOrganizationMembershipInclude,
+    where: userId
+      ? {
+          userId,
+          ...(env.NEXT_PUBLIC_DEMO_ORG_ID
+            ? { orgId: { not: env.NEXT_PUBLIC_DEMO_ORG_ID } }
+            : {}),
+        }
+      : {},
+    include: {
+      ProjectMemberships: true,
+      organization: {
+        include: {
+          projects: {
+            where: {
+              deletedAt: null,
+            },
+            orderBy: [
+              {
+                createdAt: "asc",
+              },
+              {
+                id: "asc",
+              },
+            ],
+          },
+        },
+      },
+    } satisfies Prisma.OrganizationMembershipInclude,
     orderBy: [
       {
         createdAt: "asc",
@@ -77,13 +63,24 @@ export const getRealOrganizationMemberships = async ({
     ],
   });
 
-export const resolveOnboardingRedirectTarget = ({
-  organizationMemberships,
+export type RealOrganizationMembership = Awaited<
+  ReturnType<typeof getRealOrganizationMemberships>
+>[number];
+
+export const resolveOnboardingRedirectTarget = async ({
+  prisma,
+  userId,
   userName,
 }: {
-  organizationMemberships: RealOrganizationMembership[];
+  prisma: Pick<PrismaClient, "organizationMembership">;
+  userId: string;
   userName?: string | null;
-}): OnboardingRedirectTarget | null => {
+}) => {
+  const organizationMemberships = await getRealOrganizationMemberships({
+    prisma,
+    userId,
+  });
+
   const starterOrganizationMembership =
     organizationMemberships.length === 1 ? organizationMemberships[0] : null;
 
@@ -136,7 +133,12 @@ export const resolveOnboardingRedirectTarget = ({
   }
 
   const firstCreatableOrganization = organizationMemberships.find(
-    (membership) => hasOrganizationScope(membership.role, "projects:create"),
+    (membership) =>
+      ((role: Role, scope: OrganizationScope): boolean =>
+        organizationRoleAccessRights[role].includes(scope))(
+        membership.role,
+        "projects:create",
+      ),
   );
 
   if (firstCreatableOrganization) {
@@ -179,7 +181,14 @@ export const provisionStarterOrganizationForNewUser = async ({
 
     const realOrganizationMembershipCount =
       await tx.organizationMembership.count({
-        where: getRealOrganizationMembershipWhere(userId),
+        where: userId
+          ? {
+              userId,
+              ...(env.NEXT_PUBLIC_DEMO_ORG_ID
+                ? { orgId: { not: env.NEXT_PUBLIC_DEMO_ORG_ID } }
+                : {}),
+            }
+          : {},
       });
 
     if (realOrganizationMembershipCount > 0) {

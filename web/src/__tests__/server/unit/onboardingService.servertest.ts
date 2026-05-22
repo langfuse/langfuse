@@ -37,16 +37,26 @@ const makeMembership = ({
     },
   }) as RealOrganizationMembership;
 
+const makePrisma = (organizationMemberships: RealOrganizationMembership[]) =>
+  ({
+    organizationMembership: {
+      findMany: vi.fn().mockResolvedValue(organizationMemberships),
+    },
+  }) as unknown as Parameters<
+    typeof resolveOnboardingRedirectTarget
+  >[0]["prisma"];
+
 describe("resolveOnboardingRedirectTarget", () => {
-  it("routes the auto-created starter project to tracing", () => {
-    const result = resolveOnboardingRedirectTarget({
-      organizationMemberships: [
+  it("routes the auto-created starter project to tracing", async () => {
+    const result = await resolveOnboardingRedirectTarget({
+      prisma: makePrisma([
         makeMembership({
           orgId: "org-1",
           orgName: "Taylor's Organization",
           projects: [{ id: "project-1", name: "My Project" }],
         }),
-      ],
+      ]),
+      userId: "user-1",
       userName: "Taylor Test",
     });
 
@@ -55,14 +65,15 @@ describe("resolveOnboardingRedirectTarget", () => {
     });
   });
 
-  it("routes existing readable projects through project home", () => {
-    const result = resolveOnboardingRedirectTarget({
-      organizationMemberships: [
+  it("routes existing readable projects through project home", async () => {
+    const result = await resolveOnboardingRedirectTarget({
+      prisma: makePrisma([
         makeMembership({
           orgId: "org-1",
           projects: [{ id: "project-1", name: "Existing Project" }],
         }),
-      ],
+      ]),
+      userId: "user-1",
       userName: "Taylor Test",
     });
 

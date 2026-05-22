@@ -1,7 +1,4 @@
-import {
-  getRealOrganizationMemberships,
-  resolveOnboardingRedirectTarget,
-} from "@/src/features/onboarding/server/onboardingService";
+import { resolveOnboardingRedirectTarget } from "@/src/features/onboarding/server/onboardingService";
 import {
   createTRPCRouter,
   authenticatedProcedure,
@@ -9,13 +6,9 @@ import {
 
 export const onboardingRouter = createTRPCRouter({
   complete: authenticatedProcedure.mutation(async ({ ctx }) => {
-    const realOrganizationMemberships = await getRealOrganizationMemberships({
+    const existingTarget = await resolveOnboardingRedirectTarget({
       prisma: ctx.prisma,
       userId: ctx.session.user.id,
-    });
-
-    const existingTarget = resolveOnboardingRedirectTarget({
-      organizationMemberships: realOrganizationMemberships,
       userName: ctx.session.user.name,
     });
 

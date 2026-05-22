@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
@@ -17,54 +17,39 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import { useSurveyForm } from "../hooks/useSurveyForm";
 import type { SurveyFormData } from "../lib/surveyTypes";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 export function OnboardingSurvey() {
   const router = useRouter();
   const { update: updateSession } = useSession();
   const { form, handleSubmit } = useSurveyForm();
   const completeOnboardingMutation = api.onboarding.complete.useMutation();
-  const [isFinishingOnboarding, setIsFinishingOnboarding] = useState(false);
 
-  const finishOnboarding = useCallback(async () => {
-    if (isFinishingOnboarding) {
-      return;
-    }
-
-    setIsFinishingOnboarding(true);
-
-    try {
-      const onboardingResult = await completeOnboardingMutation.mutateAsync();
-      await updateSession();
-      await router.replace(onboardingResult.redirectTo);
-    } catch (error) {
-      showErrorToast(
-        "Failed to finish onboarding",
-        error instanceof Error ? error.message : "Please try again.",
-      );
-      setIsFinishingOnboarding(false);
-    }
-  }, [
-    completeOnboardingMutation,
-    isFinishingOnboarding,
-    router,
-    updateSession,
-  ]);
-
-  const handleSkipButton = useCallback(() => {
-    void finishOnboarding();
-  }, [finishOnboarding]);
+  const [finishOnboarding, isFinishingOnboarding] =
+    useWatchedPromiseCallback(async () => {
+      try {
+        const onboardingResult = await completeOnboardingMutation.mutateAsync();
+        await updateSession();
+        await router.replace(onboardingResult.redirectTo);
+      } catch (error) {
+        showErrorToast(
+          "Failed to finish onboarding",
+          error instanceof Error ? error.message : "Please try again.",
+        );
+      }
+    }, [completeOnboardingMutation, router, updateSession]);
 
   const onSubmit = useCallback(
     async (data: SurveyFormData) => {
       if (!data.referralSource?.trim()) {
-        handleSkipButton();
+        finishOnboarding();
         return;
       }
 
       await handleSubmit(data);
       await finishOnboarding();
     },
-    [finishOnboarding, handleSkipButton, handleSubmit],
+    [finishOnboarding, handleSubmit],
   );
 
   const currentValue = form.watch("referralSource");
@@ -112,7 +97,7 @@ export function OnboardingSurvey() {
             onKeyDown={(event) => {
               if (event.key === "Enter" && currentEmpty) {
                 event.preventDefault();
-                handleSkipButton();
+                finishOnboarding();
               }
             }}
           >
@@ -143,7 +128,7 @@ export function OnboardingSurvey() {
               {showSkip ? (
                 <Button
                   type="button"
-                  onClick={handleSkipButton}
+                  onClick={finishOnboarding}
                   variant="ghost"
                   className="w-20"
                   disabled={isBusy}
