@@ -18,9 +18,8 @@ import {
   instrumentSync,
   recordDistribution,
   UsageDetails,
-  extractToolsFromObservation,
-  convertDefinitionsToMap,
-  convertCallsToArrays,
+  normalizeToolsForObservation,
+  normalizeToolMetadataForObservation,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -301,6 +300,11 @@ export class OtelIngestionProcessor {
                   ...spanMetadata,
                   ...traceMetadata,
                 };
+                const normalizedTools = normalizeToolsForObservation(
+                  input,
+                  output,
+                  metadata,
+                );
 
                 // Extract instrumentation metadata
                 const serviceName = resourceAttributes?.["service.name"] as
@@ -361,23 +365,18 @@ export class OtelIngestionProcessor {
                   );
                 }
 
-                let toolDefinitions = undefined;
-                let toolCalls = undefined;
-                let toolCallNames = undefined;
-
-                const { toolDefinitions: rawToolDefinitions, toolArguments } =
-                  extractToolsFromObservation(input, output);
-
-                if (rawToolDefinitions.length > 0) {
-                  toolDefinitions = convertDefinitionsToMap(rawToolDefinitions);
-                }
-
-                if (toolArguments.length > 0) {
-                  const { tool_calls, tool_call_names } =
-                    convertCallsToArrays(toolArguments);
-                  toolCalls = tool_calls;
-                  toolCallNames = tool_call_names;
-                }
+                const toolDefinitions =
+                  Object.keys(normalizedTools.toolDefinitions).length > 0
+                    ? normalizedTools.toolDefinitions
+                    : undefined;
+                const toolCalls =
+                  normalizedTools.toolCalls.length > 0
+                    ? normalizedTools.toolCalls
+                    : undefined;
+                const toolCallNames =
+                  normalizedTools.toolCallNames.length > 0
+                    ? normalizedTools.toolCallNames
+                    : undefined;
 
                 events.push({
                   projectId: this.projectId,
@@ -472,11 +471,11 @@ export class OtelIngestionProcessor {
                     resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
                     null,
 
-                  input,
-                  output,
+                  input: normalizedTools.input,
+                  output: normalizedTools.output,
 
                   // Metadata
-                  metadata,
+                  metadata: normalizedTools.metadata,
 
                   // Instrumentation metadata
                   source: "otel",
@@ -985,6 +984,18 @@ export class OtelIngestionProcessor {
       source: "ingestion" as const,
     };
 
+    const metadata = {
+      ...resourceAttributeMetadata,
+      ...spanAttributeMetadata,
+      ...(isLangfuseSDKSpans ? {} : { attributes: filteredAttributes }),
+      resourceAttributes,
+      scope: { ...scopeSpan.scope, attributes: scopeAttributes },
+    };
+    const normalizedToolMetadata = normalizeToolMetadataForObservation(
+      input,
+      metadata,
+    );
+
     const observation = {
       id: this.parseId(span.spanId?.data ?? span.spanId),
       traceId,
@@ -997,13 +1008,7 @@ export class OtelIngestionProcessor {
         attributes,
         startTimeISO,
       ),
-      metadata: {
-        ...resourceAttributeMetadata,
-        ...spanAttributeMetadata,
-        ...(isLangfuseSDKSpans ? {} : { attributes: filteredAttributes }),
-        resourceAttributes,
-        scope: { ...scopeSpan.scope, attributes: scopeAttributes },
-      },
+      metadata: normalizedToolMetadata.metadata,
       level:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
         (span.status?.code === 2
@@ -1041,7 +1046,7 @@ export class OtelIngestionProcessor {
         observationContext,
       ),
       costDetails: this.extractCostDetails(attributes, observationContext),
-      input,
+      input: normalizedToolMetadata.input,
       output,
     };
 
@@ -1829,11 +1834,7 @@ export class OtelIngestionProcessor {
       );
     }
     if (input || output) {
-      return {
-        input: this.appendOtelToolDefinitionsToInput(input, attributes),
-        output,
-        filteredAttributes,
-      };
+      return { input, output, filteredAttributes };
     }
 
     // OpenTelemetry tools (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
@@ -1844,77 +1845,6 @@ export class OtelIngestionProcessor {
     }
 
     return { input: null, output: null, filteredAttributes };
-  }
-
-  private appendOtelToolDefinitionsToInput(
-    input: unknown,
-    attributes: Record<string, unknown>,
-  ): unknown {
-    const toolDefinitions = this.extractOtelToolDefinitions(attributes);
-
-    if (!toolDefinitions || input == null) {
-      return input;
-    }
-
-    const mergeToolDefinitions = (value: unknown): unknown => {
-      if (Array.isArray(value)) {
-        return { messages: value, tools: toolDefinitions };
-      }
-
-      if (typeof value !== "object" || value == null) {
-        return null;
-      }
-
-      const inputObject = value as Record<string, unknown>;
-
-      if (inputObject.tools != null) {
-        return inputObject;
-      }
-
-      return {
-        ...inputObject,
-        tools: toolDefinitions,
-      };
-    };
-
-    if (typeof input === "string") {
-      try {
-        const parsedInput = JSON.parse(input);
-        const mergedInput = mergeToolDefinitions(parsedInput);
-        return mergedInput == null ? input : JSON.stringify(mergedInput);
-      } catch {
-        return input;
-      }
-    }
-
-    return mergeToolDefinitions(input) ?? input;
-  }
-
-  private extractOtelToolDefinitions(
-    attributes: Record<string, unknown>,
-  ): unknown[] | null {
-    const parseJsonString = (value: unknown): unknown => {
-      if (typeof value !== "string") {
-        return value;
-      }
-
-      try {
-        return JSON.parse(value);
-      } catch {
-        return value;
-      }
-    };
-
-    const modelRequestParameters = parseJsonString(
-      attributes["model_request_parameters"],
-    ) as Record<string, unknown> | null;
-
-    const toolDefinitions = parseJsonString(
-      attributes["gen_ai.tool.definitions"] ??
-        modelRequestParameters?.function_tools,
-    );
-
-    return Array.isArray(toolDefinitions) ? toolDefinitions : null;
   }
 
   /**
@@ -2057,16 +1987,6 @@ export class OtelIngestionProcessor {
         "ai.telemetry.metadata.langfusePrompt",
       ]),
     });
-
-    // Vercel AI SDK
-    const tools =
-      "ai.prompt.tools" in attributes
-        ? attributes["ai.prompt.tools"]
-        : undefined;
-
-    if (tools) {
-      langfuseMetadata["tools"] = tools;
-    }
 
     return {
       ...topLevelMetadata,

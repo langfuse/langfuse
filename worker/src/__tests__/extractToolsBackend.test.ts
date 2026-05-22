@@ -1,11 +1,303 @@
 import { describe, it, expect } from "vitest";
 import {
   extractToolsFromObservation,
+  normalizeToolsForObservation,
   convertDefinitionsToMap,
   convertCallsToArrays,
 } from "@langfuse/shared/src/server";
 
 describe("extractToolsFromObservation", () => {
+  describe("Tool metadata normalization", () => {
+    it("moves AI SDK tools from metadata to input and removes duplicate metadata", () => {
+      const input = [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "What is the weather in Berlin?",
+            },
+          ],
+        },
+      ];
+      const tools = [
+        {
+          type: "function",
+          name: "get_weather",
+          description: "Get current weather for a location.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              location: { type: "string" },
+            },
+            required: ["location"],
+          },
+        },
+      ];
+      const metadata = {
+        tools,
+        attributes: {
+          "ai.prompt.tools": JSON.stringify(tools),
+          "custom.attribute": "keep-me",
+        },
+      };
+
+      const result = normalizeToolsForObservation(input, null, metadata);
+
+      expect(result.input).toEqual({
+        messages: input,
+        tools,
+      });
+      expect(result.metadata).toEqual({
+        attributes: {
+          "custom.attribute": "keep-me",
+        },
+      });
+    });
+
+    it("merges metadata tools with existing input tools before cleanup", () => {
+      const existingTool = {
+        type: "function",
+        name: "search_docs",
+        description: "Search docs.",
+        inputSchema: { type: "object" },
+      };
+      const metadataTool = {
+        type: "function",
+        name: "get_weather",
+        description: "Get weather.",
+        inputSchema: { type: "object" },
+      };
+      const input = {
+        messages: [{ role: "user", content: "Need weather and docs" }],
+        tools: [existingTool],
+      };
+      const metadata = {
+        tools: [metadataTool],
+      };
+
+      const result = normalizeToolsForObservation(input, null, metadata);
+
+      expect(result.input).toEqual({
+        messages: input.messages,
+        tools: [existingTool, metadataTool],
+      });
+      expect(result.metadata).toEqual({});
+    });
+
+    it("moves tools from stringified metadata attributes and removes duplicate metadata", () => {
+      const input = [{ role: "user", content: "Need a calculation" }];
+      const tool = {
+        name: "calculator",
+        description: "Do math.",
+        parameters: {
+          type: "object",
+          properties: {
+            expression: { type: "string" },
+          },
+        },
+      };
+      const metadata = {
+        attributes: JSON.stringify({
+          "llm.tools.0.tool.json_schema": tool,
+          "custom.attribute": "keep-me",
+        }),
+      };
+
+      const result = normalizeToolsForObservation(input, null, metadata);
+
+      expect(result.input).toEqual({
+        messages: input,
+        tools: [tool],
+      });
+      expect(result.metadata).toEqual({
+        attributes: {
+          "custom.attribute": "keep-me",
+        },
+      });
+    });
+
+    it("does not parse stringified metadata attributes without tool definition keys", () => {
+      const input = [{ role: "user", content: "Need weather" }];
+      const metadataTool = {
+        type: "function",
+        name: "get_weather",
+        description: "Get weather.",
+      };
+      const attributes = JSON.stringify({
+        "custom.attribute": "mentions model_request_parameters in the value",
+      });
+
+      const result = normalizeToolsForObservation(input, null, {
+        tools: [metadataTool],
+        attributes,
+      });
+
+      expect(result.input).toEqual({
+        messages: input,
+        tools: [metadataTool],
+      });
+      expect(result.metadata).toEqual({
+        attributes,
+      });
+    });
+
+    it("maps tools onto plain string input instead of dropping them", () => {
+      const tool = {
+        type: "function",
+        name: "get_weather",
+        description: "Get weather.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            location: { type: "string" },
+          },
+        },
+      };
+      const metadata = {
+        attributes: {
+          "ai.prompt.tools": [tool],
+          "custom.attribute": "keep-me",
+        },
+      };
+
+      const result = normalizeToolsForObservation(
+        "What is the weather in Berlin?",
+        null,
+        metadata,
+      );
+
+      expect(result.input).toEqual({
+        prompt: "What is the weather in Berlin?",
+        tools: [tool],
+      });
+      expect(result.metadata).toEqual({
+        attributes: {
+          "custom.attribute": "keep-me",
+        },
+      });
+    });
+
+    it("keeps normalized JSON-string input parsed after moving tools", () => {
+      const input = JSON.stringify([{ role: "user", content: "Need weather" }]);
+      const tool = {
+        type: "function",
+        name: "get_weather",
+        description: "Get weather.",
+      };
+      const metadata = {
+        attributes: {
+          "ai.prompt.tools": [tool],
+        },
+      };
+
+      const result = normalizeToolsForObservation(input, null, metadata);
+
+      expect(result.input).toEqual({
+        messages: [{ role: "user", content: "Need weather" }],
+        tools: [tool],
+      });
+    });
+
+    it("preserves user metadata.tools arrays that are not tool definitions", () => {
+      const input = [{ role: "user", content: "Need weather" }];
+      const tool = {
+        type: "function",
+        name: "get_weather",
+        description: "Get weather.",
+      };
+      const metadata = {
+        tools: ["hammer"],
+        attributes: {
+          "ai.prompt.tools": [tool],
+          "custom.attribute": "keep-me",
+        },
+      };
+
+      const result = normalizeToolsForObservation(input, null, metadata);
+
+      expect(result.input).toEqual({
+        messages: input,
+        tools: [tool],
+      });
+      expect(result.metadata).toEqual({
+        tools: ["hammer"],
+        attributes: {
+          "custom.attribute": "keep-me",
+        },
+      });
+    });
+
+    it("preserves user metadata.tools objects with generic id or type fields", () => {
+      const input = [{ role: "user", content: "Need weather" }];
+      const metadata = {
+        tools: [{ id: "hammer" }, { type: "manual" }],
+        attributes: {
+          "custom.attribute": "keep-me",
+        },
+      };
+
+      const result = normalizeToolsForObservation(input, null, metadata);
+
+      expect(result.input).toEqual(input);
+      expect(result.metadata).toEqual(metadata);
+      expect(result.toolDefinitions).toEqual({});
+    });
+
+    it("preserves invalid OTel gen_ai.tool.definitions without tool names", () => {
+      const input = [{ role: "user", content: "Need weather" }];
+      const metadata = {
+        attributes: {
+          "gen_ai.tool.definitions": [{ type: "manual" }],
+          "custom.attribute": "keep-me",
+        },
+      };
+
+      const result = normalizeToolsForObservation(input, null, metadata);
+
+      expect(result.input).toEqual(input);
+      expect(result.metadata).toEqual(metadata);
+      expect(result.toolDefinitions).toEqual({});
+    });
+
+    it("preserves unnamed provider tools in normalized input while extracting only named definitions", () => {
+      const input = [{ role: "user", content: "Need current weather" }];
+      const functionTool = {
+        type: "function",
+        name: "get_weather",
+        description: "Get weather.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            location: { type: "string" },
+          },
+        },
+      };
+      const providerTool = {
+        type: "web_search_preview",
+      };
+      const metadata = {
+        attributes: {
+          "ai.prompt.tools": [functionTool, providerTool],
+          "custom.attribute": "keep-me",
+        },
+      };
+
+      const result = normalizeToolsForObservation(input, null, metadata);
+
+      expect(result.input).toEqual({
+        messages: input,
+        tools: [functionTool, providerTool],
+      });
+      expect(result.metadata).toEqual({
+        attributes: {
+          "custom.attribute": "keep-me",
+        },
+      });
+      expect(Object.keys(result.toolDefinitions)).toEqual(["get_weather"]);
+    });
+  });
+
   describe("Tool Definitions extraction", () => {
     it("extracts OpenAI format tools from input", () => {
       const input = {
@@ -59,8 +351,7 @@ describe("extractToolsFromObservation", () => {
       expect(toolDefinitions[0].name).toBe("search");
     });
 
-    it.skip("extracts tools from OTel metadata attributes", () => {
-      // TODO: Re-enable when OTel processor maps gen_ai.tool.definitions → input.tools
+    it("extracts normalized tools from OTel metadata attributes", () => {
       const metadata = {
         attributes: {
           "gen_ai.tool.definitions": [
@@ -73,18 +364,17 @@ describe("extractToolsFromObservation", () => {
         },
       };
 
+      const normalized = normalizeToolsForObservation(null, null, metadata);
       const { toolDefinitions } = extractToolsFromObservation(
+        normalized.input,
         null,
-        null,
-        metadata,
       );
 
       expect(toolDefinitions).toHaveLength(1);
       expect(toolDefinitions[0].name).toBe("calculator");
     });
 
-    it.skip("extracts tools from OTel indexed format", () => {
-      // TODO: Re-enable when OTel processor maps llm.tools.*.tool.json_schema → input.tools
+    it("extracts normalized tools from OTel indexed format", () => {
       const metadata = {
         attributes: {
           "llm.tools.0.tool.json_schema": {
@@ -98,10 +388,10 @@ describe("extractToolsFromObservation", () => {
         },
       };
 
+      const normalized = normalizeToolsForObservation(null, null, metadata);
       const { toolDefinitions } = extractToolsFromObservation(
+        normalized.input,
         null,
-        null,
-        metadata,
       );
 
       expect(toolDefinitions).toHaveLength(2);
@@ -810,8 +1100,82 @@ describe("extractToolsFromObservation", () => {
       expect(result.toolArguments[0].arguments).toBe('{"location":"NYC"}');
     });
 
-    it.skip("should extract tool definitions from OTel metadata structure i.e. pydantic-ai", () => {
-      // TODO: Re-enable when OTel processor maps metadata.attributes.model_request_parameters.function_tools → input.tools
+    it("should extract AI SDK available tools from metadata while preserving called provider tools", () => {
+      const input = [
+        {
+          role: "user",
+          content: [{ type: "text", text: "What's the weather in Berlin?" }],
+        },
+      ];
+
+      const output = {
+        role: "assistant",
+        content: "Here's what I found.",
+        tool_calls: [
+          {
+            type: "tool-call",
+            toolCallId: "call_provider_search_1",
+            toolName: "web_search",
+            input: {
+              query: "weather forecast in Berlin",
+            },
+            providerExecuted: true,
+          },
+        ],
+      };
+
+      const tools = [
+        {
+          type: "function",
+          name: "get_weather",
+          description: "Get current weather for a location.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              location: { type: "string" },
+              unit: { type: "string", enum: ["celsius", "fahrenheit"] },
+            },
+            required: ["location"],
+          },
+        },
+        {
+          type: "provider",
+          name: "web_search",
+          id: "provider.web_search",
+          args: {},
+        },
+      ];
+
+      const metadata = {
+        tools,
+        providerToolIds: ["web_search"],
+        attributes: {
+          "ai.prompt.tools": tools,
+        },
+      };
+
+      const normalized = normalizeToolsForObservation(input, null, metadata);
+      const result = extractToolsFromObservation(normalized.input, output);
+
+      expect(result.toolDefinitions.map((t) => t.name)).toEqual([
+        "get_weather",
+        "web_search",
+      ]);
+      expect(result.toolDefinitions[0].parameters).toBe(
+        JSON.stringify(tools[0].inputSchema),
+      );
+      expect(result.toolArguments).toHaveLength(1);
+      expect(result.toolArguments[0]).toMatchObject({
+        id: "call_provider_search_1",
+        name: "web_search",
+        arguments: JSON.stringify({
+          query: "weather forecast in Berlin",
+        }),
+        type: "tool-call",
+      });
+    });
+
+    it("should extract normalized tool definitions from OTel metadata structure i.e. pydantic-ai", () => {
       const metadata = {
         attributes: {
           "gen_ai.operation.name": "chat",
@@ -881,8 +1245,8 @@ describe("extractToolsFromObservation", () => {
         ],
       };
 
-      // Also test with explicit framework hint
-      const result = extractToolsFromObservation(input, output, metadata);
+      const normalized = normalizeToolsForObservation(input, null, metadata);
+      const result = extractToolsFromObservation(normalized.input, output);
 
       // Should extract 3 available tools
       expect(result.toolDefinitions).toHaveLength(3);
