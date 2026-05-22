@@ -30,12 +30,19 @@ type ImportResult = {
   error?: string;
 };
 
+const IMPORT_MAX = 500;
+
 function validateImportPayload(raw: unknown): ImportItem[] {
   if (!Array.isArray(raw)) {
     throw new Error("File must contain a JSON array of prompts.");
   }
   if (raw.length === 0) {
     throw new Error("File contains an empty array.");
+  }
+  if (raw.length > IMPORT_MAX) {
+    throw new Error(
+      `File contains ${raw.length} prompts — maximum per import is ${IMPORT_MAX}. Split the file and import in batches.`,
+    );
   }
   return raw.map((item, i) => {
     if (typeof item !== "object" || item === null) {
