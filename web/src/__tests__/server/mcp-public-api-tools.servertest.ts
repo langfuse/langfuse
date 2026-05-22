@@ -314,7 +314,7 @@ describe("MCP public API tools", () => {
     });
   });
 
-  it("covers comment public API routes", async () => {
+  it("covers comment and model public API routes", async () => {
     const { context, projectId } = await createMcpTestSetup();
     const prompt = await createPromptInDb({
       projectId,
@@ -349,6 +349,33 @@ describe("MCP public API tools", () => {
     await expect(
       handleGetComment({ commentId: created.id }, context),
     ).resolves.toMatchObject({ id: created.id, objectId: prompt.id });
+
+    const modelName = `mcp-model-${uuidv4()}`;
+    const model = (await handleCreateModel(
+      {
+        modelName,
+        matchPattern: `(?i)^${modelName}$`,
+        unit: "TOKENS",
+        inputPrice: 0.001,
+        outputPrice: 0.002,
+      },
+      context,
+    )) as { id: string; modelName: string };
+    expect(model.modelName).toBe(modelName);
+
+    const models = (await handleListModels(
+      { page: 1, limit: 100 },
+      context,
+    )) as { data: Array<{ id: string }> };
+    expect(models.data.map((item) => item.id)).toContain(model.id);
+
+    await expect(
+      handleGetModel({ modelId: model.id }, context),
+    ).resolves.toMatchObject({ id: model.id, modelName });
+
+    await expect(
+      handleDeleteModel({ modelId: model.id }, context),
+    ).resolves.toEqual({ message: "Model successfully deleted" });
   });
 
   it("covers dataset, dataset item, run item, and run public API routes", async () => {
@@ -482,17 +509,14 @@ describe("MCP public API tools", () => {
     ).resolves.toEqual({ message: "Dataset item successfully deleted" });
   });
 
-  it("covers health public API route", async () => {
+  it("covers health public API route and cross-project recent-event checks", async () => {
     const { context } = await createMcpTestSetup();
 
     await expect(handleGetHealth({}, context)).resolves.toMatchObject({
       status: "OK",
       version: expect.any(String),
     });
-  });
 
-  it("allows MCP health recent-event checks to use cross-project events", async () => {
-    const { context } = await createMcpTestSetup();
     const { projectId: otherProjectId } = await createMcpTestSetup();
     const traceId = uuidv4();
 
@@ -595,37 +619,6 @@ describe("MCP public API tools", () => {
         targetContext,
       ),
     ).rejects.toThrow("Score config not found within authorized project");
-  });
-
-  it("covers model public API routes", async () => {
-    const { context } = await createMcpTestSetup();
-    const modelName = `mcp-model-${uuidv4()}`;
-
-    const model = (await handleCreateModel(
-      {
-        modelName,
-        matchPattern: `(?i)^${modelName}$`,
-        unit: "TOKENS",
-        inputPrice: 0.001,
-        outputPrice: 0.002,
-      },
-      context,
-    )) as { id: string; modelName: string };
-    expect(model.modelName).toBe(modelName);
-
-    const models = (await handleListModels(
-      { page: 1, limit: 100 },
-      context,
-    )) as { data: Array<{ id: string }> };
-    expect(models.data.map((item) => item.id)).toContain(model.id);
-
-    await expect(
-      handleGetModel({ modelId: model.id }, context),
-    ).resolves.toMatchObject({ id: model.id, modelName });
-
-    await expect(
-      handleDeleteModel({ modelId: model.id }, context),
-    ).resolves.toEqual({ message: "Model successfully deleted" });
   });
 
   it("covers score config public API routes", async () => {
