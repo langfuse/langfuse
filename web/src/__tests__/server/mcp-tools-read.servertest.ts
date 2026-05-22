@@ -76,7 +76,6 @@ const createObservationEvent = (params: {
   type?: "GENERATION" | "SPAN" | "EVENT";
   startTime?: Date;
   parentObservationId?: string | null;
-  isAppRoot?: boolean;
   providedModelName?: string;
   input?: string;
   output?: string;
@@ -113,7 +112,6 @@ const createObservationEvent = (params: {
     tags: params.tags ?? [],
     user_id: params.userId ?? null,
     session_id: params.sessionId ?? null,
-    is_app_root: params.isAppRoot ?? false,
   });
 };
 
@@ -236,7 +234,6 @@ describe("MCP Read Tools", () => {
       ["providedModelName", "stringOptions", true],
       ["tags", "arrayOptions", false],
       ["hasParentObservation", "boolean", false],
-      ["isRootObservation", "boolean", false],
     ])(
       "should expose the %s column used by observation filter values",
       async (column, type, nullable) => {
@@ -1018,43 +1015,6 @@ describe("MCP Read Tools", () => {
       expect(result.values).toEqual([
         expect.objectContaining({ value: false, count: 1 }),
         expect.objectContaining({ value: true, count: 1 }),
-      ]);
-    });
-
-    it("should return app-root-aware boolean values for isRootObservation with counts", async () => {
-      const { context, projectId } = await createMcpTestSetup();
-
-      await createEventsCh([
-        createObservationEvent({
-          projectId,
-          name: `mcp-filter-root-parentless-${nanoid()}`,
-          parentObservationId: null,
-        }),
-        createObservationEvent({
-          projectId,
-          name: `mcp-filter-root-app-${nanoid()}`,
-          parentObservationId: randomUUID(),
-          isAppRoot: true,
-        }),
-        createObservationEvent({
-          projectId,
-          name: `mcp-filter-non-root-${nanoid()}`,
-          parentObservationId: randomUUID(),
-        }),
-      ]);
-
-      const result = (await handleGetObservationFilterValues(
-        { column: "isRootObservation", limit: 100 },
-        context,
-      )) as {
-        column: string;
-        values: Array<{ value: boolean; count?: number }>;
-      };
-
-      expect(result.column).toBe("isRootObservation");
-      expect(result.values).toEqual([
-        expect.objectContaining({ value: false, count: 1 }),
-        expect.objectContaining({ value: true, count: 2 }),
       ]);
     });
 

@@ -4,10 +4,6 @@ import {
   type SingleValueOption,
 } from "@langfuse/shared";
 
-export type FilterMigration = (
-  filter: FilterState[number],
-) => FilterState[number] | null;
-
 /**
  * Maps frontend column IDs to backend-expected column IDs
  * Used when frontend table definitions use different IDs than backend CH mappings
@@ -39,22 +35,6 @@ export function normalizeFilterColumnNames(
       return { ...filter, column: colDef.id };
     }
     return filter;
-  });
-}
-
-export function applyFilterMigrations(
-  filters: FilterState,
-  migrations?: readonly FilterMigration[],
-): FilterState {
-  if (!migrations?.length) return filters;
-
-  return filters.flatMap((filter) => {
-    let current: FilterState[number] | null = filter;
-    for (const migrate of migrations) {
-      if (current === null) break;
-      current = migrate(current);
-    }
-    return current === null ? [] : [current];
   });
 }
 

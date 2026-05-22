@@ -27,7 +27,6 @@ const OBSERVATION_MCP_FILTER_VALUE_COLUMNS = [
   "providedModelName",
   "tags",
   "hasParentObservation",
-  "isRootObservation",
 ] as const satisfies readonly ObservationMcpFilterColumn[];
 
 const FilterValueColumnSchema = z.enum(OBSERVATION_MCP_FILTER_VALUE_COLUMNS);
@@ -38,7 +37,6 @@ const GetObservationFilterValuesBaseSchema = z.object({
   toStartTime: z.iso.datetime({ offset: true }).optional(),
   observationType: ObservationTypeDomain.optional(),
   hasParentObservation: z.boolean().optional(),
-  isRootObservation: z.boolean().optional(),
   limit: ObservationLimitSchema,
   cursor: z.string().optional(),
 });
@@ -81,7 +79,8 @@ const normalizeFilterOptions = (
 ): FilterOption[] => {
   const normalizeValue = (value: unknown): string | boolean | null => {
     if (typeof value === "string") {
-      if (column === "hasParentObservation" || column === "isRootObservation") {
+      // Special handling for the "hasParentObservation" column to convert "true"/"false" strings to boolean values.
+      if (column === "hasParentObservation") {
         if (value === "true") return true;
         if (value === "false") return false;
       }
@@ -182,7 +181,6 @@ export const [
           projectId: context.projectId,
           startTimeFilter,
           hasParentObservation: input.hasParentObservation,
-          isRootObservation: input.isRootObservation,
           observationType: input.observationType,
           limit: input.limit,
           offset,

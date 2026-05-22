@@ -3,10 +3,7 @@ import {
   omitFilterFacets,
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
-import type {
-  ColumnToBackendKeyMap,
-  FilterMigration,
-} from "@/src/features/filters/lib/filter-transform";
+import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 
 // Helper function to get column name from eventsTableCols by ID
@@ -28,28 +25,10 @@ export const OBSERVATION_EVENTS_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
 
 export type ObservationEventsOmittableFilterColumn = "sessionId" | "userId";
 
-export const migrateLegacyRootObservationFilter: FilterMigration = (filter) => {
-  if (
-    filter.column === "hasParentObservation" &&
-    filter.type === "boolean" &&
-    typeof filter.value === "boolean"
-  ) {
-    return {
-      ...filter,
-      column: "isRootObservation",
-      value: !filter.value,
-    };
-  }
-
-  return filter;
-};
-
 export const observationEventsFilterConfig: FilterConfig = {
   tableName: "observations-events",
 
   columnDefinitions: eventsTableCols,
-
-  filterMigrations: [migrateLegacyRootObservationFilter],
 
   defaultExpanded: ["environment", "name", "isRootObservation", "type"],
 

@@ -18,11 +18,7 @@ import {
   getPersistedSidebarFilterQueryForContext,
   type PersistedSidebarFilterQueryState,
 } from "../lib/persistedSidebarFilterQuery";
-import {
-  applyFilterMigrations,
-  normalizeFilterColumnNames,
-  type FilterMigration,
-} from "../lib/filter-transform";
+import { normalizeFilterColumnNames } from "../lib/filter-transform";
 import {
   buildEffectiveEnvironmentFilter,
   buildManagedEnvironmentPolicyConfig,
@@ -46,13 +42,9 @@ import type { PeekTableStateContextValue } from "@/src/components/table/peek/con
 export function decodeAndNormalizeFilters(
   filtersQuery: string,
   columnDefinitions: ColumnDefinition[],
-  filterMigrations?: readonly FilterMigration[],
 ): FilterState {
   try {
-    const filters = applyFilterMigrations(
-      decodeFiltersGeneric(filtersQuery),
-      filterMigrations,
-    );
+    const filters = decodeFiltersGeneric(filtersQuery);
     const knownColumns = new Map<string, string>();
     for (const columnDefinition of columnDefinitions) {
       knownColumns.set(columnDefinition.id, columnDefinition.id);
@@ -524,14 +516,9 @@ export function useSidebarFilterState(
       return "";
     })();
 
-    return decodeAndNormalizeFilters(
-      rawQuery,
-      config.columnDefinitions,
-      config.filterMigrations,
-    );
+    return decodeAndNormalizeFilters(rawQuery, config.columnDefinitions);
   }, [
     config.columnDefinitions,
-    config.filterMigrations,
     stateLocationType,
     pendingFiltersQuery,
     urlFiltersQuery,

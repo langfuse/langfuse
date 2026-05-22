@@ -159,7 +159,7 @@ signoff of user-visible changes.
 
 ### Error handling (tRPC + REST)
 
-1. Throw `BaseError` subclasses (eg `LangfuseNotFoundError`) from handlers and services.
+1. Throw `BaseError` subclasses (eg `LangfuseNotFoundError`) from handlers and services. 
 2. Let `BaseError`s bubble up to the tRPC and REST middlewares (eg. don't `try/catch` and rethrow in to `TRPCError` the handler)
 3. Extend the `BaseError` or its subclasses in [`packages/shared/src/errors/`](../packages/shared/src/errors/) as needed.
 

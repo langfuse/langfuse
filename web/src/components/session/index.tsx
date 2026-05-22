@@ -656,18 +656,13 @@ export const SessionEventsPage: React.FC<{
     const allFilters = decodeAndNormalizeFilters(
       filtersQuery,
       sessionEventsFilterConfig.columnDefinitions,
-      sessionEventsFilterConfig.filterMigrations,
     );
     return allFilters.filter(
       (f) =>
         (f.column === "Start Time" || f.column === "startTime") &&
         f.type === "datetime",
     );
-  }, [
-    filtersQuery,
-    sessionEventsFilterConfig.columnDefinitions,
-    sessionEventsFilterConfig.filterMigrations,
-  ]);
+  }, [filtersQuery, sessionEventsFilterConfig.columnDefinitions]);
 
   const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
     projectId,
@@ -796,7 +791,6 @@ export const SessionEventsPage: React.FC<{
     validationContext: {
       columns: [],
       filterColumnDefinition: sessionEventsFilterConfig.columnDefinitions,
-      filterMigrations: sessionEventsFilterConfig.filterMigrations,
       expandableFilterColumns: sessionEventsFilterConfig.facets.map(
         (facet) => facet.column,
       ),

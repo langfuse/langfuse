@@ -1,6 +1,5 @@
 import type React from "react";
 import type { ColumnDefinition } from "@langfuse/shared";
-import type { FilterMigration } from "./filter-transform";
 
 interface BaseFacet {
   column: string;
@@ -20,7 +19,7 @@ interface BooleanFacet extends BaseFacet {
   type: "boolean";
   trueLabel?: string;
   falseLabel?: string;
-  invertValue?: boolean; // When true, "True" label maps to filter value=false.
+  invertValue?: boolean; // When true, "True" label maps to filter value=false, used for parent_observation_id filter for is Root?
 }
 
 interface NumericFacet extends BaseFacet {
@@ -62,7 +61,6 @@ export type Facet =
 export interface FilterConfig {
   tableName: string;
   columnDefinitions: ColumnDefinition[];
-  filterMigrations?: readonly FilterMigration[];
   defaultExpanded?: string[];
   defaultSidebarCollapsed?: boolean;
   facets: Facet[];

@@ -619,44 +619,6 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     expect(result[0]?.column).toBe("traceTags");
   });
 
-  it("should migrate legacy events root-observation URLs to isRootObservation=true", () => {
-    const urlFilter = "hasParentObservation;boolean;;=;false";
-
-    const normalized = decodeAndNormalizeFilters(
-      urlFilter,
-      observationEventsFilterConfig.columnDefinitions,
-      observationEventsFilterConfig.filterMigrations,
-    );
-
-    expect(normalized).toEqual([
-      {
-        column: "isRootObservation",
-        type: "boolean",
-        operator: "=",
-        value: true,
-      },
-    ]);
-  });
-
-  it("should migrate legacy events non-root-observation URLs to isRootObservation=false", () => {
-    const urlFilter = "hasParentObservation;boolean;;=;true";
-
-    const normalized = decodeAndNormalizeFilters(
-      urlFilter,
-      observationEventsFilterConfig.columnDefinitions,
-      observationEventsFilterConfig.filterMigrations,
-    );
-
-    expect(normalized).toEqual([
-      {
-        column: "isRootObservation",
-        type: "boolean",
-        operator: "=",
-        value: false,
-      },
-    ]);
-  });
-
   it("should preserve empty arrayOptions none-of filters through complete URL flow", () => {
     const filters: FilterState = [
       {
@@ -679,32 +641,6 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     );
 
     expect(normalized).toEqual([]);
-  });
-
-  it("should migrate legacy events root-observation saved view filters", () => {
-    const filters: FilterState = [
-      {
-        column: "hasParentObservation",
-        type: "boolean",
-        operator: "=",
-        value: false,
-      },
-    ];
-
-    expect(
-      validateFilters(
-        filters,
-        observationEventsFilterConfig.columnDefinitions,
-        observationEventsFilterConfig.filterMigrations,
-      ),
-    ).toEqual([
-      {
-        column: "isRootObservation",
-        type: "boolean",
-        operator: "=",
-        value: true,
-      },
-    ]);
   });
 });
 

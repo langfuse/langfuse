@@ -2315,7 +2315,6 @@ export const getEventsGroupedByHasParentObservation = async (
 export const getEventsGroupedByIsRootObservation = async (
   projectId: string,
   filter: FilterState,
-  opts?: GroupedEventsFilterOptions,
 ) => {
   const eventsFilter = new FilterList(
     createFilterFromFilterState(
@@ -2333,8 +2332,8 @@ export const getEventsGroupedByIsRootObservation = async (
     selectExpression: `${eventsTableIsRootObservationSql} as isRootObservation, count() as count`,
   })
     .where(appliedEventsFilter)
-    .orderBy(opts?.orderBy ?? "ORDER BY isRootObservation ASC")
-    .limit(opts?.limit ?? 2, opts?.offset ?? 0);
+    .orderBy("ORDER BY isRootObservation ASC")
+    .limit(2, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
 

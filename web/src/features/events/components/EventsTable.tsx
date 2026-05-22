@@ -252,12 +252,12 @@ export default function ObservationsEventsTable({
   // RE-ENABLING THE VIEW MODE TOGGLE:
   // To re-enable, uncomment the code below AND the viewModeFilter, viewModeToggle,
   // auto-switch logic, and imports further down. However, note that the sidebar now
-  // has an "Is Root Observation" boolean facet that controls `isRootObservation`.
+  // has an "Is Root Observation" boolean facet that also controls `hasParentObservation`.
   // Having BOTH active would create duplicate/conflicting filters. Pick one:
   //   - Sidebar facet only (current): remove this commented code entirely
   //   - Toolbar toggle only: uncomment this code, remove the boolean facet from
   //     web/src/features/events/config/filter-config.ts, and re-add
-  //     `isRootObservation` param to the useEventsFilterOptions call below
+  //     `hasParentObservation` param to the useEventsFilterOptions call below
   //   - Both: would need deduplication logic to prevent conflicting filters
   //
   // View mode toggle (Trace vs Observation)
@@ -274,7 +274,7 @@ export default function ObservationsEventsTable({
   //   string | null
   // >(`eventsAutoSwitchRange-${projectId}`, null);
   //
-  // const isRootObservation = viewMode === "observation" ? undefined : true;
+  // const hasParentObservation = viewMode === "observation" ? undefined : false;
   //
   // const setViewMode = useCallback(
   //   (mode: EventsViewMode) => {
@@ -414,10 +414,10 @@ export default function ObservationsEventsTable({
   //   viewMode === "trace"
   //     ? [
   //         {
-  //           column: "isRootObservation",
+  //           column: "hasParentObservation",
   //           type: "boolean",
   //           operator: "=",
-  //           value: true,
+  //           value: false,
   //         },
   //       ]
   //     : [];
@@ -1228,7 +1228,6 @@ export default function ObservationsEventsTable({
     validationContext: {
       columns,
       filterColumnDefinition: eventsFilterConfig.columnDefinitions,
-      filterMigrations: eventsFilterConfig.filterMigrations,
       expandableFilterColumns: eventsFilterConfig.facets.map(
         (facet) => facet.column,
       ),

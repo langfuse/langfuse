@@ -323,7 +323,6 @@ export async function getEventFilterValuePage(
     column:
       | "traceTags"
       | "hasParentObservation"
-      | "isRootObservation"
       | "providedModelName"
       | "modelId"
       | "name"
@@ -374,13 +373,6 @@ export async function getEventFilterValuePage(
     return createResultFromGroupedQuery(
       getEventsGroupedByHasParentObservation,
       (item) => (item.hasParentObservation ? "true" : "false"),
-    );
-  }
-
-  if (column === "isRootObservation") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByIsRootObservation,
-      (item) => (item.isRootObservation ? "true" : "false"),
     );
   }
 

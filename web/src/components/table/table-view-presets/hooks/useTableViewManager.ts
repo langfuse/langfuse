@@ -18,7 +18,6 @@ import isEqual from "lodash/isEqual";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { validateOrderBy, validateFilters } from "../validation";
 import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
-import type { FilterMigration } from "@/src/features/filters/lib/filter-transform";
 
 interface TableStateUpdaters {
   setColumnOrder: (columnOrder: string[]) => void;
@@ -36,7 +35,6 @@ interface UseTableStateProps {
   validationContext?: {
     columns?: LangfuseColumnDef<any, any>[];
     filterColumnDefinition?: ColumnDefinition[];
-    filterMigrations?: readonly FilterMigration[];
     expandableFilterColumns?: string[];
   };
   currentFilterState?: FilterState;
@@ -226,7 +224,6 @@ export function useTableViewManager({
         validFilters = validateFilters(
           viewData.filters,
           validationContext.filterColumnDefinition,
-          validationContext.filterMigrations,
         );
       }
 
