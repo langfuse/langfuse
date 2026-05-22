@@ -172,7 +172,7 @@ export const eventsRouter = createTRPCRouter({
               input.isRootObservation ??
               (input.hasParentObservation !== undefined
                 ? !input.hasParentObservation
-                : undefined),
+                : undefined), // backward compat for legacy hasParentObservation filterOption
           });
         },
       );
