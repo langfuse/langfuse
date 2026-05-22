@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { isValidThresholdOrder } from "./isValidThresholdOrder";
 
 describe("isValidThresholdOrder", () => {
-  it.each(["gt", "gte"] as const)(
+  it.each(["GT", "GTE"] as const)(
     "%s requires warningThreshold < alertThreshold",
     (op) => {
       expect(
@@ -30,7 +30,7 @@ describe("isValidThresholdOrder", () => {
     },
   );
 
-  it.each(["lt", "lte"] as const)(
+  it.each(["LT", "LTE"] as const)(
     "%s requires warningThreshold > alertThreshold",
     (op) => {
       expect(
@@ -57,7 +57,7 @@ describe("isValidThresholdOrder", () => {
     },
   );
 
-  it.each(["eq", "neq"] as const)("%s passes regardless of ordering", (op) => {
+  it.each(["EQ", "NEQ"] as const)("%s passes regardless of ordering", (op) => {
     for (const warning of [50, 100, 200]) {
       expect(
         isValidThresholdOrder({
@@ -69,7 +69,7 @@ describe("isValidThresholdOrder", () => {
     }
   });
 
-  it.each(["gt", "gte", "lt", "lte", "eq", "neq"] as const)(
+  it.each(["GT", "GTE", "LT", "LTE", "EQ", "NEQ"] as const)(
     "%s passes when warningThreshold is null",
     (op) => {
       expect(

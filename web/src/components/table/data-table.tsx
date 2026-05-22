@@ -203,7 +203,9 @@ export function DataTable<TData extends object, TValue>({
       left: columns
         .filter((col) => col.isPinnedLeft)
         .map((col) => col.id || col.accessorKey),
-      right: [],
+      right: columns
+        .filter((col) => col.isPinnedRight)
+        .map((col) => col.id || col.accessorKey),
     }),
     [columns],
   );
@@ -320,12 +322,18 @@ export function DataTable<TData extends object, TValue>({
                     const sortingEnabled = columnDef.enableSorting;
                     // if the header id does not translate to a valid css variable name, default to 150px as width
                     // may only happen for dynamic columns, as column names are user defined
-                    const width = isValidCssVariableName({
-                      name: header.id,
-                      includesHyphens: false,
-                    })
-                      ? `calc(var(--header-${header.id}-size) * 1px)`
-                      : 150;
+                    const isFlexWidth = (
+                      header.column
+                        .columnDef as LangfuseColumnDef<ModelTableRow>
+                    ).isFlexWidth;
+                    const width = isFlexWidth
+                      ? "auto"
+                      : isValidCssVariableName({
+                            name: header.id,
+                            includesHyphens: false,
+                          })
+                        ? `calc(var(--header-${header.id}-size) * 1px)`
+                        : 150;
 
                     return header.column.getIsVisible() ? (
                       <TableHead
@@ -336,8 +344,8 @@ export function DataTable<TData extends object, TValue>({
                           getPinningClasses(header.column),
                         )}
                         style={{
-                          width,
                           ...getCommonPinningStyles(header.column),
+                          width,
                         }}
                         onClick={(event) => {
                           event.preventDefault();
@@ -589,8 +597,11 @@ function TableBodyComponent<TData>({
                   getPinningClasses(column),
                 )}
                 style={{
-                  width: `calc(var(--col-${column.id}-size) * 1px)`,
                   ...getCommonPinningStyles(column),
+                  width: (column.columnDef as LangfuseColumnDef<TData>)
+                    .isFlexWidth
+                    ? "auto"
+                    : `calc(var(--col-${column.id}-size) * 1px)`,
                 }}
               >
                 <div
@@ -657,8 +668,11 @@ function TableBodyComponent<TData>({
                     getPinningClasses(cell.column),
                   )}
                   style={{
-                    width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
                     ...getCommonPinningStyles(cell.column),
+                    width: (cell.column.columnDef as LangfuseColumnDef<TData>)
+                      .isFlexWidth
+                      ? "auto"
+                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
                   }}
                 >
                   <div

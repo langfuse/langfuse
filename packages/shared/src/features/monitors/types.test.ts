@@ -22,17 +22,17 @@ const validMonitorBase = {
   metric: { measure: "count", aggregation: "count" as const },
 
   window: "5m" as const,
-  thresholdOperator: "gt" as const,
+  thresholdOperator: "GT" as const,
   alertThreshold: 100,
   warningThreshold: null,
 
-  severity: "unknown" as const,
+  severity: "UNKNOWN" as const,
   severityChangedAt: null,
 
   noData: { mode: "SILENT" as const },
   renotify: { mode: "OFF" as const },
 
-  status: "active" as const,
+  status: "ACTIVE" as const,
   nextRunAt: new Date("2026-05-18T00:01:00.000Z"),
   lastPublishedRunAt: null,
   lastCompletedRunAt: null,
@@ -157,7 +157,7 @@ describe("MonitorAlertSchema", () => {
   const validAlert = {
     monitorId: "mon_01",
     projectId: "proj_01",
-    severity: "alert" as const,
+    severity: "ALERT" as const,
     permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
     timestamp: new Date("2026-05-18T12:01:00.000Z"),
     message: { title: "High error rate", body: "errors > 100" },

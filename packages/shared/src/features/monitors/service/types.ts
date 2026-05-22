@@ -2,12 +2,13 @@
 import { z } from "zod";
 
 import { LangfuseNotFoundError } from "../../../errors";
+import { singleFilter } from "../../../interfaces/filters";
 import { paginationZod } from "../../../utils/zod";
 
 import {
   MonitorSchema,
   MonitorWriteStatusSchema,
-  validateQuery,
+  validateMonitorQuery,
   validateThresholdOrder,
 } from "../types";
 
@@ -43,15 +44,15 @@ export const CreateMonitorSchema = MonitorSchema.omit({
   ...omitOnWrite,
   id: true,
 })
-  .extend({ status: MonitorWriteStatusSchema.default("active") })
-  .superRefine(validateQuery)
+  .extend({ status: MonitorWriteStatusSchema.default("ACTIVE") })
+  .superRefine(validateMonitorQuery)
   .superRefine(validateThresholdOrder);
 export type CreateMonitor = z.infer<typeof CreateMonitorSchema>;
 
 /** UpdateMonitorSchema is the input for MonitorService.update. */
 export const UpdateMonitorSchema = MonitorSchema.omit(omitOnWrite)
-  .extend({ status: MonitorWriteStatusSchema.default("active") })
-  .superRefine(validateQuery)
+  .extend({ status: MonitorWriteStatusSchema.default("ACTIVE") })
+  .superRefine(validateMonitorQuery)
   .superRefine(validateThresholdOrder);
 export type UpdateMonitor = z.infer<typeof UpdateMonitorSchema>;
 
@@ -68,6 +69,14 @@ export const DeleteMonitorSchema = z.object({
   id: z.string(),
 });
 export type DeleteMonitor = z.infer<typeof DeleteMonitorSchema>;
+
+/** GetMonitorFilterOptionsSchema is the input for MonitorService.getFilterOptions. */
+export const GetMonitorFilterOptionsSchema = z.object({
+  projectId: z.string(),
+});
+export type GetMonitorFilterOptions = z.infer<
+  typeof GetMonitorFilterOptionsSchema
+>;
 
 /** MonitorListOrderBySchema is the set of columns MonitorService.list can sort by. */
 export const MonitorListOrderBySchema = z.enum([
@@ -90,6 +99,7 @@ export const ListMonitorsSchema = z.object({
       order: z.enum(["ASC", "DESC"]),
     })
     .nullable(),
+  filter: z.array(singleFilter).optional(),
   ...paginationZod,
 });
 export type ListMonitors = z.infer<typeof ListMonitorsSchema>;

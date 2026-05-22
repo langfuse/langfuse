@@ -15,14 +15,14 @@ export const isValidThresholdOrder = (monitor: {
 }): boolean => {
   if (monitor.warningThreshold == null) return true;
   switch (monitor.thresholdOperator) {
-    case "gt":
-    case "gte":
+    case "GT":
+    case "GTE":
       return monitor.warningThreshold < monitor.alertThreshold;
-    case "lt":
-    case "lte":
+    case "LT":
+    case "LTE":
       return monitor.warningThreshold > monitor.alertThreshold;
-    case "eq":
-    case "neq":
+    case "EQ":
+    case "NEQ":
       return true;
   }
 };

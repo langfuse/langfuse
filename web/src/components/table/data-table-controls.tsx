@@ -67,6 +67,13 @@ export function DataTableControlsProvider({
   const defaultOpen = isDesktop ? !defaultSidebarCollapsed : false;
   const [open, setOpen] = useSessionStorage(storageKey, defaultOpen);
 
+  // sessionStorage may carry a previously-open state from a wider viewport.
+  // On mobile, force the sidebar closed on each (re)mount so the filter
+  // panel doesn't cover the table by default.
+  useEffect(() => {
+    if (!isDesktop) setOpen(false);
+  }, [isDesktop, setOpen]);
+
   return (
     <ControlsContext.Provider value={{ open, setOpen, tableName }}>
       <div

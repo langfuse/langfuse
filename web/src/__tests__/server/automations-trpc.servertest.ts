@@ -402,7 +402,7 @@ describe("automations trpc", () => {
               type: "string",
               column: "severity",
               operator: "=",
-              value: "warning",
+              value: "WARNING",
             },
           ],
         });
@@ -422,10 +422,10 @@ describe("automations trpc", () => {
             type: "string",
             column: "severity",
             operator: "=",
-            value: "warning",
+            value: "WARNING",
           },
-          matching: { severity: "warning" },
-          nonMatching: { severity: "ok" },
+          matching: { severity: "WARNING" },
+          nonMatching: { severity: "OK" },
         },
         {
           label: "monitorId",

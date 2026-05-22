@@ -1,22 +1,10 @@
-import {
-  MonitorSeverity as PrismaMonitorSeverity,
-  MonitorStatus as PrismaMonitorStatus,
-  MonitorThresholdOperator as PrismaMonitorThresholdOperator,
-  MonitorView as PrismaMonitorView,
-  Prisma,
-} from "@prisma/client";
+import { MonitorView as PrismaMonitorView, Prisma } from "@prisma/client";
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 
 import { InvalidRequestError, LangfuseNotFoundError } from "../../../errors";
 import { singleFilter } from "../../../interfaces/filters";
-import {
-  MonitorSeveritySchema,
-  MonitorStatusSchema,
-  MonitorThresholdOperatorSchema,
-  MonitorViewSchema,
-  MonitorWindowSchema,
-} from "../types";
+import { MonitorViewSchema, MonitorWindowSchema } from "../types";
 import { DAY, HOUR, MINUTE, WEEK } from "../helpers";
 import {
   calculateCadence,
@@ -25,12 +13,7 @@ import {
   decimalToPrisma,
   errorFromPrisma,
   monitorFromPrisma,
-  severityFromPrisma,
   sortFiltersCanonically,
-  statusFromPrisma,
-  statusToPrisma,
-  thresholdOperatorFromPrisma,
-  thresholdOperatorToPrisma,
   viewFromPrisma,
   viewToPrisma,
   windowFromMs,
@@ -426,46 +409,6 @@ describe("viewToPrisma / viewFromPrisma", () => {
   });
 });
 
-describe("statusToPrisma / statusFromPrisma", () => {
-  it.each(MonitorStatusSchema.options)("round-trips %s", (status) => {
-    expect(statusFromPrisma(statusToPrisma(status))).toBe(status);
-  });
-
-  it.each(Object.values(PrismaMonitorStatus))(
-    "round-trips Prisma %s",
-    (status) => {
-      expect(statusToPrisma(statusFromPrisma(status))).toBe(status);
-    },
-  );
-});
-
-describe("severityFromPrisma", () => {
-  // No `severityToPrisma`: severity is owned by the scheduler/worker, never by
-  // a caller submitting an input. Only the reverse mapping is needed.
-  it.each(Object.values(PrismaMonitorSeverity))(
-    "maps Prisma %s to a valid MonitorSeverity",
-    (severity) => {
-      const mapped = severityFromPrisma(severity);
-      expect(MonitorSeveritySchema.options).toContain(mapped);
-    },
-  );
-});
-
-describe("thresholdOperatorToPrisma / thresholdOperatorFromPrisma", () => {
-  it.each(MonitorThresholdOperatorSchema.options)("round-trips %s", (op) => {
-    expect(thresholdOperatorFromPrisma(thresholdOperatorToPrisma(op))).toBe(op);
-  });
-
-  it.each(Object.values(PrismaMonitorThresholdOperator))(
-    "round-trips Prisma %s",
-    (op) => {
-      expect(thresholdOperatorToPrisma(thresholdOperatorFromPrisma(op))).toBe(
-        op,
-      );
-    },
-  );
-});
-
 describe("decimalToPrisma", () => {
   it("returns null for a null input", () => {
     expect(decimalToPrisma(null)).toBeNull();
@@ -520,15 +463,15 @@ describe("monitorFromPrisma", () => {
     windowMs: 5n * 60_000n,
     cadenceMs: 60_000n,
     schedulerBatchId: 42n,
-    thresholdOperator: PrismaMonitorThresholdOperator.GT,
+    thresholdOperator: "GT" as const,
     alertThreshold: new Prisma.Decimal(100),
     warningThreshold: null,
     noData: { mode: "SILENT" as const },
     renotify: { mode: "OFF" as const },
-    severity: PrismaMonitorSeverity.UNKNOWN,
+    severity: "UNKNOWN" as const,
     severityChangedAt: null,
     alertedAt: null,
-    status: PrismaMonitorStatus.ACTIVE,
+    status: "ACTIVE" as const,
     nextRunAt: new Date("2026-05-18T00:01:00.000Z"),
     lastPublishedRunAt: null,
     lastCompletedRunAt: null,
@@ -539,9 +482,9 @@ describe("monitorFromPrisma", () => {
   it("translates a representative row to the domain shape", () => {
     const monitor = monitorFromPrisma(prismaRow);
     expect(monitor.view).toBe("observations");
-    expect(monitor.status).toBe("active");
-    expect(monitor.severity).toBe("unknown");
-    expect(monitor.thresholdOperator).toBe("gt");
+    expect(monitor.status).toBe("ACTIVE");
+    expect(monitor.severity).toBe("UNKNOWN");
+    expect(monitor.thresholdOperator).toBe("GT");
     expect(monitor.window).toBe("5m");
     expect(monitor.alertThreshold).toBe(100);
     expect(monitor.warningThreshold).toBeNull();

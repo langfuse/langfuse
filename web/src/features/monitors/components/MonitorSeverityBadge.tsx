@@ -1,0 +1,75 @@
+import { type MonitorSeverity } from "@langfuse/shared/monitors";
+import { PauseCircle } from "lucide-react";
+
+import { Badge, type BadgeProps } from "@/src/components/ui/badge";
+import { cn } from "@/src/utils/tailwind";
+
+const severityVariant: Record<MonitorSeverity, BadgeProps["variant"]> = {
+  UNKNOWN: "outline",
+  NO_DATA: "secondary",
+  PAUSED: "outline",
+  OK: "default",
+  WARNING: "default",
+  ALERT: "default",
+};
+
+const severityClassName: Record<MonitorSeverity, string> = {
+  UNKNOWN: "text-gray-400",
+  NO_DATA: "",
+  PAUSED: "text-gray-400",
+  OK: "bg-emerald-500 text-white hover:bg-emerald-500",
+  WARNING: "bg-amber-600 text-white hover:bg-amber-600",
+  ALERT: "bg-orange-600 text-white hover:bg-orange-600",
+};
+
+const severityLabel: Record<MonitorSeverity, string> = {
+  // UNKNOWN means the monitor is queued for its first evaluation — render
+  // a spinner next to "PENDING" so it reads as a wait state, not no-data.
+  UNKNOWN: "PENDING",
+  NO_DATA: "NO DATA",
+  PAUSED: "PAUSED",
+  OK: "OK",
+  WARNING: "WARNING",
+  ALERT: "ALERT",
+};
+
+/**
+ * MonitorSeverityBadge renders a Monitor's current severity as a Badge.
+ * PAUSED renders as a pause-circle icon — `severity = PAUSED` is the
+ * persisted signal that the monitor isn't being evaluated.
+ */
+export function MonitorSeverityBadge({
+  severity,
+  className,
+}: {
+  severity: MonitorSeverity;
+  className?: string;
+}) {
+  return (
+    <Badge
+      variant={severityVariant[severity]}
+      className={cn(
+        "w-20 justify-center py-1",
+        severityClassName[severity],
+        className,
+      )}
+    >
+      {severity === "PAUSED" ? (
+        <span className="inline-flex items-center gap-1">
+          <PauseCircle className="h-4 w-4" />
+          {severityLabel.PAUSED}
+        </span>
+      ) : severity === "UNKNOWN" ? (
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-200 border-t-gray-400"
+            aria-hidden="true"
+          />
+          {severityLabel.UNKNOWN}
+        </span>
+      ) : (
+        severityLabel[severity]
+      )}
+    </Badge>
+  );
+}

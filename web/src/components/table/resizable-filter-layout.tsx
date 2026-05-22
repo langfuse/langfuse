@@ -23,9 +23,15 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
     ? childrenArray.slice(1)
     : childrenArray;
 
-  // On mobile, render children as-is (stacked layout)
+  // On mobile, honor the open state so the hide/show toggle works the same as
+  // on desktop — collapsed by default, expandable via the controls button.
   if (!isDesktop) {
-    return <div className="flex flex-1 overflow-hidden">{children}</div>;
+    return (
+      <div className="flex flex-1 overflow-hidden">
+        {open ? filterSidebar : null}
+        {tableContent}
+      </div>
+    );
   }
 
   const filterDefault = 15;

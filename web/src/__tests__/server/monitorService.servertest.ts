@@ -1,9 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
-  createOrgProjectAndApiKey,
   MonitorService,
   type SessionContext,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/monitors/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
@@ -13,12 +13,12 @@ const baseMonitorInput = (projectId: string) => ({
   filters: [],
   metric: { measure: "count", aggregation: "count" as const },
   window: "5m" as const,
-  thresholdOperator: "gt" as const,
+  thresholdOperator: "GT" as const,
   alertThreshold: 100,
   warningThreshold: null,
   noData: { mode: "SILENT" as const },
   renotify: { mode: "OFF" as const },
-  status: "active" as const,
+  status: "ACTIVE" as const,
   name: "High error rate",
   tags: [],
 });
@@ -153,7 +153,7 @@ describe("MonitorService (integration)", () => {
       });
 
       expect(updated.name).toBe("Renamed");
-      expect(updated.severity).toBe("alert");
+      expect(updated.severity).toBe("ALERT");
       expect(updated.severityChangedAt).not.toBeNull();
       expect(updated.alertedAt).not.toBeNull();
       expect(updated.lastCompletedRunAt).not.toBeNull();

@@ -103,12 +103,12 @@ const validMonitorInput = (projectId: string) => ({
   filters: [],
   metric: { measure: "count", aggregation: "count" as const },
   window: "5m" as const,
-  thresholdOperator: "gt" as const,
+  thresholdOperator: "GT" as const,
   alertThreshold: 100,
   warningThreshold: null,
   noData: { mode: "SILENT" as const },
   renotify: { mode: "OFF" as const },
-  status: "active" as const,
+  status: "ACTIVE" as const,
   name: "High error rate",
   tags: [],
 });
@@ -140,6 +140,8 @@ describe("monitors trpc", () => {
       const list = await caller.monitors.all({
         projectId: project.id,
         orderBy: null,
+        page: 1,
+        limit: 50,
       });
       expect(list.totalCount).toBe(1);
       expect(list.monitors.map((m) => m.id)).toContain(created.id);
@@ -163,7 +165,7 @@ describe("monitors trpc", () => {
         projectId: project.id,
         id: created.id,
       });
-      expect(fetched.status).toBe("error-bad-query");
+      expect(fetched.status).toBe("ERROR_BAD_QUERY");
     });
   });
 
@@ -191,6 +193,8 @@ describe("monitors trpc", () => {
       const list = await caller.monitors.all({
         projectId: project.id,
         orderBy: null,
+        page: 1,
+        limit: 50,
       });
       expect(list.totalCount).toBe(0);
     });
@@ -203,7 +207,7 @@ describe("monitors trpc", () => {
       await expect(
         caller.monitors.create({
           ...validMonitorInput(project.id),
-          thresholdOperator: "gt",
+          thresholdOperator: "GT",
           alertThreshold: 100,
           warningThreshold: 100,
         }),
@@ -255,7 +259,12 @@ describe("monitors trpc", () => {
     it("rejects monitors.all when the flag is off", async () => {
       const { project, caller } = await prepare({ monitorsFlag: false });
       await expect(
-        caller.monitors.all({ projectId: project.id, orderBy: null }),
+        caller.monitors.all({
+          projectId: project.id,
+          orderBy: null,
+          page: 1,
+          limit: 50,
+        }),
       ).rejects.toThrow(/monitors/i);
     });
   });
@@ -293,6 +302,159 @@ describe("monitors trpc", () => {
       await expect(
         caller.monitors.get({ projectId: project.id, id: created.id }),
       ).rejects.toThrow(/not found/i);
+    });
+  });
+
+  describe("list filter sidebar", () => {
+    it("filters by severity (any of)", async () => {
+      const { project, caller } = await prepare();
+      const a = await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "A",
+      });
+      await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "B",
+      });
+      await prisma.monitor.update({
+        where: { id: a.id },
+        data: { severity: "ALERT" },
+      });
+
+      const result = await caller.monitors.all({
+        projectId: project.id,
+        orderBy: null,
+        page: 1,
+        limit: 50,
+        filter: [
+          {
+            type: "stringOptions",
+            column: "severity",
+            operator: "any of",
+            value: ["ALERT"],
+          },
+        ],
+      });
+      expect(result.totalCount).toBe(1);
+      expect(result.monitors.map((m) => m.name)).toEqual(["A"]);
+    });
+
+    it("filters by severity (none of PAUSED) hides paused monitors", async () => {
+      // Pausing via the service writes severity = PAUSED; a severity-filter
+      // with `none of [PAUSED]` then naturally excludes those rows.
+      const { project, caller } = await prepare();
+      const a = await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "A",
+      });
+      await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "B",
+      });
+      await caller.monitors.update({
+        ...validMonitorInput(project.id),
+        id: a.id,
+        status: "PAUSED",
+      });
+
+      const result = await caller.monitors.all({
+        projectId: project.id,
+        orderBy: null,
+        page: 1,
+        limit: 50,
+        filter: [
+          {
+            type: "stringOptions",
+            column: "severity",
+            operator: "none of",
+            value: ["PAUSED"],
+          },
+        ],
+      });
+      expect(result.totalCount).toBe(1);
+      expect(result.monitors.map((m) => m.name)).toEqual(["B"]);
+    });
+
+    it("flipping status ACTIVE → PAUSED via update writes severity = PAUSED", async () => {
+      const { project, caller } = await prepare();
+      const created = await caller.monitors.create(
+        validMonitorInput(project.id),
+      );
+      expect(created.severity).toBe("UNKNOWN");
+
+      const paused = await caller.monitors.update({
+        ...validMonitorInput(project.id),
+        id: created.id,
+        status: "PAUSED",
+      });
+      expect(paused.status).toBe("PAUSED");
+      expect(paused.severity).toBe("PAUSED");
+    });
+
+    it("flipping status PAUSED → ACTIVE via update resets severity to UNKNOWN", async () => {
+      const { project, caller } = await prepare();
+      const created = await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        status: "PAUSED",
+      });
+      expect(created.severity).toBe("PAUSED");
+
+      const resumed = await caller.monitors.update({
+        ...validMonitorInput(project.id),
+        id: created.id,
+        status: "ACTIVE",
+      });
+      expect(resumed.status).toBe("ACTIVE");
+      expect(resumed.severity).toBe("UNKNOWN");
+    });
+
+    it("filters by tags (any of)", async () => {
+      const { project, caller } = await prepare();
+      await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "Tagged",
+        tags: ["prod", "latency"],
+      });
+      await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "Untagged",
+      });
+
+      const result = await caller.monitors.all({
+        projectId: project.id,
+        orderBy: null,
+        page: 1,
+        limit: 50,
+        filter: [
+          {
+            type: "arrayOptions",
+            column: "tags",
+            operator: "any of",
+            value: ["prod"],
+          },
+        ],
+      });
+      expect(result.totalCount).toBe(1);
+      expect(result.monitors.map((m) => m.name)).toEqual(["Tagged"]);
+    });
+
+    it("filterOptions returns distinct tags for the project", async () => {
+      const { project, caller } = await prepare();
+      await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "A",
+        tags: ["prod", "latency"],
+      });
+      await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "B",
+        tags: ["prod"],
+      });
+
+      const opts = await caller.monitors.getFilterOptions({
+        projectId: project.id,
+      });
+      expect(opts.tags.map((t) => t.value).sort()).toEqual(["latency", "prod"]);
     });
   });
 });

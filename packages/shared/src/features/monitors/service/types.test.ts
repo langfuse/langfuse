@@ -16,12 +16,12 @@ const validCreateInput = {
   metric: { measure: "count", aggregation: "count" as const },
 
   window: "5m" as const,
-  thresholdOperator: "gt" as const,
+  thresholdOperator: "GT" as const,
   alertThreshold: 100,
   warningThreshold: null,
   noData: { mode: "SILENT" as const },
   renotify: { mode: "OFF" as const },
-  status: "active" as const,
+  status: "ACTIVE" as const,
 
   name: "High error rate",
   tags: [],
@@ -40,14 +40,14 @@ describe("CreateMonitorSchema", () => {
   it("rejects warning >= alert for gt (validateThresholdOrder is wired)", () => {
     const result = CreateMonitorSchema.safeParse({
       ...validCreateInput,
-      thresholdOperator: "gt" as const,
+      thresholdOperator: "GT" as const,
       alertThreshold: 100,
       warningThreshold: 100,
     });
     expect(result.success).toBe(false);
   });
 
-  it.each(["gt", "gte"] as const)(
+  it.each(["GT", "GTE"] as const)(
     "%s emits a `>` strict-ordering message (not the operator name)",
     (op) => {
       const result = CreateMonitorSchema.safeParse({
@@ -67,7 +67,7 @@ describe("CreateMonitorSchema", () => {
     },
   );
 
-  it.each(["lt", "lte"] as const)(
+  it.each(["LT", "LTE"] as const)(
     "%s emits a `<` strict-ordering message (not the operator name)",
     (op) => {
       const result = CreateMonitorSchema.safeParse({
@@ -96,7 +96,7 @@ describe("CreateMonitorSchema", () => {
   it("rejects status `error-bad-query` on create (scheduler-owned)", () => {
     const result = CreateMonitorSchema.safeParse({
       ...validCreateInput,
-      status: "error-bad-query",
+      status: "ERROR_BAD_QUERY",
     });
     expect(result.success).toBe(false);
   });
@@ -110,7 +110,7 @@ describe("UpdateMonitorSchema", () => {
   it("rejects warning <= alert for lt (validateThresholdOrder is wired)", () => {
     const result = UpdateMonitorSchema.safeParse({
       ...validUpdateInput,
-      thresholdOperator: "lt" as const,
+      thresholdOperator: "LT" as const,
       alertThreshold: 100,
       warningThreshold: 100,
     });
@@ -138,7 +138,7 @@ describe("UpdateMonitorSchema", () => {
     // directly — narrowing the input DTO to active/paused enforces that.
     const result = UpdateMonitorSchema.safeParse({
       ...validUpdateInput,
-      status: "error-bad-query",
+      status: "ERROR_BAD_QUERY",
     });
     expect(result.success).toBe(false);
   });

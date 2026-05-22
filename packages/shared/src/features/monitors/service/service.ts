@@ -9,11 +9,10 @@ import {
   calculateSchedulerBatchId,
   decimalToPrisma,
   errorFromPrisma,
+  filterStateToMonitorWhere,
   monitorFromPrisma,
   nullableOrderColumns,
   sortFiltersCanonically,
-  statusToPrisma,
-  thresholdOperatorToPrisma,
   viewToPrisma,
   windowToMs,
 } from "./helpers";
@@ -21,6 +20,7 @@ import {
   type CreateMonitor,
   type DeleteMonitor,
   type GetMonitorById,
+  type GetMonitorFilterOptions,
   type ListMonitors,
   MonitorNotFoundError,
   type SessionContext,
@@ -70,12 +70,16 @@ export class MonitorService {
         metric: input.metric,
         windowMs,
         cadenceMs,
-        thresholdOperator: thresholdOperatorToPrisma(input.thresholdOperator),
+        thresholdOperator: input.thresholdOperator,
         alertThreshold: new Prisma.Decimal(input.alertThreshold),
         warningThreshold: decimalToPrisma(input.warningThreshold),
         noData: input.noData,
         renotify: input.renotify,
-        status: statusToPrisma(input.status),
+        status: input.status,
+        // Mirror the transition rule: monitors created in a non-ACTIVE state
+        // start with severity = PAUSED (scheduler skips them until they go
+        // ACTIVE, at which point .update resets severity to UNKNOWN).
+        ...(input.status !== "ACTIVE" ? { severity: "PAUSED" as const } : {}),
         schedulerBatchId,
         nextRunAt,
         name: input.name,
@@ -104,8 +108,31 @@ export class MonitorService {
       schedulerBatchId,
     );
 
-    // Scheduler and QueueProcessor columns are intentionally not touched
-    // (eg. severity, severityChangedAt, alertedAt, lastPublishedRunAt, lastCompletedRunAt).
+    // Detect a status transition so we can keep `severity` in sync. The
+    // worker/scheduler still owns severity on every other code path — this
+    // block only fires when the caller is flipping ACTIVE ↔ non-ACTIVE.
+    const current = await prisma.monitor.findFirst({
+      where: { id: input.id, projectId: input.projectId },
+      select: { status: true },
+    });
+    const severityTransition: {
+      severity?: "PAUSED" | "UNKNOWN";
+      severityChangedAt?: Date;
+    } = (() => {
+      if (!current) return {};
+      const goingPaused =
+        current.status === "ACTIVE" && input.status !== "ACTIVE";
+      const goingActive =
+        current.status !== "ACTIVE" && input.status === "ACTIVE";
+      if (goingPaused) {
+        return { severity: "PAUSED", severityChangedAt: new Date() };
+      }
+      if (goingActive) {
+        return { severity: "UNKNOWN", severityChangedAt: new Date() };
+      }
+      return {};
+    })();
+
     try {
       const updated = await prisma.monitor.update({
         where: { id: input.id, projectId: input.projectId },
@@ -116,12 +143,13 @@ export class MonitorService {
           metric: input.metric,
           windowMs,
           cadenceMs,
-          thresholdOperator: thresholdOperatorToPrisma(input.thresholdOperator),
+          thresholdOperator: input.thresholdOperator,
           alertThreshold: new Prisma.Decimal(input.alertThreshold),
           warningThreshold: decimalToPrisma(input.warningThreshold),
           noData: input.noData,
           renotify: input.renotify,
-          status: statusToPrisma(input.status),
+          status: input.status,
+          ...severityTransition,
           schedulerBatchId,
           nextRunAt,
           name: input.name,
@@ -159,19 +187,39 @@ export class MonitorService {
       input.orderBy && nullableOrderColumns.has(input.orderBy.column)
         ? { sort: sortOrder, nulls: "last" as const }
         : sortOrder;
+
+    const where: Prisma.MonitorWhereInput = {
+      projectId: input.projectId,
+      AND: filterStateToMonitorWhere(input.filter),
+    };
+
     const [monitors, totalCount] = await Promise.all([
       prisma.monitor.findMany({
-        where: { projectId: input.projectId },
+        where,
         orderBy: input.orderBy
           ? [{ [input.orderBy.column]: orderByValue }, { id: "asc" }]
           : [{ severity: "desc" }, { id: "asc" }],
         skip,
         take: input.limit,
       }),
-      prisma.monitor.count({ where: { projectId: input.projectId } }),
+      prisma.monitor.count({ where }),
     ]);
 
     return { monitors: monitors.map(monitorFromPrisma), totalCount };
+  }
+
+  public static async getFilterOptions(
+    _session: SessionContext,
+    input: GetMonitorFilterOptions,
+  ): Promise<{ tags: { value: string }[] }> {
+    const rows = await prisma.$queryRaw<{ value: string }[]>`
+      SELECT tags.tag AS value
+      FROM monitors, UNNEST(monitors.tags) AS tags(tag)
+      WHERE monitors.project_id = ${input.projectId}
+      GROUP BY tags.tag
+      ORDER BY tags.tag ASC;
+    `;
+    return { tags: rows };
   }
 
   public static async delete(

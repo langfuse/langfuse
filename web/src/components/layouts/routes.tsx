@@ -1,6 +1,7 @@
 import { type Flag } from "@/src/features/feature-flags/types";
 import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import {
+  BellRing,
   Database,
   LayoutDashboard,
   LifeBuoy,
@@ -122,6 +123,16 @@ export const ROUTES: Route[] = [
     productModule: "tracing",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
+  },
+  {
+    title: "Monitors",
+    pathname: "/project/[projectId]/monitors",
+    icon: BellRing,
+    projectRbacScopes: ["monitors:read"],
+    featureFlag: "monitors",
+    group: RouteGroup.Observability,
+    section: RouteSection.Main,
+    label: "Beta",
   },
   {
     title: "Prompts",

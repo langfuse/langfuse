@@ -5,22 +5,19 @@
 import { createHash } from "node:crypto";
 import {
   type Monitor as PrismaMonitor,
-  MonitorSeverity as PrismaMonitorSeverity,
-  MonitorStatus as PrismaMonitorStatus,
-  MonitorThresholdOperator as PrismaMonitorThresholdOperator,
   MonitorView as PrismaMonitorView,
   Prisma,
 } from "@prisma/client";
+import { type z } from "zod";
 
 import { InvalidRequestError } from "../../../errors";
+import { type singleFilter } from "../../../interfaces/filters";
 
 import { DAY, HOUR, MINUTE, WEEK } from "../helpers";
 import {
   type Monitor,
   type MonitorFilters,
-  type MonitorSeverity,
-  type MonitorStatus,
-  type MonitorThresholdOperator,
+  MonitorSeveritySchema,
   type MonitorView,
   type MonitorWindow,
   MonitorSchema,
@@ -33,6 +30,52 @@ export const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
   "severityChangedAt",
   "alertedAt",
 ]);
+
+/** filterableMonitorColumns enumerates the filter columns the monitors list endpoint honors. */
+const filterableMonitorColumns = new Set<string>(["severity", "tags"]);
+
+type SingleFilter = z.infer<typeof singleFilter>;
+
+/** filterStateToMonitorWhere translates the monitors list FilterState into Prisma where clauses. */
+export const filterStateToMonitorWhere = (
+  filter: SingleFilter[] | undefined,
+): Prisma.MonitorWhereInput[] => {
+  if (!filter) return [];
+  const clauses: Prisma.MonitorWhereInput[] = [];
+  for (const f of filter) {
+    if (!filterableMonitorColumns.has(f.column)) continue;
+    if (f.column === "severity" && f.type === "stringOptions") {
+      const values = f.value
+        .map((v) => MonitorSeveritySchema.safeParse(v))
+        .flatMap((r) => (r.success ? [r.data] : []));
+      // UI presents UNKNOWN and NO_DATA as one "NO DATA" filter; expand here
+      // so `any of` includes both and `none of` excludes both.
+      if (values.includes("NO_DATA") && !values.includes("UNKNOWN")) {
+        values.push("UNKNOWN");
+      }
+      if (values.length === 0) continue;
+      clauses.push(
+        f.operator === "any of"
+          ? { severity: { in: values } }
+          : { NOT: { severity: { in: values } } },
+      );
+      continue;
+    }
+    if (f.column === "tags" && f.type === "arrayOptions") {
+      if (f.operator === "any of") {
+        if (f.value.length === 0) continue;
+        clauses.push({ tags: { hasSome: f.value } });
+      } else if (f.operator === "all of") {
+        if (f.value.length === 0) continue;
+        clauses.push({ tags: { hasEvery: f.value } });
+      } else if (f.operator === "none of") {
+        if (f.value.length === 0) continue;
+        clauses.push({ NOT: { tags: { hasSome: f.value } } });
+      }
+    }
+  }
+  return clauses;
+};
 
 /**
  * canonicalizeFilter normalizes a single filter for canonical comparison.
@@ -155,88 +198,6 @@ export const viewFromPrisma = (view: PrismaMonitorView): MonitorView => {
   }
 };
 
-/** severityFromPrisma converts the Prisma MonitorSeverity enum to the MonitorSeverity api enum. */
-export const severityFromPrisma = (
-  s: PrismaMonitorSeverity,
-): MonitorSeverity => {
-  switch (s) {
-    case PrismaMonitorSeverity.UNKNOWN:
-      return "unknown";
-    case PrismaMonitorSeverity.NO_DATA:
-      return "no-data";
-    case PrismaMonitorSeverity.OK:
-      return "ok";
-    case PrismaMonitorSeverity.WARNING:
-      return "warning";
-    case PrismaMonitorSeverity.ALERT:
-      return "alert";
-  }
-};
-
-/** statusToPrisma converts the MonitorStatus api enum to the Prisma MonitorStatus enum. */
-export const statusToPrisma = (s: MonitorStatus): PrismaMonitorStatus => {
-  switch (s) {
-    case "paused":
-      return PrismaMonitorStatus.PAUSED;
-    case "active":
-      return PrismaMonitorStatus.ACTIVE;
-    case "error-bad-query":
-      return PrismaMonitorStatus.ERROR_BAD_QUERY;
-  }
-};
-
-/** statusFromPrisma converts the Prisma MonitorStatus enum to the MonitorStatus api enum. */
-export const statusFromPrisma = (s: PrismaMonitorStatus): MonitorStatus => {
-  switch (s) {
-    case PrismaMonitorStatus.PAUSED:
-      return "paused";
-    case PrismaMonitorStatus.ACTIVE:
-      return "active";
-    case PrismaMonitorStatus.ERROR_BAD_QUERY:
-      return "error-bad-query";
-  }
-};
-
-/** thresholdOperatorToPrisma converts the MonitorThresholdOperator api enum to the Prisma MonitorThresholdOperator enum. */
-export const thresholdOperatorToPrisma = (
-  o: MonitorThresholdOperator,
-): PrismaMonitorThresholdOperator => {
-  switch (o) {
-    case "gt":
-      return PrismaMonitorThresholdOperator.GT;
-    case "gte":
-      return PrismaMonitorThresholdOperator.GTE;
-    case "lt":
-      return PrismaMonitorThresholdOperator.LT;
-    case "lte":
-      return PrismaMonitorThresholdOperator.LTE;
-    case "eq":
-      return PrismaMonitorThresholdOperator.EQ;
-    case "neq":
-      return PrismaMonitorThresholdOperator.NEQ;
-  }
-};
-
-/** thresholdOperatorFromPrisma converts the Prisma MonitorThresholdOperator enum to the MonitorThresholdOperator api enum. */
-export const thresholdOperatorFromPrisma = (
-  o: PrismaMonitorThresholdOperator,
-): MonitorThresholdOperator => {
-  switch (o) {
-    case PrismaMonitorThresholdOperator.GT:
-      return "gt";
-    case PrismaMonitorThresholdOperator.GTE:
-      return "gte";
-    case PrismaMonitorThresholdOperator.LT:
-      return "lt";
-    case PrismaMonitorThresholdOperator.LTE:
-      return "lte";
-    case PrismaMonitorThresholdOperator.EQ:
-      return "eq";
-    case PrismaMonitorThresholdOperator.NEQ:
-      return "neq";
-  }
-};
-
 /** windowToMs converts the MonitorWindow api enum to a bigint of milliseconds. */
 export const windowToMs = (w: MonitorWindow): bigint => {
   switch (w) {
@@ -298,9 +259,6 @@ export const monitorFromPrisma = (monitor: PrismaMonitor): Monitor =>
   MonitorSchema.parse({
     ...monitor,
     view: viewFromPrisma(monitor.view),
-    severity: severityFromPrisma(monitor.severity),
-    status: statusFromPrisma(monitor.status),
-    thresholdOperator: thresholdOperatorFromPrisma(monitor.thresholdOperator),
     window: windowFromMs(monitor.windowMs),
     alertThreshold: monitor.alertThreshold.toNumber(),
     warningThreshold: monitor.warningThreshold?.toNumber() ?? null,

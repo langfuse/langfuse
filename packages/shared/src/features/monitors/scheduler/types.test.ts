@@ -92,7 +92,7 @@ describe("MonitorWebhookQueueEventSchema", () => {
     payload: {
       monitorId: "mon_01",
       projectId: "proj_01",
-      severity: "alert" as const,
+      severity: "ALERT" as const,
       permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
       timestamp: new Date("2026-05-18T12:01:00.000Z"),
       message: { title: "High error rate", body: "errors > 100" },
@@ -166,7 +166,7 @@ describe("scheduler DTO JSON round-trip (wire contract)", () => {
       payload: {
         monitorId: "mon_01",
         projectId: "proj_01",
-        severity: "alert" as const,
+        severity: "ALERT" as const,
         permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
         timestamp: new Date("2026-05-18T12:01:00.000Z"),
         message: { title: "High error rate", body: "errors > 100" },

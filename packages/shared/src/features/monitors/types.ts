@@ -1,5 +1,10 @@
 /** types.ts contains the monitor domain — schemas, types, and the
  * `validate*` refinements consumed by the input schemas. */
+import {
+  MonitorSeverity as PrismaMonitorSeverity,
+  MonitorStatus as PrismaMonitorStatus,
+  MonitorThresholdOperator as PrismaMonitorThresholdOperator,
+} from "@prisma/client";
 import { z } from "zod";
 
 import { singleFilter } from "../../interfaces/filters";
@@ -16,53 +21,31 @@ import { isValidThresholdOrder } from "./isValidThresholdOrder";
 export const MonitorFiltersSchema = z.array(singleFilter);
 export type MonitorFilters = z.infer<typeof MonitorFiltersSchema>;
 
-/**
- * MonitorSeveritySchema is the kebab-case wire form of Prisma's
- * `MonitorSeverity` enum. The service translates between this and Prisma at
- * the persistence boundary.
- */
-export const MonitorSeveritySchema = z.enum([
-  "unknown",
-  "no-data",
-  "ok",
-  "warning",
-  "alert",
-]);
+/** MonitorSeveritySchema is the wire form of Prisma's `MonitorSeverity` enum. */
+export const MonitorSeveritySchema = z.enum(PrismaMonitorSeverity);
 export type MonitorSeverity = z.infer<typeof MonitorSeveritySchema>;
 
-/**
- * MonitorStatusSchema is the kebab-case wire form of Prisma's `MonitorStatus`
- * enum.
- */
-export const MonitorStatusSchema = z.enum([
-  "paused",
-  "active",
-  "error-bad-query",
-]);
+/** MonitorStatusSchema is the wire form of Prisma's `MonitorStatus` enum. */
+export const MonitorStatusSchema = z.enum(PrismaMonitorStatus);
 export type MonitorStatus = z.infer<typeof MonitorStatusSchema>;
 
 /**
  * MonitorWriteStatusSchema is the subset of `MonitorStatusSchema` callers may
- * submit on create/update. `error-bad-query` is owned by the scheduler/worker
+ * submit on create/update. `ERROR_BAD_QUERY` is owned by the scheduler/worker
  * (flipped when a monitor's query fails to evaluate); accepting it on inputs
  * would let callers forge a broken state or clear a legitimately broken
  * monitor without scheduler revalidation.
  */
-export const MonitorWriteStatusSchema = z.enum(["active", "paused"]);
+export const MonitorWriteStatusSchema = z.enum([
+  PrismaMonitorStatus.ACTIVE,
+  PrismaMonitorStatus.PAUSED,
+]);
 export type MonitorWriteStatus = z.infer<typeof MonitorWriteStatusSchema>;
 
-/**
- * MonitorThresholdOperatorSchema is the kebab-case wire form of Prisma's
- * `MonitorThresholdOperator` enum.
- */
-export const MonitorThresholdOperatorSchema = z.enum([
-  "gt",
-  "gte",
-  "lt",
-  "lte",
-  "eq",
-  "neq",
-]);
+/** MonitorThresholdOperatorSchema is the wire form of Prisma's `MonitorThresholdOperator` enum. */
+export const MonitorThresholdOperatorSchema = z.enum(
+  PrismaMonitorThresholdOperator,
+);
 export type MonitorThresholdOperator = z.infer<
   typeof MonitorThresholdOperatorSchema
 >;
@@ -145,7 +128,7 @@ export const validateThresholdOrder = (
     // for lt/lte it requires `warning > alert` (strict). Map to the actual
     // required relation symbol so the error message doesn't claim the
     // non-strict variant for `gte`/`lte`.
-    const symbol = input.thresholdOperator.startsWith("g") ? ">" : "<";
+    const symbol = input.thresholdOperator.startsWith("G") ? ">" : "<";
     ctx.addIssue({
       code: "custom",
       message: `alertThreshold must be ${symbol} warningThreshold`,
@@ -155,10 +138,10 @@ export const validateThresholdOrder = (
 };
 
 /**
- * validateQuery enforces a valid (view, metric, filters) shape on the Monitor
- * input schemas.
+ * validateMonitorQuery enforces a valid (view, metric, filters) shape on the
+ * Monitor input schemas.
  */
-export const validateQuery = (
+export const validateMonitorQuery = (
   input: {
     view: z.infer<typeof viewsV2>;
     metric: z.infer<typeof MetricSchema>;
@@ -210,12 +193,12 @@ export const MonitorSchema = z.object({
   tags: z.array(z.string().max(60)).max(20).default([]),
 
   // Monitor State
-  severity: MonitorSeveritySchema.default("unknown"),
+  severity: MonitorSeveritySchema.default("UNKNOWN"),
   severityChangedAt: z.date().nullable(),
   alertedAt: z.date().nullable(),
 
   // MonitorScheduler State
-  status: MonitorStatusSchema.default("active"),
+  status: MonitorStatusSchema.default("ACTIVE"),
   nextRunAt: z.date(),
   lastPublishedRunAt: z.date().nullable(),
   lastCompletedRunAt: z.date().nullable(),

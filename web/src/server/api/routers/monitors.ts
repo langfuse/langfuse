@@ -8,11 +8,12 @@ import {
   CreateMonitorSchema,
   DeleteMonitorSchema,
   GetMonitorByIdSchema,
+  GetMonitorFilterOptionsSchema,
   ListMonitorsSchema,
   MonitorService,
   type SessionContext,
   UpdateMonitorSchema,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/monitors/server";
 
 /** monitorsProcedure protects every monitors route behind the `monitors` flag. */
 const monitorsProcedure = protectedProjectProcedure.use(
@@ -79,5 +80,16 @@ export const monitorsRouter = createTRPCRouter({
         scope: "monitors:read",
       });
       return MonitorService.list(sessionContextFromCtx(ctx), input);
+    }),
+
+  getFilterOptions: monitorsProcedure
+    .input(GetMonitorFilterOptionsSchema)
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "monitors:read",
+      });
+      return MonitorService.getFilterOptions(sessionContextFromCtx(ctx), input);
     }),
 });

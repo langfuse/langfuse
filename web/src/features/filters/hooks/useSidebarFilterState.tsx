@@ -1531,6 +1531,8 @@ export function useSidebarFilterState(
           (c) => c.id === facet.column,
         );
         const isArrayOptions = colDef?.type === "arrayOptions";
+        const textFilterDisabled =
+          facet.type === "categorical" && facet.disableTextFilter === true;
 
         // Get the checkbox filter (stringOptions/arrayOptions) for this column
         const checkboxFilter = filterState.find(
@@ -1675,14 +1677,18 @@ export function useSidebarFilterState(
                 updateOperator(facet.column, op)
             : undefined,
           // Text filter support - ONLY for stringOptions, NOT arrayOptions or boolean
-          textFilters: !isArrayOptions ? textFilters : undefined,
-          onTextFilterAdd: !isArrayOptions
-            ? (op, val) => addTextFilter(facet.column, op, val)
-            : undefined,
-          onTextFilterRemove: !isArrayOptions
-            ? (op, val) => removeTextFilter(facet.column, op, val)
-            : undefined,
-          hasTextFilters: !isArrayOptions ? hasTextFilters : undefined,
+          textFilters:
+            !isArrayOptions && !textFilterDisabled ? textFilters : undefined,
+          onTextFilterAdd:
+            !isArrayOptions && !textFilterDisabled
+              ? (op, val) => addTextFilter(facet.column, op, val)
+              : undefined,
+          onTextFilterRemove:
+            !isArrayOptions && !textFilterDisabled
+              ? (op, val) => removeTextFilter(facet.column, op, val)
+              : undefined,
+          hasTextFilters:
+            !isArrayOptions && !textFilterDisabled ? hasTextFilters : undefined,
           hasCheckboxSelections,
         };
       })
