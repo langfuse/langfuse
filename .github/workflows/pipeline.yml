@@ -24,6 +24,7 @@ env:
   # env context in jobs.<job_id>.name, so matrix jobs use matrix.node-version
   # for their display names.
   NODE_VERSION: 24
+  CLICKHOUSE_CLIENT_VERSION: "25.12.9.61"
 
   # Disable CI cache restores for fork PRs.
   #
@@ -417,9 +418,8 @@ jobs:
       - name: Download and extract ClickHouse client for dev-tables setup
         if: matrix.deploy-mode == ''
         run: |
-          CH_VERSION="25.12.9.61"
           ARCH="amd64"
-          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CH_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
+          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CLICKHOUSE_CLIENT_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
 
           # The binary is usually located in ./usr/bin/clickhouse in the archive
           dpkg-deb -x clickhouse-client.deb ch_client_dir
@@ -530,9 +530,8 @@ jobs:
       - name: Download and extract ClickHouse client for dev-tables setup
         if: matrix.deploy-mode == ''
         run: |
-          CH_VERSION="25.12.9.61"
           ARCH="amd64"
-          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CH_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
+          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CLICKHOUSE_CLIENT_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
           dpkg-deb -x clickhouse-client.deb ch_client_dir
           sudo cp ch_client_dir/usr/bin/clickhouse /usr/local/bin/
       - name: Setup Dev Tables
