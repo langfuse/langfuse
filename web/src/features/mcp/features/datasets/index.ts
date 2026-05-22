@@ -29,7 +29,7 @@ import {
 export const datasetsFeature: McpFeatureModule = {
   name: "datasets",
   description:
-    "Manage datasets, which are reusable collections of input and expected-output examples for experiments and evaluations, plus items and runs",
+    "Manage datasets, named collections of dataset items for experiments and evaluations, plus runs and run items",
   tools: [
     { definition: createDatasetTool, handler: handleCreateDataset },
     {

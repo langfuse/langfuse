@@ -100,7 +100,7 @@ export const [listAnnotationQueuesTool, handleListAnnotationQueues] =
   defineTool({
     name: "listAnnotationQueues",
     description:
-      "List annotation queues, which collect traces or observations for human review and scoring, in the current Langfuse project with pagination.",
+      "List annotation queues, worklists that collect trace or observation items for human review and scoring, with pagination.",
     baseSchema: GetAnnotationQueuesQuery,
     inputSchema: GetAnnotationQueuesQuery,
     handler: async (input, context) =>
@@ -141,7 +141,7 @@ export const [createAnnotationQueueTool, handleCreateAnnotationQueue] =
   defineTool({
     name: "createAnnotationQueue",
     description:
-      "Create an annotation queue to collect traces or observations for human review and scoring in the current Langfuse project.",
+      "Create an annotation queue, a worklist that collects trace or observation items for human review and scoring.",
     baseSchema: CreateAnnotationQueueBody,
     inputSchema: CreateAnnotationQueueBody,
     handler: async (input, context) =>
@@ -223,7 +223,7 @@ export const [createAnnotationQueueTool, handleCreateAnnotationQueue] =
 export const [getAnnotationQueueTool, handleGetAnnotationQueue] = defineTool({
   name: "getAnnotationQueue",
   description:
-    "Get an annotation queue, a collection of traces or observations for human review and scoring, by ID from the current project.",
+    "Get an annotation queue, a worklist of trace or observation items for human review and scoring, by ID.",
   baseSchema: GetAnnotationQueueByIdQuery,
   inputSchema: GetAnnotationQueueByIdQuery,
   handler: async (input, context) =>
@@ -249,7 +249,7 @@ export const [listAnnotationQueueItemsTool, handleListAnnotationQueueItems] =
   defineTool({
     name: "listAnnotationQueueItems",
     description:
-      "List trace or observation items in an annotation queue with optional status filtering.",
+      "List annotation queue items, each linking one trace or observation to a queue with a review status, with optional status filtering.",
     baseSchema: GetAnnotationQueueItemsQuery,
     inputSchema: GetAnnotationQueueItemsQuery,
     handler: async (input, context) =>
@@ -300,7 +300,7 @@ export const [getAnnotationQueueItemTool, handleGetAnnotationQueueItem] =
   defineTool({
     name: "getAnnotationQueueItem",
     description:
-      "Get a single trace or observation item from an annotation queue by queue ID and item ID.",
+      "Get an annotation queue item, one queued trace or observation with review status, by queue ID and item ID.",
     baseSchema: GetAnnotationQueueItemByIdQuery,
     inputSchema: GetAnnotationQueueItemByIdQuery,
     handler: async (input, context) =>
@@ -346,7 +346,8 @@ const CreateAnnotationQueueItemToolSchema = z
 export const [createAnnotationQueueItemTool, handleCreateAnnotationQueueItem] =
   defineTool({
     name: "createAnnotationQueueItem",
-    description: "Add a trace or observation item to an annotation queue.",
+    description:
+      "Add an annotation queue item, one trace or observation to review, to a queue.",
     baseSchema: CreateAnnotationQueueItemToolSchema,
     inputSchema: CreateAnnotationQueueItemToolSchema,
     handler: async (input, context) =>
@@ -398,7 +399,8 @@ const UpdateAnnotationQueueItemToolSchema =
 export const [updateAnnotationQueueItemTool, handleUpdateAnnotationQueueItem] =
   defineTool({
     name: "updateAnnotationQueueItem",
-    description: "Update an annotation queue item's status.",
+    description:
+      "Update an annotation queue item's review status, such as pending or completed.",
     baseSchema: UpdateAnnotationQueueItemToolSchema,
     inputSchema: UpdateAnnotationQueueItemToolSchema,
     handler: async (input, context) =>
@@ -463,7 +465,8 @@ export const [updateAnnotationQueueItemTool, handleUpdateAnnotationQueueItem] =
 export const [deleteAnnotationQueueItemTool, handleDeleteAnnotationQueueItem] =
   defineTool({
     name: "deleteAnnotationQueueItem",
-    description: "Remove an item from an annotation queue.",
+    description:
+      "Remove an annotation queue item, the queued trace or observation, from a queue.",
     baseSchema: DeleteAnnotationQueueItemQuery,
     inputSchema: DeleteAnnotationQueueItemQuery,
     handler: async (input, context) =>
@@ -529,7 +532,8 @@ export const [
   handleCreateAnnotationQueueAssignment,
 ] = defineTool({
   name: "createAnnotationQueueAssignment",
-  description: "Assign a project user to an annotation queue.",
+  description:
+    "Assign a project user to an annotation queue so they can work through its review items.",
   baseSchema: CreateAnnotationQueueAssignmentToolSchema,
   inputSchema: CreateAnnotationQueueAssignmentToolSchema,
   handler: async (input, context) =>
@@ -621,7 +625,7 @@ export const [
   handleDeleteAnnotationQueueAssignment,
 ] = defineTool({
   name: "deleteAnnotationQueueAssignment",
-  description: "Remove a user's assignment from an annotation queue.",
+  description: "Remove a project user's assignment from an annotation queue.",
   baseSchema: DeleteAnnotationQueueAssignmentToolSchema,
   inputSchema: DeleteAnnotationQueueAssignmentToolSchema,
   handler: async (input, context) =>

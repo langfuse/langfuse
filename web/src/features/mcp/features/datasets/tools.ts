@@ -96,7 +96,7 @@ const DeleteDatasetRunMcpInput = DeleteDatasetRunV1Query.extend({
 export const [createDatasetTool, handleCreateDataset] = defineTool({
   name: "createDataset",
   description:
-    "Create or update a dataset, a reusable collection of examples for experiments and evaluations, in the current Langfuse project.",
+    "Create or update a dataset, a named collection of input and optional expected-output examples for experiments and evaluations.",
   baseSchema: PostDatasetsV2Body,
   inputSchema: PostDatasetsV2Body,
   handler: async (input, context) =>
@@ -136,7 +136,7 @@ export const [createDatasetTool, handleCreateDataset] = defineTool({
 export const [listDatasetsTool, handleListDatasets] = defineTool({
   name: "listDatasets",
   description:
-    "List datasets, reusable collections of examples for experiments and evaluations, in the current Langfuse project.",
+    "List datasets, named collections of input and optional expected-output examples for experiments and evaluations.",
   baseSchema: GetDatasetsV2Query,
   inputSchema: GetDatasetsV2Query,
   handler: async (input, context) =>
@@ -185,7 +185,7 @@ export const [listDatasetsTool, handleListDatasets] = defineTool({
 export const [getDatasetTool, handleGetDataset] = defineTool({
   name: "getDataset",
   description:
-    "Get a dataset, a reusable collection of examples for experiments and evaluations, by name from the current Langfuse project.",
+    "Get a dataset, a named collection of input and optional expected-output examples for experiments and evaluations, by name.",
   baseSchema: GetDatasetMcpInput,
   inputSchema: GetDatasetMcpInput,
   handler: async (input, context) =>
@@ -443,7 +443,8 @@ export const [deleteDatasetItemTool, handleDeleteDatasetItem] = defineTool({
 export const [createDatasetRunItemTool, handleCreateDatasetRunItem] =
   defineTool({
     name: "createDatasetRunItem",
-    description: "Create a dataset run item for a dataset item and trace.",
+    description:
+      "Create a dataset run item, a result that links one dataset item to a trace or observation in a dataset run.",
     baseSchema: PostDatasetRunItemsV1Body,
     inputSchema: PostDatasetRunItemsV1Body,
     handler: async (input, context) =>
@@ -562,7 +563,8 @@ export const [createDatasetRunItemTool, handleCreateDatasetRunItem] =
 
 export const [listDatasetRunItemsTool, handleListDatasetRunItems] = defineTool({
   name: "listDatasetRunItems",
-  description: "List dataset run items by dataset ID and run name.",
+  description:
+    "List dataset run items, each linking one dataset item to a trace or observation within a dataset run, by dataset ID and run name.",
   baseSchema: GetDatasetRunItemsV1Query,
   inputSchema: GetDatasetRunItemsV1Query,
   handler: async (input, context) =>
@@ -628,7 +630,8 @@ export const [listDatasetRunItemsTool, handleListDatasetRunItems] = defineTool({
 
 export const [listDatasetRunsTool, handleListDatasetRuns] = defineTool({
   name: "listDatasetRuns",
-  description: "List runs for a dataset by dataset name.",
+  description:
+    "List dataset runs, each experiment or evaluation execution over a dataset, by dataset name.",
   baseSchema: GetDatasetRunsMcpInput,
   inputSchema: GetDatasetRunsMcpInput,
   handler: async (input, context) =>
@@ -680,7 +683,8 @@ export const [listDatasetRunsTool, handleListDatasetRuns] = defineTool({
 
 export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
   name: "getDatasetRun",
-  description: "Get a dataset run and its run items by dataset and run name.",
+  description:
+    "Get a dataset run, one experiment or evaluation execution over a dataset, and its run items by dataset and run name.",
   baseSchema: GetDatasetRunMcpInput,
   inputSchema: GetDatasetRunMcpInput,
   handler: async (input, context) =>
@@ -734,7 +738,8 @@ export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
 
 export const [deleteDatasetRunTool, handleDeleteDatasetRun] = defineTool({
   name: "deleteDatasetRun",
-  description: "Delete a dataset run and enqueue deletion of its run items.",
+  description:
+    "Delete a dataset run, one experiment or evaluation execution over a dataset, and enqueue deletion of its run items.",
   baseSchema: DeleteDatasetRunMcpInput,
   inputSchema: DeleteDatasetRunMcpInput,
   handler: async (input, context) =>
