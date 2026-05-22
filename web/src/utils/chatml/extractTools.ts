@@ -83,9 +83,15 @@ export function extractTools(
 
       // OpenTelemetry semantic convention: tools indexed as "llm.tools.{N}.tool.json_schema"
       // Example: "llm.tools.0.tool.json_schema", "llm.tools.1.tool.json_schema", ...
-      const toolKeys = Object.keys(attributes).filter((key) =>
-        /^llm\.tools\.\d+\.tool\.json_schema$/.test(key),
-      );
+      const toolKeyPattern = /^llm\.tools\.(\d+)\.tool\.json_schema$/;
+      const toolKeys = Object.keys(attributes)
+        .map((key) => ({ key, match: toolKeyPattern.exec(key) }))
+        .filter(
+          (entry): entry is { key: string; match: RegExpExecArray } =>
+            entry.match !== null,
+        )
+        .sort((left, right) => Number(left.match[1]) - Number(right.match[1]))
+        .map(({ key }) => key);
       if (toolKeys.length > 0) {
         const toolDefs = toolKeys.map((key) => attributes[key]);
         const tools = mapToolsToPlayground(toolDefs);

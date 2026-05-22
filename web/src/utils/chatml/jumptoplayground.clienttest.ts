@@ -974,6 +974,37 @@ describe("Playground Jump Full Pipeline", () => {
     });
   });
 
+  it("should preserve numeric order for indexed metadata tools", () => {
+    const tools = extractTools(null, {
+      attributes: {
+        "llm.tools.10.tool.json_schema": {
+          type: "function",
+          function: {
+            name: "tool_ten",
+          },
+        },
+        "llm.tools.2.tool.json_schema": {
+          type: "function",
+          function: {
+            name: "tool_two",
+          },
+        },
+        "llm.tools.1.tool.json_schema": {
+          type: "function",
+          function: {
+            name: "tool_one",
+          },
+        },
+      },
+    });
+
+    expect(tools.map((tool) => tool.name)).toEqual([
+      "tool_one",
+      "tool_two",
+      "tool_ten",
+    ]);
+  });
+
   it("should extract tools from stringified metadata attributes", () => {
     const metadataTools = extractTools(null, {
       attributes: JSON.stringify({
