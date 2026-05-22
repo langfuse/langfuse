@@ -55,7 +55,7 @@ The MCP server provides prompt-management tools, read-only observation tools, an
 - **`getPromptUnresolved`** - Fetch a specific prompt WITHOUT resolving dependencies (useful for prompt composition analysis)
 - **`listPrompts`** - List all prompts in the project with filtering (name/label/tag/updatedAt range) and pagination
 - **`createTextPrompt`** - Create a new text prompt version
-- **`createChatPrompt`** - Create a new chat prompt version (OpenAI-style messages)
+- **`createChatPrompt`** - Create a new chat prompt version. Messages are either `{role, content}` or `{type: "placeholder", name}` entries (placeholders are filled in at compile time with `compileChatMessages`).
 - **`updatePromptLabels`** - Add/move labels across prompt versions
 
 **Implementation:** See [`/web/src/features/mcp/features/prompts/tools/`](/web/src/features/mcp/features/prompts/tools/) for detailed schemas, parameters, and examples for each prompt tool.

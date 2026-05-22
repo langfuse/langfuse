@@ -509,6 +509,121 @@ describe("MCP Write Tools", () => {
 
       expect(result.createdBy).toBe("API");
     });
+
+    it("should create chat prompt with placeholder messages", async () => {
+      const { context } = await createMcpTestSetup();
+      const promptName = `chat-prompt-${nanoid()}`;
+
+      const messages = [
+        { role: "system", content: "You are a helpful assistant." },
+        { type: "placeholder" as const, name: "history" },
+        { role: "user", content: "Answer {{question}}" },
+      ];
+
+      const result = (await handleCreateChatPrompt(
+        {
+          name: promptName,
+          prompt: messages,
+        },
+        context,
+      )) as { id: string; type: string };
+
+      expect(result.type).toBe("chat");
+
+      const prompt = await prisma.prompt.findUnique({
+        where: { id: result.id },
+      });
+      expect(prompt?.prompt).toEqual(messages);
+    });
+
+    it("should reject placeholder message with invalid name", async () => {
+      const { context } = await createMcpTestSetup();
+      const promptName = `chat-prompt-${nanoid()}`;
+
+      await expect(
+        handleCreateChatPrompt(
+          {
+            name: promptName,
+            prompt: [
+              { role: "system", content: "Intro" },
+              { type: "placeholder", name: "1bad" },
+            ],
+          },
+          context,
+        ),
+      ).rejects.toMatchObject({
+        code: -32602,
+      });
+    });
+
+    it("should reject placeholder message that also has role/content", async () => {
+      const { context } = await createMcpTestSetup();
+      const promptName = `chat-prompt-${nanoid()}`;
+
+      await expect(
+        handleCreateChatPrompt(
+          {
+            name: promptName,
+            prompt: [
+              {
+                type: "placeholder",
+                name: "history",
+                role: "user",
+                content: "stray content",
+              },
+            ],
+          },
+          context,
+        ),
+      ).rejects.toMatchObject({
+        code: -32602,
+        message: expect.stringContaining(
+          "Placeholder messages must not include role or content",
+        ),
+      });
+    });
+
+    it("should reject content message missing role or content", async () => {
+      const { context } = await createMcpTestSetup();
+      const promptName = `chat-prompt-${nanoid()}`;
+
+      await expect(
+        handleCreateChatPrompt(
+          {
+            name: promptName,
+            prompt: [{ content: "Missing role" }],
+          },
+          context,
+        ),
+      ).rejects.toMatchObject({
+        code: -32602,
+        message: expect.stringContaining(
+          "Content messages require a non-empty 'role' field",
+        ),
+      });
+    });
+
+    it("should reject when a variable name collides with a placeholder name", async () => {
+      const { context } = await createMcpTestSetup();
+      const promptName = `chat-prompt-${nanoid()}`;
+
+      await expect(
+        handleCreateChatPrompt(
+          {
+            name: promptName,
+            prompt: [
+              { role: "user", content: "Tell me about {{history}}" },
+              { type: "placeholder", name: "history" },
+            ],
+          },
+          context,
+        ),
+      ).rejects.toMatchObject({
+        message: expect.stringContaining(
+          "variables and placeholders must be unique",
+        ),
+      });
+    });
   });
 
   describe("updatePromptLabels tool", () => {
