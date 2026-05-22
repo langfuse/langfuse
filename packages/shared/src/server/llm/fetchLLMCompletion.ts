@@ -318,6 +318,10 @@ export async function fetchLLMCompletion(
   const proxyUrl = env.HTTPS_PROXY;
   const proxyDispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
   const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
+  const secureLlmFetch = (
+    logContext: string,
+    additionalSensitiveHeaders?: string[],
+  ) => createSecureLlmFetch({ logContext, additionalSensitiveHeaders });
 
   let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse | ChatGoogle;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
@@ -338,10 +342,9 @@ export async function fetchLLMCompletion(
         maxRetries,
         defaultHeaders: extraHeaders,
         timeout: timeoutMs,
-        fetch: createSecureLlmFetch({
-          logContext: "Anthropic LLM base URL",
-          additionalSensitiveHeaders: [ANTHROPIC_API_KEY_HEADER],
-        }),
+        fetch: secureLlmFetch("Anthropic LLM base URL", [
+          ANTHROPIC_API_KEY_HEADER,
+        ]),
         ...(proxyDispatcher && {
           fetchOptions: { dispatcher: proxyDispatcher },
         }),
@@ -395,9 +398,7 @@ export async function fetchLLMCompletion(
         baseURL: processedBaseURL,
         timeout: timeoutMs,
         defaultHeaders: extraHeaders,
-        fetch: createSecureLlmFetch({
-          logContext: "OpenAI LLM base URL",
-        }),
+        fetch: secureLlmFetch("OpenAI LLM base URL"),
         ...(proxyDispatcher && {
           fetchOptions: { dispatcher: proxyDispatcher },
         }),
@@ -420,10 +421,9 @@ export async function fetchLLMCompletion(
       configuration: {
         timeout: timeoutMs,
         defaultHeaders: extraHeaders,
-        fetch: createSecureLlmFetch({
-          logContext: "Azure OpenAI LLM base URL",
-          additionalSensitiveHeaders: [AZURE_OPENAI_API_KEY_HEADER],
-        }),
+        fetch: secureLlmFetch("Azure OpenAI LLM base URL", [
+          AZURE_OPENAI_API_KEY_HEADER,
+        ]),
         ...(proxyDispatcher && {
           fetchOptions: { dispatcher: proxyDispatcher },
         }),

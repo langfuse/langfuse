@@ -59,32 +59,17 @@ async function normalizeFetchInput(
   input: Parameters<typeof fetch>[0],
   init?: RequestInit,
 ): Promise<{ url: string; options: RequestInit }> {
-  if (input instanceof Request) {
-    return {
-      url: input.url,
-      options: {
-        method: input.method,
-        headers: input.headers,
-        body: ["GET", "HEAD"].includes(input.method)
-          ? undefined
-          : await input.text(),
-        signal: input.signal,
-        ...mergeRequestInit(input, init),
-      },
-    };
-  }
+  const request = new Request(input, init);
 
   return {
-    url: input.toString(),
-    options: init ?? {},
-  };
-}
-
-function mergeRequestInit(request: Request, init?: RequestInit): RequestInit {
-  if (!init) return { headers: request.headers };
-
-  return {
-    ...init,
-    headers: init.headers ?? request.headers,
+    url: request.url,
+    options: {
+      method: request.method,
+      headers: request.headers,
+      body: ["GET", "HEAD"].includes(request.method)
+        ? undefined
+        : await request.text(),
+      signal: request.signal,
+    },
   };
 }

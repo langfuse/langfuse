@@ -1,4 +1,5 @@
 import { type OutboundUrlValidationWhitelist } from "../outbound-url";
+import { type ChatGoogleParams } from "@langchain/google";
 import { GoogleAuth, type GoogleAuthOptions } from "google-auth-library";
 import { llmBaseUrlWhitelistFromEnv } from "./baseUrlValidation";
 import { fetchSecureLlmUrl } from "./secureLlmFetch";
@@ -9,11 +10,7 @@ const VERTEX_AI_AUTH_SCOPES = [
   "https://www.googleapis.com/auth/cloud-platform",
 ];
 
-type GoogleApiClient = {
-  hasApiKey: () => boolean;
-  getProjectId: () => Promise<string>;
-  fetch: (request: Request) => Promise<Response>;
-};
+type GoogleApiClient = NonNullable<ChatGoogleParams["apiClient"]>;
 
 type SecureGoogleAIStudioApiClientParams = {
   apiKey: string;
@@ -24,10 +21,6 @@ type SecureGoogleAIStudioApiClientParams = {
 type SecureVertexAIApiClientParams = {
   authOptions?: GoogleAuthOptions;
   whitelist?: OutboundUrlValidationWhitelist;
-  authClient?: {
-    getProjectId: () => Promise<string>;
-    getRequestHeaders: (url?: string) => Promise<Headers>;
-  };
 };
 
 export function createSecureGoogleAIStudioApiClient({
@@ -59,14 +52,11 @@ export function createSecureGoogleAIStudioApiClient({
 export function createSecureVertexAIApiClient({
   authOptions,
   whitelist = llmBaseUrlWhitelistFromEnv(),
-  authClient,
 }: SecureVertexAIApiClientParams): GoogleApiClient {
-  const googleAuth =
-    authClient ??
-    new GoogleAuth({
-      ...authOptions,
-      scopes: authOptions?.scopes ?? VERTEX_AI_AUTH_SCOPES,
-    });
+  const googleAuth = new GoogleAuth({
+    ...authOptions,
+    scopes: authOptions?.scopes ?? VERTEX_AI_AUTH_SCOPES,
+  });
 
   return {
     hasApiKey: () => false,

@@ -10,40 +10,39 @@ import {
   createSecureVertexAIApiClient,
   rewriteGoogleAIStudioUrl,
 } from "../../../packages/shared/src/server/llm/googleSecureApiClient";
+import { GoogleAuth } from "../../../packages/shared/node_modules/google-auth-library";
 
 describe("Google AI Studio secure API client", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  test("rewrites generated Google AI Studio URLs to a custom base URL", () => {
-    const rewrittenUrl = rewriteGoogleAIStudioUrl(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-      "https://example.com/google",
-    );
-
-    expect(rewrittenUrl).toBe(
-      "https://example.com/google/v1beta/models/gemini-2.5-flash:generateContent",
-    );
-  });
-
-  test("uses the custom base URL as an opaque prefix", () => {
-    const rewrittenUrl = rewriteGoogleAIStudioUrl(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse",
-      "https://86c599932057.ngrok.app?url=https://generativelanguage.googleapis.com",
-    );
-
-    expect(rewrittenUrl).toBe(
-      "https://86c599932057.ngrok.app?url=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse",
-    );
-  });
-
-  test("keeps non-Google URLs unchanged", () => {
-    const requestUrl = "https://other.example.com/v1beta/models/model:generate";
-
-    expect(
-      rewriteGoogleAIStudioUrl(requestUrl, "https://example.com/google"),
-    ).toBe(requestUrl);
+  test.each([
+    {
+      name: "custom base URL",
+      requestUrl:
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+      baseURL: "https://example.com/google",
+      expectedUrl:
+        "https://example.com/google/v1beta/models/gemini-2.5-flash:generateContent",
+    },
+    {
+      name: "opaque custom base URL prefix",
+      requestUrl:
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse",
+      baseURL:
+        "https://86c599932057.ngrok.app?url=https://generativelanguage.googleapis.com",
+      expectedUrl:
+        "https://86c599932057.ngrok.app?url=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse",
+    },
+    {
+      name: "non-Google URL",
+      requestUrl: "https://other.example.com/v1beta/models/model:generate",
+      baseURL: "https://example.com/google",
+      expectedUrl: "https://other.example.com/v1beta/models/model:generate",
+    },
+  ])("rewrites $name", ({ requestUrl, baseURL, expectedUrl }) => {
+    expect(rewriteGoogleAIStudioUrl(requestUrl, baseURL)).toBe(expectedUrl);
   });
 
   test("fetches through the rewritten URL with API key auth", async () => {
@@ -147,12 +146,13 @@ describe("Google AI Studio secure API client", () => {
         headers: { "content-type": "application/json" },
       }),
     );
+    vi.spyOn(GoogleAuth.prototype, "getProjectId").mockResolvedValue(
+      "test-project",
+    );
+    vi.spyOn(GoogleAuth.prototype, "getRequestHeaders").mockResolvedValue(
+      new Headers({ authorization: "Bearer test-token" }),
+    );
     const client = createSecureVertexAIApiClient({
-      authClient: {
-        getProjectId: async () => "test-project",
-        getRequestHeaders: async () =>
-          new Headers({ authorization: "Bearer test-token" }),
-      },
       whitelist: {
         hosts: ["us-central1-aiplatform.googleapis.com"],
         ips: [],

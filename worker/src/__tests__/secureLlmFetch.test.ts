@@ -130,156 +130,116 @@ describe("secure LLM fetch", () => {
     );
   });
 
-  test("fetchLLMCompletion uses secure fetch for OpenAI", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          id: "chatcmpl-test",
-          object: "chat.completion",
-          created: 1,
-          model: "gpt-4o-mini",
-          choices: [
-            {
-              index: 0,
-              message: { role: "assistant", content: "4" },
-              finish_reason: "stop",
-            },
-          ],
-        }),
-        {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        },
-      ),
-    );
-
-    const completion = await fetchLLMCompletion({
-      streaming: false,
-      messages: [
-        {
-          role: "user",
-          content: "What is 2+2? Answer only with the number.",
-          type: ChatMessageType.PublicAPICreated,
-        },
-      ],
-      modelParams: {
-        provider: "openai",
-        adapter: LLMAdapter.OpenAI,
+  test.each([
+    {
+      providerName: "OpenAI",
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      model: "gpt-4o-mini",
+      secretKey: "openai-api-key",
+      baseURL: "https://example.com/v1",
+      response: {
+        id: "chatcmpl-test",
+        object: "chat.completion",
+        created: 1,
         model: "gpt-4o-mini",
-        temperature: 0,
-        max_tokens: 10,
+        choices: [
+          {
+            index: 0,
+            message: { role: "assistant", content: "4" },
+            finish_reason: "stop",
+          },
+        ],
       },
-      llmConnection: {
-        secretKey: encrypt("openai-api-key"),
-        baseURL: "https://example.com/v1",
-      },
-    });
-
-    expect(completion).toBe("4");
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://example.com/v1/chat/completions",
-      expect.objectContaining({ redirect: "manual" }),
-    );
-  });
-
-  test("fetchLLMCompletion uses secure fetch for Azure OpenAI", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          id: "chatcmpl-test",
-          object: "chat.completion",
-          created: 1,
-          model: "deployment",
-          choices: [
-            {
-              index: 0,
-              message: { role: "assistant", content: "4" },
-              finish_reason: "stop",
-            },
-          ],
-        }),
-        {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        },
-      ),
-    );
-
-    const completion = await fetchLLMCompletion({
-      streaming: false,
-      messages: [
-        {
-          role: "user",
-          content: "What is 2+2? Answer only with the number.",
-          type: ChatMessageType.PublicAPICreated,
-        },
-      ],
-      modelParams: {
-        provider: "azure",
-        adapter: LLMAdapter.Azure,
+      expectedUrl: "https://example.com/v1/chat/completions",
+    },
+    {
+      providerName: "Azure OpenAI",
+      provider: "azure",
+      adapter: LLMAdapter.Azure,
+      model: "deployment",
+      secretKey: "azure-api-key",
+      baseURL: "https://example.com/openai/deployments",
+      response: {
+        id: "chatcmpl-test",
+        object: "chat.completion",
+        created: 1,
         model: "deployment",
-        temperature: 0,
-        max_tokens: 10,
+        choices: [
+          {
+            index: 0,
+            message: { role: "assistant", content: "4" },
+            finish_reason: "stop",
+          },
+        ],
       },
-      llmConnection: {
-        secretKey: encrypt("azure-api-key"),
-        baseURL: "https://example.com/openai/deployments",
+      expectedUrl:
+        "https://example.com/openai/deployments/deployment/chat/completions?api-version=2025-02-01-preview",
+    },
+    {
+      providerName: "Anthropic",
+      provider: "anthropic",
+      adapter: LLMAdapter.Anthropic,
+      model: "claude-sonnet-4-5-20250929",
+      secretKey: "anthropic-api-key",
+      baseURL: "https://example.com",
+      response: {
+        id: "msg_test",
+        type: "message",
+        role: "assistant",
+        model: "claude-sonnet-4-5-20250929",
+        content: [{ type: "text", text: "4" }],
+        stop_reason: "end_turn",
+        stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 1 },
       },
-    });
-
-    expect(completion).toBe("4");
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://example.com/openai/deployments/deployment/chat/completions?api-version=2025-02-01-preview",
-      expect.objectContaining({ redirect: "manual" }),
-    );
-  });
-
-  test("fetchLLMCompletion uses secure fetch for Anthropic", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          id: "msg_test",
-          type: "message",
-          role: "assistant",
-          model: "claude-sonnet-4-5-20250929",
-          content: [{ type: "text", text: "4" }],
-          stop_reason: "end_turn",
-          stop_sequence: null,
-          usage: { input_tokens: 1, output_tokens: 1 },
-        }),
-        {
+      expectedUrl: "https://example.com/v1/messages",
+    },
+  ])(
+    "fetchLLMCompletion uses secure fetch for $providerName",
+    async ({
+      provider,
+      adapter,
+      model,
+      secretKey,
+      baseURL,
+      response,
+      expectedUrl,
+    }) => {
+      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify(response), {
           status: 200,
           headers: { "content-type": "application/json" },
-        },
-      ),
-    );
+        }),
+      );
 
-    const completion = await fetchLLMCompletion({
-      streaming: false,
-      messages: [
-        {
-          role: "user",
-          content: "What is 2+2? Answer only with the number.",
-          type: ChatMessageType.PublicAPICreated,
+      const completion = await fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider,
+          adapter,
+          model,
+          temperature: 0,
+          max_tokens: 10,
         },
-      ],
-      modelParams: {
-        provider: "anthropic",
-        adapter: LLMAdapter.Anthropic,
-        model: "claude-sonnet-4-5-20250929",
-        temperature: 0,
-        max_tokens: 10,
-      },
-      llmConnection: {
-        secretKey: encrypt("anthropic-api-key"),
-        baseURL: "https://example.com",
-      },
-    });
+        llmConnection: {
+          secretKey: encrypt(secretKey),
+          baseURL,
+        },
+      });
 
-    expect(completion).toBe("4");
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://example.com/v1/messages",
-      expect.objectContaining({ redirect: "manual" }),
-    );
-  });
+      expect(completion).toBe("4");
+      expect(fetchMock).toHaveBeenCalledWith(
+        expectedUrl,
+        expect.objectContaining({ redirect: "manual" }),
+      );
+    },
+  );
 });
