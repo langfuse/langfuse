@@ -9,7 +9,8 @@ import {
   type availableDatasetEvalVariables,
   type availableTraceEvalVariables,
   type EvalTemplate,
-  observationEvalVariableColumns,
+  eventTargetEvalVariableColumns,
+  experimentTargetEvalVariableColumns,
 } from "@langfuse/shared";
 import { Card } from "@/src/components/ui/card";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
@@ -649,12 +650,8 @@ export const VariableMappingCard = ({
                               // For observations (event), exclude experiment-specific fields
                               const availableColumns =
                                 form.watch("target") === EvalTargetObject.EVENT
-                                  ? observationEvalVariableColumns.filter(
-                                      (col) =>
-                                        col.id !==
-                                        "experimentItemExpectedOutput",
-                                    )
-                                  : observationEvalVariableColumns;
+                                  ? eventTargetEvalVariableColumns
+                                  : experimentTargetEvalVariableColumns;
 
                               return (
                                 <div className="flex items-center gap-2">
@@ -695,14 +692,9 @@ export const VariableMappingCard = ({
                               );
                             }}
                           />
-                          {(form.watch(`mapping.${index}.selectedColumnId`) ===
-                            "metadata" ||
-                            form.watch(`mapping.${index}.selectedColumnId`) ===
-                              "input" ||
-                            form.watch(`mapping.${index}.selectedColumnId`) ===
-                              "output" ||
-                            form.watch(`mapping.${index}.selectedColumnId`) ===
-                              "experimentItemExpectedOutput") && (
+                          {fieldHasJsonSelectorOption(
+                            form.watch(`mapping.${index}.selectedColumnId`),
+                          ) && (
                             <FormField
                               control={form.control}
                               key={`${mappingField.id}-jsonSelector`}

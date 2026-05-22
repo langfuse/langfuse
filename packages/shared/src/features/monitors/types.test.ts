@@ -1,0 +1,201 @@
+import { describe, it, expect } from "vitest";
+
+import {
+  MonitorAlertSchema,
+  MonitorNoDataSchema,
+  MonitorRenotifySchema,
+  MonitorSchema,
+  MonitorWindowSchema,
+} from "./types";
+
+// Minimal valid domain object. Tests override one field at a time.
+const validMonitorBase = {
+  id: "mon_01",
+  createdAt: new Date("2026-05-18T00:00:00.000Z"),
+  updatedAt: new Date("2026-05-18T00:00:00.000Z"),
+  createdBy: null,
+  updatedBy: null,
+  projectId: "proj_01",
+
+  view: "observations" as const,
+  filters: [],
+  metric: { measure: "count", aggregation: "count" as const },
+
+  window: "5m" as const,
+  thresholdOperator: "gt" as const,
+  alertThreshold: 100,
+  warningThreshold: null,
+
+  severity: "unknown" as const,
+  severityChangedAt: null,
+
+  noData: { mode: "SILENT" as const },
+  renotify: { mode: "OFF" as const },
+
+  status: "active" as const,
+  nextRunAt: new Date("2026-05-18T00:01:00.000Z"),
+  lastPublishedRunAt: null,
+  lastCompletedRunAt: null,
+
+  name: "High error rate",
+  tags: [],
+  alertedAt: null,
+};
+
+describe("MonitorWindowSchema", () => {
+  it("accepts every MonitorWindow tier value", () => {
+    for (const tier of MonitorWindowSchema.options) {
+      expect(MonitorWindowSchema.safeParse(tier).success).toBe(true);
+    }
+  });
+
+  it("rejects a value that isn't a known tier", () => {
+    expect(MonitorWindowSchema.safeParse("bogus").success).toBe(false);
+  });
+});
+
+describe("MonitorRenotifySchema", () => {
+  it("accepts the OFF variant", () => {
+    expect(MonitorRenotifySchema.safeParse({ mode: "OFF" }).success).toBe(true);
+  });
+
+  it("accepts the EVERY variant with a valid interval", () => {
+    const result = MonitorRenotifySchema.safeParse({
+      mode: "EVERY",
+      intervalMinutes: 5,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects EVERY without intervalMinutes", () => {
+    expect(MonitorRenotifySchema.safeParse({ mode: "EVERY" }).success).toBe(
+      false,
+    );
+  });
+
+  it("rejects intervalMinutes below 1", () => {
+    expect(
+      MonitorRenotifySchema.safeParse({ mode: "EVERY", intervalMinutes: 0 })
+        .success,
+    ).toBe(false);
+  });
+
+  it("rejects intervalMinutes above one week", () => {
+    expect(
+      MonitorRenotifySchema.safeParse({
+        mode: "EVERY",
+        intervalMinutes: 60 * 24 * 7 + 1,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an unknown discriminator", () => {
+    expect(
+      MonitorRenotifySchema.safeParse({
+        mode: "BOGUS",
+        intervalMinutes: 5,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("MonitorNoDataSchema", () => {
+  it("accepts the SILENT variant", () => {
+    expect(MonitorNoDataSchema.safeParse({ mode: "SILENT" }).success).toBe(
+      true,
+    );
+  });
+
+  it("accepts the NOTIFY variant with a valid interval", () => {
+    const result = MonitorNoDataSchema.safeParse({
+      mode: "NOTIFY",
+      intervalMinutes: 5,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects NOTIFY without intervalMinutes", () => {
+    expect(MonitorNoDataSchema.safeParse({ mode: "NOTIFY" }).success).toBe(
+      false,
+    );
+  });
+
+  it("rejects intervalMinutes below 1", () => {
+    expect(
+      MonitorNoDataSchema.safeParse({ mode: "NOTIFY", intervalMinutes: 0 })
+        .success,
+    ).toBe(false);
+  });
+
+  it("rejects intervalMinutes above one day", () => {
+    expect(
+      MonitorNoDataSchema.safeParse({
+        mode: "NOTIFY",
+        intervalMinutes: 60 * 24 + 1,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an unknown discriminator", () => {
+    expect(
+      MonitorNoDataSchema.safeParse({
+        mode: "BOGUS",
+        intervalMinutes: 5,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("MonitorSchema", () => {
+  it("parses a minimally valid Monitor", () => {
+    const result = MonitorSchema.safeParse(validMonitorBase);
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("MonitorAlertSchema", () => {
+  const validAlert = {
+    monitorId: "mon_01",
+    projectId: "proj_01",
+    severity: "alert" as const,
+    permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
+    timestamp: new Date("2026-05-18T12:01:00.000Z"),
+    message: { title: "High error rate", body: "errors > 100" },
+    view: "observations" as const,
+    filters: [],
+    window: "5m" as const,
+  };
+
+  it("parses a representative alert", () => {
+    expect(MonitorAlertSchema.safeParse(validAlert).success).toBe(true);
+  });
+
+  it("rejects a non-URL permalink", () => {
+    expect(
+      MonitorAlertSchema.safeParse({ ...validAlert, permalink: "not-a-url" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("rejects an unknown severity", () => {
+    expect(
+      MonitorAlertSchema.safeParse({ ...validAlert, severity: "BOGUS" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("rejects a window outside the MonitorWindow tier set", () => {
+    expect(
+      MonitorAlertSchema.safeParse({ ...validAlert, window: "bogus" }).success,
+    ).toBe(false);
+  });
+
+  it("coerces a string timestamp to a Date", () => {
+    const result = MonitorAlertSchema.safeParse({
+      ...validAlert,
+      timestamp: "2026-05-18T12:01:00.000Z",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.timestamp).toBeInstanceOf(Date);
+  });
+});
