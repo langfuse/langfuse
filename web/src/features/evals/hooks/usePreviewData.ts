@@ -2,7 +2,10 @@ import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-uti
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { EvalTargetObject, type FilterState } from "@langfuse/shared";
 import { type UseFormReturn } from "react-hook-form";
-import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
+import {
+  isEventTarget,
+  isExperimentTarget,
+} from "@/src/features/evals/utils/typeHelpers";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 export type PreviewData =
@@ -18,6 +21,9 @@ export type PreviewData =
       data:
         | RouterOutputs["observations"]["byId"]
         | RouterOutputs["events"]["batchIO"][number]
+        | NonNullable<
+            RouterOutputs["events"]["experimentEvalPreviewObservation"]
+          >
         | undefined;
     };
 
@@ -47,6 +53,9 @@ export function usePreviewData(
   // For trace evals without traceId: fetch latest trace matching filter
   const target = form.watch("target");
   const isEventEval = isEventTarget(target);
+  const isExperimentEval = isExperimentTarget(target);
+  const shouldUseExperimentPreview = isExperimentEval && isBetaEnabled;
+  const shouldUseObservationPreview = isEventEval || shouldUseExperimentPreview;
   const isTraceEval = target === EvalTargetObject.TRACE;
   const latestTrace = api.traces.all.useQuery(
     {
@@ -90,7 +99,12 @@ export function usePreviewData(
       },
     },
     {
-      enabled: enabled && !observationId && isEventEval && !isBetaEnabled,
+      enabled:
+        enabled &&
+        !observationId &&
+        isEventEval &&
+        !isBetaEnabled &&
+        !shouldUseExperimentPreview,
     },
   );
 
@@ -108,20 +122,42 @@ export function usePreviewData(
       },
     },
     {
-      enabled: enabled && !observationId && isEventEval && isBetaEnabled,
+      enabled:
+        enabled &&
+        !observationId &&
+        isEventEval &&
+        isBetaEnabled &&
+        !shouldUseExperimentPreview,
     },
   );
 
+  const experimentPreviewObservation =
+    api.events.experimentEvalPreviewObservation.useQuery(
+      {
+        projectId,
+        filter: form.watch("filter") ?? [],
+        traceId,
+        observationId,
+      },
+      {
+        enabled: enabled && shouldUseExperimentPreview,
+      },
+    );
+
   const latestObservationTraceId = !!observationId
     ? traceId
-    : isBetaEnabled
-      ? latestObservationBeta.data?.observations[0]?.traceId
-      : latestObservation.data?.generations[0]?.traceId;
+    : shouldUseExperimentPreview
+      ? experimentPreviewObservation.data?.traceId
+      : isBetaEnabled
+        ? latestObservationBeta.data?.observations[0]?.traceId
+        : latestObservation.data?.generations[0]?.traceId;
   const latestObservationObservationId = !!observationId
     ? observationId
-    : isBetaEnabled
-      ? latestObservationBeta.data?.observations[0]?.id
-      : latestObservation.data?.generations[0]?.id;
+    : shouldUseExperimentPreview
+      ? experimentPreviewObservation.data?.id
+      : isBetaEnabled
+        ? latestObservationBeta.data?.observations[0]?.id
+        : latestObservation.data?.generations[0]?.id;
 
   const latestObservationStartTime =
     latestObservationBeta.data?.observations[0]?.startTime;
@@ -167,23 +203,26 @@ export function usePreviewData(
         !!latestObservationStartTime &&
         !!latestObservationEndTime &&
         isEventEval &&
-        isBetaEnabled,
+        isBetaEnabled &&
+        !shouldUseExperimentPreview,
     },
   );
 
-  const previewData: PreviewData | null = isEventEval
-    ? (isBetaEnabled
-        ? observationDetailsBeta.data?.[0]
-        : observationDetails.data) &&
+  const observationPreviewData = shouldUseExperimentPreview
+    ? experimentPreviewObservation.data
+    : isBetaEnabled
+      ? observationDetailsBeta.data?.[0]
+      : observationDetails.data;
+
+  const previewData: PreviewData | null = shouldUseObservationPreview
+    ? observationPreviewData &&
       latestObservationTraceId &&
       latestObservationObservationId
       ? {
           type: EvalTargetObject.EVENT,
           traceId: latestObservationTraceId,
           observationId: latestObservationObservationId,
-          data: isBetaEnabled
-            ? observationDetailsBeta.data?.[0]
-            : observationDetails.data,
+          data: observationPreviewData,
         }
       : null
     : traceDetails.data && actualTraceId
@@ -197,7 +236,10 @@ export function usePreviewData(
   const isLoading =
     latestTrace.isLoading ||
     traceDetails.isLoading ||
-    (isBetaEnabled
+    latestObservation.isLoading ||
+    latestObservationBeta.isLoading ||
+    experimentPreviewObservation.isLoading ||
+    (isBetaEnabled && !shouldUseExperimentPreview
       ? observationDetailsBeta.isLoading
       : observationDetails.isLoading);
 

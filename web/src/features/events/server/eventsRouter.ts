@@ -8,11 +8,13 @@ import {
   type OrderByState,
   normalizeOrderByForTable,
   paginationZod,
+  singleFilter,
   timeFilter,
 } from "@langfuse/shared";
 import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
+  stringifyMetadata,
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
 import { EventsTableOptions } from "./types";
@@ -21,6 +23,7 @@ import {
   getEventCount,
   getEventFilterOptions,
   getEventBatchIO,
+  getExperimentEvalPreviewObservation,
 } from "./eventsService";
 import {
   instrumentAsync,
@@ -75,6 +78,13 @@ export const BatchIOInput = zodSchema.object({
 });
 
 export type BatchIOInput = z.infer<typeof BatchIOInput>;
+
+const ExperimentEvalPreviewObservationInput = zodSchema.object({
+  projectId: zodSchema.string(),
+  filter: zodSchema.array(singleFilter),
+  traceId: zodSchema.string().optional(),
+  observationId: zodSchema.string().optional(),
+});
 
 export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -190,6 +200,33 @@ export const eventsRouter = createTRPCRouter({
           });
 
           return batchIO.map(toDomainWithStringifiedMetadata);
+        },
+      );
+    }),
+  experimentEvalPreviewObservation: protectedProjectProcedure
+    .input(ExperimentEvalPreviewObservationInput)
+    .query(async ({ input, ctx }) => {
+      return instrumentAsync(
+        { name: "get-experiment-eval-preview-observation-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", ctx.session.projectId);
+
+          const observation = await getExperimentEvalPreviewObservation({
+            projectId: ctx.session.projectId,
+            filter: input.filter,
+            traceId: input.traceId,
+            observationId: input.observationId,
+          });
+
+          return observation
+            ? {
+                ...observation,
+                metadata: stringifyMetadata(observation.metadata),
+                experimentItemMetadata: stringifyMetadata(
+                  observation.experimentItemMetadata,
+                ),
+              }
+            : null;
         },
       );
     }),

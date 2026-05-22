@@ -29,10 +29,10 @@ import {
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   isEventTarget,
+  isExperimentTarget,
   isLegacyEvalTarget,
   isTraceTarget,
   isTraceOrDatasetObject,
-  isTraceOrEventTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import {
   FormControl,
@@ -53,6 +53,7 @@ import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMa
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 export const VariableMappingCard = ({
   projectId,
@@ -85,9 +86,15 @@ export const VariableMappingCard = ({
     observationId?: string;
   }>();
   const router = useRouter();
+  const { isBetaEnabled } = useV4Beta();
   const peekId =
     typeof router.query.peek === "string" ? router.query.peek : undefined;
   const isPeekView = Boolean(peekId);
+  const target = form.watch("target");
+  const shouldShowPreviewForTarget =
+    isTraceTarget(target) ||
+    isEventTarget(target) ||
+    (isExperimentTarget(target) && isBetaEnabled);
 
   const { fields } = useFieldArray({
     control: form.control,
@@ -109,22 +116,26 @@ export const VariableMappingCard = ({
   const nonOtelCompatible = compatibilityCheckWasPerformed && !isNewCompatible;
 
   useEffect(() => {
-    const target = form.getValues("target");
     // Disable preview for event targets only when SDK check was performed and user is not on OTEL SDK
     const shouldDisableForNonOtel = isEventTarget(target) && nonOtelCompatible;
 
-    if (isTraceOrEventTarget(target) && !disabled && !shouldDisableForNonOtel) {
+    if (shouldShowPreviewForTarget && !disabled && !shouldDisableForNonOtel) {
       setShowPreview(true);
     } else {
-      // For dataset and experiment targets, or event targets without OTEL SDK
+      // For dataset targets, non-v4 experiment targets, or event targets without OTEL SDK
       setShowPreview(false);
     }
 
     if (isPeekView) {
       setSelectedPreviewIds(undefined);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch("target"), disabled, isPeekView, nonOtelCompatible]);
+  }, [
+    target,
+    disabled,
+    isPeekView,
+    nonOtelCompatible,
+    shouldShowPreviewForTarget,
+  ]);
 
   useEffect(() => {
     if (isPeekView) {
@@ -134,9 +145,9 @@ export const VariableMappingCard = ({
 
   // Hide preview controls for event targets only when SDK check was performed and user is not on OTEL SDK
   const shouldShowPreviewControls =
-    isTraceOrEventTarget(form.watch("target")) &&
+    shouldShowPreviewForTarget &&
     !disabled &&
-    !(isEventTarget(form.watch("target")) && nonOtelCompatible);
+    !(isEventTarget(target) && nonOtelCompatible);
 
   const mappingControlButtons = (
     <div className="flex items-center gap-2">
@@ -157,14 +168,14 @@ export const VariableMappingCard = ({
                     : previewData.traceId
                 }
                 listKey={
-                  isEventTarget(form.watch("target"))
+                  previewData.type === EvalTargetObject.EVENT
                     ? "observations"
                     : "traces"
                 }
                 onNavigate={
                   isPeekView
                     ? (entry) => {
-                        if (isEventTarget(form.watch("target"))) {
+                        if (previewData.type === EvalTargetObject.EVENT) {
                           setSelectedPreviewIds({
                             traceId: entry.params?.traceId,
                             observationId: entry.id,
@@ -179,7 +190,7 @@ export const VariableMappingCard = ({
                     : undefined
                 }
                 path={(entry) => {
-                  const isEvent = isEventTarget(form.watch("target"));
+                  const isEvent = previewData.type === EvalTargetObject.EVENT;
                   const basePath = hideAdvancedSettings
                     ? `/project/${projectId}/evals/remap?evaluator=${oldConfigId}`
                     : `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}`;
