@@ -77,6 +77,7 @@ export const EvalTemplateForm = (props: {
   projectId: string;
   useDialog: boolean;
   existingEvalTemplate?: PartialEvalTemplate;
+  preFilledFormValues?: EvalTemplateFormPreFill;
   onFormSuccess?: (template?: EvalTemplate) => void;
   onBeforeSubmit?: (
     template: RouterInput["evals"]["createTemplate"],
@@ -118,7 +119,7 @@ export const EvalTemplateForm = (props: {
                     }
                   : undefined,
               }
-            : undefined
+            : props.preFilledFormValues
         }
       />
     </div>

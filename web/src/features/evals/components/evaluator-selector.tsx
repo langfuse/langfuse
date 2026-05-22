@@ -1,9 +1,15 @@
-import { type EvalTemplate } from "@langfuse/shared";
+import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
+  type EvalTemplate,
+} from "@langfuse/shared";
 import {
   AlertCircle,
   CheckIcon,
+  Code2,
   ExternalLink,
   ExternalLinkIcon,
+  Sparkles,
 } from "lucide-react";
 import {
   InputCommand,
@@ -27,6 +33,44 @@ import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-to
 import Link from "next/link";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
+import {
+  CODE_EVAL_TEMPLATE_STARTER_EXAMPLES,
+  type CodeEvalTemplateStarterExample,
+} from "@/src/features/evals/utils/code-eval-template-starter-examples";
+import { SiPython, SiTypescript } from "react-icons/si";
+
+const EvaluatorTypeIcon = ({ type }: { type: EvalTemplate["type"] }) => {
+  const Icon = type === EvalTemplateType.CODE ? Code2 : Sparkles;
+
+  return <Icon className="text-muted-foreground mr-2 h-3.5 w-3.5 shrink-0" />;
+};
+
+const CodeTemplateLanguageIcon = ({
+  sourceCodeLanguage,
+}: {
+  sourceCodeLanguage: EvalTemplate["sourceCodeLanguage"];
+}) => {
+  const language =
+    sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
+      ? { Icon: SiTypescript, title: "TypeScript" }
+      : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+        ? { Icon: SiPython, title: "Python" }
+        : null;
+
+  if (!language) return null;
+
+  const { Icon } = language;
+
+  return (
+    <span
+      title={language.title}
+      aria-label={language.title}
+      className="text-muted-foreground ml-1 inline-flex shrink-0"
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+    </span>
+  );
+};
 
 interface EvaluatorSelectorProps {
   projectId: string;
@@ -38,6 +82,9 @@ interface EvaluatorSelectorProps {
     version?: number,
   ) => void;
   onCreateNew?: () => void;
+  onStarterExampleSelect?: (
+    starterExample: CodeEvalTemplateStarterExample,
+  ) => void;
 }
 
 export function EvaluatorSelector({
@@ -46,6 +93,7 @@ export function EvaluatorSelector({
   selectedTemplateId,
   onTemplateSelect,
   onCreateNew,
+  onStarterExampleSelect,
 }: EvaluatorSelectorProps) {
   const [search, setSearch] = useState("");
   const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
@@ -95,11 +143,25 @@ export function EvaluatorSelector({
       .filter(([name]) => name.toLowerCase().includes(search.toLowerCase()))
       .sort(([a], [b]) => a.localeCompare(b)),
   };
+  const filteredStarterExamples =
+    isCodeEvalEnabled && onStarterExampleSelect
+      ? CODE_EVAL_TEMPLATE_STARTER_EXAMPLES.filter((starterExample) =>
+          [
+            starterExample.title,
+            starterExample.description,
+            starterExample.templateName,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(search.toLowerCase()),
+        )
+      : [];
 
   // Check if we have results
   const hasResults =
     filteredTemplates.langfuse.length > 0 ||
-    filteredTemplates.custom.length > 0;
+    filteredTemplates.custom.length > 0 ||
+    filteredStarterExamples.length > 0;
 
   const { isTemplateInvalid } = useSingleTemplateValidation({
     projectId,
@@ -117,6 +179,26 @@ export function EvaluatorSelector({
       <InputCommandList className="max-h-full flex-1 overflow-y-auto">
         {!hasResults && (
           <InputCommandEmpty>No evaluator found.</InputCommandEmpty>
+        )}
+
+        {filteredStarterExamples.length > 0 && (
+          <>
+            <InputCommandGroup heading="Starter examples">
+              {filteredStarterExamples.map((starterExample) => (
+                <InputCommandItem
+                  key={`starter-example-${starterExample.id}`}
+                  value={`${starterExample.title} ${starterExample.description}`}
+                  onSelect={() => {
+                    onStarterExampleSelect?.(starterExample);
+                  }}
+                >
+                  <EvaluatorTypeIcon type={EvalTemplateType.CODE} />
+                  <span>{starterExample.title}</span>
+                </InputCommandItem>
+              ))}
+            </InputCommandGroup>
+            <InputCommandSeparator />
+          </>
         )}
 
         {filteredTemplates.custom.length > 0 && (
@@ -143,9 +225,19 @@ export function EvaluatorSelector({
                         "bg-secondary",
                     )}
                   >
+                    <EvaluatorTypeIcon type={latestVersion.type} />
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span>{name}</span>
+                        <div className="flex min-w-0 items-center">
+                          <span className="truncate">{name}</span>
+                          {latestVersion.type === EvalTemplateType.CODE ? (
+                            <CodeTemplateLanguageIcon
+                              sourceCodeLanguage={
+                                latestVersion.sourceCodeLanguage
+                              }
+                            />
+                          ) : null}
+                        </div>
                       </TooltipTrigger>
                       <TooltipContent
                         side="right"
@@ -234,6 +326,7 @@ export function EvaluatorSelector({
                         "bg-secondary",
                     )}
                   >
+                    <EvaluatorTypeIcon type={latestVersion.type} />
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="mr-1">{name}</div>
