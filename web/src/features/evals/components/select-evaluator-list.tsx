@@ -31,7 +31,7 @@ type SelectEvaluatorListProps = {
 export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
   const router = useRouter();
   const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
-  const [scratchEvaluatorType, setScratchEvaluatorType] = useState<
+  const [customEvaluatorType, setCustomEvaluatorType] = useState<
     typeof EvalTemplateType.LLM_AS_JUDGE | typeof EvalTemplateType.CODE | null
   >(null);
   const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
@@ -61,7 +61,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
   const handleOpenCreateEvaluator = (
     type: typeof EvalTemplateType.LLM_AS_JUDGE | typeof EvalTemplateType.CODE,
   ) => {
-    setScratchEvaluatorType(type);
+    setCustomEvaluatorType(type);
     setIsCreateTemplateOpen(true);
   };
 
@@ -134,7 +134,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
         onOpenChange={(open) => {
           setIsCreateTemplateOpen(open);
           if (!open) {
-            setScratchEvaluatorType(null);
+            setCustomEvaluatorType(null);
           }
         }}
       >
@@ -143,22 +143,22 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
             <DialogTitle>Create new evaluator</DialogTitle>
           </DialogHeader>
           <EvalTemplateForm
-            key={scratchEvaluatorType ?? "custom-evaluator"}
+            key={customEvaluatorType ?? "custom-evaluator"}
             projectId={projectId}
             preventRedirect={true}
             isEditing={true}
             useDialog={true}
             templateTypeSelectorMode={
-              scratchEvaluatorType === EvalTemplateType.CODE
+              customEvaluatorType === EvalTemplateType.CODE
                 ? "code-only"
                 : "hidden"
             }
             preFilledFormValues={{
               name: "",
-              type: scratchEvaluatorType ?? EvalTemplateType.LLM_AS_JUDGE,
+              type: customEvaluatorType ?? EvalTemplateType.LLM_AS_JUDGE,
               prompt: "",
               vars: [],
-              ...(scratchEvaluatorType === EvalTemplateType.CODE
+              ...(customEvaluatorType === EvalTemplateType.CODE
                 ? {
                     sourceCode: getDefaultCodeEvalSource(
                       EvalTemplateSourceCodeLanguage.TYPESCRIPT,
@@ -170,7 +170,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
             }}
             onFormSuccess={(newTemplate) => {
               setIsCreateTemplateOpen(false);
-              setScratchEvaluatorType(null);
+              setCustomEvaluatorType(null);
               void utils.evals.allTemplates.invalidate();
               if (newTemplate) {
                 setSelectedTemplate(newTemplate);
