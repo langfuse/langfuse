@@ -831,7 +831,7 @@ export const InnerEvaluatorForm = (props: {
                             <CircleDot className="h-3.5 w-3.5" />
                             Observations
                           </TabsTrigger>
-                          {allowLegacy && !isCodeEvalConfig && (
+                          {allowLegacy && (
                             <TabsTrigger
                               value="trace"
                               disabled={props.disabled || props.mode === "edit"}
@@ -868,8 +868,7 @@ export const InnerEvaluatorForm = (props: {
             {/* Second tab bar for experiment data source selection */}
             {!props.hideTargetSelection &&
               userFacingTarget === "offline-experiment" &&
-              props.evalCapabilities.allowLegacy &&
-              !isCodeEvalConfig && (
+              props.evalCapabilities.allowLegacy && (
                 <div className="flex flex-col gap-2">
                   <FormLabel className="text-sm">Experiment Method</FormLabel>
                   <Tabs
@@ -1271,7 +1270,9 @@ export const InnerEvaluatorForm = (props: {
           </div>
         </Card>
       )}
-      {isCodeEvalConfig ? null : (
+      {isCodeEvalConfig ? (
+        codeEvalTestPanel
+      ) : (
         <VariableMappingCard
           projectId={props.projectId}
           availableVariables={availableVariables}
@@ -1287,7 +1288,6 @@ export const InnerEvaluatorForm = (props: {
           }
         />
       )}
-      {codeEvalTestPanel}
     </div>
   );
 

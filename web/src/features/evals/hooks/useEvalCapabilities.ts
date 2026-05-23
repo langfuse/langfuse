@@ -15,9 +15,14 @@ export interface EvalCapabilities {
 /**
  * Hook to determine which eval configuration features are available
  * @param projectId - The project ID to check
+ * @param options - Optional configuration
+ * @param options.isCodeEvalConfig - When true, disables legacy eval options
  * @returns Capabilities object indicating which eval features are allowed
  */
-export function useEvalCapabilities(projectId: string): EvalCapabilities {
+export function useEvalCapabilities(
+  projectId: string,
+  options?: { isCodeEvalConfig?: boolean },
+): EvalCapabilities {
   const { data: session, status: sessionStatus } = useSession();
   const isSessionLoading = sessionStatus === "loading";
   const { isBetaEnabled } = useV4Beta();
@@ -44,12 +49,16 @@ export function useEvalCapabilities(projectId: string): EvalCapabilities {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const canToggleV4 = session?.user?.canToggleV4 === true;
 
+  // Code eval configs never allow legacy mode
+  const isCodeEvalConfig = options?.isCodeEvalConfig ?? false;
+
   return {
     isNewCompatible: isOtel,
     // True when v4 beta is enabled (SDK check query was run)
     compatibilityCheckWasPerformed: isBetaEnabled,
-    // Allow legacy if: not cloud OR user has legacy evals OR user can toggle v4 (existing user)
-    allowLegacy: !isLangfuseCloud || hasLegacyEvals || canToggleV4,
+    // Allow legacy if: not code eval AND (not cloud OR user has legacy evals OR user can toggle v4)
+    allowLegacy:
+      !isCodeEvalConfig && (!isLangfuseCloud || hasLegacyEvals || canToggleV4),
     // Allow propagation filters only when using OTEL and spans are propagating
     allowPropagationFilters: isOtel && isPropagating,
     isLoading:
