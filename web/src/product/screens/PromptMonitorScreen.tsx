@@ -1187,6 +1187,7 @@ function PromptRollupPane({
               width={16}
               height={16}
               className="size-4 rounded-sm"
+              unoptimized
             />
             <span className="text-muted-foreground text-[0.6875rem] font-medium tabular-nums">
               {callCount}
@@ -1242,6 +1243,7 @@ function PromptRollupPane({
                 width={16}
                 height={16}
                 className="size-4 rounded-sm"
+                unoptimized
               />
               <p className="text-foreground min-w-0 truncate text-sm font-medium">
                 {activeModelLabel}

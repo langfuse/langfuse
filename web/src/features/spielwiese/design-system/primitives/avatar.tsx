@@ -30,6 +30,7 @@ export function AvatarImage({
       className={cn("size-full object-cover", className)}
       height={height}
       {...props}
+      unoptimized
       width={width}
     />
   );

@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { MouseEvent } from "react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { getSpielwieseAssetPath } from "../spielwieseAssetPath";
 
 export const setupMomentImageMarker = "[ image of setup, aha, habit moment ]";
 export const currentDashboardImageMarker =
@@ -33,7 +34,10 @@ function SpielwieseIntroCurrentDashboardZoom({
           className="block h-auto max-h-[72dvh] w-auto max-w-[min(82vw,70rem)] object-contain"
           height={1804}
           sizes="min(82vw, 70rem)"
-          src="/spielwiese/langfuse-current-dashboard.png"
+          src={getSpielwieseAssetPath(
+            "/spielwiese/langfuse-current-dashboard.png",
+          )}
+          unoptimized
           width={3024}
         />
       </div>
@@ -53,7 +57,8 @@ export function SpielwieseIntroSetupMomentImage() {
         height={594}
         priority
         sizes="(max-width: 640px) calc(100vw - 2.5rem), 550px"
-        src="/spielwiese/setup-aha-habit-moment.png"
+        src={getSpielwieseAssetPath("/spielwiese/setup-aha-habit-moment.png")}
+        unoptimized
         width={1698}
       />
     </div>
@@ -101,7 +106,10 @@ export function SpielwieseIntroCurrentDashboardImage() {
             className="absolute inset-0 h-full w-full rounded-[1rem] object-cover"
             height={1804}
             sizes="(max-width: 640px) calc(100vw - 2.5rem), 550px"
-            src="/spielwiese/langfuse-current-dashboard.png"
+            src={getSpielwieseAssetPath(
+              "/spielwiese/langfuse-current-dashboard.png",
+            )}
+            unoptimized
             width={3024}
           />
         </div>

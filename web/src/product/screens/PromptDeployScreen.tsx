@@ -286,6 +286,7 @@ function DeployChangesPane({
                 width={16}
                 height={16}
                 className="size-4 rounded-sm"
+                unoptimized
               />
               <span className="text-foreground truncate text-sm font-medium">
                 / {modelLabel}

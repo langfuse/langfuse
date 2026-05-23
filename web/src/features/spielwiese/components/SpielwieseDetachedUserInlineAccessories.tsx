@@ -5,6 +5,7 @@ import {
   spielwieseStripItemClassName,
   spielwieseStripItemFieldClassName,
 } from "./SpielwieseHeaderStrip";
+import { getSpielwieseAssetPath } from "../spielwieseAssetPath";
 
 const detachedUserAccessoryButtonClassName =
   "text-foreground/62 hover:text-foreground flex h-full min-w-0 items-center bg-transparent px-0 py-0 shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0";
@@ -40,8 +41,11 @@ function DetachedUserUploadFileTag() {
               <Image
                 alt=""
                 className="h-full w-full object-cover"
-                src="/spielwiese/upload-file-thumb.webp"
                 height={20}
+                src={getSpielwieseAssetPath(
+                  "/spielwiese/upload-file-thumb.webp",
+                )}
+                unoptimized
                 width={20}
               />
             </span>

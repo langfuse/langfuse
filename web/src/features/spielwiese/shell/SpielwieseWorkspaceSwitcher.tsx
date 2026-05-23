@@ -1,6 +1,7 @@
 import Image from "next/image";
 import type { MouseEvent } from "react";
 import { ChevronDown } from "lucide-react";
+import { getSpielwieseAssetPath } from "../spielwieseAssetPath";
 type SpielwieseWorkspaceSwitcherProps = {
   disabled?: boolean;
   name: string;
@@ -18,7 +19,8 @@ function SpielwieseWorkspaceMark({ size }: { size: string }) {
         draggable={false}
         height={240}
         priority
-        src="/assets/rudel-logo.jpg"
+        src={getSpielwieseAssetPath("/assets/rudel-logo.jpg")}
+        unoptimized
         width={240}
       />
     </span>

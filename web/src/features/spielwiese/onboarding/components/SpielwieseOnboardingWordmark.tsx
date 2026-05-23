@@ -1,4 +1,5 @@
 import type { MouseEvent } from "react";
+import { getSpielwieseAssetPath } from "../../spielwieseAssetPath";
 
 type SpielwieseOnboardingWordmarkButtonProps = {
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
@@ -13,7 +14,7 @@ function LangfuseWordmark() {
         aria-hidden="true"
         className="h-[1.125rem] w-auto shrink-0"
         height="18"
-        src="/spielwiese/lf-onboarding-wordmark.png"
+        src={getSpielwieseAssetPath("/spielwiese/lf-onboarding-wordmark.png")}
         width="98"
       />
     </div>

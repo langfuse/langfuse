@@ -34,6 +34,7 @@ import {
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
+import { env } from "@/src/env.mjs";
 import {
   Command,
   CommandEmpty,
@@ -131,13 +132,17 @@ type PreviewHistorySnapshot = {
   }>;
 };
 
+function getPreviewAssetPath(path: `/${string}`) {
+  return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`;
+}
+
 export const PREVIEW_MODELS: PreviewModel[] = [
   {
     id: "openai::gpt-4.1-mini",
     label: "openai::gpt-4.1-mini",
     provider: "openai",
     providerLabel: "OpenAI",
-    providerIcon: "/providers/openai/chatgpt.svg",
+    providerIcon: getPreviewAssetPath("/providers/openai/chatgpt.svg"),
     description:
       "Balanced small model for rapid prompt iteration, short test loops, and lightweight classification runs.",
     artificialAnalysisUrl: "https://artificialanalysis.ai/models/gpt-4-1-mini",
@@ -157,7 +162,7 @@ export const PREVIEW_MODELS: PreviewModel[] = [
     label: "openai::gpt-4.1",
     provider: "openai",
     providerLabel: "OpenAI",
-    providerIcon: "/providers/openai/chatgpt.svg",
+    providerIcon: getPreviewAssetPath("/providers/openai/chatgpt.svg"),
     description:
       "Stronger reasoning model for prompt authoring when you want higher quality output and longer context windows.",
     artificialAnalysisUrl: "https://artificialanalysis.ai/models/gpt-4-1",
@@ -177,7 +182,7 @@ export const PREVIEW_MODELS: PreviewModel[] = [
     label: "anthropic::claude-sonnet-4",
     provider: "anthropic",
     providerLabel: "Anthropic",
-    providerIcon: "/providers/anthropic/light.svg",
+    providerIcon: getPreviewAssetPath("/providers/anthropic/claude.svg"),
     description:
       "High quality drafting model with strong instruction following and reliable long-form synthesis.",
     artificialAnalysisUrl:
@@ -198,7 +203,7 @@ export const PREVIEW_MODELS: PreviewModel[] = [
     label: "anthropic::claude-haiku-4-5",
     provider: "anthropic",
     providerLabel: "Anthropic",
-    providerIcon: "/providers/anthropic/light.svg",
+    providerIcon: getPreviewAssetPath("/providers/anthropic/claude.svg"),
     description:
       "Fast and inexpensive variant for high-volume preview runs and smaller routing tasks.",
     artificialAnalysisUrl:
@@ -220,7 +225,7 @@ const PREVIEW_PROVIDERS: PreviewProvider[] = [
   {
     id: "openai",
     label: "OpenAI",
-    icon: "/providers/openai/chatgpt.svg",
+    icon: getPreviewAssetPath("/providers/openai/chatgpt.svg"),
     apiKeyHref: "https://platform.openai.com/api-keys",
     apiKeyLabel: "Get OpenAI API key",
     helper:
@@ -230,7 +235,7 @@ const PREVIEW_PROVIDERS: PreviewProvider[] = [
   {
     id: "anthropic",
     label: "Anthropic",
-    icon: "/providers/anthropic/light.svg",
+    icon: getPreviewAssetPath("/providers/anthropic/claude.svg"),
     apiKeyHref: "https://platform.claude.com/settings/keys",
     apiKeyLabel: "Get Anthropic API key",
     helper:
@@ -958,6 +963,7 @@ export function PromptDraftPane({
                     className="size-3.5"
                     src={selectedModel.providerIcon}
                     alt={`${selectedModel.providerLabel} icon`}
+                    unoptimized
                   />
                   <span className="text-muted-foreground">
                     {selectedModel.providerLabel}
@@ -1012,6 +1018,7 @@ export function PromptDraftPane({
                                 className="size-3.5"
                                 src={provider.icon}
                                 alt={`${provider.label} icon`}
+                                unoptimized
                               />
                             </div>
                             <div className="min-w-0 flex-1">
@@ -1080,6 +1087,7 @@ export function PromptDraftPane({
                                   className="size-3.5"
                                   src={selectedProvider.icon}
                                   alt={`${selectedProvider.label} icon`}
+                                  unoptimized
                                 />
                               </div>
                               <span>{selectedProvider.label}</span>
@@ -1587,6 +1595,7 @@ function PlaygroundPreviewPane({
                             className="size-4"
                             src={snapshotModel.providerIcon}
                             alt={`${snapshotModel.providerLabel} icon`}
+                            unoptimized
                           />
                           <span className="text-sm font-semibold">
                             / {getShortModelLabel(snapshotModel)}
@@ -1715,6 +1724,7 @@ function HistoryMetaPill({
           className="size-3.5"
           src={providerIcon}
           alt=""
+          unoptimized
         />
       ) : Icon ? (
         <Icon className="text-muted-foreground size-3.5" />

@@ -17,6 +17,7 @@ import {
   getOnboardingEntryTextMotionClassName,
   isOnboardingMotionFrozen,
 } from "../spielwieseOnboardingEntryMotion";
+import { getSpielwieseAssetPath } from "../../spielwieseAssetPath";
 
 export type SpielwieseOnboardingEntryStep =
   | typeof PERSONAL_DETAILS_STEP_ID
@@ -139,7 +140,8 @@ function SignUpLogoStrip({ isActive }: { isActive: boolean }) {
             aria-hidden={logo.alt === "" ? "true" : undefined}
             className={logo.className}
             height={logo.height}
-            src={logo.src}
+            src={getSpielwieseAssetPath(logo.src)}
+            unoptimized
             width={logo.width}
           />
         </div>
