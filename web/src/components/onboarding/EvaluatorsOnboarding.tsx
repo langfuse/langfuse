@@ -51,7 +51,7 @@ export function EvaluatorsOnboarding({ projectId }: EvaluatorsOnboardingProps) {
       {
         title: "Code evaluators",
         description:
-          "Write TypeScript logic for deterministic, custom scoring.",
+          "Write TypeScript or Python logic for deterministic, custom scoring.",
         icon: <Code2 className="h-4 w-4" />,
       },
     ];
