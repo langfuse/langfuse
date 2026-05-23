@@ -17,6 +17,10 @@ import { Button } from "@/src/components/ui/button";
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import {
+  getCodeEvalHoverDocs,
+  type CodeEvalHoverDocs,
+} from "@/src/features/evals/utils/code-eval-template-hover-docs";
+import {
   TYPESCRIPT_CODE_EVAL_CONTRACT,
   type CodeEvalSourceCodeLanguage,
   type CodeEvalValidationResult,
@@ -99,134 +103,33 @@ const typescriptCodeEvalLanguage = StreamLanguage.define({
   },
 });
 
-const scoreTypeDoc = `type Score =
-  dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL" | "TEXT";
-  value: number | string | boolean;
-  name?: string;
-  comment?: string;
+function createCodeEvalHoverExtension(hoverDocs: CodeEvalHoverDocs) {
+  return hoverTooltip((view, pos) => {
+    const line = view.state.doc.lineAt(pos);
+    const text = line.text;
+    const offset = pos - line.from;
+    const before = text.slice(0, offset).match(/[A-Za-z_][A-Za-z0-9_]*$/)?.[0];
+    const after = text.slice(offset).match(/^[A-Za-z0-9_]*/)?.[0] ?? "";
+    const word = `${before ?? ""}${after}`;
+    const hoverDoc = hoverDocs[word];
+    if (!word || !hoverDoc) return null;
+
+    const from = pos - (before?.length ?? 0);
+    const to = from + word.length;
+
+    return {
+      pos: from,
+      end: to,
+      create() {
+        const dom = document.createElement("div");
+        dom.className =
+          "max-w-xl whitespace-pre-wrap rounded-md border bg-popover px-3 py-2 font-mono text-xs text-popover-foreground shadow-md";
+        dom.textContent = hoverDoc;
+        return { dom };
+      },
+    };
+  });
 }
-
-A Langfuse score returned by a code evaluator. The contract is shown at the top of the editor and is locked.`;
-
-const hoverDocs: Record<string, string> = {
-  evaluate: `TypeScript: function evaluate(context: EvaluationContext): EvaluationResult | Promise<EvaluationResult>
-Python: def evaluate(context: EvaluationContext) -> EvaluationResult
-
-The function Langfuse executes for each matched target observation.`,
-  context: `parameter context
-
-Python context passed to evaluate. The default template models it as a TypedDict with observation and optional experiment data.`,
-  ctx: `parameter ctx
-
-Older Python examples may use ctx. New Python templates use context: EvaluationContext.`,
-  EvaluationContext: `type EvaluationContext = {
-  observation: {
-    input: any;
-    output: any;
-    metadata: any;
-  };
-  experiment:
-    | {
-        expectedOutput: any;
-        itemMetadata: any;
-      }
-    | undefined;
-}
-
-The data Langfuse passes to a code evaluator. The TypeScript definition is locked at the top of the editor.`,
-  observation: `property EvaluationContext.observation: {
-  input: unknown;
-  output: unknown;
-  metadata: unknown;
-}
-
-The observation selected by the evaluator target.`,
-  experiment: `property EvaluationContext.experiment?: {
-  expectedOutput: unknown;
-  itemMetadata: unknown;
-}
-
-Dataset run item data. Present when the evaluator runs on an experiment.`,
-  input: `property observation.input: any
-
-The input recorded on the observation.`,
-  output: `property observation.output: any
-
-The output recorded on the observation.`,
-  metadata: `property observation.metadata: any
-
-The metadata recorded on the observation.`,
-  expectedOutput: `property experiment.expectedOutput: any
-
-The expected output from the dataset item.`,
-  itemMetadata: `property experiment.itemMetadata: any
-
-The metadata from the dataset item.`,
-  Any: `typing.Any
-
-Use for JSON-like evaluator values whose concrete type depends on the target observation.`,
-  TypedDict: `typing.TypedDict
-
-Use to describe the dictionary-shaped Python evaluator context and result.`,
-  NotRequired: `typing.NotRequired
-
-Use for optional keys in Python TypedDict definitions.`,
-  expected_output: `key experiment["expected_output"]
-
-The expected output from the dataset item in Python.`,
-  item_metadata: `key experiment["item_metadata"]
-
-The metadata from the dataset item in Python.`,
-  EvaluationResult: `type EvaluationResult = {
-  scores: Score[];
-}
-
-The value returned by evaluate.`,
-  Score: scoreTypeDoc,
-  scores: `property EvaluationResult.scores: Score[];
-
-One or more Langfuse scores to create for the target observation.`,
-  dataType: `property Score.dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL" | "TEXT"
-
-The Langfuse score data type.`,
-  value: `property Score.value: number | string | boolean
-
-The score value. The allowed value depends on dataType: NUMERIC uses number, BOOLEAN uses boolean, 0/1, or true/false-like strings, and CATEGORICAL or TEXT use string.`,
-  name: `property Score.name?: string
-
-The score name. When omitted, Langfuse uses the evaluator's configured score name.`,
-  comment: `property Score.comment?: string | null
-
-The reasoning or explanation stored with the score.`,
-  configId: `property Score.configId?: string | null
-
-The score config id to attach to the score.`,
-};
-
-const codeEvalHover = hoverTooltip((view, pos) => {
-  const line = view.state.doc.lineAt(pos);
-  const text = line.text;
-  const offset = pos - line.from;
-  const before = text.slice(0, offset).match(/[A-Za-z_][A-Za-z0-9_]*$/)?.[0];
-  const after = text.slice(offset).match(/^[A-Za-z0-9_]*/)?.[0] ?? "";
-  const word = `${before ?? ""}${after}`;
-  if (!word || !hoverDocs[word]) return null;
-
-  const from = pos - (before?.length ?? 0);
-  const to = from + word.length;
-
-  return {
-    pos: from,
-    end: to,
-    create() {
-      const dom = document.createElement("div");
-      dom.className =
-        "max-w-xl whitespace-pre-wrap rounded-md border bg-popover px-3 py-2 font-mono text-xs text-popover-foreground shadow-md";
-      dom.textContent = hoverDocs[word];
-      return { dom };
-    },
-  };
-});
 
 function findPythonContractRanges(source: string): ContractRanges | null {
   const match = source.match(PYTHON_EVALUATE_SIGNATURE_PATTERN);
@@ -493,6 +396,11 @@ export function CodeEvalTemplateFormBody({
         : typescriptCodeEvalLanguage,
     [sourceCodeLanguage],
   );
+  const codeEvalHoverExtension = useMemo(
+    () =>
+      createCodeEvalHoverExtension(getCodeEvalHoverDocs(sourceCodeLanguage)),
+    [sourceCodeLanguage],
+  );
   const protectedContractExtensions = useMemo(
     () => contractReadOnlyExtensions,
     [],
@@ -532,7 +440,7 @@ export function CodeEvalTemplateFormBody({
           ...(!editable ? [EditorState.readOnly.of(true)] : []),
           languageExtension,
           ...protectedContractExtensions,
-          codeEvalHover,
+          codeEvalHoverExtension,
           linterExtension,
           formatShortcutExtension,
           EditorView.lineWrapping,
