@@ -6,10 +6,8 @@ import {
 import {
   AlertCircle,
   CheckIcon,
-  Code2,
   ExternalLink,
   ExternalLinkIcon,
-  Sparkles,
 } from "lucide-react";
 import {
   InputCommand,
@@ -35,12 +33,6 @@ import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEn
 import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
 import { SiPython, SiTypescript } from "react-icons/si";
 
-const EvaluatorTypeIcon = ({ type }: { type: EvalTemplate["type"] }) => {
-  const Icon = type === EvalTemplateType.CODE ? Code2 : Sparkles;
-
-  return <Icon className="text-muted-foreground mr-2 h-3.5 w-3.5 shrink-0" />;
-};
-
 const CodeTemplateLanguageIcon = ({
   sourceCodeLanguage,
 }: {
@@ -65,6 +57,43 @@ const CodeTemplateLanguageIcon = ({
     >
       <Icon className="h-3.5 w-3.5" aria-hidden="true" />
     </span>
+  );
+};
+
+const getCodeTemplateLanguageTitle = (
+  sourceCodeLanguage: EvalTemplate["sourceCodeLanguage"],
+) =>
+  sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+    ? "Python"
+    : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
+      ? "TypeScript"
+      : "Code";
+
+const TemplatePreviewTooltipContent = ({
+  template,
+}: {
+  template: EvalTemplate;
+}) => {
+  if (template.type === EvalTemplateType.CODE) {
+    return (
+      <>
+        <p className="mb-1 font-medium">
+          {getCodeTemplateLanguageTitle(template.sourceCodeLanguage)} source
+        </p>
+        <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
+          {template.sourceCode}
+        </pre>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <p className="mb-1 font-medium">Evaluation prompt</p>
+      <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
+        {template.prompt}
+      </pre>
+    </>
   );
 };
 
@@ -183,7 +212,6 @@ export function EvaluatorSelector({
                         "bg-secondary",
                     )}
                   >
-                    <EvaluatorTypeIcon type={latestVersion.type} />
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="flex min-w-0 items-center">
@@ -201,10 +229,9 @@ export function EvaluatorSelector({
                         side="right"
                         className="max-h-[300px] max-w-[400px] overflow-y-auto"
                       >
-                        <p className="mb-1 font-medium">Evaluation prompt</p>
-                        <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
-                          {latestVersion.prompt}
-                        </pre>
+                        <TemplatePreviewTooltipContent
+                          template={latestVersion}
+                        />
                       </TooltipContent>
                     </Tooltip>
                     {isInvalid && (
@@ -284,19 +311,26 @@ export function EvaluatorSelector({
                         "bg-secondary",
                     )}
                   >
-                    <EvaluatorTypeIcon type={latestVersion.type} />
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="mr-1">{name}</div>
+                        <div className="mr-1 flex min-w-0 items-center">
+                          <span className="truncate">{name}</span>
+                          {latestVersion.type === EvalTemplateType.CODE ? (
+                            <CodeTemplateLanguageIcon
+                              sourceCodeLanguage={
+                                latestVersion.sourceCodeLanguage
+                              }
+                            />
+                          ) : null}
+                        </div>
                       </TooltipTrigger>
                       <TooltipContent
                         side="right"
                         className="max-h-[300px] max-w-[400px] overflow-y-auto"
                       >
-                        <p className="mb-1 font-medium">Evaluation prompt</p>
-                        <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
-                          {latestVersion.prompt}
-                        </pre>
+                        <TemplatePreviewTooltipContent
+                          template={latestVersion}
+                        />
                       </TooltipContent>
                     </Tooltip>
                     <MaintainerTooltip
