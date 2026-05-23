@@ -65,9 +65,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-eval-template-form-body";
 import {
-  DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
+  type CodeEvalSourceCodeLanguage,
   type CodeEvalValidationResult,
-  validateCodeEvalSourceWithTypescript,
+  getDefaultCodeEvalSource,
+  isDefaultCodeEvalSource,
+  validateCodeEvalSourceWithLanguage,
 } from "@/src/features/evals/utils/code-eval-template-validation";
 
 type PartialEvalTemplate = Partial<EvalTemplate> &
@@ -78,6 +80,7 @@ export const EvalTemplateForm = (props: {
   useDialog: boolean;
   existingEvalTemplate?: PartialEvalTemplate;
   preFilledFormValues?: EvalTemplateFormPreFill;
+  templateTypeSelectorMode?: "all" | "code-only" | "hidden";
   onFormSuccess?: (template?: EvalTemplate) => void;
   onBeforeSubmit?: (
     template: RouterInput["evals"]["createTemplate"],
@@ -108,6 +111,8 @@ export const EvalTemplateForm = (props: {
                   .outputDefinition as PersistedEvalOutputDefinition,
                 type: props.existingEvalTemplate.type,
                 sourceCode: props.existingEvalTemplate.sourceCode,
+                sourceCodeLanguage:
+                  props.existingEvalTemplate.sourceCodeLanguage ?? undefined,
                 selectedModel: props.existingEvalTemplate.provider
                   ? {
                       provider: props.existingEvalTemplate.provider as string,
@@ -162,6 +167,12 @@ const formSchema = z
       z.string().min(1, "Variables must have at least one character"),
     ),
     sourceCode: z.string().optional(),
+    sourceCodeLanguage: z
+      .enum([
+        EvalTemplateSourceCodeLanguage.PYTHON,
+        EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+      ])
+      .default(EvalTemplateSourceCodeLanguage.TYPESCRIPT),
     scoreDataType: EvalOutputDataTypeSchema.default(ScoreDataTypeEnum.NUMERIC),
     scoreDescription: z.string().optional(),
     reasoningDescription: z.string().optional(),
@@ -177,9 +188,14 @@ const formSchema = z
     // TODO: clean up
     if (value.type === EvalTemplateType.CODE) {
       if (!value.sourceCode?.trim()) {
+        const languageLabel =
+          value.sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+            ? "Python"
+            : "TypeScript";
+
         ctx.addIssue({
           code: "custom",
-          message: "Enter TypeScript source code",
+          message: `Enter ${languageLabel} source code`,
           path: ["sourceCode"],
         });
       }
@@ -271,6 +287,7 @@ export type EvalTemplateFormPreFill = {
   vars: string[];
   outputDefinition?: PersistedEvalOutputDefinition | null;
   sourceCode?: string | null;
+  sourceCodeLanguage?: CodeEvalSourceCodeLanguage | null;
   selectedModel?: {
     provider: string;
     model: string;
@@ -285,6 +302,7 @@ export const InnerEvalTemplateForm = (props: {
   useDialog: boolean;
   // pre-filled values from langfuse-defined template or template from db
   preFilledFormValues?: EvalTemplateFormPreFill;
+  templateTypeSelectorMode?: "all" | "code-only" | "hidden";
   // template to be updated
   existingEvalTemplateId?: string;
   existingEvalTemplateName?: string;
@@ -301,8 +319,11 @@ export const InnerEvalTemplateForm = (props: {
     useState<CodeEvalValidationResult | null>(null);
   const [isCodeValidationPending, setIsCodeValidationPending] = useState(false);
   const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const templateTypeSelectorMode = props.templateTypeSelectorMode ?? "all";
   const showEvalTemplateTypeSelector =
-    isCodeEvalEnabled && !props.existingEvalTemplateId;
+    isCodeEvalEnabled &&
+    !props.existingEvalTemplateId &&
+    templateTypeSelectorMode !== "hidden";
 
   // Determine if we should use default model or custom model
   // If existing template has no provider, it was using default model
@@ -341,6 +362,9 @@ export const InnerEvalTemplateForm = (props: {
   const outputDefinitionFormValues = toOutputDefinitionFormValues(
     props.preFilledFormValues?.outputDefinition,
   );
+  const defaultSourceCodeLanguage =
+    props.preFilledFormValues?.sourceCodeLanguage ??
+    EvalTemplateSourceCodeLanguage.TYPESCRIPT;
 
   // updates the form based on the pre-filled data
   // either form update or from langfuse-generated template
@@ -350,12 +374,16 @@ export const InnerEvalTemplateForm = (props: {
     defaultValues: {
       name:
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
-      type: props.preFilledFormValues?.type ?? EvalTemplateType.LLM_AS_JUDGE,
+      type:
+        templateTypeSelectorMode === "code-only"
+          ? EvalTemplateType.CODE
+          : (props.preFilledFormValues?.type ?? EvalTemplateType.LLM_AS_JUDGE),
       prompt: props.preFilledFormValues?.prompt ?? undefined,
       variables: props.preFilledFormValues?.vars ?? [],
       sourceCode:
         props.preFilledFormValues?.sourceCode ??
-        DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
+        getDefaultCodeEvalSource(defaultSourceCodeLanguage),
+      sourceCodeLanguage: defaultSourceCodeLanguage,
       scoreDataType: outputDefinitionFormValues.scoreDataType,
       reasoningDescription: outputDefinitionFormValues.reasoningDescription,
       scoreDescription: outputDefinitionFormValues.scoreDescription,
@@ -378,6 +406,9 @@ export const InnerEvalTemplateForm = (props: {
 
   const useDefaultModel = form.watch("shouldUseDefaultModel");
   const evalTemplateType = form.watch("type");
+  const sourceCodeLanguage =
+    form.watch("sourceCodeLanguage") ??
+    EvalTemplateSourceCodeLanguage.TYPESCRIPT;
   const showCodeTemplateForm =
     isCodeEvalEnabled && evalTemplateType === EvalTemplateType.CODE;
   const scoreDataType = form.watch("scoreDataType");
@@ -417,6 +448,31 @@ export const InnerEvalTemplateForm = (props: {
       })
     ) {
       form.setValue("scoreDescription", defaults.scoreDescription);
+    }
+  };
+
+  const handleTemplateTypeSelection = (
+    nextValue:
+      | typeof EvalTemplateType.LLM_AS_JUDGE
+      | CodeEvalSourceCodeLanguage,
+  ) => {
+    if (nextValue === EvalTemplateType.LLM_AS_JUDGE) {
+      form.setValue("type", EvalTemplateType.LLM_AS_JUDGE);
+      return;
+    }
+
+    const currentSourceCode = form.getValues("sourceCode") ?? "";
+    const shouldReplaceSourceCode =
+      currentSourceCode.trim().length === 0 ||
+      isDefaultCodeEvalSource(currentSourceCode);
+
+    form.setValue("type", EvalTemplateType.CODE);
+    form.setValue("sourceCodeLanguage", nextValue);
+    setCodeValidationResult(null);
+    setFormError(null);
+
+    if (shouldReplaceSourceCode) {
+      form.setValue("sourceCode", getDefaultCodeEvalSource(nextValue));
     }
   };
 
@@ -506,9 +562,12 @@ export const InnerEvalTemplateForm = (props: {
     );
 
     if (values.type === EvalTemplateType.CODE) {
-      const validationResult = await validateCodeEvalSourceWithTypescript(
-        values.sourceCode ?? "",
-      );
+      const submittedSourceCodeLanguage =
+        values.sourceCodeLanguage ?? EvalTemplateSourceCodeLanguage.TYPESCRIPT;
+      const validationResult = await validateCodeEvalSourceWithLanguage({
+        source: values.sourceCode ?? "",
+        sourceCodeLanguage: submittedSourceCodeLanguage,
+      });
       setCodeValidationResult(validationResult);
 
       if (validationResult.hasErrors) {
@@ -520,7 +579,7 @@ export const InnerEvalTemplateForm = (props: {
         name: values.name,
         projectId: props.projectId,
         sourceCode: values.sourceCode ?? "",
-        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        sourceCodeLanguage: submittedSourceCodeLanguage,
         referencedEvaluators: values.referencedEvaluators,
         cloneSourceId: props.cloneSourceId ?? undefined,
       } satisfies RouterInput["evals"]["createTemplate"];
@@ -961,19 +1020,40 @@ export const InnerEvalTemplateForm = (props: {
             <FormItem>
               <FormLabel>Type</FormLabel>
               <FormControl>
-                <Tabs value={field.value} onValueChange={field.onChange}>
+                <Tabs
+                  value={
+                    field.value === EvalTemplateType.CODE
+                      ? sourceCodeLanguage
+                      : EvalTemplateType.LLM_AS_JUDGE
+                  }
+                  onValueChange={(value) =>
+                    handleTemplateTypeSelection(
+                      value as
+                        | typeof EvalTemplateType.LLM_AS_JUDGE
+                        | CodeEvalSourceCodeLanguage,
+                    )
+                  }
+                >
                   <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
+                    {templateTypeSelectorMode === "all" ? (
+                      <TabsTrigger
+                        value={EvalTemplateType.LLM_AS_JUDGE}
+                        className="min-w-[100px]"
+                      >
+                        LLM-as-judge
+                      </TabsTrigger>
+                    ) : null}
                     <TabsTrigger
-                      value={EvalTemplateType.LLM_AS_JUDGE}
-                      className="min-w-[100px]"
-                    >
-                      LLM-as-judge
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value={EvalTemplateType.CODE}
+                      value={EvalTemplateSourceCodeLanguage.TYPESCRIPT}
                       className="min-w-[100px]"
                     >
                       TypeScript
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value={EvalTemplateSourceCodeLanguage.PYTHON}
+                      className="min-w-[100px]"
+                    >
+                      Python
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -991,6 +1071,7 @@ export const InnerEvalTemplateForm = (props: {
           render={({ field }) => (
             <CodeEvalTemplateFormBody
               sourceCode={field.value ?? ""}
+              sourceCodeLanguage={sourceCodeLanguage}
               onSourceCodeChange={(value) => {
                 field.onChange(value);
                 setFormError(null);

@@ -5,32 +5,34 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useExtractVariables } from "@/src/features/evals/hooks/useExtractVariables";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
   type PreviewData,
   usePreviewData,
 } from "@/src/features/evals/hooks/usePreviewData";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { EvalTargetObject, type EvalTemplate } from "@langfuse/shared";
-import { ListTree, Play, RotateCcw } from "lucide-react";
+import {
+  deepParseJson,
+  EvalTargetObject,
+  extractValueFromObject,
+  type EvalTemplate,
+} from "@langfuse/shared";
+import { ListTree, Lock, Play, RotateCcw } from "lucide-react";
 import { useMemo } from "react";
 import { type UseFormReturn } from "react-hook-form";
 import { toast } from "sonner";
 
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
 import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
-import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
+import {
+  isEventTarget,
+  isExperimentTarget,
+} from "@/src/features/evals/utils/typeHelpers";
 
 type CodeEvalTestRunResult =
   | RouterOutputs["evals"]["testRunCodeEval"]
   | undefined;
-
-const codeEvalObservationVariables = [
-  { variable: "input", label: "observation.input" },
-  { variable: "output", label: "observation.output" },
-  { variable: "metadata", label: "observation.metadata" },
-];
 
 export function CodeEvalTestRunCard({
   projectId,
@@ -46,7 +48,13 @@ export function CodeEvalTestRunCard({
   const { isBetaEnabled } = useV4Beta();
   const target = form.watch("target");
   const scoreName = form.watch("scoreName");
-  const canTest = isBetaEnabled && isEventTarget(target) && !disabled;
+  const testTarget = isEventTarget(target)
+    ? EvalTargetObject.EVENT
+    : isExperimentTarget(target)
+      ? EvalTargetObject.EXPERIMENT
+      : null;
+  const canPreview = isBetaEnabled && Boolean(testTarget) && !disabled;
+  const canTest = canPreview && Boolean(testTarget);
   const peekNavigationProps = usePeekNavigation({
     queryParams: ["observation", "display", "timestamp"],
     expandConfig: {
@@ -65,7 +73,7 @@ export function CodeEvalTestRunCard({
   const { previewData, isLoading } = usePreviewData(
     projectId,
     form,
-    canTest,
+    canPreview,
     undefined,
     undefined,
   );
@@ -85,43 +93,54 @@ export function CodeEvalTestRunCard({
     },
   });
 
-  if (!canTest) return null;
+  if (!canPreview) return null;
 
   return (
     <>
       <Card className="flex min-w-0 flex-col gap-4 p-4">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-medium">Test run</span>
-          <Button
-            type="button"
-            variant="outline"
-            loading={testRunMutation.isPending}
-            disabled={!observationId || isLoading}
-            onClick={() => {
-              if (!observationId) return;
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="text-sm font-medium">Test run</span>
+            <Badge variant="outline" className="gap-1">
+              <Lock className="h-3 w-3" />
+              Read-only preview
+            </Badge>
+          </div>
+          {canTest ? (
+            <Button
+              type="button"
+              variant="outline"
+              loading={testRunMutation.isPending}
+              disabled={!observationId || isLoading}
+              onClick={() => {
+                if (!observationId || !testTarget) return;
 
-              testRunMutation.mutate({
-                projectId,
-                evalTemplateId: evalTemplate.id,
-                target: EvalTargetObject.EVENT,
-                mapping: getCodeEvalVariableMapping(),
-                scoreName,
-                observationId,
-              });
-            }}
-          >
-            {testRunMutation.data ? (
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-            ) : (
-              <Play className="mr-1.5 h-3.5 w-3.5" />
-            )}
-            Test
-          </Button>
+                testRunMutation.mutate({
+                  projectId,
+                  evalTemplateId: evalTemplate.id,
+                  target: testTarget,
+                  mapping: getCodeEvalVariableMapping(),
+                  scoreName,
+                  observationId,
+                });
+              }}
+            >
+              {testRunMutation.data ? (
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+              ) : (
+                <Play className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Test
+            </Button>
+          ) : null}
         </div>
 
         <CodeEvalTestRunInputPreview
           previewData={previewData}
           isLoading={isLoading}
+          includeExperimentVariables={
+            testTarget === EvalTargetObject.EXPERIMENT
+          }
         />
 
         {testRunMutation.data ? (
@@ -141,16 +160,19 @@ export function CodeEvalTestRunCard({
 function CodeEvalTestRunInputPreview({
   previewData,
   isLoading,
+  includeExperimentVariables,
 }: {
   previewData: PreviewData | null;
   isLoading: boolean;
+  includeExperimentVariables: boolean;
 }) {
   if (isLoading) {
+    const skeletonCount = includeExperimentVariables ? 5 : 3;
     return (
       <div className="grid gap-2">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
+        {Array.from({ length: skeletonCount }).map((_, index) => (
+          <Skeleton key={index} className="h-24 w-full" />
+        ))}
       </div>
     );
   }
@@ -163,66 +185,68 @@ function CodeEvalTestRunInputPreview({
     );
   }
 
-  return <CodeEvalTestRunInputCards previewData={previewData} />;
+  return (
+    <CodeEvalTestRunInputCards
+      previewData={previewData}
+      includeExperimentVariables={includeExperimentVariables}
+    />
+  );
 }
 
 function CodeEvalTestRunInputCards({
   previewData,
+  includeExperimentVariables,
 }: {
   previewData: PreviewData;
+  includeExperimentVariables: boolean;
 }) {
-  const variableMapping = useMemo(
-    () =>
-      getCodeEvalVariableMapping().filter((mapping) =>
-        codeEvalObservationVariables.some(
-          (variable) => variable.variable === mapping.templateVariable,
-        ),
-      ),
-    [],
-  );
-  const variables = useMemo(
-    () => variableMapping.map((mapping) => mapping.templateVariable),
-    [variableMapping],
-  );
-  const { extractedVariables, isExtracting } = useExtractVariables({
-    variables,
-    variableMapping,
-    previewData,
-    isLoading: false,
-  });
+  const inputPreviewJson = useMemo(() => {
+    const data = previewData.data as Record<string, unknown> | undefined;
+    const getValue = (selectedColumnId: string) => {
+      if (!data) return null;
 
-  if (isExtracting) {
-    return (
-      <div className="grid gap-2">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
-      </div>
-    );
-  }
+      const { value } = extractValueFromObject(data, selectedColumnId);
+      return value === undefined ? null : deepParseJson(value);
+    };
+
+    return {
+      observation: {
+        input: getValue("input"),
+        output: getValue("output"),
+        metadata: getValue("metadata"),
+      },
+      ...(includeExperimentVariables
+        ? {
+            experiment: {
+              expectedOutput: getValue("experimentItemExpectedOutput"),
+              itemMetadata: getValue("experimentItemMetadata"),
+            },
+          }
+        : {}),
+    };
+  }, [includeExperimentVariables, previewData.data]);
 
   return (
-    <div className="grid gap-2">
-      {codeEvalObservationVariables.map((variable) => {
-        const value =
-          extractedVariables.find(
-            (extracted) => extracted.variable === variable.variable,
-          )?.value ?? "n/a";
-
-        return (
-          <div
-            key={variable.variable}
-            className="bg-muted/30 min-w-0 rounded-md border p-3"
-          >
-            <div className="text-muted-foreground font-mono text-xs">
-              {variable.label}
-            </div>
-            <pre className="mt-2 max-h-28 overflow-auto text-xs wrap-break-word whitespace-pre-wrap">
-              {value}
-            </pre>
-          </div>
-        );
-      })}
+    <div className="bg-muted/20 min-w-0 rounded-md border">
+      <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
+        <span className="text-muted-foreground text-xs font-medium">
+          Evaluator input
+        </span>
+        <Badge variant="outline" className="gap-1">
+          <Lock className="h-3 w-3" />
+          Read-only
+        </Badge>
+      </div>
+      <PrettyJsonView
+        json={inputPreviewJson}
+        currentView="pretty"
+        isLoading={false}
+        showNullValues={true}
+        stickyTopLevelKey={false}
+        showObservationTypeBadge={false}
+        scrollable={true}
+        className="max-h-[40dvh] [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
+      />
     </div>
   );
 }
@@ -260,6 +284,7 @@ function CodeEvalTestRunResultView({
         mode="json"
         minHeight={220}
         maxHeight="50dvh"
+        className="bg-muted/20 [&_.cm-content]:cursor-default"
       />
     </div>
   );

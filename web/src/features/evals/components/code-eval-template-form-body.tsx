@@ -1,25 +1,32 @@
 import CodeMirror, {
   EditorView,
+  ExternalChange,
   hoverTooltip,
   keymap,
 } from "@uiw/react-codemirror";
 import { EditorState } from "@codemirror/state";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { StreamLanguage, type StringStream } from "@codemirror/language";
+import { python } from "@codemirror/lang-python";
+import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import {
+  TYPESCRIPT_CODE_EVAL_CONTRACT,
+  type CodeEvalSourceCodeLanguage,
   type CodeEvalValidationResult,
-  validateCodeEvalSourceWithTypescript,
+  formatPythonCodeEvalSourceWithRuff,
+  validateCodeEvalSourceWithLanguage,
 } from "@/src/features/evals/utils/code-eval-template-validation";
 
 type CodeEvalTemplateFormBodyProps = {
   sourceCode: string;
+  sourceCodeLanguage: CodeEvalSourceCodeLanguage;
   onSourceCodeChange: (value: string) => void;
   editable: boolean;
   validationResult: CodeEvalValidationResult | null;
@@ -27,7 +34,20 @@ type CodeEvalTemplateFormBodyProps = {
   onValidationPendingChange: (isPending: boolean) => void;
 };
 
-const codeEvalLanguage = StreamLanguage.define({
+type ProtectedRange = {
+  from: number;
+  to: number;
+};
+
+type ContractRanges = {
+  prelude: ProtectedRange | null;
+  signature: ProtectedRange;
+};
+
+const PYTHON_EVALUATE_SIGNATURE_PATTERN =
+  /(?:^|\n)def evaluate\s*\(\s*context\s*:\s*EvaluationContext\s*\)\s*->\s*EvaluationResult\s*:/;
+
+const typescriptCodeEvalLanguage = StreamLanguage.define({
   name: "typescript-code-eval",
   token: (stream: StringStream) => {
     if (stream.match("//")) {
@@ -79,29 +99,108 @@ const codeEvalLanguage = StreamLanguage.define({
   },
 });
 
+const scoreTypeDoc = `type Score =
+  dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL" | "TEXT";
+  value: number | string | boolean;
+  name?: string;
+  comment?: string;
+}
+
+A Langfuse score returned by a code evaluator. The contract is shown at the top of the editor and is locked.`;
+
 const hoverDocs: Record<string, string> = {
-  evaluate:
-    "The exported function Langfuse executes. It must accept EvaluationContext-compatible input and return EvaluationResult or Promise<EvaluationResult>.",
-  EvaluationContext:
-    "Context passed to the evaluator: { observation, experiment? }.",
-  observation:
-    "Observation data for the matched target. Includes input, output, and metadata.",
+  evaluate: `TypeScript: function evaluate(context: EvaluationContext): EvaluationResult | Promise<EvaluationResult>
+Python: def evaluate(context: EvaluationContext) -> EvaluationResult
+
+The function Langfuse executes for each matched target observation.`,
+  context: `parameter context
+
+Python context passed to evaluate. The default template models it as a TypedDict with observation and optional experiment data.`,
+  ctx: `parameter ctx
+
+Older Python examples may use ctx. New Python templates use context: EvaluationContext.`,
+  EvaluationContext: `type EvaluationContext = {
+  observation: {
+    input: any;
+    output: any;
+    metadata: any;
+  };
   experiment:
-    "Experiment data when the evaluator runs on experiments. Undefined for non-experiment targets.",
-  input: "Observation input.",
-  output: "Observation output.",
-  metadata: "Observation metadata.",
-  expectedOutput: "Expected output from the experiment item.",
-  itemMetadata: "Metadata from the experiment item.",
-  EvaluationResult: "Return shape for code evaluators: { scores: Score[] }.",
-  Score:
-    "A score emitted by the evaluator. Include value and optionally name, dataType, comment, configId, and metadata.",
-  scores: "One or more scores to create for the target observation.",
-  dataType:
-    'Score type: "NUMERIC", "BOOLEAN", "CATEGORICAL", or "TEXT". Omit to let Langfuse infer numeric or categorical values.',
-  value: "Score value.",
-  comment: "Human-readable explanation stored on the score.",
-  configId: "Optional score config id.",
+    | {
+        expectedOutput: any;
+        itemMetadata: any;
+      }
+    | undefined;
+}
+
+The data Langfuse passes to a code evaluator. The TypeScript definition is locked at the top of the editor.`,
+  observation: `property EvaluationContext.observation: {
+  input: unknown;
+  output: unknown;
+  metadata: unknown;
+}
+
+The observation selected by the evaluator target.`,
+  experiment: `property EvaluationContext.experiment?: {
+  expectedOutput: unknown;
+  itemMetadata: unknown;
+}
+
+Dataset run item data. Present when the evaluator runs on an experiment.`,
+  input: `property observation.input: any
+
+The input recorded on the observation.`,
+  output: `property observation.output: any
+
+The output recorded on the observation.`,
+  metadata: `property observation.metadata: any
+
+The metadata recorded on the observation.`,
+  expectedOutput: `property experiment.expectedOutput: any
+
+The expected output from the dataset item.`,
+  itemMetadata: `property experiment.itemMetadata: any
+
+The metadata from the dataset item.`,
+  Any: `typing.Any
+
+Use for JSON-like evaluator values whose concrete type depends on the target observation.`,
+  TypedDict: `typing.TypedDict
+
+Use to describe the dictionary-shaped Python evaluator context and result.`,
+  NotRequired: `typing.NotRequired
+
+Use for optional keys in Python TypedDict definitions.`,
+  expected_output: `key experiment["expected_output"]
+
+The expected output from the dataset item in Python.`,
+  item_metadata: `key experiment["item_metadata"]
+
+The metadata from the dataset item in Python.`,
+  EvaluationResult: `type EvaluationResult = {
+  scores: Score[];
+}
+
+The value returned by evaluate.`,
+  Score: scoreTypeDoc,
+  scores: `property EvaluationResult.scores: Score[];
+
+One or more Langfuse scores to create for the target observation.`,
+  dataType: `property Score.dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL" | "TEXT"
+
+The Langfuse score data type.`,
+  value: `property Score.value: number | string | boolean
+
+The score value. The allowed value depends on dataType: NUMERIC uses number, BOOLEAN uses boolean, 0/1, or true/false-like strings, and CATEGORICAL or TEXT use string.`,
+  name: `property Score.name?: string
+
+The score name. When omitted, Langfuse uses the evaluator's configured score name.`,
+  comment: `property Score.comment?: string | null
+
+The reasoning or explanation stored with the score.`,
+  configId: `property Score.configId?: string | null
+
+The score config id to attach to the score.`,
 };
 
 const codeEvalHover = hoverTooltip((view, pos) => {
@@ -122,15 +221,141 @@ const codeEvalHover = hoverTooltip((view, pos) => {
     create() {
       const dom = document.createElement("div");
       dom.className =
-        "rounded-md border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md";
+        "max-w-xl whitespace-pre-wrap rounded-md border bg-popover px-3 py-2 font-mono text-xs text-popover-foreground shadow-md";
       dom.textContent = hoverDocs[word];
       return { dom };
     },
   };
 });
 
+function findPythonContractRanges(source: string): ContractRanges | null {
+  const match = source.match(PYTHON_EVALUATE_SIGNATURE_PATTERN);
+  if (!match || match.index === undefined) return null;
+
+  const signatureStart = match.index + (match[0].startsWith("\n") ? 1 : 0);
+  const signatureLineEnd = source.indexOf("\n", signatureStart);
+  const signatureTo =
+    signatureLineEnd === -1 ? source.length : signatureLineEnd + 1;
+
+  return {
+    prelude: signatureStart > 0 ? { from: 0, to: signatureStart } : null,
+    signature: { from: signatureStart, to: signatureTo },
+  };
+}
+
+function findTypeScriptContractRanges(source: string): ContractRanges | null {
+  if (!source.startsWith(TYPESCRIPT_CODE_EVAL_CONTRACT)) return null;
+
+  return {
+    prelude: { from: 0, to: TYPESCRIPT_CODE_EVAL_CONTRACT.length },
+    signature: {
+      from: TYPESCRIPT_CODE_EVAL_CONTRACT.length,
+      to: TYPESCRIPT_CODE_EVAL_CONTRACT.length,
+    },
+  };
+}
+
+function getProtectedContractRanges(source: string): ProtectedRange[] {
+  const ranges =
+    findPythonContractRanges(source) ?? findTypeScriptContractRanges(source);
+  if (!ranges) return [];
+
+  return [
+    ...(ranges.prelude ? [ranges.prelude] : []),
+    ...(ranges.signature.from < ranges.signature.to ? [ranges.signature] : []),
+  ];
+}
+
+function isChangeInProtectedRange(
+  from: number,
+  to: number,
+  range: ProtectedRange,
+) {
+  if (from === to) {
+    return from >= range.from && from < range.to;
+  }
+
+  return from < range.to && to > range.from;
+}
+
+const contractReadOnlyExtension = EditorState.changeFilter.of((tr) => {
+  if (!tr.docChanged) return true;
+  if (tr.annotation(ExternalChange)) return true;
+
+  const protectedRanges = getProtectedContractRanges(
+    tr.startState.doc.toString(),
+  );
+  if (protectedRanges.length === 0) return true;
+
+  let touchesProtectedRange = false;
+  tr.changes.iterChangedRanges((fromA, toA) => {
+    if (
+      protectedRanges.some((range) =>
+        isChangeInProtectedRange(fromA, toA, range),
+      )
+    ) {
+      touchesProtectedRange = true;
+    }
+  }, true);
+
+  return touchesProtectedRange ? false : true;
+});
+
+const contractReadOnlyExtensions = [contractReadOnlyExtension];
+
+async function formatTypeScriptSource(source: string) {
+  const [{ format }, typescriptPlugin, estreePlugin] = await Promise.all([
+    import("prettier/standalone"),
+    import("prettier/plugins/typescript"),
+    import("prettier/plugins/estree"),
+  ]);
+
+  const ranges = findTypeScriptContractRanges(source);
+  if (!ranges?.prelude) {
+    return format(source, {
+      parser: "typescript",
+      plugins: [typescriptPlugin, estreePlugin],
+    });
+  }
+
+  const formattedEditableSource = await format(
+    source.slice(ranges.prelude.to),
+    {
+      parser: "typescript",
+      plugins: [typescriptPlugin, estreePlugin],
+    },
+  );
+
+  return `${source.slice(0, ranges.prelude.to)}\n${formattedEditableSource.trimStart()}`;
+}
+
+async function formatPythonSource(source: string) {
+  const formattedSource = await formatPythonCodeEvalSourceWithRuff(source);
+  const ranges = findPythonContractRanges(source);
+  const formattedRanges = findPythonContractRanges(formattedSource);
+
+  if (!ranges || !formattedRanges) return formattedSource;
+
+  return `${source.slice(0, ranges.signature.to)}${formattedSource.slice(
+    formattedRanges.signature.to,
+  )}`;
+}
+
+function scrollCodeMirrorToBottom(view: EditorView) {
+  if (typeof window === "undefined") return;
+
+  window.requestAnimationFrame(() => {
+    if (!view.dom.isConnected) return;
+
+    view.dispatch({
+      effects: EditorView.scrollIntoView(view.state.doc.length, { y: "end" }),
+    });
+  });
+}
+
 export function CodeEvalTemplateFormBody({
   sourceCode,
+  sourceCodeLanguage,
   onSourceCodeChange,
   editable,
   validationResult,
@@ -138,15 +363,35 @@ export function CodeEvalTemplateFormBody({
   onValidationPendingChange,
 }: CodeEvalTemplateFormBodyProps) {
   const { resolvedTheme } = useTheme();
+  const codeMirrorViewRef = useRef<EditorView | null>(null);
   const [isFormatting, setIsFormatting] = useState(false);
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
+  const languageLabel =
+    sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+      ? "Python"
+      : "TypeScript";
+
+  const handleCreateEditor = useCallback((view: EditorView) => {
+    codeMirrorViewRef.current = view;
+    scrollCodeMirrorToBottom(view);
+  }, []);
+
+  useEffect(() => {
+    const view = codeMirrorViewRef.current;
+    if (!view) return;
+
+    scrollCodeMirrorToBottom(view);
+  }, [sourceCode, sourceCodeLanguage]);
 
   useEffect(() => {
     let isActive = true;
     onValidationPendingChange(true);
 
     const timeout = setTimeout(() => {
-      validateCodeEvalSourceWithTypescript(sourceCode)
+      validateCodeEvalSourceWithLanguage({
+        source: sourceCode,
+        sourceCodeLanguage,
+      })
         .then((result) => {
           if (!isActive) return;
           onValidationResultChange(result);
@@ -164,7 +409,7 @@ export function CodeEvalTemplateFormBody({
                 message:
                   error instanceof Error
                     ? error.message
-                    : "Failed to validate TypeScript source.",
+                    : `Failed to validate ${languageLabel} source.`,
               },
             ],
           });
@@ -178,7 +423,13 @@ export function CodeEvalTemplateFormBody({
       isActive = false;
       clearTimeout(timeout);
     };
-  }, [onValidationPendingChange, onValidationResultChange, sourceCode]);
+  }, [
+    languageLabel,
+    onValidationPendingChange,
+    onValidationResultChange,
+    sourceCode,
+    sourceCodeLanguage,
+  ]);
 
   const diagnostics = useMemo(
     () => validationResult?.diagnostics ?? [],
@@ -190,22 +441,23 @@ export function CodeEvalTemplateFormBody({
 
     setIsFormatting(true);
     try {
-      const [{ format }, typescriptPlugin, estreePlugin] = await Promise.all([
-        import("prettier/standalone"),
-        import("prettier/plugins/typescript"),
-        import("prettier/plugins/estree"),
-      ]);
-      const formatted = await format(sourceCode, {
-        parser: "typescript",
-        plugins: [typescriptPlugin, estreePlugin],
-      });
+      const formatted =
+        sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+          ? await formatPythonSource(sourceCode)
+          : await formatTypeScriptSource(sourceCode);
       onSourceCodeChange(formatted);
     } catch (error) {
       console.error(error);
     } finally {
       setIsFormatting(false);
     }
-  }, [editable, isFormatting, onSourceCodeChange, sourceCode]);
+  }, [
+    editable,
+    isFormatting,
+    onSourceCodeChange,
+    sourceCode,
+    sourceCodeLanguage,
+  ]);
 
   const linterExtension = useMemo(
     () =>
@@ -234,11 +486,22 @@ export function CodeEvalTemplateFormBody({
       ]),
     [formatSource],
   );
+  const languageExtension = useMemo(
+    () =>
+      sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+        ? python()
+        : typescriptCodeEvalLanguage,
+    [sourceCodeLanguage],
+  );
+  const protectedContractExtensions = useMemo(
+    () => contractReadOnlyExtensions,
+    [],
+  );
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-muted-foreground text-sm">TypeScript</span>
+        <span className="text-muted-foreground text-sm">{languageLabel}</span>
         <Button
           type="button"
           variant="outline"
@@ -267,7 +530,8 @@ export function CodeEvalTemplateFormBody({
         }}
         extensions={[
           ...(!editable ? [EditorState.readOnly.of(true)] : []),
-          codeEvalLanguage,
+          languageExtension,
+          ...protectedContractExtensions,
           codeEvalHover,
           linterExtension,
           formatShortcutExtension,
@@ -286,6 +550,7 @@ export function CodeEvalTemplateFormBody({
           }),
         ]}
         editable={editable}
+        onCreateEditor={handleCreateEditor}
         onChange={onSourceCodeChange}
         className="overflow-hidden rounded-md border text-xs"
       />
