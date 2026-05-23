@@ -16,8 +16,7 @@ import { SetupDefaultEvalModelCard } from "@/src/features/evals/components/set-u
 import { useTemplateValidation } from "@/src/features/evals/hooks/useTemplateValidation";
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { EvalTemplateType, type EvalTemplate } from "@langfuse/shared";
-import { type CodeEvalTemplateStarterExample } from "@/src/features/evals/utils/code-eval-template-starter-examples";
+import { type EvalTemplate } from "@langfuse/shared";
 
 type SelectEvaluatorListProps = {
   projectId: string;
@@ -26,8 +25,6 @@ type SelectEvaluatorListProps = {
 export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
   const router = useRouter();
   const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
-  const [selectedStarterExample, setSelectedStarterExample] =
-    useState<CodeEvalTemplateStarterExample | null>(null);
 
   const handleSelectEvaluator = (template: EvalTemplate) => {
     router.push(`/project/${projectId}/evals/new?evaluator=${template.id}`);
@@ -52,14 +49,6 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
   const utils = api.useUtils();
 
   const handleOpenCreateEvaluator = () => {
-    setSelectedStarterExample(null);
-    setIsCreateTemplateOpen(true);
-  };
-
-  const handleStarterExampleSelect = (
-    starterExample: CodeEvalTemplateStarterExample,
-  ) => {
-    setSelectedStarterExample(starterExample);
     setIsCreateTemplateOpen(true);
   };
 
@@ -93,7 +82,6 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                 onTemplateSelect={(templateId) =>
                   handleTemplateSelect(templateId)
                 }
-                onStarterExampleSelect={handleStarterExampleSelect}
               />
             </div>
           )}
@@ -119,9 +107,6 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
         open={isCreateTemplateOpen}
         onOpenChange={(open) => {
           setIsCreateTemplateOpen(open);
-          if (!open) {
-            setSelectedStarterExample(null);
-          }
         }}
       >
         <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
@@ -129,25 +114,13 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
             <DialogTitle>Create new evaluator</DialogTitle>
           </DialogHeader>
           <EvalTemplateForm
-            key={selectedStarterExample?.id ?? "custom-evaluator"}
+            key={"custom-evaluator"}
             projectId={projectId}
             preventRedirect={true}
             isEditing={true}
             useDialog={true}
-            preFilledFormValues={
-              selectedStarterExample
-                ? {
-                    name: selectedStarterExample.templateName,
-                    type: EvalTemplateType.CODE,
-                    prompt: "",
-                    vars: [],
-                    sourceCode: selectedStarterExample.sourceCode,
-                  }
-                : undefined
-            }
             onFormSuccess={(newTemplate) => {
               setIsCreateTemplateOpen(false);
-              setSelectedStarterExample(null);
               void utils.evals.allTemplates.invalidate();
               if (newTemplate) {
                 setSelectedTemplate(newTemplate);
