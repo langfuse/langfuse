@@ -16,6 +16,43 @@ const DARK_COLOR_OVERRIDE_PATTERN =
 
 const IMPORTANT_TAILWIND_PATTERN = /(^|:)![^\s:]+/;
 
+/**
+ * @typedef {{
+ *   ruleId: string;
+ *   message: string;
+ *   relativePath: string;
+ *   line: number;
+ *   column: number;
+ *   snippet: string;
+ * }} SpielwieseStyleViolation
+ *
+ * @typedef {{
+ *   tokens: string[];
+ *   sourceFile: ts.SourceFile;
+ *   source: string;
+ *   node: ts.Node;
+ *   relativePath: string;
+ *   violations: SpielwieseStyleViolation[];
+ * }} EvaluateClassTokensArgs
+ *
+ * @typedef {{
+ *   expression: ts.Expression;
+ *   sourceFile: ts.SourceFile;
+ *   source: string;
+ *   relativePath: string;
+ *   violations: SpielwieseStyleViolation[];
+ * }} VisitClassValueArgs
+ */
+
+/**
+ * @param {string} ruleId
+ * @param {string} message
+ * @param {string} relativePath
+ * @param {number} line
+ * @param {number} column
+ * @param {string} snippet
+ * @returns {SpielwieseStyleViolation}
+ */
 function reportRule(ruleId, message, relativePath, line, column, snippet) {
   return {
     ruleId,
@@ -27,6 +64,10 @@ function reportRule(ruleId, message, relativePath, line, column, snippet) {
   };
 }
 
+/**
+ * @param {string} targetPath
+ * @returns {Promise<boolean>}
+ */
 async function exists(targetPath) {
   try {
     await stat(targetPath);
@@ -36,6 +77,10 @@ async function exists(targetPath) {
   }
 }
 
+/**
+ * @param {string} targetPath
+ * @returns {Promise<string[]>}
+ */
 async function collectFiles(targetPath) {
   const targetStat = await stat(targetPath);
 
@@ -57,6 +102,11 @@ async function collectFiles(targetPath) {
   return files.flat();
 }
 
+/**
+ * @param {ts.SourceFile} sourceFile
+ * @param {number} start
+ * @returns {{ line: number; column: number }}
+ */
 function getLineAndColumn(sourceFile, start) {
   const { line, character } = sourceFile.getLineAndCharacterOfPosition(start);
 
@@ -66,14 +116,40 @@ function getLineAndColumn(sourceFile, start) {
   };
 }
 
+/**
+ * @param {string} source
+ * @param {number} start
+ * @param {number} end
+ * @returns {string}
+ */
 function getSnippet(source, start, end) {
   return source.slice(start, end).replace(/\s+/g, " ").trim();
 }
 
+/**
+ * @param {string} token
+ * @returns {string}
+ */
 function normalizeClassToken(token) {
   return token.trim();
 }
 
+/**
+ * @param {ts.Node} node
+ * @returns {node is ts.JsxAttribute}
+ */
+function isClassNameAttribute(node) {
+  return (
+    ts.isJsxAttribute(node) &&
+    ts.isIdentifier(node.name) &&
+    node.name.text === "className"
+  );
+}
+
+/**
+ * @param {EvaluateClassTokensArgs} args
+ * @returns {void}
+ */
 function evaluateClassTokens({
   tokens,
   sourceFile,
@@ -147,6 +223,10 @@ function evaluateClassTokens({
   }
 }
 
+/**
+ * @param {VisitClassValueArgs} args
+ * @returns {void}
+ */
 function visitClassValue({
   expression,
   sourceFile,
@@ -206,6 +286,11 @@ function visitClassValue({
   }
 }
 
+/**
+ * @param {string} filePath
+ * @param {string} source
+ * @returns {SpielwieseStyleViolation[]}
+ */
 function collectSourceViolations(filePath, source) {
   const relativePath = path.relative(process.cwd(), filePath);
   const scriptKind = filePath.endsWith(".tsx")
@@ -223,12 +308,15 @@ function collectSourceViolations(filePath, source) {
     true,
     scriptKind,
   );
-  const violations = [];
+  const violations = /** @type {SpielwieseStyleViolation[]} */ ([]);
 
+  /**
+   * @param {ts.Node} node
+   * @returns {void}
+   */
   function visit(node) {
     if (
-      ts.isJsxAttribute(node) &&
-      node.name.text === "className" &&
+      isClassNameAttribute(node) &&
       node.initializer &&
       ts.isJsxExpression(node.initializer) &&
       node.initializer.expression
@@ -243,8 +331,7 @@ function collectSourceViolations(filePath, source) {
     }
 
     if (
-      ts.isJsxAttribute(node) &&
-      node.name.text === "className" &&
+      isClassNameAttribute(node) &&
       node.initializer &&
       ts.isStringLiteral(node.initializer)
     ) {
@@ -265,10 +352,15 @@ function collectSourceViolations(filePath, source) {
   return violations;
 }
 
+/**
+ * @param {string} filePath
+ * @param {string} source
+ * @returns {SpielwieseStyleViolation[]}
+ */
 function collectStyleViolations(filePath, source) {
   const relativePath = path.relative(process.cwd(), filePath);
   const lines = source.split("\n");
-  const violations = [];
+  const violations = /** @type {SpielwieseStyleViolation[]} */ ([]);
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
@@ -293,7 +385,7 @@ function collectStyleViolations(filePath, source) {
 
 async function main() {
   const cwd = process.cwd();
-  const existingTargets = [];
+  const existingTargets = /** @type {string[]} */ ([]);
 
   for (const target of TARGETS) {
     const absoluteTarget = path.join(cwd, target);
@@ -311,7 +403,7 @@ async function main() {
     await Promise.all(existingTargets.map((target) => collectFiles(target)))
   ).flat();
 
-  const violations = [];
+  const violations = /** @type {SpielwieseStyleViolation[]} */ ([]);
 
   for (const filePath of files) {
     const source = await readFile(filePath, "utf8");

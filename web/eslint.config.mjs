@@ -81,6 +81,9 @@ const spielwieseDesignSystemPrimitiveBypassPatterns = [
   },
 ];
 
+/**
+ * @param {Array<string | { group: string[]; message: string }>} extraPatterns
+ */
 function withSpielwieseImportRestrictions(extraPatterns = []) {
   return [
     "error",

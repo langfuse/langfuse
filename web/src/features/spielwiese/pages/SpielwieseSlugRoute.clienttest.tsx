@@ -1,12 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { useRouter } from "next/router";
-import DevSpielwiesePage, { getDevSpielwieseRouteProps } from "./[[...slug]]";
+import DevSpielwiesePage, {
+  getDevSpielwieseRouteProps,
+} from "../../../pages/dev/spielwiese/[[...slug]]";
 
 jest.mock("next/router", () => ({
   useRouter: jest.fn(),
 }));
 
-jest.mock("../../../features/spielwiese/pages/SpielwieseRoutePage", () => ({
+jest.mock("./SpielwieseRoutePage", () => ({
   __esModule: true,
   default: function MockSpielwieseRoutePage({ slug }: { slug?: string[] }) {
     return <div data-testid="spielwiese-dev-route-slug">{slug?.join("/")}</div>;
