@@ -648,7 +648,7 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     ["display name", "Has Parent Observation", "=", false, true],
     ["column ID", "hasParentObservation", "<>", true, true],
     ["display name", "Has Parent Observation", "<>", true, true],
-  ])(
+  ] as const)(
     "should redirect legacy %s root-observation URL filters to isRootObservation",
     (_label, column, operator, legacyValue, expectedValue) => {
       const legacyFilters: FilterState = [
@@ -759,7 +759,7 @@ describe("Saved view validation", () => {
     ["display name", "Has Parent Observation", true, false],
     ["column ID", "hasParentObservation", true, true, "<>"],
     ["display name", "Has Parent Observation", true, true, "<>"],
-  ])(
+  ] as const)(
     "should redirect legacy %s root-observation saved-view filters to isRootObservation",
     (_label, column, legacyValue, expectedValue, operator = "=") => {
       const filters: FilterState = [
