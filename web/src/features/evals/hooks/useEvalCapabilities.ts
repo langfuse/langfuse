@@ -2,6 +2,7 @@ import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 
 export interface EvalCapabilities {
   isNewCompatible: boolean;
@@ -16,16 +17,17 @@ export interface EvalCapabilities {
  * Hook to determine which eval configuration features are available
  * @param projectId - The project ID to check
  * @param options - Optional configuration
- * @param options.isCodeEvalConfig - When true, disables legacy eval options
+ * @param options.isCodeEvalTemplate - When true and code evals are enabled, disables legacy eval options
  * @returns Capabilities object indicating which eval features are allowed
  */
 export function useEvalCapabilities(
   projectId: string,
-  options?: { isCodeEvalConfig?: boolean },
+  options?: { isCodeEvalTemplate?: boolean },
 ): EvalCapabilities {
   const { data: session, status: sessionStatus } = useSession();
   const isSessionLoading = sessionStatus === "loading";
   const { isBetaEnabled } = useV4Beta();
+  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
 
   // Query SDK version info from events table (only when v4 beta is enabled)
   const sdkVersionInfo = api.events.getSdkVersionInfo.useQuery(
@@ -50,7 +52,8 @@ export function useEvalCapabilities(
   const canToggleV4 = session?.user?.canToggleV4 === true;
 
   // Code eval configs never allow legacy mode
-  const isCodeEvalConfig = options?.isCodeEvalConfig ?? false;
+  const isCodeEvalConfig =
+    isCodeEvalEnabled && (options?.isCodeEvalTemplate ?? false);
 
   return {
     isNewCompatible: isOtel,

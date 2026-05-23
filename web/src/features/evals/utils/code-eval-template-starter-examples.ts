@@ -158,15 +158,6 @@ export type CodeEvalSourceCodeLanguage =
   | typeof EvalTemplateSourceCodeLanguage.PYTHON
   | typeof EvalTemplateSourceCodeLanguage.TYPESCRIPT;
 
-export type CodeEvalTemplateStarterExample = {
-  id: string;
-  title: string;
-  description: string;
-  templateName: string;
-  sourceCodeLanguage: CodeEvalSourceCodeLanguage;
-  sourceCode: string;
-};
-
 export function getDefaultCodeEvalSource(
   sourceCodeLanguage: CodeEvalSourceCodeLanguage,
 ) {

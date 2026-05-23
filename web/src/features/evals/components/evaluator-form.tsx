@@ -35,13 +35,8 @@ export const EvaluatorForm = (props: {
       .filter((template) => shouldShowEvalTemplate(template, isCodeEvalEnabled))
       .find((t) => t.id === props.templateId);
 
-  const isCodeEvalConfig =
-    isCodeEvalEnabled &&
-    !!currentTemplate &&
-    isCodeEvalTemplate(currentTemplate);
-
   const evalCapabilities = useEvalCapabilities(props.projectId, {
-    isCodeEvalConfig,
+    isCodeEvalTemplate: !!currentTemplate && isCodeEvalTemplate(currentTemplate),
   });
 
   if (

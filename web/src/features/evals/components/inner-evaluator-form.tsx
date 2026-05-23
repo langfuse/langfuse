@@ -113,6 +113,7 @@ import {
   resolveCodeEvalTarget,
 } from "@/src/features/evals/utils/code-eval-template-utils";
 import { CodeEvalTestRunCard } from "@/src/features/evals/components/code-eval-test-run-card";
+import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 
 /**
  * Adds propagation warnings to columns that require OTEL SDK with span propagation
@@ -297,6 +298,8 @@ const ObservationsPreview = memo(
 
 ObservationsPreview.displayName = "ObservationsPreview";
 
+const EMPTY_FILTER_STATE: z.infer<typeof singleFilter>[] = [];
+
 export const InnerEvaluatorForm = (props: {
   projectId: string;
   evalTemplate: EvalTemplate;
@@ -325,6 +328,7 @@ export const InnerEvaluatorForm = (props: {
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
+  const { isBetaEnabled } = useV4Beta();
   const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
   const isCodeEvalConfig =
     isCodeEvalEnabled && isCodeEvalTemplate(props.evalTemplate);
@@ -522,6 +526,18 @@ export const InnerEvaluatorForm = (props: {
   );
 
   const watchedTarget = form.watch("target");
+  const watchedFilter = form.watch("filter") ?? EMPTY_FILTER_STATE;
+  const shouldShowExperimentEventsPreview =
+    isCodeEvalConfig && isExperimentTarget(watchedTarget) && isBetaEnabled;
+  const shouldShowEventsPreview =
+    isEventTarget(watchedTarget) || shouldShowExperimentEventsPreview;
+  const eventsPreviewFilterState = useMemo(
+    () =>
+      shouldShowExperimentEventsPreview
+        ? getExperimentEvalPreviewFilters(watchedFilter)
+        : watchedFilter,
+    [shouldShowExperimentEventsPreview, watchedFilter],
+  );
 
   // Clear mapping error if user switches away from trace target
   useEffect(() => {
@@ -744,7 +760,10 @@ export const InnerEvaluatorForm = (props: {
   }
 
   const codeEvalTestPanel =
-    isCodeEvalConfig && isEventTarget(watchedTarget) && !props.disabled ? (
+    isCodeEvalConfig &&
+    (isEventTarget(watchedTarget) ||
+      (isExperimentTarget(watchedTarget) && isBetaEnabled)) &&
+    !props.disabled ? (
       <CodeEvalTestRunCard
         projectId={props.projectId}
         evalTemplate={props.evalTemplate}
@@ -1198,14 +1217,14 @@ export const InnerEvaluatorForm = (props: {
                     {isTraceTarget(form.watch("target")) && (
                       <TracesPreview
                         projectId={props.projectId}
-                        filterState={form.watch("filter") ?? []}
+                        filterState={watchedFilter}
                       />
                     )}
 
-                    {isEventTarget(form.watch("target")) && (
+                    {shouldShowEventsPreview && (
                       <ObservationsPreview
                         projectId={props.projectId}
-                        filterState={form.watch("filter") ?? []}
+                        filterState={eventsPreviewFilterState}
                         isNewCompatible={props.evalCapabilities.isNewCompatible}
                         compatibilityCheckWasPerformed={
                           props.evalCapabilities.compatibilityCheckWasPerformed
