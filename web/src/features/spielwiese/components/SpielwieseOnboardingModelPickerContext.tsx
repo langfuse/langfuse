@@ -4,6 +4,7 @@ type SpielwieseOnboardingModelPickerState = {
   apiKeyValue: string;
   onApiKeyChange: (value: string) => void;
   onApiKeyContinue: () => void;
+  onModelChange: (value: string) => void;
   showAnthropicApiKeyPrompt: boolean;
 };
 

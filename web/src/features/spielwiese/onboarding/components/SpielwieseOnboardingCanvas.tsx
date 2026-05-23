@@ -13,6 +13,7 @@ import {
   ONBOARDING_QUESTIONS,
 } from "../spielwieseOnboardingFlow";
 import { setOnboardingDashboardHandoff } from "../spielwieseOnboardingDashboardHandoff";
+import { useSpielwieseRouteTransition } from "../../spielwieseRouteTransition";
 
 type SpielwieseOnboardingCanvasProps = {
   requestedStepId?: string;
@@ -122,12 +123,12 @@ function createStepExitActionHandler({
 }
 
 function createStepLayerAnimationEndHandler({
-  router,
+  navigateToPath,
   setRoleScene,
   stepExitAction,
   setStepExitAction,
 }: {
-  router: ReturnType<typeof useRouter>;
+  navigateToPath: (path: string) => Promise<unknown> | void;
   setRoleScene: Dispatch<SetStateAction<RoleStepScene>>;
   stepExitAction: StepExitAction | null;
   setStepExitAction: Dispatch<SetStateAction<StepExitAction | null>>;
@@ -149,11 +150,7 @@ function createStepLayerAnimationEndHandler({
     }
 
     const nextPath = stepExitAction.path;
-    void Promise.resolve(
-      router.push(appendCurrentSearchParams(nextPath), undefined, {
-        shallow: true,
-      }),
-    )
+    void Promise.resolve(navigateToPath(nextPath))
       .then(() => {
         setStepExitAction(null);
       })
@@ -186,8 +183,8 @@ function createOnboardingSceneHandlers({
   activeStepIndex,
   isStepTransitioningOut,
   isRolePromptReady,
+  navigateToPath,
   roleScene,
-  router,
   roleApiKeyValue,
   roleModelValue,
   roleSystemPromptValue,
@@ -205,8 +202,8 @@ function createOnboardingSceneHandlers({
   activeStepIndex: number;
   isStepTransitioningOut: boolean;
   isRolePromptReady: boolean;
+  navigateToPath: (path: string) => Promise<unknown> | void;
   roleScene: RoleStepScene;
-  router: ReturnType<typeof useRouter>;
   roleApiKeyValue: string;
   roleModelValue: string;
   roleSystemPromptValue: string;
@@ -286,7 +283,7 @@ function createOnboardingSceneHandlers({
       }
     },
     handleStepLayerAnimationEnd: createStepLayerAnimationEndHandler({
-      router,
+      navigateToPath,
       setRoleScene,
       stepExitAction,
       setStepExitAction,
@@ -328,6 +325,7 @@ export function SpielwieseOnboardingCanvas({
   requestedStepId,
 }: SpielwieseOnboardingCanvasProps) {
   const router = useRouter();
+  const routeTransition = useSpielwieseRouteTransition();
   const [answers, setAnswers] = useState(EMPTY_ONBOARDING_ANSWERS);
   const [roleScene, setRoleScene] = useState<RoleStepScene>("gate");
   const [roleApiKeyValue, setRoleApiKeyValue] = useState("");
@@ -349,6 +347,22 @@ export function SpielwieseOnboardingCanvas({
     stepExitAction,
   });
   const isRolePromptReady = roleSystemPromptValue.trim().length > 0;
+  const navigateToPath = (path: string) => {
+    const nextPath = appendCurrentSearchParams(path);
+
+    if (path === getSpielwieseDashboardPath()) {
+      routeTransition.start(() =>
+        router.push(nextPath, undefined, {
+          scroll: false,
+        }),
+      );
+      return;
+    }
+
+    return router.push(nextPath, undefined, {
+      shallow: true,
+    });
+  };
   const navigateToDashboardWithHandoff = () => {
     setOnboardingDashboardHandoff({
       modelValue: roleModelValue,
@@ -356,17 +370,11 @@ export function SpielwieseOnboardingCanvas({
       transitionKind: "role-flow",
     });
 
-    void Promise.resolve(
-      router.push(
-        appendCurrentSearchParams(getSpielwieseDashboardPath()),
-        undefined,
-        {
-          shallow: true,
-        },
-      ),
-    ).catch(() => {
-      // Ignore navigation failures during the staged handoff.
-    });
+    void Promise.resolve(navigateToPath(getSpielwieseDashboardPath())).catch(
+      () => {
+        // Ignore navigation failures during the staged handoff.
+      },
+    );
   };
   const startRoleDashboardHandoff = () => {
     navigateToDashboardWithHandoff();
@@ -386,9 +394,10 @@ export function SpielwieseOnboardingCanvas({
     activeStepIndex,
     isStepTransitioningOut,
     isRolePromptReady,
+    navigateToPath,
     roleScene,
-    router,
     roleApiKeyValue,
+    roleModelValue,
     roleSystemPromptValue,
     setAnswers,
     setRoleApiKeyValue,

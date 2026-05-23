@@ -1,6 +1,7 @@
 import SpielwieseIntroPage from "./SpielwieseIntroPage";
 import SpielwieseDashboardPage from "./SpielwieseDashboardPage";
 import SpielwieseOnboardingPage from "./SpielwieseOnboardingPage";
+import { SpielwieseRouteTransitionProvider } from "../spielwieseRouteTransition";
 
 type SpielwieseRoutePageProps = {
   slug?: string[];
@@ -18,18 +19,31 @@ export function getSpielwieseRoute(slug?: string[]) {
   return "intro";
 }
 
+function renderSpielwieseRoutePage({
+  route,
+  stepId,
+}: {
+  route: ReturnType<typeof getSpielwieseRoute>;
+  stepId?: string;
+}) {
+  switch (route) {
+    case "onboarding":
+      return <SpielwieseOnboardingPage stepId={stepId} />;
+    case "dashboard":
+      return <SpielwieseDashboardPage />;
+    case "intro":
+      return <SpielwieseIntroPage />;
+  }
+}
+
 export default function SpielwieseRoutePage({
   slug,
 }: SpielwieseRoutePageProps) {
   const route = getSpielwieseRoute(slug);
 
-  if (route === "onboarding") {
-    return <SpielwieseOnboardingPage stepId={slug?.[1]} />;
-  }
-
-  if (route === "dashboard") {
-    return <SpielwieseDashboardPage />;
-  }
-
-  return <SpielwieseIntroPage />;
+  return (
+    <SpielwieseRouteTransitionProvider>
+      {renderSpielwieseRoutePage({ route, stepId: slug?.[1] })}
+    </SpielwieseRouteTransitionProvider>
+  );
 }

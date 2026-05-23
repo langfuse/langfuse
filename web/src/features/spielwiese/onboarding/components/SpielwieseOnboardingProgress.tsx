@@ -13,11 +13,11 @@ export function SpielwieseOnboardingProgress({
       aria-valuemax={100}
       aria-valuemin={0}
       aria-valuenow={normalizedValue}
-      className="absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-[rgb(230,231,234)]"
+      className="absolute inset-x-0 top-0 h-px overflow-hidden bg-[rgba(36,37,41,0.08)]"
       role="progressbar"
     >
       <div
-        className="h-full bg-[rgb(38,109,240)]"
+        className="h-full bg-[rgba(36,37,41,0.46)] transition-[width] duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
         style={{ width: `${normalizedValue}%` }}
       />
     </div>

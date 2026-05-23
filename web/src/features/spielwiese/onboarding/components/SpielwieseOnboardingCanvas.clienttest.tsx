@@ -1,5 +1,12 @@
 /* eslint-disable max-lines */
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useRouter } from "next/router";
 import "../../components/spielwieseResizableTestMock";
 import { SpielwieseOnboardingCanvas } from "./SpielwieseOnboardingCanvas";
@@ -68,6 +75,20 @@ function expectSurfaceShellChrome(expectedShellWidthClassName: string) {
   ).toBeNull();
   expect(screen.queryByTestId("spielwiese-canvas-bottom-panel")).toBeNull();
   expect(screen.queryByTestId("spielwiese-prompt-simulation-pane")).toBeNull();
+}
+
+function expectProgressValue(value: string) {
+  expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe(
+    value,
+  );
+}
+
+function expectNeutralProgressBar() {
+  const progressBar = screen.getByRole("progressbar");
+  const progressValue = progressBar.firstElementChild;
+
+  expect(progressBar.className).toContain("bg-[rgba(36,37,41,0.08)]");
+  expect(progressValue?.className).toContain("bg-[rgba(36,37,41,0.46)]");
 }
 
 function expectQuestionOptionsLayout() {
@@ -316,6 +337,8 @@ afterEach(() => {
 it("renders the first onboarding step as a gated role question before the preview reveal", () => {
   renderOnboardingCanvas("role");
   expectRoleGateState();
+  expectProgressValue("24");
+  expectNeutralProgressBar();
 });
 
 // eslint-disable-next-line max-lines-per-function
@@ -335,18 +358,25 @@ it("reveals the role preview, stages model selection, and then resumes the route
 
   await completeSceneExit(stepLayer);
   expectRoleBridgeCopyState();
+  expectProgressValue("36");
   revealRolePreview();
+  expectProgressValue("52");
 
   fireEvent.change(screen.getByLabelText("vision-agent Instructions"), {
     target: {
       value: "Act as if you were a senior business strategist",
     },
   });
-  expect(
-    screen.getByRole("button", { name: /continue/i }).getAttribute("disabled"),
-  ).toBeNull();
+  await waitFor(() =>
+    expect(
+      screen
+        .getByRole("button", { name: /continue/i })
+        .getAttribute("disabled"),
+    ).toBeNull(),
+  );
   fireEvent.click(screen.getByRole("button", { name: /continue/i }));
   expectRoleModelSelectionState();
+  expectProgressValue("68");
   fireEvent.transitionEnd(screen.getByTestId("spielwiese-agent-title-control"));
   expect(screen.getByRole("dialog", { name: "Model picker" })).toBeTruthy();
   expect(
@@ -356,7 +386,8 @@ it("reveals the role preview, stages model selection, and then resumes the route
   ).toBe("890ms");
 
   fireEvent.click(screen.getByRole("button", { name: "Claude Opus 4.6" }));
-  expectRoleApiKeyState();
+  await waitFor(() => expectRoleApiKeyState());
+  expectProgressValue("84");
   fireEvent.change(
     within(screen.getByRole("dialog", { name: "Model picker" })).getByLabelText(
       "Anthropic API key",
@@ -387,7 +418,7 @@ it("reveals the role preview, stages model selection, and then resumes the route
     "/dev/spielwiese/dashboard",
     undefined,
     {
-      shallow: true,
+      scroll: false,
     },
   );
 });
@@ -411,9 +442,17 @@ it("ignores legacy role handoff debug params when moving into the dashboard", as
       value: "Act as if you were a senior business strategist",
     },
   });
+  await waitFor(() =>
+    expect(
+      screen
+        .getByRole("button", { name: /continue/i })
+        .getAttribute("disabled"),
+    ).toBeNull(),
+  );
   fireEvent.click(screen.getByRole("button", { name: /continue/i }));
   fireEvent.transitionEnd(screen.getByTestId("spielwiese-agent-title-control"));
   fireEvent.click(screen.getByRole("button", { name: "Claude Opus 4.6" }));
+  await waitFor(() => expectRoleApiKeyState());
   fireEvent.change(
     within(screen.getByRole("dialog", { name: "Model picker" })).getByLabelText(
       "Anthropic API key",
@@ -438,7 +477,7 @@ it("ignores legacy role handoff debug params when moving into the dashboard", as
     "/dev/spielwiese/dashboard?debugRoleLiftY=88&debugFreezeRoleHandoff=1",
     undefined,
     {
-      shallow: true,
+      scroll: false,
     },
   );
 });

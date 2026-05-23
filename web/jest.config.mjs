@@ -11,6 +11,10 @@ const clientTestConfig = {
   testMatch: ["/**/*.clienttest.[jt]s?(x)"],
   testEnvironment: "jest-environment-jsdom",
   testEnvironmentOptions: { globalsCleanup: "on" },
+  moduleNameMapper: {
+    "^glimm/react$":
+      "<rootDir>/src/features/spielwiese/__mocks__/glimmReact.tsx",
+  },
 };
 
 const serverTestConfig = {

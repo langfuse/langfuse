@@ -119,6 +119,27 @@ function getOnboardingCanvasFrameClassName(stage: OnboardingUpperCanvasStage) {
   }
 }
 
+function queueOnboardingCanvasChange(callback: () => void) {
+  if (typeof queueMicrotask === "function") {
+    queueMicrotask(callback);
+    return;
+  }
+
+  void Promise.resolve().then(callback);
+}
+
+type SpielwieseOnboardingUpperCanvasProps = {
+  apiKeyValue?: string;
+  isActive?: boolean;
+  modelValue?: string;
+  onApiKeyChange?: (value: string) => void;
+  onApiKeyContinue?: () => void;
+  onModelChange?: (value: string) => void;
+  onSystemPromptChange: (value: string) => void;
+  stage?: OnboardingUpperCanvasStage;
+  systemPromptValue: string;
+};
+
 export function SpielwieseOnboardingUpperCanvas({
   apiKeyValue = "",
   isActive = true,
@@ -129,17 +150,7 @@ export function SpielwieseOnboardingUpperCanvas({
   onSystemPromptChange,
   stage = "preview",
   systemPromptValue,
-}: {
-  apiKeyValue?: string;
-  isActive?: boolean;
-  modelValue?: string;
-  onApiKeyChange?: (value: string) => void;
-  onApiKeyContinue?: () => void;
-  onModelChange?: (value: string) => void;
-  onSystemPromptChange: (value: string) => void;
-  stage?: OnboardingUpperCanvasStage;
-  systemPromptValue: string;
-}) {
+}: SpielwieseOnboardingUpperCanvasProps) {
   const onboardingPreviewDashboard = getOnboardingPreviewDashboard({
     modelValue,
     systemPromptValue,
@@ -156,6 +167,7 @@ export function SpielwieseOnboardingUpperCanvas({
           apiKeyValue,
           onApiKeyChange: onApiKeyChange ?? (() => {}),
           onApiKeyContinue: onApiKeyContinue ?? (() => {}),
+          onModelChange: onModelChange ?? (() => {}),
           showAnthropicApiKeyPrompt: stage === "api-key",
         }}
       >
@@ -170,8 +182,14 @@ export function SpielwieseOnboardingUpperCanvas({
               canvas={onboardingPreviewDashboard.canvas}
               chrome={getOnboardingCanvasChrome(stage)}
               onNodesChange={(nodes) => {
-                onSystemPromptChange(getOnboardingSystemPromptValue(nodes));
-                onModelChange?.(getOnboardingModelValue(nodes));
+                const nextSystemPromptValue =
+                  getOnboardingSystemPromptValue(nodes);
+                const nextModelValue = getOnboardingModelValue(nodes);
+
+                queueOnboardingCanvasChange(() => {
+                  onSystemPromptChange(nextSystemPromptValue);
+                  onModelChange?.(nextModelValue);
+                });
               }}
             />
           </div>

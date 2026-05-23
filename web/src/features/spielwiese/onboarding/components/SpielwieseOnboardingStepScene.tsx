@@ -5,7 +5,10 @@ import {
 } from "./SpielwieseOnboardingQuestionPanel";
 import { SpielwieseOnboardingProgress } from "./SpielwieseOnboardingProgress";
 import SpielwieseOnboardingSurface from "./SpielwieseOnboardingSurface";
-import { getOnboardingProgressValue } from "../spielwieseOnboardingFlow";
+import {
+  getOnboardingProgressValue,
+  type OnboardingAnswerKey,
+} from "../spielwieseOnboardingFlow";
 import type { RoleHandoffTransition } from "../spielwieseRoleHandoff";
 
 const onboardingCanvasStepMinHeightRem = 40;
@@ -46,6 +49,35 @@ function getOnboardingStepShellClassName(showsUpperCanvas: boolean) {
 
 function getOnboardingStepShellMinHeight(showsUpperCanvas: boolean) {
   return `${showsUpperCanvas ? onboardingCanvasStepMinHeightRem : onboardingDefaultStepMinHeightRem}rem`;
+}
+
+function getRoleSceneProgressValue(roleScene: RoleStepScene) {
+  switch (roleScene) {
+    case "gate":
+      return 24;
+    case "bridge":
+      return 36;
+    case "preview":
+      return 52;
+    case "model-selection":
+      return 68;
+    case "api-key":
+      return 84;
+    case "handoff":
+      return 92;
+  }
+}
+
+function getOnboardingStepSceneProgressValue({
+  activeQuestionId,
+  roleScene,
+}: {
+  activeQuestionId: OnboardingAnswerKey;
+  roleScene: RoleStepScene;
+}) {
+  return activeQuestionId === "role"
+    ? getRoleSceneProgressValue(roleScene)
+    : getOnboardingProgressValue(activeQuestionId);
 }
 
 // eslint-disable-next-line max-lines-per-function
@@ -123,13 +155,15 @@ function OnboardingStepSurfaceFrame({
   activeQuestionId,
   isTransitioningOut,
   minHeight,
+  roleScene,
   showsUpperCanvas,
   children,
 }: {
-  activeQuestionId: string;
+  activeQuestionId: OnboardingAnswerKey;
   children: ReactNode;
   isTransitioningOut: boolean;
   minHeight: string;
+  roleScene: RoleStepScene;
   showsUpperCanvas: boolean;
 }) {
   return (
@@ -146,7 +180,10 @@ function OnboardingStepSurfaceFrame({
       topOverlay={
         <OnboardingStepProgressOverlay
           isTransitioningOut={isTransitioningOut}
-          value={getOnboardingProgressValue(activeQuestionId)}
+          value={getOnboardingStepSceneProgressValue({
+            activeQuestionId,
+            roleScene,
+          })}
         />
       }
     >
@@ -157,7 +194,7 @@ function OnboardingStepSurfaceFrame({
 
 type SpielwieseOnboardingStepSceneProps = {
   activeAnswer: string;
-  activeQuestionId: string;
+  activeQuestionId: OnboardingAnswerKey;
   activeStepIndex: number;
   handleBack: () => void;
   handleContinue: () => void;
@@ -188,7 +225,7 @@ export function SpielwieseOnboardingStepScene({
   handleContinue,
   handleRoleApiKeyChange,
   handleRoleBridgeAnimationEnd,
-  handleRoleDashboardHandoffComplete,
+  handleRoleDashboardHandoffComplete: handleHandoffComplete,
   handleRoleModelChange,
   handleRoleSystemPromptChange,
   handleSelect,
@@ -207,6 +244,7 @@ export function SpielwieseOnboardingStepScene({
       activeQuestionId={activeQuestionId}
       isTransitioningOut={isStepTransitioningOut}
       minHeight={getOnboardingStepShellMinHeight(showsUpperCanvas)}
+      roleScene={roleScene}
       showsUpperCanvas={showsUpperCanvas}
     >
       <div
@@ -223,9 +261,7 @@ export function SpielwieseOnboardingStepScene({
           handleContinue={handleContinue}
           handleRoleApiKeyChange={handleRoleApiKeyChange}
           handleRoleBridgeAnimationEnd={handleRoleBridgeAnimationEnd}
-          handleRoleDashboardHandoffComplete={
-            handleRoleDashboardHandoffComplete
-          }
+          handleRoleDashboardHandoffComplete={handleHandoffComplete}
           handleRoleModelChange={handleRoleModelChange}
           handleRoleSystemPromptChange={handleRoleSystemPromptChange}
           handleSelect={handleSelect}

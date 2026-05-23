@@ -171,6 +171,7 @@ function getTitleControlPickerPanelProps({
   onAnthropicApiKeyChange,
   onAnthropicApiKeyContinue,
   onClose,
+  onModelValueChange,
   onSettingValueChange,
   providerId,
   popoverAnimationDelayMs,
@@ -189,6 +190,7 @@ function getTitleControlPickerPanelProps({
   node: SpielwieseAgentNodeVM;
   onAnthropicApiKeyChange?: (value: string) => void;
   onAnthropicApiKeyContinue?: () => void;
+  onModelValueChange?: (value: string) => void;
   onClose: () => void;
   onSettingValueChange: SpielwieseAgentNodeTitleControlProps["onSettingValueChange"];
   popoverAnimationDelayMs?: number;
@@ -208,10 +210,13 @@ function getTitleControlPickerPanelProps({
     onClose,
     onAnthropicApiKeyChange,
     onAnthropicApiKeyContinue,
-    onValueChange: (value) =>
-      modelSetting
-        ? onSettingValueChange(node.id, modelSetting.id, value)
-        : undefined,
+    onValueChange: (value) => {
+      if (modelSetting) {
+        onSettingValueChange(node.id, modelSetting.id, value);
+      }
+
+      onModelValueChange?.(value);
+    },
     popoverAnimationDelayMs,
     popoverAnimationDurationMs,
     providerId,
@@ -263,6 +268,7 @@ function getPickerPanelPropsForTitleControl({
     node,
     onAnthropicApiKeyChange: onboardingModelPicker?.onApiKeyChange,
     onAnthropicApiKeyContinue: onboardingModelPicker?.onApiKeyContinue,
+    onModelValueChange: onboardingModelPicker?.onModelChange,
     onClose: closePicker,
     onSettingValueChange,
     providerId: effectiveProviderId,
