@@ -138,11 +138,21 @@ export function defineTool<TInput>(
     );
   }
 
+  // The MCP TypeScript SDK validates Tool.inputSchema.type as `z.literal("object")`,
+  // so clients reject any tool whose root schema lacks `type: "object"`. Zod's
+  // JSON Schema converter omits the root `type` for intersection/union schemas
+  // (emitting allOf/oneOf/anyOf instead), so we inject it here. JSON Schema
+  // draft-7 allows `type` alongside these keywords — all constraints must hold.
+  const normalizedJsonSchema: JsonSchemaObject =
+    (jsonSchema as JsonSchemaObject).type === "object"
+      ? (jsonSchema as JsonSchemaObject)
+      : { ...(jsonSchema as JsonSchemaObject), type: "object" };
+
   // Build tool definition
   const toolDefinition: ToolDefinition = {
     name,
     description,
-    inputSchema: jsonSchema,
+    inputSchema: normalizedJsonSchema,
   };
 
   // Add annotations if provided
