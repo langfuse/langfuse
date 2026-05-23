@@ -1,12 +1,13 @@
+import { LoaderCircle } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 
 const playgroundThinkingCardClassName =
-  "relative flex h-7 w-full items-center overflow-hidden rounded-[10px] border border-[rgba(184,139,76,0.12)] bg-[linear-gradient(180deg,rgba(251,249,244,0.98)_0%,rgba(247,244,238,0.98)_100%)] px-1.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.84)] ring-1 ring-[rgba(184,139,76,0.08)]";
+  "relative flex h-7 w-full items-center overflow-hidden rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-[rgba(255,255,255,0.88)] px-1.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.86)] ring-1 ring-[rgba(0,0,0,0.04)]";
 const thinkingStatClassName =
-  "inline-flex h-5 shrink-0 items-center rounded-[6px] border border-[rgba(0,0,0,0.05)] bg-[rgba(255,255,255,0.74)] px-1.5 text-[10px] font-medium tracking-[-0.01em] text-foreground/58 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]";
+  "inline-flex h-5 shrink-0 items-center rounded-[6px] border border-[rgba(0,0,0,0.05)] bg-[rgba(255,255,255,0.74)] px-1.5 text-[10px] font-medium text-foreground/58 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]";
 const thinkingTokenClassName =
-  "inline-flex h-5 shrink-0 items-center rounded-[6px] border border-[rgba(184,139,76,0.16)] bg-[rgba(255,255,255,0.84)] px-1.5 text-[10px] font-semibold tracking-[-0.01em] text-[#8C5B24] shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]";
+  "inline-flex h-5 shrink-0 items-center rounded-[6px] border border-[rgba(0,0,0,0.06)] bg-[rgba(255,255,255,0.84)] px-1.5 text-[10px] font-semibold text-foreground/62 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]";
 
 type PlaygroundThinkingCardMeta = {
   reasonedLabel: string;
@@ -85,17 +86,13 @@ function PlaygroundThinkingCardMetrics({
 function PlaygroundThinkingCardSummary({ summary }: { summary: string }) {
   return (
     <div className="flex w-full min-w-0 items-center gap-1.5">
-      <div
+      <LoaderCircle
         aria-hidden="true"
-        className="flex shrink-0 items-center gap-1"
-        data-testid="spielwiese-playground-thinking-card-dots"
-      >
-        <span className="size-1.5 animate-pulse rounded-full bg-[rgba(201,120,62,0.78)]" />
-        <span className="size-1.5 animate-pulse rounded-full bg-[rgba(201,120,62,0.58)] [animation-delay:140ms]" />
-        <span className="size-1.5 animate-pulse rounded-full bg-[rgba(201,120,62,0.42)] [animation-delay:280ms]" />
-      </div>
+        className="text-foreground/42 size-3 shrink-0 animate-spin"
+        data-testid="spielwiese-playground-thinking-card-loader"
+      />
       <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-        <span className="text-foreground shrink-0 text-[12px] font-semibold tracking-[-0.01em]">
+        <span className="text-foreground shrink-0 text-[12px] font-semibold">
           Thinking
         </span>
         <span className="text-foreground/42 truncate text-[11px] font-medium">
@@ -138,11 +135,6 @@ export function PlaygroundThinkingCard({
         type="button"
         onClick={onClick}
       >
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 animate-[rainbow_2.8s_linear_infinite] bg-[linear-gradient(90deg,rgba(201,120,62,0.02)_0%,rgba(201,120,62,0.16)_42%,rgba(255,255,255,0.02)_68%,rgba(201,120,62,0.1)_100%)] bg-[length:220%_100%]"
-          data-testid="spielwiese-playground-thinking-card-glow"
-        />
         <div className="relative flex w-full min-w-0 items-center gap-1.5">
           <PlaygroundThinkingCardSummary summary={summary} />
           <PlaygroundThinkingCardMetrics meta={meta} />
@@ -159,11 +151,11 @@ export function PlaygroundThinkingDetailCard({
 }) {
   return (
     <div
-      className="mx-2.5 rounded-xl border border-[rgba(201,120,62,0.14)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,244,239,0.98)_100%)] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] ring-1 ring-[rgba(201,120,62,0.06)]"
+      className="mx-2.5 rounded-xl border border-[rgba(0,0,0,0.08)] bg-[rgba(255,255,255,0.92)] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.84)] ring-1 ring-[rgba(0,0,0,0.04)]"
       data-testid="spielwiese-playground-thinking-detail"
     >
       <div className="flex flex-col gap-1">
-        <div className="text-foreground text-[12px] font-semibold tracking-[-0.01em]">
+        <div className="text-foreground text-[12px] font-semibold">
           {thinking.title}
         </div>
         <div className="text-foreground/54 text-[11px] leading-4">

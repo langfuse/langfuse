@@ -1,6 +1,9 @@
 import { Blob, GlassTiles, Shader, Swirl } from "shaders/react";
 
 const shaderMaskId = "spielwiese-sign-up-shader-blob";
+const baseSwirlShaderId = "spielwieseSignUpBaseSwirl";
+const glassTilesShaderId = "spielwieseSignUpGlassTiles";
+const glassSwirlShaderId = "spielwieseSignUpGlassSwirl";
 
 type SpielwieseSignUpShaderProps = {
   paused?: boolean;
@@ -24,8 +27,14 @@ export default function SpielwieseSignUpShader({
       className="size-full rounded-[2rem]"
       disableTelemetry
     >
-      <Swirl colorA="#ffffff" colorB="#ffffff" speed={paused ? 0 : 0.8} />
+      <Swirl
+        colorA="#ffffff"
+        colorB="#ffffff"
+        id={baseSwirlShaderId}
+        speed={paused ? 0 : 0.8}
+      />
       <GlassTiles
+        id={glassTilesShaderId}
         intensity={glassTileIntensity}
         maskSource={shaderMaskId}
         rotation={30}
@@ -37,6 +46,7 @@ export default function SpielwieseSignUpShader({
           colorB="#8300ef"
           colorSpace="oklch"
           detail={3.7}
+          id={glassSwirlShaderId}
           speed={paused ? 0 : 0.8}
         />
       </GlassTiles>

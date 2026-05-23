@@ -1,11 +1,7 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import "./spielwieseResizableTestMock";
 import { SpielwieseEditorCanvas } from "./SpielwieseEditorCanvas";
 import { spielwieseEditorCanvasTestCanvas } from "./spielwieseEditorCanvasTestData";
-import {
-  expectEvaluationPaneChrome,
-  mockElementHeights,
-} from "./spielwieseEditorCanvasPaneModeTestHelpers";
 
 function renderCanvas() {
   return render(
@@ -96,6 +92,13 @@ function expectPlaygroundHeaderChrome(playgroundHeader: HTMLElement) {
   expect(playgroundHeader.className).toContain("backdrop-blur");
 }
 
+function expectEvaluationToggleIsInert(evaluationToggle: HTMLElement) {
+  expect(evaluationToggle.className).toContain("pointer-events-none");
+  expect(evaluationToggle.className).toContain("cursor-default");
+  expect(evaluationToggle.getAttribute("aria-disabled")).toBe("true");
+  expect(evaluationToggle.getAttribute("tabindex")).toBe("-1");
+}
+
 function expectPaneModeToggleButtons({
   evaluationToggle,
   paneModeDocsLink,
@@ -137,6 +140,7 @@ function expectPaneModeToggleButtons({
   expect(evaluationToggle.className).toContain("min-w-24");
   expect(evaluationToggle.className).toContain("justify-center");
   expect(evaluationToggle.className).not.toContain("border-[rgba(0,0,0,0.08)]");
+  expectEvaluationToggleIsInert(evaluationToggle);
   expect(paneModeInfo.className).toContain("group/pane-mode-tooltip");
   expect(paneModeInfo.className).toContain("inline-flex");
   expect(paneModeInfo.className).toContain("size-3.5");
@@ -172,6 +176,7 @@ function expectPaneModeToggleActions({
 >) {
   expect(playgroundToggle.getAttribute("aria-pressed")).toBe("true");
   expect(evaluationToggle.getAttribute("aria-pressed")).toBe("false");
+  expectEvaluationToggleIsInert(evaluationToggle);
   expect(historyButton.className).toContain("h-6");
   expect(historyButton.className).toContain("text-[11px]");
   expect(historyButton.className).toContain("rounded-[10px]");
@@ -224,7 +229,7 @@ describe("SpielwieseEditorCanvas pane mode toggle chrome", () => {
 });
 
 describe("SpielwieseEditorCanvas pane mode switching", () => {
-  it("switches the lower pane between playground and evaluation", () => {
+  it("keeps evaluation mode inert in the prototype shell", () => {
     renderCanvas();
     const { evaluationToggle } = getPaneModeElements();
 
@@ -235,82 +240,20 @@ describe("SpielwieseEditorCanvas pane mode switching", () => {
 
     fireEvent.click(evaluationToggle);
 
-    expectEvaluationPaneChrome();
-
     expect(
-      screen.queryByTestId("spielwiese-prompt-simulation-pane"),
-    ).toBeNull();
+      screen.getByTestId("spielwiese-prompt-simulation-pane"),
+    ).toBeTruthy();
+    expect(screen.queryByTestId("spielwiese-evaluation-pane")).toBeNull();
     expect(screen.queryByLabelText("Playground input")).toBeNull();
     expect(
       screen
         .getByTestId("spielwiese-canvas-pane-mode-playground")
         .getAttribute("aria-pressed"),
-    ).toBe("false");
+    ).toBe("true");
     expect(
       screen
         .getByTestId("spielwiese-canvas-pane-mode-evaluation")
         .getAttribute("aria-pressed"),
-    ).toBe("true");
-  });
-
-  it("expands the bottom pane when evaluation content would otherwise overflow", () => {
-    jest.useFakeTimers();
-
-    try {
-      renderCanvas();
-      const { evaluationToggle } = getPaneModeElements();
-
-      fireEvent.click(evaluationToggle);
-
-      const evaluationShell = screen.getByTestId(
-        "spielwiese-evaluation-pane-surface",
-      );
-      mockElementHeights({
-        clientHeight: 240,
-        element: evaluationShell,
-        scrollHeight: 308,
-      });
-      act(() => {
-        jest.runOnlyPendingTimers();
-      });
-
-      expect(
-        screen
-          .getByTestId("spielwiese-canvas-bottom-panel")
-          .getAttribute("data-last-resize"),
-      ).toBe("396");
-    } finally {
-      jest.useRealTimers();
-    }
-  });
-});
-
-describe("SpielwieseEditorCanvas evaluation strategy switching", () => {
-  it("lets the user switch between evaluation strategies", () => {
-    renderCanvas();
-    const { evaluationToggle } = getPaneModeElements();
-
-    fireEvent.click(evaluationToggle);
-
-    const llmJudgeStrategy = screen.getByTestId(
-      "spielwiese-evaluation-strategy-llm-judge",
-    );
-    const javascriptStrategy = screen.getByTestId(
-      "spielwiese-evaluation-strategy-javascript",
-    );
-    const strategyDetail = screen.getByTestId(
-      "spielwiese-evaluation-strategy-detail",
-    );
-
-    expect(llmJudgeStrategy.getAttribute("aria-pressed")).toBe("true");
-    expect(javascriptStrategy.getAttribute("aria-pressed")).toBe("false");
-
-    fireEvent.click(javascriptStrategy);
-
-    expect(llmJudgeStrategy.getAttribute("aria-pressed")).toBe("false");
-    expect(javascriptStrategy.getAttribute("aria-pressed")).toBe("true");
-    expect(strategyDetail.textContent).toContain("JavaScript");
-    expect(strategyDetail.textContent).toContain("Write a JavaScript code");
-    expect(strategyDetail.textContent).toContain("3 steps");
+    ).toBe("false");
   });
 });

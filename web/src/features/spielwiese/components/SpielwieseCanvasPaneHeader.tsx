@@ -39,6 +39,7 @@ export function SpielwieseCanvasPaneHeader({
         } all canvas cards`}
         containerTestId="spielwiese-canvas-pane-actions"
         isCompact={areAllCardsCompact}
+        isPreviewButtonInert
         isPreviewFocused={false}
         onArchiveNode={() => {}}
         onTogglePreviewFocus={onCloseSidePanels}

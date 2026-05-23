@@ -138,6 +138,10 @@ function expectHeaderChromeTags({
   expect(toolTag?.className).not.toContain("hover:w-[4rem]");
   expect(temperatureTag?.textContent).toContain("Temperature");
   expect(toolTag?.textContent).toContain("Tools");
+  expect(toolButton.getAttribute("aria-disabled")).toBe("true");
+  expect(toolButton.getAttribute("tabindex")).toBe("-1");
+  expect(toolButton.className).toContain("pointer-events-none");
+  expect(toolButton.className).toContain("cursor-default");
   expect(toolButton.className).not.toContain("hover:bg-");
   expect(toolButton.className).not.toContain("hover:text-");
 }
@@ -199,6 +203,10 @@ function expectHeaderActionChrome({
   expect(archiveButton.className).toContain(
     "hover:bg-[rgba(255,255,255,0.88)]",
   );
+  expect(archiveButton.getAttribute("aria-disabled")).toBe("true");
+  expect(archiveButton.getAttribute("tabindex")).toBe("-1");
+  expect(archiveButton.className).toContain("pointer-events-none");
+  expect(archiveButton.className).toContain("cursor-default");
   expect(toggleButton.getAttribute("aria-pressed")).toBe("false");
   expect(previewButton.getAttribute("aria-pressed")).toBe("false");
   expect(previewButton.getAttribute("disabled")).toBe("");

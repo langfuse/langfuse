@@ -140,9 +140,10 @@ function expectPromptSimulationPaneChrome(
   expect(terminalSurface.className).toContain("relative");
   expect(terminalSurface.className).toContain("px-2.5");
   expect(terminalSurface.className).toContain("pt-0");
-  expect(terminalSurface.className).toContain("pb-[6px]");
-  expect(terminalSurface.className).toContain("after:h-[6px]");
-  expect(terminalSurface.className).toContain("after:bg-[#F3F3F4]");
+  expect(terminalSurface.className).toContain("pb-0");
+  expect(terminalSurface.className).not.toContain("pb-[6px]");
+  expect(terminalSurface.className).not.toContain("after:h-[6px]");
+  expect(terminalSurface.className).not.toContain("after:bg-[#F3F3F4]");
   expect(elements.header.className).toContain("sticky");
   expect(elements.header.className).toContain("-mx-2.5");
   expect(elements.header.className).toContain("w-[calc(100%+1.25rem)]");
@@ -159,8 +160,12 @@ function expectPromptSimulationPaneChrome(
   expect(elements.actions.className).toContain("gap-2");
   expect(elements.title).toBeNull();
   expect(elements.historyButton.textContent).toContain("History");
+  expect(elements.historyButton.getAttribute("aria-disabled")).toBe("true");
+  expect(elements.historyButton.getAttribute("tabindex")).toBe("-1");
   expect(elements.historyButton.className).toContain("h-6");
   expect(elements.historyButton.className).toContain("rounded-[10px]");
+  expect(elements.historyButton.className).toContain("pointer-events-none");
+  expect(elements.historyButton.className).toContain("cursor-default");
   expect(elements.historyButton.className).toContain(
     "border-[rgba(0,0,0,0.08)]",
   );
@@ -363,21 +368,23 @@ function expectPromptSimulationHeaderTags({
   );
   expect(actionButtons.className).toContain("flex");
   expect(actionButtons.className).toContain("gap-1");
-  expect(
-    within(actionButtons).getByRole("button", {
-      name: "Minimize vision-agent node sections",
-    }),
-  ).toBeTruthy();
+  const compactButton = within(actionButtons).getByRole("button", {
+    name: "Minimize vision-agent node sections",
+  });
   expect(
     within(actionButtons).getByRole("button", {
       name: "Preview vision-agent node",
     }),
   ).toBeTruthy();
-  expect(
-    within(actionButtons).getByRole("button", {
-      name: "Archive vision-agent node",
-    }),
-  ).toBeTruthy();
+  const archiveButton = within(actionButtons).getByRole("button", {
+    name: "Archive vision-agent node",
+  });
+  expect(compactButton.getAttribute("aria-disabled")).toBe("true");
+  expect(compactButton.getAttribute("tabindex")).toBe("-1");
+  expect(compactButton.className).toContain("pointer-events-none");
+  expect(archiveButton.getAttribute("aria-disabled")).toBe("true");
+  expect(archiveButton.getAttribute("tabindex")).toBe("-1");
+  expect(archiveButton.className).toContain("pointer-events-none");
   expect(firstUserTag.className).toContain("h-7");
   expect(firstUserTag.className).toContain("rounded-[10px]");
   expect(firstUserTag.className).toContain("border-[rgba(0,0,0,0.05)]");
@@ -433,17 +440,25 @@ function expectPlaygroundThinkingState(
   expect(firstThinkingCardShell.className).toContain("flex-1");
   expect(firstThinkingCardShell.className).toContain("max-w-none");
   expect(firstThinkingCard.className).toContain("w-full");
+  expect(firstThinkingCard.className).not.toContain("184,139,76");
+  expect(firstThinkingCard.className).not.toContain("201,120,62");
+  expect(firstThinkingCard.className).not.toContain("bg-[linear-gradient");
   expect(firstThinkingCard).toBeTruthy();
   expect(
-    within(firstThinkingCardShell).getByTestId(
+    within(firstThinkingCardShell).queryByTestId(
       "spielwiese-playground-thinking-card-glow",
-    ).className,
-  ).toContain("animate-[rainbow_2.8s_linear_infinite]");
+    ),
+  ).toBeNull();
   expect(
-    within(firstThinkingCardShell).getByTestId(
+    within(firstThinkingCardShell).queryByTestId(
       "spielwiese-playground-thinking-card-dots",
     ),
-  ).toBeTruthy();
+  ).toBeNull();
+  expect(
+    within(firstThinkingCardShell)
+      .getByTestId("spielwiese-playground-thinking-card-loader")
+      .getAttribute("class"),
+  ).toContain("animate-spin");
   expect(
     within(firstThinkingCard).getByTestId(
       "spielwiese-playground-thinking-stat-tools",

@@ -91,7 +91,6 @@ export default function SpielwieseDashboardPage() {
         {onboardingHandoff?.transitionKind === "role-flow" ? (
           <SpielwieseOnboardingDashboardTransition
             detachedUserDeckTestId="vision-agent-detached-user-sections"
-            roleNodeHandoff={onboardingHandoff.roleNodeHandoff ?? null}
             rootRef={rootRef}
             targetNodeId="vision-agent"
           />

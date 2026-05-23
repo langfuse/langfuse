@@ -36,7 +36,7 @@ describe("SpielwiesePrimaryAgentNodeCard compact shell", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", {
+      within(expandedHeaderFrame).getByRole("button", {
         name: "Minimize vision-agent node sections",
       }),
     );

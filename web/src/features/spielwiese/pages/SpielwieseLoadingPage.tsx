@@ -1,5 +1,6 @@
 import { cn } from "@/src/utils/tailwind";
 import { spielwieseLightThemeStyle } from "../spielwieseLightTheme";
+import { SpielwieseDashboardLoadingSkeleton } from "./SpielwieseDashboardLoadingSkeleton";
 
 export type SpielwieseLoadingRoute = "dashboard" | "intro" | "onboarding";
 
@@ -43,7 +44,7 @@ function LoadingBlock({ className }: { className?: string }) {
     <div
       aria-hidden="true"
       className={cn(
-        "animate-pulse rounded-[inherit] bg-[rgba(91,71,55,0.08)]",
+        "animate-pulse rounded-[inherit] bg-[rgba(17,24,39,0.07)]",
         className,
       )}
     />
@@ -52,145 +53,116 @@ function LoadingBlock({ className }: { className?: string }) {
 
 function IntroLoadingSkeleton() {
   return (
-    <div className="min-h-dvh bg-[radial-gradient(circle_at_top,_rgba(183,150,116,0.14),_transparent_38%),linear-gradient(180deg,_rgba(255,251,247,0.96),_rgba(255,255,255,1))] px-5 py-8 sm:px-8 sm:py-12">
-      <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[21fr_19fr] lg:gap-12">
-        <div className="grid gap-6">
-          <LoadingBlock className="h-3 w-32 rounded-full" />
-          <div className="grid gap-4">
-            <LoadingBlock className="h-14 max-w-[24rem] rounded-[22px]" />
-            <LoadingBlock className="h-5 max-w-[34rem] rounded-full" />
-            <LoadingBlock className="h-5 max-w-[30rem] rounded-full" />
-            <LoadingBlock className="h-5 max-w-[26rem] rounded-full" />
+    <div
+      className="min-h-dvh bg-white px-5 pt-20 pb-20 [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased sm:px-0"
+      data-testid="spielwiese-loading-intro-skeleton"
+    >
+      <main className="mx-auto w-full max-w-[34.375rem]">
+        <article className="grid gap-0">
+          <header className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-1 pb-2">
+            <div className="flex flex-wrap items-baseline gap-1">
+              <LoadingBlock className="h-5 w-36 rounded-[6px]" />
+              <LoadingBlock className="h-5 w-28 rounded-[6px]" />
+            </div>
+            <LoadingBlock className="h-5 w-16 rounded-[6px]" />
+            <div className="col-span-full grid gap-1 pt-[0.735rem] pb-6">
+              <LoadingBlock className="h-5 w-28 rounded-[6px]" />
+              <LoadingBlock className="h-5 w-56 rounded-[6px]" />
+              <LoadingBlock className="h-5 w-full rounded-[6px]" />
+              <LoadingBlock className="h-5 w-[82%] rounded-[6px]" />
+            </div>
+          </header>
+          <div className="grid gap-0">
+            {["approach", "timeline", "colophon"].map((sectionId, index) => (
+              <section className="grid gap-0 pt-6 first:pt-0" key={sectionId}>
+                <LoadingBlock className="h-5 w-20 rounded-[6px]" />
+                <div className="mt-[0.15rem] h-px w-full bg-[rgba(0,0,0,0.08)]" />
+                <div className="grid gap-5 pt-[0.735rem]">
+                  <LoadingBlock className="h-5 w-full rounded-[6px]" />
+                  <LoadingBlock className="h-5 w-[94%] rounded-[6px]" />
+                  <LoadingBlock className="h-5 w-[88%] rounded-[6px]" />
+                  {index === 0 ? (
+                    <LoadingBlock className="aspect-[1698/594] w-full rounded-[1rem] border border-[rgba(0,0,0,0.08)] bg-[#f7f8fa]" />
+                  ) : null}
+                  {index === 1 ? (
+                    <LoadingBlock className="h-8 w-24 rounded-[8px]" />
+                  ) : null}
+                </div>
+              </section>
+            ))}
           </div>
-          <div className="flex flex-wrap items-center gap-3 pt-2">
-            <LoadingBlock className="h-10 w-32 rounded-full" />
-            <LoadingBlock className="h-4 w-56 rounded-full" />
+        </article>
+        <footer className="pt-10 pb-20">
+          <div className="grid justify-items-center gap-3">
+            <LoadingBlock className="h-5 w-64 rounded-[6px]" />
+            <LoadingBlock className="h-8 w-32 rounded-full border border-black/8 bg-white" />
           </div>
-        </div>
-        <div className="grid gap-4 rounded-[28px] border border-[rgba(23,23,23,0.1)] bg-[rgba(255,250,245,0.84)] p-6">
-          <LoadingBlock className="h-3 w-28 rounded-full" />
-          <LoadingBlock className="h-9 w-60 rounded-[18px]" />
-          <LoadingBlock className="h-px w-full rounded-none" />
-          <LoadingBlock className="h-4 w-full rounded-full" />
-          <LoadingBlock className="h-4 w-4/5 rounded-full" />
-        </div>
-      </div>
-      <div className="mx-auto mt-14 grid max-w-6xl gap-4 lg:grid-cols-3">
-        {["a", "b", "c"].map((id) => (
-          <div
-            className="grid gap-4 rounded-[28px] border border-[rgba(23,23,23,0.08)] bg-white p-6"
-            key={id}
-          >
-            <LoadingBlock className="h-3 w-24 rounded-full" />
-            <LoadingBlock className="h-8 w-40 rounded-[16px]" />
-            <LoadingBlock className="h-4 w-full rounded-full" />
-            <LoadingBlock className="h-4 w-5/6 rounded-full" />
-          </div>
-        ))}
-      </div>
+        </footer>
+      </main>
     </div>
   );
 }
 
 function OnboardingLoadingSkeleton() {
   return (
-    <div className="min-h-dvh bg-[#f8f9fa] px-5 py-6 sm:px-8 sm:py-8">
-      <div className="mx-auto grid max-w-[72.625rem] gap-6">
-        <div className="flex items-center justify-between">
-          <LoadingBlock className="h-8 w-28 rounded-[12px]" />
-          <div className="flex items-center gap-5">
-            <LoadingBlock className="h-4 w-24 rounded-full" />
-            <LoadingBlock className="h-4 w-20 rounded-full" />
-            <LoadingBlock className="h-4 w-16 rounded-full" />
-          </div>
-        </div>
-        <div className="rounded-[52px] border border-[rgba(17,24,39,0.08)] bg-white/70 p-8">
-          <div className="grid overflow-hidden rounded-[20px] border border-[rgb(238,239,241)] bg-white lg:grid-cols-[1fr_1fr]">
-            <div className="grid min-h-[34rem] content-center gap-7 px-8 py-10 lg:px-14">
-              <LoadingBlock className="h-10 w-full rounded-[10px]" />
-              <LoadingBlock className="h-px w-full rounded-none" />
-              <div className="grid gap-3">
-                <LoadingBlock className="h-[2.125rem] w-full rounded-[10px]" />
-                <LoadingBlock className="h-8 w-full rounded-[9px]" />
-              </div>
-              <LoadingBlock className="mt-10 h-3 w-5/6 rounded-full" />
+    <div
+      className="min-h-screen-with-banner flex flex-col items-center gap-4 bg-white px-4 pt-6 pb-4 [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased sm:px-6"
+      data-testid="spielwiese-loading-onboarding-skeleton"
+    >
+      <header className="flex h-8 w-full justify-center">
+        <LoadingBlock className="h-8 w-24 rounded-[10px] opacity-0" />
+      </header>
+      <div className="flex w-full flex-1 items-center justify-center">
+        <div className="w-full pt-3 pb-3 sm:pt-4 sm:pb-4">
+          <div className="relative mx-auto w-full max-w-[66rem] rounded-[52px] border border-[rgba(17,24,39,0.08)] bg-white p-6 sm:p-8">
+            <div className="pointer-events-none absolute inset-0 rounded-[inherit] border border-[rgba(255,255,255,0.92)] bg-white p-[2px]">
+              <div className="size-full rounded-[50px] bg-[#f8f9fa]" />
             </div>
-            <div className="grid min-h-[34rem] content-center gap-4 border-l border-[rgb(238,239,241)] px-8 py-10 lg:px-14">
-              <LoadingBlock className="h-10 w-44 rounded-[18px]" />
-              <LoadingBlock className="h-4 w-full rounded-full" />
-              <LoadingBlock className="h-4 w-11/12 rounded-full" />
-              <LoadingBlock className="h-4 w-4/5 rounded-full" />
-              <div className="mt-6 grid gap-4">
-                <LoadingBlock className="h-24 rounded-[20px]" />
-                <LoadingBlock className="h-24 rounded-[20px]" />
+            <div className="relative z-10 mx-auto grid w-full max-w-[64rem] overflow-hidden rounded-[20px] border border-[rgb(238,239,241)] bg-white lg:grid-cols-[1fr_1fr] xl:grid-cols-[31rem_31rem]">
+              <div className="grid min-h-[34rem] content-center gap-7 px-8 py-10 lg:px-14">
+                <LoadingBlock className="h-10 w-40 rounded-[10px]" />
+                <div className="grid gap-3">
+                  <LoadingBlock className="h-10 w-full rounded-[10px]" />
+                  <LoadingBlock className="h-8 w-full rounded-[9px]" />
+                </div>
+                <LoadingBlock className="h-px w-full rounded-none" />
+                <LoadingBlock className="h-8 w-full rounded-[9px]" />
+                <LoadingBlock className="mt-8 h-4 w-[84%] rounded-[6px]" />
+              </div>
+              <div className="grid min-h-[34rem] content-center gap-4 border-t border-[rgb(238,239,241)] px-8 py-10 lg:border-t-0 lg:border-l lg:px-14">
+                <LoadingBlock className="h-10 w-44 rounded-[10px]" />
+                <LoadingBlock className="h-5 w-full rounded-[6px]" />
+                <LoadingBlock className="h-5 w-11/12 rounded-[6px]" />
+                <LoadingBlock className="h-5 w-4/5 rounded-[6px]" />
+                <div className="mt-6 grid grid-cols-2 gap-4">
+                  <LoadingBlock className="aspect-square rounded-[18px] bg-[#f4f5f6]" />
+                  <LoadingBlock className="aspect-square rounded-[18px] bg-[#f4f5f6]" />
+                  <LoadingBlock className="aspect-square rounded-[18px] bg-[#f4f5f6]" />
+                  <LoadingBlock className="aspect-square rounded-[18px] bg-[#f4f5f6]" />
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+      <footer className="grid justify-items-center gap-1">
+        <LoadingBlock className="h-5 w-72 rounded-[6px]" />
+        <LoadingBlock className="h-5 w-40 rounded-[6px]" />
+      </footer>
     </div>
   );
 }
 
-function DashboardLoadingSkeleton() {
-  return (
-    <div className="h-screen-with-banner isolate overflow-hidden [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased">
-      <div className="grid h-full grid-cols-[4.75rem_minmax(0,16rem)_minmax(0,1fr)_20rem] bg-[#EEEFF1]">
-        <div className="border-r border-[rgba(15,23,42,0.06)] bg-[#E7E8EA] px-3 py-4">
-          <div className="grid gap-3">
-            {["a", "b", "c", "d", "e"].map((id) => (
-              <LoadingBlock className="size-10 rounded-[14px]" key={id} />
-            ))}
-          </div>
-        </div>
-        <div className="border-r border-[rgba(15,23,42,0.06)] bg-[#F3F3F4] px-4 py-4">
-          <div className="grid gap-3">
-            <LoadingBlock className="h-9 w-full rounded-[12px]" />
-            <LoadingBlock className="h-8 w-3/4 rounded-[10px]" />
-            <LoadingBlock className="h-8 w-5/6 rounded-[10px]" />
-            <LoadingBlock className="h-8 w-2/3 rounded-[10px]" />
-          </div>
-        </div>
-        <div className="min-w-0 overflow-hidden bg-[#F3F3F4] px-4 py-4">
-          <div className="grid h-full gap-3">
-            <div className="rounded-[18px] border border-[rgba(15,23,42,0.08)] bg-white p-3">
-              <div className="grid gap-3">
-                <LoadingBlock className="h-10 w-full rounded-[14px]" />
-                <LoadingBlock className="h-20 w-full rounded-[14px]" />
-                <LoadingBlock className="h-10 w-56 rounded-[12px]" />
-              </div>
-            </div>
-            <div className="grid min-h-0 grid-rows-[auto_1fr] gap-3">
-              <LoadingBlock className="h-8 w-44 rounded-[12px]" />
-              <div className="rounded-[18px] border border-[rgba(15,23,42,0.08)] bg-[#FBFBFB] p-3">
-                <div className="grid gap-3">
-                  <LoadingBlock className="h-16 w-full rounded-[14px]" />
-                  <LoadingBlock className="h-16 w-11/12 rounded-[14px]" />
-                  <LoadingBlock className="h-16 w-10/12 rounded-[14px]" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="border-l border-[rgba(15,23,42,0.06)] bg-[#F3F3F4] px-4 py-4">
-          <div className="grid gap-3">
-            <LoadingBlock className="h-8 w-28 rounded-[10px]" />
-            {["a", "b", "c"].map((id) => (
-              <div
-                className="rounded-[16px] border border-[rgba(15,23,42,0.08)] bg-white p-2"
-                key={id}
-              >
-                <div className="grid gap-2">
-                  <LoadingBlock className="h-9 w-full rounded-[10px]" />
-                  <LoadingBlock className="h-20 w-full rounded-[10px]" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+function renderSpielwieseLoadingSkeleton(route: SpielwieseLoadingRoute) {
+  if (route === "onboarding") {
+    return <OnboardingLoadingSkeleton />;
+  }
+
+  if (route === "dashboard") {
+    return <SpielwieseDashboardLoadingSkeleton />;
+  }
+
+  return <IntroLoadingSkeleton />;
 }
 
 export default function SpielwieseLoadingPage({
@@ -198,32 +170,6 @@ export default function SpielwieseLoadingPage({
 }: {
   route: SpielwieseLoadingRoute;
 }) {
-  if (route === "onboarding") {
-    return (
-      <div
-        data-route={route}
-        data-spielwiese
-        data-testid="spielwiese-loading-page"
-        style={spielwieseLightThemeStyle}
-      >
-        <OnboardingLoadingSkeleton />
-      </div>
-    );
-  }
-
-  if (route === "dashboard") {
-    return (
-      <div
-        data-route={route}
-        data-spielwiese
-        data-testid="spielwiese-loading-page"
-        style={spielwieseLightThemeStyle}
-      >
-        <DashboardLoadingSkeleton />
-      </div>
-    );
-  }
-
   return (
     <div
       data-route={route}
@@ -231,7 +177,7 @@ export default function SpielwieseLoadingPage({
       data-testid="spielwiese-loading-page"
       style={spielwieseLightThemeStyle}
     >
-      <IntroLoadingSkeleton />
+      {renderSpielwieseLoadingSkeleton(route)}
     </div>
   );
 }

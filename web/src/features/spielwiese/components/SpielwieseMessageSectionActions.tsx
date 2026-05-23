@@ -3,27 +3,33 @@ import type { ReactNode } from "react";
 import { Button } from "../ui/button";
 import { getMessageToneClassNames } from "./spielwieseMessageTone";
 
+const messageSectionInertActionClassName = "pointer-events-none cursor-default";
+
 function MessageSectionActionButton({
   ariaLabel,
   children,
   className,
   disabled = false,
+  isInert = false,
   onClick,
 }: {
   ariaLabel: string;
   children: ReactNode;
   className: string;
   disabled?: boolean;
+  isInert?: boolean;
   onClick: () => void;
 }) {
   return (
     <Button
+      aria-disabled={isInert ? true : undefined}
       aria-label={ariaLabel}
-      className={className}
+      className={`${className} ${isInert ? messageSectionInertActionClassName : ""}`}
       disabled={disabled}
       size="icon-sm"
+      tabIndex={isInert ? -1 : undefined}
       variant="ghost"
-      onClick={onClick}
+      onClick={isInert ? undefined : onClick}
     >
       {children}
     </Button>
@@ -80,6 +86,7 @@ export function SpielwieseMessageSectionActions({
       <MessageSectionActionButton
         ariaLabel={`Delete ${nodeId} ${sectionLabel} message`}
         className={toneClassNames.action}
+        isInert
         onClick={onDelete}
       >
         <CircleMinus className="size-3.5" />

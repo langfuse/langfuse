@@ -19,6 +19,7 @@ import {
 import { cn } from "@/src/utils/tailwind";
 
 const playgroundActionButtonClassName = `${spielwieseHeaderButtonBaseClassName} inline-flex h-6 items-center gap-1.25 rounded-[10px] py-0 pr-2 pl-1.5 text-[11px] font-medium`;
+const playgroundBlockedActionButtonClassName = `${playgroundActionButtonClassName} pointer-events-none cursor-default`;
 
 function PlaygroundSurface({
   headerAccessory,
@@ -128,7 +129,7 @@ function PlaygroundSurface({
         data-testid="spielwiese-playground-terminal-shell"
       >
         <div
-          className="bg-background relative flex min-h-full w-full min-w-0 flex-1 flex-col overflow-visible rounded-[var(--canvas-pane-inner-radius)] px-2.5 pt-0 pb-[6px] after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[6px] after:bg-[#F3F3F4] after:content-['']"
+          className="bg-background relative flex min-h-full w-full min-w-0 flex-1 flex-col overflow-visible rounded-[var(--canvas-pane-inner-radius)] px-2.5 pt-0 pb-0"
           data-testid="spielwiese-playground-terminal-surface"
         >
           <div
@@ -145,9 +146,11 @@ function PlaygroundSurface({
               data-testid="spielwiese-playground-actions"
             >
               <Button
-                className={playgroundActionButtonClassName}
+                aria-disabled="true"
+                className={playgroundBlockedActionButtonClassName}
                 data-testid="spielwiese-playground-history-button"
                 size="sm"
+                tabIndex={-1}
                 variant="ghost"
               >
                 <History aria-hidden="true" className="size-3 shrink-0" />

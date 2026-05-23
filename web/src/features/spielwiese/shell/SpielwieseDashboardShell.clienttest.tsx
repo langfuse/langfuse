@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { SpielwieseDashboardShell } from "./SpielwieseDashboardShell";
 import {
@@ -21,6 +22,132 @@ const originalMatchMedia = window.matchMedia;
 afterEach(() => {
   window.matchMedia = originalMatchMedia;
 });
+
+function setElementRect(
+  element: HTMLElement,
+  rect: {
+    height: number;
+    left: number;
+    top: number;
+    width: number;
+  },
+) {
+  const domRect = {
+    bottom: rect.top + rect.height,
+    height: rect.height,
+    left: rect.left,
+    right: rect.left + rect.width,
+    toJSON: () => ({}),
+    top: rect.top,
+    width: rect.width,
+    x: rect.left,
+    y: rect.top,
+  } as DOMRect;
+
+  Object.defineProperty(element, "getBoundingClientRect", {
+    configurable: true,
+    value: () => domRect,
+  });
+}
+
+function renderClickGuideShell({
+  includeCoveredAction = false,
+}: {
+  includeCoveredAction?: boolean;
+} = {}) {
+  renderShell(
+    <div data-testid="spielwiese-empty-click-surface">
+      <button data-testid="spielwiese-functional-action" type="button">
+        Functional action
+      </button>
+      <button
+        aria-disabled="true"
+        data-testid="spielwiese-disabled-action"
+        type="button"
+      >
+        Disabled action
+      </button>
+      {includeCoveredAction ? (
+        <button data-testid="spielwiese-covered-action" type="button">
+          Covered action
+        </button>
+      ) : null}
+    </div>,
+  );
+
+  setElementRect(screen.getByTestId("spielwiese-shell"), {
+    height: 480,
+    left: 0,
+    top: 0,
+    width: 640,
+  });
+  setElementRect(screen.getByTestId("spielwiese-functional-action"), {
+    height: 32,
+    left: 120,
+    top: 96,
+    width: 148,
+  });
+  setElementRect(screen.getByTestId("spielwiese-disabled-action"), {
+    height: 32,
+    left: 288,
+    top: 96,
+    width: 132,
+  });
+
+  if (includeCoveredAction) {
+    setElementRect(screen.getByTestId("spielwiese-covered-action"), {
+      height: 32,
+      left: 440,
+      top: 96,
+      width: 124,
+    });
+  }
+}
+
+function withCoveredActionHitTestMock({
+  coveredAction,
+  emptySurface,
+  functionalAction,
+  run,
+}: {
+  coveredAction: HTMLElement;
+  emptySurface: HTMLElement;
+  functionalAction: HTMLElement;
+  run: () => void;
+}) {
+  const originalElementFromPoint = document.elementFromPoint;
+
+  Object.defineProperty(document, "elementFromPoint", {
+    configurable: true,
+    value: (x: number, y: number) => {
+      const coveredRect = coveredAction.getBoundingClientRect();
+
+      if (
+        x >= coveredRect.left &&
+        x <= coveredRect.right &&
+        y >= coveredRect.top &&
+        y <= coveredRect.bottom
+      ) {
+        return emptySurface;
+      }
+
+      return functionalAction;
+    },
+  });
+
+  try {
+    run();
+  } finally {
+    if (originalElementFromPoint) {
+      Object.defineProperty(document, "elementFromPoint", {
+        configurable: true,
+        value: originalElementFromPoint,
+      });
+    } else {
+      Reflect.deleteProperty(document, "elementFromPoint");
+    }
+  }
+}
 
 function expectShellChromeBackground() {
   expect(screen.getByTestId("spielwiese-shell").className).toContain(
@@ -236,5 +363,94 @@ describe("SpielwieseDashboardShell chrome keeps the sidebar toggles active", () 
     expect(shellRoot.getAttribute("data-left-collapsed")).toBe("true");
     expect(shellRoot.getAttribute("data-right-open")).toBe("false");
     expect(screen.queryByTestId("spielwiese-mobile-backdrop")).toBeNull();
+  });
+});
+
+describe("SpielwieseDashboardShell click guide", () => {
+  it("flashes blue hotspots when a click misses enabled controls", () => {
+    renderClickGuideShell();
+
+    fireEvent.click(screen.getByTestId("spielwiese-empty-click-surface"));
+
+    const overlay = screen.getByTestId("spielwiese-click-guide-overlay");
+    const targets = screen.getAllByTestId("spielwiese-click-guide-target");
+
+    expect(overlay.getAttribute("aria-hidden")).toBe("true");
+    expect(targets).toHaveLength(1);
+    expect(targets[0]?.className).toContain(
+      "animate-spielwiese-click-guide-pulse",
+    );
+    expect(targets[0]?.className).toContain("border-[rgba(0,113,227,0.28)]");
+    expect(targets[0]?.className).toContain("bg-[rgba(0,113,227,0.025)]");
+    expect(targets[0]?.style.left).toBe("120px");
+    expect(targets[0]?.style.top).toBe("96px");
+    expect(targets[0]?.style.width).toBe("148px");
+    expect(targets[0]?.style.height).toBe("32px");
+  });
+
+  it("keeps hotspots aligned when the shell scrolls", () => {
+    renderClickGuideShell();
+
+    fireEvent.click(screen.getByTestId("spielwiese-empty-click-surface"));
+
+    expect(screen.getByTestId("spielwiese-click-guide-target").style.top).toBe(
+      "96px",
+    );
+
+    setElementRect(screen.getByTestId("spielwiese-functional-action"), {
+      height: 32,
+      left: 120,
+      top: 156,
+      width: 148,
+    });
+
+    fireEvent.scroll(screen.getByTestId("spielwiese-shell"));
+
+    expect(screen.getByTestId("spielwiese-click-guide-target").style.top).toBe(
+      "156px",
+    );
+  });
+});
+
+describe("SpielwieseDashboardShell click guide hit testing", () => {
+  it("does not flash controls that cannot receive pointer clicks", () => {
+    renderClickGuideShell({ includeCoveredAction: true });
+
+    const coveredAction = screen.getByTestId("spielwiese-covered-action");
+    const emptySurface = screen.getByTestId("spielwiese-empty-click-surface");
+    const functionalAction = screen.getByTestId("spielwiese-functional-action");
+
+    withCoveredActionHitTestMock({
+      coveredAction,
+      emptySurface,
+      functionalAction,
+      run: () => {
+        fireEvent.click(emptySurface);
+
+        const targets = screen.getAllByTestId("spielwiese-click-guide-target");
+
+        expect(targets).toHaveLength(1);
+        expect(targets[0]?.style.left).toBe("120px");
+      },
+    });
+  });
+
+  it("does not flash the click guide when clicking an enabled control", () => {
+    renderClickGuideShell();
+
+    fireEvent.click(screen.getByTestId("spielwiese-functional-action"));
+
+    expect(screen.queryByTestId("spielwiese-click-guide-overlay")).toBeNull();
+  });
+
+  it("treats disabled controls as missed clicks", () => {
+    renderClickGuideShell();
+
+    fireEvent.click(screen.getByTestId("spielwiese-disabled-action"));
+
+    expect(screen.getByTestId("spielwiese-click-guide-overlay")).toBeTruthy();
+    expect(screen.getAllByTestId("spielwiese-click-guide-target")).toHaveLength(
+      1,
+    );
   });
 });

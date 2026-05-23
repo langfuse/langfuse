@@ -1,12 +1,22 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import {
+  currentDashboardImageMarker,
+  setupMomentImageMarker,
+  SpielwieseIntroCurrentDashboardImage,
+  SpielwieseIntroSetupMomentImage,
+  SpielwieseIntroVideoPlaceholder,
+  videoPlaceholderMarker,
+} from "../components/SpielwieseIntroMedia";
 import { SpielwieseIntroTimelineEntries } from "../components/SpielwieseIntroTimelineEntries";
 import {
   type SpielwieseIntroTimelineEntry,
   spielwieseSetupMomentContent,
 } from "../components/spielwieseSetupMomentContent";
+import { preloadSpielwieseSignUpShader } from "../onboarding/components/spielwieseSignUpShaderPreload";
 import { spielwieseLightThemeStyle } from "../spielwieseLightTheme";
+
+preloadSpielwieseSignUpShader();
 
 const introLinkClassName =
   "text-[rgba(17,17,17,1)] transition-opacity duration-150 hover:opacity-70";
@@ -14,8 +24,6 @@ const colophonLinkClassName =
   "border-b border-[rgba(0,0,0,0.18)] pb-[0.05rem] text-[rgba(0,0,0,0.46)] transition-[color,border-color] duration-150 hover:border-[rgba(0,0,0,0.32)] hover:text-[rgba(0,0,0,0.68)]";
 const introSectionTitleClassName =
   "text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(0,0,0,0.4)]";
-const setupMomentImageMarker = "[ image of setup, aha, habit moment ]";
-const videoPlaceholderMarker = "[ video placeholder ]";
 const colophonUrlPattern = /\[([^\]]+)\]/g;
 
 function isCompactIntroSection(title: string) {
@@ -99,46 +107,6 @@ function renderColophonParagraph(paragraph: string): ReactNode[] {
   return nodes;
 }
 
-function IntroSetupMomentImage() {
-  return (
-    <div
-      className="overflow-hidden rounded-[1rem] border border-[rgba(0,0,0,0.08)] bg-[rgba(247,247,247,0.72)]"
-      data-testid="spielwiese-intro-setup-moment-image"
-    >
-      <Image
-        alt="Setup, aha, and habit moment sketch"
-        className="block h-auto w-full"
-        height={594}
-        priority
-        sizes="(max-width: 640px) calc(100vw - 2.5rem), 550px"
-        src="/spielwiese/setup-aha-habit-moment.png"
-        width={1698}
-      />
-    </div>
-  );
-}
-
-function IntroVideoPlaceholder() {
-  return (
-    <div
-      className="overflow-hidden rounded-[1rem] border border-[rgba(0,0,0,0.08)] bg-[rgba(247,247,247,0.7)]"
-      data-testid="spielwiese-intro-video-shell"
-    >
-      <div className="relative w-full" style={{ paddingBottom: "62.9%" }}>
-        <iframe
-          allow="clipboard-write; encrypted-media; picture-in-picture"
-          allowFullScreen
-          className="absolute inset-0 h-full w-full rounded-[1rem] border-0"
-          data-testid="spielwiese-intro-video-embed"
-          loading="lazy"
-          src="https://supercut.ai/embed/evren/oytU71kWAMHfHJtASg8NA2?embed=full"
-          title="Langfuse Redesign Concept"
-        />
-      </div>
-    </div>
-  );
-}
-
 function IntroTextItem({
   isColophon,
   paragraph,
@@ -147,11 +115,15 @@ function IntroTextItem({
   paragraph: string;
 }) {
   if (paragraph === setupMomentImageMarker) {
-    return <IntroSetupMomentImage />;
+    return <SpielwieseIntroSetupMomentImage />;
+  }
+
+  if (paragraph === currentDashboardImageMarker) {
+    return <SpielwieseIntroCurrentDashboardImage />;
   }
 
   if (paragraph === videoPlaceholderMarker) {
-    return <IntroVideoPlaceholder />;
+    return <SpielwieseIntroVideoPlaceholder />;
   }
 
   const introTextItemClassName = `max-w-[66ch] text-sm/5 font-[460] tracking-[-0.0056rem] text-pretty text-[rgba(17,17,17,1)] ${
@@ -255,12 +227,12 @@ function IntroArticle() {
         </div>
         <p className="text-right text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(0,0,0,0.4)]">
           <a
-            className={introLinkClassName}
+            className={colophonLinkClassName}
             href="https://github.com/langfuse/langfuse/pull/13133"
             rel="noreferrer"
             target="_blank"
           >
-            Link to PR
+            link to PR
           </a>
         </p>
         <IntroRoadmapItems />
@@ -275,6 +247,10 @@ function IntroArticle() {
 }
 
 function IntroFooter() {
+  function handleOnboardingLinkIntent() {
+    preloadSpielwieseSignUpShader();
+  }
+
   return (
     <footer className="pt-10 pb-20" data-testid="spielwiese-intro-footer">
       <div className="grid justify-items-center gap-3 text-center">
@@ -285,6 +261,9 @@ function IntroFooter() {
           className="inline-flex h-8 shrink-0 items-center justify-center rounded-full border border-black/8 bg-white px-3 text-sm/5 font-medium tracking-[-0.0056rem] text-[rgba(17,17,17,1)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-[transform,box-shadow,opacity] duration-150 hover:opacity-84 hover:shadow-[0_2px_4px_rgba(15,23,42,0.08)] active:scale-[0.985]"
           data-testid="spielwiese-intro-enter-link"
           href="/dev/spielwiese/onboarding"
+          onFocus={handleOnboardingLinkIntent}
+          onMouseEnter={handleOnboardingLinkIntent}
+          onPointerDown={handleOnboardingLinkIntent}
         >
           Open onboarding
         </Link>

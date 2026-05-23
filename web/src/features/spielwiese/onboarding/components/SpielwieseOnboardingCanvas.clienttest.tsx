@@ -376,31 +376,9 @@ it("reveals the role preview, stages model selection, and then resumes the route
   expect(stepLayer.className).not.toContain(
     "animate-spielwiese-onboarding-scene-exit",
   );
-  expect(
-    screen.getByTestId("spielwiese-onboarding-role-dashboard-handoff"),
-  ).toBeTruthy();
-  expect(
-    screen.getByTestId("spielwiese-onboarding-role-dashboard-handoff-node"),
-  ).toBeTruthy();
-  expect(
-    screen.getByTestId("spielwiese-onboarding-role-dashboard-handoff-modal"),
-  ).toBeTruthy();
-  expect(
-    screen.getByTestId("spielwiese-onboarding-role-dashboard-handoff-veil"),
-  ).toBeTruthy();
-  expect(push).not.toHaveBeenCalled();
-
-  await act(async () => {
-    jest.runOnlyPendingTimers();
-    await Promise.resolve();
-  });
-
   expect(consumeOnboardingDashboardHandoff()).toEqual(
     expect.objectContaining({
       modelValue: "Claude Opus 4.6",
-      roleNodeHandoff: expect.objectContaining({
-        targetNodeId: "vision-agent",
-      }),
       systemPromptValue: "Act as if you were a senior business strategist",
       transitionKind: "role-flow",
     }),
@@ -414,7 +392,7 @@ it("reveals the role preview, stages model selection, and then resumes the route
   );
 });
 
-it("lets the role handoff freeze at a custom lift offset for tuning", async () => {
+it("ignores legacy role handoff debug params when moving into the dashboard", async () => {
   jest.useFakeTimers();
   window.history.replaceState(
     {},
@@ -453,17 +431,14 @@ it("lets the role handoff freeze at a custom lift offset for tuning", async () =
     ),
   );
 
-  await act(async () => {
-    jest.runOnlyPendingTimers();
-    await Promise.resolve();
-  });
-
-  expect(push).not.toHaveBeenCalled();
-  const handoffTransform = screen.getByTestId(
-    "spielwiese-onboarding-role-dashboard-handoff-node",
-  ).style.transform;
-
-  expect(handoffTransform).toContain("-88px");
-  expect(handoffTransform).toContain("scale(");
-  expect(handoffTransform).not.toContain("scaleX(");
+  expect(
+    screen.queryByTestId("spielwiese-onboarding-role-dashboard-handoff"),
+  ).toBeNull();
+  expect(push).toHaveBeenLastCalledWith(
+    "/dev/spielwiese/dashboard?debugRoleLiftY=88&debugFreezeRoleHandoff=1",
+    undefined,
+    {
+      shallow: true,
+    },
+  );
 });

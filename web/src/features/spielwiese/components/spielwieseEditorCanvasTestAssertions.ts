@@ -27,6 +27,9 @@ export function expectInlineEditingShell({
   expect(titleControl.contains(modelInput)).toBe(true);
   expect(systemInput.className).toContain("[field-sizing:content]");
   expect(toolCreatorButton.textContent).toContain("any");
+  expect(toolCreatorButton.getAttribute("aria-disabled")).toBe("true");
+  expect(toolCreatorButton.getAttribute("tabindex")).toBe("-1");
+  expect(toolCreatorButton.className).toContain("pointer-events-none");
   expect(screen.queryByLabelText("vision-agent tools")).toBeNull();
   expect(systemInput.getAttribute("rows")).toBe("1");
 }

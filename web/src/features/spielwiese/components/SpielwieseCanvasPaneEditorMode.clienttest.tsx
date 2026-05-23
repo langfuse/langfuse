@@ -57,7 +57,6 @@ function getJsonSkillHelperElements() {
     copyIcon: copyButton.querySelector("svg"),
     helper: screen.getByTestId("spielwiese-canvas-json-skill-command"),
     jsonInput: screen.getByTestId("spielwiese-canvas-json-input"),
-    label: screen.getByTestId("spielwiese-canvas-json-skill-command-label"),
     tooltip: screen.getByTestId("spielwiese-canvas-json-skill-command-tooltip"),
   };
 }
@@ -66,39 +65,33 @@ function expectJsonSkillHelperChrome({
   copyButton,
   copyIcon,
   helper,
-  label,
   tooltip,
 }: ReturnType<typeof getJsonSkillHelperElements>) {
   expect(helper.className).not.toContain("bg-[#F7F7F7]");
   expect(helper.className).toContain("group/json-skill-command");
-  expect(helper.className).toContain("hover:max-w-[20rem]");
-  expect(helper.className).toContain("duration-300");
-  expect(helper.className).toContain("hover:duration-[560ms]");
+  expect(helper.className).not.toContain("focus-within:max-w-[20rem]");
+  expect(helper.className).not.toContain("hover:max-w-[20rem]");
+  expect(helper.className).not.toContain("transition-[max-width,opacity]");
+  expect(helper.className).not.toContain("duration-300");
+  expect(helper.className).not.toContain("focus-within:duration-[560ms]");
+  expect(helper.className).not.toContain("hover:duration-[560ms]");
   expect(copyButton.className).toContain("h-6");
   expect(copyButton.className).toContain("gap-0");
   expect(copyButton.className).toContain("bg-transparent");
   expect(copyButton.className).not.toContain("bg-white");
-  expect(copyButton.textContent).toContain("Copy Skill install command");
+  expect(copyButton.textContent).not.toContain("Copy Skill install command");
   expect(copyIcon?.getAttribute("class")).toContain("size-3.5");
   expect(copyIcon?.getAttribute("class")).toContain("stroke-[2.2px]");
-  expect(copyIcon?.getAttribute("class")).toContain("-translate-x-[3px]");
-  expect(copyIcon?.getAttribute("class")).toContain(
+  expect(copyIcon?.getAttribute("class")).not.toContain("-translate-x-[3px]");
+  expect(copyIcon?.getAttribute("class")).not.toContain(
+    "group-focus-within/json-skill-command:translate-x-0",
+  );
+  expect(copyIcon?.getAttribute("class")).not.toContain(
     "group-hover/json-skill-command:translate-x-0",
   );
-  expect(label.className).toContain("pl-px");
-  expect(label.className).toContain("max-w-0");
-  expect(label.className).toContain("duration-300");
-  expect(label.className).toContain("opacity-0");
-  expect(label.className).toContain("transition-[max-width,opacity]");
-  expect(label.className).toContain(
-    "group-hover/json-skill-command:max-w-[14rem]",
-  );
-  expect(label.className).toContain(
-    "group-hover/json-skill-command:opacity-100",
-  );
-  expect(label.className).toContain(
-    "group-hover/json-skill-command:duration-[560ms]",
-  );
+  expect(
+    screen.queryByTestId("spielwiese-canvas-json-skill-command-label"),
+  ).toBeNull();
   expect(tooltip.getAttribute("role")).toBe("tooltip");
   expect(tooltip.textContent).toContain("generate valid canvas JSON");
   expect(tooltip.textContent).toContain("Docs");
@@ -124,7 +117,10 @@ it("switches between builder mode and JSON mode and applies valid JSON edits bac
   expect(editorModeHeader.className).toContain("px-2");
   expect(editorModeHeader.className).toContain("justify-between");
   expect(editorModeHeader.className).toContain("-mx-2");
-  expect(editorModeHeader.className).toContain("border-b");
+  expect(editorModeHeader.className).not.toContain("border-b");
+  expect(editorModeHeader.className).toContain(
+    "rounded-t-[var(--canvas-pane-inner-radius)]",
+  );
   expect(editorModeHeader.className).toContain("bg-[rgba(251,251,251,0.82)]");
   expect(editorModeHeader.className).toContain("backdrop-blur");
   expect(builderModeButton.getAttribute("aria-pressed")).toBe("true");
@@ -171,14 +167,13 @@ it("shows the JSON skill command helper only in JSON mode and copies the scaffol
   const { copyButton, helper, jsonInput, tooltip } =
     getJsonSkillHelperElements();
 
-  const { copyIcon, label } = getJsonSkillHelperElements();
+  const { copyIcon } = getJsonSkillHelperElements();
 
   expectJsonSkillHelperChrome({
     copyButton,
     copyIcon,
     helper,
     jsonInput,
-    label,
     tooltip,
   });
 
@@ -189,20 +184,28 @@ it("shows the JSON skill command helper only in JSON mode and copies the scaffol
   );
 });
 
-it("keeps the copy label hidden until the helper itself is hovered", () => {
+it("never reveals copy helper text when the helper is hovered or clicked", () => {
   renderCanvas();
 
   fireEvent.click(getEditorModeButtons().jsonModeButton);
 
-  const { helper, label } = getJsonSkillHelperElements();
+  const { copyButton, helper } = getJsonSkillHelperElements();
 
-  expect(helper.className).toContain("max-w-[2.75rem]");
-  expect(label.className).toContain("opacity-0");
+  expect(
+    screen.queryByTestId("spielwiese-canvas-json-skill-command-label"),
+  ).toBeNull();
+  expect(copyButton.textContent).not.toContain("Copy Skill install command");
 
   fireEvent.mouseEnter(helper);
+  fireEvent.click(copyButton);
 
-  expect(helper.className).toContain("hover:max-w-[20rem]");
-  expect(label.className).toContain(
+  expect(helper.className).not.toContain("hover:max-w-[20rem]");
+  expect(helper.className).not.toContain("focus-within:max-w-[20rem]");
+  expect(copyButton.textContent).not.toContain("Copy Skill install command");
+  expect(
+    screen.queryByTestId("spielwiese-canvas-json-skill-command-label"),
+  ).toBeNull();
+  expect(helper.className).not.toContain(
     "group-hover/json-skill-command:opacity-100",
   );
 });

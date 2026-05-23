@@ -28,6 +28,7 @@ const paneModeToggleButtonClassName =
 
 const paneModeToggleButtonActiveClassName =
   "bg-white text-[#202427] shadow-[0_1px_2px_rgba(15,23,42,0.08)]";
+const paneModeToggleButtonInertClassName = "pointer-events-none cursor-default";
 const paneModeTooltipClassName =
   "text-foreground/72 pointer-events-none invisible absolute top-full left-0 z-20 mt-2 w-[17rem] translate-y-1 rounded-[12px] bg-[rgba(255,255,255,0.98)] px-3 py-2 text-left text-[0.6875rem] leading-[1.05rem] font-normal opacity-0 shadow-[0_16px_40px_rgba(15,23,42,0.12),0_4px_14px_rgba(15,23,42,0.06)] backdrop-blur-sm transition-[opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] group-focus-within/pane-mode-tooltip:pointer-events-auto group-focus-within/pane-mode-tooltip:visible group-focus-within/pane-mode-tooltip:translate-y-0 group-focus-within/pane-mode-tooltip:opacity-100 group-hover/pane-mode-tooltip:pointer-events-auto group-hover/pane-mode-tooltip:visible group-hover/pane-mode-tooltip:translate-y-0 group-hover/pane-mode-tooltip:opacity-100";
 
@@ -63,18 +64,22 @@ function CanvasPaneModeToggle({
       {options.map((option) => {
         const Icon = option.icon;
         const isActive = option.id === activeMode;
+        const isInert = option.id === "evaluation";
 
         return (
           <button
+            aria-disabled={isInert ? true : undefined}
             aria-label={option.label}
             aria-pressed={isActive}
             className={cn(
               paneModeToggleButtonClassName,
+              isInert && paneModeToggleButtonInertClassName,
               isActive && paneModeToggleButtonActiveClassName,
             )}
             data-testid={`spielwiese-canvas-pane-mode-${option.id}`}
             key={option.id}
-            onClick={() => onModeChange(option.id)}
+            tabIndex={isInert ? -1 : undefined}
+            onClick={isInert ? undefined : () => onModeChange(option.id)}
             type="button"
           >
             <Icon className="size-3 shrink-0" />

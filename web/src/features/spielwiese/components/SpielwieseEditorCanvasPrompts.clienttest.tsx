@@ -200,7 +200,7 @@ describe("SpielwieseEditorCanvas tool messages", () => {
     expect(within(visionNode).getByDisplayValue(/"kcal": 208/)).toBeTruthy();
   });
 
-  it("opens the add-tool popup from the node header", () => {
+  it("keeps the add-tool trigger inert in the prototype header", () => {
     const visionNode = renderVisionNode();
     const createToolButton = within(visionNode).getByRole("button", {
       name: "Create tool",
@@ -208,14 +208,11 @@ describe("SpielwieseEditorCanvas tool messages", () => {
 
     fireEvent.click(createToolButton);
 
-    const popup = screen.getByTestId("spielwiese-tool-creator-popup");
-
-    expect(popup).toBeTruthy();
-    expect(popup.className).toContain("border-0");
-    expect(popup.className).toContain("shadow-none");
-    expect(screen.getByText("Add tool")).toBeTruthy();
-    expect(screen.getByDisplayValue("get_weather")).toBeTruthy();
-    expect(screen.getByText("Connect to endpoint")).toBeTruthy();
+    expect(createToolButton.getAttribute("aria-disabled")).toBe("true");
+    expect(createToolButton.getAttribute("tabindex")).toBe("-1");
+    expect(createToolButton.className).toContain("pointer-events-none");
+    expect(createToolButton.className).toContain("cursor-default");
+    expect(screen.queryByTestId("spielwiese-tool-creator-popup")).toBeNull();
     expect(
       within(visionNode).queryByLabelText("vision-agent tools"),
     ).toBeNull();
@@ -223,25 +220,31 @@ describe("SpielwieseEditorCanvas tool messages", () => {
 });
 
 describe("SpielwieseEditorCanvas prompt section controls", () => {
-  it("lets a node delete a prompt section", () => {
+  it("keeps the delete prompt-section control inert", () => {
     const visionNode = renderVisionNode();
 
     fireEvent.click(getResponseFormatInsertTrigger(visionNode));
     fireEvent.click(
       within(visionNode).getByRole("button", { name: "Assistant" }),
     );
-    fireEvent.click(
-      within(visionNode).getByLabelText(
-        "Delete vision-agent How the assistant should reply message",
-      ),
+    const deleteButton = within(visionNode).getByLabelText(
+      "Delete vision-agent How the assistant should reply message",
     );
+    fireEvent.click(deleteButton);
 
+    expect(deleteButton.getAttribute("aria-disabled")).toBe("true");
+    expect(deleteButton.getAttribute("tabindex")).toBe("-1");
+    expect(deleteButton.className).toContain("pointer-events-none");
     expect(
-      within(visionNode).queryByLabelText(
+      within(visionNode).getByLabelText(
         "vision-agent How the assistant should reply",
       ),
-    ).toBeNull();
-    expect(getPromptSectionOrder(visionNode)).toEqual(["user", "system"]);
+    ).toBeTruthy();
+    expect(getPromptSectionOrder(visionNode)).toEqual([
+      "user",
+      "system",
+      "assistant",
+    ]);
   });
 
   it("lets a node move prompt sections to switch positions", () => {

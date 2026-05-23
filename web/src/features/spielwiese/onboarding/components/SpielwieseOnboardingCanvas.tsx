@@ -5,10 +5,6 @@ import { useRouter } from "next/router";
 import { type RoleStepScene } from "./SpielwieseOnboardingQuestionPanel";
 import { SpielwieseOnboardingStepScene } from "./SpielwieseOnboardingStepScene";
 import {
-  captureRoleHandoffTransition,
-  type RoleHandoffTransition,
-} from "../spielwieseRoleHandoff";
-import {
   appendCurrentSearchParams,
   EMPTY_ONBOARDING_ANSWERS,
   getActiveOnboardingStepIndex,
@@ -335,8 +331,6 @@ export function SpielwieseOnboardingCanvas({
   const [answers, setAnswers] = useState(EMPTY_ONBOARDING_ANSWERS);
   const [roleScene, setRoleScene] = useState<RoleStepScene>("gate");
   const [roleApiKeyValue, setRoleApiKeyValue] = useState("");
-  const [roleHandoffTransition, setRoleHandoffTransition] =
-    useState<RoleHandoffTransition | null>(null);
   const [roleModelValue, setRoleModelValue] = useState("Claude Opus 4.6");
   const [roleSystemPromptValue, setRoleSystemPromptValue] = useState("");
   const [stepExitAction, setStepExitAction] = useState<StepExitAction | null>(
@@ -358,13 +352,6 @@ export function SpielwieseOnboardingCanvas({
   const navigateToDashboardWithHandoff = () => {
     setOnboardingDashboardHandoff({
       modelValue: roleModelValue,
-      roleNodeHandoff: roleHandoffTransition
-        ? {
-            markupHtml: roleHandoffTransition.markup.nodeHtml,
-            sourceNodeRect: roleHandoffTransition.snapshot.sourceNodeRect,
-            targetNodeId: roleHandoffTransition.snapshot.targetNodeId,
-          }
-        : undefined,
       systemPromptValue: roleSystemPromptValue,
       transitionKind: "role-flow",
     });
@@ -382,17 +369,7 @@ export function SpielwieseOnboardingCanvas({
     });
   };
   const startRoleDashboardHandoff = () => {
-    const nextTransition = captureRoleHandoffTransition({
-      nodeId: "vision-agent",
-    });
-
-    if (!nextTransition) {
-      navigateToDashboardWithHandoff();
-      return;
-    }
-
-    setRoleHandoffTransition(nextTransition);
-    setRoleScene("handoff");
+    navigateToDashboardWithHandoff();
   };
   const {
     handleBack,
@@ -439,7 +416,7 @@ export function SpielwieseOnboardingCanvas({
       handleStepLayerAnimationEnd={handleStepLayerAnimationEnd}
       isStepTransitioningOut={isStepTransitioningOut}
       roleApiKeyValue={roleApiKeyValue}
-      roleHandoffTransition={roleHandoffTransition}
+      roleHandoffTransition={null}
       roleModelValue={roleModelValue}
       roleSystemPromptValue={roleSystemPromptValue}
       roleScene={roleScene}

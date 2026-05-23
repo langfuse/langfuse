@@ -1,5 +1,4 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { spielwieseSetupMomentContent } from "../components/spielwieseSetupMomentContent";
 import SpielwieseIntroPage from "./SpielwieseIntroPage";
 
 const renderIntroPage = () => render(<SpielwieseIntroPage />);
@@ -25,14 +24,16 @@ it("renders the intro header and roadmap metadata", () => {
   expect(root.style.getPropertyValue("--background")).toBe("0 0% 100%");
   expect(
     screen.getByRole("heading", {
-      name: "Langfuse redesign",
+      name: "Challenge: Redesign Langfuse in 7 days in code",
     }),
   ).toBeTruthy();
   expect(screen.getByText("by evren dombak")).toBeTruthy();
-  const prLink = screen.getByRole("link", { name: "Link to PR" });
+  const prLink = screen.getByRole("link", { name: "link to PR" });
   expect(prLink.getAttribute("href")).toBe(
     "https://github.com/langfuse/langfuse/pull/13133",
   );
+  expect(prLink.className).toContain("border-[rgba(0,0,0,0.18)]");
+  expect(prLink.className).toContain("text-[rgba(0,0,0,0.46)]");
   expect(screen.getByText("roadmap items:")).toBeTruthy();
   expect(screen.getByText("- improve onboarding experience")).toBeTruthy();
   expect(
@@ -76,6 +77,11 @@ it("renders the approach and outcome sections", () => {
   expect(
     screen.getByText(
       "today's langfuse is built around features: traces, evaluations, monitoring. yet, the users don't think in features but in the problem they're trying to solve.",
+    ),
+  ).toBeTruthy();
+  expect(
+    screen.getByText(
+      "also when a user enters the langfuse dashboard, the first thing they see is an empty data dashboard. i questioned that. why do users sign up for langfuse in the first place? what is their mental state?",
     ),
   ).toBeTruthy();
   expect(
@@ -261,23 +267,6 @@ it("renders the colophon links and skills subsection", () => {
         .firstChild as HTMLElement
     ).className,
   ).toContain("gap-0");
-});
-
-it("renders the embedded image and intro video inside the article", () => {
-  renderIntroPage();
-
-  expect(screen.getByTestId("spielwiese-intro-article")).toBeTruthy();
-  expect(
-    screen.getByTestId("spielwiese-intro-setup-moment-image"),
-  ).toBeTruthy();
-  expect(
-    screen.queryByText("[ image of setup, aha, habit moment ]"),
-  ).toBeNull();
-  expect(screen.getByTestId("spielwiese-intro-video-shell")).toBeTruthy();
-  expect(
-    screen.getByTestId("spielwiese-intro-video-embed").getAttribute("src"),
-  ).toBe("https://supercut.ai/embed/evren/oytU71kWAMHfHJtASg8NA2?embed=full");
-  expect(screen.queryByText(spielwieseSetupMomentContent.videoNote)).toBeNull();
 });
 
 it("renders the centered footer call to action", () => {

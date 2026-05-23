@@ -1,5 +1,11 @@
 /* eslint-disable max-lines */
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  type UIEvent,
+} from "react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 import { useSpielwieseVariablesPanelState } from "../components/useSpielwieseVariablesPanelState";
@@ -20,6 +26,40 @@ type SpielwieseDashboardShellProps = {
   shell: SpielwieseShellVM;
   variablesState?: SpielwieseVariablesPanelState;
 };
+
+type ClickGuideTarget = {
+  borderRadius: number;
+  height: number;
+  id: number;
+  left: number;
+  top: number;
+  width: number;
+};
+
+type ClickGuideState = {
+  pulseId: number;
+  targets: ClickGuideTarget[];
+};
+type SetClickGuideState = (
+  updater: (currentState: ClickGuideState | null) => ClickGuideState | null,
+) => void;
+
+const clickGuideTargetSelector = [
+  "button",
+  "a[href]",
+  "input",
+  "select",
+  "textarea",
+  '[role="button"]',
+].join(",");
+const clickGuideTargetInset = 0;
+const clickGuideHitTestPoints = [
+  { x: 0.5, y: 0.5 },
+  { x: 0.22, y: 0.5 },
+  { x: 0.78, y: 0.5 },
+  { x: 0.5, y: 0.22 },
+  { x: 0.5, y: 0.78 },
+];
 
 function getGridClassName(leftCollapsed: boolean, rightOpen: boolean) {
   if (!rightOpen) {
@@ -45,6 +85,229 @@ function isEditableEventTarget(target: EventTarget | null) {
     tagName === "textarea" ||
     tagName === "select" ||
     target.isContentEditable
+  );
+}
+
+function getClosestClickGuideTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return null;
+  }
+
+  return target.closest<HTMLElement>(clickGuideTargetSelector);
+}
+
+function isEnabledClickGuideTarget(element: HTMLElement) {
+  const style = window.getComputedStyle(element);
+
+  return (
+    !element.hasAttribute("disabled") &&
+    element.getAttribute("aria-disabled") !== "true" &&
+    style.pointerEvents !== "none"
+  );
+}
+
+function isVisibleClickGuideTarget({
+  element,
+  root,
+}: {
+  element: HTMLElement;
+  root: HTMLElement;
+}) {
+  if (!isEnabledClickGuideTarget(element)) {
+    return false;
+  }
+
+  let currentElement: HTMLElement | null = element;
+
+  while (currentElement) {
+    const style = window.getComputedStyle(currentElement);
+
+    if (
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      style.opacity === "0" ||
+      style.pointerEvents === "none"
+    ) {
+      return false;
+    }
+
+    if (currentElement === root) {
+      break;
+    }
+
+    currentElement = currentElement.parentElement;
+  }
+
+  const rect = element.getBoundingClientRect();
+
+  return (
+    rect.width >= 8 &&
+    rect.height >= 8 &&
+    isPointerReachableClickGuideTarget({ element, rect })
+  );
+}
+
+function isPointerReachableClickGuideTarget({
+  element,
+  rect,
+}: {
+  element: HTMLElement;
+  rect: DOMRect;
+}) {
+  if (typeof document.elementFromPoint !== "function") {
+    return true;
+  }
+
+  return clickGuideHitTestPoints.some((point) => {
+    const x = rect.left + rect.width * point.x;
+    const y = rect.top + rect.height * point.y;
+
+    if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) {
+      return false;
+    }
+
+    const topElement = document.elementFromPoint(x, y);
+
+    return (
+      topElement === element ||
+      Boolean(topElement && element.contains(topElement))
+    );
+  });
+}
+
+function getClickGuideTargetRect({
+  element,
+  index,
+  rootRect,
+}: {
+  element: HTMLElement;
+  index: number;
+  rootRect: DOMRect;
+}): ClickGuideTarget | null {
+  const rect = element.getBoundingClientRect();
+  const left = Math.max(rect.left, rootRect.left);
+  const top = Math.max(rect.top, rootRect.top);
+  const right = Math.min(rect.right, rootRect.right);
+  const bottom = Math.min(rect.bottom, rootRect.bottom);
+  const width = right - left;
+  const height = bottom - top;
+
+  if (width < 8 || height < 8) {
+    return null;
+  }
+
+  const borderRadius = Number.parseFloat(
+    window.getComputedStyle(element).borderRadius,
+  );
+
+  return {
+    borderRadius: Number.isFinite(borderRadius)
+      ? borderRadius + clickGuideTargetInset
+      : 12,
+    height: height + clickGuideTargetInset * 2,
+    id: index,
+    left: left - rootRect.left - clickGuideTargetInset,
+    top: top - rootRect.top - clickGuideTargetInset,
+    width: width + clickGuideTargetInset * 2,
+  };
+}
+
+function getClickGuideTargets(root: HTMLElement) {
+  const rootRect = root.getBoundingClientRect();
+
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(clickGuideTargetSelector),
+  )
+    .filter((element) => isVisibleClickGuideTarget({ element, root }))
+    .map((element, index) =>
+      getClickGuideTargetRect({ element, index, rootRect }),
+    )
+    .filter((target): target is ClickGuideTarget => Boolean(target));
+}
+
+function isFunctionalClickTarget(target: EventTarget | null) {
+  const clickGuideTarget = getClosestClickGuideTarget(target);
+
+  return clickGuideTarget ? isEnabledClickGuideTarget(clickGuideTarget) : false;
+}
+
+function createClickGuideState({
+  currentState,
+  root,
+}: {
+  currentState: ClickGuideState | null;
+  root: HTMLElement;
+}) {
+  const targets = getClickGuideTargets(root);
+
+  if (targets.length === 0) {
+    return null;
+  }
+
+  return {
+    pulseId: (currentState?.pulseId ?? 0) + 1,
+    targets,
+  };
+}
+
+function updateClickGuideTargets({
+  currentState,
+  root,
+}: {
+  currentState: ClickGuideState | null;
+  root: HTMLElement;
+}) {
+  if (!currentState) {
+    return null;
+  }
+
+  const targets = getClickGuideTargets(root);
+
+  if (targets.length === 0) {
+    return null;
+  }
+
+  return {
+    ...currentState,
+    targets,
+  };
+}
+
+function handleShellClickCapture({
+  event,
+  setClickGuideState,
+}: {
+  event: MouseEvent<HTMLElement>;
+  setClickGuideState: SetClickGuideState;
+}) {
+  if (isFunctionalClickTarget(event.target)) {
+    return;
+  }
+
+  const root = event.currentTarget;
+
+  setClickGuideState((currentState) =>
+    createClickGuideState({
+      currentState,
+      root,
+    }),
+  );
+}
+
+function handleShellScrollCapture({
+  event,
+  setClickGuideState,
+}: {
+  event: UIEvent<HTMLElement>;
+  setClickGuideState: SetClickGuideState;
+}) {
+  const root = event.currentTarget;
+
+  setClickGuideState((currentState) =>
+    updateClickGuideTargets({
+      currentState,
+      root,
+    }),
   );
 }
 
@@ -261,6 +524,25 @@ function getFinderProps({
   };
 }
 
+function getShellFrameEventHandlers({
+  isFinderOpen,
+  setClickGuideState,
+  setIsFinderOpen,
+}: {
+  isFinderOpen: boolean;
+  setClickGuideState: SetClickGuideState;
+  setIsFinderOpen: (value: boolean) => void;
+}) {
+  return {
+    onClickCapture: (event: MouseEvent<HTMLElement>) =>
+      handleShellClickCapture({ event, setClickGuideState }),
+    onKeyDownCapture: (event: KeyboardEvent<HTMLElement>) =>
+      handleShellKeyDownCapture({ event, isFinderOpen, setIsFinderOpen }),
+    onScrollCapture: (event: UIEvent<HTMLElement>) =>
+      handleShellScrollCapture({ event, setClickGuideState }),
+  };
+}
+
 function SmallScreenOverlay() {
   return (
     <div
@@ -272,7 +554,57 @@ function SmallScreenOverlay() {
   );
 }
 
+function ClickGuideOverlay({ state }: { state: ClickGuideState | null }) {
+  if (!state) {
+    return null;
+  }
+
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 z-[260] overflow-hidden"
+      data-testid="spielwiese-click-guide-overlay"
+      key={state.pulseId}
+    >
+      {state.targets.map((target) => (
+        <div
+          className="animate-spielwiese-click-guide-pulse absolute border border-[rgba(0,113,227,0.28)] bg-[rgba(0,113,227,0.025)] shadow-[0_0_0_1px_rgba(0,113,227,0.045),0_4px_10px_rgba(0,113,227,0.04)]"
+          data-testid="spielwiese-click-guide-target"
+          key={target.id}
+          style={{
+            borderRadius: `${target.borderRadius}px`,
+            height: `${target.height}px`,
+            left: `${target.left}px`,
+            top: `${target.top}px`,
+            width: `${target.width}px`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+type SpielwieseDashboardShellFrameProps = {
+  children: ReactNode;
+  clickGuideState: ClickGuideState | null;
+  dashboard: SpielwieseDashboardVM;
+  finderProps: Omit<SpielwieseHeaderFinderProps, "variant">;
+  gridClassName: string;
+  leftCollapsed: boolean;
+  mobileLeftOpen: boolean;
+  mobileRightOpen: boolean;
+  onClickCapture: (event: MouseEvent<HTMLElement>) => void;
+  onCloseMobilePanels: () => void;
+  onKeyDownCapture: (event: KeyboardEvent<HTMLElement>) => void;
+  onScrollCapture: (event: UIEvent<HTMLElement>) => void;
+  rightOpen: boolean;
+  shell: SpielwieseShellVM;
+  variablesState: SpielwieseVariablesPanelState;
+};
+
 function SpielwieseDashboardShellFrame({
+  children,
+  clickGuideState,
   dashboard,
   finderProps,
   gridClassName,
@@ -280,32 +612,22 @@ function SpielwieseDashboardShellFrame({
   mobileLeftOpen,
   mobileRightOpen,
   onCloseMobilePanels,
+  onClickCapture,
   onKeyDownCapture,
+  onScrollCapture,
   rightOpen,
   shell,
   variablesState,
-  children,
-}: {
-  children: ReactNode;
-  dashboard: SpielwieseDashboardVM;
-  gridClassName: string;
-  leftCollapsed: boolean;
-  mobileLeftOpen: boolean;
-  mobileRightOpen: boolean;
-  onCloseMobilePanels: () => void;
-  onKeyDownCapture: (event: KeyboardEvent<HTMLElement>) => void;
-  rightOpen: boolean;
-  shell: SpielwieseShellVM;
-  finderProps: Omit<SpielwieseHeaderFinderProps, "variant">;
-  variablesState: SpielwieseVariablesPanelState;
-}) {
+}: SpielwieseDashboardShellFrameProps) {
   return (
     <div
       className="text-foreground h-screen-with-banner relative flex flex-col overflow-hidden bg-[#F3F3F4] [--spielwiese-header-height:2.75rem] [--spielwiese-shell-offset:calc(var(--banner-offset)+var(--spielwiese-header-height))] sm:[--spielwiese-header-height:3rem]"
       data-left-collapsed={leftCollapsed}
       data-right-open={rightOpen}
       data-testid="spielwiese-shell"
+      onClickCapture={onClickCapture}
       onKeyDownCapture={onKeyDownCapture}
+      onScrollCapture={onScrollCapture}
     >
       <SmallScreenOverlay />
       <MobileSidebars
@@ -328,6 +650,7 @@ function SpielwieseDashboardShellFrame({
       >
         {children}
       </ShellBodyGrid>
+      <ClickGuideOverlay state={clickGuideState} />
     </div>
   );
 }
@@ -339,6 +662,8 @@ function SpielwieseDashboardShellLayout({
   variablesState,
 }: SpielwieseDashboardShellProps) {
   const [isFinderOpen, setIsFinderOpen] = useState(false);
+  const [clickGuideState, setClickGuideState] =
+    useState<ClickGuideState | null>(null);
   const resolvedVariablesState = useResolvedVariablesState({
     initialItems: dashboard.variablesPanel.items,
     variablesState,
@@ -350,9 +675,16 @@ function SpielwieseDashboardShellLayout({
     mobileRightOpen,
     rightOpen,
   } = useSpielwieseShell();
+  const frameEventHandlers = getShellFrameEventHandlers({
+    isFinderOpen,
+    setClickGuideState,
+    setIsFinderOpen,
+  });
 
   return (
     <SpielwieseDashboardShellFrame
+      {...frameEventHandlers}
+      clickGuideState={clickGuideState}
       dashboard={dashboard}
       finderProps={getFinderProps({
         dashboard,
@@ -365,13 +697,6 @@ function SpielwieseDashboardShellLayout({
       mobileLeftOpen={mobileLeftOpen}
       mobileRightOpen={mobileRightOpen}
       onCloseMobilePanels={closeMobilePanels}
-      onKeyDownCapture={(event) =>
-        handleShellKeyDownCapture({
-          event,
-          isFinderOpen,
-          setIsFinderOpen,
-        })
-      }
       rightOpen={rightOpen}
       shell={shell}
       variablesState={resolvedVariablesState}

@@ -9,3 +9,6 @@ export const spielwieseHeaderButtonSelectedClassName =
 
 export const spielwieseHeaderButtonAccentClassName =
   "bg-[rgba(250,245,241,0.96)] text-[#6F4124] border-[rgba(201,120,62,0.16)] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] hover:bg-[rgba(250,245,241,0.96)] hover:text-[#6F4124] hover:border-[rgba(201,120,62,0.18)]";
+
+export const spielwieseHeaderButtonInertClassName =
+  "pointer-events-none cursor-default";

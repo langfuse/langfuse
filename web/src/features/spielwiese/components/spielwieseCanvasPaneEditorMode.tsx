@@ -43,8 +43,7 @@ function CanvasJsonSkillCommand({ jsonValue }: { jsonValue: string }) {
   return (
     <div
       className={cn(
-        "group/json-skill-command ml-px inline-flex items-center overflow-hidden rounded-[8px] transition-[max-width,opacity] duration-300 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] focus-within:duration-[560ms] hover:duration-[560ms]",
-        "max-w-[2.75rem] opacity-100 focus-within:max-w-[20rem] hover:max-w-[20rem]",
+        "group/json-skill-command ml-px inline-flex items-center rounded-[8px] opacity-100",
       )}
       data-testid="spielwiese-canvas-json-skill-command"
     >
@@ -57,13 +56,7 @@ function CanvasJsonSkillCommand({ jsonValue }: { jsonValue: string }) {
         }}
         type="button"
       >
-        <Copy className="text-foreground/46 size-3.5 shrink-0 -translate-x-[3px] stroke-[2.2px] transition-[transform] duration-300 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] group-focus-within/json-skill-command:translate-x-0 group-hover/json-skill-command:translate-x-0 active:scale-[0.86]" />
-        <span
-          className="max-w-0 shrink-0 overflow-hidden pl-px whitespace-nowrap opacity-0 transition-[max-width,opacity] duration-300 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] group-focus-within/json-skill-command:max-w-[14rem] group-focus-within/json-skill-command:opacity-100 group-focus-within/json-skill-command:duration-[560ms] group-hover/json-skill-command:max-w-[14rem] group-hover/json-skill-command:opacity-100 group-hover/json-skill-command:duration-[560ms]"
-          data-testid="spielwiese-canvas-json-skill-command-label"
-        >
-          Copy Skill install command
-        </span>
+        <Copy className="text-foreground/46 size-3.5 shrink-0 stroke-[2.2px] active:scale-[0.86]" />
       </button>
       <div
         className="text-foreground/46 group/json-skill-tooltip relative inline-flex h-6 w-6 shrink-0 items-center justify-center outline-none after:absolute after:top-full after:right-0 after:h-2 after:w-[17rem] after:content-['']"

@@ -17,7 +17,10 @@ import {
   type ToolCreatorMode,
 } from "./SpielwieseToolCreatorPopupContent";
 import { SpielwieseHeaderStripTag } from "./SpielwieseHeaderStrip";
-import { spielwieseHeaderButtonStaticClassName } from "./spielwieseHeaderButtonStyles";
+import {
+  spielwieseHeaderButtonInertClassName,
+  spielwieseHeaderButtonStaticClassName,
+} from "./spielwieseHeaderButtonStyles";
 
 const toolCreatorModes = [
   { label: "Builder", value: "builder" },
@@ -132,13 +135,14 @@ export function SpielwieseToolCreatorPopup({
   return (
     <div className="relative shrink-0">
       <TriggerElement
+        aria-disabled="true"
         aria-label="Create tool"
-        className={cn(triggerClassName)}
+        className={cn(triggerClassName, spielwieseHeaderButtonInertClassName)}
         {...(variant === "row"
           ? { size: "sm", variant: "ghost" as const }
           : {})}
+        tabIndex={-1}
         type="button"
-        onClick={() => setIsOpen(true)}
       >
         <ToolCreatorTriggerContent
           summaryLabel={summaryLabel}

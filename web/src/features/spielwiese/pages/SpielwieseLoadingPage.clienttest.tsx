@@ -42,6 +42,17 @@ describe("SpielwieseLoadingPage", () => {
     expect(root.textContent).toBe("");
   });
 
+  it("renders page-shaped skeletons for each spielwiese route", () => {
+    for (const route of ["intro", "onboarding", "dashboard"] as const) {
+      const { unmount } = render(<SpielwieseLoadingPage route={route} />);
+
+      expect(
+        screen.getByTestId(`spielwiese-loading-${route}-skeleton`),
+      ).toBeTruthy();
+      unmount();
+    }
+  });
+
   it("keeps all spielwiese loading skeletons free of shadow styling", () => {
     for (const route of ["intro", "onboarding", "dashboard"] as const) {
       const { container, unmount } = render(
@@ -54,6 +65,19 @@ describe("SpielwieseLoadingPage", () => {
       expect(
         classNames.every((className) => !String(className).includes("shadow")),
       ).toBe(true);
+      unmount();
+    }
+  });
+
+  it("keeps spielwiese loading skeleton colors neutral instead of warm", () => {
+    for (const route of ["intro", "onboarding", "dashboard"] as const) {
+      const { container, unmount } = render(
+        <SpielwieseLoadingPage route={route} />,
+      );
+
+      expect(container.innerHTML).not.toMatch(
+        /91,71,55|183,150,116|255,251,247|255,250,245/i,
+      );
       unmount();
     }
   });

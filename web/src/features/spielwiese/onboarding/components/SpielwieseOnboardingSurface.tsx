@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/router";
 import { cn } from "@/src/utils/tailwind";
+import { importSpielwieseSignUpShader } from "./spielwieseSignUpShaderPreload";
 
 type SpielwieseOnboardingSurfaceProps = {
   children: ReactNode;
@@ -19,10 +20,10 @@ type SpielwieseOnboardingSurfaceProps = {
   topOverlay?: ReactNode;
 };
 
-const SpielwieseSignUpShader = dynamic(
-  () => import("./SpielwieseSignUpShader"),
-  { loading: () => null, ssr: false },
-);
+const SpielwieseSignUpShader = dynamic(importSpielwieseSignUpShader, {
+  loading: () => null,
+  ssr: false,
+});
 
 const isShaderRuntimeEnabled = process.env.NODE_ENV !== "test";
 
@@ -67,7 +68,10 @@ function SpielwieseOnboardingSurfaceBackdrop({
       <div className="relative size-full overflow-hidden rounded-[calc(var(--sign-up-stage-outer-radius)-2px)]">
         <div className="absolute inset-0 bg-linear-to-br from-[#f8f9fa] via-[#f3f4f6] to-[#eeeff1]" />
         {showShader && isShaderRuntimeEnabled ? (
-          <div className="absolute inset-0 opacity-70">
+          <div
+            className="absolute inset-0 opacity-70"
+            data-testid="spielwiese-onboarding-shader-layer"
+          >
             <SpielwieseSignUpShader paused={pauseShaderMotion} />
           </div>
         ) : null}

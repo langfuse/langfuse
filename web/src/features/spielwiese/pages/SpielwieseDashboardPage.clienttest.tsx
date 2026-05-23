@@ -148,22 +148,11 @@ describe("SpielwieseDashboardPage rendering", () => {
   });
 
   // eslint-disable-next-line max-lines-per-function
-  it("stages the role-flow handoff before settling into the seeded assistant and user nodes", () => {
+  it("renders the seeded role-flow dashboard without card handoff, top-card reveal, typing, or play glow", () => {
     jest.useFakeTimers();
 
     setOnboardingDashboardHandoff({
       modelValue: "Claude Opus 4.6",
-      roleNodeHandoff: {
-        markupHtml:
-          '<div data-testid="spielwiese-role-node-clone">Seeded role node</div>',
-        sourceNodeRect: {
-          height: 452,
-          left: 244,
-          top: 168,
-          width: 716,
-        },
-        targetNodeId: "vision-agent",
-      },
       systemPromptValue: "Act as if you were a senior business strategist",
       transitionKind: "role-flow",
     });
@@ -173,9 +162,6 @@ describe("SpielwieseDashboardPage rendering", () => {
     expect(screen.getAllByTestId("spielwiese-agent-node")).toHaveLength(1);
     const detachedUserDeck = screen.getByTestId(
       "vision-agent-detached-user-sections",
-    ) as HTMLElement;
-    const nodeHandoff = screen.getByTestId(
-      "spielwiese-onboarding-dashboard-node-handoff",
     ) as HTMLElement;
     const userInput = screen.getByLabelText(
       "vision-agent User message",
@@ -191,7 +177,9 @@ describe("SpielwieseDashboardPage rendering", () => {
     )[0] as HTMLElement;
 
     expect(internalArrow).toBeTruthy();
-    expect(nodeHandoff.style.opacity).toBe("1");
+    expect(
+      screen.queryByTestId("spielwiese-onboarding-dashboard-node-handoff"),
+    ).toBeNull();
     expect(
       screen.getByRole("button", { name: "vision-agent Model" }).textContent,
     ).toContain("Claude Opus 4.6");
@@ -202,24 +190,27 @@ describe("SpielwieseDashboardPage rendering", () => {
         ) as HTMLTextAreaElement
       ).value,
     ).toBe("Act as if you were a senior business strategist");
-    expect(detachedUserDeck.style.opacity).toBe("0");
-    expect(targetNodeDeck.style.opacity).toBe("0");
-    expect(userInput.value).toBe("");
+    expect(detachedUserDeck.style.opacity).toBe("");
+    expect(detachedUserDeck.style.transform).toBe("");
+    expect(detachedUserDeck.style.filter).toBe("");
+    expect(detachedUserDeck.style.transition).toBe("");
+    expect(targetNodeDeck.style.opacity).toBe("");
+    expect(userInput.value).toBe(
+      "Here you can type in user messages... try it out (delete me and type write something)",
+    );
+    expect(playButton.dataset.onboardingHighlight).toBeUndefined();
 
     act(() => {
-      jest.advanceTimersByTime(200);
-    });
-
-    expect(targetNodeDeck.style.opacity).toBe("1");
-
-    act(() => {
-      jest.advanceTimersByTime(3400);
+      jest.advanceTimersByTime(500);
     });
 
     expect(
       screen.queryByTestId("spielwiese-onboarding-dashboard-node-handoff"),
     ).toBeNull();
-    expect(detachedUserDeck.style.opacity).toBe("1");
+    expect(detachedUserDeck.style.opacity).toBe("");
+    expect(detachedUserDeck.style.transform).toBe("");
+    expect(detachedUserDeck.style.filter).toBe("");
+    expect(detachedUserDeck.style.transition).toBe("");
     expect(userInput.value).toBe(
       "Here you can type in user messages... try it out (delete me and type write something)",
     );
@@ -235,7 +226,8 @@ describe("SpielwieseDashboardPage rendering", () => {
       jest.advanceTimersByTime(360);
     });
 
-    expect(playButton.dataset.onboardingHighlight).toBe("true");
+    expect(playButton.dataset.onboardingHighlight).toBeUndefined();
+    expect(playButton.style.boxShadow).toBe("");
   });
 
   it("keeps user-only steps blank in the playground but includes the agent tag in the header", () => {

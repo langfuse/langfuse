@@ -210,7 +210,6 @@ type DetachedUserHeaderStripProps = Pick<
   | "onAgentNodeArchive"
   | "onPreviewHoverEnd"
   | "onPreviewHoverStart"
-  | "onToggleCompact"
   | "onTogglePreviewFocus"
   | "section"
 > & {
@@ -226,7 +225,6 @@ function DetachedUserHeaderStrip({
   onAgentNodeArchive,
   onPreviewHoverEnd,
   onPreviewHoverStart,
-  onToggleCompact,
   onTogglePreviewFocus,
   onToggleCollapse,
   section,
@@ -254,7 +252,7 @@ function DetachedUserHeaderStrip({
         onArchiveNode={() => onAgentNodeArchive?.(nodeId)}
         onPreviewHoverEnd={onPreviewHoverEnd}
         onPreviewHoverStart={onPreviewHoverStart}
-        onToggleCompact={onToggleCompact ?? onToggleCollapse}
+        onToggleCompact={onToggleCollapse}
         onTogglePreviewFocus={onTogglePreviewFocus}
         previewButtonLabel={`Preview ${nodeId} node`}
       />
@@ -271,17 +269,15 @@ export function SpielwieseDetachedUserMessageSectionRow({
   onPreviewHoverEnd,
   onPreviewHoverStart,
   onPromptSectionChange,
-  onToggleCompact,
   onTogglePreviewFocus,
   section,
   startCollapsed = false,
 }: SpielwieseDetachedUserMessageSectionRowProps) {
   const [uncontrolledCollapsed, setUncontrolledCollapsed] =
     useState(startCollapsed);
-  const isCollapsed = isCompact ?? uncontrolledCollapsed;
-  const toggleCollapsed = onToggleCompact
-    ? onToggleCompact
-    : () => setUncontrolledCollapsed((currentValue) => !currentValue);
+  const isCollapsed = Boolean(isCompact || uncontrolledCollapsed);
+  const toggleCollapsed = () =>
+    setUncontrolledCollapsed((currentValue) => !currentValue);
   const sectionHeader = (
     <DetachedUserHeaderStrip
       isCollapsed={isCollapsed}
@@ -290,7 +286,6 @@ export function SpielwieseDetachedUserMessageSectionRow({
       onAgentNodeArchive={onAgentNodeArchive}
       onPreviewHoverEnd={onPreviewHoverEnd}
       onPreviewHoverStart={onPreviewHoverStart}
-      onToggleCompact={onToggleCompact}
       onTogglePreviewFocus={onTogglePreviewFocus}
       onToggleCollapse={toggleCollapsed}
       section={section}
@@ -301,7 +296,8 @@ export function SpielwieseDetachedUserMessageSectionRow({
   return (
     <div
       className={cn(
-        "group flex w-full flex-col gap-0 overflow-visible pt-0 pb-0",
+        "group flex w-full flex-col gap-0 overflow-visible pt-0",
+        isCollapsed ? "pb-[2px]" : "pb-0",
         getMessageSectionRowRadiusClassName(section.id),
       )}
       data-section-id={section.id}

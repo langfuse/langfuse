@@ -59,6 +59,28 @@ function findPromptRowBySectionId(nodeElement: HTMLElement, sectionId: string) {
     .find((row) => row.getAttribute("data-section-id") === sectionId);
 }
 
+function getVisionAgentNode() {
+  const titleInput = screen.getByLabelText("vision-agent title");
+  const node = titleInput.closest(
+    '[data-testid="spielwiese-agent-node"]',
+  ) as HTMLElement | null;
+
+  if (!node) {
+    throw new Error("Expected the editable vision-agent node to render");
+  }
+
+  return node;
+}
+
+function getPromptPreviewTextMatches(
+  nodeElement: HTMLElement,
+  textPattern: RegExp,
+) {
+  return within(nodeElement)
+    .getAllByText(textPattern)
+    .filter((element) => element.tagName !== "TEXTAREA");
+}
+
 function openAnthropicHaikuPreview(panel: HTMLElement) {
   fireEvent.click(
     within(panel).getByRole("button", {
@@ -261,26 +283,49 @@ describe("SpielwieseEditorCanvas model picker", () => {
 });
 
 describe("SpielwieseEditorCanvas node collapse sections", () => {
-  it("lets each node minimize its prompt sections into single-row previews", () => {
+  it("lets each node minimize its prompt sections into single-row previews", async () => {
     renderCanvas();
-    const toggleButton = screen.getByRole("button", {
+    const visionNode = getVisionAgentNode();
+    const headerActions = within(visionNode).getByTestId(
+      "spielwiese-agent-node-header-actions",
+    );
+    const toggleButton = within(headerActions).getByRole("button", {
       name: "Minimize vision-agent node sections",
     });
 
     fireEvent.click(toggleButton);
 
-    const collapsedVisionNode = screen.getAllByTestId(
-      "spielwiese-agent-node",
-    )[0];
+    await waitFor(() => {
+      const nextVisionNode = getVisionAgentNode();
+      const nextHeaderActions = within(nextVisionNode).getByTestId(
+        "spielwiese-agent-node-header-actions",
+      );
+
+      expect(
+        within(nextHeaderActions).getByRole("button", {
+          name: "Maximize vision-agent node sections",
+        }),
+      ).toBeTruthy();
+    });
+
+    const collapsedVisionNode = getVisionAgentNode();
     const collapsedInstructionsRow = findPromptRowBySectionId(
       collapsedVisionNode,
       "system",
     );
-    const collapsedToggleButton = screen.getByRole("button", {
-      name: "Maximize vision-agent node sections",
-    });
+    const collapsedHeaderActions = within(collapsedVisionNode).getByTestId(
+      "spielwiese-agent-node-header-actions",
+    );
+    const collapsedToggleButton = within(collapsedHeaderActions).getByRole(
+      "button",
+      {
+        name: "Maximize vision-agent node sections",
+      },
+    );
 
-    expect(screen.queryByLabelText("vision-agent User message")).toBeNull();
+    expect(
+      within(collapsedVisionNode).queryByLabelText("vision-agent User message"),
+    ).toBeNull();
     expect(collapsedInstructionsRow).toBeTruthy();
     expect(
       within(collapsedInstructionsRow ?? collapsedVisionNode).getByLabelText(
@@ -306,7 +351,7 @@ describe("SpielwieseEditorCanvas node collapse sections", () => {
 describe("SpielwieseEditorCanvas node collapse detached user", () => {
   it("keeps the detached user input shell inside the rounded row shell", () => {
     renderCanvas();
-    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const visionNode = getVisionAgentNode();
     const detachedUserSections = within(visionNode).getByTestId(
       "vision-agent-detached-user-sections",
     );
@@ -319,10 +364,12 @@ describe("SpielwieseEditorCanvas node collapse detached user", () => {
 
     expect(detachedUserRow.contains(detachedUserInputShell)).toBe(true);
   });
+});
 
-  it("lets the detached user row minimize into a single-row preview", () => {
+describe("SpielwieseEditorCanvas detached user collapse interactions", () => {
+  it("lets the detached user row minimize into a single-row preview", async () => {
     renderCanvas();
-    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const visionNode = getVisionAgentNode();
     const detachedUserSections = within(visionNode).getByTestId(
       "vision-agent-detached-user-sections",
     );
@@ -335,9 +382,13 @@ describe("SpielwieseEditorCanvas node collapse detached user", () => {
 
     fireEvent.click(detachedUserToggle);
 
-    const collapsedVisionNode = screen.getAllByTestId(
-      "spielwiese-agent-node",
-    )[0];
+    await waitFor(() => {
+      expect(
+        within(detachedUserRow).queryByLabelText("vision-agent User message"),
+      ).toBeNull();
+    });
+
+    const collapsedVisionNode = getVisionAgentNode();
     const collapsedDetachedUserSections = within(
       collapsedVisionNode,
     ).getByTestId("vision-agent-detached-user-sections");
@@ -345,7 +396,11 @@ describe("SpielwieseEditorCanvas node collapse detached user", () => {
       collapsedDetachedUserSections,
     ).getByTestId("spielwiese-message-section-row");
 
-    expect(screen.queryByLabelText("vision-agent User message")).toBeNull();
+    expect(
+      within(collapsedDetachedUserRow).queryByLabelText(
+        "vision-agent User message",
+      ),
+    ).toBeNull();
     expect(
       within(collapsedDetachedUserRow).queryByRole("button", {
         name: "Toggle vision-agent User section",
@@ -370,10 +425,11 @@ describe("SpielwieseEditorCanvas section collapse interactions", () => {
   it("lets each prompt section collapse into a single header row preview", () => {
     renderCanvas();
     const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const instructionsPreviewText =
+      /You are a food identification expert\. Identify every food item in the image\./i;
+
     expect(
-      within(visionNode).getAllByText(
-        /You are a food identification expert\. Identify every food item in the image\./i,
-      ),
+      getPromptPreviewTextMatches(visionNode, instructionsPreviewText),
     ).toHaveLength(1);
 
     const collapseButton = within(visionNode).getByLabelText(
@@ -391,9 +447,7 @@ describe("SpielwieseEditorCanvas section collapse interactions", () => {
     ).toBeNull();
     expect(collapsedButton.getAttribute("aria-expanded")).toBe("false");
     expect(
-      within(visionNode).getAllByText(
-        /You are a food identification expert\. Identify every food item in the image\./i,
-      ),
+      getPromptPreviewTextMatches(visionNode, instructionsPreviewText),
     ).toHaveLength(1);
   });
 });

@@ -135,6 +135,13 @@ function expectExternalInsertPickerChrome(nodeElement: HTMLElement) {
   ).toBeNull();
 }
 
+function expectArchiveButtonIsInert(button: HTMLElement) {
+  expect(button.getAttribute("aria-disabled")).toBe("true");
+  expect(button.getAttribute("tabindex")).toBe("-1");
+  expect(button.className).toContain("pointer-events-none");
+  expect(button.className).toContain("cursor-default");
+}
+
 function renderVisionNode() {
   render(<SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />);
   return screen.getAllByTestId("spielwiese-agent-node")[0];
@@ -282,11 +289,11 @@ describe("SpielwieseEditorCanvas node insertion", () => {
     expect(
       within(insertedNode).queryByTestId("spielwiese-agent-node-card"),
     ).toBeNull();
-    expect(
-      within(insertedNode).getByRole("button", {
-        name: "Archive coach-agent-2 node",
-      }),
-    ).toBeTruthy();
+    const archiveButton = within(insertedNode).getByRole("button", {
+      name: "Archive coach-agent-2 node",
+    });
+
+    expectArchiveButtonIsInert(archiveButton);
     expect(
       (
         within(insertedNode).getByLabelText(
@@ -296,23 +303,22 @@ describe("SpielwieseEditorCanvas node insertion", () => {
     ).toBe("");
   });
 
-  it("archives a node locally and leaves the single insert tray at the end of the remaining stack", () => {
+  it("keeps archive controls inert without removing nodes", () => {
     const visionNode = renderVisionNode();
+    const archiveButton = within(visionNode).getAllByRole("button", {
+      name: "Archive vision-agent node",
+    })[0] as HTMLButtonElement;
 
-    fireEvent.click(
-      within(visionNode).getAllByRole("button", {
-        name: "Archive vision-agent node",
-      })[0] as HTMLButtonElement,
-    );
+    fireEvent.click(archiveButton);
 
-    const remainingNodes = screen.getAllByTestId("spielwiese-agent-node");
     const stack = screen.getByTestId("spielwiese-agent-node-stack");
     const insertFooter = screen.getByTestId(
       "spielwiese-agent-node-insert-footer",
     );
 
-    expect(screen.queryByLabelText("vision-agent title")).toBeNull();
-    expect(remainingNodes).toHaveLength(2);
+    expectArchiveButtonIsInert(archiveButton);
+    expect(screen.getByLabelText("vision-agent title")).toBeTruthy();
+    expect(screen.getAllByTestId("spielwiese-agent-node")).toHaveLength(3);
     expect(
       screen.getAllByTestId("spielwiese-agent-node-external-insert-row"),
     ).toHaveLength(1);

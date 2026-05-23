@@ -106,6 +106,12 @@ function expectLayoutShellChrome({
   expect(editorPaneSurface.className).not.toContain("ring-1");
 }
 
+function expectButtonIsInert(button: HTMLElement) {
+  expect(button.getAttribute("aria-disabled")).toBe("true");
+  expect(button.getAttribute("tabindex")).toBe("-1");
+  expect(button.className).toContain("pointer-events-none");
+}
+
 function expectLayoutAccessories({
   editorActions,
   editorModeHeader,
@@ -128,6 +134,14 @@ function expectLayoutAccessories({
   expect(editorModeHeader.className).toContain("bg-[rgba(251,251,251,0.82)]");
   expect(editorModeHeader.className).toContain("backdrop-blur");
   expect(editorModeHeader.className).not.toContain("border-b");
+  const archiveCanvasButton = within(editorActions).getByRole("button", {
+    name: "Archive canvas nodes",
+  });
+  const closeSidePanelsButton = within(editorActions).getByRole("button", {
+    name: "Close side panels",
+  });
+  expectButtonIsInert(archiveCanvasButton);
+  expectButtonIsInert(closeSidePanelsButton);
   expect(editorModeToggle.className).toContain("rounded-[9px]");
   expect(editorModeToggle.className).toContain("bg-[#F7F7F7]");
   expect(editorNodeStack.className).not.toContain("overflow-y-auto");

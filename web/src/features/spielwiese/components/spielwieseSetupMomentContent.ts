@@ -18,13 +18,14 @@ type SpielwieseIntroTimelineSection = {
 };
 
 export const spielwieseSetupMomentContent = {
-  title: "Langfuse redesign",
+  title: "Challenge: Redesign Langfuse in 7 days in code",
   updatedAt: "Updated Apr 13, 2026",
   sections: [
     {
       paragraphs: [
         "today's langfuse is built around features: traces, evaluations, monitoring. yet, the users don't think in features but in the problem they're trying to solve.",
-        "when a user enters the langfuse dashboard, the first thing they see is an empty data dashboard. i questioned that. why do users sign up for langfuse in the first place? what is their mental state?",
+        "also when a user enters the langfuse dashboard, the first thing they see is an empty data dashboard. i questioned that. why do users sign up for langfuse in the first place? what is their mental state?",
+        "[ image of current langfuse dashboard ]",
         "the state i identified: they have an ai product with prompts already that they didn't instrument yet and want to do so now in order to improve them.",
         "now, the ultimate goal for langfuse is to get users who retain and engage with the platform longer term, and this is achieved with the habit moment. (the moment where the user built an habit around the app)",
         "[ image of setup, aha, habit moment ]",

@@ -3,6 +3,7 @@
 import {
   Archive,
   Focus,
+  type LucideIcon,
   PanelTopClose,
   PanelTopOpen,
   Shrink,
@@ -12,6 +13,7 @@ import { Button } from "../ui/button";
 import {
   spielwieseHeaderButtonAccentClassName,
   spielwieseHeaderButtonBaseClassName,
+  spielwieseHeaderButtonInertClassName,
 } from "./spielwieseHeaderButtonStyles";
 
 type SpielwieseAgentNodeHeaderActionsProps = {
@@ -35,26 +37,69 @@ function getPreviewToggleIcon(isPreviewFocused: boolean) {
   return isPreviewFocused ? Shrink : Focus;
 }
 
-function getPreviewButtonClassName({
-  isPreviewButtonDisabled,
-  isPreviewFocused,
+function getActionButtonInteractionProps({
+  isInert,
+  onClick,
 }: {
-  isPreviewButtonDisabled: boolean;
-  isPreviewFocused: boolean;
+  isInert: boolean;
+  onClick: () => void;
 }) {
-  return cn(
-    spielwieseHeaderActionButtonClassName,
-    isPreviewButtonDisabled && "disabled:opacity-100",
-    isPreviewFocused && spielwieseHeaderButtonAccentClassName,
+  return {
+    "aria-disabled": isInert ? true : undefined,
+    onClick: isInert ? undefined : onClick,
+    tabIndex: isInert ? -1 : undefined,
+  };
+}
+
+type HeaderActionButtonProps = {
+  ariaLabel: string;
+  ariaPressed?: boolean;
+  className?: string;
+  disabled?: boolean;
+  iconClassName: string;
+  Icon: LucideIcon;
+  isInert?: boolean;
+  onClick: () => void;
+};
+
+function HeaderActionButton({
+  ariaLabel,
+  ariaPressed,
+  className,
+  disabled = false,
+  iconClassName,
+  Icon,
+  isInert = false,
+  onClick,
+}: HeaderActionButtonProps) {
+  return (
+    <Button
+      aria-label={ariaLabel}
+      aria-pressed={ariaPressed}
+      className={cn(
+        spielwieseHeaderActionButtonClassName,
+        isInert && spielwieseHeaderButtonInertClassName,
+        className,
+      )}
+      disabled={disabled}
+      size="icon-sm"
+      type="button"
+      variant="ghost"
+      {...getActionButtonInteractionProps({ isInert, onClick })}
+    >
+      <Icon className={iconClassName} />
+    </Button>
   );
 }
 
 type SpielwieseNodeActionButtonsProps = {
   archiveButtonLabel?: string;
   compactButtonLabel?: string;
+  compactButtonIsInert?: boolean;
   containerTestId?: string;
   isCompact: boolean;
   isPreviewButtonDisabled?: boolean;
+  isPreviewButtonInert?: boolean;
   isPreviewFocused: boolean;
   onArchiveNode: () => void;
   onPreviewHoverEnd?: () => void;
@@ -64,12 +109,15 @@ type SpielwieseNodeActionButtonsProps = {
   previewButtonLabel?: string;
 };
 
+// eslint-disable-next-line complexity
 export function SpielwieseNodeActionButtons({
   archiveButtonLabel = "Archive node",
   compactButtonLabel = "Toggle compact state",
+  compactButtonIsInert = false,
   containerTestId,
   isCompact,
   isPreviewButtonDisabled = false,
+  isPreviewButtonInert = false,
   isPreviewFocused,
   onArchiveNode,
   onPreviewHoverEnd: _onPreviewHoverEnd = () => {},
@@ -86,42 +134,35 @@ export function SpielwieseNodeActionButtons({
       className="flex shrink-0 items-center gap-1"
       data-testid={containerTestId}
     >
-      <Button
-        aria-label={compactButtonLabel}
-        aria-pressed={isCompact}
-        className={spielwieseHeaderActionButtonClassName}
-        size="icon-sm"
-        type="button"
-        variant="ghost"
+      <HeaderActionButton
+        ariaLabel={compactButtonLabel}
+        ariaPressed={isCompact}
+        iconClassName="size-4 stroke-[2.1px]"
+        Icon={HeaderToggleIcon}
+        isInert={compactButtonIsInert}
         onClick={onToggleCompact}
-      >
-        <HeaderToggleIcon className="size-4 stroke-[2.1px]" />
-      </Button>
-      <Button
-        aria-label={previewButtonLabel}
-        aria-pressed={isPreviewFocused}
-        className={getPreviewButtonClassName({
-          isPreviewButtonDisabled,
-          isPreviewFocused,
-        })}
+      />
+      <HeaderActionButton
+        ariaLabel={previewButtonLabel}
+        ariaPressed={isPreviewFocused}
+        className={cn(
+          (isPreviewButtonDisabled || isPreviewButtonInert) &&
+            "disabled:opacity-100",
+          isPreviewFocused && spielwieseHeaderButtonAccentClassName,
+        )}
         disabled={isPreviewButtonDisabled}
-        size="icon-sm"
-        type="button"
-        variant="ghost"
+        iconClassName="size-4 stroke-[2.1px]"
+        Icon={PreviewToggleIcon}
+        isInert={isPreviewButtonInert}
         onClick={onTogglePreviewFocus}
-      >
-        <PreviewToggleIcon className="size-4 stroke-[2.1px]" />
-      </Button>
-      <Button
-        aria-label={archiveButtonLabel}
-        className={spielwieseHeaderActionButtonClassName}
-        size="icon-sm"
-        type="button"
-        variant="ghost"
+      />
+      <HeaderActionButton
+        ariaLabel={archiveButtonLabel}
+        iconClassName="size-3.5"
+        Icon={Archive}
+        isInert
         onClick={onArchiveNode}
-      >
-        <Archive className="size-3.5" />
-      </Button>
+      />
     </div>
   );
 }

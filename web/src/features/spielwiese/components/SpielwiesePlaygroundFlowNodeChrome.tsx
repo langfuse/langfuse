@@ -174,6 +174,7 @@ export function PlaygroundFlowNodeHeader({
           <SpielwieseNodeActionButtons
             archiveButtonLabel={`Archive ${node.id} node`}
             compactButtonLabel={`Minimize ${node.id} node sections`}
+            compactButtonIsInert
             containerTestId="spielwiese-playground-flow-node-actions"
             isCompact={false}
             isPreviewButtonDisabled
