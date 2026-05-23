@@ -3170,18 +3170,15 @@ describe("Fetch datasets for UI presentation", () => {
       expect(runsA).toHaveLength(1);
       expect(runsA[0].id).toEqual(runAId);
 
-      // Fetch scores for Dataset A's run and verify only A's score is present
-      const traceScores = await getTraceScoresForDatasetRuns(projectId, [
-        runAId,
-      ]);
-      const aggregated = aggregateScores(
-        traceScores.filter((s) => s.datasetRunId === runAId),
+      // Assert directly on aggScoresAvg — the field populated by the scores_aggregated CTE
+      // that was modified. If the CTE regresses to a full-project scan the join still works
+      // correctly (UUIDs are unique), but if it ever incorrectly scopes to wrong traces this
+      // will catch it. Value should be 0.9 (Dataset A only), not averaged with B's 0.1.
+      const scoreEntry = runsA[0].aggScoresAvg.find(
+        ([name]) => name === scoreName,
       );
-
-      const key = `${scoreName.replaceAll("-", "_")}-API-NUMERIC`;
-      expect(aggregated[key]).toBeDefined();
-      // Average should be 0.9 (only Dataset A's score), not 0.5 (contaminated by B)
-      expect(aggregated[key].average).toBeCloseTo(0.9);
+      expect(scoreEntry).toBeDefined();
+      expect(scoreEntry?.[1]).toBeCloseTo(0.9);
     });
 
     it("getDatasetRunItemsByDatasetIdCh should not include scores from unrelated dataset traces", async () => {
