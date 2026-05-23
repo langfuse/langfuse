@@ -510,6 +510,64 @@ describe("/api/public/v2/scores API Endpoint", () => {
         );
       });
 
+      it("counts unique score IDs when multiple score versions exist", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const scoreId = v4();
+
+        await createTracesCh([
+          createTrace({ id: traceId, project_id: projectId }),
+        ]);
+
+        const oldScore = createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "versioned-score",
+          value: 1,
+          data_type: "NUMERIC",
+          timestamp: 1,
+          event_ts: 1,
+          created_at: 1,
+          updated_at: 1,
+        });
+        const newScore = createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "versioned-score",
+          value: 2,
+          data_type: "NUMERIC",
+          timestamp: 2,
+          event_ts: 2,
+          created_at: 2,
+          updated_at: 2,
+        });
+
+        await createScoresCh([oldScore, newScore]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?scoreIds=${scoreId}`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 1,
+          totalPages: 1,
+        });
+        expect(getScores.body.data).toHaveLength(1);
+        expect(getScores.body.data[0]).toMatchObject({
+          id: scoreId,
+          value: 2,
+        });
+      });
+
       it("get all scores for config", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
           GetScoresResponseV2,
