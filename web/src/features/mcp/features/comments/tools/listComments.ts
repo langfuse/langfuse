@@ -35,6 +35,7 @@ export const [listCommentsTool, handleListComments] = defineTool({
         const [comments, totalItems] = await Promise.all([
           prisma.comment.findMany({
             where,
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
             take: input.limit,
             skip: (input.page - 1) * input.limit,
           }),
