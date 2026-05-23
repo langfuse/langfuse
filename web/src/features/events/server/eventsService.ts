@@ -1,16 +1,10 @@
 import { type z } from "zod";
 import {
   type FilterCondition,
-  type MetadataDomain,
-  eventsTableCols,
   LISTABLE_SCORE_TYPES,
   filterAndValidateDbScoreList,
 } from "@langfuse/shared";
 import {
-  createFilterFromFilterState,
-  EventsQueryBuilder,
-  eventsTableUiColumnDefinitions,
-  FilterList,
   getObservationsCountFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getCategoricalScoresGroupedByName,
@@ -35,8 +29,6 @@ import {
   getNumericScoresGroupedByName,
   getScoresGroupedByNameSourceType,
   getObservationsBatchIOFromEventsTable,
-  parseMetadataCHRecordToDomain,
-  queryClickhouse,
   getScoresForObservations,
   getScoresForTraces,
   traceException,
@@ -98,96 +90,6 @@ type GroupedEventsFilterOptions = {
   offset?: number;
   orderBy?: string;
 };
-
-type ExperimentEvalPreviewObservation = {
-  id: string;
-  traceId: string;
-  input: string | null;
-  output: string | null;
-  metadata: MetadataDomain;
-  experimentItemExpectedOutput: string | null;
-  experimentItemMetadata: MetadataDomain;
-};
-
-const experimentRootObservationFilter = {
-  type: "boolean",
-  column: "isExperimentItemRootSpan",
-  operator: "=",
-  value: true,
-} satisfies FilterCondition;
-
-export async function getExperimentEvalPreviewObservation(params: {
-  projectId: string;
-  filter: FilterState;
-  traceId?: string;
-  observationId?: string;
-}): Promise<ExperimentEvalPreviewObservation | null> {
-  const filter = new FilterList(
-    createFilterFromFilterState(
-      [...params.filter, experimentRootObservationFilter],
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
-  );
-
-  const queryBuilder = new EventsQueryBuilder({ projectId: params.projectId })
-    .selectRaw(
-      "e.span_id AS id",
-      'e.trace_id AS "traceId"',
-      "e.input AS input",
-      "e.output AS output",
-      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata",
-      'e.experiment_item_expected_output AS "experimentItemExpectedOutput"',
-      'mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) AS "experimentItemMetadata"',
-    )
-    .forceFullTable()
-    .applyFilters(filter)
-    .whereRaw("e.is_deleted = 0")
-    .when(Boolean(params.observationId), (b) =>
-      b.whereRaw("e.span_id = {observationId: String}", {
-        observationId: params.observationId!,
-      }),
-    )
-    .when(Boolean(params.traceId), (b) =>
-      b.whereRaw("e.trace_id = {traceId: String}", {
-        traceId: params.traceId!,
-      }),
-    )
-    .orderByDefault()
-    .limit(1, 0);
-
-  const { query, params: queryParams } = queryBuilder.buildWithParams();
-  const rows = await queryClickhouse<{
-    id: string;
-    traceId: string;
-    input: string | null;
-    output: string | null;
-    metadata: Record<string, string>;
-    experimentItemExpectedOutput: string | null;
-    experimentItemMetadata: Record<string, string>;
-  }>({
-    query,
-    params: queryParams,
-    tags: {
-      feature: "evals",
-      type: "events",
-      kind: "experiment-preview",
-      projectId: params.projectId,
-    },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
-  const row = rows[0];
-  if (!row) return null;
-
-  return {
-    ...row,
-    metadata: parseMetadataCHRecordToDomain(row.metadata ?? {}),
-    experimentItemMetadata: parseMetadataCHRecordToDomain(
-      row.experimentItemMetadata ?? {},
-    ),
-  };
-}
 
 /**
  * Get paginated list of events
@@ -662,7 +564,7 @@ export async function getEventFilterOptions(
   };
 }
 
-interface GetEventBatchIOParams {
+interface GetEventBatchIOParams<TIncludeExperiment extends boolean = false> {
   projectId: string;
   observations: Array<{
     id: string;
@@ -671,17 +573,21 @@ interface GetEventBatchIOParams {
   minStartTime: Date;
   maxStartTime: Date;
   truncated?: boolean;
+  includeExperimentFields?: TIncludeExperiment;
 }
 
 /**
  * Batch fetch input/output and metadata for multiple observations
  */
-export async function getEventBatchIO(params: GetEventBatchIOParams) {
-  return getObservationsBatchIOFromEventsTable({
+export async function getEventBatchIO<
+  TIncludeExperiment extends boolean = false,
+>(params: GetEventBatchIOParams<TIncludeExperiment>) {
+  return getObservationsBatchIOFromEventsTable<TIncludeExperiment>({
     projectId: params.projectId,
     observations: params.observations,
     minStartTime: params.minStartTime,
     maxStartTime: params.maxStartTime,
     truncated: params.truncated,
+    includeExperimentFields: params.includeExperimentFields,
   });
 }

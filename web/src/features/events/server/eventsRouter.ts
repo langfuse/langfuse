@@ -8,13 +8,11 @@ import {
   type OrderByState,
   normalizeOrderByForTable,
   paginationZod,
-  singleFilter,
   timeFilter,
 } from "@langfuse/shared";
 import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
-  stringifyMetadata,
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
 import { EventsTableOptions } from "./types";
@@ -23,7 +21,6 @@ import {
   getEventCount,
   getEventFilterOptions,
   getEventBatchIO,
-  getExperimentEvalPreviewObservation,
 } from "./eventsService";
 import {
   instrumentAsync,
@@ -78,13 +75,6 @@ export const BatchIOInput = zodSchema.object({
 });
 
 export type BatchIOInput = z.infer<typeof BatchIOInput>;
-
-const ExperimentEvalPreviewObservationInput = zodSchema.object({
-  projectId: zodSchema.string(),
-  filter: zodSchema.array(singleFilter),
-  traceId: zodSchema.string().optional(),
-  observationId: zodSchema.string().optional(),
-});
 
 export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -203,30 +193,25 @@ export const eventsRouter = createTRPCRouter({
         },
       );
     }),
-  experimentEvalPreviewObservation: protectedProjectProcedure
-    .input(ExperimentEvalPreviewObservationInput)
+  experimentBatchIO: protectedProjectProcedure
+    .input(BatchIOInput)
     .query(async ({ input, ctx }) => {
       return instrumentAsync(
-        { name: "get-experiment-eval-preview-observation-trpc" },
+        { name: "get-experiment-batch-io-trpc" },
         async (span) => {
-          span.setAttribute("project_id", ctx.session.projectId);
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("observation_count", input.observations.length);
 
-          const observation = await getExperimentEvalPreviewObservation({
+          const batchIO = await getEventBatchIO({
             projectId: ctx.session.projectId,
-            filter: input.filter,
-            traceId: input.traceId,
-            observationId: input.observationId,
+            observations: input.observations,
+            minStartTime: input.minStartTime,
+            maxStartTime: input.maxStartTime,
+            truncated: input.truncated,
+            includeExperimentFields: true,
           });
 
-          return observation
-            ? {
-                ...observation,
-                metadata: stringifyMetadata(observation.metadata),
-                experimentItemMetadata: stringifyMetadata(
-                  observation.experimentItemMetadata,
-                ),
-              }
-            : null;
+          return batchIO.map(toDomainWithStringifiedMetadata);
         },
       );
     }),
