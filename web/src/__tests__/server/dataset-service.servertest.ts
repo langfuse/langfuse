@@ -3071,4 +3071,219 @@ describe("Fetch datasets for UI presentation", () => {
       });
     });
   });
+
+  // Regression test for https://github.com/langfuse/langfuse/issues/13788
+  // The scores_aggregated CTE was scanning the full project scores table (no trace_id filter),
+  // causing resource limit errors on projects with millions of scores from unrelated datasets.
+  describe("scores subquery isolation across datasets", () => {
+    it("getDatasetRunsTableMetricsCh should not include scores from unrelated dataset traces", async () => {
+      const datasetAId = v4();
+      const datasetBId = v4();
+
+      await prisma.dataset.createMany({
+        data: [
+          { id: datasetAId, name: v4(), projectId },
+          { id: datasetBId, name: v4(), projectId },
+        ],
+      });
+
+      const runAId = v4();
+      const runBId = v4();
+      await prisma.datasetRuns.createMany({
+        data: [
+          {
+            id: runAId,
+            name: "run-a",
+            datasetId: datasetAId,
+            metadata: {},
+            projectId,
+          },
+          {
+            id: runBId,
+            name: "run-b",
+            datasetId: datasetBId,
+            metadata: {},
+            projectId,
+          },
+        ],
+      });
+
+      const itemAId = v4();
+      const itemBId = v4();
+      await prisma.datasetItem.createMany({
+        data: [
+          { id: itemAId, datasetId: datasetAId, metadata: {}, projectId },
+          { id: itemBId, datasetId: datasetBId, metadata: {}, projectId },
+        ],
+      });
+
+      const traceAId = v4();
+      const traceBId = v4();
+      const scoreName = v4();
+
+      await createDatasetRunItemsCh([
+        createDatasetRunItem({
+          id: v4(),
+          dataset_run_id: runAId,
+          trace_id: traceAId,
+          project_id: projectId,
+          dataset_item_id: itemAId,
+          dataset_id: datasetAId,
+          dataset_run_name: "run-a",
+        }),
+        createDatasetRunItem({
+          id: v4(),
+          dataset_run_id: runBId,
+          trace_id: traceBId,
+          project_id: projectId,
+          dataset_item_id: itemBId,
+          dataset_id: datasetBId,
+          dataset_run_name: "run-b",
+        }),
+      ]);
+
+      // Score on Dataset A's trace — should appear in Dataset A query
+      const scoreForA = createTraceScore({
+        id: v4(),
+        trace_id: traceAId,
+        project_id: projectId,
+        name: scoreName,
+        value: 0.9,
+      });
+      // Score on Dataset B's trace — must NOT bleed into Dataset A query
+      const scoreForB = createTraceScore({
+        id: v4(),
+        trace_id: traceBId,
+        project_id: projectId,
+        name: scoreName,
+        value: 0.1,
+      });
+      await createScoresCh([scoreForA, scoreForB]);
+
+      const runsA = await getDatasetRunsTableMetricsCh({
+        projectId,
+        datasetId: datasetAId,
+        runIds: [runAId],
+        filter: [],
+      });
+
+      expect(runsA).toHaveLength(1);
+      expect(runsA[0].id).toEqual(runAId);
+
+      // Fetch scores for Dataset A's run and verify only A's score is present
+      const traceScores = await getTraceScoresForDatasetRuns(projectId, [
+        runAId,
+      ]);
+      const aggregated = aggregateScores(
+        traceScores.filter((s) => s.datasetRunId === runAId),
+      );
+
+      const key = `${scoreName.replaceAll("-", "_")}-API-NUMERIC`;
+      expect(aggregated[key]).toBeDefined();
+      // Average should be 0.9 (only Dataset A's score), not 0.5 (contaminated by B)
+      expect(aggregated[key].average).toBeCloseTo(0.9);
+    });
+
+    it("getDatasetRunItemsByDatasetIdCh should not include scores from unrelated dataset traces", async () => {
+      const datasetAId = v4();
+      const datasetBId = v4();
+
+      await prisma.dataset.createMany({
+        data: [
+          { id: datasetAId, name: v4(), projectId },
+          { id: datasetBId, name: v4(), projectId },
+        ],
+      });
+
+      const runAId = v4();
+      const runBId = v4();
+      await prisma.datasetRuns.createMany({
+        data: [
+          {
+            id: runAId,
+            name: "run-a",
+            datasetId: datasetAId,
+            metadata: {},
+            projectId,
+          },
+          {
+            id: runBId,
+            name: "run-b",
+            datasetId: datasetBId,
+            metadata: {},
+            projectId,
+          },
+        ],
+      });
+
+      const itemAId = v4();
+      const itemBId = v4();
+      await prisma.datasetItem.createMany({
+        data: [
+          { id: itemAId, datasetId: datasetAId, metadata: {}, projectId },
+          { id: itemBId, datasetId: datasetBId, metadata: {}, projectId },
+        ],
+      });
+
+      const traceAId = v4();
+      const traceBId = v4();
+      const scoreName = v4();
+
+      await createDatasetRunItemsCh([
+        createDatasetRunItem({
+          id: v4(),
+          dataset_run_id: runAId,
+          trace_id: traceAId,
+          project_id: projectId,
+          dataset_item_id: itemAId,
+          dataset_id: datasetAId,
+          dataset_run_name: "run-a",
+        }),
+        createDatasetRunItem({
+          id: v4(),
+          dataset_run_id: runBId,
+          trace_id: traceBId,
+          project_id: projectId,
+          dataset_item_id: itemBId,
+          dataset_id: datasetBId,
+          dataset_run_name: "run-b",
+        }),
+      ]);
+
+      const scoreForA = createTraceScore({
+        id: v4(),
+        trace_id: traceAId,
+        project_id: projectId,
+        name: scoreName,
+        value: 0.9,
+      });
+      const scoreForB = createTraceScore({
+        id: v4(),
+        trace_id: traceBId,
+        project_id: projectId,
+        name: scoreName,
+        value: 0.1,
+      });
+      await createScoresCh([scoreForA, scoreForB]);
+
+      // Filter by score name to exercise the scores_aggregated CTE in getDatasetRunItemsTableInternal
+      const items = await getDatasetRunItemsByDatasetIdCh({
+        projectId,
+        datasetId: datasetAId,
+        filter: [
+          {
+            type: "numberObject" as const,
+            column: "agg_scores_avg",
+            key: scoreName,
+            operator: ">=" as const,
+            value: 0.8,
+          },
+        ],
+      });
+
+      // Only Dataset A's run item (score 0.9) should match; B's item (score 0.1) must not appear
+      expect(items).toHaveLength(1);
+      expect(items[0].traceId).toEqual(traceAId);
+    });
+  });
 });
