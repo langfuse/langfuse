@@ -632,6 +632,7 @@ export const SessionEventsPage: React.FC<{
         ...observationEventsFilterConfig.columnDefinitions,
         positionInTraceColumn,
       ],
+      migrateFilterState: undefined,
       facets: observationEventsFilterConfig.facets.filter(
         (facet) =>
           facet.column !== "sessionId" &&

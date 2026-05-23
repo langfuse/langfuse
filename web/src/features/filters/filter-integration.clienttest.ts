@@ -642,6 +642,98 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
 
     expect(normalized).toEqual([]);
   });
+
+  it.each([
+    ["column ID", "hasParentObservation", "=", false, true],
+    ["display name", "Has Parent Observation", "=", false, true],
+    ["column ID", "hasParentObservation", "<>", true, true],
+    ["display name", "Has Parent Observation", "<>", true, true],
+  ])(
+    "should redirect legacy %s root-observation URL filters to isRootObservation",
+    (_label, column, operator, legacyValue, expectedValue) => {
+      const legacyFilters: FilterState = [
+        {
+          column,
+          type: "boolean",
+          operator,
+          value: legacyValue,
+        },
+      ];
+
+      const normalized = decodeAndNormalizeFilters(
+        encodeFiltersGeneric(legacyFilters),
+        observationEventsFilterConfig.columnDefinitions,
+        observationEventsFilterConfig.migrateFilterState,
+      );
+
+      expect(normalized).toEqual([
+        {
+          column: "isRootObservation",
+          type: "boolean",
+          operator: "=",
+          value: expectedValue,
+        },
+      ]);
+    },
+  );
+
+  it("should migrate isRootObservation inequality URL filters for the sidebar", () => {
+    const filters: FilterState = [
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "<>",
+        value: false,
+      },
+    ];
+
+    const normalized = decodeAndNormalizeFilters(
+      encodeFiltersGeneric(filters),
+      observationEventsFilterConfig.columnDefinitions,
+      observationEventsFilterConfig.migrateFilterState,
+    );
+
+    expect(normalized).toEqual([
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+    ]);
+  });
+
+  it("should prefer isRootObservation URL filters over legacy duplicates", () => {
+    const filters: FilterState = [
+      {
+        column: "hasParentObservation",
+        type: "boolean",
+        operator: "=",
+        value: false,
+      },
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: false,
+      },
+    ];
+
+    const normalized = decodeAndNormalizeFilters(
+      encodeFiltersGeneric(filters),
+      observationEventsFilterConfig.columnDefinitions,
+      observationEventsFilterConfig.migrateFilterState,
+    );
+
+    expect(normalized).toEqual([
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: false,
+      },
+    ]);
+  });
 });
 
 describe("Saved view validation", () => {
@@ -659,6 +751,42 @@ describe("Saved view validation", () => {
       validateFilters(filters, observationEventsFilterConfig.columnDefinitions),
     ).toEqual([]);
   });
+
+  it.each([
+    ["column ID", "hasParentObservation", false, true],
+    ["display name", "Has Parent Observation", false, true],
+    ["column ID", "hasParentObservation", true, false],
+    ["display name", "Has Parent Observation", true, false],
+    ["column ID", "hasParentObservation", true, true, "<>"],
+    ["display name", "Has Parent Observation", true, true, "<>"],
+  ])(
+    "should redirect legacy %s root-observation saved-view filters to isRootObservation",
+    (_label, column, legacyValue, expectedValue, operator = "=") => {
+      const filters: FilterState = [
+        {
+          column,
+          type: "boolean",
+          operator,
+          value: legacyValue,
+        },
+      ];
+
+      expect(
+        validateFilters(
+          filters,
+          observationEventsFilterConfig.columnDefinitions,
+          observationEventsFilterConfig.migrateFilterState,
+        ),
+      ).toEqual([
+        {
+          column: "isRootObservation",
+          type: "boolean",
+          operator: "=",
+          value: expectedValue,
+        },
+      ]);
+    },
+  );
 
   it("should preserve the session detail positionInTrace presets when the session view defines the column", () => {
     const sessionEventColumns: ColumnDefinition[] = [
