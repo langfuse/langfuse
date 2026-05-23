@@ -36,7 +36,8 @@ export const EvaluatorForm = (props: {
       .find((t) => t.id === props.templateId);
 
   const evalCapabilities = useEvalCapabilities(props.projectId, {
-    isCodeEvalTemplate: !!currentTemplate && isCodeEvalTemplate(currentTemplate),
+    isCodeEvalTemplate:
+      !!currentTemplate && isCodeEvalTemplate(currentTemplate),
   });
 
   if (

@@ -72,7 +72,10 @@ const CreateCodeEvalTemplateInputSchema =
           message: `Source code must be ${CODE_EVAL_SOURCE_MAX_BYTES} bytes or less`,
         },
       ),
-    sourceCodeLanguage: z.literal(EvalTemplateSourceCodeLanguage.TYPESCRIPT),
+    sourceCodeLanguage: z.enum([
+      EvalTemplateSourceCodeLanguage.PYTHON,
+      EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+    ]),
   });
 
 const CreateTypedEvalTemplateInputSchema = z.discriminatedUnion("type", [
