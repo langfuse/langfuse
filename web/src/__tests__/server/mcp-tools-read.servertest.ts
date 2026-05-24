@@ -117,6 +117,12 @@ import {
   updateScoreConfigTool,
   handleUpdateScoreConfig,
 } from "@/src/features/mcp/features/scores/tools/updateScoreConfig";
+import {
+  listDatasetsTool,
+  handleListDatasets,
+  listDatasetRunsTool,
+  handleListDatasetRuns,
+} from "@/src/features/mcp/features/datasets/tools";
 
 const maybeEventsTable =
   env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
@@ -2722,6 +2728,113 @@ describe("MCP Read Tools", () => {
       expect(result.prompt[0].content).toContain(
         "@@@langfusePrompt:name=system-base|label=production@@@",
       );
+    });
+  });
+
+  describe("listDatasets tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(listDatasetsTool, { readOnlyHint: true });
+    });
+
+    it("returns stable, non-overlapping pages when datasets share identical createdAt timestamps", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const sharedCreatedAt = new Date("2024-01-01T00:00:00.000Z");
+
+      // Insert 6 datasets with identical createdAt to stress-test the id tiebreaker.
+      // Without a secondary sort key, PostgreSQL can return different orderings across
+      // page fetches, causing an agent to miss a dataset or process the same one twice.
+      await prisma.dataset.createMany({
+        data: Array.from({ length: 6 }, (_, i) => ({
+          id: randomUUID(),
+          name: `stable-test-dataset-${i}-${nanoid()}`,
+          projectId,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        })),
+      });
+
+      const page1 = (await handleListDatasets(
+        { page: 1, limit: 3 },
+        context,
+      )) as { data: Array<{ id: string }>; meta: { totalItems: number } };
+
+      const page2 = (await handleListDatasets(
+        { page: 2, limit: 3 },
+        context,
+      )) as { data: Array<{ id: string }> };
+
+      const ids1 = page1.data.map((d) => d.id);
+      const ids2 = page2.data.map((d) => d.id);
+
+      // Pages must not overlap
+      expect(ids1.filter((id) => ids2.includes(id))).toHaveLength(0);
+
+      // Together they cover all 6 datasets — no gaps
+      expect(ids1.length + ids2.length).toBe(6);
+
+      // Page 1 is stable across repeated calls
+      const page1Repeat = (await handleListDatasets(
+        { page: 1, limit: 3 },
+        context,
+      )) as { data: Array<{ id: string }> };
+
+      expect(page1Repeat.data.map((d) => d.id)).toEqual(ids1);
+    });
+  });
+
+  describe("listDatasetRuns tool", () => {
+    it("returns stable, non-overlapping pages when dataset runs share identical createdAt timestamps", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const sharedCreatedAt = new Date("2024-01-01T00:00:00.000Z");
+      const datasetName = `stable-test-runs-${nanoid()}`;
+
+      const dataset = await prisma.dataset.create({
+        data: {
+          id: randomUUID(),
+          name: datasetName,
+          projectId,
+        },
+      });
+
+      // Insert 6 runs with identical createdAt to stress-test the id tiebreaker.
+      // Concurrent eval execution can easily produce same-millisecond createdAt values.
+      await prisma.datasetRuns.createMany({
+        data: Array.from({ length: 6 }, (_, i) => ({
+          id: randomUUID(),
+          name: `run-${i}-${nanoid()}`,
+          datasetId: dataset.id,
+          projectId,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        })),
+      });
+
+      const page1 = (await handleListDatasetRuns(
+        { name: datasetName, page: 1, limit: 3 },
+        context,
+      )) as { data: Array<{ id: string }> };
+
+      const page2 = (await handleListDatasetRuns(
+        { name: datasetName, page: 2, limit: 3 },
+        context,
+      )) as { data: Array<{ id: string }> };
+
+      const ids1 = page1.data.map((r) => r.id);
+      const ids2 = page2.data.map((r) => r.id);
+
+      // Pages must not overlap
+      expect(ids1.filter((id) => ids2.includes(id))).toHaveLength(0);
+
+      // Together they cover all 6 runs — no gaps
+      expect(ids1.length + ids2.length).toBe(6);
+
+      // Page 1 is stable across repeated calls
+      const page1Repeat = (await handleListDatasetRuns(
+        { name: datasetName, page: 1, limit: 3 },
+        context,
+      )) as { data: Array<{ id: string }> };
+
+      expect(page1Repeat.data.map((r) => r.id)).toEqual(ids1);
     });
   });
 });
