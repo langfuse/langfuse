@@ -112,11 +112,17 @@ const createAndInsertObservations = async (
 describe("/api/public/observations API Endpoint", () => {
   let projectId: string;
   let auth: string;
+  const originalUseEventsTableEnv =
+    env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS;
 
   beforeAll(async () => {
     const fixture = await createOrgProjectAndApiKey();
     projectId = fixture.projectId;
     auth = fixture.auth;
+  });
+
+  afterEach(() => {
+    env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = originalUseEventsTableEnv;
   });
 
   // Test suite factory to run tests against both implementations
@@ -577,6 +583,84 @@ describe("/api/public/observations API Endpoint", () => {
     runTestSuite(true); // with events table
   }
   runTestSuite(false); // with observations table
+
+  describe("useEventsTable env fallback", () => {
+    it("should use events table if env flag is true and query param is omitted", async () => {
+      env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = "true";
+
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const timestamp = new Date();
+      const createdTrace = createTrace({
+        id: traceId,
+        name: "events-table-env-fallback-trace",
+        project_id: projectId,
+        timestamp: timestamp.getTime(),
+      });
+
+      await createAndInsertObservations(true, createdTrace, [
+        {
+          id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "events-table-env-fallback-observation",
+          type: "SPAN",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() * 1000,
+        },
+      ]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV1Response,
+        "GET",
+        `/api/public/observations?traceId=${traceId}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.body.data.map((observation) => observation.id)).toContain(
+        observationId,
+      );
+    });
+
+    it("should use observations table if env flag is true and query param is explicitly false", async () => {
+      env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = "true";
+
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const timestamp = new Date();
+      const createdTrace = createTrace({
+        id: traceId,
+        name: "observations-table-explicit-false-trace",
+        project_id: projectId,
+        timestamp: timestamp.getTime(),
+      });
+
+      await createAndInsertObservations(false, createdTrace, [
+        {
+          id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "observations-table-explicit-false-observation",
+          type: "SPAN",
+          level: "DEFAULT",
+          start_time: timestamp.getTime(),
+        },
+      ]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV1Response,
+        "GET",
+        `/api/public/observations?traceId=${traceId}&useEventsTable=false`,
+        undefined,
+        auth,
+      );
+
+      expect(response.body.data.map((observation) => observation.id)).toContain(
+        observationId,
+      );
+    });
+  });
 
   // Advanced Filtering Tests
   describe("Advanced Filtering", () => {

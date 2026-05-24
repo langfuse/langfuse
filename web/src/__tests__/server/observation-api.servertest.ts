@@ -78,6 +78,13 @@ const insertObservations = async (
 };
 
 describe("/api/public/observations API Endpoint", () => {
+  const originalUseEventsTableEnv =
+    env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS;
+
+  afterEach(() => {
+    env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = originalUseEventsTableEnv;
+  });
+
   // Test suite factory to run tests against both implementations
   const runTestSuite = (useEventsTable: boolean) => {
     const suiteName = useEventsTable
@@ -475,4 +482,64 @@ describe("/api/public/observations API Endpoint", () => {
     runTestSuite(true); // with events table
   }
   runTestSuite(false); // with observations table
+
+  describe("useEventsTable env fallback", () => {
+    it("should use events table if env flag is true and query param is omitted", async () => {
+      env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = "true";
+
+      const observationId = uuidv4();
+      const traceId = uuidv4();
+
+      const observation = createObservationData(true, {
+        id: observationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "events-table-env-fallback-observation",
+      });
+
+      await insertObservations(true, [observation]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetObservationV1Response,
+        "GET",
+        `/api/public/observations/${observationId}`,
+      );
+
+      expect(response.body).toMatchObject({
+        id: observationId,
+        traceId,
+        name: "events-table-env-fallback-observation",
+      });
+    });
+
+    it("should use observations table if env flag is true and query param is explicitly false", async () => {
+      env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = "true";
+
+      const observationId = uuidv4();
+      const traceId = uuidv4();
+
+      const observation = createObservationData(false, {
+        id: observationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "observations-table-explicit-false-observation",
+      });
+
+      await insertObservations(false, [observation]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetObservationV1Response,
+        "GET",
+        `/api/public/observations/${observationId}?useEventsTable=false`,
+      );
+
+      expect(response.body).toMatchObject({
+        id: observationId,
+        traceId,
+        name: "observations-table-explicit-false-observation",
+      });
+    });
+  });
 });

@@ -197,6 +197,8 @@ const createTraceWithObservations = async (
 describe("/api/public/traces API Endpoint", () => {
   let projectId: string;
   let auth: string;
+  const originalUseEventsTableEnv =
+    env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS;
 
   beforeEach(async () => {
     const currentTestName = expect.getState().currentTestName ?? "";
@@ -207,6 +209,10 @@ describe("/api/public/traces API Endpoint", () => {
     const fixture = await createOrgProjectAndApiKey();
     projectId = fixture.projectId;
     auth = fixture.auth;
+  });
+
+  afterEach(() => {
+    env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = originalUseEventsTableEnv;
   });
 
   it("should create and get a trace via /traces", async () => {
@@ -2509,6 +2515,75 @@ describe("/api/public/traces API Endpoint", () => {
       // Explicit fields=core,io should override the env default of core-only
       expect(trace.input).toEqual({ prompt: "test" });
       expect(trace.output).toEqual({ response: "test response" });
+    });
+  });
+
+  describe("GET /api/public/traces useEventsTable env fallback", () => {
+    it("should use events table if env flag is true and query param is omitted", async () => {
+      env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = "true";
+
+      const traceId = randomUUID();
+      const rootEventId = randomUUID();
+      const traceName = `events-only-trace-${randomUUID()}`;
+      const timestamp = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: rootEventId,
+          span_id: rootEventId,
+          parent_span_id: null,
+          trace_id: traceId,
+          project_id: projectId,
+          name: traceName,
+          trace_name: traceName,
+          type: "GENERATION",
+          start_time: timestamp * 1000,
+          end_time: null,
+          environment: "default",
+          cost_details: {
+            total: 0,
+          },
+          metadata_names: [],
+          metadata_values: [],
+        }),
+      ] as any);
+
+      await waitForEventsTable(true);
+
+      const response = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?name=${traceName}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.body.data.map((trace) => trace.id)).toContain(traceId);
+    });
+
+    it("should use traces table if env flag is true and query param is explicitly false", async () => {
+      env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = "true";
+
+      const traceId = randomUUID();
+      const traceName = `traces-table-only-${randomUUID()}`;
+      const createdTrace = createTrace({
+        id: traceId,
+        name: traceName,
+        project_id: projectId,
+        timestamp: Date.now(),
+      });
+
+      await createTracesCh([createdTrace]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?name=${traceName}&useEventsTable=false`,
+        undefined,
+        auth,
+      );
+
+      expect(response.body.data.map((trace) => trace.id)).toContain(traceId);
     });
   });
 
