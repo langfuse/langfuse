@@ -127,6 +127,10 @@ import {
   getMediaTool,
   handleGetMedia,
 } from "@/src/features/mcp/features/media/tools/getMedia";
+import {
+  listCommentsTool,
+  handleListComments,
+} from "@/src/features/mcp/features/comments/tools";
 
 const maybeEventsTable =
   env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
@@ -2777,6 +2781,62 @@ describe("MCP Read Tools", () => {
       expect(result.prompt[0].content).toContain(
         "@@@langfusePrompt:name=system-base|label=production@@@",
       );
+    });
+  });
+
+  describe("listComments tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(listCommentsTool, { readOnlyHint: true });
+    });
+
+    it("returns stable, non-overlapping pages when comments share identical createdAt timestamps", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const sharedCreatedAt = new Date("2024-01-01T00:00:00.000Z");
+      const objectId = randomUUID();
+
+      // Insert 6 comments with identical createdAt to stress-test the id tiebreaker.
+      // Without orderBy, PostgreSQL may return different row orderings on each page
+      // fetch, causing an agent to skip a comment it should act on, or process
+      // the same one twice when paging across turns or after checkpoint/resume.
+      await prisma.comment.createMany({
+        data: Array.from({ length: 6 }, (_, i) => ({
+          id: randomUUID(),
+          content: `Comment ${i}`,
+          objectType: "TRACE" as const,
+          objectId,
+          projectId,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+          authorUserId: null,
+        })),
+      });
+
+      const page1 = (await handleListComments(
+        { page: 1, limit: 3 },
+        context,
+      )) as { data: Array<{ id: string }>; meta: { totalItems: number } };
+
+      const page2 = (await handleListComments(
+        { page: 2, limit: 3 },
+        context,
+      )) as { data: Array<{ id: string }> };
+
+      const ids1 = page1.data.map((c) => c.id);
+      const ids2 = page2.data.map((c) => c.id);
+
+      // Pages must not overlap
+      expect(ids1.filter((id) => ids2.includes(id))).toHaveLength(0);
+
+      // Together they cover all 6 comments — no gaps
+      expect(ids1.length + ids2.length).toBe(6);
+
+      // Page 1 is stable across repeated calls
+      const page1Repeat = (await handleListComments(
+        { page: 1, limit: 3 },
+        context,
+      )) as { data: Array<{ id: string }> };
+
+      expect(page1Repeat.data.map((c) => c.id)).toEqual(ids1);
     });
   });
 });
