@@ -576,18 +576,43 @@ interface GetEventBatchIOParams<TIncludeExperiment extends boolean = false> {
   includeExperimentFields?: TIncludeExperiment;
 }
 
+type EventBatchIOStringOutput = Awaited<
+  ReturnType<typeof getObservationsBatchIOFromEventsTable>
+>[number];
+
+type EventBatchIOWithExperimentOutput = EventBatchIOStringOutput & {
+  experimentItemExpectedOutput: string | null;
+  experimentItemMetadata: unknown;
+};
+
 /**
  * Batch fetch input/output and metadata for multiple observations
  */
 export async function getEventBatchIO<
   TIncludeExperiment extends boolean = false,
->(params: GetEventBatchIOParams<TIncludeExperiment>) {
-  return getObservationsBatchIOFromEventsTable<TIncludeExperiment>({
+>(
+  params: GetEventBatchIOParams<TIncludeExperiment>,
+): Promise<
+  Array<
+    TIncludeExperiment extends true
+      ? EventBatchIOWithExperimentOutput
+      : EventBatchIOStringOutput
+  >
+> {
+  return getObservationsBatchIOFromEventsTable({
     projectId: params.projectId,
     observations: params.observations,
     minStartTime: params.minStartTime,
     maxStartTime: params.maxStartTime,
     truncated: params.truncated,
     includeExperimentFields: params.includeExperimentFields,
-  });
+  } as Parameters<typeof getObservationsBatchIOFromEventsTable>[0] & {
+    includeExperimentFields?: TIncludeExperiment;
+  }) as Promise<
+    Array<
+      TIncludeExperiment extends true
+        ? EventBatchIOWithExperimentOutput
+        : EventBatchIOStringOutput
+    >
+  >;
 }
