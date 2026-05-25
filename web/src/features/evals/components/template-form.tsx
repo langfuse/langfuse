@@ -18,9 +18,6 @@ import {
   createBooleanEvalOutputDefinition,
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
-  EvalOutputDataTypeSchema,
-  getCategoricalCategoryRuleViolations,
-  getMinimumCategoricalCategoriesMessage,
   MinimumCategoricalCategoryCount,
   type PersistedEvalOutputDefinition,
   PersistedEvalOutputDefinitionSchema,
@@ -45,6 +42,7 @@ import {
   getDefaultOutputDefinitionFormValues,
   shouldReplaceDefaultOutputDefinitionField,
 } from "@/src/features/evals/utils/template-form-defaults";
+import { templateFormSchema } from "@/src/features/evals/utils/template-form-schema";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { type RouterInput } from "@/src/utils/types";
@@ -136,121 +134,6 @@ const selectedModelSchema = z.object({
   model: z.string().min(1, "Select a model"),
   modelParams: ZodModelConfig,
 });
-
-const categoricalOptionSchema = z.object({
-  value: z.string().trim().min(1, "Enter a category value"),
-});
-
-const formSchema = z
-  .object({
-    name: z.string().min(1, "Enter a name"),
-    type: z
-      .enum([EvalTemplateType.LLM_AS_JUDGE, EvalTemplateType.CODE])
-      .default(EvalTemplateType.LLM_AS_JUDGE),
-    prompt: z
-      .string()
-      .optional()
-      .refine((val) => {
-        if (!val) return true;
-        const variables = extractVariables(val);
-        const matches = variables.map((variable) => {
-          // check regex here
-          if (variable.match(/^[A-Za-z_]+$/)) {
-            return true;
-          }
-          return false;
-        });
-        return !matches.includes(false);
-      }, "Variables must only contain letters and underscores (_)"),
-
-    variables: z.array(
-      z.string().min(1, "Variables must have at least one character"),
-    ),
-    sourceCode: z.string().optional(),
-    sourceCodeLanguage: z
-      .enum([
-        EvalTemplateSourceCodeLanguage.PYTHON,
-        EvalTemplateSourceCodeLanguage.TYPESCRIPT,
-      ])
-      .default(EvalTemplateSourceCodeLanguage.TYPESCRIPT),
-    scoreDataType: EvalOutputDataTypeSchema.default(ScoreDataTypeEnum.NUMERIC),
-    scoreDescription: z.string().optional(),
-    reasoningDescription: z.string().optional(),
-    categories: z.array(categoricalOptionSchema).default([]),
-    shouldAllowMultipleMatches: z.boolean().default(false),
-    referencedEvaluators: z
-      .enum(EvalReferencedEvaluators)
-      .optional()
-      .default(EvalReferencedEvaluators.PERSIST),
-    shouldUseDefaultModel: z.boolean().default(true),
-  })
-  .superRefine((value, ctx) => {
-    // TODO: clean up
-    if (value.type === EvalTemplateType.CODE) {
-      if (!value.sourceCode?.trim()) {
-        const languageLabel =
-          value.sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-            ? "Python"
-            : "TypeScript";
-
-        ctx.addIssue({
-          code: "custom",
-          message: `Enter ${languageLabel} source code`,
-          path: ["sourceCode"],
-        });
-      }
-      return;
-    }
-
-    if (!value.prompt?.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Enter a prompt",
-        path: ["prompt"],
-      });
-    }
-
-    if (!value.reasoningDescription?.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Enter a reasoning function",
-        path: ["reasoningDescription"],
-      });
-    }
-
-    if (!value.scoreDescription?.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Enter a score function",
-        path: ["scoreDescription"],
-      });
-    }
-
-    if (value.scoreDataType !== ScoreDataTypeEnum.CATEGORICAL) {
-      return;
-    }
-
-    getCategoricalCategoryRuleViolations(
-      value.categories.map((category) => category.value),
-    ).forEach((violation) => {
-      switch (violation.type) {
-        case "minimum_count":
-          ctx.addIssue({
-            code: "custom",
-            message: getMinimumCategoricalCategoriesMessage(),
-            path: ["categories"],
-          });
-          return;
-        case "duplicate_value":
-          ctx.addIssue({
-            code: "custom",
-            message: "Categories must be unique",
-            path: ["categories", violation.index, "value"],
-          });
-          return;
-      }
-    });
-  });
 
 const toOutputDefinitionFormValues = (
   outputDefinition?: PersistedEvalOutputDefinition | null,
@@ -369,7 +252,7 @@ export const InnerEvalTemplateForm = (props: {
   // updates the form based on the pre-filled data
   // either form update or from langfuse-generated template
   const form = useForm({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(templateFormSchema),
     disabled: !props.isEditing,
     defaultValues: {
       name:
@@ -554,7 +437,7 @@ export const InnerEvalTemplateForm = (props: {
       });
   }
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof templateFormSchema>) {
     capture(
       props.isEditing
         ? "eval_templates:update_form_submit"
