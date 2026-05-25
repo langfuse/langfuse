@@ -79,22 +79,6 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
         <div className="space-y-2">
           <h2 className="text-base font-semibold">Create from scratch</h2>
           <div className="flex flex-wrap gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-auto min-h-24 w-full justify-start gap-3 px-4 py-4 text-left whitespace-normal sm:w-[360px]"
-              onClick={() =>
-                handleOpenCreateEvaluator(EvalTemplateType.LLM_AS_JUDGE)
-              }
-            >
-              <BrainCircuit className="h-5 w-5 shrink-0" />
-              <span className="flex flex-col gap-1">
-                <span className="font-medium">LLM as a judge evaluator</span>
-                <span className="text-muted-foreground text-sm font-normal">
-                  Use a prompt and model to score traces or observations.
-                </span>
-              </span>
-            </Button>
             {isCodeEvalEnabled ? (
               <Button
                 type="button"
@@ -111,6 +95,22 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                 </span>
               </Button>
             ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              className="h-auto min-h-24 w-full justify-start gap-3 px-4 py-4 text-left whitespace-normal sm:w-[360px]"
+              onClick={() =>
+                handleOpenCreateEvaluator(EvalTemplateType.LLM_AS_JUDGE)
+              }
+            >
+              <BrainCircuit className="h-5 w-5 shrink-0" />
+              <span className="flex flex-col gap-1">
+                <span className="font-medium">LLM as a judge evaluator</span>
+                <span className="text-muted-foreground text-sm font-normal">
+                  Use a prompt and model to score traces or observations.
+                </span>
+              </span>
+            </Button>
           </div>
         </div>
 
