@@ -513,342 +513,6 @@ export const InnerEvalTemplateForm = (props: {
     await submitEvalTemplate(evalTemplate);
   }
 
-  const llmAsJudgeFormBody = (
-    <>
-      {/* Model Selection Section */}
-      <Card>
-        <CardContent>
-          <p className="my-2 font-semibold">Model</p>
-          <FormField
-            control={form.control}
-            name="shouldUseDefaultModel"
-            render={({ field }) => (
-              <FormItem className="mt-3 flex flex-row items-center space-y-0 space-x-3">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    disabled={!props.isEditing}
-                  />
-                </FormControl>
-                <div className="space-y-0 leading-none">
-                  <FormLabel>Use default evaluation model</FormLabel>
-                  <FormDescription className="text-xs">
-                    <ManageDefaultEvalModel
-                      projectId={props.projectId}
-                      variant="color-coded"
-                      setUpMessage={
-                        <>
-                          No default model set. LLM-as-a-judge evaluations
-                          require an LLM connection for scoring. This default is
-                          used by all templates that don&apos;t specify their
-                          own model.{" "}
-                          <a
-                            href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge#how-llm-as-a-judge-works"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline"
-                          >
-                            Learn more.
-                          </a>
-                        </>
-                      }
-                      className="text-sm font-normal"
-                    />
-                  </FormDescription>
-                </div>
-              </FormItem>
-            )}
-          />
-          {/* Only show model parameters if using custom model */}
-          {!useDefaultModel &&
-            (!props.isEditing && !isCustomModelValid ? (
-              <div className="text-destructive mt-2 flex items-center space-x-1 text-sm">
-                <AlertCircle className="h-4 w-4" />
-                <p>
-                  This evaluator is configured to use{" "}
-                  {modelParams.provider.value}s models but no API key exists.
-                  Add a key or choose another provider.
-                </p>
-              </div>
-            ) : (
-              <ModelParameters
-                customHeader={
-                  <p className="text-sm leading-none font-medium">
-                    Custom model configuration
-                  </p>
-                }
-                {...{
-                  modelParams,
-                  availableModels,
-                  providerModelCombinations,
-                  availableProviders,
-                  updateModelParamValue: updateModelParamValue,
-                  setModelParamEnabled,
-                  modelParamsDescription:
-                    "Select a model which supports function calling.",
-                }}
-                formDisabled={!props.isEditing}
-              />
-            ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <p className="my-2 font-semibold">Prompt</p>
-            <FormField
-              control={form.control}
-              name="prompt"
-              render={({ field }) => (
-                <>
-                  <FormItem>
-                    <FormLabel>Evaluation prompt</FormLabel>
-                    <FormDescription>
-                      Define your llm-as-a-judge evaluation template. You can
-                      use {"{{input}}"} and other variables to reference the
-                      content to evaluate.
-                    </FormDescription>
-                    <FormControl>
-                      <CodeMirrorEditor
-                        value={field.value ?? ""}
-                        onChange={field.onChange}
-                        editable={props.isEditing}
-                        mode="prompt"
-                        minHeight={200}
-                        maxHeight="50dvh"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                    <PromptVariableListPreview
-                      variables={extractedVariables ?? []}
-                    />
-                  </FormItem>
-                </>
-              )}
-            />
-          </div>
-
-          <FormField
-            control={form.control}
-            name="scoreDataType"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Score type</FormLabel>
-                <FormDescription>
-                  Choose whether the evaluator should return a numeric score, a
-                  boolean verdict, or one of a fixed set of categories.
-                </FormDescription>
-                <Select
-                  value={field.value}
-                  disabled={!props.isEditing}
-                  onValueChange={(value) => {
-                    const nextScoreDataType = value as
-                      | typeof ScoreDataTypeEnum.NUMERIC
-                      | typeof ScoreDataTypeEnum.BOOLEAN
-                      | typeof ScoreDataTypeEnum.CATEGORICAL;
-                    const shouldEnableMultipleMatches =
-                      nextScoreDataType === ScoreDataTypeEnum.CATEGORICAL
-                        ? form.getValues("shouldAllowMultipleMatches")
-                        : false;
-
-                    field.onChange(nextScoreDataType);
-
-                    if (
-                      nextScoreDataType === ScoreDataTypeEnum.CATEGORICAL &&
-                      (form.getValues("categories") ?? []).length === 0
-                    ) {
-                      replace(
-                        Array.from(
-                          { length: MinimumCategoricalCategoryCount },
-                          () => ({ value: "" }),
-                        ),
-                      );
-                    }
-
-                    if (nextScoreDataType !== ScoreDataTypeEnum.CATEGORICAL) {
-                      form.setValue("shouldAllowMultipleMatches", false);
-                    }
-
-                    applyDefaultOutputDefinitionCopy({
-                      scoreDataType: nextScoreDataType,
-                      shouldAllowMultipleMatches:
-                        shouldEnableMultipleMatches ?? false,
-                    });
-                  }}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a score type" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value={ScoreDataTypeEnum.NUMERIC}>
-                      Numeric
-                    </SelectItem>
-                    <SelectItem value={ScoreDataTypeEnum.BOOLEAN}>
-                      Boolean
-                    </SelectItem>
-                    <SelectItem value={ScoreDataTypeEnum.CATEGORICAL}>
-                      Categorical
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {isCategoricalOutput ? (
-            <FormField
-              control={form.control}
-              name="categories"
-              render={() => (
-                <FormItem>
-                  <div>
-                    <FormLabel>Categories</FormLabel>
-                    <FormDescription>
-                      Add the allowed category values the model may return.
-                      Categories must be exhaustive. If you need a catch-all
-                      outcome (e.g. &apos;No match&apos;), add it explicitly as
-                      one of the categories.
-                    </FormDescription>
-                  </div>
-                  <div className="space-y-3">
-                    {categoryFields.map((field, index) => (
-                      <div
-                        key={field.id}
-                        className="grid gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1fr)_auto]"
-                      >
-                        <FormField
-                          control={form.control}
-                          name={`categories.${index}.value`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-muted-foreground text-xs">
-                                Category
-                              </FormLabel>
-                              <FormControl>
-                                <Input {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <div className="flex items-end">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            disabled={!props.isEditing}
-                            onClick={() => remove(index)}
-                          >
-                            <Trash className="text-muted-foreground h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="text-muted-foreground"
-                    disabled={!props.isEditing}
-                    onClick={() => append({ value: "" })}
-                  >
-                    <PlusIcon className="mr-1.5 h-4 w-4" />
-                    Add category
-                  </Button>
-                  <FormField
-                    control={form.control}
-                    name="shouldAllowMultipleMatches"
-                    render={({ field }) => (
-                      <FormItem className="mt-3 flex flex-row items-center space-y-0 space-x-3">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={(checked) => {
-                              field.onChange(checked);
-                              applyDefaultOutputDefinitionCopy({
-                                scoreDataType: ScoreDataTypeEnum.CATEGORICAL,
-                                shouldAllowMultipleMatches: Boolean(checked),
-                              });
-                            }}
-                            disabled={!props.isEditing}
-                          />
-                        </FormControl>
-                        <div className="space-y-0.5 leading-none">
-                          <FormLabel>Allow multiple matches</FormLabel>
-                          <FormDescription>
-                            Lets the model return more than one category. One
-                            score will be created for each selected match.
-                          </FormDescription>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                  {categoriesErrorMessage ? (
-                    <p className="text-destructive text-sm font-medium">
-                      {categoriesErrorMessage}
-                    </p>
-                  ) : null}
-                </FormItem>
-              )}
-            />
-          ) : null}
-          <FormField
-            control={form.control}
-            name="reasoningDescription"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Score reasoning prompt</FormLabel>
-                <FormDescription>
-                  Define how the LLM should explain its evaluation. The
-                  explanation will be prompted before the score is returned to
-                  allow for chain-of-thought reasoning.
-                </FormDescription>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="scoreDescription"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  {isCategoricalOutput
-                    ? "Category selection prompt"
-                    : isBooleanOutput
-                      ? "Boolean verdict prompt"
-                      : "Score output prompt"}
-                </FormLabel>
-                <FormDescription>
-                  {isCategoricalOutput
-                    ? shouldAllowMultipleMatches
-                      ? "Define how the LLM should choose one or more categories from the list below."
-                      : "Define how the LLM should choose exactly one category from the list below."
-                    : isBooleanOutput
-                      ? "Define how the LLM should return either true or false based on the evaluation criteria."
-                      : "Define how the LLM should return the evaluation score in natural language. Needs to yield a numeric value."}
-                </FormDescription>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </CardContent>
-      </Card>
-    </>
-  );
-
   const formBody = (
     <>
       {!props.existingEvalTemplateId ? (
@@ -903,7 +567,345 @@ export const InnerEvalTemplateForm = (props: {
           )}
         />
       ) : (
-        llmAsJudgeFormBody
+        <>
+          {/* Model Selection Section */}
+          <Card>
+            <CardContent>
+              <p className="my-2 font-semibold">Model</p>
+              <FormField
+                control={form.control}
+                name="shouldUseDefaultModel"
+                render={({ field }) => (
+                  <FormItem className="mt-3 flex flex-row items-center space-y-0 space-x-3">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={!props.isEditing}
+                      />
+                    </FormControl>
+                    <div className="space-y-0 leading-none">
+                      <FormLabel>Use default evaluation model</FormLabel>
+                      <FormDescription className="text-xs">
+                        <ManageDefaultEvalModel
+                          projectId={props.projectId}
+                          variant="color-coded"
+                          setUpMessage={
+                            <>
+                              No default model set. LLM-as-a-judge evaluations
+                              require an LLM connection for scoring. This
+                              default is used by all templates that don&apos;t
+                              specify their own model.{" "}
+                              <a
+                                href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge#how-llm-as-a-judge-works"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline"
+                              >
+                                Learn more.
+                              </a>
+                            </>
+                          }
+                          className="text-sm font-normal"
+                        />
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              {/* Only show model parameters if using custom model */}
+              {!useDefaultModel &&
+                (!props.isEditing && !isCustomModelValid ? (
+                  <div className="text-destructive mt-2 flex items-center space-x-1 text-sm">
+                    <AlertCircle className="h-4 w-4" />
+                    <p>
+                      This evaluator is configured to use{" "}
+                      {modelParams.provider.value}s models but no API key
+                      exists. Add a key or choose another provider.
+                    </p>
+                  </div>
+                ) : (
+                  <ModelParameters
+                    customHeader={
+                      <p className="text-sm leading-none font-medium">
+                        Custom model configuration
+                      </p>
+                    }
+                    {...{
+                      modelParams,
+                      availableModels,
+                      providerModelCombinations,
+                      availableProviders,
+                      updateModelParamValue: updateModelParamValue,
+                      setModelParamEnabled,
+                      modelParamsDescription:
+                        "Select a model which supports function calling.",
+                    }}
+                    formDisabled={!props.isEditing}
+                  />
+                ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <p className="my-2 font-semibold">Prompt</p>
+                <FormField
+                  control={form.control}
+                  name="prompt"
+                  render={({ field }) => (
+                    <>
+                      <FormItem>
+                        <FormLabel>Evaluation prompt</FormLabel>
+                        <FormDescription>
+                          Define your llm-as-a-judge evaluation template. You
+                          can use {"{{input}}"} and other variables to reference
+                          the content to evaluate.
+                        </FormDescription>
+                        <FormControl>
+                          <CodeMirrorEditor
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                            editable={props.isEditing}
+                            mode="prompt"
+                            minHeight={200}
+                            maxHeight="50dvh"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                        <PromptVariableListPreview
+                          variables={extractedVariables ?? []}
+                        />
+                      </FormItem>
+                    </>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="scoreDataType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Score type</FormLabel>
+                    <FormDescription>
+                      Choose whether the evaluator should return a numeric
+                      score, a boolean verdict, or one of a fixed set of
+                      categories.
+                    </FormDescription>
+                    <Select
+                      value={field.value}
+                      disabled={!props.isEditing}
+                      onValueChange={(value) => {
+                        const nextScoreDataType = value as
+                          | typeof ScoreDataTypeEnum.NUMERIC
+                          | typeof ScoreDataTypeEnum.BOOLEAN
+                          | typeof ScoreDataTypeEnum.CATEGORICAL;
+                        const shouldEnableMultipleMatches =
+                          nextScoreDataType === ScoreDataTypeEnum.CATEGORICAL
+                            ? form.getValues("shouldAllowMultipleMatches")
+                            : false;
+
+                        field.onChange(nextScoreDataType);
+
+                        if (
+                          nextScoreDataType === ScoreDataTypeEnum.CATEGORICAL &&
+                          (form.getValues("categories") ?? []).length === 0
+                        ) {
+                          replace(
+                            Array.from(
+                              { length: MinimumCategoricalCategoryCount },
+                              () => ({ value: "" }),
+                            ),
+                          );
+                        }
+
+                        if (
+                          nextScoreDataType !== ScoreDataTypeEnum.CATEGORICAL
+                        ) {
+                          form.setValue("shouldAllowMultipleMatches", false);
+                        }
+
+                        applyDefaultOutputDefinitionCopy({
+                          scoreDataType: nextScoreDataType,
+                          shouldAllowMultipleMatches:
+                            shouldEnableMultipleMatches ?? false,
+                        });
+                      }}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a score type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={ScoreDataTypeEnum.NUMERIC}>
+                          Numeric
+                        </SelectItem>
+                        <SelectItem value={ScoreDataTypeEnum.BOOLEAN}>
+                          Boolean
+                        </SelectItem>
+                        <SelectItem value={ScoreDataTypeEnum.CATEGORICAL}>
+                          Categorical
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {isCategoricalOutput ? (
+                <FormField
+                  control={form.control}
+                  name="categories"
+                  render={() => (
+                    <FormItem>
+                      <div>
+                        <FormLabel>Categories</FormLabel>
+                        <FormDescription>
+                          Add the allowed category values the model may return.
+                          Categories must be exhaustive. If you need a catch-all
+                          outcome (e.g. &apos;No match&apos;), add it explicitly
+                          as one of the categories.
+                        </FormDescription>
+                      </div>
+                      <div className="space-y-3">
+                        {categoryFields.map((field, index) => (
+                          <div
+                            key={field.id}
+                            className="grid gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1fr)_auto]"
+                          >
+                            <FormField
+                              control={form.control}
+                              name={`categories.${index}.value`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-muted-foreground text-xs">
+                                    Category
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <div className="flex items-end">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                disabled={!props.isEditing}
+                                onClick={() => remove(index)}
+                              >
+                                <Trash className="text-muted-foreground h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="text-muted-foreground"
+                        disabled={!props.isEditing}
+                        onClick={() => append({ value: "" })}
+                      >
+                        <PlusIcon className="mr-1.5 h-4 w-4" />
+                        Add category
+                      </Button>
+                      <FormField
+                        control={form.control}
+                        name="shouldAllowMultipleMatches"
+                        render={({ field }) => (
+                          <FormItem className="mt-3 flex flex-row items-center space-y-0 space-x-3">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked);
+                                  applyDefaultOutputDefinitionCopy({
+                                    scoreDataType:
+                                      ScoreDataTypeEnum.CATEGORICAL,
+                                    shouldAllowMultipleMatches:
+                                      Boolean(checked),
+                                  });
+                                }}
+                                disabled={!props.isEditing}
+                              />
+                            </FormControl>
+                            <div className="space-y-0.5 leading-none">
+                              <FormLabel>Allow multiple matches</FormLabel>
+                              <FormDescription>
+                                Lets the model return more than one category.
+                                One score will be created for each selected
+                                match.
+                              </FormDescription>
+                            </div>
+                          </FormItem>
+                        )}
+                      />
+                      {categoriesErrorMessage ? (
+                        <p className="text-destructive text-sm font-medium">
+                          {categoriesErrorMessage}
+                        </p>
+                      ) : null}
+                    </FormItem>
+                  )}
+                />
+              ) : null}
+              <FormField
+                control={form.control}
+                name="reasoningDescription"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Score reasoning prompt</FormLabel>
+                    <FormDescription>
+                      Define how the LLM should explain its evaluation. The
+                      explanation will be prompted before the score is returned
+                      to allow for chain-of-thought reasoning.
+                    </FormDescription>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="scoreDescription"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {isCategoricalOutput
+                        ? "Category selection prompt"
+                        : isBooleanOutput
+                          ? "Boolean verdict prompt"
+                          : "Score output prompt"}
+                    </FormLabel>
+                    <FormDescription>
+                      {isCategoricalOutput
+                        ? shouldAllowMultipleMatches
+                          ? "Define how the LLM should choose one or more categories from the list below."
+                          : "Define how the LLM should choose exactly one category from the list below."
+                        : isBooleanOutput
+                          ? "Define how the LLM should return either true or false based on the evaluation criteria."
+                          : "Define how the LLM should return the evaluation score in natural language. Needs to yield a numeric value."}
+                    </FormDescription>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+        </>
       )}
     </>
   );
