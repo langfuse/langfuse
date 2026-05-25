@@ -44,6 +44,12 @@ const promptLanguage = StreamLanguage.define({
       return "keyword";
     }
 
+    // Extra surrounding braces are literals; the inner {{variable}} compiles.
+    if (stream.match("{{{", false)) {
+      stream.next();
+      return null;
+    }
+
     // Highlight mustache variables
     if (stream.match("{{")) {
       const start = stream.pos;
@@ -57,10 +63,8 @@ const promptLanguage = StreamLanguage.define({
   },
 });
 
-// Linter for prompt variables
-const promptLinter = linter((view) => {
+export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
   const diagnostics: Diagnostic[] = [];
-  const content = view.state.doc.toString();
 
   // Check for multiline variables
   for (const match of content.matchAll(MULTILINE_VARIABLE_REGEX)) {
@@ -128,7 +132,12 @@ const promptLinter = linter((view) => {
   }
 
   return diagnostics;
-});
+};
+
+// Linter for prompt variables
+const promptLinter = linter((view) =>
+  getPromptVariableDiagnostics(view.state.doc.toString()),
+);
 
 // Create a language support instance that combines the language and its configuration
 const promptSupport = new LanguageSupport(promptLanguage);
