@@ -772,7 +772,12 @@ function splitAIMessageContent(
     if (typeof block === "string") {
       textParts.push(block);
       contentWithoutThinking.push(block as AIMessageContentBlock);
-    } else if (thinkingBlockTypes.has(block.type)) {
+    } else if (
+      thinkingBlockTypes.has(block.type) ||
+      // ChatGoogle marks thinking parts as `{ type: "text", thought: true }`
+      // rather than using a dedicated block type.
+      (block as { thought?: unknown }).thought === true
+    ) {
       const reasoning = extractReasoningBlockText(block);
       if (typeof reasoning === "string") reasoningParts.push(reasoning);
     } else {

@@ -115,10 +115,17 @@ export const OpenAIResponseFormatSchema = z.object({
 });
 
 export const ToolCallResponseSchema = z.object({
+  // ChatGoogle (unified Google SDK) interleaves text and functionCall blocks in
+  // a single content array, so accept a per-element union rather than requiring
+  // the whole array to match one provider's shape.
   content: z.union([
     z.string(),
-    z.array(AnthropicMessageContentWithToolUse),
-    z.array(GoogleAIStudioMessageContentWithToolUse),
+    z.array(
+      z.union([
+        AnthropicMessageContentWithToolUse,
+        GoogleAIStudioMessageContentWithToolUse,
+      ]),
+    ),
   ]),
   tool_calls: z.array(LLMToolCallSchema),
 });
