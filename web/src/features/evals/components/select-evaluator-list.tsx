@@ -23,6 +23,7 @@ import {
 } from "@langfuse/shared";
 import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { CODE_EVAL_ESCAPE_CONFIRM_MESSAGE } from "@/src/features/evals/utils/code-eval-template-utils";
 
 type SelectEvaluatorListProps = {
   projectId: string;
@@ -138,7 +139,14 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
+        <DialogContent
+          className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto"
+          confirmCloseOnEscape={
+            customEvaluatorType === EvalTemplateType.CODE
+              ? CODE_EVAL_ESCAPE_CONFIRM_MESSAGE
+              : undefined
+          }
+        >
           <DialogHeader>
             <DialogTitle>Create new evaluator</DialogTitle>
           </DialogHeader>

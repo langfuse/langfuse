@@ -14,6 +14,9 @@ export const shouldShowEvalTemplate = (
   codeEvalEnabled: boolean,
 ) => !isCodeEvalTemplate(template) || codeEvalEnabled;
 
+export const CODE_EVAL_ESCAPE_CONFIRM_MESSAGE =
+  "Close code editor? Unsaved changes will be lost.";
+
 export function getCodeEvalVariableMapping(): ObservationVariableMapping[] {
   return [
     {

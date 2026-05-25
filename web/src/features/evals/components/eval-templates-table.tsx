@@ -44,7 +44,10 @@ import {
   type EvalTemplate,
 } from "@langfuse/shared";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
-import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
+import {
+  CODE_EVAL_ESCAPE_CONFIRM_MESSAGE,
+  shouldShowEvalTemplate,
+} from "@/src/features/evals/utils/code-eval-template-utils";
 import { SiPython, SiTypescript } from "react-icons/si";
 
 export type EvalsTemplateRow = {
@@ -490,7 +493,14 @@ export default function EvalsTemplateTable({
           if (!open) setEditTemplateId(null);
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
+        <DialogContent
+          className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto"
+          confirmCloseOnEscape={
+            template.data?.type === EvalTemplateType.CODE
+              ? CODE_EVAL_ESCAPE_CONFIRM_MESSAGE
+              : undefined
+          }
+        >
           <DialogHeader>
             <DialogTitle>Edit evaluator</DialogTitle>
           </DialogHeader>
@@ -520,7 +530,14 @@ export default function EvalsTemplateTable({
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
+        <DialogContent
+          className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto"
+          confirmCloseOnEscape={
+            cloneTemplate.data?.type === EvalTemplateType.CODE
+              ? CODE_EVAL_ESCAPE_CONFIRM_MESSAGE
+              : undefined
+          }
+        >
           <DialogHeader>
             <DialogTitle>Clone evaluator</DialogTitle>
           </DialogHeader>
