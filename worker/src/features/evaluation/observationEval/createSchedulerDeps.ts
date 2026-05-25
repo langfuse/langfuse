@@ -64,6 +64,9 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
         projectId: params.projectId,
         jobExecutionId: params.jobExecutionId,
         observationS3Path: params.observationS3Path,
+        ...(params.executionMode
+          ? { executionMode: params.executionMode }
+          : {}),
       };
 
       if (params.evalTemplateType === EvalTemplateType.CODE) {

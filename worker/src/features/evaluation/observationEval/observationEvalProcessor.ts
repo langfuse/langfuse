@@ -9,9 +9,9 @@ import {
 import {
   observationForEvalSchema,
   observationVariableMappingList,
-  isJobConfigExecutable,
   type EvalTemplateCodeBased,
   type EvalTemplateLlmAsAJudge,
+  isJobConfigExecutableForExecutionMode,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import {
@@ -153,7 +153,9 @@ export async function processObservationEval(
     );
   }
 
-  if (!isJobConfigExecutable(evalJobConfig)) {
+  if (
+    !isJobConfigExecutableForExecutionMode(evalJobConfig, event.executionMode)
+  ) {
     logger.debug(
       `Job execution ${event.jobExecutionId} is not executable because the evaluator is blocked or inactive.`,
     );

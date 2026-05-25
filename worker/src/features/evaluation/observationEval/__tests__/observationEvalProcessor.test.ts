@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
+  JobConfigState,
   JobExecutionStatus,
 } from "@prisma/client";
 import {
@@ -268,6 +269,82 @@ describe("processObservationEval", () => {
       );
       expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
       expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
+    });
+
+    it("should cancel inactive evaluators when execution mode is omitted", async () => {
+      const job = createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status: JobExecutionStatus.PENDING,
+        jobConfigurationId: "config-123",
+      });
+      const config = createMockJobConfiguration({
+        id: "config-123",
+        projectId,
+        status: JobConfigState.INACTIVE,
+      });
+
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
+      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
+
+      const deps = createMockProcessorDeps();
+
+      await processObservationEval({
+        event: baseEvent,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
+        deps,
+      });
+
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: job.id,
+          projectId,
+        },
+        data: {
+          status: JobExecutionStatus.CANCELLED,
+          endTime: expect.any(Date),
+        },
+      });
+      expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
+      expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
+    });
+
+    it("should execute inactive evaluators for manual execution", async () => {
+      const job = createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status: JobExecutionStatus.PENDING,
+        jobConfigurationId: "config-123",
+      });
+      const config = createMockJobConfiguration({
+        id: "config-123",
+        projectId,
+        status: JobConfigState.INACTIVE,
+      });
+
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
+      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
+
+      const deps = createMockProcessorDeps();
+
+      await processObservationEval({
+        event: { ...baseEvent, executionMode: "MANUAL" },
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
+        deps,
+      });
+
+      expect(prisma.jobExecution.update).not.toHaveBeenCalled();
+      expect(deps.downloadObservationFromS3).toHaveBeenCalledWith(
+        observationS3Path,
+      );
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId,
+          jobExecutionId,
+          job: expect.objectContaining({ id: jobExecutionId }),
+          config: expect.objectContaining({ id: "config-123" }),
+        }),
+      );
     });
   });
 
