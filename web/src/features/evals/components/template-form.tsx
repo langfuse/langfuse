@@ -526,7 +526,7 @@ export const InnerEvalTemplateForm = (props: {
                   <FormItem>
                     <FormLabel>Name</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Select a template name" />
+                      <Input {...field} placeholder="Select a name" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
