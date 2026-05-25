@@ -32,7 +32,7 @@ export class LocalCodeEvalDispatcher implements CodeEvalDispatcher {
       source = stripTypeScriptTypes(input.code.source, { mode: "strip" });
     } catch (error) {
       throw new CodeEvalDispatcherError(
-        `Failed to strip TypeScript syntax: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to strip TypeScript syntax: ${formatError(error)}`,
         { code: CodeEvalDispatcherErrorCodes.INVALID_SOURCE, cause: error },
       );
     }
@@ -50,7 +50,7 @@ if (typeof evaluate !== "function") {
       );
     } catch (error) {
       throw new CodeEvalDispatcherError(
-        `Failed to prepare evaluator source: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to prepare evaluator source: ${formatError(error)}`,
         { code: CodeEvalDispatcherErrorCodes.INVALID_SOURCE, cause: error },
       );
     }
@@ -61,7 +61,7 @@ if (typeof evaluate !== "function") {
         timeout: this.timeoutMs,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       throw new CodeEvalDispatcherError(message, {
         code: message.includes("Script execution timed out")
           ? CodeEvalDispatcherErrorCodes.TIMEOUT
@@ -73,4 +73,17 @@ if (typeof evaluate !== "function") {
 
     return parseDispatchResult(result);
   }
+}
+
+function formatError(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return String(error);
 }
