@@ -25,7 +25,6 @@ import {
   type CodeEvalSourceCodeLanguage,
   type CodeEvalValidationResult,
   formatPythonCodeEvalSourceWithRuff,
-  validateCodeEvalSourceWithLanguage,
 } from "@/src/features/evals/utils/code-eval-template-validation";
 
 type CodeEvalTemplateFormBodyProps = {
@@ -34,8 +33,6 @@ type CodeEvalTemplateFormBodyProps = {
   onSourceCodeChange: (value: string) => void;
   editable: boolean;
   validationResult: CodeEvalValidationResult | null;
-  onValidationResultChange: (result: CodeEvalValidationResult | null) => void;
-  onValidationPendingChange: (isPending: boolean) => void;
 };
 
 type ProtectedRange = {
@@ -262,8 +259,6 @@ export function CodeEvalTemplateFormBody({
   onSourceCodeChange,
   editable,
   validationResult,
-  onValidationResultChange,
-  onValidationPendingChange,
 }: CodeEvalTemplateFormBodyProps) {
   const { resolvedTheme } = useTheme();
   const codeMirrorViewRef = useRef<EditorView | null>(null);
@@ -285,54 +280,6 @@ export function CodeEvalTemplateFormBody({
 
     scrollCodeMirrorToBottom(view);
   }, [sourceCode, sourceCodeLanguage]);
-
-  useEffect(() => {
-    let isActive = true;
-    onValidationPendingChange(true);
-
-    const timeout = setTimeout(() => {
-      validateCodeEvalSourceWithLanguage({
-        source: sourceCode,
-        sourceCodeLanguage,
-      })
-        .then((result) => {
-          if (!isActive) return;
-          onValidationResultChange(result);
-        })
-        .catch((error) => {
-          if (!isActive) return;
-          onValidationResultChange({
-            sourceBytes: new TextEncoder().encode(sourceCode).length,
-            hasErrors: true,
-            diagnostics: [
-              {
-                from: 0,
-                to: Math.max(1, sourceCode.length),
-                severity: "error",
-                message:
-                  error instanceof Error
-                    ? error.message
-                    : `Failed to validate ${languageLabel} source.`,
-              },
-            ],
-          });
-        })
-        .finally(() => {
-          if (isActive) onValidationPendingChange(false);
-        });
-    }, 250);
-
-    return () => {
-      isActive = false;
-      clearTimeout(timeout);
-    };
-  }, [
-    languageLabel,
-    onValidationPendingChange,
-    onValidationResultChange,
-    sourceCode,
-    sourceCodeLanguage,
-  ]);
 
   const diagnostics = useMemo(
     () => validationResult?.diagnostics ?? [],
