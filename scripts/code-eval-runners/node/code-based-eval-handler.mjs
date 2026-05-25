@@ -1,5 +1,7 @@
 import { stripTypeScriptTypes } from "node:module";
 
+const CODE_EVAL_DOCS_URL = "https://langfuse.com/docs/evaluation/overview";
+
 // `stripTypeScriptTypes` is loaded lazily - we call it hear to avoid doing the import in the call itself
 stripTypeScriptTypes("");
 
@@ -10,7 +12,7 @@ export async function handler(event) {
   } catch (error) {
     return runnerError(
       "INVALID_SOURCE",
-      `Failed to strip TypeScript syntax: ${formatError(error)}`,
+      `Failed to strip TypeScript syntax: ${withCodeEvalDocs(formatError(error))}`,
     );
   }
 
@@ -68,4 +70,13 @@ function runnerError(code, message) {
 
 function formatError(error) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function withCodeEvalDocs(message) {
+  const trimmedMessage = message.trim();
+  const punctuatedMessage = /[.!?]$/.test(trimmedMessage)
+    ? trimmedMessage
+    : `${trimmedMessage}.`;
+
+  return `${punctuatedMessage} See ${CODE_EVAL_DOCS_URL} for details.`;
 }

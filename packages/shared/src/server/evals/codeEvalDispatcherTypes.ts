@@ -4,6 +4,18 @@ import { ScoreDataTypeEnum, TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
 export const CODE_EVAL_SOURCE_MAX_BYTES = 256 * 1024;
 export const CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES = 5.5 * 1024 * 1024;
 export const CODE_EVAL_DISPATCH_RESULT_MAX_BYTES = 256 * 1024;
+// TODO: Replace with a dedicated code-based evaluator limits docs page.
+export const CODE_EVAL_DOCS_URL =
+  "https://langfuse.com/docs/evaluation/overview";
+
+export function withCodeEvalDocs(message: string): string {
+  const trimmedMessage = message.trim();
+  const punctuatedMessage = /[.!?]$/.test(trimmedMessage)
+    ? trimmedMessage
+    : `${trimmedMessage}.`;
+
+  return `${punctuatedMessage} See ${CODE_EVAL_DOCS_URL} for details.`;
+}
 
 export const CodeEvalRuntimeLanguage = z.enum(["PYTHON", "TYPESCRIPT"]);
 export type CodeEvalRuntimeLanguage = z.infer<typeof CodeEvalRuntimeLanguage>;

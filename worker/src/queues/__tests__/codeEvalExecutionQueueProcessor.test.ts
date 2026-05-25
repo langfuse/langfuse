@@ -241,7 +241,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
 
   it("should preserve retryable code eval timeout messages on the final retry attempt", async () => {
     const timeoutMessage =
-      "Evaluator timed out. Code-based evaluators are limited by the configured runtime limit. Optimize your evaluator code and try again. See https://langfuse.com/docs/evaluation/overview for details.";
+      "Evaluator timed out. Code-based evaluators must complete within the configured runtime limit. Long executions can be caused by network calls, which are forbidden and may never complete. Remove network calls, optimize your evaluator code, and try again. See https://langfuse.com/docs/evaluation/overview for details.";
     const error = new CodeEvalExecutionError({
       code: CodeEvalDispatcherErrorCodes.TIMEOUT,
       message: timeoutMessage,

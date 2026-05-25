@@ -5,6 +5,7 @@ import {
   CodeEvalDispatcherError,
   CodeEvalDispatcherErrorCodes,
   parseDispatchResult,
+  withCodeEvalDocs,
   type CodeEvalDispatcher,
   type DispatchInput,
   type DispatchResult,
@@ -32,7 +33,7 @@ export class LocalCodeEvalDispatcher implements CodeEvalDispatcher {
       source = stripTypeScriptTypes(input.code.source, { mode: "strip" });
     } catch (error) {
       throw new CodeEvalDispatcherError(
-        `Failed to strip TypeScript syntax: ${formatError(error)}`,
+        `Failed to strip TypeScript syntax: ${withCodeEvalDocs(formatError(error))}`,
         { code: CodeEvalDispatcherErrorCodes.INVALID_SOURCE, cause: error },
       );
     }

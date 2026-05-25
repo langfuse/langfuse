@@ -526,6 +526,9 @@ describe("executeCodeBasedEvaluation", () => {
     expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);
     const trace = JSON.stringify(mocks.writeInternalTrace.mock.calls[0]?.[0]);
     expect(trace).toContain("Evaluator timed out.");
+    expect(trace).toContain(
+      "Long executions can be caused by network calls, which are forbidden and may never complete.",
+    );
     expect(trace).not.toContain(rawTimeoutMessage);
   });
 

@@ -55,20 +55,33 @@ describe("LocalCodeEvalDispatcher", () => {
     });
   });
 
-  it("rejects sources with TypeScript syntax errors", async () => {
+  it("rejects unsupported TypeScript syntax with a docs link", async () => {
     const dispatcher = new LocalCodeEvalDispatcher();
 
-    await expect(
-      dispatcher.dispatch({
-        ...baseInput,
-        runtime: { language: "TYPESCRIPT" },
-        // Deliberate stray token that `stripTypeScriptTypes` cannot parse.
-        code: { source: "function evaluate(@@@) {}" },
-      }),
-    ).rejects.toMatchObject({
+    const promise = dispatcher.dispatch({
+      ...baseInput,
+      runtime: { language: "TYPESCRIPT" },
+      code: {
+        source: `
+            enum MatchScore {
+              Mismatch = 0,
+              Match = 1,
+            }
+
+            function evaluate() {
+              return { scores: [{ name: "match", value: MatchScore.Match }] };
+            }
+          `,
+      },
+    });
+
+    await expect(promise).rejects.toMatchObject({
       code: "INVALID_SOURCE",
       retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
+    await expect(promise).rejects.toThrow(
+      "See https://langfuse.com/docs/evaluation/overview for details.",
+    );
   });
 
   it("rejects sources whose module throws at top level", async () => {
