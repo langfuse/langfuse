@@ -2,6 +2,7 @@ import type * as ts from "typescript";
 import type { Diagnostic as RuffDiagnostic } from "@astral-sh/ruff-wasm-web";
 import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 import {
+  PYTHON_CODE_EVAL_CONTRACT,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
   type CodeEvalSourceCodeLanguage,
 } from "@/src/features/evals/utils/code-eval-template-starter-examples";
@@ -9,9 +10,12 @@ import {
 export {
   DEFAULT_PYTHON_CODE_EVAL_SOURCE,
   DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
+  PYTHON_CODE_EVAL_CONTRACT,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
+  getCodeEvalSourceForEditor,
   getDefaultCodeEvalSource,
   isDefaultCodeEvalSource,
+  stripCodeEvalSourceForSubmit,
   type CodeEvalSourceCodeLanguage,
 } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 
@@ -40,7 +44,7 @@ type RuffWorkspace = {
 
 const SYNTHETIC_ASSERTION_PREFIX = `
 type __LangfuseExpectedEvaluate = (
-  context: EvaluationContext,
+  ctx: EvaluationContext,
 ) => EvaluationResult;
 const __langfuseEvaluateCheck: __LangfuseExpectedEvaluate = evaluate;
 `;
@@ -127,7 +131,7 @@ const PYTHON_ERROR_DIAGNOSTIC_CODES = new Set([
 ]);
 const PYTHON_TYPING_IMPORT = "from typing import Any, NotRequired, TypedDict";
 const PYTHON_EVALUATE_SIGNATURE_PATTERN =
-  /(?:^|\n)\s*def\s+evaluate\s*\(\s*context\s*:\s*EvaluationContext\s*\)\s*->\s*EvaluationResult\s*:/;
+  /(?:^|\n)\s*def\s+evaluate\s*\(\s*ctx\s*:\s*EvaluationContext\s*\)\s*->\s*EvaluationResult\s*:/;
 let ruffWorkspacePromise: Promise<RuffWorkspace> | null = null;
 
 export async function validateCodeEvalSourceWithLanguage({
@@ -156,6 +160,9 @@ export async function validateCodeEvalSourceWithPython(
 ): Promise<CodeEvalValidationResult> {
   const sourceBytes = getUtf8ByteLength(source);
   const diagnostics: CodeEvalDiagnostic[] = [];
+  const validationSource = source.trimStart().startsWith(PYTHON_TYPING_IMPORT)
+    ? source
+    : `${PYTHON_CODE_EVAL_CONTRACT}\n\n${source}`;
 
   collectBasicSourceDiagnostics({
     source,
@@ -179,11 +186,14 @@ export async function validateCodeEvalSourceWithPython(
   try {
     const ruffWorkspace = await getPythonRuffWorkspace();
     diagnostics.push(
-      ...ruffWorkspace
-        .check(source)
-        .map((diagnostic) =>
-          mapRuffDiagnosticToCodeEvalDiagnostic(source, diagnostic),
-        ),
+      ...ruffWorkspace.check(validationSource).map((diagnostic) =>
+        mapRuffDiagnosticToCodeEvalDiagnostic({
+          source,
+          locationSource: validationSource,
+          diagnostic,
+          offset: validationSource === source ? 0 : -getValidationOffset(),
+        }),
+      ),
     );
   } catch (error) {
     diagnostics.push({
@@ -235,6 +245,7 @@ export function validateCodeEvalSource(
 
   const evaluatePosition = findEvaluatePosition(sourceFile, tsModule) ?? 0;
   const hasEvaluate = hasEvaluateFunction(sourceFile, tsModule);
+  const hasExportedEvaluate = hasExportedEvaluateFunction(sourceFile, tsModule);
 
   collectUnsupportedModuleSyntaxDiagnostics(sourceFile, diagnostics, tsModule);
 
@@ -244,6 +255,15 @@ export function validateCodeEvalSource(
       to: clampToSourceRange(source, evaluatePosition + "evaluate".length),
       severity: "error",
       message: "Evaluator source must define an evaluate function.",
+    });
+  }
+
+  if (hasEvaluate && !hasExportedEvaluate) {
+    diagnostics.push({
+      from: evaluatePosition,
+      to: clampToSourceRange(source, evaluatePosition + "evaluate".length),
+      severity: "error",
+      message: "Evaluator source must export an evaluate(ctx) function.",
     });
   }
 
@@ -411,7 +431,7 @@ function collectUnsupportedModuleSyntaxDiagnostics(
         to: node.getEnd(),
         severity: "error",
         message:
-          "Default exports are not supported. Define a named evaluate function instead.",
+          "Default exports are not supported. Use a named `export function evaluate(ctx: EvaluationContext): EvaluationResult` instead.",
       });
     }
 
@@ -461,6 +481,60 @@ function hasEvaluateFunction(
   sourceFile.forEachChild(visit);
 
   return hasEvaluate;
+}
+
+function hasExportedEvaluateFunction(
+  sourceFile: ts.SourceFile,
+  tsModule: TypeScriptModule,
+) {
+  let hasExportedEvaluate = false;
+
+  const visit = (node: ts.Node) => {
+    const modifiers = tsModule.canHaveModifiers(node)
+      ? tsModule.getModifiers(node)
+      : undefined;
+    const hasExportModifier =
+      modifiers?.some(
+        (modifier) => modifier.kind === tsModule.SyntaxKind.ExportKeyword,
+      ) ?? false;
+
+    if (
+      hasExportModifier &&
+      tsModule.isFunctionDeclaration(node) &&
+      node.name?.text === "evaluate"
+    ) {
+      hasExportedEvaluate = true;
+    }
+
+    if (
+      hasExportModifier &&
+      tsModule.isVariableStatement(node) &&
+      node.declarationList.declarations.some(
+        (declaration) =>
+          tsModule.isIdentifier(declaration.name) &&
+          declaration.name.text === "evaluate",
+      )
+    ) {
+      hasExportedEvaluate = true;
+    }
+
+    if (tsModule.isExportDeclaration(node) && !node.moduleSpecifier) {
+      const exportClause = node.exportClause;
+      if (exportClause && tsModule.isNamedExports(exportClause)) {
+        hasExportedEvaluate ||= exportClause.elements.some(
+          (element) =>
+            element.name.text === "evaluate" &&
+            (element.propertyName?.text ?? element.name.text) === "evaluate",
+        );
+      }
+    }
+
+    node.forEachChild(visit);
+  };
+
+  sourceFile.forEachChild(visit);
+
+  return hasExportedEvaluate;
 }
 
 function findEvaluatePosition(
@@ -552,7 +626,7 @@ function collectPythonContractDiagnostics(
       to: clampToSourceRange(source, evaluatePosition + "evaluate".length),
       severity: "warning",
       message:
-        "Python evaluators should use `def evaluate(context: EvaluationContext) -> EvaluationResult:`.",
+        "Python evaluators should use `def evaluate(ctx: EvaluationContext) -> EvaluationResult:`.",
     });
   }
 }
@@ -582,14 +656,29 @@ function findPythonEvaluatePosition(source: string) {
   return match.index + match[0].indexOf("evaluate");
 }
 
-function mapRuffDiagnosticToCodeEvalDiagnostic(
-  source: string,
-  diagnostic: RuffDiagnostic,
-): CodeEvalDiagnostic {
-  const from = mapRuffLocationToSourceOffset(source, diagnostic.start_location);
+function mapRuffDiagnosticToCodeEvalDiagnostic({
+  source,
+  locationSource,
+  diagnostic,
+  offset,
+}: {
+  source: string;
+  locationSource: string;
+  diagnostic: RuffDiagnostic;
+  offset: number;
+}): CodeEvalDiagnostic {
+  const from = clampToSourceRange(
+    source,
+    mapRuffLocationToSourceOffset(locationSource, diagnostic.start_location) +
+      offset,
+  );
   const to = Math.max(
     from + 1,
-    mapRuffLocationToSourceOffset(source, diagnostic.end_location),
+    clampToSourceRange(
+      source,
+      mapRuffLocationToSourceOffset(locationSource, diagnostic.end_location) +
+        offset,
+    ),
   );
 
   return {
@@ -600,6 +689,10 @@ function mapRuffDiagnosticToCodeEvalDiagnostic(
       ? `${diagnostic.code}: ${diagnostic.message}`
       : diagnostic.message,
   };
+}
+
+function getValidationOffset() {
+  return `${PYTHON_CODE_EVAL_CONTRACT}\n\n`.length;
 }
 
 function getRuffDiagnosticSeverity(

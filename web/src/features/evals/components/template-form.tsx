@@ -63,7 +63,9 @@ import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEn
 import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-eval-template-form-body";
 import {
   type CodeEvalSourceCodeLanguage,
+  getCodeEvalSourceForEditor,
   getDefaultCodeEvalSource,
+  stripCodeEvalSourceForSubmit,
 } from "@/src/features/evals/utils/code-eval-template-validation";
 import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
 import {
@@ -90,7 +92,7 @@ export const EvalTemplateForm = (props: {
   cloneSourceId?: string | null;
 }) => {
   return (
-    <div className="max-w-6xl">
+    <div className={props.useDialog ? "max-w-6xl" : "w-full"}>
       <InnerEvalTemplateForm
         key={props.existingEvalTemplate?.id ?? "new"}
         {...props}
@@ -257,9 +259,12 @@ export const InnerEvalTemplateForm = (props: {
           : (props.preFilledFormValues?.type ?? EvalTemplateType.LLM_AS_JUDGE),
       prompt: props.preFilledFormValues?.prompt ?? undefined,
       variables: props.preFilledFormValues?.vars ?? [],
-      sourceCode:
-        props.preFilledFormValues?.sourceCode ??
-        getDefaultCodeEvalSource(defaultSourceCodeLanguage),
+      sourceCode: props.preFilledFormValues?.sourceCode
+        ? getCodeEvalSourceForEditor({
+            sourceCode: props.preFilledFormValues.sourceCode,
+            sourceCodeLanguage: defaultSourceCodeLanguage,
+          })
+        : getDefaultCodeEvalSource(defaultSourceCodeLanguage),
       sourceCodeLanguage: defaultSourceCodeLanguage,
       scoreDataType: outputDefinitionFormValues.scoreDataType,
       reasoningDescription: outputDefinitionFormValues.reasoningDescription,
@@ -440,7 +445,10 @@ export const InnerEvalTemplateForm = (props: {
         type: EvalTemplateType.CODE,
         name: values.name,
         projectId: props.projectId,
-        sourceCode: values.sourceCode ?? "",
+        sourceCode: stripCodeEvalSourceForSubmit({
+          sourceCode: values.sourceCode ?? "",
+          sourceCodeLanguage: submittedSourceCodeLanguage,
+        }),
         sourceCodeLanguage: submittedSourceCodeLanguage,
         referencedEvaluators: values.referencedEvaluators,
         cloneSourceId: props.cloneSourceId ?? undefined,
@@ -932,7 +940,10 @@ export const InnerEvalTemplateForm = (props: {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="mt-2 space-y-4">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="mt-2 w-full space-y-4"
+      >
         {props.useDialog ? <DialogBody>{formBody}</DialogBody> : formBody}
 
         {props.useDialog ? (

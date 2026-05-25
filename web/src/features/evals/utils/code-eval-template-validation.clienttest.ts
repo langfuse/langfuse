@@ -5,8 +5,10 @@ import {
   DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
   formatPythonCodeEvalSourceWithRuff,
+  getCodeEvalSourceForEditor,
   getDefaultCodeEvalSource,
   isDefaultCodeEvalSource,
+  stripCodeEvalSourceForSubmit,
   validateCodeEvalSourceWithLanguage,
 } from "@/src/features/evals/utils/code-eval-template-validation";
 
@@ -52,7 +54,7 @@ describe("code eval template validation", () => {
       /^from typing import Any, NotRequired, TypedDict/,
     );
     expect(DEFAULT_PYTHON_CODE_EVAL_SOURCE).toContain(
-      "def evaluate(context: EvaluationContext) -> EvaluationResult:",
+      "def evaluate(ctx: EvaluationContext) -> EvaluationResult:",
     );
     expect(
       DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE.startsWith(
@@ -65,6 +67,38 @@ describe("code eval template validation", () => {
     expect(DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE).toContain(
       "type EvaluationResult =",
     );
+    expect(DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE).toContain(
+      "export function evaluate(ctx: EvaluationContext): EvaluationResult",
+    );
+  });
+
+  it("strips editor-only contracts before submit", () => {
+    expect(
+      stripCodeEvalSourceForSubmit({
+        sourceCode: DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+      }),
+    ).toContain(
+      "export function evaluate(ctx: EvaluationContext): EvaluationResult",
+    );
+    expect(
+      stripCodeEvalSourceForSubmit({
+        sourceCode: DEFAULT_PYTHON_CODE_EVAL_SOURCE,
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.PYTHON,
+      }),
+    ).toMatch(/^def evaluate\(ctx: EvaluationContext\)/);
+  });
+
+  it("rehydrates stored evaluator functions for the editor", () => {
+    const source =
+      "export function evaluate(ctx: EvaluationContext): EvaluationResult { return { scores: [] }; }";
+
+    expect(
+      getCodeEvalSourceForEditor({
+        sourceCode: source,
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+      }),
+    ).toContain(TYPESCRIPT_CODE_EVAL_CONTRACT);
   });
 
   it("accepts the default TypeScript source", async () => {
@@ -79,7 +113,7 @@ describe("code eval template validation", () => {
   it("rejects async TypeScript evaluate functions", async () => {
     const result = await validateCodeEvalSourceWithLanguage({
       source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
-async function evaluate(context: EvaluationContext): Promise<EvaluationResult> {
+export async function evaluate(ctx: EvaluationContext): Promise<EvaluationResult> {
   return { scores: [] };
 }
 `,
@@ -87,6 +121,24 @@ async function evaluate(context: EvaluationContext): Promise<EvaluationResult> {
     });
 
     expect(result.hasErrors).toBe(true);
+  });
+
+  it("rejects non-exported TypeScript evaluate functions", async () => {
+    const result = await validateCodeEvalSourceWithLanguage({
+      source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
+function evaluate(ctx: EvaluationContext): EvaluationResult {
+  return { scores: [] };
+}
+`,
+      sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+    });
+
+    expect(result.hasErrors).toBe(true);
+    expect(
+      result.diagnostics.some((diagnostic) =>
+        diagnostic.message.includes("must export an evaluate(ctx) function"),
+      ),
+    ).toBe(true);
   });
 
   it("uses Ruff diagnostics for Python source", async () => {

@@ -30,10 +30,10 @@ const PYTHON_SCORE_DOC = `class Score(TypedDict):
 A Langfuse score returned by a Python evaluator.`;
 
 export const TYPESCRIPT_CODE_EVAL_HOVER_DOCS = {
-  evaluate: `function evaluate(context: EvaluationContext): EvaluationResult
+  evaluate: `export function evaluate(ctx: EvaluationContext): EvaluationResult
 
-The TypeScript function Langfuse executes for each matched target observation.`,
-  context: `parameter context: EvaluationContext
+The named TypeScript export Langfuse executes for each matched target observation.`,
+  ctx: `parameter ctx: EvaluationContext
 
 The TypeScript value Langfuse passes to evaluate.`,
   EvaluationContext: `type EvaluationContext = {
@@ -107,15 +107,12 @@ The score config id to attach to the score.`,
 } satisfies CodeEvalHoverDocs;
 
 export const PYTHON_CODE_EVAL_HOVER_DOCS = {
-  evaluate: `def evaluate(context: EvaluationContext) -> EvaluationResult
+  evaluate: `def evaluate(ctx: EvaluationContext) -> EvaluationResult
 
 The Python function Langfuse executes for each matched target observation.`,
-  context: `parameter context: EvaluationContext
+  ctx: `parameter ctx: EvaluationContext
 
 The Python TypedDict value Langfuse passes to evaluate.`,
-  ctx: `parameter ctx
-
-Python templates use context: EvaluationContext.`,
   Any: `typing.Any
 
 Use for JSON-like evaluator values whose concrete type depends on the target observation.`,
@@ -146,10 +143,10 @@ The data Langfuse passes to a Python evaluator.`,
 
 The value returned by evaluate.`,
   Score: PYTHON_SCORE_DOC,
-  observation: `key context["observation"]: Observation
+  observation: `key ctx["observation"]: Observation
 
 The observation selected by the evaluator target.`,
-  experiment: `key context.get("experiment"): Experiment | None
+  experiment: `key ctx.get("experiment"): Experiment | None
 
 Experiment item data. Present when the evaluator runs on an experiment.`,
   input: `key observation["input"]: Any
