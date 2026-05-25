@@ -1,3 +1,6 @@
+process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "dev";
+process.env.NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED = "true";
+
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, afterAll } from "vitest";
 import type { Session } from "next-auth";
@@ -100,7 +103,7 @@ maybe("evals.testRunCodeEval", () => {
           ctx.observation.output === "4" &&
           ctx.observation.metadata.rubric === "math";
 
-        return { scores: [{ name: "saved-test-score", value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
+        return { scores: [{ name: "saved-test-score", value: matched, dataType: "BOOLEAN" }] };
       }
     `;
 
@@ -260,10 +263,10 @@ maybe("evals.testRunCodeEval", () => {
           }
 
           const matched =
-            ctx.observation.output === ctx.experiment.expectedOutput &&
+            ctx.observation.output === ctx.experiment.itemExpectedOutput &&
             ctx.experiment.itemMetadata.difficulty === "easy";
 
-          return { scores: [{ name: "experiment-test-score", value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
+          return { scores: [{ name: "experiment-test-score", value: matched, dataType: "BOOLEAN" }] };
         }
       `,
     );

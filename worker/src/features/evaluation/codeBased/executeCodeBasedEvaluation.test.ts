@@ -114,7 +114,7 @@ describe("executeCodeBasedEvaluation", () => {
         metadata: null,
       },
       experiment: {
-        expectedOutput: "4",
+        itemExpectedOutput: "4",
         itemMetadata: null,
       },
     });
@@ -226,7 +226,7 @@ describe("executeCodeBasedEvaluation", () => {
         payload: {
           observation: { input: null, output: null, metadata: null },
           experiment: {
-            expectedOutput: null,
+            itemExpectedOutput: null,
             itemMetadata: null,
           },
         },
@@ -316,7 +316,7 @@ describe("executeCodeBasedEvaluation", () => {
             metadata: "42",
           },
           experiment: {
-            expectedOutput: "null",
+            itemExpectedOutput: "null",
             itemMetadata: null,
           },
         }),
@@ -368,7 +368,7 @@ describe("executeCodeBasedEvaluation", () => {
             metadata: null,
           },
           experiment: {
-            expectedOutput: null,
+            itemExpectedOutput: null,
             itemMetadata: { difficulty: "easy", source: "dataset" },
           },
         }),

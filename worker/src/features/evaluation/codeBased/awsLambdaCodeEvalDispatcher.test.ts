@@ -91,7 +91,7 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
           metadata: { source: "test" },
         },
         experiment: {
-          expectedOutput: "4",
+          itemExpectedOutput: "4",
           itemMetadata: { difficulty: "easy" },
         },
       },

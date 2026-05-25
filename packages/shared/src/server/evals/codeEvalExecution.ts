@@ -39,7 +39,7 @@ const USER_VISIBLE_CODE_EVAL_ERROR_MESSAGE_BY_CODE: Partial<
   Record<CodeEvalDispatcherErrorCode, string>
 > = {
   [CodeEvalDispatcherErrorCodes.INVALID_RESULT]: withCodeEvalDocs(
-    "The evaluator returned an invalid result. Return { scores: [...] } with at least one score. Each score requires a name and value, and dataType must match the value type.",
+    "The evaluator returned an invalid result. Return { scores: [...] } with at least one score. Each score requires a name, dataType, and value; dataType must match the value type.",
   ),
   [CodeEvalDispatcherErrorCodes.TIMEOUT]: withCodeEvalDocs(
     "Evaluator timed out. Code-based evaluators are limited by the configured runtime limit. Optimize your evaluator code and try again.",
@@ -111,7 +111,7 @@ function buildCodeEvalPayload(params: {
 
   if (params.hasExperimentContext) {
     payload.experiment = {
-      expectedOutput: byName.get("experimentExpectedOutput") ?? null,
+      itemExpectedOutput: byName.get("experimentExpectedOutput") ?? null,
       itemMetadata: byName.get("experimentItemMetadata") ?? null,
     };
   }

@@ -34,6 +34,10 @@ import {
 type CodeEvalTestRunResult =
   | RouterOutputs["evals"]["testRunCodeEval"]
   | undefined;
+type CodeEvalTestRunScore = Extract<
+  Exclude<CodeEvalTestRunResult, undefined>,
+  { success: true }
+>["result"]["scores"][number];
 type CodeEvalInputPreviewData = Extract<
   PreviewData,
   { type: typeof EvalTargetObject.EVENT }
@@ -246,7 +250,9 @@ function CodeEvalTestRunInputCards({
       ...(includeExperimentVariables
         ? {
             experiment: {
-              expectedOutput: deepParseJson(data.experimentItemExpectedOutput),
+              itemExpectedOutput: deepParseJson(
+                data.experimentItemExpectedOutput,
+              ),
               itemMetadata: deepParseJson(data.experimentItemMetadata),
             },
           }
@@ -287,7 +293,7 @@ function CodeEvalTestRunResultView({
   onShowExecutionTrace: (executionTraceId: string) => void;
 }) {
   const resultJson = result.success
-    ? { scores: result.result.scores }
+    ? { scores: result.result.scores.map(toUserFacingCodeEvalScore) }
     : { error: result.error };
 
   return (
@@ -316,4 +322,18 @@ function CodeEvalTestRunResultView({
       />
     </div>
   );
+}
+
+function toUserFacingCodeEvalScore(
+  score: CodeEvalTestRunScore,
+): Record<string, unknown> {
+  const { dataType, value, ...scoreFields } = score;
+  const userFacingScore: Record<string, unknown> = {
+    ...scoreFields,
+    dataType,
+    value:
+      dataType === "BOOLEAN" && typeof value === "number" ? value === 1 : value,
+  };
+
+  return userFacingScore;
 }

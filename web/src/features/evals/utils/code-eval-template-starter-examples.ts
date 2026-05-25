@@ -29,7 +29,7 @@ type EvaluationContext = {
         /**
          * The expected output from the dataset item.
          */
-        expectedOutput: any;
+        itemExpectedOutput: any;
         /**
          * The metadata from the dataset item.
          */
@@ -41,24 +41,70 @@ type EvaluationContext = {
 /**
  * A Langfuse score returned by a code evaluator.
  */
-type Score = {
+type ScoreBase = {
   /**
-   * The score name. When omitted, Langfuse uses the evaluator's configured score name.
+   * The score name.
    */
-  name?: string;
+  name: string;
   /**
    * The reasoning or explanation stored with the score.
    */
   comment?: string;
   /**
+   * The score config id to attach to the score.
+   */
+  configId?: string | null;
+  /**
+   * Extra metadata stored with the score.
+   */
+  metadata?: Record<string, unknown>;
+};
+
+type NumericScore = ScoreBase & {
+  /**
    * The Langfuse score data type.
    */
-  dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL" | "TEXT";
+  dataType: "NUMERIC";
   /**
    * The score value.
    */
-  value: number | string | boolean;
+  value: number;
 };
+
+type BooleanScore = ScoreBase & {
+  /**
+   * The Langfuse score data type.
+   */
+  dataType: "BOOLEAN";
+  /**
+   * The score value.
+   */
+  value: boolean;
+};
+
+type CategoricalScore = ScoreBase & {
+  /**
+   * The Langfuse score data type.
+   */
+  dataType: "CATEGORICAL";
+  /**
+   * The score value.
+   */
+  value: string;
+};
+
+type TextScore = ScoreBase & {
+  /**
+   * The Langfuse score data type.
+   */
+  dataType: "TEXT";
+  /**
+   * The score value.
+   */
+  value: string;
+};
+
+type Score = NumericScore | BooleanScore | CategoricalScore | TextScore;
 
 /**
  * The value returned by evaluate.
@@ -110,14 +156,14 @@ class Observation(TypedDict):
 
 
 class Experiment(TypedDict):
-    expected_output: Any
+    item_expected_output: Any
     item_metadata: Any
 
 
 class Score(TypedDict):
+    name: str
+    dataType: str
     value: int | float | str | bool
-    name: NotRequired[str]
-    dataType: NotRequired[str]
     comment: NotRequired[str | None]
     configId: NotRequired[str | None]
     metadata: NotRequired[dict[str, Any]]

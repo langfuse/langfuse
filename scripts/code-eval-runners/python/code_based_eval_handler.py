@@ -14,7 +14,7 @@ class ObservationContext:
 
 @dataclass
 class ExperimentContext:
-    expected_output: Any = None
+    item_expected_output: Any = None
     item_metadata: Any = None
 
 
@@ -34,7 +34,9 @@ class EvaluationContext:
                 metadata=observation.get("metadata"),
             ),
             experiment=ExperimentContext(
-                expected_output=experiment.get("expectedOutput"),
+                item_expected_output=experiment.get(
+                    "itemExpectedOutput", experiment.get("expectedOutput")
+                ),
                 item_metadata=experiment.get("itemMetadata"),
             )
             if isinstance(experiment, dict)

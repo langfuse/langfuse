@@ -22,7 +22,7 @@ const baseInput: Omit<DispatchInput, "runtime" | "code"> = {
       metadata: { source: "test" },
     },
     experiment: {
-      expectedOutput: "4",
+      itemExpectedOutput: "4",
       itemMetadata: { difficulty: "easy" },
     },
   },
@@ -39,11 +39,11 @@ describe("LocalCodeEvalDispatcher", () => {
         source: `
           type EvaluationContext = {
             observation: { output: string };
-            experiment: { expectedOutput: string } | undefined;
+            experiment: { itemExpectedOutput: string } | undefined;
           };
           function evaluate(ctx: EvaluationContext) {
             return {
-              scores: [{ name: "match", value: ctx.observation.output === ctx.experiment?.expectedOutput ? 1 : 0, dataType: "BOOLEAN" }],
+              scores: [{ name: "match", value: ctx.observation.output === ctx.experiment?.itemExpectedOutput, dataType: "BOOLEAN" }],
             };
           }
         `,
@@ -63,7 +63,7 @@ describe("LocalCodeEvalDispatcher", () => {
         ...baseInput,
         runtime: { language: "TYPESCRIPT" },
         // Deliberate stray token that `stripTypeScriptTypes` cannot parse.
-        code: { source: "export function evaluate(@@@) {}" },
+        code: { source: "function evaluate(@@@) {}" },
       }),
     ).rejects.toMatchObject({
       code: "INVALID_SOURCE",
@@ -86,14 +86,14 @@ describe("LocalCodeEvalDispatcher", () => {
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
-  it("rejects sources missing an exported evaluate function", async () => {
+  it("rejects sources missing an evaluate function", async () => {
     const dispatcher = new LocalCodeEvalDispatcher();
 
     await expect(
       dispatcher.dispatch({
         ...baseInput,
         runtime: { language: "TYPESCRIPT" },
-        code: { source: `export const evaluate = 42;` },
+        code: { source: `const evaluate = 42;` },
       }),
     ).rejects.toMatchObject({
       code: "INVALID_SOURCE",
@@ -109,7 +109,7 @@ describe("LocalCodeEvalDispatcher", () => {
         ...baseInput,
         runtime: { language: "TYPESCRIPT" },
         code: {
-          source: `export function evaluate() { throw new Error("boom"); }`,
+          source: `function evaluate() { throw new Error("boom"); }`,
         },
       }),
     ).rejects.toMatchObject({
@@ -127,7 +127,7 @@ describe("LocalCodeEvalDispatcher", () => {
         ...baseInput,
         runtime: { language: "TYPESCRIPT" },
         code: {
-          source: `export function evaluate() { while (true) {} }`,
+          source: `function evaluate() { while (true) {} }`,
         },
       }),
     ).rejects.toMatchObject({

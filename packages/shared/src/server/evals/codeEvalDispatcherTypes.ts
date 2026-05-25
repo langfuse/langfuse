@@ -21,7 +21,7 @@ export type CodeEvalPayload = {
     metadata: unknown;
   };
   experiment?: {
-    expectedOutput: unknown;
+    itemExpectedOutput: unknown;
     itemMetadata: unknown;
   };
 };
