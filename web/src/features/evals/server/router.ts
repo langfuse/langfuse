@@ -27,6 +27,7 @@ import {
   validateEvaluatorFiltersForTarget,
   InvalidRequestError,
   EvalTemplateType,
+  type EvalTemplateSourceCodeLanguage,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -532,6 +533,7 @@ export const evalRouter = createTRPCRouter({
             provider?: string;
             model?: string;
             type: EvalTemplateType;
+            sourceCodeLanguage: EvalTemplateSourceCodeLanguage | null;
             outputDefinition: unknown;
           }>
         >`
@@ -543,6 +545,7 @@ export const evalRouter = createTRPCRouter({
             et.provider,
             et.model,
             et.type,
+            et.source_code_language,
             et.partner,
             et.version,
             et.created_at,
@@ -574,6 +577,7 @@ export const evalRouter = createTRPCRouter({
           provider,
           model,
           type,
+          source_code_language as "sourceCodeLanguage",
           partner,
           project_id as "projectId",
           version,

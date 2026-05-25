@@ -38,9 +38,14 @@ import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Badge } from "@/src/components/ui/badge";
 import { getTemplateResultType } from "@/src/features/evals/utils/template-output";
-import type { EvalTemplateType, EvalTemplate } from "@langfuse/shared";
+import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
+  type EvalTemplate,
+} from "@langfuse/shared";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
+import { SiPython, SiTypescript } from "react-icons/si";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -54,10 +59,51 @@ export type EvalsTemplateRow = {
   provider?: string;
   model?: string;
   type?: EvalTemplateType;
+  sourceCodeLanguage?: EvalTemplate["sourceCodeLanguage"];
 };
 
 const getMaintainerLabel = (maintainer: string) =>
   maintainer.replace(/ maintained$/, "");
+
+const getCodeEvalLanguageLabel = (
+  sourceCodeLanguage?: EvalTemplate["sourceCodeLanguage"],
+) =>
+  sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+    ? "Python"
+    : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
+      ? "TypeScript"
+      : "Code";
+
+const TemplateTypeBadge = ({
+  type,
+  sourceCodeLanguage,
+}: {
+  type?: EvalTemplateType;
+  sourceCodeLanguage?: EvalTemplate["sourceCodeLanguage"];
+}) => {
+  if (type === EvalTemplateType.CODE) {
+    const label = getCodeEvalLanguageLabel(sourceCodeLanguage);
+    const Icon =
+      sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+        ? SiPython
+        : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
+          ? SiTypescript
+          : null;
+
+    return (
+      <Badge className="w-fit gap-1.5" variant="outline-solid">
+        {Icon ? <Icon className="h-3 w-3" aria-hidden="true" /> : null}
+        {label}
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge className="w-fit gap-1.5" variant="outline-solid">
+      LLM-as-judge
+    </Badge>
+  );
+};
 
 const templateTableRowHeights: CustomHeights = {
   s: "h-8",
@@ -186,6 +232,17 @@ export default function EvalsTemplateTable({
         const name = row.getValue();
         return name ? <TableIdOrName value={name} /> : undefined;
       },
+    }),
+    columnHelper.accessor("type", {
+      id: "type",
+      header: "Type",
+      size: 120,
+      cell: ({ row }) => (
+        <TemplateTypeBadge
+          type={row.original.type}
+          sourceCodeLanguage={row.original.sourceCodeLanguage}
+        />
+      ),
     }),
     columnHelper.accessor("resultType", {
       id: "resultType",
@@ -356,7 +413,10 @@ export default function EvalsTemplateTable({
   ): EvalsTemplateRow => {
     return {
       name: template.name,
-      resultType: getTemplateResultType(template.outputDefinition),
+      resultType:
+        template.type === EvalTemplateType.CODE
+          ? "Code-defined"
+          : getTemplateResultType(template.outputDefinition),
       maintainer: getMaintainer(template),
       latestCreatedAt: template.latestCreatedAt,
       latestVersion: template.version,
@@ -365,6 +425,7 @@ export default function EvalsTemplateTable({
       provider: template.provider,
       model: template.model,
       type: template.type,
+      sourceCodeLanguage: template.sourceCodeLanguage,
     };
   };
 
