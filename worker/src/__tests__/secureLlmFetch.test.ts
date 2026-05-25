@@ -1,293 +1,197 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { encrypt } from "../../../packages/shared/src/encryption";
 import { env } from "../../../packages/shared/src/env";
 import {
   ChatMessageType,
   LLMAdapter,
 } from "../../../packages/shared/src/server/llm/types";
-import { createSecureLlmFetch } from "../../../packages/shared/src/server/llm/secureLlmFetch";
 import { fetchLLMCompletion } from "../../../packages/shared/src/server/llm/fetchLLMCompletion";
+import {
+  createSecureLlmFetch,
+  fetchSecureLlmUrl,
+} from "../../../packages/shared/src/server/llm/secureLlmFetch";
+import { RedirectValidationError } from "../../../packages/shared/src/server/outbound-url";
+import {
+  startLocalLlmServer,
+  type LocalLlmServer,
+} from "./helpers/localLlmServer";
+
+// These tests replace the previous mock-heavy unit tests for the secure LLM
+// fetch path. The happy-path wiring is now proven against a real local HTTP
+// server (so a regression in the SDK -> secureLlmFetch handoff is caught
+// without provider credentials), and the security-boundary cases use the
+// validator directly to avoid coupling to provider SDK error wrapping.
+// Production end-to-end coverage continues to live in llmConnections.test.ts.
+
+const OPENAI_RESPONSE_BODY = JSON.stringify({
+  id: "chatcmpl-test",
+  object: "chat.completion",
+  created: 1,
+  model: "gpt-4o-mini",
+  choices: [
+    {
+      index: 0,
+      message: { role: "assistant", content: "4" },
+      finish_reason: "stop",
+    },
+  ],
+});
 
 describe("secure LLM fetch", () => {
   const originalWhitelistedHosts = env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST;
-  const originalCloudRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  // env is the zod-validated object: read from process.env at module load and
+  // not refreshed afterward. Mutating process.env later is a no-op for the
+  // code under test, so we mutate `env.*` directly and restore in afterEach.
+  const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const servers: LocalLlmServer[] = [];
 
   beforeEach(() => {
-    delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = ["example.com"];
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = ["127.0.0.1"];
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  afterEach(async () => {
+    await Promise.all(servers.splice(0).map((s) => s.close()));
     env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = originalWhitelistedHosts;
-    if (originalCloudRegion === undefined) {
-      delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    } else {
-      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-    }
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  test("fetches through validated URLs and preserves request options", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
-    const secureFetch = createSecureLlmFetch({
-      logContext: "Test LLM endpoint",
-      additionalSensitiveHeaders: ["x-api-key"],
-    });
+  async function spinUp(handler: Parameters<typeof startLocalLlmServer>[0]) {
+    const server = await startLocalLlmServer(handler);
+    servers.push(server);
+    return server;
+  }
 
-    await secureFetch("https://example.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": "test-key" },
-      body: JSON.stringify({ messages: [] }),
-    });
+  describe("end-to-end SDK wiring", () => {
+    // Allow ample headroom for first-run module import + SDK warmup; the
+    // actual request to 127.0.0.1 is sub-second.
+    test(
+      "OpenAI SDK routes through secureLlmFetch and reaches the configured base URL",
+      { timeout: 30_000 },
+      async () => {
+        const server = await spinUp((_req, _body, res) => {
+          res.setHeader("content-type", "application/json");
+          res.end(OPENAI_RESPONSE_BODY);
+        });
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://example.com/v1/messages",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ messages: [] }),
-        redirect: "manual",
-      }),
-    );
-  });
-
-  test("preserves the caller-provided dispatcher", async () => {
-    const dispatcher = {};
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
-    const secureFetch = createSecureLlmFetch({
-      logContext: "Test LLM endpoint",
-    });
-
-    await secureFetch("https://example.com/v1/messages", {
-      method: "POST",
-      body: JSON.stringify({ messages: [] }),
-      dispatcher,
-    } as RequestInit);
-
-    const [, requestOptions] = fetchMock.mock.calls[0];
-    expect(
-      (requestOptions as RequestInit & { dispatcher?: unknown }).dispatcher,
-    ).toBe(dispatcher);
-  });
-
-  test("uses the configured dispatcher when init does not provide one", async () => {
-    const dispatcher = {};
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
-    const secureFetch = createSecureLlmFetch({
-      logContext: "Test LLM endpoint",
-      dispatcher,
-    });
-
-    await secureFetch("https://example.com/v1/messages", {
-      method: "POST",
-      body: JSON.stringify({ messages: [] }),
-    });
-
-    const [, requestOptions] = fetchMock.mock.calls[0];
-    expect(
-      (requestOptions as RequestInit & { dispatcher?: unknown }).dispatcher,
-    ).toBe(dispatcher);
-  });
-
-  test("supports Request input", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
-    const secureFetch = createSecureLlmFetch({
-      logContext: "Test LLM endpoint",
-      additionalSensitiveHeaders: ["x-api-key"],
-    });
-
-    await secureFetch(
-      new Request("https://example.com/v1/messages", {
-        method: "POST",
-        headers: { "x-api-key": "test-key" },
-        body: JSON.stringify({ messages: [] }),
-      }),
-    );
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://example.com/v1/messages",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ messages: [] }),
-        redirect: "manual",
-      }),
-    );
-
-    const [, requestOptions] = fetchMock.mock.calls[0];
-    expect(new Headers(requestOptions?.headers).get("x-api-key")).toBe(
-      "test-key",
-    );
-  });
-
-  test("lets init override Request input options", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
-    const secureFetch = createSecureLlmFetch({
-      logContext: "Test LLM endpoint",
-      additionalSensitiveHeaders: ["x-api-key"],
-    });
-
-    await secureFetch(
-      new Request("https://example.com/v1/messages", {
-        method: "POST",
-        headers: { "x-api-key": "request-key" },
-        body: JSON.stringify({ source: "request" }),
-      }),
-      {
-        method: "PUT",
-        headers: { "x-api-key": "init-key" },
-        body: JSON.stringify({ source: "init" }),
-      },
-    );
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://example.com/v1/messages",
-      expect.objectContaining({
-        method: "PUT",
-        body: JSON.stringify({ source: "init" }),
-        redirect: "manual",
-      }),
-    );
-
-    const [, requestOptions] = fetchMock.mock.calls[0];
-    expect(new Headers(requestOptions?.headers).get("x-api-key")).toBe(
-      "init-key",
-    );
-  });
-
-  test.each([
-    {
-      providerName: "OpenAI",
-      provider: "openai",
-      adapter: LLMAdapter.OpenAI,
-      model: "gpt-4o-mini",
-      secretKey: "openai-api-key",
-      baseURL: "https://example.com/v1",
-      response: {
-        id: "chatcmpl-test",
-        object: "chat.completion",
-        created: 1,
-        model: "gpt-4o-mini",
-        choices: [
-          {
-            index: 0,
-            message: { role: "assistant", content: "4" },
-            finish_reason: "stop",
+        const completion = await fetchLLMCompletion({
+          streaming: false,
+          messages: [
+            {
+              role: "user",
+              content: "What is 2+2? Answer only with the number.",
+              type: ChatMessageType.PublicAPICreated,
+            },
+          ],
+          modelParams: {
+            provider: "openai",
+            adapter: LLMAdapter.OpenAI,
+            model: "gpt-4o-mini",
+            temperature: 0,
+            max_tokens: 10,
           },
-        ],
-      },
-      expectedUrl: "https://example.com/v1/chat/completions",
-    },
-    {
-      providerName: "Azure OpenAI",
-      provider: "azure",
-      adapter: LLMAdapter.Azure,
-      model: "deployment",
-      secretKey: "azure-api-key",
-      baseURL: "https://example.com/openai/deployments",
-      response: {
-        id: "chatcmpl-test",
-        object: "chat.completion",
-        created: 1,
-        model: "deployment",
-        choices: [
-          {
-            index: 0,
-            message: { role: "assistant", content: "4" },
-            finish_reason: "stop",
+          llmConnection: {
+            secretKey: encrypt("openai-api-key"),
+            baseURL: `${server.url}/v1`,
           },
-        ],
-      },
-      expectedUrl:
-        "https://example.com/openai/deployments/deployment/chat/completions?api-version=2025-02-01-preview",
-    },
-    {
-      providerName: "Anthropic",
-      provider: "anthropic",
-      adapter: LLMAdapter.Anthropic,
-      model: "claude-sonnet-4-5-20250929",
-      secretKey: "anthropic-api-key",
-      baseURL: "https://example.com",
-      response: {
-        id: "msg_test",
-        type: "message",
-        role: "assistant",
-        model: "claude-sonnet-4-5-20250929",
-        content: [{ type: "text", text: "4" }],
-        stop_reason: "end_turn",
-        stop_sequence: null,
-        usage: { input_tokens: 1, output_tokens: 1 },
-      },
-      expectedUrl: "https://example.com/v1/messages",
-    },
-  ])(
-    "fetchLLMCompletion uses secure fetch for $providerName",
-    async ({
-      provider,
-      adapter,
-      model,
-      secretKey,
-      baseURL,
-      response,
-      expectedUrl,
-    }) => {
-      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify(response), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
-      );
+        });
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
-        messages: [
-          {
-            role: "user",
-            content: "What is 2+2? Answer only with the number.",
-            type: ChatMessageType.PublicAPICreated,
-          },
-        ],
-        modelParams: {
-          provider,
-          adapter,
-          model,
-          temperature: 0,
-          max_tokens: 10,
-        },
-        llmConnection: {
-          secretKey: encrypt(secretKey),
-          baseURL,
-        },
+        expect(completion).toBe("4");
+        expect(server.requests).toHaveLength(1);
+        const [request] = server.requests;
+        expect(request.method).toBe("POST");
+        expect(request.url).toBe("/v1/chat/completions");
+        expect(request.headers.authorization).toBe("Bearer openai-api-key");
+        // Body is buffered (not streamed) so redirect retry stays possible.
+        expect(JSON.parse(request.body)).toMatchObject({
+          model: "gpt-4o-mini",
+        });
+      },
+    );
+  });
+
+  describe("SSRF protection", () => {
+    test("rejects link-local metadata hostnames before opening a socket", async () => {
+      env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = [];
+
+      await expect(
+        fetchSecureLlmUrl(
+          // Cloud metadata IPs are in the static hostname deny list, so this
+          // throws "Blocked hostname detected" before any DNS or IP check.
+          "http://169.254.169.254/v1/chat/completions",
+          { method: "POST" },
+          { logContext: "Test LLM endpoint" },
+        ),
+      ).rejects.toThrow(/Blocked hostname detected/);
+    });
+
+    test("rejects HTTP base URLs when running on Langfuse Cloud", async () => {
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+
+      await expect(
+        fetchSecureLlmUrl(
+          "http://example.com/v1/chat/completions",
+          { method: "POST" },
+          { logContext: "Test LLM endpoint" },
+        ),
+      ).rejects.toThrow(/Only HTTPS base URLs are allowed/);
+    });
+  });
+
+  describe("redirect validation", () => {
+    test("rejects redirects pointing at a blocked target", async () => {
+      const server = await spinUp((_req, _body, res) => {
+        res.statusCode = 302;
+        res.setHeader("location", "http://169.254.169.254/v1/chat/completions");
+        res.end();
       });
 
-      expect(completion).toBe("4");
-      expect(fetchMock).toHaveBeenCalledWith(
-        expectedUrl,
-        expect.objectContaining({ redirect: "manual" }),
-      );
-    },
-  );
+      const secureFetch = createSecureLlmFetch({
+        logContext: "Test LLM endpoint",
+      });
+
+      await expect(
+        secureFetch(`${server.url}/v1/chat/completions`, {
+          method: "POST",
+          headers: { authorization: "Bearer leakable-token" },
+          body: JSON.stringify({ messages: [] }),
+        }),
+      ).rejects.toBeInstanceOf(RedirectValidationError);
+    });
+
+    test("strips additional sensitive headers on cross-origin redirects", async () => {
+      const target = await spinUp((_req, _body, res) => {
+        res.setHeader("content-type", "application/json");
+        res.end(OPENAI_RESPONSE_BODY);
+      });
+      const redirector = await spinUp((_req, _body, res) => {
+        res.statusCode = 302;
+        res.setHeader("location", `${target.url}/v1/chat/completions`);
+        res.end();
+      });
+
+      const secureFetch = createSecureLlmFetch({
+        logContext: "Test LLM endpoint",
+        additionalSensitiveHeaders: ["x-api-key"],
+      });
+
+      await secureFetch(`${redirector.url}/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+          authorization: "Bearer leakable-token",
+          "x-api-key": "leakable-key",
+          "x-non-sensitive": "keep-me",
+        },
+        body: JSON.stringify({ messages: [] }),
+      });
+
+      expect(target.requests).toHaveLength(1);
+      const forwarded = target.requests[0];
+      // Default + caller-provided sensitive headers are stripped across origins.
+      expect(forwarded.headers.authorization).toBeUndefined();
+      expect(forwarded.headers["x-api-key"]).toBeUndefined();
+      // Non-sensitive headers survive the redirect.
+      expect(forwarded.headers["x-non-sensitive"]).toBe("keep-me");
+    });
+  });
 });

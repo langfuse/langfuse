@@ -1,7 +1,6 @@
 import {
   fetchWithSecureRedirects,
   type OutboundUrlValidationWhitelist,
-  type RequestInitWithDispatcher,
 } from "../outbound-url";
 import {
   llmBaseUrlWhitelistFromEnv,
@@ -46,14 +45,12 @@ export async function fetchSecureLlmUrl(
   }: SecureLlmFetchParams,
 ): Promise<Response> {
   await validateLlmConnectionBaseURL(url, whitelist);
-  // A caller-provided dispatcher (e.g. an SDK forwarding HTTPS_PROXY via
-  // fetchOptions) takes precedence over the closure-provided one so the
-  // request keeps the proxy path the caller intended.
-  const callerDispatcher = (options as RequestInitWithDispatcher).dispatcher;
-  const fetchOptions: RequestInit =
-    dispatcher && !callerDispatcher
-      ? ({ ...options, dispatcher } as RequestInit)
-      : options;
+  // If we have a proxy dispatcher (HTTPS_PROXY), attach it here so the
+  // outbound connection traverses the operator's proxy. Otherwise
+  // fetchWithSecureRedirects will inject the secure-lookup dispatcher.
+  const fetchOptions: RequestInit = dispatcher
+    ? ({ ...options, dispatcher } as RequestInit)
+    : options;
 
   const { response } = await fetchWithSecureRedirects(url, fetchOptions, {
     maxRedirects: MAX_LLM_REDIRECTS,

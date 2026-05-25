@@ -350,9 +350,6 @@ export async function fetchLLMCompletion(
         fetch: secureLlmFetch("Anthropic LLM base URL", [
           ANTHROPIC_API_KEY_HEADER,
         ]),
-        ...(proxyDispatcher && {
-          fetchOptions: { dispatcher: proxyDispatcher },
-        }),
       },
       temperature: modelParams.temperature,
       topP: modelParams.top_p,
@@ -404,9 +401,6 @@ export async function fetchLLMCompletion(
         timeout: timeoutMs,
         defaultHeaders: extraHeaders,
         fetch: secureLlmFetch("OpenAI LLM base URL"),
-        ...(proxyDispatcher && {
-          fetchOptions: { dispatcher: proxyDispatcher },
-        }),
       },
       modelKwargs: modelParams.providerOptions,
       timeout: timeoutMs,
@@ -429,9 +423,6 @@ export async function fetchLLMCompletion(
         fetch: secureLlmFetch("Azure OpenAI LLM base URL", [
           AZURE_OPENAI_API_KEY_HEADER,
         ]),
-        ...(proxyDispatcher && {
-          fetchOptions: { dispatcher: proxyDispatcher },
-        }),
       },
       modelKwargs: modelParams.providerOptions,
     });

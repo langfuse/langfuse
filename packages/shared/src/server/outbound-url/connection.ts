@@ -36,11 +36,10 @@ export function addSecureOutboundConnectionValidation(
   validationOptions: OutboundUrlConnectionValidationOptions,
 ): RequestInit {
   if ((options as RequestInitWithDispatcher).dispatcher) {
-    // A caller-provided dispatcher owns the socket path (e.g. a proxy
-    // dispatcher whose CONNECT semantics cannot be wrapped). Skip injecting
-    // our secure-lookup dispatcher and rely on the caller to enforce
-    // connection-time safety; URL and redirect validation still run before
-    // the request is dispatched.
+    // A dispatcher is already attached (today: HTTPS_PROXY routing via
+    // secureLlmFetch). Forward proxies own DNS resolution at the proxy hop,
+    // so a connect.lookup hook on our Agent would not see the target host
+    // anyway. Pre-fetch URL validation and redirect validation still run.
     return options;
   }
 
