@@ -527,6 +527,7 @@ export const InnerEvaluatorForm = (props: {
   );
 
   const watchedTarget = form.watch("target");
+  const watchedScoreName = form.watch("scoreName");
   const watchedFilter = form.watch("filter") ?? EMPTY_FILTER_STATE;
   const shouldShowExperimentEventsPreview =
     isCodeEvalConfig && isExperimentTarget(watchedTarget) && isBetaEnabled;
@@ -1287,7 +1288,8 @@ export const InnerEvaluatorForm = (props: {
         <CodeEvalTestRunCard
           projectId={props.projectId}
           evalTemplate={props.evalTemplate}
-          form={form}
+          target={watchedTarget}
+          scoreName={watchedScoreName}
           disabled={props.disabled}
         />
       ) : (

@@ -21,7 +21,6 @@ import {
 } from "@langfuse/shared";
 import { ListTree, Lock, Play, RotateCcw } from "lucide-react";
 import { useMemo } from "react";
-import { type UseFormReturn, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
@@ -50,17 +49,17 @@ function isCodeEvalTestTarget(
 export function CodeEvalTestRunCard({
   projectId,
   evalTemplate,
-  form,
+  target,
+  scoreName,
   disabled = false,
 }: {
   projectId: string;
   evalTemplate: EvalTemplate;
-  form: UseFormReturn<EvalFormType>;
+  target: EvalFormType["target"];
+  scoreName: EvalFormType["scoreName"];
   disabled?: boolean;
 }) {
   const { isBetaEnabled } = useV4Beta();
-  const target = useWatch({ control: form.control, name: "target" });
-  const scoreName = useWatch({ control: form.control, name: "scoreName" });
   const isSupportedTarget = isCodeEvalTestTarget(target);
   const canPreview = isBetaEnabled && isSupportedTarget && !disabled;
   const previewPointer = useFirstEvalPreviewPointer({
