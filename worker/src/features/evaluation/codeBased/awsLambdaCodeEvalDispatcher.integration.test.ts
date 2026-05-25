@@ -21,7 +21,7 @@ const baseInput: DispatchInput = {
   },
   runtime: { language: "TYPESCRIPT" },
   execution: { jobExecutionId: "job-floci-integration" },
-  code: { source: "export function evaluate() {}" },
+  code: { source: "function evaluate() {}" },
   payload: {
     observation: {
       input: "hello",
@@ -54,7 +54,7 @@ const expectedScores = [
 
 const sources: Record<CodeEvalRuntimeLanguage, string> = {
   TYPESCRIPT: `
-export function evaluate(ctx: {
+function evaluate(ctx: {
   observation: {
     input: string;
     output: string;
@@ -116,7 +116,7 @@ describeWithFloci("AwsLambdaCodeEvalDispatcher Floci integration", () => {
         ...baseInput,
         runtime: { language: "TYPESCRIPT" },
         code: {
-          source: `export function evaluate() { throw new Error("boom") }`,
+          source: `function evaluate() { throw new Error("boom") }`,
         },
       }),
     ).rejects.toMatchObject({

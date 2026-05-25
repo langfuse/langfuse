@@ -313,7 +313,7 @@ describe("Observation Eval E2E Pipeline", () => {
         outputDefinition: null,
         sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
         sourceCode: `
-          export function evaluate(ctx) {
+          function evaluate(ctx) {
             const matched =
               ctx.observation.input.question === "2+2" &&
               ctx.observation.output.answer === ctx.experiment?.expectedOutput &&

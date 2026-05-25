@@ -1,6 +1,7 @@
 import { type JobConfiguration, type JobExecution } from "@prisma/client";
 import { type EvalTemplateCodeBased } from "@langfuse/shared";
 import {
+  CodeEvalExecutionError,
   instrumentAsync,
   logger,
   resolveConfiguredCodeEvalDispatcher,
@@ -75,7 +76,7 @@ export async function executeCodeBasedEvaluation(params: {
           throw new UnrecoverableError(dispatchOutcome.error.message);
         }
 
-        throw new Error(dispatchOutcome.error.message);
+        throw new CodeEvalExecutionError(dispatchOutcome.error);
       }
 
       span.setAttribute("eval.score.count", dispatchOutcome.scores.length);

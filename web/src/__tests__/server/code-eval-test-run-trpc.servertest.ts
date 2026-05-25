@@ -94,7 +94,7 @@ maybe("evals.testRunCodeEval", () => {
     const traceId = randomUUID();
     const startTime = new Date();
     const savedSource = `
-      export function evaluate(ctx) {
+      function evaluate(ctx) {
         const matched =
           ctx.observation.input === ${JSON.stringify(JSON.stringify({ question: "2+2" }))} &&
           ctx.observation.output === "4" &&
@@ -208,7 +208,7 @@ maybe("evals.testRunCodeEval", () => {
     const startTime = new Date();
     const template = await createCodeTemplate(
       project.id,
-      `export function evaluate() {
+      `function evaluate() {
         throw new Error("User code raised ValueError");
       }`,
     );
@@ -254,7 +254,7 @@ maybe("evals.testRunCodeEval", () => {
     const template = await createCodeTemplate(
       project.id,
       `
-        export function evaluate(ctx) {
+        function evaluate(ctx) {
           if (!ctx.experiment) {
             throw new Error("missing experiment context");
           }
@@ -466,7 +466,7 @@ async function createCodeTemplate(projectId: string, sourceCode?: string) {
       outputDefinition: undefined,
       sourceCode:
         sourceCode ??
-        'export function evaluate() { return { scores: [{ name: "test-score", value: 1 }] }; }',
+        'function evaluate() { return { scores: [{ name: "test-score", value: 1 }] }; }',
       sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
     },
   });

@@ -41,7 +41,7 @@ describe("LocalCodeEvalDispatcher", () => {
             observation: { output: string };
             experiment: { expectedOutput: string } | undefined;
           };
-          export async function evaluate(ctx: EvaluationContext) {
+          async function evaluate(ctx: EvaluationContext) {
             return {
               scores: [{ name: "match", value: ctx.observation.output === ctx.experiment?.expectedOutput ? 1 : 0, dataType: "BOOLEAN" }],
             };
@@ -63,7 +63,7 @@ describe("LocalCodeEvalDispatcher", () => {
         ...baseInput,
         runtime: { language: "TYPESCRIPT" },
         // Deliberate stray token that `stripTypeScriptTypes` cannot parse.
-        code: { source: "export function evaluate(@@@) {}" },
+        code: { source: "function evaluate(@@@) {}" },
       }),
     ).rejects.toMatchObject({
       code: "INVALID_SOURCE",
@@ -86,14 +86,14 @@ describe("LocalCodeEvalDispatcher", () => {
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
-  it("rejects sources missing an exported evaluate function", async () => {
+  it("rejects sources missing an evaluate function", async () => {
     const dispatcher = new LocalCodeEvalDispatcher();
 
     await expect(
       dispatcher.dispatch({
         ...baseInput,
         runtime: { language: "TYPESCRIPT" },
-        code: { source: `export const evaluate = 42;` },
+        code: { source: `const evaluate = 42;` },
       }),
     ).rejects.toMatchObject({
       code: "INVALID_SOURCE",
@@ -109,7 +109,7 @@ describe("LocalCodeEvalDispatcher", () => {
         ...baseInput,
         runtime: { language: "TYPESCRIPT" },
         code: {
-          source: `export function evaluate() { throw new Error("boom"); }`,
+          source: `function evaluate() { throw new Error("boom"); }`,
         },
       }),
     ).rejects.toMatchObject({
@@ -119,7 +119,7 @@ describe("LocalCodeEvalDispatcher", () => {
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
-  it("times out runaway evaluators and terminates the worker", async () => {
+  it("times out runaway evaluators", async () => {
     const dispatcher = new LocalCodeEvalDispatcher({ timeoutMs: 50 });
 
     await expect(
@@ -127,7 +127,7 @@ describe("LocalCodeEvalDispatcher", () => {
         ...baseInput,
         runtime: { language: "TYPESCRIPT" },
         code: {
-          source: `export function evaluate() { while (true) {} }`,
+          source: `function evaluate() { while (true) {} }`,
         },
       }),
     ).rejects.toMatchObject({
@@ -152,7 +152,7 @@ describe("LocalCodeEvalDispatcher", () => {
     const dispatcher = new LocalCodeEvalDispatcher();
 
     const source = `
-      export async function evaluate() {
+      async function evaluate() {
         return {
           scores: [{
             value: "reasoning fits within the limit",
@@ -188,7 +188,7 @@ describe("LocalCodeEvalDispatcher", () => {
     // job execution fails clearly instead of completing and then having the
     // score silently dropped by the ingestion consumer.
     const source = `
-      export async function evaluate() {
+      async function evaluate() {
         return {
           scores: [{
             value: "a".repeat(${TEXT_SCORE_MAX_LENGTH + 1}),

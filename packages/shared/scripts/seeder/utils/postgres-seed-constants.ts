@@ -717,7 +717,7 @@ export const SEED_EVALUATOR_TEMPLATES = [
     outputDefinition: null,
     modelParams: null,
     sourceCodeLanguage: "TYPESCRIPT",
-    sourceCode: `export function evaluate(ctx: {
+    sourceCode: `function evaluate(ctx: {
   observation: {
     input: unknown;
     output: unknown;

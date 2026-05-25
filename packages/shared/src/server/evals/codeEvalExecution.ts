@@ -79,6 +79,18 @@ export type CodeEvalUserVisibleError = {
   retryable: boolean;
 };
 
+export class CodeEvalExecutionError extends Error {
+  public readonly code: CodeEvalUserVisibleErrorCode;
+  public readonly retryable: boolean;
+
+  constructor(error: CodeEvalUserVisibleError) {
+    super(error.message);
+    this.name = "CodeEvalExecutionError";
+    this.code = error.code;
+    this.retryable = error.retryable;
+  }
+}
+
 type CodeBasedEvaluationDispatchResult =
   | {
       success: true;

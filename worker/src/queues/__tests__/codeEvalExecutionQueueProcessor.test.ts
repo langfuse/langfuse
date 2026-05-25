@@ -38,9 +38,12 @@ vi.mock("../../features/evaluation/codeBased", () => ({
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  const { CodeEvalExecutionError } =
+    await import("../../../../packages/shared/src/server/evals/codeEvalExecution");
 
   return {
     ...actual,
+    CodeEvalExecutionError,
     getCurrentSpan: vi.fn().mockReturnValue({
       setAttribute: vi.fn(),
     }),
@@ -70,6 +73,8 @@ vi.mock("../../errors/UnrecoverableError", async () => {
 import { prisma } from "@langfuse/shared/src/db";
 import { processObservationEval } from "../../features/evaluation/observationEval";
 import { traceException } from "@langfuse/shared/src/server";
+import { CodeEvalDispatcherErrorCodes } from "../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
+import { CodeEvalExecutionError } from "../../../../packages/shared/src/server/evals/codeEvalExecution";
 import { isUnrecoverableError } from "../../errors/UnrecoverableError";
 
 describe("codeEvalExecutionQueueProcessor", () => {
@@ -228,6 +233,37 @@ describe("codeEvalExecutionQueueProcessor", () => {
         status: JobExecutionStatus.ERROR,
         endTime: expect.any(Date),
         error: "An internal error occurred",
+        executionTraceId: "test-trace-id",
+      },
+    });
+    expect(traceException).toHaveBeenCalledWith(error);
+  });
+
+  it("should preserve retryable code eval timeout messages on the final retry attempt", async () => {
+    const timeoutMessage =
+      "Evaluator timed out. Code-based evaluators are limited by the configured runtime limit. Optimize your evaluator code and try again. See https://langfuse.com/docs/evaluation/overview for details.";
+    const error = new CodeEvalExecutionError({
+      code: CodeEvalDispatcherErrorCodes.TIMEOUT,
+      message: timeoutMessage,
+      retryable: true,
+    });
+    (processObservationEval as Mock).mockRejectedValue(error);
+
+    await expect(
+      codeEvalExecutionQueueProcessor(
+        createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
+      ),
+    ).rejects.toThrow(error);
+
+    expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+      where: {
+        id: jobExecutionId,
+        projectId,
+      },
+      data: {
+        status: JobExecutionStatus.ERROR,
+        endTime: expect.any(Date),
+        error: timeoutMessage,
         executionTraceId: "test-trace-id",
       },
     });
