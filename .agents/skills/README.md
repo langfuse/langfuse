@@ -126,6 +126,7 @@ Open: [code-review/SKILL.md](code-review/SKILL.md)
 
 Use for:
 - proactive Datadog sweeps across `prod-us`, `prod-eu`, `prod-hipaa`, and `prod-jp`
+- checking which paging monitors outside the SLO/burn-rate set alerted engineers and why
 - comparing recent production errors, logs, spans, and API latency to baselines
 - handing measured regressions to `linear-bug-triage` for Linear issues or comments
 
