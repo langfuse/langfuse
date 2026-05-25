@@ -509,6 +509,136 @@ describe("MCP public API tools", () => {
     ).resolves.toEqual({ message: "Dataset item successfully deleted" });
   });
 
+  it("lists datasets and dataset runs deterministically when createdAt timestamps tie", async () => {
+    const { context, projectId } = await createMcpTestSetup();
+    const sharedCreatedAt = new Date("2026-01-03T00:00:00.000Z");
+
+    await prisma.dataset.createMany({
+      data: [
+        {
+          id: "mcp-dataset-tie-a",
+          name: `mcp-dataset-tie-a-${uuidv4()}`,
+          projectId,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+        {
+          id: "mcp-dataset-tie-b",
+          name: `mcp-dataset-tie-b-${uuidv4()}`,
+          projectId,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+        {
+          id: "mcp-dataset-tie-c",
+          name: `mcp-dataset-tie-c-${uuidv4()}`,
+          projectId,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+      ],
+    });
+
+    const datasetsPage1 = (await handleListDatasets(
+      { page: 1, limit: 2 },
+      context,
+    )) as { data: Array<{ id: string }> };
+    const datasetsPage2 = (await handleListDatasets(
+      { page: 2, limit: 2 },
+      context,
+    )) as { data: Array<{ id: string }> };
+    const datasetsPage1Repeat = (await handleListDatasets(
+      { page: 1, limit: 2 },
+      context,
+    )) as { data: Array<{ id: string }> };
+
+    const datasetPage1Ids = datasetsPage1.data.map((item) => item.id);
+    const datasetPage2Ids = datasetsPage2.data.map((item) => item.id);
+    const datasetPage1RepeatIds = datasetsPage1Repeat.data.map(
+      (item) => item.id,
+    );
+
+    expect(datasetPage1Ids).toEqual(datasetPage1RepeatIds);
+    datasetPage2Ids.forEach((id) => {
+      expect(datasetPage1Ids).not.toContain(id);
+    });
+    expect([...datasetPage1Ids, ...datasetPage2Ids]).toEqual(
+      expect.arrayContaining([
+        "mcp-dataset-tie-a",
+        "mcp-dataset-tie-b",
+        "mcp-dataset-tie-c",
+      ]),
+    );
+
+    const datasetWithRunsName = `mcp-dataset-runs-tie-${uuidv4()}`;
+    const datasetWithRuns = await prisma.dataset.create({
+      data: {
+        id: `mcp-dataset-runs-id-${uuidv4()}`,
+        name: datasetWithRunsName,
+        projectId,
+        createdAt: sharedCreatedAt,
+        updatedAt: sharedCreatedAt,
+      },
+    });
+
+    await prisma.datasetRuns.createMany({
+      data: [
+        {
+          id: "mcp-run-tie-a",
+          datasetId: datasetWithRuns.id,
+          name: `mcp-run-tie-a-${uuidv4()}`,
+          projectId,
+          metadata: {},
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+        {
+          id: "mcp-run-tie-b",
+          datasetId: datasetWithRuns.id,
+          name: `mcp-run-tie-b-${uuidv4()}`,
+          projectId,
+          metadata: {},
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+        {
+          id: "mcp-run-tie-c",
+          datasetId: datasetWithRuns.id,
+          name: `mcp-run-tie-c-${uuidv4()}`,
+          projectId,
+          metadata: {},
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+      ],
+    });
+
+    const runsPage1 = (await handleListDatasetRuns(
+      { name: datasetWithRunsName, page: 1, limit: 2 },
+      context,
+    )) as { data: Array<{ id: string }> };
+    const runsPage2 = (await handleListDatasetRuns(
+      { name: datasetWithRunsName, page: 2, limit: 2 },
+      context,
+    )) as { data: Array<{ id: string }> };
+    const runsPage1Repeat = (await handleListDatasetRuns(
+      { name: datasetWithRunsName, page: 1, limit: 2 },
+      context,
+    )) as { data: Array<{ id: string }> };
+
+    const runPage1Ids = runsPage1.data.map((item) => item.id);
+    const runPage2Ids = runsPage2.data.map((item) => item.id);
+    const runPage1RepeatIds = runsPage1Repeat.data.map((item) => item.id);
+
+    expect(runPage1Ids).toEqual(runPage1RepeatIds);
+    runPage2Ids.forEach((id) => {
+      expect(runPage1Ids).not.toContain(id);
+    });
+    expect([...runPage1Ids, ...runPage2Ids]).toEqual(
+      expect.arrayContaining(["mcp-run-tie-a", "mcp-run-tie-b", "mcp-run-tie-c"]),
+    );
+  });
+
   it("covers health public API route and cross-project recent-event checks", async () => {
     const { context } = await createMcpTestSetup();
 

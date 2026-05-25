@@ -1341,6 +1341,169 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     }, 30000);
   }, 90000);
 
+  it("should paginate datasets deterministically when createdAt timestamps tie", async () => {
+    const authAndProject = await createOrgProjectAndApiKey();
+    const localAuth = authAndProject.auth;
+    const localProjectId = authAndProject.projectId;
+    const sharedCreatedAt = new Date("2025-01-01T00:00:00.000Z");
+
+    await prisma.dataset.createMany({
+      data: [
+        {
+          id: "dataset-tie-a",
+          name: `dataset-tie-a-${v4()}`,
+          projectId: localProjectId,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+        {
+          id: "dataset-tie-b",
+          name: `dataset-tie-b-${v4()}`,
+          projectId: localProjectId,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+        {
+          id: "dataset-tie-c",
+          name: `dataset-tie-c-${v4()}`,
+          projectId: localProjectId,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+      ],
+    });
+
+    const page1 = await makeZodVerifiedAPICall(
+      GetDatasetsV1Response,
+      "GET",
+      "/api/public/datasets?page=1&limit=2",
+      undefined,
+      localAuth,
+    );
+    const page2 = await makeZodVerifiedAPICall(
+      GetDatasetsV1Response,
+      "GET",
+      "/api/public/datasets?page=2&limit=2",
+      undefined,
+      localAuth,
+    );
+    const page1Repeat = await makeZodVerifiedAPICall(
+      GetDatasetsV1Response,
+      "GET",
+      "/api/public/datasets?page=1&limit=2",
+      undefined,
+      localAuth,
+    );
+
+    expect(page1.status).toBe(200);
+    expect(page2.status).toBe(200);
+    expect(page1Repeat.status).toBe(200);
+
+    const page1Ids = page1.body.data.map((dataset) => dataset.id);
+    const page2Ids = page2.body.data.map((dataset) => dataset.id);
+    const page1RepeatIds = page1Repeat.body.data.map((dataset) => dataset.id);
+
+    expect(page1Ids).toEqual(page1RepeatIds);
+    page2Ids.forEach((id) => {
+      expect(page1Ids).not.toContain(id);
+    });
+
+    const mergedIds = [...page1Ids, ...page2Ids];
+    expect(mergedIds).toEqual(
+      expect.arrayContaining(["dataset-tie-a", "dataset-tie-b", "dataset-tie-c"]),
+    );
+  });
+
+  it("should paginate dataset runs deterministically when createdAt timestamps tie", async () => {
+    const authAndProject = await createOrgProjectAndApiKey();
+    const localAuth = authAndProject.auth;
+    const localProjectId = authAndProject.projectId;
+    const datasetName = `dataset-runs-tie-${v4()}`;
+    const sharedCreatedAt = new Date("2025-01-02T00:00:00.000Z");
+
+    const dataset = await prisma.dataset.create({
+      data: {
+        id: `dataset-runs-tie-id-${v4()}`,
+        name: datasetName,
+        projectId: localProjectId,
+        createdAt: sharedCreatedAt,
+        updatedAt: sharedCreatedAt,
+      },
+    });
+
+    await prisma.datasetRuns.createMany({
+      data: [
+        {
+          id: "run-tie-a",
+          datasetId: dataset.id,
+          name: `run-tie-a-${v4()}`,
+          projectId: localProjectId,
+          metadata: {},
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+        {
+          id: "run-tie-b",
+          datasetId: dataset.id,
+          name: `run-tie-b-${v4()}`,
+          projectId: localProjectId,
+          metadata: {},
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+        {
+          id: "run-tie-c",
+          datasetId: dataset.id,
+          name: `run-tie-c-${v4()}`,
+          projectId: localProjectId,
+          metadata: {},
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+      ],
+    });
+
+    const page1 = await makeZodVerifiedAPICall(
+      GetDatasetRunsV1Response,
+      "GET",
+      `/api/public/datasets/${encodeURIComponent(datasetName)}/runs?page=1&limit=2`,
+      undefined,
+      localAuth,
+    );
+    const page2 = await makeZodVerifiedAPICall(
+      GetDatasetRunsV1Response,
+      "GET",
+      `/api/public/datasets/${encodeURIComponent(datasetName)}/runs?page=2&limit=2`,
+      undefined,
+      localAuth,
+    );
+    const page1Repeat = await makeZodVerifiedAPICall(
+      GetDatasetRunsV1Response,
+      "GET",
+      `/api/public/datasets/${encodeURIComponent(datasetName)}/runs?page=1&limit=2`,
+      undefined,
+      localAuth,
+    );
+
+    expect(page1.status).toBe(200);
+    expect(page2.status).toBe(200);
+    expect(page1Repeat.status).toBe(200);
+
+    const page1Ids = page1.body.data.map((run) => run.id);
+    const page2Ids = page2.body.data.map((run) => run.id);
+    const page1RepeatIds = page1Repeat.body.data.map((run) => run.id);
+
+    expect(page1Ids).toEqual(page1RepeatIds);
+    page2Ids.forEach((id) => {
+      expect(page1Ids).not.toContain(id);
+    });
+
+    const mergedIds = [...page1Ids, ...page2Ids];
+    expect(mergedIds).toEqual(
+      expect.arrayContaining(["run-tie-a", "run-tie-b", "run-tie-c"]),
+    );
+  });
+
   it("dataset-run-items should fail when neither trace nor observation provided", async () => {
     const response = await makeAPICall(
       "POST",
