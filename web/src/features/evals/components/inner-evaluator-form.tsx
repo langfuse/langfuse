@@ -36,6 +36,7 @@ import {
 } from "@/src/features/filters/components/filter-builder";
 import {
   type EvalTemplate,
+  EvalTemplateSourceCodeLanguage,
   variableMapping,
   observationVariableMapping,
 } from "@langfuse/shared";
@@ -86,7 +87,9 @@ import {
   FlaskConical,
   InfoIcon,
   ListTree,
+  ExternalLink,
 } from "lucide-react";
+import Link from "next/link";
 import {
   isDatasetTarget,
   isEventTarget,
@@ -113,6 +116,8 @@ import {
   resolveCodeEvalTarget,
 } from "@/src/features/evals/utils/code-eval-template-utils";
 import { CodeEvalTestRunCard } from "@/src/features/evals/components/code-eval-test-run-card";
+import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-eval-template-form-body";
+import { getCodeEvalSourceForEditor } from "@/src/features/evals/utils/code-eval-template-validation";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import { cn } from "@/src/utils/tailwind";
 
@@ -298,6 +303,57 @@ const ObservationsPreview = memo(
 );
 
 ObservationsPreview.displayName = "ObservationsPreview";
+
+function CodeEvalSourcePreview({
+  projectId,
+  evalTemplate,
+}: {
+  projectId: string;
+  evalTemplate: EvalTemplate;
+}) {
+  const sourceCodeLanguage =
+    evalTemplate.sourceCodeLanguage ??
+    EvalTemplateSourceCodeLanguage.TYPESCRIPT;
+
+  return (
+    <div className="min-w-0">
+      <CodeEvalTemplateFormBody
+        sourceCode={getCodeEvalSourceForEditor({
+          sourceCode: evalTemplate.sourceCode,
+          sourceCodeLanguage,
+        })}
+        sourceCodeLanguage={sourceCodeLanguage}
+        onSourceCodeChange={() => undefined}
+        editable={false}
+        validationResult={null}
+        headerAction={
+          evalTemplate.projectId ? (
+            <Button asChild variant="outline" className="h-7 px-2">
+              <Link
+                href={`/project/${projectId}/evals/templates/${evalTemplate.id}?mode=edit`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Edit source
+                <ExternalLink className="ml-1 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              className="h-7 px-2"
+              disabled
+              title="Only user-managed templates can be edited"
+            >
+              Edit source
+              <ExternalLink className="ml-1 h-3.5 w-3.5" />
+            </Button>
+          )
+        }
+      />
+    </div>
+  );
+}
 
 const EMPTY_FILTER_STATE: z.infer<typeof singleFilter>[] = [];
 
@@ -1291,6 +1347,12 @@ export const InnerEvaluatorForm = (props: {
           target={watchedTarget}
           scoreName={watchedScoreName}
           disabled={props.disabled}
+          enableExecutionTracePeek={!props.existingEvaluator}
+        />
+      ) : isCodeEvalConfig ? (
+        <CodeEvalSourcePreview
+          projectId={props.projectId}
+          evalTemplate={props.evalTemplate}
         />
       ) : (
         <VariableMappingCard

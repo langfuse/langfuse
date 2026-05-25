@@ -10,7 +10,14 @@ import { StreamLanguage, type StringStream } from "@codemirror/language";
 import { python } from "@codemirror/lang-python";
 import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -24,7 +31,6 @@ import {
   TYPESCRIPT_CODE_EVAL_CONTRACT,
   type CodeEvalSourceCodeLanguage,
   type CodeEvalValidationResult,
-  formatPythonCodeEvalSourceWithRuff,
 } from "@/src/features/evals/utils/code-eval-template-validation";
 
 type CodeEvalTemplateFormBodyProps = {
@@ -33,6 +39,7 @@ type CodeEvalTemplateFormBodyProps = {
   onSourceCodeChange: (value: string) => void;
   editable: boolean;
   validationResult: CodeEvalValidationResult | null;
+  headerAction?: ReactNode;
 };
 
 type ProtectedRange = {
@@ -46,7 +53,7 @@ type ContractRanges = {
 };
 
 const PYTHON_EVALUATE_SIGNATURE_PATTERN =
-  /(?:^|\n)def evaluate\s*\(\s*context\s*:\s*EvaluationContext\s*\)\s*->\s*EvaluationResult\s*:/;
+  /(?:^|\n)def evaluate\s*\(\s*ctx\s*:\s*EvaluationContext\s*\)\s*->\s*EvaluationResult\s*:/;
 const FORMAT_SHORTCUT_KEY = "Shift-Alt-f";
 const FORMAT_SHORTCUT_ARIA = "Alt+Shift+F";
 const TYPESCRIPT_KEYWORDS = new Set([
@@ -103,9 +110,10 @@ const typescriptCodeEvalLanguage = StreamLanguage.define({
       return "string";
     }
 
-    const identifier = stream.match(/[A-Za-z_][A-Za-z0-9_]*/);
-    if (identifier) {
+    const identifier = stream.match(/[A-Za-z_][A-Za-z0-9_]*/, false);
+    if (identifier && identifier !== true) {
       const word = identifier[0];
+      stream.match(word);
       if (TYPESCRIPT_KEYWORDS.has(word)) return "keyword";
       if (TYPESCRIPT_BUILTIN_TYPES.has(word) || /^[A-Z]/.test(word)) {
         return "typeName";
@@ -251,18 +259,6 @@ async function formatTypeScriptSource(source: string) {
   return `${source.slice(0, ranges.prelude.to)}\n${formattedEditableSource.trimStart()}`;
 }
 
-async function formatPythonSource(source: string) {
-  const formattedSource = await formatPythonCodeEvalSourceWithRuff(source);
-  const ranges = findPythonContractRanges(source);
-  const formattedRanges = findPythonContractRanges(formattedSource);
-
-  if (!ranges || !formattedRanges) return formattedSource;
-
-  return `${source.slice(0, ranges.signature.to)}${formattedSource.slice(
-    formattedRanges.signature.to,
-  )}`;
-}
-
 function scrollCodeMirrorToBottom(view: EditorView) {
   if (typeof window === "undefined") return;
 
@@ -281,6 +277,7 @@ export function CodeEvalTemplateFormBody({
   onSourceCodeChange,
   editable,
   validationResult,
+  headerAction,
 }: CodeEvalTemplateFormBodyProps) {
   const { resolvedTheme } = useTheme();
   const codeMirrorViewRef = useRef<EditorView | null>(null);
@@ -290,6 +287,9 @@ export function CodeEvalTemplateFormBody({
     sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
       ? "Python"
       : "TypeScript";
+  const canFormatSource =
+    sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT;
+  const shouldShowFormatButton = editable && canFormatSource;
 
   const handleCreateEditor = useCallback((view: EditorView) => {
     codeMirrorViewRef.current = view;
@@ -309,27 +309,18 @@ export function CodeEvalTemplateFormBody({
   );
 
   const formatSource = useCallback(async () => {
-    if (!editable || isFormatting) return;
+    if (!editable || isFormatting || !canFormatSource) return;
 
     setIsFormatting(true);
     try {
-      const formatted =
-        sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-          ? await formatPythonSource(sourceCode)
-          : await formatTypeScriptSource(sourceCode);
+      const formatted = await formatTypeScriptSource(sourceCode);
       onSourceCodeChange(formatted);
     } catch (error) {
       console.error(error);
     } finally {
       setIsFormatting(false);
     }
-  }, [
-    editable,
-    isFormatting,
-    onSourceCodeChange,
-    sourceCode,
-    sourceCodeLanguage,
-  ]);
+  }, [editable, isFormatting, canFormatSource, onSourceCodeChange, sourceCode]);
 
   const linterExtension = useMemo(
     () =>
@@ -378,31 +369,36 @@ export function CodeEvalTemplateFormBody({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-muted-foreground text-sm">{languageLabel}</span>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!editable || isFormatting}
-          aria-keyshortcuts={FORMAT_SHORTCUT_ARIA}
-          onClick={() => void formatSource()}
-        >
-          {isFormatting && (
-            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-          )}
-          Format
-          <kbd className="bg-muted text-muted-foreground pointer-events-none ml-2 hidden h-4 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium select-none sm:inline-flex">
-            {typeof navigator !== "undefined" &&
-            navigator.userAgent.includes("Macintosh") ? (
-              <>
-                <span className="text-xs">⇧</span>
-                <span className="text-xs">⌥</span>F
-              </>
-            ) : (
-              <>Shift+Alt+F</>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="text-muted-foreground text-sm">{languageLabel}</span>
+          {headerAction}
+        </div>
+        {shouldShowFormatButton ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isFormatting}
+            aria-keyshortcuts={FORMAT_SHORTCUT_ARIA}
+            onClick={() => void formatSource()}
+          >
+            {isFormatting && (
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
             )}
-          </kbd>
-        </Button>
+            Format
+            <kbd className="bg-muted text-muted-foreground pointer-events-none ml-2 hidden h-4 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium select-none sm:inline-flex">
+              {typeof navigator !== "undefined" &&
+              navigator.userAgent.includes("Macintosh") ? (
+                <>
+                  <span className="text-xs">⇧</span>
+                  <span className="text-xs">⌥</span>F
+                </>
+              ) : (
+                <>Shift+Alt+F</>
+              )}
+            </kbd>
+          </Button>
+        ) : null}
       </div>
       <CodeMirror
         value={sourceCode}
@@ -419,7 +415,7 @@ export function CodeEvalTemplateFormBody({
           ...protectedContractExtensions,
           codeEvalHoverExtension,
           linterExtension,
-          formatShortcutExtension,
+          ...(shouldShowFormatButton ? [formatShortcutExtension] : []),
           EditorView.lineWrapping,
           EditorView.theme({
             "&.cm-focused": { outline: "none" },

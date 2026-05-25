@@ -19,7 +19,7 @@ import {
   EvalTargetObject,
   type EvalTemplate,
 } from "@langfuse/shared";
-import { ExternalLink, ListTree, Lock, Play, RotateCcw } from "lucide-react";
+import { ExternalLink, ListTree, Play, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 import { toast } from "sonner";
@@ -57,12 +57,14 @@ export function CodeEvalTestRunCard({
   target,
   scoreName,
   disabled = false,
+  enableExecutionTracePeek = true,
 }: {
   projectId: string;
   evalTemplate: EvalTemplate;
   target: EvalFormType["target"];
   scoreName: EvalFormType["scoreName"];
   disabled?: boolean;
+  enableExecutionTracePeek?: boolean;
 }) {
   const { isBetaEnabled } = useV4Beta();
   const isSupportedTarget = isCodeEvalTestTarget(target);
@@ -117,14 +119,10 @@ export function CodeEvalTestRunCard({
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <span className="text-sm font-medium">Test run</span>
-            <Badge variant="outline" className="gap-1">
-              <Lock className="h-3 w-3" />
-              Read-only preview
-            </Badge>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {evalTemplate.projectId ? (
-              <Button asChild variant="outline" size="sm">
+              <Button asChild variant="outline">
                 <Link
                   href={`/project/${projectId}/evals/templates/${evalTemplate.id}?mode=edit`}
                   target="_blank"
@@ -137,7 +135,6 @@ export function CodeEvalTestRunCard({
             ) : (
               <Button
                 variant="outline"
-                size="sm"
                 disabled
                 title="Only user-managed templates can be edited"
               >
@@ -184,13 +181,24 @@ export function CodeEvalTestRunCard({
         {testRunMutation.data ? (
           <CodeEvalTestRunResultView
             result={testRunMutation.data}
-            onShowExecutionTrace={(executionTraceId) => {
-              peekConfig.openPeek?.(executionTraceId);
-            }}
+            onShowExecutionTrace={
+              enableExecutionTracePeek
+                ? (executionTraceId) => {
+                    peekConfig.openPeek?.(executionTraceId);
+                  }
+                : undefined
+            }
           />
         ) : null}
+
+        <p className="text-muted-foreground text-xs">
+          Read-only preview. Inputs are sampled from the first matching
+          observation.
+        </p>
       </Card>
-      <TablePeekViewTraceDetail {...peekConfig} projectId={projectId} />
+      {enableExecutionTracePeek ? (
+        <TablePeekViewTraceDetail {...peekConfig} projectId={projectId} />
+      ) : null}
     </>
   );
 }
@@ -266,10 +274,6 @@ function CodeEvalTestRunInputCards({
         <span className="text-muted-foreground text-xs font-medium">
           Evaluator input
         </span>
-        <Badge variant="outline" className="gap-1">
-          <Lock className="h-3 w-3" />
-          Read-only
-        </Badge>
       </div>
       <PrettyJsonView
         json={inputPreviewJson}
@@ -290,7 +294,7 @@ function CodeEvalTestRunResultView({
   onShowExecutionTrace,
 }: {
   result: Exclude<CodeEvalTestRunResult, undefined>;
-  onShowExecutionTrace: (executionTraceId: string) => void;
+  onShowExecutionTrace?: (executionTraceId: string) => void;
 }) {
   const resultJson = result.success
     ? { scores: result.result.scores.map(toUserFacingCodeEvalScore) }
@@ -302,15 +306,17 @@ function CodeEvalTestRunResultView({
         <Badge variant={result.success ? "success" : "error"} className="w-fit">
           {result.success ? "Success" : "Failed"}
         </Badge>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => onShowExecutionTrace(result.executionTraceId)}
-        >
-          <ListTree className="mr-1.5 h-3.5 w-3.5" />
-          Show execution trace
-        </Button>
+        {onShowExecutionTrace ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onShowExecutionTrace(result.executionTraceId)}
+          >
+            <ListTree className="mr-1.5 h-3.5 w-3.5" />
+            Show execution trace
+          </Button>
+        ) : null}
       </div>
       <CodeMirrorEditor
         value={JSON.stringify(resultJson, null, 2)}
