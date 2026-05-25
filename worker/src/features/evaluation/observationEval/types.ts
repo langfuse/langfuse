@@ -1,4 +1,5 @@
 import { JobConfiguration, JobExecutionStatus } from "@langfuse/shared/src/db";
+import { type JobConfigExecutionMode } from "@langfuse/shared";
 
 /**
  * Re-export ObservationForEval as the canonical observation type for eval operations.
@@ -61,5 +62,6 @@ export interface ObservationEvalSchedulerDeps {
     projectId: string;
     observationS3Path: string;
     delay: number;
+    executionMode?: JobConfigExecutionMode;
   }) => Promise<void>;
 }

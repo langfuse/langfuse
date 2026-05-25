@@ -73,7 +73,10 @@ const viewMapping: Record<string, DashboardWidgetViews> = {
 };
 
 // Reverse mapping for client-side use
-const reverseViewMapping: Record<DashboardWidgetViews, string> = {
+const reverseViewMapping: Record<
+  DashboardWidgetViews,
+  z.infer<typeof views>
+> = {
   [DashboardWidgetViews.TRACES]: "traces",
   [DashboardWidgetViews.OBSERVATIONS]: "observations",
   [DashboardWidgetViews.SCORES_NUMERIC]: "scores-numeric",
@@ -236,6 +239,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
       return {
         ...widget,
         view: reverseViewMapping[widget.view],
+        metrics: widget.metrics,
         owner: widget.owner,
       };
     }),
