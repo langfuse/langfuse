@@ -76,10 +76,10 @@ export const DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE = `${TYPESCRIPT_CODE_EVAL_CONTR
 /**
  * Evaluates one observation and returns one or more Langfuse scores.
  */
-async function evaluate({
+function evaluate({
   observation,
   experiment,
-}: EvaluationContext): Promise<EvaluationResult> {
+}: EvaluationContext): EvaluationResult {
   const input = observation.input;
   const matchesOutput =
     input !== undefined && observation.output === input;
