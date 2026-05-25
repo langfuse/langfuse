@@ -2,7 +2,6 @@ import { Job, Processor } from "bullmq";
 import { EvalTemplateType, JobExecutionStatus } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  CodeEvalDispatcherError,
   getCodeEvalUserVisibleError,
   getCurrentSpan,
   logger,
@@ -49,9 +48,7 @@ export const codeEvalExecutionQueueProcessorBuilder = (
         job.data.payload.jobExecutionId,
       );
 
-      const isTerminalError =
-        isUnrecoverableError(e) ||
-        (e instanceof CodeEvalDispatcherError && !e.retryable);
+      const isTerminalError = isUnrecoverableError(e);
       const totalAttempts = job.opts.attempts ?? 1;
       const isFinalAttempt = job.attemptsMade + 1 >= totalAttempts;
 
@@ -86,14 +83,7 @@ export const codeEvalExecutionQueueProcessorBuilder = (
   };
 };
 
-// Returns a user-visible message for JobExecution.error. Dispatcher errors
-// with internal lambda codes are masked to avoid exposing infra details;
-// other dispatcher errors and UnrecoverableError messages are surfaced as-is.
 function getJobExecutionErrorMessage(e: unknown): string {
-  if (e instanceof CodeEvalDispatcherError) {
-    return getCodeEvalUserVisibleError(e).message;
-  }
-
   if (isUnrecoverableError(e)) return e.message;
 
   return getCodeEvalUserVisibleError(e).message;

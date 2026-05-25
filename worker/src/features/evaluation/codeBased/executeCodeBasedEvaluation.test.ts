@@ -7,6 +7,7 @@ import {
   CodeEvalDispatcherError,
   CodeEvalDispatcherErrorCodes,
 } from "../../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
+import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 
 const mocks = vi.hoisted(() => ({
   dispatcher: {
@@ -419,32 +420,33 @@ describe("executeCodeBasedEvaluation", () => {
     });
     mocks.dispatcher.dispatch.mockRejectedValue(error);
 
-    await expect(
-      executeCodeBasedEvaluation({
-        projectId: "project-1",
-        organizationId: "org-1",
-        job: {
-          id: "job-1",
-          jobConfigurationId: "config-1",
-          jobInputTraceId: "trace-1",
-          jobInputObservationId: "obs-1",
-          jobInputDatasetItemId: null,
-        } as any,
-        config: { id: "config-1", scoreName: "default-score" } as any,
-        template: {
-          id: "template-1",
-          name: "Code evaluator",
-          type: EvalTemplateType.CODE,
-          version: 1,
-          sourceCode: "export function evaluate() {}",
-          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
-          prompt: null,
-          outputDefinition: null,
-        } as any,
-        extractedVariables: [{ var: "input", value: "prompt" }],
-        executionMetadata: { job_execution_id: "job-1" },
-      }),
-    ).rejects.toBe(error);
+    const promise = executeCodeBasedEvaluation({
+      projectId: "project-1",
+      organizationId: "org-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: "obs-1",
+        jobInputDatasetItemId: null,
+      } as any,
+      config: { id: "config-1", scoreName: "default-score" } as any,
+      template: {
+        id: "template-1",
+        name: "Code evaluator",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "export function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [{ var: "input", value: "prompt" }],
+      executionMetadata: { job_execution_id: "job-1" },
+    });
+
+    await expect(promise).rejects.toThrow(UnrecoverableError);
+    await expect(promise).rejects.toThrow("runner exploded");
 
     expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);
     expect(mocks.writeInternalTrace).toHaveBeenCalledWith(
@@ -461,14 +463,7 @@ describe("executeCodeBasedEvaluation", () => {
             input: JSON.stringify({
               observation: { input: "prompt", output: null, metadata: null },
             }),
-            output: JSON.stringify({
-              error: {
-                name: "CodeEvalDispatcherError",
-                message: "runner exploded",
-                code: "USER_CODE_ERROR",
-                retryable: false,
-              },
-            }),
+            output: expect.stringContaining("runner exploded"),
             metadata: expect.objectContaining({
               dispatcher_name: "test-dispatcher",
               code_eval_runtime: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
@@ -485,14 +480,13 @@ describe("executeCodeBasedEvaluation", () => {
     );
   });
 
-  it("masks internal dispatcher errors in the internal trace", async () => {
-    const error = new CodeEvalDispatcherError(
-      "Failed to invoke code eval Lambda code-based-eval-executor-node: ResourceNotFoundException: Function not found",
-      {
-        code: CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
-        retryable: false,
-      },
-    );
+  it("writes an actionable user-visible timeout error", async () => {
+    const rawTimeoutMessage =
+      "Function.TimedOut: Task timed out after 2 seconds";
+    const error = new CodeEvalDispatcherError(rawTimeoutMessage, {
+      code: CodeEvalDispatcherErrorCodes.TIMEOUT,
+      retryable: true,
+    });
     mocks.dispatcher.dispatch.mockRejectedValue(error);
 
     await expect(
@@ -520,7 +514,51 @@ describe("executeCodeBasedEvaluation", () => {
         extractedVariables: [{ var: "input", value: "prompt" }],
         executionMetadata: { job_execution_id: "job-1" },
       }),
-    ).rejects.toBe(error);
+    ).rejects.toThrow("Evaluator timed out.");
+
+    expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);
+    const trace = JSON.stringify(mocks.writeInternalTrace.mock.calls[0]?.[0]);
+    expect(trace).toContain("Evaluator timed out.");
+    expect(trace).not.toContain(rawTimeoutMessage);
+  });
+
+  it("masks internal dispatcher errors in the internal trace", async () => {
+    const error = new CodeEvalDispatcherError(
+      "Failed to invoke code eval Lambda code-based-eval-executor-node: ResourceNotFoundException: Function not found",
+      {
+        code: CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
+        retryable: false,
+      },
+    );
+    mocks.dispatcher.dispatch.mockRejectedValue(error);
+
+    const promise = executeCodeBasedEvaluation({
+      projectId: "project-1",
+      organizationId: "org-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: "obs-1",
+        jobInputDatasetItemId: null,
+      } as any,
+      config: { id: "config-1", scoreName: "default-score" } as any,
+      template: {
+        id: "template-1",
+        name: "Code evaluator",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "export function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [{ var: "input", value: "prompt" }],
+      executionMetadata: { job_execution_id: "job-1" },
+    });
+
+    await expect(promise).rejects.toThrow(UnrecoverableError);
+    await expect(promise).rejects.toThrow("An internal error occurred");
 
     expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);
     expect(mocks.writeInternalTrace).toHaveBeenCalledWith(
@@ -530,18 +568,13 @@ describe("executeCodeBasedEvaluation", () => {
             level: "ERROR",
             statusMessage:
               "Code eval execution failed: An internal error occurred",
-            output: JSON.stringify({
-              error: {
-                name: "CodeEvalDispatcherError",
-                message: "An internal error occurred",
-                code: "INTERNAL_ERROR",
-                retryable: false,
-              },
-            }),
+            output: expect.stringContaining("An internal error occurred"),
             metadata: expect.objectContaining({
               error_name: "CodeEvalDispatcherError",
               error_message: "An internal error occurred",
-              error_code: "INTERNAL_ERROR",
+              error_code:
+                CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
+              error_public_code: "INTERNAL_ERROR",
               error_retryable: false,
             }),
           }),

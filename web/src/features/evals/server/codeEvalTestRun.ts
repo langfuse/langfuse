@@ -7,6 +7,7 @@ import {
   processEventBatch,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
+  type CodeEvalUserVisibleErrorCode,
   type DispatchResult,
   type InternalTraceWriteInput,
 } from "@langfuse/shared/src/server";
@@ -32,7 +33,7 @@ export type CodeEvalTestRunResult =
   | {
       success: false;
       error: {
-        code: string;
+        code: CodeEvalUserVisibleErrorCode;
         message: string;
       };
       executionTraceId: string;
@@ -111,7 +112,6 @@ export async function runCodeEvalTest(params: {
     hasExperimentContext: Boolean(observation.experiment_id),
     traceName,
     metadata: executionMetadata,
-    maskErrorsInTrace: true,
     writeTrace: writeTraceViaIngestion,
   });
 
@@ -126,7 +126,10 @@ export async function runCodeEvalTest(params: {
 
   return {
     success: false,
-    error: dispatchOutcome.error,
+    error: {
+      code: dispatchOutcome.error.code,
+      message: dispatchOutcome.error.message,
+    },
     executionTraceId: dispatchOutcome.executionTraceId,
     executionTraceFromTimestamp: dispatchOutcome.executionTraceFromTimestamp,
   };

@@ -67,12 +67,15 @@ export async function executeCodeBasedEvaluation(params: {
         hasExperimentContext: params.hasExperimentContext ?? false,
         traceName: `Execute evaluator: ${params.template.name}`,
         metadata: executionMetadata,
-        maskErrorsInTrace: true,
         writeTrace: (trace) => createInternalEventsWriter().write(trace),
       });
 
       if (!dispatchOutcome.success) {
-        throw dispatchOutcome.cause;
+        if (dispatchOutcome.error.retryable === false) {
+          throw new UnrecoverableError(dispatchOutcome.error.message);
+        }
+
+        throw new Error(dispatchOutcome.error.message);
       }
 
       span.setAttribute("eval.score.count", dispatchOutcome.scores.length);
