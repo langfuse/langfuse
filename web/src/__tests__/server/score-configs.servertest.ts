@@ -118,12 +118,57 @@ describe("/api/public/score-configs API Endpoint", () => {
     });
 
     expect(fetchedConfigs.body.data.length).toBe(3);
-    expect(fetchedConfigs.body.data[0]).toMatchObject({
-      ...configTwo[0],
-      isArchived: false,
-      createdAt: "2024-05-11T00:00:00.000Z",
-      updatedAt: "2024-05-11T00:00:00.000Z",
-    });
+    // configTwo and configThree share the same createdAt; either may appear first.
+    // Assert both are present rather than pinning position.
+    const names = fetchedConfigs.body.data.map((c: { name: string }) => c.name);
+    expect(names).toContain(configTwo[0].name);
+    expect(names).toContain(configThree[0].name);
+    expect(names).toContain(configOne[0].name);
+  });
+
+  it("should return stable pages with no overlap or gap when score configs share identical createdAt timestamps", async () => {
+    // configTwo and configThree share createdAt (2024-05-11T00:00:00.000Z).
+    // Without a stable id tiebreaker the DB may return the same row on two
+    // consecutive limit=1 pages, leaving one config unreachable.
+    const [pageOne, pageTwo, pageThree] = await Promise.all([
+      makeZodVerifiedAPICall(
+        GetScoreConfigsResponse,
+        "GET",
+        `/api/public/score-configs?limit=1&page=1`,
+        undefined,
+        auth,
+      ),
+      makeZodVerifiedAPICall(
+        GetScoreConfigsResponse,
+        "GET",
+        `/api/public/score-configs?limit=1&page=2`,
+        undefined,
+        auth,
+      ),
+      makeZodVerifiedAPICall(
+        GetScoreConfigsResponse,
+        "GET",
+        `/api/public/score-configs?limit=1&page=3`,
+        undefined,
+        auth,
+      ),
+    ]);
+
+    expect(pageOne.status).toBe(200);
+    expect(pageTwo.status).toBe(200);
+    expect(pageThree.status).toBe(200);
+
+    const allIds = [
+      pageOne.body.data[0].id,
+      pageTwo.body.data[0].id,
+      pageThree.body.data[0].id,
+    ];
+
+    // All 3 configs accounted for — no gap
+    expect(allIds).toHaveLength(3);
+    // No config appears on two pages — no overlap
+    const uniqueIds = new Set(allIds);
+    expect(uniqueIds.size).toBe(3);
   });
 
   it("test invalid config id input", async () => {

@@ -82,9 +82,10 @@ export const listScoreConfigs = async ({
       where: {
         projectId,
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: [
+        { createdAt: "desc" },
+        { id: "desc" },
+      ],
       take: limit,
       skip: (page - 1) * limit,
     }),
