@@ -323,6 +323,8 @@ export default function EvalsTemplateTable({
         const model = row.original.model ?? null;
         const type = row.original.type;
         const isInvalid = isTemplateInvalid({ provider, model, type });
+        const isCodeTemplate = type === EvalTemplateType.CODE;
+        const isUserMaintained = row.original.maintainer.includes("User");
 
         return (
           <div className="flex flex-row gap-2">
@@ -350,7 +352,7 @@ export default function EvalsTemplateTable({
             >
               Use Evaluator
             </ActionButton>
-            {!row.original.maintainer.includes("User") ? (
+            {!isUserMaintained && !isCodeTemplate ? (
               <Button
                 aria-label="clone"
                 variant="outline"
@@ -364,7 +366,8 @@ export default function EvalsTemplateTable({
               >
                 <Copy className="h-3 w-3" />
               </Button>
-            ) : (
+            ) : null}
+            {isUserMaintained ? (
               <Button
                 aria-label="edit"
                 variant="outline"
@@ -378,7 +381,7 @@ export default function EvalsTemplateTable({
               >
                 <Pen className="h-3 w-3" />
               </Button>
-            )}
+            ) : null}
           </div>
         );
       },
