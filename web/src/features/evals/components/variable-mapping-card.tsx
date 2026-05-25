@@ -54,6 +54,12 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import {
+  type EvalPreviewPointer,
+  buildEvalPreviewNavigationPath,
+  getEvalPreviewDetailPageListKey,
+  getEvalPreviewPointerFromDetailPageEntry,
+} from "@/src/features/evals/hooks/useEvalPreviewNavigation";
 
 export const VariableMappingCard = ({
   projectId,
@@ -81,10 +87,8 @@ export const VariableMappingCard = ({
   compatibilityCheckWasPerformed?: boolean;
 }) => {
   const [showPreview, setShowPreview] = useState(false);
-  const [selectedPreviewIds, setSelectedPreviewIds] = useState<{
-    traceId?: string;
-    observationId?: string;
-  }>();
+  const [selectedPreviewPointer, setSelectedPreviewPointer] =
+    useState<EvalPreviewPointer>();
   const router = useRouter();
   const { isBetaEnabled } = useV4Beta();
   const peekId =
@@ -110,7 +114,7 @@ export const VariableMappingCard = ({
     projectId,
     form,
     disabled,
-    isPeekView ? (selectedPreviewIds ?? {}) : undefined,
+    isPeekView ? selectedPreviewPointer : undefined,
   );
 
   const nonOtelCompatible = compatibilityCheckWasPerformed && !isNewCompatible;
@@ -127,7 +131,7 @@ export const VariableMappingCard = ({
     }
 
     if (isPeekView) {
-      setSelectedPreviewIds(undefined);
+      setSelectedPreviewPointer(undefined);
     }
   }, [
     target,
@@ -139,7 +143,7 @@ export const VariableMappingCard = ({
 
   useEffect(() => {
     if (isPeekView) {
-      setSelectedPreviewIds(undefined);
+      setSelectedPreviewPointer(undefined);
     }
   }, [isPeekView, peekId]);
 
@@ -148,6 +152,13 @@ export const VariableMappingCard = ({
     shouldShowPreviewForTarget &&
     !disabled &&
     !(isEventTarget(target) && nonOtelCompatible);
+  const previewNavigationListKey = getEvalPreviewDetailPageListKey(
+    target,
+    isBetaEnabled,
+  );
+  const evalPreviewBasePath = hideAdvancedSettings
+    ? `/project/${projectId}/evals/remap?evaluator=${oldConfigId}`
+    : `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}`;
 
   const mappingControlButtons = (
     <div className="flex items-center gap-2">
@@ -160,48 +171,33 @@ export const VariableMappingCard = ({
             disabled={disabled}
           />
           {showPreview &&
-            (previewData ? (
+            (previewData && previewNavigationListKey ? (
               <DetailPageNav
                 currentId={
                   previewData.type === EvalTargetObject.EVENT
                     ? previewData.observationId
                     : previewData.traceId
                 }
-                listKey={
-                  previewData.type === EvalTargetObject.EVENT
-                    ? "observations"
-                    : "traces"
-                }
+                listKey={previewNavigationListKey}
                 onNavigate={
                   isPeekView
                     ? (entry) => {
-                        if (previewData.type === EvalTargetObject.EVENT) {
-                          setSelectedPreviewIds({
-                            traceId: entry.params?.traceId,
-                            observationId: entry.id,
-                          });
-                        } else {
-                          setSelectedPreviewIds({
-                            traceId: entry.id,
-                            observationId: undefined,
-                          });
-                        }
+                        setSelectedPreviewPointer(
+                          getEvalPreviewPointerFromDetailPageEntry(
+                            entry,
+                            target,
+                          ),
+                        );
                       }
                     : undefined
                 }
-                path={(entry) => {
-                  const isEvent = previewData.type === EvalTargetObject.EVENT;
-                  const basePath = hideAdvancedSettings
-                    ? `/project/${projectId}/evals/remap?evaluator=${oldConfigId}`
-                    : `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}`;
-                  if (isEvent) {
-                    // For observations/events: entry.id is observationId, entry.params.traceId is traceId
-                    return `${basePath}&traceId=${entry.params?.traceId}&observationId=${entry.id}`;
-                  } else {
-                    // For traces: entry.id is traceId
-                    return `${basePath}&traceId=${entry.id}`;
-                  }
-                }}
+                path={(entry) =>
+                  buildEvalPreviewNavigationPath({
+                    basePath: evalPreviewBasePath,
+                    entry,
+                    target,
+                  })
+                }
               />
             ) : (
               <div className="flex flex-row gap-1">
