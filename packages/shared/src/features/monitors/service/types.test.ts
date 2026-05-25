@@ -5,6 +5,7 @@ import {
   ListMonitorsSchema,
   UpdateMonitorSchema,
 } from "./types";
+import { ErrorAlertThresholdRequired, ErrorNameRequired } from "../types";
 
 // Minimal valid `CreateMonitorSchema` payload. Tests override one field
 // at a time to exercise the refinements wired onto the input schema.
@@ -91,6 +92,30 @@ describe("CreateMonitorSchema", () => {
       metric: { measure: "bogus_measure", aggregation: "count" as const },
     });
     expect(result.success).toBe(false);
+  });
+
+  it("emits a friendly message when name is missing", () => {
+    const { name: _name, ...rest } = validCreateInput;
+    const result = CreateMonitorSchema.safeParse(rest);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const nameIssue = result.error.issues.find(
+        (i) => i.path.join(".") === "name",
+      );
+      expect(nameIssue?.message).toBe(ErrorNameRequired);
+    }
+  });
+
+  it("emits a friendly message when alertThreshold is missing", () => {
+    const { alertThreshold: _t, ...rest } = validCreateInput;
+    const result = CreateMonitorSchema.safeParse(rest);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "alertThreshold",
+      );
+      expect(issue?.message).toBe(ErrorAlertThresholdRequired);
+    }
   });
 
   it("rejects status `error-bad-query` on create (scheduler-owned)", () => {

@@ -13,6 +13,13 @@ import { metric as MetricSchema, viewsV2 } from "../query/types";
 import { isValidQuery } from "./isValidQuery";
 import { isValidThresholdOrder } from "./isValidThresholdOrder";
 
+/** ErrorNameRequired is the message emitted when the Monitor name is missing or empty. */
+export const ErrorNameRequired = "Name is a required field";
+
+/** ErrorAlertThresholdRequired is the message emitted when alertThreshold is missing. */
+export const ErrorAlertThresholdRequired =
+  "Alert threshold is a required field";
+
 /**
  * MonitorFiltersSchema is the array of filters applied to a Monitor's
  * underlying query — a thin alias over `singleFilter[]` so all Monitor
@@ -183,13 +190,16 @@ export const MonitorSchema = z.object({
   // Monitor Config
   window: MonitorWindowSchema,
   thresholdOperator: MonitorThresholdOperatorSchema,
-  alertThreshold: z.number(),
+  alertThreshold: z.number({ message: ErrorAlertThresholdRequired }),
   warningThreshold: z.number().nullable(),
   noData: MonitorNoDataSchema.default({ mode: "SILENT" }),
   renotify: MonitorRenotifySchema.default({ mode: "OFF" }),
 
   // MonitorAlert Config
-  name: z.string().min(1).max(200),
+  name: z
+    .string({ message: ErrorNameRequired })
+    .min(1, ErrorNameRequired)
+    .max(200),
   tags: z.array(z.string().max(60)).max(20).default([]),
 
   // Monitor State

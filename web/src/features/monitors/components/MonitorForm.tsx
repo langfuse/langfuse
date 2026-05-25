@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import { Plus, type LucideIcon } from "lucide-react";
-import { useForm, Controller, useWatch } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { api } from "@/src/utils/api";
@@ -20,6 +20,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import {
@@ -201,27 +209,28 @@ export const MonitorForm = ({
     mode: "onChange",
   });
 
-  /** createMutation creates a new monitor and redirects to its edit page on success. */
+  /** createMutation creates a new monitor and returns to the monitors list on success. */
   const createMutation = api.monitors.create.useMutation({
-    onSuccess: async ({ id }) => {
+    onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
         title: "Monitor created",
-        description: "Your monitor is now active.",
+        description: `"${variables.name}" is now active.`,
       });
-      void router.replace(`/project/${projectId}/monitors/${id}/edit`);
+      void router.replace(`/project/${projectId}/monitors`);
     },
     onError: (e) => showErrorToast("Failed to create monitor", e.message),
   });
 
-  /** updateMutation saves edits to an existing monitor. */
+  /** updateMutation saves edits to an existing monitor and returns to the monitors list on success. */
   const updateMutation = api.monitors.update.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
         title: "Monitor saved",
-        description: "Your changes have been applied.",
+        description: `Your changes to "${variables.name}" have been applied.`,
       });
+      void router.replace(`/project/${projectId}/monitors`);
     },
     onError: (e) => showErrorToast("Failed to save monitor", e.message),
   });
@@ -398,76 +407,79 @@ export const MonitorForm = ({
     updateMutation.isPending;
 
   return (
-    <form onSubmit={onSubmit} className="flex h-full gap-4 overflow-hidden">
-      <div className="h-full min-h-0 w-full min-w-107.5 md:w-1/3">
-        <Card className="flex h-full flex-col">
-          <CardHeader>
-            <CardTitle>Monitor Configuration</CardTitle>
-            <CardDescription>
-              Get notified when observation metrics and scores cross a
-              threshold. (eg. &ldquo;sudden cost increase&rdquo;,
-              &ldquo;accuracy has dropped&rdquo;)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            <Section title="1. Metric Definition">
-              <div className="space-y-2">
-                <Label htmlFor="monitor-view">View</Label>
-                <Controller
+    <Form {...form}>
+      <form onSubmit={onSubmit} className="flex h-full gap-4 overflow-hidden">
+        <div className="h-full min-h-0 w-full min-w-107.5 md:w-1/3">
+          <Card className="flex h-full flex-col">
+            <CardHeader>
+              <CardTitle>Monitor Configuration</CardTitle>
+              <CardDescription>
+                Get notified when observation metrics and scores cross a
+                threshold. (eg. &ldquo;sudden cost increase&rdquo;,
+                &ldquo;accuracy has dropped&rdquo;)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <Section title="Metric Definition" step={1}>
+                <FormField
                   control={form.control}
                   name="view"
                   render={({ field }) => (
-                    <Select
-                      value={field.value}
-                      onValueChange={(next) => {
-                        field.onChange(next);
-                        // Reset the metric whenever the view changes: the
-                        // selected measure may not exist on the new view,
-                        // which would leave the form in an unsubmittable
-                        // state until the user manually picks one. "count"
-                        // is always present and is the safe default.
-                        const view =
-                          next as keyof (typeof viewDeclarations)["v2"];
-                        const measures =
-                          viewDeclarations.v2[view]?.measures ?? {};
-                        const currentMeasure = form.getValues("metric.measure");
-                        if (!(currentMeasure in measures)) {
-                          form.setValue(
-                            "metric",
-                            { measure: "count", aggregation: "count" },
-                            { shouldValidate: true },
-                          );
-                        }
-                        // Clear filters too — UI-cased column ids only resolve
-                        // against the view that's currently selected.
-                        form.setValue("filters", [], {
-                          shouldValidate: true,
-                        });
-                      }}
-                      disabled={!hasAccess}
-                    >
-                      <SelectTrigger id="monitor-view">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MonitorViewSchema.options.map((v) => (
-                          <WidgetPropertySelectItem
-                            key={v}
-                            value={v}
-                            label={viewLabels[v]}
-                            description={
-                              viewDeclarations.v2[v]?.description ?? undefined
-                            }
-                          />
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormItem>
+                      <FormLabel>View</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={(next) => {
+                          field.onChange(next);
+                          // Reset the metric whenever the view changes: the
+                          // selected measure may not exist on the new view,
+                          // which would leave the form in an unsubmittable
+                          // state until the user manually picks one. "count"
+                          // is always present and is the safe default.
+                          const view =
+                            next as keyof (typeof viewDeclarations)["v2"];
+                          const measures =
+                            viewDeclarations.v2[view]?.measures ?? {};
+                          const currentMeasure =
+                            form.getValues("metric.measure");
+                          if (!(currentMeasure in measures)) {
+                            form.setValue(
+                              "metric",
+                              { measure: "count", aggregation: "count" },
+                              { shouldValidate: true },
+                            );
+                          }
+                          // Clear filters too — UI-cased column ids only resolve
+                          // against the view that's currently selected.
+                          form.setValue("filters", [], {
+                            shouldValidate: true,
+                          });
+                        }}
+                        disabled={!hasAccess}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {MonitorViewSchema.options.map((v) => (
+                            <WidgetPropertySelectItem
+                              key={v}
+                              value={v}
+                              label={viewLabels[v]}
+                              description={
+                                viewDeclarations.v2[v]?.description ?? undefined
+                              }
+                            />
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
                   )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="monitor-measure">Measure</Label>
-                <Controller
+                <FormField
                   control={form.control}
                   name="metric.measure"
                   render={({ field }) => {
@@ -475,377 +487,416 @@ export const MonitorForm = ({
                       "observations") as keyof (typeof viewDeclarations)["v2"];
                     const measures = viewDeclarations.v2[view]?.measures ?? {};
                     return (
+                      <FormItem>
+                        <FormLabel>Measure</FormLabel>
+                        <Select
+                          value={field.value}
+                          onValueChange={(next) => {
+                            field.onChange(next);
+                            // The aggregation dropdown filters by the new
+                            // measure, but the stored value can stay stale
+                            // (e.g. "sum" against a string measure, or "p95"
+                            // against `count`). Snap it to the first valid
+                            // option whenever the current one isn't supported.
+                            const validAggs = getValidAggregationsForMeasure(
+                              measures[next],
+                            );
+                            const currentAgg =
+                              form.getValues("metric.aggregation");
+                            if (!validAggs.includes(currentAgg)) {
+                              form.setValue(
+                                "metric.aggregation",
+                                validAggs[0] ?? "count",
+                                { shouldValidate: true },
+                              );
+                            }
+                          }}
+                          disabled={!hasAccess}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {measureOptions.map((m) => {
+                              const meta = measures[m];
+                              return (
+                                <WidgetPropertySelectItem
+                                  key={m}
+                                  value={m}
+                                  label={startCase(m)}
+                                  description={meta?.description}
+                                  unit={meta?.unit}
+                                  type={meta?.type}
+                                />
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
+                />
+                {watched.metric?.measure !== "count" && (
+                  <FormField
+                    control={form.control}
+                    name="metric.aggregation"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Aggregation</FormLabel>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          disabled={!hasAccess}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {aggregationOptions.map((a) => (
+                              <SelectItem key={a} value={a}>
+                                {formatAggregation(a)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+                <FormField
+                  control={form.control}
+                  name="filters"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Filters</FormLabel>
+                      <FormControl>
+                        <InlineFilterBuilder
+                          columns={filterColumns}
+                          filterState={(field.value ?? []) as FilterState}
+                          onChange={(next: FilterState) => field.onChange(next)}
+                          columnsWithCustomSelect={customSelectColumnIds}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {formError.query && (
+                  <p className="text-destructive text-xs">
+                    {formError.query.message}
+                  </p>
+                )}
+              </Section>
+
+              <Section title="Alert Conditions" step={2}>
+                <FormField
+                  control={form.control}
+                  name="thresholdOperator"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center gap-2 space-y-0">
+                      <span className="text-muted-foreground text-sm whitespace-nowrap">
+                        Trigger when the value is
+                      </span>
                       <Select
                         value={field.value}
                         onValueChange={(next) => {
                           field.onChange(next);
-                          // The aggregation dropdown filters by the new
-                          // measure, but the stored value can stay stale
-                          // (e.g. "sum" against a string measure, or "p95"
-                          // against `count`). Snap it to the first valid
-                          // option whenever the current one isn't supported.
-                          const validAggs = getValidAggregationsForMeasure(
-                            measures[next],
-                          );
-                          const currentAgg =
-                            form.getValues("metric.aggregation");
-                          if (!validAggs.includes(currentAgg)) {
-                            form.setValue(
-                              "metric.aggregation",
-                              validAggs[0] ?? "count",
-                              { shouldValidate: true },
-                            );
+                          // A warning band before a "not equal" alert has no
+                          // meaningful ordering, so drop any stale value.
+                          if (next === "NEQ") {
+                            form.setValue("warningThreshold", null, {
+                              shouldValidate: true,
+                            });
                           }
                         }}
                         disabled={!hasAccess}
                       >
-                        <SelectTrigger id="monitor-measure">
-                          <SelectValue />
-                        </SelectTrigger>
+                        <FormControl>
+                          <SelectTrigger className="w-auto">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
                         <SelectContent>
-                          {measureOptions.map((m) => {
-                            const meta = measures[m];
-                            return (
-                              <WidgetPropertySelectItem
-                                key={m}
-                                value={m}
-                                label={startCase(m)}
-                                description={meta?.description}
-                                unit={meta?.unit}
-                                type={meta?.type}
-                              />
-                            );
-                          })}
+                          {triggerOperatorOptions.map((op) => (
+                            <SelectItem key={op} value={op}>
+                              {operatorLabels[op]}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
-                    );
-                  }}
+                    </FormItem>
+                  )}
                 />
-              </div>
-              {watched.metric?.measure !== "count" && (
-                <div className="space-y-2">
-                  <Label htmlFor="monitor-aggregation">Aggregation</Label>
-                  <Controller
-                    control={form.control}
-                    name="metric.aggregation"
-                    render={({ field }) => (
+                <FormField
+                  control={form.control}
+                  name="alertThreshold"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-center gap-2">
+                        <MonitorSeverityBadge severity="ALERT" />
+                        <span className="text-sm whitespace-nowrap">
+                          Threshold
+                        </span>
+                        <span className="mr-1.5 ml-1 font-mono text-xs font-semibold">
+                          {
+                            operatorSymbol[
+                              (watched.thresholdOperator ??
+                                "GT") as keyof typeof operatorSymbol
+                            ]
+                          }
+                        </span>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            className="flex-1"
+                            placeholder="0"
+                            value={field.value ?? ""}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              field.onChange(
+                                raw === "" ? undefined : Number(raw),
+                              );
+                            }}
+                            disabled={!hasAccess}
+                          />
+                        </FormControl>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="warningThreshold"
+                  render={({ field }) => (
+                    <FormItem hidden={watched.thresholdOperator === "NEQ"}>
+                      <div className="flex items-center gap-2">
+                        <MonitorSeverityBadge severity="WARNING" />
+                        <span className="text-sm whitespace-nowrap">
+                          Threshold
+                        </span>
+                        <span className="mr-1.5 ml-1 font-mono text-xs font-semibold">
+                          {
+                            operatorSymbol[
+                              (watched.thresholdOperator ??
+                                "GT") as keyof typeof operatorSymbol
+                            ]
+                          }
+                        </span>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            className="flex-1"
+                            placeholder="optional"
+                            value={field.value ?? ""}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              field.onChange(raw === "" ? null : Number(raw));
+                            }}
+                            disabled={!hasAccess}
+                          />
+                        </FormControl>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {formError.threshold && (
+                  <p className="text-destructive text-xs">
+                    {formError.threshold.message}
+                  </p>
+                )}
+                <FormField
+                  control={form.control}
+                  name="window"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center gap-2 space-y-0">
+                      <span className="text-muted-foreground text-sm whitespace-nowrap">
+                        Over the past
+                      </span>
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
                         disabled={!hasAccess}
                       >
-                        <SelectTrigger id="monitor-aggregation">
-                          <SelectValue />
-                        </SelectTrigger>
+                        <FormControl>
+                          <SelectTrigger className="w-auto">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
                         <SelectContent>
-                          {aggregationOptions.map((a) => (
-                            <SelectItem key={a} value={a}>
-                              {formatAggregation(a)}
+                          {MonitorWindowSchema.options.map((w) => (
+                            <SelectItem key={w} value={w}>
+                              {windowLabels[w]}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                    )}
-                  />
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label>Filters</Label>
-                <Controller
-                  control={form.control}
-                  name="filters"
-                  render={({ field }) => (
-                    <InlineFilterBuilder
-                      columns={filterColumns}
-                      filterState={(field.value ?? []) as FilterState}
-                      onChange={(next: FilterState) => field.onChange(next)}
-                      columnsWithCustomSelect={customSelectColumnIds}
-                    />
+                    </FormItem>
                   )}
                 />
-              </div>
-              {formError.query && (
-                <p className="text-destructive text-xs">
-                  {formError.query.message}
-                </p>
-              )}
-            </Section>
+                <Accordion type="single" collapsible>
+                  <AccordionItem value="advanced" className="border-b-0">
+                    <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-medium [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
+                      Advanced Options
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-6 pt-2">
+                      <FormField
+                        control={form.control}
+                        name="noData"
+                        render={({ field }) => (
+                          <FormItem>
+                            <NoDataField
+                              value={field.value as MonitorNoData}
+                              onChange={field.onChange}
+                              disabled={!hasAccess}
+                            />
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="renotify"
+                        render={({ field }) => (
+                          <FormItem>
+                            <RenotifyField
+                              value={field.value as MonitorRenotify}
+                              onChange={field.onChange}
+                              disabled={!hasAccess}
+                            />
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </Section>
 
-            <Section title="2. Alert Conditions">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground text-sm whitespace-nowrap">
-                  Trigger when the value is
-                </span>
-                <Controller
+              <Section title="Notifications" step={3}>
+                <FormField
                   control={form.control}
-                  name="thresholdOperator"
+                  name="name"
                   render={({ field }) => (
-                    <Select
-                      value={field.value}
-                      onValueChange={(next) => {
-                        field.onChange(next);
-                        // A warning band before a "not equal" alert has no
-                        // meaningful ordering, so drop any stale value.
-                        if (next === "NEQ") {
-                          form.setValue("warningThreshold", null, {
-                            shouldValidate: true,
-                          });
-                        }
-                      }}
-                      disabled={!hasAccess}
-                    >
-                      <SelectTrigger className="w-auto">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {triggerOperatorOptions.map((op) => (
-                          <SelectItem key={op} value={op}>
-                            {operatorLabels[op]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          maxLength={200}
+                          placeholder={namePlaceholder}
+                          disabled={!hasAccess}
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
                 />
-              </div>
-              <div className="flex items-center gap-2">
-                <MonitorSeverityBadge severity="ALERT" />
-                <span className="text-sm whitespace-nowrap">Threshold</span>
-                <span className="mr-1.5 ml-1 font-mono text-xs font-semibold">
-                  {
-                    operatorSymbol[
-                      (watched.thresholdOperator ??
-                        "GT") as keyof typeof operatorSymbol
-                    ]
-                  }
-                </span>
-                <Controller
-                  control={form.control}
-                  name="alertThreshold"
-                  render={({ field }) => (
-                    <Input
-                      type="number"
-                      className="flex-1"
-                      placeholder="0"
-                      value={field.value ?? ""}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        field.onChange(raw === "" ? undefined : Number(raw));
-                      }}
-                      disabled={!hasAccess}
-                    />
-                  )}
-                />
-              </div>
-              {formError.alertThreshold && (
-                <p className="text-destructive text-xs">
-                  {formError.alertThreshold.message}
-                </p>
-              )}
-              <div
-                className="flex items-center gap-2"
-                hidden={watched.thresholdOperator === "NEQ"}
-              >
-                <MonitorSeverityBadge severity="WARNING" />
-                <span className="text-sm whitespace-nowrap">Threshold</span>
-                <span className="mr-1.5 ml-1 font-mono text-xs font-semibold">
-                  {
-                    operatorSymbol[
-                      (watched.thresholdOperator ??
-                        "GT") as keyof typeof operatorSymbol
-                    ]
-                  }
-                </span>
-                <Controller
-                  control={form.control}
-                  name="warningThreshold"
-                  render={({ field }) => (
-                    <Input
-                      type="number"
-                      className="flex-1"
-                      placeholder="optional"
-                      value={field.value ?? ""}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        field.onChange(raw === "" ? null : Number(raw));
-                      }}
-                      disabled={!hasAccess}
-                    />
-                  )}
-                />
-              </div>
-              {formError.warningThreshold && (
-                <p className="text-destructive text-xs">
-                  {formError.warningThreshold.message}
-                </p>
-              )}
-              {formError.threshold && (
-                <p className="text-destructive text-xs">
-                  {formError.threshold.message}
-                </p>
-              )}
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground text-sm whitespace-nowrap">
-                  Over the past
-                </span>
-                <Controller
-                  control={form.control}
-                  name="window"
-                  render={({ field }) => (
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      disabled={!hasAccess}
-                    >
-                      <SelectTrigger id="monitor-window" className="w-auto">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MonitorWindowSchema.options.map((w) => (
-                          <SelectItem key={w} value={w}>
-                            {windowLabels[w]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-              <Accordion type="single" collapsible>
-                <AccordionItem value="advanced" className="border-b-0">
-                  <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-medium [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
-                    Advanced Options
-                  </AccordionTrigger>
-                  <AccordionContent className="space-y-6 pt-2">
-                    <NoDataField
-                      value={form.watch("noData") as MonitorNoData}
-                      onChange={(v) =>
-                        form.setValue("noData", v, { shouldValidate: true })
-                      }
-                      disabled={!hasAccess}
-                    />
-                    <RenotifyField
-                      value={form.watch("renotify") as MonitorRenotify}
-                      onChange={(v) =>
-                        form.setValue("renotify", v, { shouldValidate: true })
-                      }
-                      disabled={!hasAccess}
-                    />
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-            </Section>
-
-            <Section title="3. Notifications">
-              <div className="space-y-2">
-                <Label htmlFor="monitor-name">Name</Label>
-                <Input
-                  id="monitor-name"
-                  maxLength={200}
-                  placeholder={namePlaceholder}
-                  disabled={!hasAccess}
-                  {...form.register("name")}
-                />
-                {form.formState.errors.name && (
-                  <p className="text-destructive text-xs">
-                    {form.formState.errors.name.message as string}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Controller
+                <FormField
                   control={form.control}
                   name="tags"
                   render={({ field }) => (
-                    <TagManager
-                      itemName="monitor"
-                      tags={(field.value ?? []) as string[]}
-                      allTags={availableTags}
-                      hasAccess={hasAccess}
-                      isLoading={false}
-                      mutateTags={(next) => field.onChange(next)}
-                      liveUpdate
-                      popoverAlign="start"
-                      triggerButton={
-                        <Button
-                          type="button"
-                          variant="default"
-                          size="sm"
-                          className="mr-2 ml-0.5 gap-1"
-                        >
-                          <Plus className="h-3 w-3" />
-                          Add Tags
-                        </Button>
-                      }
-                    />
+                    <FormItem>
+                      <FormControl>
+                        <TagManager
+                          itemName="monitor"
+                          tags={(field.value ?? []) as string[]}
+                          allTags={availableTags}
+                          hasAccess={hasAccess}
+                          isLoading={false}
+                          mutateTags={(next) => field.onChange(next)}
+                          liveUpdate
+                          popoverAlign="start"
+                          triggerButton={
+                            <Button
+                              type="button"
+                              variant="default"
+                              size="sm"
+                              className="mr-2 ml-0.5 gap-1"
+                            >
+                              <Plus className="h-3 w-3" />
+                              Add Tags
+                            </Button>
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
                 />
-                {form.formState.errors.tags && (
-                  <p className="text-destructive text-xs">
-                    {
-                      (form.formState.errors.tags as { message?: string })
-                        .message
-                    }
-                  </p>
-                )}
+                <div className="space-y-2">
+                  <Label>Channels</Label>
+                  <MonitorAutomationsPanel
+                    projectId={projectId}
+                    tags={(watched.tags ?? []) as string[]}
+                    warningThreshold={watched.warningThreshold ?? null}
+                    noDataMode={watched.noData?.mode ?? "SILENT"}
+                  />
+                </div>
+              </Section>
+            </CardContent>
+            <CardFooter className="mt-auto">
+              <div className="flex-inherit w-full items-center pt-4">
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full"
+                  disabled={!hasAccess || submitting}
+                >
+                  {isEdit ? "Save Monitor" : "Create Monitor"}
+                </Button>
               </div>
-              <div className="space-y-2">
-                <Label>Channels</Label>
-                <MonitorAutomationsPanel
-                  projectId={projectId}
-                  tags={(watched.tags ?? []) as string[]}
-                  warningThreshold={watched.warningThreshold ?? null}
-                  noDataMode={watched.noData?.mode ?? "SILENT"}
-                />
-              </div>
-            </Section>
-          </CardContent>
-          <CardFooter className="mt-auto">
-            <div className="flex-inherit w-full items-center border-t pt-4">
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full"
-                disabled={!hasAccess || submitting}
-              >
-                {isEdit ? "Save Monitor" : "Create Monitor"}
-              </Button>
-            </div>
-          </CardFooter>
-        </Card>
-      </div>
+            </CardFooter>
+          </Card>
+        </div>
 
-      <div className="hidden h-full w-2/3 min-w-107.5 flex-col gap-6 overflow-y-auto overscroll-contain md:flex">
-        <MonitorChartPreview
-          projectId={projectId}
-          view={(watched.view ?? "observations") as MonitorView}
-          filters={previewFilters}
-          measure={watched.metric?.measure ?? "count"}
-          aggregation={
-            (watched.metric?.aggregation ??
-              "count") as CreateMonitor["metric"]["aggregation"]
-          }
-          thresholdOperator={
-            (watched.thresholdOperator ?? "GT") as MonitorThresholdOperator
-          }
-          alertThreshold={watched.alertThreshold}
-          warningThreshold={watched.warningThreshold ?? null}
-        />
-      </div>
-    </form>
+        <div className="hidden h-full w-2/3 min-w-107.5 flex-col gap-6 overflow-y-auto overscroll-contain md:flex">
+          <MonitorChartPreview
+            projectId={projectId}
+            view={(watched.view ?? "observations") as MonitorView}
+            filters={previewFilters}
+            measure={watched.metric?.measure ?? "count"}
+            aggregation={
+              (watched.metric?.aggregation ??
+                "count") as CreateMonitor["metric"]["aggregation"]
+            }
+            thresholdOperator={
+              (watched.thresholdOperator ?? "GT") as MonitorThresholdOperator
+            }
+            alertThreshold={watched.alertThreshold}
+            warningThreshold={watched.warningThreshold ?? null}
+          />
+        </div>
+      </form>
+    </Form>
   );
 };
 
 /** Header pins a section title to the top of the scrolling CardContent. */
 const Header = ({
   title,
+  step,
   icon: Icon,
 }: {
   title: string;
+  step?: number;
   icon?: LucideIcon;
 }) => (
   <div className="bg-card sticky top-0 z-10">
     <h3 className="flex items-center gap-2 py-2 text-lg font-bold">
+      {step != null ? (
+        <span className="bg-foreground text-background flex h-6 w-6 items-center justify-center rounded-full text-sm font-semibold">
+          {step}
+        </span>
+      ) : null}
       {Icon ? <Icon className="h-5 w-5" aria-hidden="true" /> : null}
       {title}
     </h3>
@@ -855,16 +906,18 @@ const Header = ({
 /** Section wraps a Header and its body in the layout used by every MonitorForm section. */
 const Section = ({
   title,
+  step,
   icon,
   children,
 }: {
   title: string;
+  step?: number;
   icon?: LucideIcon;
   children: React.ReactNode;
 }) => (
   <div>
-    <Header title={title} icon={icon} />
-    <div className="space-y-4 pb-4">{children}</div>
+    <Header title={title} step={step} icon={icon} />
+    <div className="space-y-4 px-2 pb-4">{children}</div>
   </div>
 );
 
