@@ -4,13 +4,13 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { ErrorPage } from "@/src/components/error-page";
 import Page from "@/src/components/layouts/page";
 import { DataTableControlsProvider } from "@/src/components/table/data-table-controls";
+import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { monitorFilterConfig } from "@/src/features/filters/config/monitors-config";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
-import { FilterToggleButton } from "./FilterToggleButton";
 import { MonitorsTable } from "./MonitorsTable";
 
 export default function MonitorsPage() {

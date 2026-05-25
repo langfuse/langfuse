@@ -10,7 +10,8 @@ import { api } from "@/src/utils/api";
 import {
   buildWidgetOrderBy,
   getResultUnit,
-  getValidAggregationsForMeasureType,
+  formatAggregation,
+  getValidAggregationsForMeasure,
   isV2BreakdownChart,
   requiresV2,
   validateQuery,
@@ -839,10 +840,9 @@ export function WidgetForm({
 
   // Resolve valid aggregations for the currently selected measure
   const validAggregationsForMeasure = useMemo(() => {
-    const measureType =
-      viewDeclarations[viewVersion][selectedView]?.measures?.[selectedMeasure]
-        ?.type;
-    return getValidAggregationsForMeasureType(measureType);
+    const measureDef =
+      viewDeclarations[viewVersion][selectedView]?.measures?.[selectedMeasure];
+    return getValidAggregationsForMeasure(measureDef);
   }, [viewVersion, selectedView, selectedMeasure]);
 
   const measureSupportsHistogram =
@@ -887,8 +887,8 @@ export function WidgetForm({
             .filter((m) => m.measure === measureKey)
             .map((m) => m.aggregation);
 
-          const measureType = viewDeclaration.measures[measureKey]?.type;
-          const validAggs = getValidAggregationsForMeasureType(measureType);
+          const measureDef = viewDeclaration.measures[measureKey];
+          const validAggs = getValidAggregationsForMeasure(measureDef);
           const availableAggregationsForMeasure = validAggs.filter(
             (agg) =>
               agg !== "histogram" &&
@@ -922,9 +922,9 @@ export function WidgetForm({
     metricIndex: number,
     measureKey: string,
   ): z.infer<typeof metricAggregations>[] => {
-    const measureType =
-      viewDeclarations[viewVersion][selectedView]?.measures?.[measureKey]?.type;
-    const validAggs = getValidAggregationsForMeasureType(measureType);
+    const measureDef =
+      viewDeclarations[viewVersion][selectedView]?.measures?.[measureKey];
+    const validAggs = getValidAggregationsForMeasure(measureDef);
     if (selectedChartType === "PIVOT_TABLE" && measureKey) {
       return validAggs.filter(
         (agg) =>
@@ -957,8 +957,8 @@ export function WidgetForm({
             .filter((m, idx) => idx !== metricIndex && m.measure === measureKey)
             .map((m) => m.aggregation);
 
-          const measureType = viewDeclaration.measures[measureKey]?.type;
-          const validAggs = getValidAggregationsForMeasureType(measureType);
+          const measureDef = viewDeclaration.measures[measureKey];
+          const validAggs = getValidAggregationsForMeasure(measureDef);
           const availableAggregationsForMeasure = validAggs.filter(
             (agg) =>
               agg !== "histogram" &&
@@ -1618,7 +1618,7 @@ export function WidgetForm({
                                             key={aggregation}
                                             value={aggregation}
                                           >
-                                            {startCase(aggregation)}
+                                            {formatAggregation(aggregation)}
                                           </SelectItem>
                                         ),
                                       )}
@@ -1693,7 +1693,7 @@ export function WidgetForm({
                           <SelectContent>
                             {validAggregationsForMeasure.map((aggregation) => (
                               <SelectItem key={aggregation} value={aggregation}>
-                                {startCase(aggregation)}
+                                {formatAggregation(aggregation)}
                               </SelectItem>
                             ))}
                           </SelectContent>

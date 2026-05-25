@@ -6,7 +6,7 @@ import { type z } from "zod";
 import { type singleFilter } from "../../interfaces/filters";
 import { getViewDeclaration } from "../query/dataModel";
 import {
-  getValidAggregationsForMeasureType,
+  getValidAggregationsForMeasure,
   type metric,
   type viewsV2,
 } from "../query/types";
@@ -35,7 +35,7 @@ export function isValidQuery(input: {
   }
   const measureDef = declaration.measures[input.metric.measure];
 
-  const validAggs = getValidAggregationsForMeasureType(measureDef.type);
+  const validAggs = getValidAggregationsForMeasure(measureDef);
   if (!validAggs.some((a) => a === input.metric.aggregation)) {
     return {
       valid: false,

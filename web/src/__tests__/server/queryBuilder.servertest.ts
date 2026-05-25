@@ -1,6 +1,6 @@
 import { QueryBuilder, executeQuery } from "@langfuse/shared/query/server";
 import {
-  getValidAggregationsForMeasureType,
+  getValidAggregationsForMeasure,
   metricAggregations,
   validateQuery,
   type QueryType,
@@ -4379,7 +4379,7 @@ describe("validateQuery", () => {
   });
 });
 
-describe("getValidAggregationsForMeasureType", () => {
+describe("getValidAggregationsForMeasure", () => {
   const allAggs = metricAggregations.options.length;
   const restricted = ["count", "uniq"];
 
@@ -4393,12 +4393,24 @@ describe("getValidAggregationsForMeasureType", () => {
     ["boolean", restricted.length],
     [undefined, restricted.length],
   ])("type=%s → %i aggregations", (type, expectedLength) => {
-    const valid = getValidAggregationsForMeasureType(type);
+    const valid = getValidAggregationsForMeasure({ sql: "", type });
     expect(valid).toHaveLength(expectedLength);
   });
 
-  it("restricted set contains only count and uniq", () => {
-    expect(getValidAggregationsForMeasureType("string")).toEqual(restricted);
+  it("restricted set contains only count and uniq for string measures", () => {
+    expect(getValidAggregationsForMeasure({ sql: "", type: "string" })).toEqual(
+      restricted,
+    );
+  });
+
+  it("measure with `aggs.agg` override returns only that aggregation", () => {
+    expect(
+      getValidAggregationsForMeasure({
+        sql: "count(*)",
+        type: "integer",
+        aggs: { agg: "count" },
+      }),
+    ).toEqual(["count"]);
   });
 });
 

@@ -4,6 +4,7 @@ import { PauseCircle } from "lucide-react";
 import { Badge, type BadgeProps } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
 
+/** severityVariant maps each MonitorSeverity to the underlying Badge variant. */
 const severityVariant: Record<MonitorSeverity, BadgeProps["variant"]> = {
   UNKNOWN: "outline",
   NO_DATA: "secondary",
@@ -13,6 +14,7 @@ const severityVariant: Record<MonitorSeverity, BadgeProps["variant"]> = {
   ALERT: "default",
 };
 
+/** severityClassName maps each MonitorSeverity to its badge tailwind classes. */
 const severityClassName: Record<MonitorSeverity, string> = {
   UNKNOWN: "text-gray-400",
   NO_DATA: "",
@@ -22,9 +24,8 @@ const severityClassName: Record<MonitorSeverity, string> = {
   ALERT: "bg-orange-600 text-white hover:bg-orange-600",
 };
 
+/** severityLabel maps each MonitorSeverity to its display text. */
 const severityLabel: Record<MonitorSeverity, string> = {
-  // UNKNOWN means the monitor is queued for its first evaluation — render
-  // a spinner next to "PENDING" so it reads as a wait state, not no-data.
   UNKNOWN: "PENDING",
   NO_DATA: "NO DATA",
   PAUSED: "PAUSED",
@@ -33,11 +34,7 @@ const severityLabel: Record<MonitorSeverity, string> = {
   ALERT: "ALERT",
 };
 
-/**
- * MonitorSeverityBadge renders a Monitor's current severity as a Badge.
- * PAUSED renders as a pause-circle icon — `severity = PAUSED` is the
- * persisted signal that the monitor isn't being evaluated.
- */
+/** MonitorSeverityBadge renders a Monitor's current severity as a Badge, with a pause icon for PAUSED and a spinner for UNKNOWN. */
 export function MonitorSeverityBadge({
   severity,
   className,

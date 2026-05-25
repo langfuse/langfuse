@@ -200,7 +200,7 @@ export function MonitorsTable() {
             }}
             onRowClick={(row) => {
               router.push(
-                `/project/${projectId}/monitors/${encodeURIComponent(row.id)}`,
+                `/project/${projectId}/monitors/${encodeURIComponent(row.id)}/edit`,
               );
             }}
             cellPadding="comfortable"

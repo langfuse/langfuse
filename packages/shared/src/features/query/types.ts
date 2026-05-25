@@ -120,18 +120,45 @@ export const metricAggregations = z.enum([
   "uniq",
 ]);
 
+/** formatAggregation renders an aggregation key as a user-facing label
+ * (e.g. `"avg" → "Avg"`, `"p95" → "P95"`). Single source of truth so the
+ * monitor form and the dashboard widget builder render the same way. */
+export function formatAggregation(
+  aggregation: z.infer<typeof metricAggregations>,
+): string {
+  return aggregation.charAt(0).toUpperCase() + aggregation.slice(1);
+}
+
+/** MeasureDefinition is the inferred shape of a `measures` entry on a
+ * ViewDeclaration. Exposed so `getValidAggregationsForMeasure` callers can
+ * type the value they look up from `viewDecl.measures[name]`. */
+export type MeasureDefinition = ViewDeclarationType["measures"][string];
+
 /**
- * Returns the subset of aggregations that are valid for a given measure type.
- * Whitelists known numeric types; unknown or missing types default to the
- * restrictive count/uniq set to surface missing type annotations early.
+ * Returns the subset of aggregations that are valid for a given measure.
+ *
+ * Resolution order:
+ *   1. If the measure declares `aggs.agg` (a fixed aggregation, e.g. the
+ *      synthetic `count` measure pinning itself to `count`), return just
+ *      that — no other aggregation makes sense for it.
+ *   2. Otherwise fall back to a type-based whitelist: numeric types
+ *      (`integer`, `decimal`, `number`) accept every aggregation; anything
+ *      else (string, millisecond, missing) is restricted to `count`/`uniq`
+ *      so missing type annotations surface early.
  */
-export function getValidAggregationsForMeasureType(
-  measureType: string | undefined,
+export function getValidAggregationsForMeasure(
+  measure: MeasureDefinition | undefined,
 ): z.infer<typeof metricAggregations>[] {
+  const fixedAgg = measure?.aggs?.agg as
+    | z.infer<typeof metricAggregations>
+    | undefined;
+  if (fixedAgg && metricAggregations.options.includes(fixedAgg)) {
+    return [fixedAgg];
+  }
   if (
-    measureType === "integer" ||
-    measureType === "decimal" ||
-    measureType === "number"
+    measure?.type === "integer" ||
+    measure?.type === "decimal" ||
+    measure?.type === "number"
   ) {
     return [...metricAggregations.options];
   }
