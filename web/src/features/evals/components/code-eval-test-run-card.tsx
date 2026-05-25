@@ -92,6 +92,8 @@ export function CodeEvalTestRunCard({
   });
 
   const observationId = previewData?.observationId;
+  const traceId = previewData?.traceId;
+  const timestamp = previewData?.timestamp;
 
   const testRunMutation = api.evals.testRunCodeEval.useMutation({
     onSuccess: (result) => {
@@ -145,7 +147,7 @@ export function CodeEvalTestRunCard({
               loading={testRunMutation.isPending}
               disabled={!observationId || isLoading}
               onClick={() => {
-                if (!observationId) return;
+                if (!observationId || !traceId) return;
 
                 testRunMutation.mutate({
                   projectId,
@@ -154,6 +156,8 @@ export function CodeEvalTestRunCard({
                   mapping: getCodeEvalVariableMapping(),
                   scoreName,
                   observationId,
+                  traceId,
+                  startTime: timestamp,
                 });
               }}
             >

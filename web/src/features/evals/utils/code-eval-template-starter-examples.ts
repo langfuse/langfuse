@@ -76,7 +76,7 @@ export const DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE = `${TYPESCRIPT_CODE_EVAL_CONTR
 /**
  * Evaluates one observation and returns one or more Langfuse scores.
  */
-export async function evaluate({
+async function evaluate({
   observation,
   experiment,
 }: EvaluationContext): Promise<EvaluationResult> {
