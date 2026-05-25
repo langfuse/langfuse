@@ -65,7 +65,10 @@ import {
   JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
 } from "@/src/features/evals/server/audit-log-resource-types";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
-import { runCodeEvalTest } from "@/src/features/evals/server/codeEvalTestRun";
+import {
+  runCodeEvalTest,
+  runCodeEvalTestForJobConfig,
+} from "@/src/features/evals/server/codeEvalTestRun";
 import {
   CODE_EVAL_TEMPLATE_VARIABLES,
   CreateEvalTemplateInputSchema,
@@ -254,6 +257,56 @@ const validateEvalTemplateCanRun = async ({
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
       message: error,
+    });
+  }
+};
+
+const assertCodeEvalJobConfigTestSucceeds = async ({
+  prisma,
+  orgId,
+  projectId,
+  evalTemplateId,
+  target,
+  mapping,
+  scoreName,
+  filter,
+}: {
+  prisma: PrismaClient;
+  orgId: string;
+  projectId: string;
+  evalTemplateId: string;
+  target: EvalTargetObject;
+  mapping: unknown;
+  scoreName: string;
+  filter: z.infer<typeof singleFilter>[] | null;
+}) => {
+  if (
+    target !== EvalTargetObject.EVENT &&
+    target !== EvalTargetObject.EXPERIMENT
+  ) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Code evaluators can only run on observations or experiments.",
+    });
+  }
+
+  const parsedMapping = z.array(observationVariableMapping).parse(mapping);
+
+  const result = await runCodeEvalTestForJobConfig({
+    prisma,
+    orgId,
+    projectId,
+    evalTemplateId,
+    target,
+    mapping: parsedMapping,
+    scoreName,
+    filter,
+  });
+
+  if (!result.success) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: result.error.message,
     });
   }
 };
@@ -815,6 +868,19 @@ export const evalRouter = createTRPCRouter({
       }
       const validatedFilter = filterValidation.validatedFilters;
 
+      if (evalTemplate.type === EvalTemplateType.CODE) {
+        await assertCodeEvalJobConfigTestSucceeds({
+          prisma: ctx.prisma,
+          orgId: ctx.session.orgId,
+          projectId: input.projectId,
+          evalTemplateId: input.evalTemplateId,
+          target: input.target,
+          mapping: variableMappingForTarget,
+          scoreName: input.scoreName,
+          filter: validatedFilter ?? [],
+        });
+      }
+
       const jobId = uuidv4();
       await auditLog({
         session: ctx.session,
@@ -1213,6 +1279,9 @@ export const evalRouter = createTRPCRouter({
           id: evalConfigId,
           projectId: projectId,
         },
+        include: {
+          evalTemplate: true,
+        },
       });
 
       if (!existingJob) {
@@ -1284,6 +1353,27 @@ export const evalRouter = createTRPCRouter({
         );
       }
       const validatedFilter = filterValidation.validatedFilters;
+
+      if (existingJob.evalTemplate?.type === EvalTemplateType.CODE) {
+        if (!isCodeEvalEnabled()) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Code evals are not enabled",
+          });
+        }
+
+        await assertCodeEvalJobConfigTestSucceeds({
+          prisma: ctx.prisma,
+          orgId: ctx.session.orgId,
+          projectId,
+          evalTemplateId: existingJob.evalTemplate.id,
+          target: existingJob.targetObject as EvalTargetObject,
+          mapping:
+            validatedConfig.variableMapping ?? existingJob.variableMapping,
+          scoreName: config.scoreName ?? existingJob.scoreName,
+          filter: validatedFilter ?? [],
+        });
+      }
 
       await auditLog({
         session: ctx.session,

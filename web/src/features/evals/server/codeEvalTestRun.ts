@@ -18,10 +18,16 @@ import {
   observationForEvalSchema,
   type EvalTargetObject,
   type EvalTemplateCodeBased,
+  type FilterCondition,
   type ObservationForEval,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { EvalTemplateType, type PrismaClient } from "@langfuse/shared/src/db";
+import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
+import {
+  isEventTarget,
+  isExperimentTarget,
+} from "@/src/features/evals/utils/typeHelpers";
 
 export type CodeEvalTestRunResult =
   | {
@@ -52,6 +58,51 @@ export async function runCodeEvalTest(params: {
   traceId: string;
   startTime: Date;
 }): Promise<CodeEvalTestRunResult> {
+  const observation = await getObservationForEvalById({
+    projectId: params.projectId,
+    id: params.observationId,
+    traceId: params.traceId,
+    startTime: params.startTime,
+  });
+
+  return runCodeEvalTestForObservation({
+    ...params,
+    observation,
+  });
+}
+
+export async function runCodeEvalTestForJobConfig(params: {
+  prisma: PrismaClient;
+  orgId: string;
+  projectId: string;
+  evalTemplateId: string;
+  target: EvalTargetObject;
+  mapping: ObservationVariableMapping[];
+  scoreName: string;
+  filter: FilterCondition[] | null;
+}): Promise<CodeEvalTestRunResult> {
+  const observation = await getObservationForEvalByFilter({
+    projectId: params.projectId,
+    target: params.target,
+    filter: params.filter,
+  });
+
+  return runCodeEvalTestForObservation({
+    ...params,
+    observation,
+  });
+}
+
+async function runCodeEvalTestForObservation(params: {
+  prisma: PrismaClient;
+  orgId: string;
+  projectId: string;
+  evalTemplateId: string;
+  target: EvalTargetObject;
+  mapping: ObservationVariableMapping[];
+  scoreName: string;
+  observation: ObservationForEval;
+}): Promise<CodeEvalTestRunResult> {
   const dispatcher = resolveConfiguredCodeEvalDispatcher();
 
   if (!dispatcher) {
@@ -78,14 +129,8 @@ export async function runCodeEvalTest(params: {
     });
   }
 
-  const observation = await getObservationForEvalById({
-    projectId: params.projectId,
-    id: params.observationId,
-    traceId: params.traceId,
-    startTime: params.startTime,
-  });
   const extractedVariables = extractObservationVariables({
-    observation,
+    observation: params.observation,
     variableMapping: params.mapping,
   });
   const executionTraceId = createW3CTraceId();
@@ -97,8 +142,8 @@ export async function runCodeEvalTest(params: {
     eval_template_version: codeTemplate.version,
     score_name: params.scoreName,
     target_object: params.target,
-    target_trace_id: observation.trace_id,
-    target_observation_id: observation.span_id,
+    target_trace_id: params.observation.trace_id,
+    target_observation_id: params.observation.span_id,
   };
 
   const dispatchOutcome = await runCodeBasedEvaluationDispatch({
@@ -109,7 +154,7 @@ export async function runCodeEvalTest(params: {
     jobExecutionId: executionTraceId,
     template: codeTemplate,
     extractedVariables,
-    hasExperimentContext: Boolean(observation.experiment_id),
+    hasExperimentContext: Boolean(params.observation.experiment_id),
     traceName,
     metadata: executionMetadata,
     writeTrace: writeTraceViaIngestion,
@@ -133,6 +178,39 @@ export async function runCodeEvalTest(params: {
     executionTraceId: dispatchOutcome.executionTraceId,
     executionTraceFromTimestamp: dispatchOutcome.executionTraceFromTimestamp,
   };
+}
+
+async function getObservationForEvalByFilter(params: {
+  projectId: string;
+  target: EvalTargetObject;
+  filter: FilterCondition[] | null;
+}): Promise<ObservationForEval> {
+  if (!isEventTarget(params.target) && !isExperimentTarget(params.target)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Code evaluators can only run on observations or experiments.",
+    });
+  }
+
+  const filter = isExperimentTarget(params.target)
+    ? getExperimentEvalPreviewFilters(params.filter)
+    : params.filter;
+
+  const stream = await getEventsStreamForEval({
+    projectId: params.projectId,
+    filter,
+    rowLimit: 1,
+  });
+
+  for await (const row of stream) {
+    return observationForEvalSchema.parse(row);
+  }
+
+  throw new TRPCError({
+    code: "PRECONDITION_FAILED",
+    message:
+      "No matching observation found to test this code evaluator. Adjust the filters and try again.",
+  });
 }
 
 async function getObservationForEvalById(params: {
