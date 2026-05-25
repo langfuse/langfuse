@@ -1346,25 +1346,26 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const localAuth = authAndProject.auth;
     const localProjectId = authAndProject.projectId;
     const sharedCreatedAt = new Date("2025-01-01T00:00:00.000Z");
+    const datasetIds = [v4(), v4(), v4()];
 
     await prisma.dataset.createMany({
       data: [
         {
-          id: "dataset-tie-a",
+          id: datasetIds[0],
           name: `dataset-tie-a-${v4()}`,
           projectId: localProjectId,
           createdAt: sharedCreatedAt,
           updatedAt: sharedCreatedAt,
         },
         {
-          id: "dataset-tie-b",
+          id: datasetIds[1],
           name: `dataset-tie-b-${v4()}`,
           projectId: localProjectId,
           createdAt: sharedCreatedAt,
           updatedAt: sharedCreatedAt,
         },
         {
-          id: "dataset-tie-c",
+          id: datasetIds[2],
           name: `dataset-tie-c-${v4()}`,
           projectId: localProjectId,
           createdAt: sharedCreatedAt,
@@ -1409,9 +1410,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
 
     const mergedIds = [...page1Ids, ...page2Ids];
-    expect(mergedIds).toEqual(
-      expect.arrayContaining(["dataset-tie-a", "dataset-tie-b", "dataset-tie-c"]),
-    );
+    expect(mergedIds).toEqual(expect.arrayContaining(datasetIds));
   });
 
   it("should paginate dataset runs deterministically when createdAt timestamps tie", async () => {
@@ -1420,6 +1419,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const localProjectId = authAndProject.projectId;
     const datasetName = `dataset-runs-tie-${v4()}`;
     const sharedCreatedAt = new Date("2025-01-02T00:00:00.000Z");
+    const runIds = [v4(), v4(), v4()];
 
     const dataset = await prisma.dataset.create({
       data: {
@@ -1434,7 +1434,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     await prisma.datasetRuns.createMany({
       data: [
         {
-          id: "run-tie-a",
+          id: runIds[0],
           datasetId: dataset.id,
           name: `run-tie-a-${v4()}`,
           projectId: localProjectId,
@@ -1443,7 +1443,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
           updatedAt: sharedCreatedAt,
         },
         {
-          id: "run-tie-b",
+          id: runIds[1],
           datasetId: dataset.id,
           name: `run-tie-b-${v4()}`,
           projectId: localProjectId,
@@ -1452,7 +1452,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
           updatedAt: sharedCreatedAt,
         },
         {
-          id: "run-tie-c",
+          id: runIds[2],
           datasetId: dataset.id,
           name: `run-tie-c-${v4()}`,
           projectId: localProjectId,
@@ -1499,9 +1499,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
 
     const mergedIds = [...page1Ids, ...page2Ids];
-    expect(mergedIds).toEqual(
-      expect.arrayContaining(["run-tie-a", "run-tie-b", "run-tie-c"]),
-    );
+    expect(mergedIds).toEqual(expect.arrayContaining(runIds));
   });
 
   it("dataset-run-items should fail when neither trace nor observation provided", async () => {
