@@ -1621,6 +1621,41 @@ describe("MCP Read Tools", () => {
         ]),
       );
     });
+
+    it("should paginate score configs deterministically when createdAt timestamps tie", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const sharedCreatedAt = new Date("2100-05-12T00:00:00.000Z");
+      const configIDs = [randomUUID(), randomUUID(), randomUUID()];
+
+      await prisma.scoreConfig.createMany({
+        data: configIDs.map((id, index) => ({
+          id,
+          projectId,
+          name: `mcp-tie-score-config-${index}-${id.slice(0, 8)}`,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: index,
+          maxValue: index + 1,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        })),
+      });
+
+      const firstPage = (await handleListScoreConfigs(
+        { limit: 2, page: 1 },
+        context,
+      )) as any;
+      const secondPage = (await handleListScoreConfigs(
+        { limit: 2, page: 2 },
+        context,
+      )) as any;
+
+      const tiedIDs = [...firstPage.data, ...secondPage.data]
+        .filter((config) => config.id && configIDs.includes(config.id))
+        .map((config) => config.id);
+
+      expect(tiedIDs).toEqual(configIDs.slice().sort());
+      expect(new Set(tiedIDs).size).toBe(configIDs.length);
+    });
   });
 
   describe("getScoreConfig tool", () => {
