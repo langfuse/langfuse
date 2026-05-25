@@ -10,32 +10,32 @@ const {
 } = __test;
 
 describe("emittableSeverities", () => {
-  it("always includes alert + ok", () => {
-    expect(emittableSeverities(null, "SILENT")).toEqual(["alert", "ok"]);
+  it("always includes ALERT + OK", () => {
+    expect(emittableSeverities(null, "SILENT")).toEqual(["ALERT", "OK"]);
   });
 
-  it("adds warning when warningThreshold is set", () => {
+  it("adds WARNING when warningThreshold is set", () => {
     expect(emittableSeverities(5, "SILENT")).toEqual([
-      "alert",
-      "ok",
-      "warning",
+      "ALERT",
+      "OK",
+      "WARNING",
     ]);
   });
 
-  it("adds no-data when noData.mode is NOTIFY", () => {
+  it("adds NO_DATA when noData.mode is NOTIFY", () => {
     expect(emittableSeverities(null, "NOTIFY")).toEqual([
-      "alert",
-      "ok",
-      "no-data",
+      "ALERT",
+      "OK",
+      "NO_DATA",
     ]);
   });
 
-  it("includes both warning and no-data when configured", () => {
+  it("includes both WARNING and NO_DATA when configured", () => {
     expect(emittableSeverities(5, "NOTIFY")).toEqual([
-      "alert",
-      "ok",
-      "warning",
-      "no-data",
+      "ALERT",
+      "OK",
+      "WARNING",
+      "NO_DATA",
     ]);
   });
 });
@@ -61,10 +61,10 @@ describe("triggerSeverityClause", () => {
           column: "severity",
           type: "stringOptions",
           operator: "any of",
-          value: ["alert", "warning"],
+          value: ["ALERT", "WARNING"],
         },
       ]),
-    ).toEqual(["alert", "warning"]);
+    ).toEqual(["ALERT", "WARNING"]);
   });
 
   it("ignores severity clauses with other operators", () => {
@@ -74,7 +74,7 @@ describe("triggerSeverityClause", () => {
           column: "severity",
           type: "stringOptions",
           operator: "none of",
-          value: ["alert"],
+          value: ["ALERT"],
         },
       ]),
     ).toBeNull();
@@ -82,25 +82,8 @@ describe("triggerSeverityClause", () => {
 });
 
 describe("buildFilterPreset", () => {
-  it("emits monitorId, monitorName, and tags filters when all are present", () => {
-    const preset = buildFilterPreset({
-      monitorId: "mon_01",
-      name: "Latency monitor",
-      tags: ["prod", "web"],
-    });
-    expect(preset).toEqual([
-      {
-        column: "monitorId",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["mon_01"],
-      },
-      {
-        column: "monitorName",
-        type: "string",
-        operator: "=",
-        value: "Latency monitor",
-      },
+  it("emits a tags clause when tags are present", () => {
+    expect(buildFilterPreset(["prod", "web"])).toEqual([
       {
         column: "tags",
         type: "arrayOptions",
@@ -110,28 +93,21 @@ describe("buildFilterPreset", () => {
     ]);
   });
 
-  it("omits monitorId when undefined and the name clause when name is blank", () => {
-    expect(
-      buildFilterPreset({ monitorId: undefined, name: "  ", tags: ["prod"] }),
-    ).toEqual([
-      {
-        column: "tags",
-        type: "arrayOptions",
-        operator: "all of",
-        value: ["prod"],
-      },
-    ]);
-  });
-
-  it("returns an empty FilterState when nothing is set", () => {
-    expect(
-      buildFilterPreset({ monitorId: undefined, name: "", tags: [] }),
-    ).toEqual([]);
+  it("returns an empty FilterState when no tags are set", () => {
+    expect(buildFilterPreset([])).toEqual([]);
   });
 });
 
+/** decodePrefill mirrors the form-side base64url decoder so tests can assert on the typed payload. */
+const decodePrefill = (href: string): unknown => {
+  const search = new URLSearchParams(href.split("?")[1] ?? "");
+  const blob = search.get("prefill") ?? "";
+  const padded = blob.replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(atob(padded));
+};
+
 describe("automationCreateHref", () => {
-  it("includes view=create, source=monitor, and a urlencoded filterPreset", () => {
+  it("emits view=create and a single base64url prefill blob", () => {
     const href = automationCreateHref("proj_01", [
       {
         column: "tags",
@@ -142,27 +118,34 @@ describe("automationCreateHref", () => {
     ]);
     expect(href).toContain("/project/proj_01/automations");
     expect(href).toContain("view=create");
-    expect(href).toContain("source=monitor");
-    const search = new URLSearchParams(href.split("?")[1] ?? "");
-    expect(JSON.parse(search.get("filterPreset") ?? "")).toEqual([
-      {
-        column: "tags",
-        type: "arrayOptions",
-        operator: "all of",
-        value: ["prod"],
-      },
-    ]);
+    expect(decodePrefill(href)).toEqual({
+      eventSource: "monitor",
+      filter: [
+        {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "all of",
+          value: ["prod"],
+        },
+      ],
+    });
   });
 
-  it("adds actionType in SCREAMING_SNAKE wire form when provided", () => {
-    expect(automationCreateHref("proj_01", [], "SLACK")).toContain(
-      "actionType=SLACK",
+  it("omits the filter clause from the prefill when no tags are set", () => {
+    expect(decodePrefill(automationCreateHref("proj_01", []))).toEqual({
+      eventSource: "monitor",
+    });
+  });
+
+  it("includes actionType in the prefill payload when provided", () => {
+    expect(decodePrefill(automationCreateHref("proj_01", [], "SLACK"))).toEqual(
+      { eventSource: "monitor", actionType: "SLACK" },
     );
-    expect(automationCreateHref("proj_01", [], "WEBHOOK")).toContain(
-      "actionType=WEBHOOK",
-    );
-    expect(automationCreateHref("proj_01", [], "GITHUB_DISPATCH")).toContain(
-      "actionType=GITHUB_DISPATCH",
-    );
+    expect(
+      decodePrefill(automationCreateHref("proj_01", [], "WEBHOOK")),
+    ).toEqual({ eventSource: "monitor", actionType: "WEBHOOK" });
+    expect(
+      decodePrefill(automationCreateHref("proj_01", [], "GITHUB_DISPATCH")),
+    ).toEqual({ eventSource: "monitor", actionType: "GITHUB_DISPATCH" });
   });
 });

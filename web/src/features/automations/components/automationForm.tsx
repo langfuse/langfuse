@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -19,7 +19,7 @@ import { Separator } from "@/src/components/ui/separator";
 import { Switch } from "@/src/components/ui/switch";
 import { useRouter } from "next/router";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { type Control, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Form,
@@ -34,7 +34,11 @@ import { api } from "@/src/utils/api";
 import {
   type AutomationDomain,
   type ActionTypes,
+  ActionTypeSchema,
+  type FilterState,
   type JobConfigState,
+  TriggerEventSource,
+  TriggerEventSourceSchema,
   webhookActionFilterOptions,
 } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
@@ -45,6 +49,8 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import TagManager from "@/src/features/tag/components/TagManager";
+import { Plus } from "lucide-react";
 
 // Define Slack action schema
 const slackSchema = z.object({
@@ -61,38 +67,297 @@ const githubDispatchSchema = z.object({
   displayGitHubToken: z.string().optional(),
 });
 
-// Define the TriggerEventSource enum directly in this file to match the backend
-enum TriggerEventSource {
-  Prompt = "prompt",
-}
+/** promptEventActionDefaults is the default eventAction set for a fresh prompt-source automation. */
+const promptEventActionDefaults: string[] = ["created", "updated", "deleted"];
+
+/** CreateAutomationPrefill pre-fills the create-automation form from a deep link. */
+export type CreateAutomationPrefill = {
+  eventSource?: TriggerEventSource;
+  filter?: FilterState;
+  actionType?: ActionTypes;
+};
+
+/** createAutomationPrefillSchema validates a decoded prefill payload. */
+const createAutomationPrefillSchema = z.object({
+  eventSource: TriggerEventSourceSchema.optional(),
+  filter: z.array(z.any()).optional(),
+  actionType: ActionTypeSchema.optional(),
+});
+
+/** parseCreateAutomationPrefill decodes a base64url JSON blob into a typed prefill; returns {} when absent or malformed. */
+export const parseCreateAutomationPrefill = (
+  raw: string | null | undefined,
+): CreateAutomationPrefill => {
+  if (!raw) return {};
+  try {
+    const padded = raw.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = atob(padded);
+    const result = createAutomationPrefillSchema.safeParse(JSON.parse(decoded));
+    return result.success ? (result.data as CreateAutomationPrefill) : {};
+  } catch {
+    return {};
+  }
+};
+
+/** serializeCreateAutomationPrefill encodes a typed prefill as a base64url JSON blob for a single URL query param. */
+export const serializeCreateAutomationPrefill = (
+  prefill: CreateAutomationPrefill,
+): string =>
+  btoa(JSON.stringify(prefill))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 
 // Define schemas for form validation
 const baseFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   eventSource: z.string().min(1, "Event source is required"),
-  eventAction: z
-    .array(z.string())
-    .min(1, "At least one event action is required"),
+  eventAction: z.array(z.string()),
   status: z.enum(["ACTIVE", "INACTIVE"]),
   filter: z.array(z.any()).optional(),
 });
 
-const formSchema = z.discriminatedUnion("actionType", [
-  baseFormSchema.extend({
-    actionType: z.literal("WEBHOOK"),
-    webhook: webhookSchema,
-  }),
-  baseFormSchema.extend({
-    actionType: z.literal("SLACK"),
-    slack: slackSchema,
-  }),
-  baseFormSchema.extend({
-    actionType: z.literal("GITHUB_DISPATCH"),
-    githubDispatch: githubDispatchSchema,
-  }),
-]);
+const formSchema = z
+  .discriminatedUnion("actionType", [
+    baseFormSchema.extend({
+      actionType: z.literal("WEBHOOK"),
+      webhook: webhookSchema,
+    }),
+    baseFormSchema.extend({
+      actionType: z.literal("SLACK"),
+      slack: slackSchema,
+    }),
+    baseFormSchema.extend({
+      actionType: z.literal("GITHUB_DISPATCH"),
+      githubDispatch: githubDispatchSchema,
+    }),
+  ])
+  .superRefine((data, ctx) => {
+    // Prompt-source triggers require at least one event action; monitor-source triggers don't use this field.
+    if (
+      data.eventSource === TriggerEventSource.Prompt &&
+      data.eventAction.length === 0
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["eventAction"],
+        message: "At least one event action is required",
+      });
+    }
+  });
 
 type FormValues = z.infer<typeof formSchema>;
+
+/** EventSourceField renders the trigger source picker and routes changes through onSourceChange so the parent can reset dependent fields. */
+const EventSourceField = ({
+  control,
+  onSourceChange,
+  disabled,
+}: {
+  control: Control<FormValues>;
+  onSourceChange: (value: TriggerEventSource) => void;
+  disabled: boolean;
+}) => (
+  <FormField
+    control={control}
+    name="eventSource"
+    render={({ field }) => (
+      <FormItem>
+        <FormLabel>Event Source</FormLabel>
+        <Select
+          onValueChange={(value) => onSourceChange(value as TriggerEventSource)}
+          value={field.value}
+          disabled={disabled}
+        >
+          <FormControl>
+            <SelectTrigger>
+              <SelectValue placeholder="Select an event source" />
+            </SelectTrigger>
+          </FormControl>
+          <SelectContent>
+            <SelectItem value={TriggerEventSource.Prompt}>Prompt</SelectItem>
+            <SelectItem value={TriggerEventSource.Monitor}>Monitor</SelectItem>
+            <SelectItem disabled={true} value="planned">
+              More coming soon...
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <FormDescription>
+          The event that triggers this automation.
+        </FormDescription>
+        <FormMessage />
+      </FormItem>
+    )}
+  />
+);
+
+/** PromptTriggerFields renders the eventAction picker and inline filter builder for prompt-source automations. */
+const PromptTriggerFields = ({
+  control,
+  disabled,
+}: {
+  control: Control<FormValues>;
+  disabled: boolean;
+}) => (
+  <>
+    <FormField
+      control={control}
+      name="eventAction"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Event Action</FormLabel>
+          <FormControl>
+            <MultiSelect
+              title="Event Actions"
+              label="Actions"
+              values={field.value}
+              onValueChange={field.onChange}
+              options={[
+                {
+                  value: "created",
+                  description: "Whenever a new prompt version is created",
+                },
+                {
+                  value: "updated",
+                  description:
+                    "Whenever tags or labels on a prompt version are updated",
+                },
+                {
+                  value: "deleted",
+                  description: "Whenever a prompt version is deleted",
+                },
+              ]}
+              className="my-0 w-auto overflow-hidden"
+              disabled={disabled}
+              labelTruncateCutOff={4}
+            />
+          </FormControl>
+          <FormDescription>
+            The actions on the event source that trigger this automation.
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+    <FormField
+      control={control}
+      name="filter"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Filter</FormLabel>
+          <FormControl>
+            <InlineFilterBuilder
+              columns={webhookActionFilterOptions()}
+              filterState={field.value || []}
+              onChange={field.onChange}
+              disabled={disabled}
+            />
+          </FormControl>
+          <FormDescription>
+            Add conditions to narrow down when this trigger fires.
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  </>
+);
+
+/** filterToTags extracts the tag list from a monitor-source trigger filter, if a tags clause is present. */
+const filterToTags = (filter: FilterState): string[] => {
+  for (const cond of filter) {
+    if (
+      cond.column === "tags" &&
+      cond.type === "arrayOptions" &&
+      cond.operator === "all of"
+    ) {
+      return cond.value as string[];
+    }
+  }
+  return [];
+};
+
+/** tagsToFilter encodes a tag list as the FilterState a monitor-source trigger expects. */
+const tagsToFilter = (tags: string[]): FilterState =>
+  tags.length === 0
+    ? []
+    : [
+        {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "all of",
+          value: tags,
+        },
+      ];
+
+/** MonitorTriggerFields renders the tag picker for monitor-source automations, loading suggestions from the project's existing monitor tags. */
+const MonitorTriggerFields = ({
+  control,
+  projectId,
+  disabled,
+}: {
+  control: Control<FormValues>;
+  projectId: string;
+  disabled: boolean;
+}) => {
+  /** monitorTagsQuery loads existing monitor tags for TagManager autocomplete. */
+  const monitorTagsQuery = api.monitors.getFilterOptions.useQuery(
+    { projectId },
+    {
+      trpc: { context: { skipBatch: true } },
+      staleTime: Infinity,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  );
+
+  /** availableTags is the flat list of tag values pulled from monitorTagsQuery for TagManager. */
+  const availableTags = useMemo(
+    () => monitorTagsQuery.data?.tags.map((t) => t.value) ?? [],
+    [monitorTagsQuery.data],
+  );
+
+  return (
+    <FormField
+      control={control}
+      name="filter"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Tags</FormLabel>
+          <FormControl>
+            <TagManager
+              itemName="monitor"
+              tags={filterToTags((field.value ?? []) as FilterState)}
+              allTags={availableTags}
+              hasAccess={!disabled}
+              isLoading={false}
+              mutateTags={(next) => field.onChange(tagsToFilter(next))}
+              liveUpdate
+              popoverAlign="start"
+              triggerButton={
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  className="mr-2 ml-0.5 gap-1"
+                  disabled={disabled}
+                >
+                  <Plus className="h-3 w-3" />
+                  Add Tags
+                </Button>
+              }
+            />
+          </FormControl>
+          <FormDescription>
+            Fire on monitors carrying all of the selected tags. Leave empty to
+            fire on every monitor in the project.
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+};
 
 interface AutomationFormProps {
   projectId: string;
@@ -102,8 +367,11 @@ interface AutomationFormProps {
     actionType?: "WEBHOOK" | "GITHUB_DISPATCH",
   ) => void;
   onCancel?: () => void;
+  /** automation is the existing record being edited. Mutually exclusive with prefill in practice. */
   automation?: AutomationDomain;
   isEditing?: boolean;
+  /** prefill is a raw base64url JSON deep-link blob; the form decodes it. Ignored when automation is set. */
+  prefill?: string | null;
 }
 
 export const AutomationForm = ({
@@ -112,9 +380,9 @@ export const AutomationForm = ({
   onCancel,
   automation,
   isEditing = false,
+  prefill,
 }: AutomationFormProps) => {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<string>("webhook");
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "automations:CUD",
@@ -140,32 +408,45 @@ export const AutomationForm = ({
     },
   );
 
+  // Decoded prefill values; empty when editing an existing automation or when the blob is absent/malformed.
+  const parsedPrefill: CreateAutomationPrefill = automation
+    ? {}
+    : parseCreateAutomationPrefill(prefill);
+
   // Get the action type for the form when editing
-  const getActionType = () => {
-    if (automation?.action?.type) {
-      return automation.action.type as ActionTypes;
-    }
-    return "WEBHOOK";
-  };
+  const getActionType = (): ActionTypes =>
+    (automation?.action.type as ActionTypes | undefined) ??
+    parsedPrefill.actionType ??
+    "WEBHOOK";
 
   // Get default values based on action type
   const getDefaultValues = (): FormValues => {
     const actionType = getActionType();
     const today = new Date().toLocaleString("sv").split("T")[0]; // YYYY-MM-DD
 
+    const resolvedEventSource: TriggerEventSource =
+      automation?.trigger.eventSource ??
+      parsedPrefill.eventSource ??
+      TriggerEventSource.Prompt;
+
+    const resolvedEventAction: string[] =
+      automation?.trigger.eventActions ??
+      (resolvedEventSource === TriggerEventSource.Monitor
+        ? []
+        : promptEventActionDefaults);
+
+    const resolvedFilter: FilterState =
+      automation?.trigger.filter ?? parsedPrefill.filter ?? [];
+
     const baseValues = {
       name:
         isEditing && automation ? automation.name : `${actionType} ${today}`,
-      eventSource: automation
-        ? automation.trigger.eventSource
-        : TriggerEventSource.Prompt,
-      eventAction: automation
-        ? automation.trigger.eventActions
-        : ["created", "updated", "deleted"],
+      eventSource: resolvedEventSource,
+      eventAction: resolvedEventAction,
       status: (isEditing && automation
         ? automation.trigger.status
         : "ACTIVE") as "ACTIVE" | "INACTIVE",
-      filter: automation ? automation.trigger.filter || [] : [],
+      filter: resolvedFilter,
     };
 
     if (actionType === "WEBHOOK") {
@@ -175,7 +456,6 @@ export const AutomationForm = ({
       return {
         ...baseValues,
         actionType: "WEBHOOK" as const,
-        eventSource: TriggerEventSource.Prompt,
         webhook: {
           url: webhookDefaults.webhook.url || "",
           headers: webhookDefaults.webhook.headers || [],
@@ -191,7 +471,6 @@ export const AutomationForm = ({
       return {
         ...baseValues,
         actionType: "SLACK" as const,
-        eventSource: TriggerEventSource.Prompt,
         slack: {
           channelId: slackDefaults.slack.channelId || "",
           channelName: slackDefaults.slack.channelName || "",
@@ -205,7 +484,6 @@ export const AutomationForm = ({
       return {
         ...baseValues,
         actionType: "GITHUB_DISPATCH" as const,
-        eventSource: TriggerEventSource.Prompt,
         githubDispatch: {
           url: githubDefaults.githubDispatch.url || "",
           eventType: githubDefaults.githubDispatch.eventType || "",
@@ -224,13 +502,6 @@ export const AutomationForm = ({
     resolver: zodResolver(formSchema),
     defaultValues: getDefaultValues(),
   });
-
-  // Set the active tab based on the action type
-  useEffect(() => {
-    if (isEditing && automation?.action?.type) {
-      setActiveTab(automation.action.type.toLowerCase());
-    }
-  }, [isEditing, automation]);
 
   // Handle form submission
   const onSubmit = async (data: FormValues) => {
@@ -308,7 +579,6 @@ export const AutomationForm = ({
 
   // Update required fields based on action type
   const handleActionTypeChange = (value: ActionTypes) => {
-    setActiveTab(value.toLowerCase());
     form.setValue("actionType", value);
 
     if (value === "WEBHOOK") {
@@ -354,9 +624,23 @@ export const AutomationForm = ({
 
   const currentActionHandler = getCurrentActionHandler();
 
+  /** watchedEventSource drives the conditional trigger UI (prompt → filter builder, monitor → tag picker). */
+  const watchedEventSource = form.watch("eventSource") as TriggerEventSource;
+
+  /** handleEventSourceChange resets eventAction + filter to defaults appropriate for the picked source. */
+  const handleEventSourceChange = (value: TriggerEventSource) => {
+    form.setValue("eventSource", value);
+    if (value === TriggerEventSource.Monitor) {
+      form.setValue("eventAction", []);
+    } else {
+      form.setValue("eventAction", promptEventActionDefaults);
+    }
+    form.setValue("filter", []);
+  };
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-6">
         {isEditing && (
           <div className="mb-6 flex items-center gap-4">
             <div className="flex-1">
@@ -409,104 +693,23 @@ export const AutomationForm = ({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <FormField
+            <EventSourceField
               control={form.control}
-              name="eventSource"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Event Source</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value}
-                    disabled={!hasAccess || !isEditing}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select an event source" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={TriggerEventSource.Prompt}>
-                        Prompt
-                      </SelectItem>
-                      <SelectItem disabled={true} value="planned">
-                        More coming soon...
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    The event that triggers this automation.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
+              onSourceChange={handleEventSourceChange}
+              disabled={!hasAccess || !isEditing}
             />
-            <FormField
-              control={form.control}
-              name="eventAction"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Event Action</FormLabel>
-                  <FormControl>
-                    <MultiSelect
-                      title="Event Actions"
-                      label="Actions"
-                      values={field.value}
-                      onValueChange={field.onChange}
-                      options={[
-                        {
-                          value: "created",
-                          description:
-                            "Whenever a new prompt version is created",
-                        },
-                        {
-                          value: "updated",
-                          description:
-                            "Whenever tags or labels on a prompt version are updated",
-                        },
-                        {
-                          value: "deleted",
-                          description: "Whenever a prompt version is deleted",
-                        },
-                      ]}
-                      className="my-0 w-auto overflow-hidden"
-                      disabled={!hasAccess || !isEditing}
-                      labelTruncateCutOff={4}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    The actions on the event source that trigger this
-                    automation.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="filter"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Filter</FormLabel>
-                  <FormControl>
-                    <InlineFilterBuilder
-                      columns={webhookActionFilterOptions()}
-                      filterState={field.value || []}
-                      onChange={field.onChange}
-                      disabled={
-                        activeTab === "annotation_queue" ||
-                        !hasAccess ||
-                        !isEditing
-                      }
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Add conditions to narrow down when this trigger fires.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {watchedEventSource === TriggerEventSource.Monitor ? (
+              <MonitorTriggerFields
+                control={form.control}
+                projectId={projectId}
+                disabled={!hasAccess || !isEditing}
+              />
+            ) : (
+              <PromptTriggerFields
+                control={form.control}
+                disabled={!hasAccess || !isEditing}
+              />
+            )}
           </CardContent>
         </Card>
 

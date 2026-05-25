@@ -127,11 +127,14 @@ const viewLabels: Record<MonitorView, string> = {
 const createDefaults = (projectId: string): Partial<CreateMonitor> => ({
   projectId,
   view: "observations",
+  filters: [],
   metric: { measure: "count", aggregation: "count" },
   window: "5m",
   thresholdOperator: "GT",
+  warningThreshold: null,
   noData: { mode: "SILENT" },
   renotify: { mode: "OFF" },
+  tags: [],
   status: "ACTIVE",
 });
 
@@ -634,6 +637,11 @@ export const MonitorForm = ({
                   )}
                 />
               </div>
+              {formError.alertThreshold && (
+                <p className="text-destructive text-xs">
+                  {formError.alertThreshold.message}
+                </p>
+              )}
               <div
                 className="flex items-center gap-2"
                 hidden={watched.thresholdOperator === "NEQ"}
@@ -666,6 +674,11 @@ export const MonitorForm = ({
                   )}
                 />
               </div>
+              {formError.warningThreshold && (
+                <p className="text-destructive text-xs">
+                  {formError.warningThreshold.message}
+                </p>
+              )}
               {formError.threshold && (
                 <p className="text-destructive text-xs">
                   {formError.threshold.message}
@@ -780,8 +793,6 @@ export const MonitorForm = ({
                 <Label>Channels</Label>
                 <MonitorAutomationsPanel
                   projectId={projectId}
-                  monitorId={monitor?.id}
-                  name={watched.name ?? ""}
                   tags={(watched.tags ?? []) as string[]}
                   warningThreshold={watched.warningThreshold ?? null}
                   noDataMode={watched.noData?.mode ?? "SILENT"}
@@ -911,6 +922,11 @@ const NoDataField = ({
     )}
   </div>
 );
+
+/** __test exposes private helpers to co-located tests without widening the module API. */
+export const __test = {
+  createDefaults,
+};
 
 /** RenotifyField renders the renotify mode picker plus its interval input. */
 const RenotifyField = ({

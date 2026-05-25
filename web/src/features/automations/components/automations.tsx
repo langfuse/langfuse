@@ -33,6 +33,7 @@ export default function AutomationsPage() {
     view: withDefault(StringParam, "list"),
     automationId: StringParam,
     tab: withDefault(StringParam, "executions"),
+    prefill: StringParam,
   });
 
   const { view, automationId } = urlParams;
@@ -80,6 +81,10 @@ export default function AutomationsPage() {
 
       if (updates.view !== undefined) {
         params.set("view", updates.view);
+        // The prefill blob is scoped to view=create; drop it on any other view.
+        if (updates.view !== "create") {
+          params.delete("prefill");
+        }
       }
       if (updates.automationId !== undefined) {
         if (updates.automationId) {
@@ -140,6 +145,7 @@ export default function AutomationsPage() {
       view: "create",
       automationId: undefined,
       tab: urlParams.tab,
+      prefill: undefined,
     });
   };
 
@@ -280,6 +286,7 @@ export default function AutomationsPage() {
             onSuccess={handleCreateSuccess}
             onCancel={handleReturnToList}
             isEditing={true}
+            prefill={urlParams.prefill}
           />
         </div>
       );

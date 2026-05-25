@@ -23,6 +23,7 @@ import {
   type MonitorNoData,
   type MonitorSeverity,
 } from "@langfuse/shared/monitors";
+import { serializeCreateAutomationPrefill } from "@/src/features/automations/components/automationForm";
 
 /** severityLabel maps each monitor severity to its short badge label. */
 const severityLabel: Record<MonitorSeverity, string> = {
@@ -55,15 +56,11 @@ const actionLabel: Record<ActionTypes, string> = {
 /** MonitorAutomationsPanel lists automations that would fire for the draft monitor and offers a CTA to add more. */
 export const MonitorAutomationsPanel = ({
   projectId,
-  monitorId,
-  name,
   tags,
   warningThreshold,
   noDataMode,
 }: {
   projectId: string;
-  monitorId?: string;
-  name: string;
   tags: string[];
   warningThreshold: number | null;
   noDataMode: MonitorNoData["mode"];
@@ -74,17 +71,14 @@ export const MonitorAutomationsPanel = ({
     [warningThreshold, noDataMode],
   );
 
-  /** automations holds all monitor-source automations matching the draft's id/name/tags. */
-  const automations = useGetAutomations(projectId, monitorId, name, tags);
+  /** automations holds all monitor-source automations whose tag filter matches the draft. */
+  const automations = useGetAutomations(projectId, tags);
 
   /** matched pairs each automation with the emittable severities its trigger filter would accept. */
   const matched = useSeverityFilter(automations.data, severities);
 
   /** preset is the FilterState seeded into the create-automation deep link for this draft. */
-  const preset = useMemo(
-    () => buildFilterPreset({ monitorId, name, tags }),
-    [monitorId, name, tags],
-  );
+  const preset = useMemo(() => buildFilterPreset(tags), [tags]);
 
   return (
     <Card>
@@ -229,52 +223,31 @@ const triggerSeverityClause = (
   return null;
 };
 
-/** buildFilterPreset emits the FilterState a monitor-source trigger needs to match the draft (id + name + tags). */
-const buildFilterPreset = (input: {
-  monitorId?: string;
-  name: string;
-  tags: string[];
-}): FilterState => {
-  const filters: FilterState = [];
-  if (input.monitorId) {
-    filters.push({
-      column: "monitorId",
-      type: "stringOptions",
-      operator: "any of",
-      value: [input.monitorId],
-    });
-  }
-  if (input.name.trim().length > 0) {
-    filters.push({
-      column: "monitorName",
-      type: "string",
-      operator: "=",
-      value: input.name,
-    });
-  }
-  if (input.tags.length > 0) {
-    filters.push({
+/** buildFilterPreset emits the FilterState a monitor-source trigger needs to match the draft's tags. */
+const buildFilterPreset = (tags: string[]): FilterState => {
+  if (tags.length === 0) return [];
+  return [
+    {
       column: "tags",
       type: "arrayOptions",
       operator: "all of",
-      value: input.tags,
-    });
-  }
-  return filters;
+      value: tags,
+    },
+  ];
 };
 
-/** automationCreateHref builds the deep-link to the automations create form, optionally preselecting an actionType. */
+/** automationCreateHref builds the deep-link to the automations create form, encoding the prefill as a single base64url JSON blob. */
 const automationCreateHref = (
   projectId: string,
   preset: FilterState,
   actionType?: ActionTypes,
 ): string => {
-  const params = new URLSearchParams({
-    view: "create",
-    source: TriggerEventSource.Monitor,
-    filterPreset: JSON.stringify(preset),
+  const prefill = serializeCreateAutomationPrefill({
+    eventSource: TriggerEventSource.Monitor,
+    ...(preset.length > 0 ? { filter: preset } : {}),
+    ...(actionType ? { actionType } : {}),
   });
-  if (actionType) params.set("actionType", actionType);
+  const params = new URLSearchParams({ view: "create", prefill });
   return `/project/${projectId}/automations?${params.toString()}`;
 };
 
@@ -302,22 +275,13 @@ const useSeverityFilter = (
   }, [automations, severities]);
 };
 
-/** useGetAutomations fetches monitor-source automations matching the draft's id/name/tags across all severities. */
-const useGetAutomations = (
-  projectId: string,
-  monitorId: string | undefined,
-  name: string,
-  tags: string[],
-) => {
+/** useGetAutomations fetches monitor-source automations whose tag filter matches the draft, across all severities. */
+const useGetAutomations = (projectId: string, tags: string[]) => {
   return api.automations.getAutomations.useQuery(
     {
       projectId,
       eventSource: TriggerEventSource.Monitor,
-      matches: {
-        ...(monitorId ? { monitorId } : {}),
-        ...(name.trim().length > 0 ? { monitorName: name } : {}),
-        tags,
-      },
+      matches: { tags },
     },
     {
       trpc: { context: { skipBatch: true } },
