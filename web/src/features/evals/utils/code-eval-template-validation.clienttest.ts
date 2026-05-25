@@ -67,6 +67,28 @@ describe("code eval template validation", () => {
     );
   });
 
+  it("accepts the default TypeScript source", async () => {
+    const result = await validateCodeEvalSourceWithLanguage({
+      source: DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
+      sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+    });
+
+    expect(result.hasErrors).toBe(false);
+  });
+
+  it("rejects async TypeScript evaluate functions", async () => {
+    const result = await validateCodeEvalSourceWithLanguage({
+      source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
+async function evaluate(context: EvaluationContext): Promise<EvaluationResult> {
+  return { scores: [] };
+}
+`,
+      sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+    });
+
+    expect(result.hasErrors).toBe(true);
+  });
+
   it("uses Ruff diagnostics for Python source", async () => {
     const result = await validateCodeEvalSourceWithLanguage({
       source: "def evaluate(ctx):\n    return missing_name\n",
@@ -94,7 +116,7 @@ export default function evaluate(): EvaluationResult {
     expect(result.hasErrors).toBe(true);
     expect(
       result.diagnostics.some((diagnostic) =>
-        diagnostic.message.includes("named evaluate function"),
+        diagnostic.message.includes("Default exports are not supported"),
       ),
     ).toBe(true);
   });

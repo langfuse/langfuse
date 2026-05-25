@@ -22,16 +22,16 @@ type EvaluationContext = {
     metadata: any;
   };
   /**
-   * Dataset run item data. Present when the evaluator runs on an experiment.
+   * Experiment item data. Present when the evaluator runs on an experiment.
    */
   experiment:
     | {
         /**
-         * The expected output from the dataset item.
+         * The expected output from the experiment item.
          */
         itemExpectedOutput: any;
         /**
-         * The metadata from the dataset item.
+         * The metadata from the experiment item.
          */
         itemMetadata: any;
       }
@@ -180,7 +180,6 @@ class EvaluationResult(TypedDict):
 
 def evaluate(context: EvaluationContext) -> EvaluationResult:
     """Evaluates one observation and returns one or more Langfuse scores."""
-    experiment = context.get("experiment")
     input = context["observation"]["input"]
     matches_output = input is not None and context["observation"]["output"] == input
 

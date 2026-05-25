@@ -47,6 +47,34 @@ type ContractRanges = {
 
 const PYTHON_EVALUATE_SIGNATURE_PATTERN =
   /(?:^|\n)def evaluate\s*\(\s*context\s*:\s*EvaluationContext\s*\)\s*->\s*EvaluationResult\s*:/;
+const FORMAT_SHORTCUT_KEY = "Shift-Alt-f";
+const FORMAT_SHORTCUT_ARIA = "Alt+Shift+F";
+const TYPESCRIPT_KEYWORDS = new Set([
+  "async",
+  "await",
+  "const",
+  "let",
+  "return",
+  "export",
+  "function",
+  "type",
+  "interface",
+  "if",
+  "else",
+  "true",
+  "false",
+  "undefined",
+  "null",
+]);
+const TYPESCRIPT_BUILTIN_TYPES = new Set([
+  "any",
+  "boolean",
+  "number",
+  "Promise",
+  "Record",
+  "string",
+  "unknown",
+]);
 
 const typescriptCodeEvalLanguage = StreamLanguage.define({
   name: "typescript-code-eval",
@@ -75,20 +103,14 @@ const typescriptCodeEvalLanguage = StreamLanguage.define({
       return "string";
     }
 
-    if (
-      stream.match(
-        /\b(?:async|await|const|let|return|export|function|type|interface|if|else|true|false|undefined|null)\b/,
-      )
-    ) {
-      return "keyword";
-    }
-
-    if (
-      stream.match(
-        /\b(?:EvaluationContext|EvaluationResult|Score|Promise|Record|unknown|string|number|boolean)\b/,
-      )
-    ) {
-      return "typeName";
+    const identifier = stream.match(/[A-Za-z_][A-Za-z0-9_]*/);
+    if (identifier) {
+      const word = identifier[0];
+      if (TYPESCRIPT_KEYWORDS.has(word)) return "keyword";
+      if (TYPESCRIPT_BUILTIN_TYPES.has(word) || /^[A-Z]/.test(word)) {
+        return "typeName";
+      }
+      return null;
     }
 
     if (stream.match(/\b\d+(?:\.\d+)?\b/)) {
@@ -327,7 +349,7 @@ export function CodeEvalTemplateFormBody({
     () =>
       keymap.of([
         {
-          key: "Mod-s",
+          key: FORMAT_SHORTCUT_KEY,
           run: () => {
             void formatSource();
             return true;
@@ -362,7 +384,7 @@ export function CodeEvalTemplateFormBody({
           variant="outline"
           size="sm"
           disabled={!editable || isFormatting}
-          aria-keyshortcuts="Meta+S Control+S"
+          aria-keyshortcuts={FORMAT_SHORTCUT_ARIA}
           onClick={() => void formatSource()}
         >
           {isFormatting && (
@@ -370,7 +392,15 @@ export function CodeEvalTemplateFormBody({
           )}
           Format
           <kbd className="bg-muted text-muted-foreground pointer-events-none ml-2 hidden h-4 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium select-none sm:inline-flex">
-            <span className="text-xs">⌘</span>S
+            {typeof navigator !== "undefined" &&
+            navigator.userAgent.includes("Macintosh") ? (
+              <>
+                <span className="text-xs">⇧</span>
+                <span className="text-xs">⌥</span>F
+              </>
+            ) : (
+              <>Shift+Alt+F</>
+            )}
           </kbd>
         </Button>
       </div>

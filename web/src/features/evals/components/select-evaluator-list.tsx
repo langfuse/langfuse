@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { Code2, PlusIcon } from "lucide-react";
+import { BrainCircuit, Code2 } from "lucide-react";
 import { EvaluatorSelector } from "./evaluator-selector";
 import { EvalTemplateForm } from "./template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -75,58 +75,79 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
 
   return (
     <>
-      <Card className="grid max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden p-3">
-        <div className="flex flex-col overflow-hidden">
-          {templates.isLoading ? (
-            <Skeleton className="h-full w-full" />
-          ) : templates.isError ? (
-            <div className="text-destructive py-8 text-center">
-              Error: {templates.error.message}
-            </div>
-          ) : templates.data?.templates.length === 0 ? (
-            <div className="text-muted-foreground py-8 text-center">
-              No evaluators found. Create a new evaluator to get started.
-            </div>
-          ) : (
-            <div className="flex-1 overflow-hidden">
-              <EvaluatorSelector
-                projectId={projectId}
-                evalTemplates={templates.data?.templates || []}
-                selectedTemplateId={selectedTemplate?.id || undefined}
-                onTemplateSelect={(templateId) =>
-                  handleTemplateSelect(templateId)
-                }
-              />
-            </div>
-          )}
+      <div className="mb-4 space-y-5">
+        <div className="space-y-2">
+          <h2 className="text-base font-semibold">Create from scratch</h2>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-auto min-h-24 w-full justify-start gap-3 px-4 py-4 text-left whitespace-normal sm:w-[360px]"
+              onClick={() =>
+                handleOpenCreateEvaluator(EvalTemplateType.LLM_AS_JUDGE)
+              }
+            >
+              <BrainCircuit className="h-5 w-5 shrink-0" />
+              <span className="flex flex-col gap-1">
+                <span className="font-medium">LLM as a judge evaluator</span>
+                <span className="text-muted-foreground text-sm font-normal">
+                  Use a prompt and model to score traces or observations.
+                </span>
+              </span>
+            </Button>
+            {isCodeEvalEnabled ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto min-h-24 w-full justify-start gap-3 px-4 py-4 text-left whitespace-normal sm:w-[360px]"
+                onClick={() => handleOpenCreateEvaluator(EvalTemplateType.CODE)}
+              >
+                <Code2 className="h-5 w-5 shrink-0" />
+                <span className="flex flex-col gap-1">
+                  <span className="font-medium">Code-based evaluator</span>
+                  <span className="text-muted-foreground text-sm font-normal">
+                    Run TypeScript or Python logic to create Langfuse scores.
+                  </span>
+                </span>
+              </Button>
+            ) : null}
+          </div>
         </div>
 
-        {!isSelectionValid && (
-          <div className="px-4">
-            <SetupDefaultEvalModelCard projectId={projectId} />
-          </div>
-        )}
-      </Card>
+        <div className="space-y-2">
+          <h2 className="text-base font-semibold">Use existing</h2>
+          <Card className="grid h-[520px] max-h-[60vh] grid-rows-[minmax(0,1fr)_auto] overflow-hidden p-3">
+            <div className="flex min-h-0 flex-col overflow-hidden">
+              {templates.isLoading ? (
+                <Skeleton className="h-full w-full" />
+              ) : templates.isError ? (
+                <div className="text-destructive py-8 text-center">
+                  Error: {templates.error.message}
+                </div>
+              ) : templates.data?.templates.length === 0 ? (
+                <div className="text-muted-foreground py-8 text-center">
+                  No evaluators found. Create a new evaluator to get started.
+                </div>
+              ) : (
+                <div className="flex-1 overflow-hidden">
+                  <EvaluatorSelector
+                    projectId={projectId}
+                    evalTemplates={templates.data?.templates || []}
+                    selectedTemplateId={selectedTemplate?.id || undefined}
+                    onTemplateSelect={(templateId) =>
+                      handleTemplateSelect(templateId)
+                    }
+                  />
+                </div>
+              )}
+            </div>
 
-      <div className="mt-2 flex flex-row justify-end">
-        <div className="flex justify-end gap-2">
-          {isCodeEvalEnabled ? (
-            <Button
-              variant="outline"
-              onClick={() => handleOpenCreateEvaluator(EvalTemplateType.CODE)}
-            >
-              <Code2 className="mr-2 h-4 w-4" />
-              Create Code-based Evaluator
-            </Button>
-          ) : null}
-          <Button
-            onClick={() =>
-              handleOpenCreateEvaluator(EvalTemplateType.LLM_AS_JUDGE)
-            }
-          >
-            <PlusIcon className="mr-2 h-4 w-4" />
-            Create Custom Evaluator
-          </Button>
+            {!isSelectionValid && (
+              <div className="px-4">
+                <SetupDefaultEvalModelCard projectId={projectId} />
+              </div>
+            )}
+          </Card>
         </div>
       </div>
 

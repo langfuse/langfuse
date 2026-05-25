@@ -106,7 +106,6 @@ interface EvaluatorSelectorProps {
     name: string,
     version?: number,
   ) => void;
-  onCreateNew?: () => void;
 }
 
 export function EvaluatorSelector({
@@ -114,7 +113,6 @@ export function EvaluatorSelector({
   evalTemplates,
   selectedTemplateId,
   onTemplateSelect,
-  onCreateNew,
 }: EvaluatorSelectorProps) {
   const [search, setSearch] = useState("");
   const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
@@ -384,18 +382,6 @@ export function EvaluatorSelector({
                   </InputCommandItem>
                 );
               })}
-            </InputCommandGroup>
-          </>
-        )}
-
-        {onCreateNew && (
-          <>
-            <InputCommandSeparator alwaysRender />
-            <InputCommandGroup forceMount>
-              <InputCommandItem onSelect={onCreateNew}>
-                Create custom evaluator
-                <ExternalLink className="ml-auto h-4 w-4" />
-              </InputCommandItem>
             </InputCommandGroup>
           </>
         )}

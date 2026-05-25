@@ -41,7 +41,7 @@ type RuffWorkspace = {
 const SYNTHETIC_ASSERTION_PREFIX = `
 type __LangfuseExpectedEvaluate = (
   context: EvaluationContext,
-) => EvaluationResult | Promise<EvaluationResult>;
+) => EvaluationResult;
 const __langfuseEvaluateCheck: __LangfuseExpectedEvaluate = evaluate;
 `;
 
@@ -54,6 +54,10 @@ interface Array<T> {
   includes(searchElement: T, fromIndex?: number): boolean;
   join(separator?: string): string;
 }
+
+interface Boolean {}
+
+interface Number {}
 
 interface Promise<T> {
   then<TResult1 = T, TResult2 = never>(
@@ -230,16 +234,16 @@ export function validateCodeEvalSource(
   );
 
   const evaluatePosition = findEvaluatePosition(sourceFile, tsModule) ?? 0;
-  const hasExportedEvaluate = hasDirectExportedEvaluate(sourceFile, tsModule);
+  const hasEvaluate = hasEvaluateFunction(sourceFile, tsModule);
 
   collectUnsupportedModuleSyntaxDiagnostics(sourceFile, diagnostics, tsModule);
 
-  if (!hasExportedEvaluate) {
+  if (!hasEvaluate) {
     diagnostics.push({
       from: evaluatePosition,
       to: clampToSourceRange(source, evaluatePosition + "evaluate".length),
       severity: "error",
-      message: "Evaluator source must export a named evaluate function.",
+      message: "Evaluator source must define an evaluate function.",
     });
   }
 
@@ -393,44 +397,59 @@ function collectUnsupportedModuleSyntaxDiagnostics(
       });
     }
 
+    const modifiers = tsModule.canHaveModifiers(node)
+      ? tsModule.getModifiers(node)
+      : undefined;
+
+    if (
+      modifiers?.some(
+        (modifier) => modifier.kind === tsModule.SyntaxKind.DefaultKeyword,
+      )
+    ) {
+      diagnostics.push({
+        from: node.getStart(sourceFile),
+        to: node.getEnd(),
+        severity: "error",
+        message:
+          "Default exports are not supported. Define a named evaluate function instead.",
+      });
+    }
+
     node.forEachChild(visit);
   };
 
   sourceFile.forEachChild(visit);
 }
 
-function hasDirectExportedEvaluate(
+function hasEvaluateFunction(
   sourceFile: ts.SourceFile,
   tsModule: TypeScriptModule,
 ) {
-  let hasExportedEvaluate = false;
+  let hasEvaluate = false;
 
   const visit = (node: ts.Node) => {
     if (
       tsModule.isFunctionDeclaration(node) &&
-      node.name?.text === "evaluate" &&
-      hasExportModifier(node, tsModule) &&
-      !hasDefaultModifier(node, tsModule)
+      node.name?.text === "evaluate"
     ) {
-      hasExportedEvaluate = true;
+      hasEvaluate = true;
     }
 
     if (
       tsModule.isVariableStatement(node) &&
-      hasExportModifier(node, tsModule) &&
       node.declarationList.declarations.some(
         (declaration) =>
           tsModule.isIdentifier(declaration.name) &&
           declaration.name.text === "evaluate",
       )
     ) {
-      hasExportedEvaluate = true;
+      hasEvaluate = true;
     }
 
     if (tsModule.isExportDeclaration(node) && !node.moduleSpecifier) {
       const exportClause = node.exportClause;
       if (exportClause && tsModule.isNamedExports(exportClause)) {
-        hasExportedEvaluate ||= exportClause.elements.some(
+        hasEvaluate ||= exportClause.elements.some(
           (element) => element.name.text === "evaluate",
         );
       }
@@ -441,7 +460,7 @@ function hasDirectExportedEvaluate(
 
   sourceFile.forEachChild(visit);
 
-  return hasExportedEvaluate;
+  return hasEvaluate;
 }
 
 function findEvaluatePosition(
@@ -476,24 +495,6 @@ function findEvaluatePosition(
   sourceFile.forEachChild(visit);
 
   return position;
-}
-
-function hasExportModifier(
-  node: ts.FunctionDeclaration | ts.VariableStatement,
-  tsModule: TypeScriptModule,
-) {
-  return tsModule
-    .getModifiers(node)
-    ?.some((modifier) => modifier.kind === tsModule.SyntaxKind.ExportKeyword);
-}
-
-function hasDefaultModifier(
-  node: ts.FunctionDeclaration,
-  tsModule: TypeScriptModule,
-) {
-  return tsModule
-    .getModifiers(node)
-    ?.some((modifier) => modifier.kind === tsModule.SyntaxKind.DefaultKeyword);
 }
 
 function collectBasicSourceDiagnostics({

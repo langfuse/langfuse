@@ -30,7 +30,7 @@ const PYTHON_SCORE_DOC = `class Score(TypedDict):
 A Langfuse score returned by a Python evaluator.`;
 
 export const TYPESCRIPT_CODE_EVAL_HOVER_DOCS = {
-  evaluate: `export function evaluate(context: EvaluationContext): EvaluationResult | Promise<EvaluationResult>
+  evaluate: `function evaluate(context: EvaluationContext): EvaluationResult
 
 The TypeScript function Langfuse executes for each matched target observation.`,
   context: `parameter context: EvaluationContext
@@ -63,7 +63,7 @@ The observation selected by the evaluator target.`,
   itemMetadata: any;
 }
 
-Dataset run item data. Present when the evaluator runs on an experiment.`,
+Experiment item data. Present when the evaluator runs on an experiment.`,
   input: `property observation.input: any
 
 The input recorded on the observation.`,
@@ -76,10 +76,10 @@ property Score.metadata?: Record<string, unknown>
 The metadata recorded on the observation, or extra metadata stored with a returned score.`,
   itemExpectedOutput: `property experiment.itemExpectedOutput: any
 
-The expected output from the dataset item.`,
+The expected output from the experiment item.`,
   itemMetadata: `property experiment.itemMetadata: any
 
-The metadata from the dataset item.`,
+The metadata from the experiment item.`,
   EvaluationResult: `type EvaluationResult = {
   scores: Score[];
 }
@@ -135,7 +135,7 @@ The observation selected by the evaluator target.`,
     item_expected_output: Any
     item_metadata: Any
 
-Dataset run item data. Present when the evaluator runs on an experiment.`,
+Experiment item data. Present when the evaluator runs on an experiment.`,
   EvaluationContext: `class EvaluationContext(TypedDict):
     observation: Observation
     experiment: NotRequired[Experiment | None]
@@ -151,7 +151,7 @@ The value returned by evaluate.`,
 The observation selected by the evaluator target.`,
   experiment: `key context.get("experiment"): Experiment | None
 
-Dataset run item data. Present when the evaluator runs on an experiment.`,
+Experiment item data. Present when the evaluator runs on an experiment.`,
   input: `key observation["input"]: Any
 
 The input recorded on the observation.`,
@@ -163,10 +163,10 @@ The output recorded on the observation.`,
 Observation metadata is available on the evaluator context. Score metadata stores extra details on a returned score.`,
   item_expected_output: `key experiment["item_expected_output"]: Any
 
-The expected output from the dataset item.`,
+The expected output from the experiment item.`,
   item_metadata: `key experiment["item_metadata"]: Any
 
-The metadata from the dataset item.`,
+The metadata from the experiment item.`,
   scores: `key result["scores"]: list[Score]
 
 One or more Langfuse scores to create for the target observation.`,
