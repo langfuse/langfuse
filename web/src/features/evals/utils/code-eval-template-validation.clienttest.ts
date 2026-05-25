@@ -81,6 +81,24 @@ describe("code eval template validation", () => {
     ).toBe(true);
   });
 
+  it("rejects default exported TypeScript evaluate functions", async () => {
+    const result = await validateCodeEvalSourceWithLanguage({
+      source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
+export default function evaluate(): EvaluationResult {
+  return { scores: [] };
+}
+`,
+      sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+    });
+
+    expect(result.hasErrors).toBe(true);
+    expect(
+      result.diagnostics.some((diagnostic) =>
+        diagnostic.message.includes("named evaluate function"),
+      ),
+    ).toBe(true);
+  });
+
   it("formats Python source with Ruff", async () => {
     await expect(
       formatPythonCodeEvalSourceWithRuff(

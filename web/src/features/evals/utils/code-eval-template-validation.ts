@@ -239,7 +239,7 @@ export function validateCodeEvalSource(
       from: evaluatePosition,
       to: clampToSourceRange(source, evaluatePosition + "evaluate".length),
       severity: "error",
-      message: "Evaluator source must export an evaluate function.",
+      message: "Evaluator source must export a named evaluate function.",
     });
   }
 
@@ -409,7 +409,8 @@ function hasDirectExportedEvaluate(
     if (
       tsModule.isFunctionDeclaration(node) &&
       node.name?.text === "evaluate" &&
-      hasExportModifier(node, tsModule)
+      hasExportModifier(node, tsModule) &&
+      !hasDefaultModifier(node, tsModule)
     ) {
       hasExportedEvaluate = true;
     }
@@ -484,6 +485,15 @@ function hasExportModifier(
   return tsModule
     .getModifiers(node)
     ?.some((modifier) => modifier.kind === tsModule.SyntaxKind.ExportKeyword);
+}
+
+function hasDefaultModifier(
+  node: ts.FunctionDeclaration,
+  tsModule: TypeScriptModule,
+) {
+  return tsModule
+    .getModifiers(node)
+    ?.some((modifier) => modifier.kind === tsModule.SyntaxKind.DefaultKeyword);
 }
 
 function collectBasicSourceDiagnostics({
