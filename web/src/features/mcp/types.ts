@@ -48,4 +48,7 @@ export interface ServerContext {
 
   /** Public key used for authentication */
   publicKey: string;
+
+  /** Whether the authenticated API key is scoped to the in-app agent. */
+  isInAppAgentKey?: boolean;
 }

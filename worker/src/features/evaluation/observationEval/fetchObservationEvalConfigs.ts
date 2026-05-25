@@ -74,8 +74,16 @@ export async function fetchObservationEvalConfigs(
     `Found ${configs.length} observation eval configs for project ${projectId}`,
   );
 
-  return configs.map((config) => ({
-    ...config,
-    evalTemplate: config.evalTemplate!,
-  }));
+  return configs.map((config) => {
+    if (!config.evalTemplate) {
+      throw new Error(
+        `Observation eval config ${config.id} has no eval template`,
+      );
+    }
+
+    return {
+      ...config,
+      evalTemplate: config.evalTemplate,
+    };
+  });
 }

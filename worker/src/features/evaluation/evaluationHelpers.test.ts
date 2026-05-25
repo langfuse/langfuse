@@ -13,6 +13,7 @@ import {
 } from "@langfuse/shared";
 import { type ExtractedVariable } from "@langfuse/shared/src/server";
 import { parseDispatchResult } from "../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
+import { createDeterministicEvalScoreId } from "../../../../packages/shared/src/server/evals/evalScoreIds";
 import {
   buildEvalExecutionMetadata,
   buildEvalMessages,
@@ -386,6 +387,7 @@ describe("evaluation helpers", () => {
       const result = parseDispatchResult({
         scores: [
           {
+            name: "quality",
             dataType: ScoreDataTypeEnum.NUMERIC,
             value: 0.9,
             metadata: { rubric: "strict" },
@@ -405,6 +407,7 @@ describe("evaluation helpers", () => {
         parseDispatchResult({
           scores: [
             {
+              name: "quality",
               dataType: ScoreDataTypeEnum.NUMERIC,
               value: 0.9,
               metadata: "not-a-dict",
@@ -416,7 +419,148 @@ describe("evaluation helpers", () => {
   });
 
   describe("buildEvalScoreWritePayloads", () => {
+    it("should build stable code eval score IDs when different score names reorder", () => {
+      const originalPayloads = buildEvalScoreWritePayloads({
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.9,
+            name: "accuracy",
+          },
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.7,
+            name: "fluency",
+          },
+        ],
+        jobExecutionId: "job-1",
+        traceId: "trace-456",
+        observationId: "obs-789",
+        environment: "production",
+        executionTraceId: "exec-trace-789",
+        executionMetadata: { job_execution_id: "job-1" },
+      });
+      const reorderedPayloads = buildEvalScoreWritePayloads({
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.7,
+            name: "fluency",
+          },
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.9,
+            name: "accuracy",
+          },
+        ],
+        jobExecutionId: "job-1",
+        traceId: "trace-456",
+        observationId: "obs-789",
+        environment: "production",
+        executionTraceId: "exec-trace-789",
+        executionMetadata: { job_execution_id: "job-1" },
+      });
+
+      expect(originalPayloads[0].scoreId).toBe(reorderedPayloads[1].scoreId);
+      expect(originalPayloads[1].scoreId).toBe(reorderedPayloads[0].scoreId);
+    });
+
+    it("should build distinct deterministic code eval score IDs for duplicate score names", () => {
+      const result = buildEvalScoreWritePayloads({
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "correct",
+            name: "accuracy",
+          },
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.7,
+            name: "fluency",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "partial",
+            name: "accuracy",
+          },
+        ],
+        jobExecutionId: "job-1",
+        traceId: "trace-456",
+        observationId: "obs-789",
+        environment: "production",
+        executionTraceId: "exec-trace-789",
+        executionMetadata: { job_execution_id: "job-1" },
+      });
+      const scoreIds = result.map((payload) => payload.scoreId);
+
+      expect(new Set(scoreIds).size).toBe(3);
+      expect(scoreIds).toEqual([
+        createDeterministicEvalScoreId({
+          jobExecutionId: "job-1",
+          scoreName: "accuracy",
+          occurrenceIndex: 0,
+        }),
+        createDeterministicEvalScoreId({
+          jobExecutionId: "job-1",
+          scoreName: "fluency",
+          occurrenceIndex: 0,
+        }),
+        createDeterministicEvalScoreId({
+          jobExecutionId: "job-1",
+          scoreName: "accuracy",
+          occurrenceIndex: 1,
+        }),
+      ]);
+    });
+
+    it("should build deterministic score IDs as part of payload creation", () => {
+      const expectedScoreIds = [
+        createDeterministicEvalScoreId({
+          jobExecutionId: "job-1",
+          scoreName: "accuracy",
+          occurrenceIndex: 0,
+        }),
+        createDeterministicEvalScoreId({
+          jobExecutionId: "job-1",
+          scoreName: "accuracy",
+          occurrenceIndex: 1,
+        }),
+      ];
+      const result = buildEvalScoreWritePayloads({
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "correct",
+            name: "accuracy",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "partial",
+            name: "accuracy",
+          },
+        ],
+        jobExecutionId: "job-1",
+        traceId: "trace-456",
+        observationId: "obs-789",
+        environment: "production",
+        executionTraceId: "exec-trace-789",
+        executionMetadata: { job_execution_id: "job-1" },
+      });
+
+      expect(result.map((payload) => payload.scoreId)).toEqual(
+        expectedScoreIds,
+      );
+      expect(result.map((payload) => payload.event.body.id)).toEqual(
+        expectedScoreIds,
+      );
+    });
+
     it("should build a single numeric score payload", () => {
+      const scoreId = createDeterministicEvalScoreId({
+        jobExecutionId: "job-1",
+        scoreName: "accuracy",
+        occurrenceIndex: 0,
+      });
       const result = buildEvalScoreWritePayloads({
         scores: [
           {
@@ -426,7 +570,7 @@ describe("evaluation helpers", () => {
             comment: "High accuracy observed",
           },
         ],
-        primaryScoreId: "score-123",
+        jobExecutionId: "job-1",
         traceId: "trace-456",
         observationId: null,
         environment: "production",
@@ -437,7 +581,7 @@ describe("evaluation helpers", () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
         eventId: expect.any(String),
-        scoreId: "score-123",
+        scoreId,
         event: expect.objectContaining({
           body: expect.objectContaining({
             value: 0.85,
@@ -448,6 +592,11 @@ describe("evaluation helpers", () => {
     });
 
     it("should build a single boolean score payload", () => {
+      const scoreId = createDeterministicEvalScoreId({
+        jobExecutionId: "job-1",
+        scoreName: "correctness",
+        occurrenceIndex: 0,
+      });
       const result = buildEvalScoreWritePayloads({
         scores: [
           {
@@ -457,7 +606,7 @@ describe("evaluation helpers", () => {
             comment: "The answer satisfies the criteria",
           },
         ],
-        primaryScoreId: "score-123",
+        jobExecutionId: "job-1",
         traceId: "trace-456",
         observationId: null,
         environment: "production",
@@ -468,7 +617,7 @@ describe("evaluation helpers", () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
         eventId: expect.any(String),
-        scoreId: "score-123",
+        scoreId,
         event: expect.objectContaining({
           body: expect.objectContaining({
             value: 1,
@@ -479,6 +628,16 @@ describe("evaluation helpers", () => {
     });
 
     it("should build one categorical payload per match while preserving shared metadata", () => {
+      const firstScoreId = createDeterministicEvalScoreId({
+        jobExecutionId: "job-1",
+        scoreName: "accuracy",
+        occurrenceIndex: 0,
+      });
+      const secondScoreId = createDeterministicEvalScoreId({
+        jobExecutionId: "job-1",
+        scoreName: "accuracy",
+        occurrenceIndex: 1,
+      });
       const result = buildEvalScoreWritePayloads({
         scores: [
           {
@@ -494,7 +653,7 @@ describe("evaluation helpers", () => {
             comment: "Both categories apply",
           },
         ],
-        primaryScoreId: "score-123",
+        jobExecutionId: "job-1",
         traceId: "trace-456",
         observationId: "obs-789",
         environment: "production",
@@ -503,8 +662,8 @@ describe("evaluation helpers", () => {
       });
 
       expect(result).toHaveLength(2);
-      expect(result[0].scoreId).toBe("score-123");
-      expect(result[1].scoreId).not.toBe("score-123");
+      expect(result[0].scoreId).toBe(firstScoreId);
+      expect(result[1].scoreId).toBe(secondScoreId);
       expect(result[0].event.body.value).toBe("correct");
       expect(result[1].event.body.value).toBe("partial");
       expect(result[0].event.body.comment).toBe("Both categories apply");
@@ -536,7 +695,7 @@ describe("evaluation helpers", () => {
             name: "fluency",
           },
         ],
-        primaryScoreId: "score-123",
+        jobExecutionId: "job-1",
         traceId: "trace-456",
         observationId: "obs-789",
         environment: "production",

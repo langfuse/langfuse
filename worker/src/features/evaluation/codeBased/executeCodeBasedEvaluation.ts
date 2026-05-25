@@ -1,7 +1,5 @@
-import { randomUUID } from "crypto";
 import { type JobConfiguration, type JobExecution } from "@prisma/client";
 import { type EvalTemplateCodeBased } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
 import {
   instrumentAsync,
   logger,
@@ -17,47 +15,34 @@ import { type EvalExecutionDeps } from "../evalExecutionDeps";
 
 export async function executeCodeBasedEvaluation(params: {
   projectId: string;
-  jobExecutionId: string;
+  organizationId: string;
   job: JobExecution;
   config: JobConfiguration;
   template: EvalTemplateCodeBased;
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
-  environment: string;
-  metadata: Record<string, string>;
-  // Unused; present for ObservationEvalExecutor interface symmetry.
+  executionMetadata: Record<string, string>;
+  // Unused by code-based eval; the shared observation processor passes it.
   deps?: EvalExecutionDeps;
 }): Promise<EvalExecutionResult> {
   return instrumentAsync(
     { name: "eval.execute-code-based-eval" },
     async (span) => {
       const dispatcher = resolveConfiguredCodeEvalDispatcher();
+      const jobExecutionId = params.job.id;
 
       if (!dispatcher) {
         throw new UnrecoverableError("Code eval dispatcher is not configured");
       }
 
-      const project = await prisma.project.findUnique({
-        where: { id: params.projectId },
-        select: { orgId: true },
-      });
-
-      if (!project) {
-        throw new UnrecoverableError(
-          `Project ${params.projectId} not found for code eval execution`,
-        );
-      }
-
-      const executionTraceId = createW3CTraceId(params.jobExecutionId);
-      const primaryScoreId = randomUUID();
+      const executionTraceId = createW3CTraceId(jobExecutionId);
       const executionMetadata = {
-        ...params.metadata,
+        ...params.executionMetadata,
         dispatcher_name: dispatcher.name,
         code_eval_runtime: params.template.sourceCodeLanguage,
       };
-
       span.setAttribute("langfuse.project.id", params.projectId);
-      span.setAttribute("eval.job_execution.id", params.jobExecutionId);
+      span.setAttribute("eval.job_execution.id", jobExecutionId);
       span.setAttribute("eval.job_configuration.id", params.config.id);
       span.setAttribute("eval.template.id", params.template.id);
       span.setAttribute("eval.template.version", params.template.version);
@@ -68,39 +53,35 @@ export async function executeCodeBasedEvaluation(params: {
       );
 
       logger.debug(
-        `Executing code-based evaluation for job ${params.jobExecutionId} in project ${params.projectId}`,
+        `Executing code-based evaluation for job ${jobExecutionId} in project ${params.projectId}`,
       );
 
       const dispatchOutcome = await runCodeBasedEvaluationDispatch({
         dispatcher,
-        organizationId: project.orgId,
+        organizationId: params.organizationId,
         projectId: params.projectId,
         executionTraceId,
-        jobExecutionId: params.jobExecutionId,
+        jobExecutionId,
         template: params.template,
-        scoreName: params.config.scoreName,
         extractedVariables: params.extractedVariables,
         hasExperimentContext: params.hasExperimentContext ?? false,
         traceName: `Execute evaluator: ${params.template.name}`,
-        metadata: {
-          ...executionMetadata,
-          score_id: primaryScoreId,
-        },
-        maskErrorsInTrace: true,
+        metadata: executionMetadata,
         writeTrace: (trace) => createInternalEventsWriter().write(trace),
       });
 
       if (!dispatchOutcome.success) {
-        throw dispatchOutcome.cause;
+        if (dispatchOutcome.error.retryable === false) {
+          throw new UnrecoverableError(dispatchOutcome.error.message);
+        }
+
+        throw new Error(dispatchOutcome.error.message);
       }
 
-      span.setAttribute("eval.result.count", dispatchOutcome.scores.length);
       span.setAttribute("eval.score.count", dispatchOutcome.scores.length);
-      span.setAttribute("eval.score.id", primaryScoreId);
 
       return {
         scores: dispatchOutcome.scores,
-        primaryScoreId,
         executionTraceId,
         metadata: executionMetadata,
       };

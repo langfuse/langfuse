@@ -119,6 +119,27 @@ type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   "trace_tags" | "trace_name" | "trace_user_id"
 >;
 
+const EVENT_SEARCH_COLUMNS = [
+  "span_id",
+  "name",
+  "trace_name",
+  "user_id",
+  "session_id",
+  "trace_id",
+] as const;
+
+const eventSearchCondition = (opts: {
+  query?: string;
+  searchType?: TracingSearchType[];
+}) =>
+  clickhouseSearchCondition({
+    query: opts.query,
+    searchType: opts.searchType,
+    tablePrefix: "e",
+    searchColumns: EVENT_SEARCH_COLUMNS,
+    useEventsTablePath: true,
+  });
+
 /**
  * Internal helper: enrich observations with model pricing data
  * Uses events-specific converter to include userId and sessionId
@@ -497,13 +518,6 @@ async function getObservationsFromEventsTableInternal<T>(
       column === "trace scores (categorical)"
     );
   });
-  const search = clickhouseSearchCondition(
-    opts.searchQuery,
-    opts.searchType,
-    "e",
-    ["span_id", "name", "trace_name", "user_id", "session_id", "trace_id"],
-  );
-
   const orderByEntries = orderByToEntries(
     [orderBy ?? null],
     eventsTableUiColumnDefinitions,
@@ -528,6 +542,11 @@ async function getObservationsFromEventsTableInternal<T>(
         .selectFieldSet("metadata");
     }
   }
+
+  const search = eventSearchCondition({
+    query: opts.searchQuery,
+    searchType: opts.searchType,
+  });
 
   // Handle positionInTrace via CTE with ROW_NUMBER()
   // All modes use the same pattern: rank observations per trace, pick rn = N.
@@ -558,6 +577,7 @@ async function getObservationsFromEventsTableInternal<T>(
         "e.span_id",
         `ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn`,
       )
+      .when(search.requiresEventsFull, (b) => b.forceFullTable())
       .where(appliedNativeFilter)
       .where(search);
 
@@ -598,6 +618,7 @@ async function getObservationsFromEventsTableInternal<T>(
         "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
       ),
     )
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .applyFilters(observationsFilter)
     .where(search)
     .when(orderByEntries.length > 0, (b) => b.orderByColumns(orderByEntries))
@@ -750,19 +771,16 @@ export const getEventsStreamForEval = async (props: {
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
-    "span_id",
-    "name",
-    "trace_name",
-    "user_id",
-    "session_id",
-    "trace_id",
-  ]);
+  const search = eventSearchCondition({
+    query: searchQuery,
+    searchType,
+  });
 
   const eventsQuery = new EventsQueryBuilder({ projectId })
     .selectFieldSet("eval")
     .selectIO(false)
     .selectFieldSet("metadata")
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
     .where(search)
     .whereRaw("e.is_deleted = 0")
@@ -825,8 +843,11 @@ export const getEventsStreamForEval = async (props: {
       kind: "eval",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
+  // Remap ClickHouse aliases to schema field names.
+  // Schema validation is left to the consumer so per-row errors can be handled gracefully.
   return Readable.from(
     (async function* () {
       for await (const row of asyncGenerator) {
@@ -998,7 +1019,8 @@ export const getTraceByIdFromEventsTable = async ({
         query,
         params: input.params,
         tags: input.tags,
-        preferredClickhouseService,
+        preferredClickhouseService:
+          preferredClickhouseService ?? "EventsReadOnly",
       });
     },
   });
@@ -2720,6 +2742,7 @@ export async function getAgentGraphDataFromEventsTable(params: {
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -3004,6 +3027,7 @@ export const getUsersFromEventsTable = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 };
 
@@ -3048,6 +3072,7 @@ export const getUsersCountFromEventsTable = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 };
 
@@ -3130,6 +3155,7 @@ export const getUserMetricsFromEventsTable = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.map((row) => ({
@@ -3195,24 +3221,14 @@ export const getEventsForBlobStorageExport = function (
     ? fieldGroups
     : (["core", ...fieldGroups] as ObservationFieldGroupFull[]);
 
-  // model_export must be selected whenever model or usage is requested:
-  // - model group: include model identification fields in the output
-  // - usage group (without model): pricing enrichment needs model_id for the
-  //   lookup; the field is dropped afterward by enrichObservationStream
-  const needsModelFields =
-    fieldGroups.includes("model") || fieldGroups.includes("usage");
-
   for (const group of effectiveGroups) {
     if (group === "io") {
       queryBuilder.selectIO(false); // Full I/O, no truncation
-    } else if (group !== "model") {
-      // model_export is selected below via needsModelFields to avoid double-selecting
+    } else if (group === "model") {
+      queryBuilder.selectFieldSet("model_export"); // "model_export" is the SQL field set name for the "model" group
+    } else {
       queryBuilder.selectFieldSet(group);
     }
-  }
-
-  if (needsModelFields) {
-    queryBuilder.selectFieldSet("model_export");
   }
 
   queryBuilder
@@ -3240,6 +3256,7 @@ export const getEventsForBlobStorageExport = function (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 };
 
@@ -3292,6 +3309,7 @@ export const getEventsForAnalyticsIntegrations = async function* (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
@@ -3406,6 +3424,7 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "EventsReadOnly",
       }),
   });
 };
@@ -3451,6 +3470,7 @@ export const getAvgCostByEvaluatorIds = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.map((row) => ({
@@ -3493,6 +3513,7 @@ export const getSessionMetricsFromEvents = async (props: {
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "EventsReadOnly",
       }),
   });
 

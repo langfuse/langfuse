@@ -9,11 +9,16 @@ import {
 import {
   observationForEvalSchema,
   observationVariableMappingList,
-  isJobConfigExecutable,
-  type EvalTemplate,
+  type EvalTemplateCodeBased,
+  type EvalTemplateLlmAsAJudge,
+  isJobConfigExecutableForExecutionMode,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
-import { type JobConfiguration, type JobExecution } from "@prisma/client";
+import {
+  EvalTemplateType,
+  type JobConfiguration,
+  type JobExecution,
+} from "@prisma/client";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 import { buildEvalExecutionMetadata } from "../evalRuntime";
@@ -25,6 +30,8 @@ import {
   createProductionEvalExecutionDeps,
   type EvalExecutionDeps,
 } from "../evalExecutionDeps";
+import { runLLMAsJudgeEvaluation } from "../evalService";
+import { executeCodeBasedEvaluation } from "../codeBased";
 import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationForEval } from "./types";
 
@@ -34,28 +41,16 @@ import { type ObservationForEval } from "./types";
  */
 export type ObservationEvalExecutionBaseParams = {
   projectId: string;
+  organizationId: string;
   jobExecutionId: string;
   job: JobExecution;
   config: JobConfiguration;
   extractedVariables: ExtractedVariable[];
   hasExperimentContext: boolean;
   environment: string;
-  metadata: Record<string, string>;
+  executionMetadata: Record<string, string>;
   deps: EvalExecutionDeps;
 };
-
-export type ObservationEvalExecutionParams<TTemplate extends EvalTemplate> =
-  ObservationEvalExecutionBaseParams & {
-    template: TTemplate;
-  };
-
-export type ObservationEvalExecutor<TTemplate extends EvalTemplate> = (
-  params: ObservationEvalExecutionParams<TTemplate>,
-) => Promise<EvalExecutionResult>;
-
-export type ObservationEvalTemplateValidator<TTemplate extends EvalTemplate> = (
-  template: EvalTemplate,
-) => TTemplate;
 
 export interface ObservationEvalProcessorDeps {
   downloadObservationFromS3: (path: string) => Promise<string>;
@@ -80,21 +75,24 @@ export function createObservationEvalProcessorDeps(): ObservationEvalProcessorDe
  * Processes an observation-level evaluation job.
  *
  * This function:
- * 1. Fetches and validates job execution, config, and template
+ * 1. Fetches job execution, config, and the expected template type
  * 2. Downloads observation data from S3 (stored during scheduling)
  * 3. Extracts variables from the observation
  * 4. Executes the evaluator-specific implementation
  * 5. Completes the eval execution with shared score persistence
  */
-type ProcessObservationEvalParams<TTemplate extends EvalTemplate> = {
+type ObservationEvalExecutionType =
+  | typeof EvalTemplateType.LLM_AS_JUDGE
+  | typeof EvalTemplateType.CODE;
+
+type ProcessObservationEvalParams = {
   event: z.infer<typeof ObservationEvalExecutionEventSchema>;
-  validateTemplate: ObservationEvalTemplateValidator<TTemplate>;
-  executor: ObservationEvalExecutor<TTemplate>;
+  executionType: ObservationEvalExecutionType;
   deps?: ObservationEvalProcessorDeps;
 };
 
-export async function processObservationEval<TTemplate extends EvalTemplate>(
-  params: ProcessObservationEvalParams<TTemplate>,
+export async function processObservationEval(
+  params: ProcessObservationEvalParams,
 ): Promise<void> {
   const { event, deps = createObservationEvalProcessorDeps() } = params;
   logger.debug(
@@ -133,9 +131,19 @@ export async function processObservationEval<TTemplate extends EvalTemplate>(
     where: {
       id: job.jobConfigurationId,
       projectId: event.projectId,
+      evalTemplate: {
+        is: {
+          type: params.executionType,
+        },
+      },
     },
     include: {
       evalTemplate: true,
+      project: {
+        select: {
+          orgId: true,
+        },
+      },
     },
   });
 
@@ -145,7 +153,9 @@ export async function processObservationEval<TTemplate extends EvalTemplate>(
     );
   }
 
-  if (!isJobConfigExecutable(evalJobConfig)) {
+  if (
+    !isJobConfigExecutableForExecutionMode(evalJobConfig, event.executionMode)
+  ) {
     logger.debug(
       `Job execution ${event.jobExecutionId} is not executable because the evaluator is blocked or inactive.`,
     );
@@ -162,13 +172,6 @@ export async function processObservationEval<TTemplate extends EvalTemplate>(
     });
 
     return;
-  }
-
-  let evalTemplate: TTemplate;
-  try {
-    evalTemplate = params.validateTemplate(evalJobConfig.evalTemplate);
-  } catch (e) {
-    throw new UnrecoverableError(e instanceof Error ? e.message : String(e));
   }
 
   // Download observation data from S3
@@ -217,13 +220,14 @@ export async function processObservationEval<TTemplate extends EvalTemplate>(
 
   const executionParams = {
     projectId: event.projectId,
+    organizationId: evalJobConfig.project.orgId,
     jobExecutionId: event.jobExecutionId,
     job,
     config: evalJobConfig,
     extractedVariables,
     hasExperimentContext: Boolean(observationData.experiment_id),
     environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
-    metadata: buildEvalExecutionMetadata({
+    executionMetadata: buildEvalExecutionMetadata({
       jobExecutionId: event.jobExecutionId,
       jobConfigurationId: job.jobConfigurationId,
       targetTraceId: job.jobInputTraceId,
@@ -233,10 +237,23 @@ export async function processObservationEval<TTemplate extends EvalTemplate>(
     deps: deps.evalExecutionDeps,
   };
 
-  const executionResult = await params.executor({
-    ...executionParams,
-    template: evalTemplate,
-  });
+  // The config query filters evalTemplate.type, but Prisma does not narrow the
+  // nullable template fields from that relation predicate.
+  let executionResult: EvalExecutionResult;
+  switch (params.executionType) {
+    case EvalTemplateType.LLM_AS_JUDGE:
+      executionResult = await runLLMAsJudgeEvaluation({
+        ...executionParams,
+        template: evalJobConfig.evalTemplate as EvalTemplateLlmAsAJudge,
+      });
+      break;
+    case EvalTemplateType.CODE:
+      executionResult = await executeCodeBasedEvaluation({
+        ...executionParams,
+        template: evalJobConfig.evalTemplate as EvalTemplateCodeBased,
+      });
+      break;
+  }
 
   await completeEvalExecution({
     projectId: executionParams.projectId,

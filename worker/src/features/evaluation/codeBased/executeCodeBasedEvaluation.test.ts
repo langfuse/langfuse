@@ -7,25 +7,17 @@ import {
   CodeEvalDispatcherError,
   CodeEvalDispatcherErrorCodes,
 } from "../../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
+import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 
 const mocks = vi.hoisted(() => ({
   dispatcher: {
     name: "test-dispatcher",
     dispatch: vi.fn(),
   },
-  projectFindUnique: vi.fn(),
   writeInternalTrace: vi.fn(),
   createW3CTraceId: vi.fn(() => "execution-trace-1"),
   span: {
     setAttribute: vi.fn(),
-  },
-}));
-
-vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: {
-    project: {
-      findUnique: mocks.projectFindUnique,
-    },
   },
 }));
 
@@ -56,21 +48,25 @@ import { executeCodeBasedEvaluation } from "./executeCodeBasedEvaluation";
 describe("executeCodeBasedEvaluation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.projectFindUnique.mockResolvedValue({ orgId: "org-1" });
     mocks.writeInternalTrace.mockResolvedValue(undefined);
   });
 
-  it("defaults the first missing score name to the score config name and keeps additional names", async () => {
+  it("keeps score names returned by the dispatcher", async () => {
     mocks.dispatcher.dispatch.mockResolvedValue({
       scores: [
-        { value: 1, dataType: "BOOLEAN", metadata: { user: "value" } },
+        {
+          name: "primary-score",
+          value: 1,
+          dataType: "BOOLEAN",
+          metadata: { user: "value" },
+        },
         { name: "extra-score", value: "good", dataType: "CATEGORICAL" },
       ],
     });
 
     const result = await executeCodeBasedEvaluation({
       projectId: "project-1",
-      jobExecutionId: "job-1",
+      organizationId: "org-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -98,13 +94,12 @@ describe("executeCodeBasedEvaluation", () => {
         { var: "experimentExpectedOutput", value: "4" },
       ],
       hasExperimentContext: true,
-      environment: "default",
-      metadata: { job_execution_id: "job-1" },
+      executionMetadata: { job_execution_id: "job-1" },
     });
 
     expect(result.scores).toMatchObject([
       {
-        name: "default-score",
+        name: "primary-score",
         value: 1,
         dataType: "BOOLEAN",
         metadata: { user: "value" },
@@ -148,17 +143,17 @@ describe("executeCodeBasedEvaluation", () => {
     );
   });
 
-  it("defaults every unnamed score to the score config name", async () => {
+  it("keeps multiple dispatcher-provided score names", async () => {
     mocks.dispatcher.dispatch.mockResolvedValue({
       scores: [
-        { value: 1, dataType: "BOOLEAN" },
-        { value: "good", dataType: "CATEGORICAL" },
+        { name: "boolean-score", value: 1, dataType: "BOOLEAN" },
+        { name: "categorical-score", value: "good", dataType: "CATEGORICAL" },
       ],
     });
 
     const result = await executeCodeBasedEvaluation({
       projectId: "project-1",
-      jobExecutionId: "job-1",
+      organizationId: "org-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -180,13 +175,12 @@ describe("executeCodeBasedEvaluation", () => {
         outputDefinition: null,
       } as any,
       extractedVariables: [],
-      environment: "default",
-      metadata: { job_execution_id: "job-1" },
+      executionMetadata: { job_execution_id: "job-1" },
     });
 
     expect(result.scores).toMatchObject([
-      { name: "default-score", value: 1, dataType: "BOOLEAN" },
-      { name: "default-score", value: "good", dataType: "CATEGORICAL" },
+      { name: "boolean-score", value: 1, dataType: "BOOLEAN" },
+      { name: "categorical-score", value: "good", dataType: "CATEGORICAL" },
     ]);
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -199,12 +193,12 @@ describe("executeCodeBasedEvaluation", () => {
 
   it("passes an empty experiment payload when the source observation has experiment context", async () => {
     mocks.dispatcher.dispatch.mockResolvedValue({
-      scores: [{ value: 1, dataType: "BOOLEAN" }],
+      scores: [{ name: "score", value: 1, dataType: "BOOLEAN" }],
     });
 
     await executeCodeBasedEvaluation({
       projectId: "project-1",
-      jobExecutionId: "job-1",
+      organizationId: "org-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -224,8 +218,7 @@ describe("executeCodeBasedEvaluation", () => {
       } as any,
       extractedVariables: [],
       hasExperimentContext: true,
-      environment: "default",
-      metadata: { job_execution_id: "job-1" },
+      executionMetadata: { job_execution_id: "job-1" },
     });
 
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
@@ -243,12 +236,12 @@ describe("executeCodeBasedEvaluation", () => {
 
   it("does not infer experiment payload from mapped variables alone", async () => {
     mocks.dispatcher.dispatch.mockResolvedValue({
-      scores: [{ value: 1, dataType: "BOOLEAN" }],
+      scores: [{ name: "score", value: 1, dataType: "BOOLEAN" }],
     });
 
     await executeCodeBasedEvaluation({
       projectId: "project-1",
-      jobExecutionId: "job-1",
+      organizationId: "org-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -268,8 +261,7 @@ describe("executeCodeBasedEvaluation", () => {
       } as any,
       extractedVariables: [{ var: "experimentExpectedOutput", value: "4" }],
       hasExperimentContext: false,
-      environment: "default",
-      metadata: { job_execution_id: "job-1" },
+      executionMetadata: { job_execution_id: "job-1" },
     });
 
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
@@ -283,12 +275,12 @@ describe("executeCodeBasedEvaluation", () => {
 
   it("passes extracted variable values through to the dispatcher payload as-is", async () => {
     mocks.dispatcher.dispatch.mockResolvedValue({
-      scores: [{ value: 1, dataType: "BOOLEAN" }],
+      scores: [{ name: "score", value: 1, dataType: "BOOLEAN" }],
     });
 
     await executeCodeBasedEvaluation({
       projectId: "project-1",
-      jobExecutionId: "job-1",
+      organizationId: "org-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -312,8 +304,7 @@ describe("executeCodeBasedEvaluation", () => {
         { var: "experimentExpectedOutput", value: "null" },
       ],
       hasExperimentContext: true,
-      environment: "default",
-      metadata: { job_execution_id: "job-1" },
+      executionMetadata: { job_execution_id: "job-1" },
     });
 
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
@@ -335,12 +326,12 @@ describe("executeCodeBasedEvaluation", () => {
 
   it("passes experiment item metadata through without expected output", async () => {
     mocks.dispatcher.dispatch.mockResolvedValue({
-      scores: [{ value: 1, dataType: "BOOLEAN" }],
+      scores: [{ name: "score", value: 1, dataType: "BOOLEAN" }],
     });
 
     await executeCodeBasedEvaluation({
       projectId: "project-1",
-      jobExecutionId: "job-1",
+      organizationId: "org-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -365,8 +356,7 @@ describe("executeCodeBasedEvaluation", () => {
         },
       ],
       hasExperimentContext: true,
-      environment: "default",
-      metadata: { job_execution_id: "job-1" },
+      executionMetadata: { job_execution_id: "job-1" },
     });
 
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
@@ -395,7 +385,7 @@ describe("executeCodeBasedEvaluation", () => {
     await expect(
       executeCodeBasedEvaluation({
         projectId: "project-1",
-        jobExecutionId: "job-1",
+        organizationId: "org-1",
         job: {
           id: "job-1",
           jobConfigurationId: "config-1",
@@ -415,8 +405,7 @@ describe("executeCodeBasedEvaluation", () => {
           outputDefinition: null,
         } as any,
         extractedVariables: [{ var: "input", value: "prompt" }],
-        environment: "default",
-        metadata: { job_execution_id: "job-1" },
+        executionMetadata: { job_execution_id: "job-1" },
       }),
     ).resolves.toMatchObject({
       scores: [{ name: "score", value: 1, dataType: "NUMERIC" }],
@@ -431,33 +420,33 @@ describe("executeCodeBasedEvaluation", () => {
     });
     mocks.dispatcher.dispatch.mockRejectedValue(error);
 
-    await expect(
-      executeCodeBasedEvaluation({
-        projectId: "project-1",
-        jobExecutionId: "job-1",
-        job: {
-          id: "job-1",
-          jobConfigurationId: "config-1",
-          jobInputTraceId: "trace-1",
-          jobInputObservationId: "obs-1",
-          jobInputDatasetItemId: null,
-        } as any,
-        config: { id: "config-1", scoreName: "default-score" } as any,
-        template: {
-          id: "template-1",
-          name: "Code evaluator",
-          type: EvalTemplateType.CODE,
-          version: 1,
-          sourceCode: "export function evaluate() {}",
-          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
-          prompt: null,
-          outputDefinition: null,
-        } as any,
-        extractedVariables: [{ var: "input", value: "prompt" }],
-        environment: "default",
-        metadata: { job_execution_id: "job-1" },
-      }),
-    ).rejects.toBe(error);
+    const promise = executeCodeBasedEvaluation({
+      projectId: "project-1",
+      organizationId: "org-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: "obs-1",
+        jobInputDatasetItemId: null,
+      } as any,
+      config: { id: "config-1", scoreName: "default-score" } as any,
+      template: {
+        id: "template-1",
+        name: "Code evaluator",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "export function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [{ var: "input", value: "prompt" }],
+      executionMetadata: { job_execution_id: "job-1" },
+    });
+
+    await expect(promise).rejects.toThrow(UnrecoverableError);
+    await expect(promise).rejects.toThrow("runner exploded");
 
     expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);
     expect(mocks.writeInternalTrace).toHaveBeenCalledWith(
@@ -474,14 +463,7 @@ describe("executeCodeBasedEvaluation", () => {
             input: JSON.stringify({
               observation: { input: "prompt", output: null, metadata: null },
             }),
-            output: JSON.stringify({
-              error: {
-                name: "CodeEvalDispatcherError",
-                message: "runner exploded",
-                code: "USER_CODE_ERROR",
-                retryable: false,
-              },
-            }),
+            output: expect.stringContaining("runner exploded"),
             metadata: expect.objectContaining({
               dispatcher_name: "test-dispatcher",
               code_eval_runtime: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
@@ -498,20 +480,19 @@ describe("executeCodeBasedEvaluation", () => {
     );
   });
 
-  it("masks internal dispatcher errors in the internal trace", async () => {
-    const error = new CodeEvalDispatcherError(
-      "Failed to invoke code eval Lambda code-based-eval-executor-node: ResourceNotFoundException: Function not found",
-      {
-        code: CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
-        retryable: false,
-      },
-    );
+  it("writes an actionable user-visible timeout error", async () => {
+    const rawTimeoutMessage =
+      "Function.TimedOut: Task timed out after 2 seconds";
+    const error = new CodeEvalDispatcherError(rawTimeoutMessage, {
+      code: CodeEvalDispatcherErrorCodes.TIMEOUT,
+      retryable: true,
+    });
     mocks.dispatcher.dispatch.mockRejectedValue(error);
 
     await expect(
       executeCodeBasedEvaluation({
         projectId: "project-1",
-        jobExecutionId: "job-1",
+        organizationId: "org-1",
         job: {
           id: "job-1",
           jobConfigurationId: "config-1",
@@ -531,10 +512,53 @@ describe("executeCodeBasedEvaluation", () => {
           outputDefinition: null,
         } as any,
         extractedVariables: [{ var: "input", value: "prompt" }],
-        environment: "default",
-        metadata: { job_execution_id: "job-1" },
+        executionMetadata: { job_execution_id: "job-1" },
       }),
-    ).rejects.toBe(error);
+    ).rejects.toThrow("Evaluator timed out.");
+
+    expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);
+    const trace = JSON.stringify(mocks.writeInternalTrace.mock.calls[0]?.[0]);
+    expect(trace).toContain("Evaluator timed out.");
+    expect(trace).not.toContain(rawTimeoutMessage);
+  });
+
+  it("masks internal dispatcher errors in the internal trace", async () => {
+    const error = new CodeEvalDispatcherError(
+      "Failed to invoke code eval Lambda code-based-eval-executor-node: ResourceNotFoundException: Function not found",
+      {
+        code: CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
+        retryable: false,
+      },
+    );
+    mocks.dispatcher.dispatch.mockRejectedValue(error);
+
+    const promise = executeCodeBasedEvaluation({
+      projectId: "project-1",
+      organizationId: "org-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: "obs-1",
+        jobInputDatasetItemId: null,
+      } as any,
+      config: { id: "config-1", scoreName: "default-score" } as any,
+      template: {
+        id: "template-1",
+        name: "Code evaluator",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "export function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [{ var: "input", value: "prompt" }],
+      executionMetadata: { job_execution_id: "job-1" },
+    });
+
+    await expect(promise).rejects.toThrow(UnrecoverableError);
+    await expect(promise).rejects.toThrow("An internal error occurred");
 
     expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);
     expect(mocks.writeInternalTrace).toHaveBeenCalledWith(
@@ -544,18 +568,13 @@ describe("executeCodeBasedEvaluation", () => {
             level: "ERROR",
             statusMessage:
               "Code eval execution failed: An internal error occurred",
-            output: JSON.stringify({
-              error: {
-                name: "CodeEvalDispatcherError",
-                message: "An internal error occurred",
-                code: "INTERNAL_ERROR",
-                retryable: false,
-              },
-            }),
+            output: expect.stringContaining("An internal error occurred"),
             metadata: expect.objectContaining({
               error_name: "CodeEvalDispatcherError",
               error_message: "An internal error occurred",
-              error_code: "INTERNAL_ERROR",
+              error_code:
+                CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
+              error_public_code: "INTERNAL_ERROR",
               error_retryable: false,
             }),
           }),

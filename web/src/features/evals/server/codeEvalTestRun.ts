@@ -7,44 +7,50 @@ import {
   processEventBatch,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
+  type CodeEvalUserVisibleErrorCode,
   type DispatchResult,
   type InternalTraceWriteInput,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 import {
-  assertCodeBasedEvalTemplate,
+  LangfuseInternalTraceEnvironment,
   observationForEvalSchema,
   type EvalTargetObject,
   type EvalTemplateCodeBased,
   type ObservationForEval,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
-import type { PrismaClient } from "@langfuse/shared/src/db";
+import { EvalTemplateType, type PrismaClient } from "@langfuse/shared/src/db";
 
 export type CodeEvalTestRunResult =
   | {
       success: true;
       result: DispatchResult;
       executionTraceId: string;
+      executionTraceFromTimestamp: Date;
     }
   | {
       success: false;
       error: {
-        code: string;
+        code: CodeEvalUserVisibleErrorCode;
         message: string;
       };
       executionTraceId: string;
+      executionTraceFromTimestamp: Date;
     };
 
 export async function runCodeEvalTest(params: {
   prisma: PrismaClient;
+  orgId: string;
   projectId: string;
   evalTemplateId: string;
   target: EvalTargetObject;
   mapping: ObservationVariableMapping[];
   scoreName: string;
   observationId: string;
+  traceId: string;
+  startTime: Date;
 }): Promise<CodeEvalTestRunResult> {
   const dispatcher = resolveConfiguredCodeEvalDispatcher();
 
@@ -55,50 +61,28 @@ export async function runCodeEvalTest(params: {
     });
   }
 
-  const [project, template] = await Promise.all([
-    params.prisma.project.findUnique({
-      where: { id: params.projectId },
-      select: { orgId: true },
-    }),
-    params.prisma.evalTemplate.findFirst({
-      where: {
-        id: params.evalTemplateId,
-        OR: [{ projectId: params.projectId }, { projectId: null }],
-      },
-    }),
-  ]);
+  const codeTemplate = (await params.prisma.evalTemplate.findFirst({
+    where: {
+      id: params.evalTemplateId,
+      type: EvalTemplateType.CODE,
+      sourceCode: { not: null },
+      sourceCodeLanguage: { not: null },
+      OR: [{ projectId: params.projectId }, { projectId: null }],
+    },
+  })) as EvalTemplateCodeBased | null;
 
-  if (!project) {
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Project not found",
-    });
-  }
-
-  if (!template) {
+  if (!codeTemplate) {
     throw new TRPCError({
       code: "NOT_FOUND",
       message: "Evaluator template not found",
     });
   }
 
-  let codeTemplate: EvalTemplateCodeBased;
-  try {
-    assertCodeBasedEvalTemplate(template);
-    codeTemplate = template;
-  } catch (error) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Evaluator template is not a code-based template",
-    });
-  }
-
   const observation = await getObservationForEvalById({
     projectId: params.projectId,
     id: params.observationId,
+    traceId: params.traceId,
+    startTime: params.startTime,
   });
   const extractedVariables = extractObservationVariables({
     observation,
@@ -119,16 +103,15 @@ export async function runCodeEvalTest(params: {
 
   const dispatchOutcome = await runCodeBasedEvaluationDispatch({
     dispatcher,
-    organizationId: project.orgId,
+    organizationId: params.orgId,
     projectId: params.projectId,
     executionTraceId,
     jobExecutionId: executionTraceId,
     template: codeTemplate,
-    scoreName: params.scoreName,
     extractedVariables,
+    hasExperimentContext: Boolean(observation.experiment_id),
     traceName,
     metadata: executionMetadata,
-    maskErrorsInTrace: true,
     writeTrace: writeTraceViaIngestion,
   });
 
@@ -137,23 +120,50 @@ export async function runCodeEvalTest(params: {
       success: true,
       result: dispatchOutcome.result,
       executionTraceId: dispatchOutcome.executionTraceId,
+      executionTraceFromTimestamp: dispatchOutcome.executionTraceFromTimestamp,
     };
   }
 
   return {
     success: false,
-    error: dispatchOutcome.error,
+    error: {
+      code: dispatchOutcome.error.code,
+      message: dispatchOutcome.error.message,
+    },
     executionTraceId: dispatchOutcome.executionTraceId,
+    executionTraceFromTimestamp: dispatchOutcome.executionTraceFromTimestamp,
   };
 }
 
 async function getObservationForEvalById(params: {
   projectId: string;
   id: string;
+  traceId: string;
+  startTime: Date;
 }): Promise<ObservationForEval> {
+  const startTimeUpperBound = new Date(params.startTime.getTime() + 1);
+
   const stream = await getEventsStreamForEval({
     projectId: params.projectId,
     filter: [
+      {
+        type: "string",
+        column: "traceId",
+        operator: "=",
+        value: params.traceId,
+      },
+      {
+        type: "datetime",
+        column: "startTime",
+        operator: ">=",
+        value: params.startTime,
+      },
+      {
+        type: "datetime",
+        column: "startTime",
+        operator: "<",
+        value: startTimeUpperBound,
+      },
       {
         type: "stringOptions",
         column: "id",
@@ -191,7 +201,7 @@ async function writeTraceViaIngestion(trace: InternalTraceWriteInput) {
       id: rootEventInput.traceId,
       timestamp: rootEventInput.startTimeISO,
       name: rootEventInput.traceName ?? rootEventInput.name,
-      environment: rootEventInput.environment,
+      environment: getInternalEvalEnvironment(rootEventInput.environment),
       input: rootEventInput.input,
       output: rootEventInput.output,
       metadata: rootEventInput.metadata,
@@ -212,7 +222,7 @@ async function writeTraceViaIngestion(trace: InternalTraceWriteInput) {
       id: eventInput.spanId,
       traceId: eventInput.traceId,
       name: eventInput.name,
-      environment: eventInput.environment,
+      environment: getInternalEvalEnvironment(eventInput.environment),
       startTime: eventInput.startTimeISO,
       endTime: eventInput.endTimeISO,
       input: eventInput.input,
@@ -240,4 +250,10 @@ async function writeTraceViaIngestion(trace: InternalTraceWriteInput) {
   if (result.errors.length > 0) {
     throw new Error(result.errors[0]?.error ?? "Failed to write trace");
   }
+}
+
+function getInternalEvalEnvironment(environment: string | undefined) {
+  return environment === LangfuseInternalTraceEnvironment.CodeEval
+    ? LangfuseInternalTraceEnvironment.CodeEval
+    : LangfuseInternalTraceEnvironment.LLMJudge;
 }

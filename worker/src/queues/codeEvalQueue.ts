@@ -1,13 +1,7 @@
 import { Job, Processor } from "bullmq";
-import { JobExecutionStatus } from "@prisma/client";
-import {
-  assertCodeBasedEvalTemplate,
-  type EvalTemplate,
-  type EvalTemplateCodeBased,
-} from "@langfuse/shared";
+import { EvalTemplateType, JobExecutionStatus } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  CodeEvalDispatcherError,
   getCodeEvalUserVisibleError,
   getCurrentSpan,
   logger,
@@ -15,7 +9,6 @@ import {
   TQueueJobTypes,
   traceException,
 } from "@langfuse/shared/src/server";
-import { executeCodeBasedEvaluation } from "../features/evaluation/codeBased";
 import { processObservationEval } from "../features/evaluation/observationEval";
 import { createW3CTraceId } from "../features/utils";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
@@ -46,8 +39,7 @@ export const codeEvalExecutionQueueProcessorBuilder = (
 
       await processObservationEval({
         event: job.data.payload,
-        validateTemplate: validateCodeBasedTemplate,
-        executor: executeCodeBasedEvaluation,
+        executionType: EvalTemplateType.CODE,
       });
 
       return true;
@@ -56,9 +48,7 @@ export const codeEvalExecutionQueueProcessorBuilder = (
         job.data.payload.jobExecutionId,
       );
 
-      const isTerminalError =
-        isUnrecoverableError(e) ||
-        (e instanceof CodeEvalDispatcherError && !e.retryable);
+      const isTerminalError = isUnrecoverableError(e);
       const totalAttempts = job.opts.attempts ?? 1;
       const isFinalAttempt = job.attemptsMade + 1 >= totalAttempts;
 
@@ -93,21 +83,7 @@ export const codeEvalExecutionQueueProcessorBuilder = (
   };
 };
 
-const validateCodeBasedTemplate = (
-  template: EvalTemplate,
-): EvalTemplateCodeBased => {
-  assertCodeBasedEvalTemplate(template);
-  return template;
-};
-
-// Returns a user-visible message for JobExecution.error. Dispatcher errors
-// with internal lambda codes are masked to avoid exposing infra details;
-// other dispatcher errors and UnrecoverableError messages are surfaced as-is.
 function getJobExecutionErrorMessage(e: unknown): string {
-  if (e instanceof CodeEvalDispatcherError) {
-    return getCodeEvalUserVisibleError(e).message;
-  }
-
   if (isUnrecoverableError(e)) return e.message;
 
   return getCodeEvalUserVisibleError(e).message;

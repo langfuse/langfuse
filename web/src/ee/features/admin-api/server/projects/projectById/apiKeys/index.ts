@@ -25,6 +25,7 @@ export async function handleGetApiKeys(
     where: {
       projectId,
       scope: "PROJECT",
+      isInAppAgentKey: false,
     },
     select: {
       id: true,

@@ -10,7 +10,6 @@ const baseInput: DispatchInput = {
     organizationId: "org-1",
     projectId: "project-1",
     evaluatorId: "evaluator-1",
-    environment: "code-based-eval",
   },
   runtime: { language: "TYPESCRIPT" },
   execution: { jobExecutionId: "job-1" },
@@ -31,6 +30,7 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
         JSON.stringify({
           scores: [
             {
+              name: "lambda-score",
               value: 1,
               dataType: "NUMERIC",
               metadata: { source: "lambda-fixture" },
@@ -46,6 +46,7 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     await expect(dispatcher.dispatch(baseInput)).resolves.toEqual({
       scores: [
         {
+          name: "lambda-score",
           value: 1,
           dataType: "NUMERIC",
           metadata: { source: "lambda-fixture" },
@@ -57,7 +58,9 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
   it("propagates TenantId derived from scope.organizationId:projectId", async () => {
     const send = vi.fn().mockResolvedValue({
       Payload: Buffer.from(
-        JSON.stringify({ scores: [{ value: 1, dataType: "NUMERIC" }] }),
+        JSON.stringify({
+          scores: [{ name: "score", value: 1, dataType: "NUMERIC" }],
+        }),
       ),
     });
     const dispatcher = new AwsLambdaCodeEvalDispatcher({
@@ -71,7 +74,9 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
   it("sends the nested evaluation context payload to Lambda", async () => {
     const send = vi.fn().mockResolvedValue({
       Payload: Buffer.from(
-        JSON.stringify({ scores: [{ value: 1, dataType: "NUMERIC" }] }),
+        JSON.stringify({
+          scores: [{ name: "score", value: 1, dataType: "NUMERIC" }],
+        }),
       ),
     });
     const dispatcher = new AwsLambdaCodeEvalDispatcher({
@@ -107,7 +112,7 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     const send = vi.fn().mockResolvedValue({
       Payload: Buffer.from(
         JSON.stringify({
-          scores: [{ value: 1, dataType: "NUMERIC" }],
+          scores: [{ name: "score", value: 1, dataType: "NUMERIC" }],
           error: {
             code: "LAMBDA_CONCURRENCY_LIMIT",
             message: "attacker-controlled",
@@ -120,14 +125,16 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     });
 
     await expect(dispatcher.dispatch(baseInput)).resolves.toEqual({
-      scores: [{ value: 1, dataType: "NUMERIC" }],
+      scores: [{ name: "score", value: 1, dataType: "NUMERIC" }],
     });
   });
 
   it("uses configured function names per runtime", async () => {
     const send = vi.fn().mockResolvedValue({
       Payload: Buffer.from(
-        JSON.stringify({ scores: [{ value: 1, dataType: "NUMERIC" }] }),
+        JSON.stringify({
+          scores: [{ name: "score", value: 1, dataType: "NUMERIC" }],
+        }),
       ),
     });
     const dispatcher = new AwsLambdaCodeEvalDispatcher({
@@ -335,7 +342,13 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     // so it should fail fast as a non-retryable `RESULT_TOO_LARGE` without
     // ever allocating the parsed object.
     const oversizedBody = JSON.stringify({
-      scores: [{ value: "a".repeat(512 * 1024), dataType: "CATEGORICAL" }],
+      scores: [
+        {
+          name: "oversized-score",
+          value: "a".repeat(512 * 1024),
+          dataType: "CATEGORICAL",
+        },
+      ],
     });
     const send = vi.fn().mockResolvedValue({
       Payload: Buffer.from(oversizedBody),

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { ScoreSourceEnum } from "@langfuse/shared";
 import {
+  buildDeterministicEvalScoreIds,
   eventTypes,
   ScoreEventType,
   type CodeEvalScoreWithName,
@@ -14,16 +15,21 @@ export type EvalScoreWritePayload = {
 
 export function buildEvalScoreWritePayloads(params: {
   scores: CodeEvalScoreWithName[];
-  primaryScoreId: string;
+  jobExecutionId: string;
   traceId: string | null;
   observationId: string | null;
   environment: string;
   executionTraceId: string;
   executionMetadata: Record<string, string>;
 }): EvalScoreWritePayload[] {
+  const scoreIds = buildDeterministicEvalScoreIds({
+    scores: params.scores,
+    jobExecutionId: params.jobExecutionId,
+  });
+
   return params.scores.map((score, index) => {
     const eventId = randomUUID();
-    const scoreId = index === 0 ? params.primaryScoreId : randomUUID();
+    const scoreId = scoreIds[index]!;
 
     return {
       eventId,

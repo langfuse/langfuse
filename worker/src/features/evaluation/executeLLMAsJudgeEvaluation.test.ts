@@ -453,7 +453,6 @@ describe("executeLLMAsJudgeEvaluation", () => {
               job_execution_id: jobExecutionId,
               job_configuration_id: mockJobExecution.jobConfigurationId,
               target_trace_id: mockJobExecution.jobInputTraceId,
-              score_id: expect.any(String),
             }),
           }),
         }),

@@ -92,6 +92,7 @@ maybe("evals.testRunCodeEval", () => {
     const { project, caller } = await prepare();
     const observationId = randomUUID();
     const traceId = randomUUID();
+    const startTime = new Date();
     const savedSource = `
       export function evaluate(ctx) {
         const matched =
@@ -99,7 +100,7 @@ maybe("evals.testRunCodeEval", () => {
           ctx.observation.output === "4" &&
           ctx.observation.metadata.rubric === "math";
 
-        return { scores: [{ value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
+        return { scores: [{ name: "saved-test-score", value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
       }
     `;
 
@@ -122,6 +123,7 @@ maybe("evals.testRunCodeEval", () => {
         trace_id: traceId,
         span_id: observationId,
         id: observationId,
+        start_time: startTime.getTime() * 1000,
         input: JSON.stringify({ question: "2+2" }),
         output: "4",
         metadata_names: ["quality"],
@@ -142,6 +144,8 @@ maybe("evals.testRunCodeEval", () => {
       target: EvalTargetObject.EVENT,
       scoreName: "unsaved-score",
       observationId,
+      traceId,
+      startTime,
       mapping: [
         {
           templateVariable: "input",
@@ -166,12 +170,14 @@ maybe("evals.testRunCodeEval", () => {
       result: {
         scores: [
           {
+            name: "saved-test-score",
             value: 1,
             dataType: "BOOLEAN",
           },
         ],
       },
       executionTraceId: expect.stringMatching(/^[0-9a-f]{32}$/),
+      executionTraceFromTimestamp: expect.any(Date),
     });
 
     await expect(
@@ -198,6 +204,8 @@ maybe("evals.testRunCodeEval", () => {
   it("returns user-code dispatcher failures as structured failures", async () => {
     const { project, caller } = await prepare();
     const observationId = randomUUID();
+    const traceId = randomUUID();
+    const startTime = new Date();
     const template = await createCodeTemplate(
       project.id,
       `export function evaluate() {
@@ -208,9 +216,10 @@ maybe("evals.testRunCodeEval", () => {
     await createEventsCh([
       createEvent({
         project_id: project.id,
-        trace_id: randomUUID(),
+        trace_id: traceId,
         span_id: observationId,
         id: observationId,
+        start_time: startTime.getTime() * 1000,
       }),
     ]);
 
@@ -220,6 +229,8 @@ maybe("evals.testRunCodeEval", () => {
       target: EvalTargetObject.EVENT,
       scoreName: "unsaved-score",
       observationId,
+      traceId,
+      startTime,
       mapping: [],
     });
 
@@ -230,20 +241,105 @@ maybe("evals.testRunCodeEval", () => {
         message: "User code raised ValueError",
       },
       executionTraceId: expect.stringMatching(/^[0-9a-f]{32}$/),
+      executionTraceFromTimestamp: expect.any(Date),
+    });
+  });
+
+  it("passes experiment context to test runs", async () => {
+    const { project, caller } = await prepare();
+    const observationId = randomUUID();
+    const traceId = randomUUID();
+    const startTime = new Date();
+    const expectedOutput = "expected answer";
+    const template = await createCodeTemplate(
+      project.id,
+      `
+        export function evaluate(ctx) {
+          if (!ctx.experiment) {
+            throw new Error("missing experiment context");
+          }
+
+          const matched =
+            ctx.observation.output === ctx.experiment.expectedOutput &&
+            ctx.experiment.itemMetadata.difficulty === "easy";
+
+          return { scores: [{ name: "experiment-test-score", value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
+        }
+      `,
+    );
+
+    await createEventsCh([
+      createEvent({
+        project_id: project.id,
+        trace_id: traceId,
+        span_id: observationId,
+        id: observationId,
+        start_time: startTime.getTime() * 1000,
+        output: expectedOutput,
+        experiment_id: randomUUID(),
+        experiment_item_expected_output: expectedOutput,
+        experiment_item_metadata_names: ["difficulty"],
+        experiment_item_metadata_values: ["easy"],
+      }),
+    ]);
+
+    const response = await caller.evals.testRunCodeEval({
+      projectId: project.id,
+      evalTemplateId: template.id,
+      target: EvalTargetObject.EXPERIMENT,
+      scoreName: "experiment-score",
+      observationId,
+      traceId,
+      startTime,
+      mapping: [
+        {
+          templateVariable: "output",
+          selectedColumnId: "output",
+          jsonSelector: null,
+        },
+        {
+          templateVariable: "experimentExpectedOutput",
+          selectedColumnId: "experimentItemExpectedOutput",
+          jsonSelector: null,
+        },
+        {
+          templateVariable: "experimentItemMetadata",
+          selectedColumnId: "experimentItemMetadata",
+          jsonSelector: null,
+        },
+      ],
+    });
+
+    expect(response).toEqual({
+      success: true,
+      result: {
+        scores: [
+          {
+            name: "experiment-test-score",
+            value: 1,
+            dataType: "BOOLEAN",
+          },
+        ],
+      },
+      executionTraceId: expect.stringMatching(/^[0-9a-f]{32}$/),
+      executionTraceFromTimestamp: expect.any(Date),
     });
   });
 
   it("persists an internal trace for the test run", async () => {
     const { project, caller } = await prepare();
     const observationId = randomUUID();
+    const traceId = randomUUID();
+    const startTime = new Date();
     const template = await createCodeTemplate(project.id);
 
     await createEventsCh([
       createEvent({
         project_id: project.id,
-        trace_id: randomUUID(),
+        trace_id: traceId,
         span_id: observationId,
         id: observationId,
+        start_time: startTime.getTime() * 1000,
       }),
     ]);
 
@@ -253,6 +349,8 @@ maybe("evals.testRunCodeEval", () => {
       target: EvalTargetObject.EVENT,
       scoreName: "unsaved-score",
       observationId,
+      traceId,
+      startTime,
       mapping: [],
     });
 
@@ -297,12 +395,15 @@ maybe("evals.testRunCodeEval", () => {
     const template = await createCodeTemplate(callerProject.id);
 
     const otherProjectObservationId = randomUUID();
+    const otherProjectTraceId = randomUUID();
+    const otherProjectStartTime = new Date();
     await createEventsCh([
       createEvent({
         project_id: otherProject.id,
-        trace_id: randomUUID(),
+        trace_id: otherProjectTraceId,
         span_id: otherProjectObservationId,
         id: otherProjectObservationId,
+        start_time: otherProjectStartTime.getTime() * 1000,
       }),
     ]);
 
@@ -313,6 +414,8 @@ maybe("evals.testRunCodeEval", () => {
         target: EvalTargetObject.EVENT,
         scoreName: "unsaved-score",
         observationId: otherProjectObservationId,
+        traceId: otherProjectTraceId,
+        startTime: otherProjectStartTime,
         mapping: [],
       }),
     ).rejects.toThrow(/Observation not found/);
@@ -322,15 +425,18 @@ maybe("evals.testRunCodeEval", () => {
     const { project: callerProject, caller } = await prepare();
     const { project: otherProject } = await prepare();
     const observationId = randomUUID();
+    const traceId = randomUUID();
+    const startTime = new Date();
 
     const otherProjectTemplate = await createCodeTemplate(otherProject.id);
 
     await createEventsCh([
       createEvent({
         project_id: callerProject.id,
-        trace_id: randomUUID(),
+        trace_id: traceId,
         span_id: observationId,
         id: observationId,
+        start_time: startTime.getTime() * 1000,
       }),
     ]);
 
@@ -341,6 +447,8 @@ maybe("evals.testRunCodeEval", () => {
         target: EvalTargetObject.EVENT,
         scoreName: "unsaved-score",
         observationId,
+        traceId,
+        startTime,
         mapping: [],
       }),
     ).rejects.toThrow(/Evaluator template not found/);
@@ -358,7 +466,7 @@ async function createCodeTemplate(projectId: string, sourceCode?: string) {
       outputDefinition: undefined,
       sourceCode:
         sourceCode ??
-        "export function evaluate() { return { scores: [{ value: 1 }] }; }",
+        'export function evaluate() { return { scores: [{ name: "test-score", value: 1 }] }; }',
       sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
     },
   });

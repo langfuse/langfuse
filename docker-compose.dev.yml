@@ -2,7 +2,7 @@ services:
   clickhouse:
     # Upgrade from 24.3 to check behaviour on new events table.
     # Unit tests still verify 24.3 behaviour using -azure and -redis-cluster configs.
-    image: docker.io/clickhouse/clickhouse-server:25.8
+    image: docker.io/clickhouse/clickhouse-server:25.12
     user: "101:101"
     container_name: ${CLICKHOUSE_CONTAINER_NAME:-langfuse-clickhouse}
     environment:
@@ -61,8 +61,10 @@ services:
     ports:
       - ${HOST_IP:-127.0.0.1}:${FLOCI_PORT:-4566}:4566
     volumes:
-      - langfuse_floci_data:/app/data
+      # Floci Lambda starts real Docker containers for function invocations.
+      # See: https://floci.io/floci/services/lambda/
       - /var/run/docker.sock:/var/run/docker.sock
+      # The init hook packages these local runner sources into Lambda ZIPs on startup.
       - ./scripts/code-eval-runners:/opt/code-eval-runners:ro
       - ./scripts/code-eval-runners/bootstrap-floci.py:/etc/floci/init/ready.d/01-bootstrap-code-eval-runners.py:ro
     networks:
@@ -115,9 +117,6 @@ volumes:
     driver: local
   langfuse_minio_data:
     name: ${MINIO_VOLUME_NAME:-langfuse_minio_data}
-    driver: local
-  langfuse_floci_data:
-    name: ${FLOCI_VOLUME_NAME:-langfuse_floci_data}
     driver: local
 
 networks:

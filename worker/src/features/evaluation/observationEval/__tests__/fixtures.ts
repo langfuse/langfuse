@@ -279,6 +279,7 @@ export function createMockJobConfiguration(
       overrides.evalTemplate !== undefined
         ? overrides.evalTemplate
         : createMockEvalTemplate({ id: templateId, projectId }),
+    project: { orgId: "test-org-123" },
   };
 }
 

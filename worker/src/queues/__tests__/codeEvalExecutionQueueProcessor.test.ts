@@ -8,6 +8,7 @@ import {
   type Mock,
 } from "vitest";
 import { Job } from "bullmq";
+import { EvalTemplateType } from "@prisma/client";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 
 const QueueName = {
@@ -34,32 +35,12 @@ vi.mock("../../features/evaluation/codeBased", () => ({
   executeCodeBasedEvaluation: vi.fn(),
 }));
 
-const { FakeCodeEvalDispatcherError } = vi.hoisted(() => {
-  class FakeCodeEvalDispatcherError extends Error {
-    public readonly code: string;
-    public readonly retryable: boolean;
-
-    constructor(
-      message: string,
-      options: { code: string; retryable?: boolean },
-    ) {
-      super(message);
-      this.name = "CodeEvalDispatcherError";
-      this.code = options.code;
-      this.retryable = options.retryable ?? false;
-    }
-  }
-
-  return { FakeCodeEvalDispatcherError };
-});
-
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
 
   return {
     ...actual,
-    CodeEvalDispatcherError: FakeCodeEvalDispatcherError,
     getCurrentSpan: vi.fn().mockReturnValue({
       setAttribute: vi.fn(),
     }),
@@ -89,7 +70,6 @@ vi.mock("../../errors/UnrecoverableError", async () => {
 import { prisma } from "@langfuse/shared/src/db";
 import { processObservationEval } from "../../features/evaluation/observationEval";
 import { traceException } from "@langfuse/shared/src/server";
-import { executeCodeBasedEvaluation } from "../../features/evaluation/codeBased";
 import { isUnrecoverableError } from "../../errors/UnrecoverableError";
 
 describe("codeEvalExecutionQueueProcessor", () => {
@@ -147,17 +127,16 @@ describe("codeEvalExecutionQueueProcessor", () => {
         jobExecutionId,
         observationS3Path,
       },
-      validateTemplate: expect.any(Function),
-      executor: executeCodeBasedEvaluation,
+      executionType: EvalTemplateType.CODE,
     });
   });
 
-  it("should treat non-retryable dispatcher errors as terminal and show the dispatcher message", async () => {
-    const error = new FakeCodeEvalDispatcherError(
-      "Evaluator returned invalid result",
-      { code: "INVALID_RESULT", retryable: false },
+  it("should treat unrecoverable code eval errors as terminal", async () => {
+    const error = new UnrecoverableError(
+      "The evaluator returned an invalid result.",
     );
     (processObservationEval as Mock).mockRejectedValue(error);
+    (isUnrecoverableError as unknown as Mock).mockReturnValue(true);
 
     const result = await codeEvalExecutionQueueProcessor(createMockJob());
 
@@ -167,19 +146,17 @@ describe("codeEvalExecutionQueueProcessor", () => {
       data: {
         status: JobExecutionStatus.ERROR,
         endTime: expect.any(Date),
-        error: "Evaluator returned invalid result",
+        error: "The evaluator returned an invalid result.",
         executionTraceId: "test-trace-id",
       },
     });
     expect(traceException).not.toHaveBeenCalled();
   });
 
-  it("should mask internal lambda error codes when finalizing on the last attempt", async () => {
-    const error = new FakeCodeEvalDispatcherError(
-      "Function not found: code-based-eval-executor-node",
-      { code: "LAMBDA_CONFIGURATION_ERROR", retryable: false },
-    );
+  it("should persist already-masked internal code eval errors", async () => {
+    const error = new UnrecoverableError("An internal error occurred");
     (processObservationEval as Mock).mockRejectedValue(error);
+    (isUnrecoverableError as unknown as Mock).mockReturnValue(true);
 
     const result = await codeEvalExecutionQueueProcessor(createMockJob());
 

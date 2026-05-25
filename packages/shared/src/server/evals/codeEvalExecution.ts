@@ -11,24 +11,73 @@ import {
 import { logger } from "../logger";
 import type { EvalTemplateCodeBased } from "../../features/evals/types";
 import {
+  CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES,
+  CODE_EVAL_DISPATCH_RESULT_MAX_BYTES,
+  CODE_EVAL_SOURCE_MAX_BYTES,
   CodeEvalDispatcherError,
-  CodeEvalDispatcherErrorCode,
+  CodeEvalDispatcherErrorCodes,
+  type CodeEvalDispatcherErrorCode,
   type CodeEvalDispatcher,
   type CodeEvalPayload,
-  type CodeEvalScore,
   type CodeEvalScoreWithName,
   type DispatchResult,
 } from "./codeEvalDispatcherTypes";
 import type { ExtractedVariable } from "./extractObservationVariables";
 
-const CODE_EVAL_SCOPE_ENVIRONMENT = "code-based-eval";
 const INTERNAL_CODE_EVAL_ERROR_MESSAGE = "An internal error occurred";
+const INTERNAL_CODE_EVAL_ERROR_CODE = "INTERNAL_ERROR" as const;
+// TODO: Replace with a dedicated code-based evaluator limits docs page.
+const CODE_EVAL_DOCS_URL = "https://langfuse.com/docs/evaluation/overview";
 
 const INTERNAL_CODE_EVAL_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
-  "LAMBDA_CONCURRENCY_LIMIT",
-  "LAMBDA_CONFIGURATION_ERROR",
-  "LAMBDA_INVOCATION_ERROR",
+  CodeEvalDispatcherErrorCodes.LAMBDA_CONCURRENCY_LIMIT,
+  CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
+  CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
 ]);
+
+const USER_VISIBLE_CODE_EVAL_ERROR_MESSAGE_BY_CODE: Partial<
+  Record<CodeEvalDispatcherErrorCode, string>
+> = {
+  [CodeEvalDispatcherErrorCodes.INVALID_RESULT]: withCodeEvalDocs(
+    "The evaluator returned an invalid result. Return { scores: [...] } with at least one score. Each score requires a name and value, and dataType must match the value type.",
+  ),
+  [CodeEvalDispatcherErrorCodes.TIMEOUT]: withCodeEvalDocs(
+    "Evaluator timed out. Code-based evaluators are limited by the configured runtime limit. Optimize your evaluator code and try again.",
+  ),
+  [CodeEvalDispatcherErrorCodes.SOURCE_TOO_LARGE]: withCodeEvalDocs(
+    `Evaluator source code is too large. Code-based evaluator source code is limited to ${formatCodeEvalByteLimit(CODE_EVAL_SOURCE_MAX_BYTES)}. Shorten the evaluator code and try again.`,
+  ),
+  [CodeEvalDispatcherErrorCodes.PAYLOAD_TOO_LARGE]: withCodeEvalDocs(
+    `Evaluator input is too large. Code-based evaluator input is limited to ${formatCodeEvalByteLimit(CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES)}, including source code and variables. Reduce the selected input, output, metadata, or experiment fields and try again.`,
+  ),
+  [CodeEvalDispatcherErrorCodes.RESULT_TOO_LARGE]: withCodeEvalDocs(
+    `Evaluator result is too large. Code-based evaluator results are limited to ${formatCodeEvalByteLimit(CODE_EVAL_DISPATCH_RESULT_MAX_BYTES)}. Return fewer scores or smaller score values, comments, and metadata.`,
+  ),
+};
+
+function withCodeEvalDocs(message: string): string {
+  return `${message} See ${CODE_EVAL_DOCS_URL} for details.`;
+}
+
+function formatCodeEvalByteLimit(bytes: number): string {
+  const unit = bytes >= 1024 * 1024 ? "MB" : "KB";
+  const value = bytes / (unit === "MB" ? 1024 * 1024 : 1024);
+  const formattedValue = Number.isInteger(value)
+    ? String(value)
+    : value.toFixed(1);
+
+  return `${formattedValue} ${unit}`;
+}
+
+export type CodeEvalUserVisibleErrorCode =
+  | CodeEvalDispatcherErrorCode
+  | typeof INTERNAL_CODE_EVAL_ERROR_CODE;
+
+export type CodeEvalUserVisibleError = {
+  code: CodeEvalUserVisibleErrorCode;
+  message: string;
+  retryable: boolean;
+};
 
 type CodeBasedEvaluationDispatchResult =
   | {
@@ -36,15 +85,13 @@ type CodeBasedEvaluationDispatchResult =
       scores: CodeEvalScoreWithName[];
       result: DispatchResult;
       executionTraceId: string;
+      executionTraceFromTimestamp: Date;
     }
   | {
       success: false;
-      error: {
-        code: string;
-        message: string;
-      };
-      cause: unknown;
+      error: CodeEvalUserVisibleError;
       executionTraceId: string;
+      executionTraceFromTimestamp: Date;
     };
 
 function buildCodeEvalPayload(params: {
@@ -72,72 +119,56 @@ function buildCodeEvalPayload(params: {
   return payload;
 }
 
-function normalizeCodeEvalScores(params: {
-  scores: CodeEvalScore[];
-  defaultScoreName: string;
-}): CodeEvalScoreWithName[] {
-  return params.scores.map((score) =>
-    score.name
-      ? (score as CodeEvalScoreWithName)
-      : { ...score, name: params.defaultScoreName },
-  );
-}
-
-function serializeCodeEvalError(error: unknown): {
+function getCodeEvalErrorDetails(error: unknown): {
   name: string;
   message: string;
-  code?: string;
-  retryable?: boolean;
+  code: CodeEvalUserVisibleErrorCode;
+  retryable: boolean;
 } {
-  const base =
-    error instanceof Error
-      ? { name: error.name, message: error.message }
-      : { name: "Error", message: String(error) };
-
-  if (!error || typeof error !== "object") return base;
-
-  const errorRecord = error as Record<string, unknown>;
-
-  return {
-    ...base,
-    ...(typeof errorRecord.code === "string" ? { code: errorRecord.code } : {}),
-    ...(typeof errorRecord.retryable === "boolean"
-      ? { retryable: errorRecord.retryable }
-      : {}),
-  };
-}
-
-export function getCodeEvalUserVisibleError(error: unknown): {
-  code: string;
-  message: string;
-} {
-  const details = serializeCodeEvalError(error);
-
-  if (isCodeEvalDispatcherErrorLike(error)) {
-    return INTERNAL_CODE_EVAL_ERROR_CODES.has(error.code)
-      ? { code: "INTERNAL_ERROR", message: INTERNAL_CODE_EVAL_ERROR_MESSAGE }
-      : { code: error.code, message: error.message };
+  if (error instanceof CodeEvalDispatcherError) {
+    return {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      retryable: error.retryable,
+    };
   }
 
   return {
-    code: details.code ?? "INTERNAL_ERROR",
+    name: error instanceof Error ? error.name : "Error",
+    code: INTERNAL_CODE_EVAL_ERROR_CODE,
     message: INTERNAL_CODE_EVAL_ERROR_MESSAGE,
+    retryable: false,
   };
 }
 
-function isCodeEvalDispatcherErrorLike(
+export function getCodeEvalUserVisibleError(
   error: unknown,
-): error is Pick<CodeEvalDispatcherError, "code" | "message" | "retryable"> {
-  if (error instanceof CodeEvalDispatcherError) return true;
-  if (!error || typeof error !== "object") return false;
+): CodeEvalUserVisibleError {
+  const details = getCodeEvalErrorDetails(error);
 
-  const record = error as Record<string, unknown>;
-  return (
-    record.name === "CodeEvalDispatcherError" &&
-    typeof record.code === "string" &&
-    CodeEvalDispatcherErrorCode.safeParse(record.code).success &&
-    typeof record.message === "string"
-  );
+  if (details.code === INTERNAL_CODE_EVAL_ERROR_CODE) {
+    return {
+      code: INTERNAL_CODE_EVAL_ERROR_CODE,
+      message: INTERNAL_CODE_EVAL_ERROR_MESSAGE,
+      retryable: details.retryable,
+    };
+  }
+
+  if (INTERNAL_CODE_EVAL_ERROR_CODES.has(details.code)) {
+    return {
+      code: INTERNAL_CODE_EVAL_ERROR_CODE,
+      message: INTERNAL_CODE_EVAL_ERROR_MESSAGE,
+      retryable: details.retryable,
+    };
+  }
+
+  const message = USER_VISIBLE_CODE_EVAL_ERROR_MESSAGE_BY_CODE[details.code];
+  return {
+    code: details.code,
+    message: message ?? details.message,
+    retryable: details.retryable,
+  };
 }
 
 export async function runCodeBasedEvaluationDispatch(params: {
@@ -147,13 +178,11 @@ export async function runCodeBasedEvaluationDispatch(params: {
   executionTraceId: string;
   jobExecutionId: string;
   template: EvalTemplateCodeBased;
-  scoreName: string;
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
   traceName: string;
   metadata: Record<string, unknown>;
   writeTrace?: InternalTraceWriter;
-  maskErrorsInTrace?: boolean;
 }): Promise<CodeBasedEvaluationDispatchResult> {
   const payload = buildCodeEvalPayload({
     extractedVariables: params.extractedVariables,
@@ -168,17 +197,11 @@ export async function runCodeBasedEvaluationDispatch(params: {
         organizationId: params.organizationId,
         projectId: params.projectId,
         evaluatorId: params.template.id,
-        environment: CODE_EVAL_SCOPE_ENVIRONMENT,
       },
       runtime: { language: params.template.sourceCodeLanguage },
       execution: { jobExecutionId: params.jobExecutionId },
       code: { source: params.template.sourceCode },
       payload,
-    });
-
-    const scores = normalizeCodeEvalScores({
-      scores: dispatchResult.scores,
-      defaultScoreName: params.scoreName,
     });
 
     await writeCodeEvalTraceSafely({
@@ -197,20 +220,21 @@ export async function runCodeBasedEvaluationDispatch(params: {
 
     return {
       success: true,
-      scores,
+      scores: dispatchResult.scores,
       result: dispatchResult,
       executionTraceId: params.executionTraceId,
+      executionTraceFromTimestamp: traceStartTime,
     };
   } catch (error) {
-    const serializedError = serializeCodeEvalError(error);
+    const errorDetails = getCodeEvalErrorDetails(error);
     const visibleError = getCodeEvalUserVisibleError(error);
-    const traceError = params.maskErrorsInTrace
-      ? {
-          ...serializedError,
-          code: visibleError.code,
-          message: visibleError.message,
-        }
-      : serializedError;
+    const traceError = {
+      name: errorDetails.name,
+      code: visibleError.code,
+      message: visibleError.message,
+      retryable: errorDetails.retryable,
+    };
+    const errorCodeForTrace = errorDetails.code;
 
     await writeCodeEvalTraceSafely({
       writeTrace: params.writeTrace,
@@ -226,32 +250,25 @@ export async function runCodeBasedEvaluationDispatch(params: {
         },
         metadata: {
           ...params.metadata,
-          error_name: serializedError.name,
-          error_message: params.maskErrorsInTrace
-            ? visibleError.message
-            : serializedError.message,
-          error_code: params.maskErrorsInTrace
-            ? visibleError.code
-            : (serializedError.code ?? visibleError.code),
-          ...(typeof serializedError.retryable === "boolean"
-            ? { error_retryable: serializedError.retryable }
+          error_name: errorDetails.name,
+          error_message: visibleError.message,
+          error_code: errorCodeForTrace,
+          ...(errorCodeForTrace !== visibleError.code
+            ? { error_public_code: visibleError.code }
             : {}),
+          error_retryable: errorDetails.retryable,
         },
         sourceCode: params.template.sourceCode,
         level: "ERROR",
-        statusMessage: `Code eval execution failed: ${
-          params.maskErrorsInTrace
-            ? visibleError.message
-            : serializedError.message
-        }`,
+        statusMessage: `Code eval execution failed: ${visibleError.message}`,
       }),
     });
 
     return {
       success: false,
       error: visibleError,
-      cause: error,
       executionTraceId: params.executionTraceId,
+      executionTraceFromTimestamp: traceStartTime,
     };
   }
 }

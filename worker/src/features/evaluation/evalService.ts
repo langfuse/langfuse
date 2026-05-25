@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import {
+  EvalTemplateType,
   JobConfigState,
   JobExecutionStatus,
   type JobExecution,
@@ -52,7 +53,6 @@ import {
   Observation,
   EvalTargetObject,
   EvaluatorBlockReason,
-  assertLLMAsJudgeEvalTemplate,
   getEvaluatorBlockMetadata,
   getBlockReasonForInvalidModelConfig,
   isJobConfigExecutable,
@@ -728,6 +728,7 @@ export const createEvalJobs = async ({
  * @param params.config - Pre-fetched job configuration
  * @param params.template - Pre-fetched eval template
  * @param params.extractedVariables - Pre-extracted variables from trace/observation data
+ * @param params.executionMetadata - Metadata identifying this eval execution
  * @param params.deps - Optional dependency injection for testing (defaults to production deps)
  */
 export async function runLLMAsJudgeEvaluation({
@@ -737,7 +738,7 @@ export async function runLLMAsJudgeEvaluation({
   config,
   template,
   extractedVariables,
-  metadata,
+  executionMetadata,
   deps,
 }: {
   projectId: string;
@@ -746,7 +747,7 @@ export async function runLLMAsJudgeEvaluation({
   config: JobConfiguration;
   template: EvalTemplateLlmAsAJudge;
   extractedVariables: ExtractedVariable[];
-  metadata: Record<string, string>;
+  executionMetadata: Record<string, string>;
   deps: EvalExecutionDeps;
 }): Promise<EvalExecutionResult> {
   return instrumentAsync(
@@ -855,8 +856,6 @@ export async function runLLMAsJudgeEvaluation({
       // Prepare LLM call
       const messages = buildEvalMessages(prompt);
 
-      const primaryScoreId = randomUUID();
-      span.setAttribute("eval.score.id", primaryScoreId);
       const executionTraceId = createW3CTraceId(jobExecutionId);
 
       // Call LLM
@@ -893,8 +892,7 @@ export async function runLLMAsJudgeEvaluation({
                 traceName: `Execute evaluator: ${template.name}`,
                 environment: LangfuseInternalTraceEnvironment.LLMJudge,
                 metadata: {
-                  ...metadata,
-                  score_id: primaryScoreId,
+                  ...executionMetadata,
                 },
               },
             });
@@ -964,9 +962,8 @@ export async function runLLMAsJudgeEvaluation({
 
       return {
         scores,
-        primaryScoreId,
         executionTraceId,
-        metadata,
+        metadata: executionMetadata,
       };
     },
   );
@@ -1012,21 +1009,25 @@ function toNormalizedScores(params: {
 export async function executeLLMAsJudgeEvaluation(
   params: Omit<
     Parameters<typeof runLLMAsJudgeEvaluation>[0],
-    "deps" | "metadata"
+    "deps" | "executionMetadata"
   > & {
     environment: string;
     deps?: EvalExecutionDeps;
   },
 ): Promise<void> {
   const deps = params.deps ?? createProductionEvalExecutionDeps();
-  const metadata = buildEvalExecutionMetadata({
+  const executionMetadata = buildEvalExecutionMetadata({
     jobExecutionId: params.jobExecutionId,
     jobConfigurationId: params.job.jobConfigurationId,
     targetTraceId: params.job.jobInputTraceId,
     targetObservationId: params.job.jobInputObservationId,
     targetDatasetItemId: params.job.jobInputDatasetItemId,
   });
-  const result = await runLLMAsJudgeEvaluation({ ...params, deps, metadata });
+  const result = await runLLMAsJudgeEvaluation({
+    ...params,
+    deps,
+    executionMetadata,
+  });
 
   await completeEvalExecution({
     projectId: params.projectId,
@@ -1113,6 +1114,7 @@ export const evaluate = async ({
   const template = await prisma.evalTemplate.findFirst({
     where: {
       id: config.evalTemplateId,
+      type: EvalTemplateType.LLM_AS_JUDGE,
       OR: [{ projectId: event.projectId }, { projectId: null }],
     },
   });
@@ -1121,11 +1123,6 @@ export const evaluate = async ({
     throw new UnrecoverableError(
       `Evaluation template ${config.evalTemplateId} not found`,
     );
-  }
-  try {
-    assertLLMAsJudgeEvalTemplate(template);
-  } catch (e) {
-    throw new UnrecoverableError(e instanceof Error ? e.message : String(e));
   }
 
   // Extract variables from tracing data
@@ -1153,7 +1150,7 @@ export const evaluate = async ({
     jobExecutionId: event.jobExecutionId,
     job,
     config,
-    template,
+    template: template as EvalTemplateLlmAsAJudge,
     extractedVariables,
     environment:
       getEnvironmentFromVariables(extractedVariables) ??

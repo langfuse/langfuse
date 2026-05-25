@@ -11,7 +11,6 @@ const baseInput: Omit<DispatchInput, "runtime" | "code"> = {
     organizationId: "org-1",
     projectId: "project-1",
     evaluatorId: "evaluator-1",
-    environment: "default",
   },
   execution: {
     jobExecutionId: "job-1",
@@ -44,14 +43,16 @@ describe("LocalCodeEvalDispatcher", () => {
           };
           export async function evaluate(ctx: EvaluationContext) {
             return {
-              scores: [{ value: ctx.observation.output === ctx.experiment?.expectedOutput ? 1 : 0, dataType: "BOOLEAN" }],
+              scores: [{ name: "match", value: ctx.observation.output === ctx.experiment?.expectedOutput ? 1 : 0, dataType: "BOOLEAN" }],
             };
           }
         `,
       },
     });
 
-    expect(result).toEqual({ scores: [{ value: 1, dataType: "BOOLEAN" }] });
+    expect(result).toEqual({
+      scores: [{ name: "match", value: 1, dataType: "BOOLEAN" }],
+    });
   });
 
   it("rejects sources with TypeScript syntax errors", async () => {
@@ -192,6 +193,7 @@ describe("LocalCodeEvalDispatcher", () => {
           scores: [{
             value: "a".repeat(${TEXT_SCORE_MAX_LENGTH + 1}),
             dataType: "TEXT",
+            name: "judge-rationale",
           }],
         };
       }

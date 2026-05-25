@@ -172,6 +172,8 @@ const CodeEvalTestRunSchema = z.object({
   mapping: z.array(observationVariableMapping),
   scoreName: z.string().min(1),
   observationId: z.string(),
+  traceId: z.string(),
+  startTime: z.coerce.date(),
 });
 
 const UpdateEvalJobSchema = z.object({
@@ -908,12 +910,15 @@ export const evalRouter = createTRPCRouter({
 
       return runCodeEvalTest({
         prisma: ctx.prisma,
+        orgId: ctx.session.orgId,
         projectId: input.projectId,
         evalTemplateId: input.evalTemplateId,
         target: input.target,
         mapping: input.mapping,
         scoreName: input.scoreName,
         observationId: input.observationId,
+        traceId: input.traceId,
+        startTime: input.startTime,
       });
     }),
   createTemplate: protectedProjectProcedure
