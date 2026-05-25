@@ -19,7 +19,8 @@ import {
   EvalTargetObject,
   type EvalTemplate,
 } from "@langfuse/shared";
-import { ListTree, Lock, Play, RotateCcw } from "lucide-react";
+import { ExternalLink, ListTree, Lock, Play, RotateCcw } from "lucide-react";
+import Link from "next/link";
 import { useMemo } from "react";
 import { toast } from "sonner";
 
@@ -115,31 +116,55 @@ export function CodeEvalTestRunCard({
               Read-only preview
             </Badge>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            loading={testRunMutation.isPending}
-            disabled={!observationId || isLoading}
-            onClick={() => {
-              if (!observationId) return;
-
-              testRunMutation.mutate({
-                projectId,
-                evalTemplateId: evalTemplate.id,
-                target,
-                mapping: getCodeEvalVariableMapping(),
-                scoreName,
-                observationId,
-              });
-            }}
-          >
-            {testRunMutation.data ? (
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+          <div className="flex shrink-0 items-center gap-2">
+            {evalTemplate.projectId ? (
+              <Button asChild variant="outline" size="sm">
+                <Link
+                  href={`/project/${projectId}/evals/templates/${evalTemplate.id}?mode=edit`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Source code
+                  <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                </Link>
+              </Button>
             ) : (
-              <Play className="mr-1.5 h-3.5 w-3.5" />
+              <Button
+                variant="outline"
+                size="sm"
+                disabled
+                title="Only user-managed templates can be edited"
+              >
+                Source code
+                <ExternalLink className="ml-1 h-3.5 w-3.5" />
+              </Button>
             )}
-            Test
-          </Button>
+            <Button
+              type="button"
+              variant="outline"
+              loading={testRunMutation.isPending}
+              disabled={!observationId || isLoading}
+              onClick={() => {
+                if (!observationId) return;
+
+                testRunMutation.mutate({
+                  projectId,
+                  evalTemplateId: evalTemplate.id,
+                  target,
+                  mapping: getCodeEvalVariableMapping(),
+                  scoreName,
+                  observationId,
+                });
+              }}
+            >
+              {testRunMutation.data ? (
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+              ) : (
+                <Play className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Test
+            </Button>
+          </div>
         </div>
 
         <CodeEvalTestRunInputPreview
