@@ -114,6 +114,7 @@ import {
 } from "@/src/features/evals/utils/code-eval-template-utils";
 import { CodeEvalTestRunCard } from "@/src/features/evals/components/code-eval-test-run-card";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
+import { cn } from "@/src/utils/tailwind";
 
 /**
  * Adds propagation warnings to columns that require OTEL SDK with span propagation
@@ -759,28 +760,21 @@ export const InnerEvaluatorForm = (props: {
     return actualTarget;
   }
 
-  const codeEvalTestPanel =
+  const shouldShowCodeEvalTestPanel =
     isCodeEvalConfig &&
+    !props.disabled &&
     (isEventTarget(watchedTarget) ||
-      (isExperimentTarget(watchedTarget) && isBetaEnabled)) &&
-    !props.disabled ? (
-      <CodeEvalTestRunCard
-        projectId={props.projectId}
-        evalTemplate={props.evalTemplate}
-        form={form}
-        disabled={props.disabled}
-      />
-    ) : null;
+      (isExperimentTarget(watchedTarget) && isBetaEnabled));
 
   const formBody = (
     <div
-      className={`grid gap-4 ${
-        codeEvalTestPanel
-          ? "xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:items-start"
-          : ""
-      }`}
+      className={cn(
+        "grid gap-4",
+        shouldShowCodeEvalTestPanel &&
+          "xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:items-start",
+      )}
     >
-      <div className={codeEvalTestPanel ? "xl:col-span-2" : undefined}>
+      <div className={cn(shouldShowCodeEvalTestPanel && "xl:col-span-2")}>
         <FormField
           control={form.control}
           name="scoreName"
@@ -1289,8 +1283,13 @@ export const InnerEvaluatorForm = (props: {
           </div>
         </Card>
       )}
-      {isCodeEvalConfig ? (
-        codeEvalTestPanel
+      {shouldShowCodeEvalTestPanel ? (
+        <CodeEvalTestRunCard
+          projectId={props.projectId}
+          evalTemplate={props.evalTemplate}
+          form={form}
+          disabled={props.disabled}
+        />
       ) : (
         <VariableMappingCard
           projectId={props.projectId}
