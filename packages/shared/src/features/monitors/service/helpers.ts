@@ -34,15 +34,15 @@ export const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
   "alertedAt",
 ]);
 
-/** toPrismaWhere translates each row of a ListMonitorFilter into a Prisma where clause. */
+/** toPrismaWhere builds the Prisma where clause for a project-scoped ListMonitorFilter. */
 export const toPrismaWhere = (
+  projectId: string,
   filter: ListMonitorFilter | undefined,
-): Prisma.MonitorWhereInput[] => {
-  if (!filter?.length) return [];
-  const clauses: Prisma.MonitorWhereInput[] = [];
-  for (const f of filter) {
+): Prisma.MonitorWhereInput => {
+  const and: Prisma.MonitorWhereInput[] = [];
+  for (const f of filter ?? []) {
     if (f.type === "stringOptions") {
-      clauses.push(
+      and.push(
         f.operator === "any of"
           ? { [f.column]: { in: f.value } }
           : { NOT: { [f.column]: { in: f.value } } },
@@ -50,7 +50,7 @@ export const toPrismaWhere = (
       continue;
     }
     if (f.value.length === 0) continue;
-    clauses.push(
+    and.push(
       f.operator === "any of"
         ? { [f.column]: { hasSome: f.value } }
         : f.operator === "all of"
@@ -58,7 +58,7 @@ export const toPrismaWhere = (
           : { NOT: { [f.column]: { hasSome: f.value } } },
     );
   }
-  return clauses;
+  return { projectId, AND: and };
 };
 
 /**
@@ -254,9 +254,10 @@ export const decimalToPrisma = (n: number | null): Prisma.Decimal | null =>
 
 /** updateSeverityForStatus returns the severity transition payload when status flips between ACTIVE and non-ACTIVE; otherwise an empty object. */
 export const updateSeverityForStatus = (
-  current: MonitorStatus,
+  current: MonitorStatus | undefined,
   next: MonitorStatus,
 ): { severity?: MonitorSeverity; severityChangedAt?: Date } => {
+  if (!current) return {};
   const goingPaused = current === "ACTIVE" && next !== "ACTIVE";
   const goingActive = current !== "ACTIVE" && next === "ACTIVE";
   if (goingPaused) return { severity: "PAUSED", severityChangedAt: new Date() };

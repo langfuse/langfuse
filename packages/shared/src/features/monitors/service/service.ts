@@ -110,9 +110,6 @@ export class MonitorService {
       where: { id: input.id, projectId: input.projectId },
       select: { status: true },
     });
-    const severityTransition = current
-      ? updateSeverityForStatus(current.status, input.status)
-      : {};
 
     try {
       const updated = await prisma.monitor.update({
@@ -130,7 +127,7 @@ export class MonitorService {
           noData: input.noData,
           renotify: input.renotify,
           status: input.status,
-          ...severityTransition,
+          ...updateSeverityForStatus(current?.status, input.status),
           schedulerBatchId,
           nextRunAt,
           name: input.name,
@@ -169,10 +166,7 @@ export class MonitorService {
         ? { sort: sortOrder, nulls: "last" as const }
         : sortOrder;
 
-    const where: Prisma.MonitorWhereInput = {
-      projectId: input.projectId,
-      AND: toPrismaWhere(input.filter),
-    };
+    const where = toPrismaWhere(input.projectId, input.filter);
 
     const [monitors, totalCount] = await Promise.all([
       prisma.monitor.findMany({

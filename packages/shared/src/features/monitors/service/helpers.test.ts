@@ -124,9 +124,15 @@ describe("sortFiltersCanonically", () => {
 });
 
 describe("toPrismaWhere", () => {
-  it("returns an empty clause list for undefined or empty filter", () => {
-    expect(toPrismaWhere(undefined)).toEqual([]);
-    expect(toPrismaWhere([])).toEqual([]);
+  it("scopes by projectId with no AND clauses for undefined or empty filter", () => {
+    expect(toPrismaWhere("proj_01", undefined)).toEqual({
+      projectId: "proj_01",
+      AND: [],
+    });
+    expect(toPrismaWhere("proj_01", [])).toEqual({
+      projectId: "proj_01",
+      AND: [],
+    });
   });
 
   it("translates severity `any of` into a Prisma `in` clause", () => {
@@ -138,9 +144,10 @@ describe("toPrismaWhere", () => {
         value: ["ALERT", "WARNING"],
       },
     ];
-    expect(toPrismaWhere(filter)).toEqual([
-      { severity: { in: ["ALERT", "WARNING"] } },
-    ]);
+    expect(toPrismaWhere("proj_01", filter)).toEqual({
+      projectId: "proj_01",
+      AND: [{ severity: { in: ["ALERT", "WARNING"] } }],
+    });
   });
 
   it("translates severity `none of` into a negated `in` clause", () => {
@@ -152,9 +159,10 @@ describe("toPrismaWhere", () => {
         value: ["PAUSED"],
       },
     ];
-    expect(toPrismaWhere(filter)).toEqual([
-      { NOT: { severity: { in: ["PAUSED"] } } },
-    ]);
+    expect(toPrismaWhere("proj_01", filter)).toEqual({
+      projectId: "proj_01",
+      AND: [{ NOT: { severity: { in: ["PAUSED"] } } }],
+    });
   });
 
   it("translates tags operators to Prisma array predicates", () => {
@@ -178,11 +186,14 @@ describe("toPrismaWhere", () => {
         value: ["legacy"],
       },
     ];
-    expect(toPrismaWhere(filter)).toEqual([
-      { tags: { hasSome: ["prod"] } },
-      { tags: { hasEvery: ["prod", "latency"] } },
-      { NOT: { tags: { hasSome: ["legacy"] } } },
-    ]);
+    expect(toPrismaWhere("proj_01", filter)).toEqual({
+      projectId: "proj_01",
+      AND: [
+        { tags: { hasSome: ["prod"] } },
+        { tags: { hasEvery: ["prod", "latency"] } },
+        { NOT: { tags: { hasSome: ["legacy"] } } },
+      ],
+    });
   });
 
   it("skips empty tag-value rows", () => {
@@ -200,7 +211,10 @@ describe("toPrismaWhere", () => {
         value: [],
       },
     ];
-    expect(toPrismaWhere(filter)).toEqual([]);
+    expect(toPrismaWhere("proj_01", filter)).toEqual({
+      projectId: "proj_01",
+      AND: [],
+    });
   });
 });
 
@@ -622,5 +636,10 @@ describe("updateSeverityForStatus", () => {
   it("is a no-op when transitioning between two non-ACTIVE states", () => {
     expect(updateSeverityForStatus("PAUSED", "ERROR_BAD_QUERY")).toEqual({});
     expect(updateSeverityForStatus("ERROR_BAD_QUERY", "PAUSED")).toEqual({});
+  });
+
+  it("is a no-op when current is undefined", () => {
+    expect(updateSeverityForStatus(undefined, "ACTIVE")).toEqual({});
+    expect(updateSeverityForStatus(undefined, "PAUSED")).toEqual({});
   });
 });
