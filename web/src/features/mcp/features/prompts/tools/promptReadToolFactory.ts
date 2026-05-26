@@ -1,11 +1,10 @@
 import { z } from "zod";
-import { SpanKind } from "@opentelemetry/api";
 import { type Prompt } from "@langfuse/shared";
-import { instrumentAsync } from "@langfuse/shared/src/server";
 
 import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
 
 import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 import { UserInputError } from "../../../core/errors";
 import {
   ParamPromptLabel,
@@ -68,29 +67,17 @@ export const createPromptReadTool = (options: CreatePromptReadToolOptions) => {
     baseSchema: PromptReadBaseSchema,
     inputSchema: PromptReadInputSchema,
     handler: async (input, context) => {
-      return await instrumentAsync(
-        { name: spanName, spanKind: SpanKind.INTERNAL },
-        async (span) => {
+      return await runMcpTool({
+        spanName,
+        context,
+        attributes: {
+          "mcp.prompt_name": input.name,
+          "mcp.unresolved": resolve ? undefined : true,
+          "mcp.prompt_label": input.label,
+          "mcp.prompt_version": input.version ?? undefined,
+        },
+        fn: async () => {
           const { name, label, version } = input;
-
-          span.setAttributes({
-            "langfuse.project.id": context.projectId,
-            "langfuse.org.id": context.orgId,
-            "mcp.api_key_id": context.apiKeyId,
-            "mcp.prompt_name": name,
-          });
-
-          if (!resolve) {
-            span.setAttribute("mcp.unresolved", true);
-          }
-
-          if (label) {
-            span.setAttribute("mcp.prompt_label", label);
-          }
-
-          if (version) {
-            span.setAttribute("mcp.prompt_version", version);
-          }
 
           const prompt = await getPromptByName({
             promptName: name,
@@ -112,7 +99,7 @@ export const createPromptReadTool = (options: CreatePromptReadToolOptions) => {
 
           return formatPromptResponse(prompt);
         },
-      );
+      });
     },
     readOnlyHint: true,
   });

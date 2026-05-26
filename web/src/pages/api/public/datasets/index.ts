@@ -76,17 +76,13 @@ export default withMiddlewares({
             select: {
               name: true,
             },
-            orderBy: {
-              createdAt: "desc",
-            },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
           },
         },
         where: {
           projectId: auth.scope.projectId,
         },
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
         take: limit,
         skip: (page - 1) * limit,
       });
