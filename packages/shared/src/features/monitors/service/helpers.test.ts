@@ -14,6 +14,7 @@ import {
   errorFromPrisma,
   monitorFromPrisma,
   sortFiltersCanonically,
+  updateSeverityForStatus,
   viewFromPrisma,
   viewToPrisma,
   windowFromMs,
@@ -502,5 +503,41 @@ describe("monitorFromPrisma", () => {
     expect(() =>
       monitorFromPrisma({ ...prismaRow, windowMs: 7n * 60_000n }),
     ).toThrow(InvalidRequestError);
+  });
+});
+
+describe("updateSeverityForStatus", () => {
+  it("emits PAUSED with a timestamp when status leaves ACTIVE", () => {
+    const result = updateSeverityForStatus("ACTIVE", "PAUSED");
+    expect(result.severity).toBe("PAUSED");
+    expect(result.severityChangedAt).toBeInstanceOf(Date);
+  });
+
+  it("emits UNKNOWN with a timestamp when status returns to ACTIVE", () => {
+    const result = updateSeverityForStatus("PAUSED", "ACTIVE");
+    expect(result.severity).toBe("UNKNOWN");
+    expect(result.severityChangedAt).toBeInstanceOf(Date);
+  });
+
+  it("emits UNKNOWN when recovering from ERROR_BAD_QUERY to ACTIVE", () => {
+    const result = updateSeverityForStatus("ERROR_BAD_QUERY", "ACTIVE");
+    expect(result.severity).toBe("UNKNOWN");
+    expect(result.severityChangedAt).toBeInstanceOf(Date);
+  });
+
+  it("emits PAUSED when going from ACTIVE to ERROR_BAD_QUERY", () => {
+    const result = updateSeverityForStatus("ACTIVE", "ERROR_BAD_QUERY");
+    expect(result.severity).toBe("PAUSED");
+    expect(result.severityChangedAt).toBeInstanceOf(Date);
+  });
+
+  it("is a no-op when status does not change", () => {
+    expect(updateSeverityForStatus("ACTIVE", "ACTIVE")).toEqual({});
+    expect(updateSeverityForStatus("PAUSED", "PAUSED")).toEqual({});
+  });
+
+  it("is a no-op when transitioning between two non-ACTIVE states", () => {
+    expect(updateSeverityForStatus("PAUSED", "ERROR_BAD_QUERY")).toEqual({});
+    expect(updateSeverityForStatus("ERROR_BAD_QUERY", "PAUSED")).toEqual({});
   });
 });

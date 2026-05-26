@@ -1596,12 +1596,6 @@ enum MonitorView {
 }
 
 enum MonitorSeverity {
-  // Set by the service whenever `status` transitions to PAUSED, and by the
-  // worker whenever it flips status to ERROR_BAD_QUERY. Pauses evaluation
-  // semantically — the scheduler skips non-ACTIVE rows so the value sticks
-  // until status flips back to ACTIVE (which resets severity to UNKNOWN).
-  // First in the enum so the default `severity DESC` sort pushes paused
-  // rows to the bottom of the list.
   PAUSED
   UNKNOWN
   NO_DATA

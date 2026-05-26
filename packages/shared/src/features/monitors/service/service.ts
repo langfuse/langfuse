@@ -13,6 +13,7 @@ import {
   monitorFromPrisma,
   nullableOrderColumns,
   sortFiltersCanonically,
+  updateSeverityForStatus,
   viewToPrisma,
   windowToMs,
 } from "./helpers";
@@ -76,9 +77,6 @@ export class MonitorService {
         noData: input.noData,
         renotify: input.renotify,
         status: input.status,
-        // Mirror the transition rule: monitors created in a non-ACTIVE state
-        // start with severity = PAUSED (scheduler skips them until they go
-        // ACTIVE, at which point .update resets severity to UNKNOWN).
         ...(input.status !== "ACTIVE" ? { severity: "PAUSED" as const } : {}),
         schedulerBatchId,
         nextRunAt,
@@ -108,30 +106,13 @@ export class MonitorService {
       schedulerBatchId,
     );
 
-    // Detect a status transition so we can keep `severity` in sync. The
-    // worker/scheduler still owns severity on every other code path — this
-    // block only fires when the caller is flipping ACTIVE ↔ non-ACTIVE.
     const current = await prisma.monitor.findFirst({
       where: { id: input.id, projectId: input.projectId },
       select: { status: true },
     });
-    const severityTransition: {
-      severity?: "PAUSED" | "UNKNOWN";
-      severityChangedAt?: Date;
-    } = (() => {
-      if (!current) return {};
-      const goingPaused =
-        current.status === "ACTIVE" && input.status !== "ACTIVE";
-      const goingActive =
-        current.status !== "ACTIVE" && input.status === "ACTIVE";
-      if (goingPaused) {
-        return { severity: "PAUSED", severityChangedAt: new Date() };
-      }
-      if (goingActive) {
-        return { severity: "UNKNOWN", severityChangedAt: new Date() };
-      }
-      return {};
-    })();
+    const severityTransition = current
+      ? updateSeverityForStatus(current.status, input.status)
+      : {};
 
     try {
       const updated = await prisma.monitor.update({

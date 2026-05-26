@@ -17,7 +17,9 @@ import { DAY, HOUR, MINUTE, WEEK } from "../helpers";
 import {
   type Monitor,
   type MonitorFilters,
+  type MonitorSeverity,
   MonitorSeveritySchema,
+  type MonitorStatus,
   type MonitorView,
   type MonitorWindow,
   MonitorSchema,
@@ -267,6 +269,19 @@ export const monitorFromPrisma = (monitor: PrismaMonitor): Monitor =>
 /** decimalToPrisma converts a nullable JS number to a Prisma.Decimal, preserving null. */
 export const decimalToPrisma = (n: number | null): Prisma.Decimal | null =>
   n == null ? null : new Prisma.Decimal(n);
+
+/** updateSeverityForStatus returns the severity transition payload when status flips between ACTIVE and non-ACTIVE; otherwise an empty object. */
+export const updateSeverityForStatus = (
+  current: MonitorStatus,
+  next: MonitorStatus,
+): { severity?: MonitorSeverity; severityChangedAt?: Date } => {
+  const goingPaused = current === "ACTIVE" && next !== "ACTIVE";
+  const goingActive = current !== "ACTIVE" && next === "ACTIVE";
+  if (goingPaused) return { severity: "PAUSED", severityChangedAt: new Date() };
+  if (goingActive)
+    return { severity: "UNKNOWN", severityChangedAt: new Date() };
+  return {};
+};
 
 /** errorFromPrisma converts a Prisma row-not-found error to MonitorNotFoundError. */
 export const errorFromPrisma = (

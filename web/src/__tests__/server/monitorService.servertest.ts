@@ -173,6 +173,59 @@ describe("MonitorService (integration)", () => {
         }),
       ).rejects.toBeInstanceOf(LangfuseNotFoundError);
     });
+
+    it("flips severity to PAUSED when status leaves ACTIVE", async () => {
+      const created = await MonitorService.create(
+        creator,
+        baseMonitorInput(projectId),
+      );
+      expect(created.severity).toBe("UNKNOWN");
+
+      const updated = await MonitorService.update(editor, {
+        ...baseMonitorInput(projectId),
+        id: created.id,
+        status: "PAUSED",
+      });
+
+      expect(updated.severity).toBe("PAUSED");
+      expect(updated.severityChangedAt).not.toBeNull();
+    });
+
+    it("flips severity to UNKNOWN when status returns to ACTIVE", async () => {
+      const created = await MonitorService.create(creator, {
+        ...baseMonitorInput(projectId),
+        status: "PAUSED",
+      });
+      expect(created.severity).toBe("PAUSED");
+
+      const updated = await MonitorService.update(editor, {
+        ...baseMonitorInput(projectId),
+        id: created.id,
+        status: "ACTIVE",
+      });
+
+      expect(updated.severity).toBe("UNKNOWN");
+      expect(updated.severityChangedAt).not.toBeNull();
+    });
+
+    it("preserves worker-owned severity when status does not change", async () => {
+      const created = await MonitorService.create(
+        creator,
+        baseMonitorInput(projectId),
+      );
+      await prisma.monitor.update({
+        where: { id: created.id },
+        data: { severity: "ALERT", severityChangedAt: new Date() },
+      });
+
+      const updated = await MonitorService.update(editor, {
+        ...baseMonitorInput(projectId),
+        id: created.id,
+        name: "Renamed",
+      });
+
+      expect(updated.severity).toBe("ALERT");
+    });
   });
 
   describe("getById / list / delete", () => {
