@@ -343,8 +343,7 @@ const MonitorTriggerFields = ({
               hasAccess={!disabled}
               isLoading={false}
               mutateTags={(next) => field.onChange(tagsToFilter(next))}
-              liveUpdate
-              popoverAlign="start"
+              alignPopover="start"
               triggerButton={
                 <Button
                   type="button"

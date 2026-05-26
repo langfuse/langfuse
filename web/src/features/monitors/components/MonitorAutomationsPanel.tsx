@@ -74,8 +74,7 @@ export const MonitorAutomationsPanel = ({
         hasAccess={hasAccess}
         isLoading={false}
         mutateTags={onTagsChange}
-        liveUpdate
-        popoverAlign="start"
+        alignPopover="start"
         triggerButton={
           <Button type="button" variant="default" size="sm" className="gap-1">
             <Plus className="h-3 w-3" />

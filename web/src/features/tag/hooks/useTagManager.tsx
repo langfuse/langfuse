@@ -1,37 +1,34 @@
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useState, useMemo } from "react";
 
-type UseTagManagerProps = {
-  initialTags: string[];
-  allTags: string[];
-};
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-export function useTagManager({ initialTags, allTags }: UseTagManagerProps) {
-  const [selectedTags, setSelectedTags] = useState(initialTags);
+/** useTagManager exposes the input buffer, autocomplete list, and create-tag handler for TagManager; tag-list state itself stays on the parent. */
+export function useTagManager({
+  tags,
+  allTags,
+  mutateTags,
+}: {
+  tags: string[];
+  allTags: string[];
+  mutateTags: (next: string[]) => void;
+}) {
   const [inputValue, setInputValue] = useState("");
   const availableTags = useMemo(
-    () => allTags.filter((value) => !selectedTags.includes(value)),
-    [allTags, selectedTags],
+    () => allTags.filter((value) => !tags.includes(value)),
+    [allTags, tags],
   );
   const capture = usePostHogClientCapture();
+
   const handleItemCreate = () => {
-    setSelectedTags((prevSelectedTags) => [
-      // dedupe
-      ...new Set([...prevSelectedTags, inputValue]),
-    ]);
-    capture("tag:create_new_button_click", {
-      name: inputValue,
-    });
-    availableTags.push(inputValue);
+    mutateTags([...new Set([...tags, inputValue])]);
+    capture("tag:create_new_button_click", { name: inputValue });
     setInputValue("");
   };
 
   return {
-    selectedTags,
     inputValue,
     availableTags,
     handleItemCreate,
     setInputValue,
-    setSelectedTags,
   };
 }
