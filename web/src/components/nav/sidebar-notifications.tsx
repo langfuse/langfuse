@@ -41,6 +41,15 @@ const notifications: SidebarNotification[] = [
       />
     ),
   },
+  {
+    id: "lw5-1",
+    title: "Launch Week: Day 1",
+    description:
+      "Run experiments inside GitHub Actions to test every PR against a Langfuse dataset.",
+    link: "https://langfuse.com/launch-week-5",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-25",
+  },
 ];
 
 const STORAGE_KEY = "dismissed-sidebar-notifications";
