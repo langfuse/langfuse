@@ -138,6 +138,13 @@ export function defineTool<TInput>(
     );
   }
 
+  // MCP spec requires inputSchema to have "type": "object" at the root.
+  // Zod's intersection/and() schemas produce top-level allOf without type,
+  // so we add it when the schema is object-like but missing the type field.
+  if (!jsonSchema.type) {
+    jsonSchema.type = "object";
+  }
+
   // Build tool definition
   const toolDefinition: ToolDefinition = {
     name,
