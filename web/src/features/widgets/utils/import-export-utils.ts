@@ -1,6 +1,6 @@
 import { z } from "zod";
 import {
-  getValidAggregationsForMeasureType,
+  getValidAggregationsForMeasure,
   metricAggregations,
   viewDeclarations,
   views,
@@ -322,7 +322,7 @@ export function validateImportedWidget(params: {
       return false;
     }
 
-    return getValidAggregationsForMeasureType(measureDefinition.type).some(
+    return getValidAggregationsForMeasure(measureDefinition).some(
       (aggregation) => aggregation === metric.agg,
     );
   });

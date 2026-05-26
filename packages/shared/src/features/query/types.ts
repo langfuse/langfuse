@@ -123,16 +123,10 @@ export const metricAggregations = z.enum([
 /** MeasureDefinition is a single `measures` entry on a ViewDeclaration. */
 export type MeasureDefinition = ViewDeclarationType["measures"][string];
 
-/** getValidAggregationsForMeasure returns the aggregations valid for a measure: its pinned `aggs.agg`, every aggregation for numeric types, or `count`/`uniq` otherwise. */
+/** getValidAggregationsForMeasure returns the aggregations valid for a measure: every aggregation for numeric types, or `count`/`uniq` otherwise. */
 export function getValidAggregationsForMeasure(
   measure: MeasureDefinition | undefined,
 ): z.infer<typeof metricAggregations>[] {
-  const fixedAgg = measure?.aggs?.agg as
-    | z.infer<typeof metricAggregations>
-    | undefined;
-  if (fixedAgg && metricAggregations.options.includes(fixedAgg)) {
-    return [fixedAgg];
-  }
   if (
     measure?.type === "integer" ||
     measure?.type === "decimal" ||

@@ -13,11 +13,21 @@ import {
   type viewsV2,
 } from "../query/types";
 
-/** getValidMonitorAggregationsForMeasure returns the aggregations valid for a monitor metric: the widget set minus `histogram` (a bucket array can't be compared to a scalar threshold). */
+/** getValidMonitorAggregationsForMeasure returns the aggregations valid for a monitor metric: the widget set minus `histogram`, and pinned to the measure's inner `aggs.agg` when set (e.g. observations.count is always `count`). */
 export const getValidMonitorAggregationsForMeasure = (
   measure: MeasureDefinition | undefined,
-): z.infer<typeof metricAggregations>[] =>
-  getValidAggregationsForMeasure(measure).filter((a) => a !== "histogram");
+): z.infer<typeof metricAggregations>[] => {
+  const aggs = getValidAggregationsForMeasure(measure).filter(
+    (a) => a !== "histogram",
+  );
+  const pinned = measure?.aggs?.agg as
+    | z.infer<typeof metricAggregations>
+    | undefined;
+  if (pinned && pinned !== "histogram" && aggs.includes(pinned)) {
+    return [pinned];
+  }
+  return aggs;
+};
 
 /**
  * isValidQuery ensures:
