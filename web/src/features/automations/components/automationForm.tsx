@@ -43,6 +43,7 @@ import {
 } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -157,39 +158,49 @@ const EventSourceField = ({
   control: Control<FormValues>;
   onSourceChange: (value: TriggerEventSource) => void;
   disabled: boolean;
-}) => (
-  <FormField
-    control={control}
-    name="eventSource"
-    render={({ field }) => (
-      <FormItem>
-        <FormLabel>Event Source</FormLabel>
-        <Select
-          onValueChange={(value) => onSourceChange(value as TriggerEventSource)}
-          value={field.value}
-          disabled={disabled}
-        >
-          <FormControl>
-            <SelectTrigger>
-              <SelectValue placeholder="Select an event source" />
-            </SelectTrigger>
-          </FormControl>
-          <SelectContent>
-            <SelectItem value={TriggerEventSource.Prompt}>Prompt</SelectItem>
-            <SelectItem value={TriggerEventSource.Monitor}>Monitor</SelectItem>
-            <SelectItem disabled={true} value="planned">
-              More coming soon...
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        <FormDescription>
-          The event that triggers this automation.
-        </FormDescription>
-        <FormMessage />
-      </FormItem>
-    )}
-  />
-);
+}) => {
+  const isMonitorsEnabled = useIsFeatureEnabled("monitors");
+  return (
+    <FormField
+      control={control}
+      name="eventSource"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Event Source</FormLabel>
+          <Select
+            onValueChange={(value) =>
+              onSourceChange(value as TriggerEventSource)
+            }
+            value={field.value}
+            disabled={disabled}
+          >
+            <FormControl>
+              <SelectTrigger>
+                <SelectValue placeholder="Select an event source" />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent>
+              <SelectItem value={TriggerEventSource.Prompt}>Prompt</SelectItem>
+              {(isMonitorsEnabled ||
+                field.value === TriggerEventSource.Monitor) && (
+                <SelectItem value={TriggerEventSource.Monitor}>
+                  Monitor
+                </SelectItem>
+              )}
+              <SelectItem disabled={true} value="planned">
+                More coming soon...
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <FormDescription>
+            The event that triggers this automation.
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+};
 
 /** PromptTriggerFields renders the eventAction picker and inline filter builder for prompt-source automations. */
 const PromptTriggerFields = ({
