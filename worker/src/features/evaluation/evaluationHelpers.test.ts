@@ -13,7 +13,10 @@ import {
 } from "@langfuse/shared";
 import { type ExtractedVariable } from "@langfuse/shared/src/server";
 import { parseDispatchResult } from "../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
-import { createDeterministicEvalScoreId } from "../../../../packages/shared/src/server/evals/evalScoreIds";
+import {
+  buildDeterministicEvalScoreIds,
+  createDeterministicEvalScoreId,
+} from "../../../../packages/shared/src/server/evals/evalScoreIds";
 import {
   buildEvalExecutionMetadata,
   buildEvalMessages,
@@ -716,6 +719,234 @@ describe("evaluation helpers", () => {
         job_execution_id: "job-1",
         dispatcher_name: "test-dispatcher",
       });
+    });
+
+    it("should produce a stable {value -> scoreId} mapping across retries that reorder same-name categorical matches", () => {
+      // Multi-match categorical LLM-as-judge evaluations may return matches in
+      // a different order on retry. The score-ID derivation must remain stable
+      // per match value, otherwise the ReplacingMergeTree-deduplicated score
+      // store silently overwrites the original record on the second write.
+      const common = {
+        jobExecutionId: "job-multi-match",
+        traceId: "trace-1",
+        observationId: "obs-1",
+        environment: "production",
+        executionTraceId: "exec-trace-1",
+        executionMetadata: { job_execution_id: "job-multi-match" },
+      };
+      const original = buildEvalScoreWritePayloads({
+        ...common,
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "correct",
+            name: "verdict",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "partial",
+            name: "verdict",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "incorrect",
+            name: "verdict",
+          },
+        ],
+      });
+      const reordered = buildEvalScoreWritePayloads({
+        ...common,
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "incorrect",
+            name: "verdict",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "correct",
+            name: "verdict",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "partial",
+            name: "verdict",
+          },
+        ],
+      });
+
+      const toValueIdMap = (payloads: typeof original) =>
+        Object.fromEntries(
+          payloads.map((p) => [p.event.body.value, p.scoreId]),
+        );
+
+      expect(toValueIdMap(reordered)).toEqual(toValueIdMap(original));
+      // And every distinct value still gets a distinct ID — no collisions.
+      expect(new Set(original.map((p) => p.scoreId)).size).toBe(3);
+    });
+  });
+
+  describe("buildDeterministicEvalScoreIds", () => {
+    it("preserves the single-occurrence ID for numeric, boolean, and single-categorical scores", () => {
+      const jobExecutionId = "job-single";
+      const scores = [
+        {
+          dataType: ScoreDataTypeEnum.NUMERIC,
+          value: 0.9,
+          name: "accuracy",
+        },
+        {
+          dataType: ScoreDataTypeEnum.BOOLEAN,
+          value: 1 as const,
+          name: "correctness",
+        },
+        {
+          dataType: ScoreDataTypeEnum.CATEGORICAL,
+          value: "correct",
+          name: "verdict",
+        },
+      ];
+
+      const ids = buildDeterministicEvalScoreIds({
+        scores,
+        jobExecutionId,
+      });
+
+      // Single-occurrence groups must keep occurrenceIndex 0 so the IDs are
+      // byte-identical to the original deterministic scheme introduced in
+      // PR #13772 — no migration churn for numeric/boolean/single-categorical.
+      expect(ids).toEqual([
+        createDeterministicEvalScoreId({
+          jobExecutionId,
+          scoreName: "accuracy",
+          occurrenceIndex: 0,
+        }),
+        createDeterministicEvalScoreId({
+          jobExecutionId,
+          scoreName: "correctness",
+          occurrenceIndex: 0,
+        }),
+        createDeterministicEvalScoreId({
+          jobExecutionId,
+          scoreName: "verdict",
+          occurrenceIndex: 0,
+        }),
+      ]);
+    });
+
+    it("produces the same {value -> id} map regardless of input order for multi-match categorical scores", () => {
+      const jobExecutionId = "job-multi";
+      const inOrder = buildDeterministicEvalScoreIds({
+        jobExecutionId,
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "correct",
+            name: "verdict",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "partial",
+            name: "verdict",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "incorrect",
+            name: "verdict",
+          },
+        ],
+      });
+      const reversed = buildDeterministicEvalScoreIds({
+        jobExecutionId,
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "incorrect",
+            name: "verdict",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "partial",
+            name: "verdict",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "correct",
+            name: "verdict",
+          },
+        ],
+      });
+
+      // The output array preserves input order so callers can still pair
+      // ids[i] with scores[i], but the value -> id mapping is stable:
+      // ids[for "correct"] is the same across both calls.
+      expect(inOrder[0]).toBe(reversed[2]); // correct
+      expect(inOrder[1]).toBe(reversed[1]); // partial
+      expect(inOrder[2]).toBe(reversed[0]); // incorrect
+
+      // And no value collides with another.
+      expect(new Set(inOrder).size).toBe(3);
+    });
+
+    it("assigns occurrenceIndex independently per score name", () => {
+      const jobExecutionId = "job-independent";
+      const ids = buildDeterministicEvalScoreIds({
+        jobExecutionId,
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "correct",
+            name: "accuracy",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "fluent",
+            name: "fluency",
+          },
+        ],
+      });
+
+      // Each name has only one occurrence, so both stay at occurrenceIndex 0.
+      expect(ids).toEqual([
+        createDeterministicEvalScoreId({
+          jobExecutionId,
+          scoreName: "accuracy",
+          occurrenceIndex: 0,
+        }),
+        createDeterministicEvalScoreId({
+          jobExecutionId,
+          scoreName: "fluency",
+          occurrenceIndex: 0,
+        }),
+      ]);
+    });
+
+    it("disambiguates score values across primitive types when ordering multi-occurrence groups", () => {
+      // The schema rejects duplicate values within a single eval run, but
+      // value keys must still disambiguate primitives in the canonical sort
+      // so the value -> id map remains well-defined for runners that mix
+      // numeric and string values under the same name (untyped score variant).
+      const jobExecutionId = "job-mixed";
+      const a = buildDeterministicEvalScoreIds({
+        jobExecutionId,
+        scores: [
+          { value: 1, name: "raw" },
+          { value: "1", name: "raw" },
+        ],
+      });
+      const b = buildDeterministicEvalScoreIds({
+        jobExecutionId,
+        scores: [
+          { value: "1", name: "raw" },
+          { value: 1, name: "raw" },
+        ],
+      });
+
+      // The two distinct values keep distinct IDs, and the value -> id map
+      // is identical across both input orderings.
+      expect(new Set(a).size).toBe(2);
+      expect(a[0]).toBe(b[1]); // numeric 1
+      expect(a[1]).toBe(b[0]); // string "1"
     });
   });
 
