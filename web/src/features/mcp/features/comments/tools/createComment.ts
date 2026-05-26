@@ -13,8 +13,7 @@ import { CreateCommentToolSchema } from "../schema";
 
 export const [createCommentTool, handleCreateComment] = defineTool({
   name: "createComment",
-  description:
-    "Create a comment on a trace, observation, session, or prompt in the current Langfuse project.",
+  description: "Create a comment on a trace, observation, session, or prompt.",
   baseSchema: CreateCommentToolSchema,
   inputSchema: CreateCommentToolSchema,
   handler: async (input, context) =>

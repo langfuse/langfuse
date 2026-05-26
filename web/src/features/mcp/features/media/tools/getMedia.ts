@@ -5,8 +5,7 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 
 export const [getMediaTool, handleGetMedia] = defineTool({
   name: "getMedia",
-  description:
-    "Fetch metadata and a signed download URL for one media asset in the current Langfuse project.",
+  description: "Fetch metadata and a signed download URL for one media asset.",
   baseSchema: GetMediaQuerySchema,
   inputSchema: GetMediaQuerySchema,
   handler: async (input, context) => {

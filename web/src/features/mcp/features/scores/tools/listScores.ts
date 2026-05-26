@@ -72,9 +72,9 @@ const assertValidScoreFields = (input: ListScoresInput) => {
 export const [listScoresTool, handleListScores] = defineTool({
   name: "listScores",
   description: [
-    "Find scores in the current Langfuse project.",
-    "Uses the v2 /api/public/v2/scores semantics for numeric, categorical, boolean, correction, and text scores across traces, observations, sessions, and dataset runs.",
-    "Results are paginated with page and limit and return exactly data and meta at the top level.",
+    "Find scores in Langfuse.",
+    "Use this to review quality, evaluation, or feedback scores for traces, observations, sessions, and dataset runs.",
+    "Filter by score details, time range, environment, source, trace information, or dataset run context to narrow the results.",
   ].join("\n"),
   baseSchema: ListScoresInputSchema,
   inputSchema: ListScoresInputSchema,

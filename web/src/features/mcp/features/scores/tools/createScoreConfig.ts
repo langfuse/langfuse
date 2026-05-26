@@ -14,7 +14,7 @@ const CreateScoreConfigInputSchema = z
 export const [createScoreConfigTool, handleCreateScoreConfig] = defineTool({
   name: "createScoreConfig",
   description:
-    "Create a score configuration in the current Langfuse project. Supports numeric, categorical, boolean, and text configs. Boolean configs automatically receive True and False categories.",
+    "Create a score configuration. Supports numeric, categorical, boolean, and text configs. Boolean configs automatically receive True and False categories.",
   baseSchema: CreateScoreConfigInputSchema,
   inputSchema: CreateScoreConfigInputSchema,
   destructiveHint: true,

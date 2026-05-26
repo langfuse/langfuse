@@ -21,7 +21,7 @@ const McpUpdateScoreConfigInputSchema = z
 export const [updateScoreConfigTool, handleUpdateScoreConfig] = defineTool({
   name: "updateScoreConfig",
   description:
-    "Update a score configuration in the current Langfuse project. Use this to rename, describe, or adjust allowed numeric/category fields.",
+    "Update a score configuration. Use this to rename, describe, or adjust allowed numeric/category fields.",
   baseSchema: McpUpdateScoreConfigInputSchema,
   inputSchema: McpUpdateScoreConfigInputSchema,
   handler: async (input, context) => {

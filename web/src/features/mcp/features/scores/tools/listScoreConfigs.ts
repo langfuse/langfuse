@@ -6,7 +6,7 @@ import { GetScoreConfigsQuery } from "@/src/features/public-api/types/score-conf
 export const [listScoreConfigsTool, handleListScoreConfigs] = defineTool({
   name: "listScoreConfigs",
   description:
-    "List score configurations in the current Langfuse project. Returns exactly data and meta at the top level.",
+    "List score configurations. Returns exactly data and meta at the top level.",
   baseSchema: GetScoreConfigsQuery,
   inputSchema: GetScoreConfigsQuery,
   handler: async (input, context) => {
