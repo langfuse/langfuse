@@ -36,7 +36,7 @@ export const [listDatasetsTool, handleListDatasets] = defineTool({
               id: true,
             },
             where: { projectId: context.projectId },
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
             take: input.limit,
             skip: (input.page - 1) * input.limit,
           }),
