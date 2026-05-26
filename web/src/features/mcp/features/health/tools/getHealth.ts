@@ -8,8 +8,8 @@ import {
   queryClickhouse,
   traceException,
 } from "@langfuse/shared/src/server";
-import { defineTool } from "../../core/define-tool";
-import { runPublicApiTool } from "../publicApi";
+import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 
 const HealthInputSchema = z.object({
   failIfDatabaseUnavailable: z.boolean().optional().default(false),
@@ -30,7 +30,7 @@ export const [getHealthTool, handleGetHealth] = defineTool({
   baseSchema: HealthInputSchema,
   inputSchema: HealthInputSchema,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.health.get",
       context,
       fn: async () => {

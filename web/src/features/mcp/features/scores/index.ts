@@ -32,10 +32,12 @@ export const scoresFeature: McpFeatureModule = {
     {
       definition: listScoresTool,
       handler: handleListScores,
+      allowInAppAgentKey: true,
     },
     {
       definition: getScoreTool,
       handler: handleGetScore,
+      allowInAppAgentKey: true,
     },
     {
       definition: createScoreTool,
@@ -48,10 +50,12 @@ export const scoresFeature: McpFeatureModule = {
     {
       definition: listScoreConfigsTool,
       handler: handleListScoreConfigs,
+      allowInAppAgentKey: true,
     },
     {
       definition: getScoreConfigTool,
       handler: handleGetScoreConfig,
+      allowInAppAgentKey: true,
     },
     {
       definition: createScoreConfigTool,
