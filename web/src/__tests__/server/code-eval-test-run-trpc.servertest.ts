@@ -158,7 +158,7 @@ maybe("evals.testRunCodeEval", () => {
           jsonSelector: null,
         },
         {
-          templateVariable: "observationMetadata",
+          templateVariable: "metadata",
           selectedColumnId: "metadata",
           jsonSelector: "$.quality",
         },
@@ -260,7 +260,7 @@ maybe("evals.testRunCodeEval", () => {
           }
 
           const matched =
-            ctx.observation.output === ctx.experiment.expectedOutput &&
+            ctx.observation.output === ctx.experiment.itemExpectedOutput &&
             ctx.experiment.itemMetadata.difficulty === "easy";
 
           return { scores: [{ name: "experiment-test-score", value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
@@ -298,7 +298,7 @@ maybe("evals.testRunCodeEval", () => {
           jsonSelector: null,
         },
         {
-          templateVariable: "experimentExpectedOutput",
+          templateVariable: "experimentItemExpectedOutput",
           selectedColumnId: "experimentItemExpectedOutput",
           jsonSelector: null,
         },

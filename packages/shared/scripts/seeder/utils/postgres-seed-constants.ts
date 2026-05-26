@@ -712,7 +712,7 @@ export const SEED_EVALUATOR_TEMPLATES = [
     type: "CODE",
     prompt: null,
     model: null,
-    vars: ["input", "output", "observationMetadata"],
+    vars: ["input", "output", "metadata"],
     provider: null,
     outputDefinition: null,
     modelParams: null,

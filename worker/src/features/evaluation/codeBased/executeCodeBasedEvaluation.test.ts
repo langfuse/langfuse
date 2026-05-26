@@ -93,7 +93,7 @@ describe("executeCodeBasedEvaluation", () => {
       extractedVariables: [
         { var: "input", value: { question: "2+2" } },
         { var: "output", value: "4" },
-        { var: "experimentExpectedOutput", value: "4" },
+        { var: "experimentItemExpectedOutput", value: "4" },
       ],
       hasExperimentContext: true,
       executionMetadata: { job_execution_id: "job-1" },
@@ -116,7 +116,7 @@ describe("executeCodeBasedEvaluation", () => {
         metadata: null,
       },
       experiment: {
-        expectedOutput: "4",
+        itemExpectedOutput: "4",
         itemMetadata: null,
       },
     });
@@ -228,7 +228,7 @@ describe("executeCodeBasedEvaluation", () => {
         payload: {
           observation: { input: null, output: null, metadata: null },
           experiment: {
-            expectedOutput: null,
+            itemExpectedOutput: null,
             itemMetadata: null,
           },
         },
@@ -261,7 +261,7 @@ describe("executeCodeBasedEvaluation", () => {
         prompt: null,
         outputDefinition: null,
       } as any,
-      extractedVariables: [{ var: "experimentExpectedOutput", value: "4" }],
+      extractedVariables: [{ var: "experimentItemExpectedOutput", value: "4" }],
       hasExperimentContext: false,
       executionMetadata: { job_execution_id: "job-1" },
     });
@@ -302,8 +302,8 @@ describe("executeCodeBasedEvaluation", () => {
       } as any,
       extractedVariables: [
         { var: "output", value: "true" },
-        { var: "observationMetadata", value: "42" },
-        { var: "experimentExpectedOutput", value: "null" },
+        { var: "metadata", value: "42" },
+        { var: "experimentItemExpectedOutput", value: "null" },
       ],
       hasExperimentContext: true,
       executionMetadata: { job_execution_id: "job-1" },
@@ -318,7 +318,7 @@ describe("executeCodeBasedEvaluation", () => {
             metadata: "42",
           },
           experiment: {
-            expectedOutput: "null",
+            itemExpectedOutput: "null",
             itemMetadata: null,
           },
         }),
@@ -370,7 +370,7 @@ describe("executeCodeBasedEvaluation", () => {
             metadata: null,
           },
           experiment: {
-            expectedOutput: null,
+            itemExpectedOutput: null,
             itemMetadata: { difficulty: "easy", source: "dataset" },
           },
         }),

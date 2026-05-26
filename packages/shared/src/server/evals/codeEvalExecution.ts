@@ -112,13 +112,13 @@ function buildCodeEvalPayload(params: {
     observation: {
       input: byName.get("input") ?? null,
       output: byName.get("output") ?? null,
-      metadata: byName.get("observationMetadata") ?? null,
+      metadata: byName.get("metadata") ?? null,
     },
   };
 
   if (params.hasExperimentContext) {
     payload.experiment = {
-      expectedOutput: byName.get("experimentExpectedOutput") ?? null,
+      itemExpectedOutput: byName.get("experimentItemExpectedOutput") ?? null,
       itemMetadata: byName.get("experimentItemMetadata") ?? null,
     };
   }

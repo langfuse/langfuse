@@ -282,11 +282,11 @@ describe("Observation Eval E2E Pipeline", () => {
         { templateVariable: "input", selectedColumnId: "input" },
         { templateVariable: "output", selectedColumnId: "output" },
         {
-          templateVariable: "observationMetadata",
+          templateVariable: "metadata",
           selectedColumnId: "metadata",
         },
         {
-          templateVariable: "experimentExpectedOutput",
+          templateVariable: "experimentItemExpectedOutput",
           selectedColumnId: "experimentItemExpectedOutput",
         },
       ];
@@ -316,7 +316,7 @@ describe("Observation Eval E2E Pipeline", () => {
           function evaluate(ctx) {
             const matched =
               ctx.observation.input.question === "2+2" &&
-              ctx.observation.output.answer === ctx.experiment?.expectedOutput &&
+              ctx.observation.output.answer === ctx.experiment?.itemExpectedOutput &&
               ctx.observation.metadata.rubric === "math";
 
             return {
@@ -325,7 +325,7 @@ describe("Observation Eval E2E Pipeline", () => {
                   name: "nested-context-score",
                   value: matched ? 1 : 0,
                   dataType: "BOOLEAN",
-                  comment: ctx.experiment?.expectedOutput,
+                  comment: ctx.experiment?.itemExpectedOutput,
                 },
               ],
             };

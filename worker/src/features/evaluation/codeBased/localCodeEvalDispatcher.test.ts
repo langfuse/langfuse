@@ -22,7 +22,7 @@ const baseInput: Omit<DispatchInput, "runtime" | "code"> = {
       metadata: { source: "test" },
     },
     experiment: {
-      expectedOutput: "4",
+      itemExpectedOutput: "4",
       itemMetadata: { difficulty: "easy" },
     },
   },
@@ -39,11 +39,11 @@ describe("LocalCodeEvalDispatcher", () => {
         source: `
           type EvaluationContext = {
             observation: { output: string };
-            experiment: { expectedOutput: string } | undefined;
+            experiment: { itemExpectedOutput: string } | undefined;
           };
           async function evaluate(ctx: EvaluationContext) {
             return {
-              scores: [{ name: "match", value: ctx.observation.output === ctx.experiment?.expectedOutput ? 1 : 0, dataType: "BOOLEAN" }],
+              scores: [{ name: "match", value: ctx.observation.output === ctx.experiment?.itemExpectedOutput ? 1 : 0, dataType: "BOOLEAN" }],
             };
           }
         `,

@@ -29,7 +29,7 @@ const baseInput: DispatchInput = {
       metadata: { topic: "integration" },
     },
     experiment: {
-      expectedOutput: "hello world",
+      itemExpectedOutput: "hello world",
       itemMetadata: { item: 42 },
     },
   },
@@ -61,7 +61,7 @@ function evaluate(ctx: {
     metadata: { topic: string };
   };
   experiment: {
-    expectedOutput: string;
+    itemExpectedOutput: string;
     itemMetadata: { item: number };
   } | undefined;
 }) {
@@ -72,7 +72,7 @@ function evaluate(ctx: {
       { name: "output-contains-input-int", value: contains ? 1 : 0, dataType: "BOOLEAN" },
       { name: "output-contains-input-str", value: contains ? "True" : "False", dataType: "BOOLEAN" },
       { name: ctx.observation.metadata.topic, value: ctx.experiment?.itemMetadata.item ?? 0, dataType: "NUMERIC" },
-      { name: "expected-output", value: ctx.experiment?.expectedOutput ?? "", dataType: "TEXT", metadata: { source: "runner-fixture" } },
+      { name: "expected-output", value: ctx.experiment?.itemExpectedOutput ?? "", dataType: "TEXT", metadata: { source: "runner-fixture" } },
       { name: "rating", value: "good", dataType: "CATEGORICAL" },
     ],
   };
@@ -87,7 +87,7 @@ def evaluate(ctx):
             {"name": "output-contains-input-int", "value": 1 if contains else 0, "dataType": "BOOLEAN"},
             {"name": "output-contains-input-str", "value": "true" if contains else "false", "dataType": "BOOLEAN"},
             {"name": ctx.observation.metadata["topic"], "value": ctx.experiment.item_metadata["item"], "dataType": "NUMERIC"},
-            Score(name="expected-output", value=ctx.experiment.expected_output, data_type="TEXT", metadata={"source": "runner-fixture"}),
+            Score(name="expected-output", value=ctx.experiment.item_expected_output, data_type="TEXT", metadata={"source": "runner-fixture"}),
             {"name": "rating", "value": "good", "dataType": "CATEGORICAL"},
         ],
     }
