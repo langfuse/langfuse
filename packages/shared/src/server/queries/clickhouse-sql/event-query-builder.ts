@@ -1,3 +1,7 @@
+import {
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
+  ObservationFieldGroupPublicApi,
+} from "../../../domain/observation-field-groups";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import { FilterList, StringFilter } from "./clickhouse-filter";
 
@@ -102,6 +106,7 @@ const EVENTS_FIELDS = {
   toolCallNames: 'e.tool_call_names as "tool_call_names"',
 
   // Pricing tier
+  usagePricingTierId: 'e.usage_pricing_tier_id as "usage_pricing_tier_id"',
   usagePricingTierName:
     'e.usage_pricing_tier_name as "usage_pricing_tier_name"',
 
@@ -174,6 +179,8 @@ const FIELD_SETS = {
     "updatedAt",
     "providedModelName",
     "totalCost",
+    "usagePricingTierId",
+    "usagePricingTierName",
     "promptId",
     "promptName",
     "promptVersion",
@@ -212,6 +219,8 @@ const FIELD_SETS = {
     "updatedAt",
     "providedModelName",
     "totalCost",
+    "usagePricingTierId",
+    "usagePricingTierName",
     "promptId",
     "promptName",
     "promptVersion",
@@ -221,12 +230,14 @@ const FIELD_SETS = {
     "traceName",
     "release",
     "tags",
+    // Keep lightweight tool names available even when heavy tool payloads are omitted.
+    "toolCallNames",
   ],
   calculated: ["latency", "timeToFirstToken"],
   io: ["input", "output"],
   metadata: ["metadata"],
   tools: ["toolDefinitions", "toolCalls", "toolCallNames"],
-  trace_context: ["tags", "release", "traceName", "usagePricingTierName"],
+  trace_context: ["tags", "release", "traceName"],
   model_export: ["providedModelName", "modelId", "modelParameters"],
   eventTs: ["eventTs"],
 
@@ -265,6 +276,8 @@ const FIELD_SETS = {
     "providedCostDetails",
     "costDetails",
     "totalCost",
+    "usagePricingTierId",
+    "usagePricingTierName",
     "completionStartTime",
   ],
   byIdPrompt: ["promptId", "promptName", "promptVersion"],
@@ -293,7 +306,13 @@ const FIELD_SETS = {
   ],
   time: ["completionStartTime", "createdAt", "updatedAt"],
   model: ["providedModelName", "internalModelId", "modelParameters"],
-  usage: ["usageDetails", "costDetails", "totalCost"],
+  usage: [
+    "usageDetails",
+    "costDetails",
+    "totalCost",
+    "usagePricingTierId",
+    "usagePricingTierName",
+  ],
   prompt: ["promptId", "promptName", "promptVersion"],
   metrics: ["latency", "timeToFirstToken"],
 
@@ -335,6 +354,7 @@ const FIELD_SETS = {
     "toolDefinitions",
     "toolCalls",
     "toolCallNames",
+    "usagePricingTierId",
     "usagePricingTierName",
   ],
 
@@ -369,6 +389,7 @@ const FIELD_SETS = {
     "experimentId",
     "experimentItemRootSpanId",
     "experimentItemExpectedOutput",
+    "experimentItemMetadata",
   ],
 
   // Experiment items field set
@@ -398,6 +419,15 @@ const FIELD_SETS = {
 } as const;
 
 export type FieldSetName = keyof typeof FIELD_SETS;
+
+export const OBSERVATION_FIELD_GROUP_FIELD_NAMES = Object.fromEntries(
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API.map((group) => [
+    group,
+    FIELD_SETS[group],
+  ]),
+) as {
+  [K in ObservationFieldGroupPublicApi]: (typeof FIELD_SETS)[K];
+};
 
 /**
  * Aggregation fields for trace-level queries
@@ -910,6 +940,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   private ioFields: { truncated: boolean; charLimit?: number } | null = null;
   // Metadata expansion config: null = use truncated (default), string[] = expand specific keys, empty array = expand all
   private metadataExpansionKeys: string[] | null = null;
+  private shouldForceFullTable = false;
   // Raw SELECT expressions for custom columns (e.g., from CTEs)
   private rawSelectExpressions: string[] = [];
 
@@ -976,6 +1007,14 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    */
   selectIO(truncated: boolean = false, charLimit?: number): this {
     this.ioFields = { truncated, charLimit };
+    return this;
+  }
+
+  /**
+   * Force queries to read from events_full instead of events_core.
+   */
+  forceFullTable(): this {
+    this.shouldForceFullTable = true;
     return this;
   }
 
@@ -1061,7 +1100,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     const needsFullMetadata =
       this.metadataExpansionKeys !== null && this.selectFields.has("metadata");
 
-    return needsFullIO || needsFullMetadata;
+    return needsFullIO || needsFullMetadata || this.shouldForceFullTable;
   }
 
   /**

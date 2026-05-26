@@ -15,7 +15,7 @@ pnpm workspace.
      `node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs <package> <targetVersion>`.
    - Treat this as the single source of truth for:
      - direct workspace references
-     - root `pnpm.overrides` / `pnpm.patchedDependencies`
+     - root `pnpm-workspace.yaml` `overrides` / `patchedDependencies`
      - latest registry version
      - latest version installable under the current release-age rules
      - existing matching `minimumReleaseAgeExclude` entries
@@ -44,15 +44,21 @@ pnpm workspace.
    - `pnpm -w up <package>@<version>` for root-only changes.
    - `pnpm --filter <workspace> up <package>@<version>` for one workspace.
    - `pnpm -r up <package>@<version>` only when every current reference should move.
+   - For an already-allowed transitive bump that pnpm refuses to move, use the
+     narrowest temporary `overrides` entry only to force resolution.
+   - After a temporary override moves the lockfile, remove that override and run
+     `pnpm install`, then `pnpm dedupe` when permitted. If the lockfile remains
+     at the target without the override, keep the lockfile-only result and do
+     not keep the override.
    - Do not hand-edit `pnpm-lock.yaml`.
 
 6. Validate.
    - Use the nearest package `AGENTS.md` plus the root verification matrix.
    - Finish with `pnpm why -r <package>`.
    - If companions moved too, run `pnpm why -r <companion-package>` for them as well.
-   - After fixing or upgrading a package, strongly suggest that the user run
-     `pnpm dedupe` as an optional cleanup step, but do not run it automatically
-     and do not require it.
+   - Run `pnpm dedupe` when validating temporary override removal or when the
+     user permits it; otherwise suggest it as optional cleanup. Review the diff
+     afterward because dedupe may move unrelated lockfile state.
 
 ## Quick Commands
 
@@ -72,3 +78,5 @@ pnpm workspace.
   `pnpm --filter web up <package>@<version>`
 - Bump everywhere that should move together:
   `pnpm -r up <package>@<version>`
+- Verify temporary override removal:
+  remove the override, then run `pnpm install` and `pnpm dedupe`

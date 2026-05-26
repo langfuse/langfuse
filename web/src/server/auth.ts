@@ -52,6 +52,7 @@ import {
   JumpCloudProvider,
   traceException,
   sendResetPasswordVerificationRequest,
+  buildMailServerConfig,
   instrumentAsync,
   logger,
   resolveProjectRole,
@@ -163,7 +164,7 @@ const staticProviders: Provider[] = [
 if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
   staticProviders.push(
     EmailProvider({
-      server: env.SMTP_CONNECTION_URL,
+      server: buildMailServerConfig(env.SMTP_CONNECTION_URL),
       from: env.EMAIL_FROM_ADDRESS,
       maxAge: 3 * 60, // 3 minutes
       async generateVerificationToken() {
@@ -886,6 +887,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                                     string,
                                     unknown
                                   >) ?? {},
+                                createdAt: project.createdAt.toISOString(),
                               };
                             })
                             // Only include projects where the user has the required role

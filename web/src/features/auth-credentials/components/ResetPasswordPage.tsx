@@ -26,6 +26,7 @@ import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 const resetPasswordSchema = z
   .object({
@@ -45,6 +46,7 @@ export function ResetPasswordPage({
 }) {
   const session = useSession();
   const router = useRouter();
+  const { isLangfuseCloud, region } = useLangfuseCloudRegion();
   const [formError, setFormError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [showResetPasswordEmailButton, setShowResetPasswordEmailButton] =
@@ -83,7 +85,11 @@ export function ResetPasswordPage({
       .then(() => {
         setIsSuccess(true);
         setTimeout(() => {
-          router.push("/");
+          const target =
+            isSetMode && isLangfuseCloud && region !== "DEV"
+              ? "/onboarding"
+              : "/";
+          router.push(target);
           setIsSuccess(false);
         }, 2000);
       })

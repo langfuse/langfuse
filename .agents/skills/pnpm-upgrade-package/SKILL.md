@@ -1,6 +1,9 @@
 ---
 name: pnpm-upgrade-package
-description: Use when upgrading a dependency in this pnpm workspace, including requests to bump a package to a specific version, compare the registry latest version with the latest version installable under the current minimum-release-age window, or decide whether minimumReleaseAgeExclude in pnpm-workspace.yaml must change. Ask the user for the package name or target version when either is missing.
+description: >-
+  Upgrade pnpm workspace dependencies to target/latest versions:
+  direct/transitive bumps, release-age checks, temporary overrides,
+  minimumReleaseAgeExclude, lockfile/dedupe verification.
 ---
 
 # PNPM Upgrade Package
@@ -28,12 +31,17 @@ Use this skill for interactive dependency bumps in Langfuse.
 - If the current parent range does not cover the requested transitive version,
   upgrade that parent dependency instead of adding the target package directly
   unless the user explicitly wants that.
+- If pnpm will not move an already-allowed transitive version, a scoped
+  `overrides` entry may be used as a temporary resolution tool. After the
+  lockfile moves, remove the temporary override, run `pnpm install`, then run
+  `pnpm dedupe` when permitted. If the lockfile stays at the target without the
+  override, do not keep the override.
 - Never manually edit `pnpm-lock.yaml`; regenerate lockfile changes with
   `pnpm` commands only. If a lockfile-only refresh causes unrelated churn,
   adjust the pnpm command and rerun instead of patching the lockfile by hand.
-- After fixing or upgrading a package, strongly suggest that the user run
-  `pnpm dedupe` as an optional cleanup step, but do not run it automatically
-  and do not require it.
+- After fixing or upgrading a package, run `pnpm dedupe` when it is needed to
+  verify temporary resolver cleanup or when the user permits it; otherwise
+  suggest it as optional cleanup. Always inspect the diff after dedupe.
 - Resolve the registry latest version, but do not silently upgrade to latest
   unless the user asked for latest.
 - Compare the target version with the latest version installable under the

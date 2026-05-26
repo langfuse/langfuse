@@ -22,8 +22,7 @@
  * tests for Simplified and Traditional Chinese characters), plus edge cases (input-only /
  * output-only search, mixed Latin+CJK queries, astral-plane / surrogate-pair characters,
  * observations search, the issue's exact end-to-end scenario) and a few unit assertions on the
- * SQL builder. Testing-Trophy weighting: heavy on integration, light on unit; the e2e layer
- * lives in `web/src/__e2e__/multilingual-search.spec.ts`.
+ * SQL builder. Testing-Trophy weighting: heavy on integration, light on unit.
  */
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
@@ -468,11 +467,19 @@ describe("multilingual full-text search (issue #11538)", () => {
   describe("clickhouseSearchCondition — escaped-form parameter", () => {
     const paramValues = (q: string, t: TracingSearchType[]) =>
       Object.values(
-        clickhouseSearchCondition(q, t, "t").params as Record<string, string>,
+        clickhouseSearchCondition({
+          query: q,
+          searchType: t,
+          tablePrefix: "t",
+        }).params as Record<string, string>,
       );
 
     it("binds the \\u-escaped form of a CJK query in addition to the raw form (content search)", () => {
-      const result = clickhouseSearchCondition("你好", ["content"], "t");
+      const result = clickhouseSearchCondition({
+        query: "你好",
+        searchType: ["content"],
+        tablePrefix: "t",
+      });
       const values = Object.values(result.params as Record<string, string>);
       // the raw form is already bound today; the JSON-\u-escaped form is what's missing
       expect(values).toContain("%你好%");
