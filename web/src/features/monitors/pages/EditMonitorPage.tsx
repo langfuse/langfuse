@@ -103,7 +103,9 @@ function EditMonitorPageContent() {
       withPadding
       headerProps={{
         title: liveName ? `Edit Monitor - ${liveName}` : "Edit Monitor",
-        breadcrumb: [{ name: "Monitors", href: `/project/${projectId}` }],
+        breadcrumb: [
+          { name: "Monitors", href: `/project/${projectId}/monitors` },
+        ],
         actionButtonsRight: data ? (
           <Button
             variant="outline"
