@@ -1,6 +1,11 @@
 # MEMORY
 
 ## 2026-05-26
+- Project rule update:
+  - on Windows hosts, prefer WSL by default for Langfuse repo work
+  - default workflow should proactively prepare required local env/artifacts
+    before running validation, instead of treating missing deps/services as the
+    first stopping point
 - PR `langfuse/langfuse#13832` reviewer follow-up identified a remaining
   unstable pagination path outside the already-fixed MCP/public API service:
   `web/src/server/api/routers/scoreConfigs.ts` tRPC `scoreConfigs.all`.
