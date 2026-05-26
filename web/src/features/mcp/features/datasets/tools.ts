@@ -128,6 +128,7 @@ export const [createDatasetTool, handleCreateDataset] = defineTool({
         );
       },
     }),
+  destructiveHint: true,
 });
 
 export const [listDatasetsTool, handleListDatasets] = defineTool({
@@ -277,6 +278,7 @@ export const [createDatasetItemTool, handleCreateDatasetItem] = defineTool({
         }
       },
     }),
+  destructiveHint: true,
 });
 
 export const [listDatasetItemsTool, handleListDatasetItems] = defineTool({

@@ -2,7 +2,6 @@
  * MCP Tool: createChatPrompt
  *
  * Creates a new chat prompt version in Langfuse.
- * Write operation with destructive hint.
  */
 
 import { z } from "zod";
@@ -146,4 +145,5 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
       },
     });
   },
+  destructiveHint: true,
 });

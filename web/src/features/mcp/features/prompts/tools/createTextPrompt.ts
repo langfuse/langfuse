@@ -2,7 +2,6 @@
  * MCP Tool: createTextPrompt
  *
  * Creates a new text prompt version in Langfuse.
- * Write operation with destructive hint.
  */
 
 import { z } from "zod";
@@ -134,4 +133,5 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
       },
     });
   },
+  destructiveHint: true,
 });

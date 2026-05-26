@@ -457,6 +457,7 @@ export const [updateAnnotationQueueItemTool, handleUpdateAnnotationQueueItem] =
           );
         },
       }),
+    destructiveHint: true,
   });
 
 export const [deleteAnnotationQueueItemTool, handleDeleteAnnotationQueueItem] =

@@ -17,6 +17,7 @@ export const [createScoreConfigTool, handleCreateScoreConfig] = defineTool({
     "Create a score configuration in the current Langfuse project. Supports numeric, categorical, boolean, and text configs. Boolean configs automatically receive True and False categories.",
   baseSchema: CreateScoreConfigInputSchema,
   inputSchema: CreateScoreConfigInputSchema,
+  destructiveHint: true,
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.score_configs.create",
@@ -36,5 +37,4 @@ export const [createScoreConfigTool, handleCreateScoreConfig] = defineTool({
       },
     });
   },
-  destructiveHint: true,
 });

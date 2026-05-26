@@ -40,6 +40,7 @@ export const [createScoreTool, handleCreateScore] = defineTool({
     "Create one score in the current Langfuse project using the v1 /api/public/scores route semantics. This is the v1 fallback because score creation has no v2 public route.",
   baseSchema: PostScoresBodyV1,
   inputSchema: PostScoresBodyV1,
+  destructiveHint: true,
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.scores.create",
@@ -78,5 +79,4 @@ export const [createScoreTool, handleCreateScore] = defineTool({
       },
     });
   },
-  destructiveHint: true,
 });
