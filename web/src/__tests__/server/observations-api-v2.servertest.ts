@@ -61,6 +61,23 @@ describe("/api/public/v2/observations API Endpoint", () => {
     expect(response.status).toBe(400);
   });
 
+  it("allows legacy v1 contains filters on IO", async () => {
+    const filterParam = JSON.stringify([
+      {
+        type: "string",
+        column: "output",
+        operator: "contains",
+        value: "needle",
+      },
+    ]);
+
+    const response = await getRaw(
+      `/api/public/observations?useEventsTable=true&filter=${encodeURIComponent(filterParam)}`,
+    );
+
+    expect(response.status).toBe(200);
+  });
+
   maybe("GET /api/public/v2/observations", () => {
     it("should fetch observations with only requested field groups", async () => {
       const traceId = randomUUID();

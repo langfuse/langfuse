@@ -10,7 +10,7 @@ import {
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
 import { z } from "zod";
-import type { PublicApiV2FilterState } from "../../types";
+import type { EventsTableFilterState } from "../../types";
 import type {
   UiColumnMappings,
   ColumnDefinition,
@@ -368,7 +368,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
 export function deriveFilters<T extends BaseQueryType>(
   simpleFilterProps: T,
   filterParamsMapping: ApiColumnMapping[],
-  advancedFilters: PublicApiV2FilterState | undefined,
+  advancedFilters: EventsTableFilterState | undefined,
   uiColumnDefinitions: UiColumnMappings,
   columnDefinitions?: ColumnDefinition[],
 ): FilterList {

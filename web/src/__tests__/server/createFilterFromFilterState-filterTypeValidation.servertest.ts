@@ -3,6 +3,7 @@ import {
   InvalidRequestError,
   type UiColumnMapping,
   type ColumnDefinition,
+  type EventsTableFilterState,
 } from "@langfuse/shared";
 
 describe("createFilterFromFilterState filter type validation", () => {
@@ -291,15 +292,17 @@ describe("createFilterFromFilterState filter type validation", () => {
   });
 
   it("generates case-insensitive FTS SQL for event input/output matches", () => {
+    const filters = [
+      {
+        column: "output",
+        type: "string",
+        operator: "matches",
+        value: "needle",
+      },
+    ] satisfies EventsTableFilterState;
+
     const [result] = createFilterFromFilterState(
-      [
-        {
-          column: "output",
-          type: "string",
-          operator: "matches",
-          value: "needle",
-        } as any,
-      ],
+      filters,
       [mappings.eventOutput],
       columnDefinitions,
     );
@@ -334,16 +337,18 @@ describe("createFilterFromFilterState filter type validation", () => {
   });
 
   it("generates case-sensitive FTS SQL for event metadata matches", () => {
+    const filters = [
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "matches",
+        key: "source",
+        value: "needle",
+      },
+    ] satisfies EventsTableFilterState;
+
     const [result] = createFilterFromFilterState(
-      [
-        {
-          column: "metadata",
-          type: "stringObject",
-          operator: "matches",
-          key: "source",
-          value: "needle",
-        } as any,
-      ],
+      filters,
       [mappings.eventMetadata],
       columnDefinitions,
     );
@@ -362,48 +367,55 @@ describe("createFilterFromFilterState filter type validation", () => {
   it.each([
     {
       description: "non-indexed event string column",
-      filter: {
-        column: "eventName",
-        type: "string",
-        operator: "matches",
-        value: "needle",
-      },
+      filters: [
+        {
+          column: "eventName",
+          type: "string",
+          operator: "matches",
+          value: "needle",
+        },
+      ] satisfies EventsTableFilterState,
       mapping: "eventName",
       colDefs: columnDefinitions,
+      expectedMessage:
+        "`matches` is only supported for input, output, and metadata filters.",
     },
     {
       description: "non-events table",
-      filter: {
-        column: "metadata",
-        type: "stringObject",
-        operator: "matches",
-        key: "source",
-        value: "needle",
-      },
+      filters: [
+        {
+          column: "metadata",
+          type: "stringObject",
+          operator: "matches",
+          key: "source",
+          value: "needle",
+        },
+      ] satisfies EventsTableFilterState,
       mapping: "metadata",
       colDefs: columnDefinitions,
+      expectedMessage:
+        "`matches` is only supported for input, output, and metadata filters.",
     },
     {
       description: "tokenless value",
-      filter: {
-        column: "output",
-        type: "string",
-        operator: "matches",
-        value: "!!!",
-      },
+      filters: [
+        {
+          column: "output",
+          type: "string",
+          operator: "matches",
+          value: "!!!",
+        },
+      ] satisfies EventsTableFilterState,
       mapping: "eventOutput",
       colDefs: columnDefinitions,
+      expectedMessage: "`matches` requires at least one search token.",
     },
   ] as const)(
     "rejects matches on $description",
-    ({ filter, mapping, colDefs }) => {
+    ({ filters, mapping, colDefs, expectedMessage }) => {
       expect(() =>
-        createFilterFromFilterState(
-          [filter as any],
-          [mappings[mapping]],
-          colDefs,
-        ),
-      ).toThrow(InvalidRequestError);
+        createFilterFromFilterState(filters, [mappings[mapping]], colDefs),
+      ).toThrow(new InvalidRequestError(expectedMessage));
     },
   );
 });

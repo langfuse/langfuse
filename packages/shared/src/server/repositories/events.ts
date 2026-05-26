@@ -33,15 +33,16 @@ import {
   createPublicApiTracesColumnMapping,
   deriveFilters,
   isFtsAcceleratedIoOperator,
+  isFtsMetadataField,
   isFtsTextField,
   type ApiColumnMapping,
   ObservationPriceFields,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import type {
+  EventsTableFilterState,
   FilterCondition,
   FilterState,
-  PublicApiV2FilterState,
 } from "../../types";
 import type { TracingSearchType } from "../../interfaces/search";
 import {
@@ -1067,7 +1068,7 @@ type PublicApiObservationsQuery = {
   toStartTime?: string;
   version?: string;
   environment?: string | string[];
-  advancedFilters?: PublicApiV2FilterState;
+  advancedFilters?: EventsTableFilterState;
   parseIoAsJson?: boolean;
   cursor?: {
     lastStartTimeTo: Date;
@@ -1084,13 +1085,13 @@ type PublicApiObservationsQuery = {
 };
 
 type BuildObservationsQueryComponentsOptions = {
-  requireIndexedIoFilter?: boolean;
+  allowUnindexedIoFilters?: boolean;
 };
 
 const isInputOutputFilter = (filter: Filter): boolean =>
   isFtsTextField(filter.field);
 
-const validatePublicApiV2InputOutputFilters = (filter: FilterList) => {
+const validateIndexedInputOutputFilters = (filter: FilterList) => {
   const hasIoFilter = filter.some(isInputOutputFilter);
   if (!hasIoFilter) {
     return;
@@ -1135,8 +1136,8 @@ function buildObservationsQueryComponents(
     eventsTableCols,
   );
 
-  if (options.requireIndexedIoFilter) {
-    validatePublicApiV2InputOutputFilters(observationsFilter);
+  if (!options.allowUnindexedIoFilters) {
+    validateIndexedInputOutputFilters(observationsFilter);
   }
 
   // Determine if we need to join traces (check both simple params and advanced filters)
@@ -1146,9 +1147,7 @@ function buildObservationsQueryComponents(
   const filtersNeedFullTable = observationsFilter.some(
     (f) =>
       f.clickhouseTable.startsWith("events") &&
-      (f.field === "e.input" ||
-        f.field === "e.output" ||
-        f.field === "metadata"),
+      (isFtsTextField(f.field) || isFtsMetadataField(f.field)),
   );
 
   // Extract time filter and apply filters
@@ -1191,6 +1190,7 @@ function buildObservationsQueryBase(
   const { queryBuilder, externalCTEs } = buildObservationsQueryComponents(
     opts,
     columnDefinitions,
+    { allowUnindexedIoFilters: true },
   );
   for (const cte of externalCTEs) {
     queryBuilder.withCTE(cte.name, cte.queryWithParams);
@@ -1388,7 +1388,6 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     buildObservationsQueryComponents(
       opts,
       eventsTableNativeUiColumnDefinitions,
-      { requireIndexedIoFilter: true },
     );
 
   baseBuilder.selectFieldSet("core");

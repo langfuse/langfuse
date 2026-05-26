@@ -3,17 +3,11 @@ import {
   type FtsMatchOperator,
   filterOperators,
 } from "../../../interfaces/filters";
-import { InvalidRequestError } from "../../../errors";
 import { clickhouseCompliantRandomCharacters } from "../../repositories";
 import {
-  ftsMetadataArrayHas,
-  ftsMetadataArrayTokenConjunct,
-  ftsTextMatchesCondition,
-  ftsTextTokenConjunct,
-  hasFtsSearchToken,
-  isFtsMatchOperator,
+  assertValidFtsMatchFilter,
+  FTS_OPERATOR_DESCRIPTORS,
   isFtsEventsTable,
-  isFtsMetadataTarget,
   isFtsTextTarget,
 } from "./fts";
 
@@ -86,7 +80,11 @@ export class StringFilter implements Filter {
       case "=":
         query = `${fieldWithPrefix} = {${varName}: String}`;
         if (isFtsTextTarget(this.clickhouseTable, this.field, this.operator)) {
-          query = `(${query} AND ${ftsTextTokenConjunct(fieldWithPrefix, `{${varName}: String}`)})`;
+          query = FTS_OPERATOR_DESCRIPTORS["="].textCondition(
+            fieldWithPrefix,
+            `{${varName}: String}`,
+            query,
+          );
         }
         break;
       case "contains":
@@ -102,19 +100,18 @@ export class StringFilter implements Filter {
         query = `endsWith(${fieldWithPrefix}, {${varName}: String})`;
         break;
       case FTS_MATCH_OPERATOR:
-        if (!isFtsTextTarget(this.clickhouseTable, this.field, this.operator)) {
-          throw new InvalidRequestError(
-            "`matches` is only supported for input and output filters.",
-          );
-        }
-        if (!hasFtsSearchToken(this.value)) {
-          throw new InvalidRequestError(
-            "`matches` requires at least one search token.",
-          );
-        }
-        query = ftsTextMatchesCondition(
+        assertValidFtsMatchFilter({
+          filterType: "string",
+          clickhouseTable: this.clickhouseTable,
+          field: this.field,
+          value: this.value,
+        });
+        query = FTS_OPERATOR_DESCRIPTORS[FTS_MATCH_OPERATOR].textCondition(
           fieldWithPrefix,
           `{${varName}: String}`,
+          // `matches` shares the descriptor signature with exact filters but
+          // does not need a base exact predicate.
+          "",
         );
         break;
       default:
@@ -345,20 +342,6 @@ export class StringObjectFilter implements Filter {
     // Events tables use array columns (metadata_names/metadata_values);
     // observations/traces tables use a Map column (metadata).
     let query: string;
-    if (
-      isFtsMatchOperator(this.operator) &&
-      !isFtsMetadataTarget(this.clickhouseTable, this.field)
-    ) {
-      throw new InvalidRequestError(
-        "`matches` is only supported for metadata filters.",
-      );
-    }
-    if (isFtsMatchOperator(this.operator) && !hasFtsSearchToken(this.value)) {
-      throw new InvalidRequestError(
-        "`matches` requires at least one search token.",
-      );
-    }
-
     if (isFtsEventsTable(this.clickhouseTable)) {
       // ClickHouse's index analyzer cannot extract `has(names, k)` from
       // `values[indexOf(names, k)] OP v` (cross-array arrayElement form), so a
@@ -375,7 +358,12 @@ export class StringObjectFilter implements Filter {
 
       switch (this.operator) {
         case "=":
-          query = `${hasKey} AND ${ftsMetadataArrayHas(valuesColumn, valueParam)} AND (${valueAccessor} = ${valueParam})`;
+          query = FTS_OPERATOR_DESCRIPTORS["="].metadataArrayCondition({
+            hasKey,
+            valuesColumn,
+            valueAccessor,
+            valueParam,
+          });
           break;
         case "contains":
           query = `${hasKey} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
@@ -390,7 +378,20 @@ export class StringObjectFilter implements Filter {
           query = `${hasKey} AND (endsWith(${valueAccessor}, ${valueParam}))`;
           break;
         case FTS_MATCH_OPERATOR:
-          query = `${hasKey} AND ${ftsMetadataArrayTokenConjunct(valuesColumn, valueParam)} AND ${ftsMetadataArrayTokenConjunct(valueAccessor, valueParam)}`;
+          assertValidFtsMatchFilter({
+            filterType: "stringObject",
+            clickhouseTable: this.clickhouseTable,
+            field: this.field,
+            value: this.value,
+          });
+          query = FTS_OPERATOR_DESCRIPTORS[
+            FTS_MATCH_OPERATOR
+          ].metadataArrayCondition({
+            hasKey,
+            valuesColumn,
+            valueAccessor,
+            valueParam,
+          });
           break;
         default:
           throw new Error(`Unsupported operator: ${this.operator}`);

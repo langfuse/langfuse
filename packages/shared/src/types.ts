@@ -1,6 +1,7 @@
 import { type z } from "zod";
 import {
-  FTS_MATCH_OPERATOR,
+  eventsTableFilterState,
+  eventsTableSingleFilter,
   singleFilter,
   timeFilter,
 } from "./interfaces/filters";
@@ -9,24 +10,10 @@ import {
 export type TimeFilter = z.infer<typeof timeFilter>;
 export type FilterCondition = z.infer<typeof singleFilter>;
 export type FilterState = FilterCondition[];
-export type PublicApiV2StringFilterCondition = Omit<
-  Extract<FilterCondition, { type: "string" }>,
-  "operator"
-> & {
-  operator: typeof FTS_MATCH_OPERATOR;
-};
-export type PublicApiV2StringObjectFilterCondition = Omit<
-  Extract<FilterCondition, { type: "stringObject" }>,
-  "operator"
-> & {
-  operator: typeof FTS_MATCH_OPERATOR;
-};
-export type PublicApiV2FilterCondition =
-  | PublicApiV2StringFilterCondition
-  | PublicApiV2StringObjectFilterCondition;
-export type PublicApiV2FilterState = Array<
-  FilterCondition | PublicApiV2FilterCondition
+export type EventsTableFilterCondition = z.infer<
+  typeof eventsTableSingleFilter
 >;
+export type EventsTableFilterState = z.infer<typeof eventsTableFilterState>;
 
 // to be used in the client during editing
 export type MakeOptional<T> = {
