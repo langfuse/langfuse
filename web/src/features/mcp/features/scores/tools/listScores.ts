@@ -10,6 +10,7 @@ import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { paginationMeta } from "../../publicApi";
 
 const ScoreFieldsSchema = z
   .array(z.enum(["score", "trace"]))
@@ -126,12 +127,11 @@ export const [listScoresTool, handleListScores] = defineTool({
 
         return {
           data,
-          meta: {
+          meta: paginationMeta({
             page: input.page,
             limit: input.limit,
             totalItems,
-            totalPages: Math.ceil(totalItems / input.limit),
-          },
+          }),
         };
       },
     });

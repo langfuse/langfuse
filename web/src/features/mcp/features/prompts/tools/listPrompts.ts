@@ -15,6 +15,7 @@ import {
 import { ParamLimit, ParamPage } from "../../../core/validation";
 import { getPromptsMeta } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { paginationMeta } from "../../publicApi";
 
 const ParamFromUpdatedAt = z.iso
   .datetime({ offset: true })
@@ -129,12 +130,11 @@ export const [listPromptsTool, handleListPrompts] = defineTool({
             lastUpdatedAt: prompt.lastUpdatedAt,
             lastConfig: prompt.lastConfig,
           })),
-          pagination: {
+          meta: paginationMeta({
             page: result.pagination.page,
             limit: result.pagination.limit,
-            totalPages: result.pagination.totalPages,
             totalItems: result.pagination.totalItems,
-          },
+          }),
         };
       },
     });
