@@ -243,6 +243,11 @@ export const MonitorForm = ({
       updateMutation.mutate({
         ...(normalizedValues as UpdateMonitor),
         id: monitor.id,
+        // Pause/resume toolbar owns status; never submit the form's snapshot.
+        status:
+          monitor.status === "ERROR_BAD_QUERY"
+            ? "ACTIVE"
+            : (monitor.status as MonitorWriteStatus),
       });
     } else {
       createMutation.mutate(normalizedValues as CreateMonitor);
