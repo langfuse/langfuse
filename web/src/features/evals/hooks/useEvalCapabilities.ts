@@ -22,7 +22,9 @@ export interface EvalCapabilities {
  */
 export function useEvalCapabilities(
   projectId: string,
-  options?: { isCodeEvalTemplate?: boolean },
+  options?: {
+    isCodeEvalTemplate?: boolean;
+  },
 ): EvalCapabilities {
   const { data: session, status: sessionStatus } = useSession();
   const isSessionLoading = sessionStatus === "loading";
@@ -34,13 +36,11 @@ export function useEvalCapabilities(
   // Query SDK version info from events table (only when v4 beta is enabled)
   const sdkVersionInfo = api.events.getSdkVersionInfo.useQuery(
     { projectId },
-    { enabled: isBetaEnabled && !isCodeEvalConfig },
+    { enabled: isBetaEnabled },
   );
 
   // Determine OTEL status from SDK version info
-  const isOtel = isCodeEvalConfig
-    ? true
-    : (sdkVersionInfo.data?.isOtel ?? false);
+  const isOtel = sdkVersionInfo.data?.isOtel ?? false;
   // TODO: Implement propagation check
   const isPropagating = false;
 
@@ -58,16 +58,14 @@ export function useEvalCapabilities(
   return {
     isNewCompatible: isOtel,
     // True when v4 beta is enabled (SDK check query was run)
-    compatibilityCheckWasPerformed: isCodeEvalConfig ? false : isBetaEnabled,
+    compatibilityCheckWasPerformed: isBetaEnabled,
     // Allow legacy if: not code eval AND (not cloud OR user has legacy evals OR user can toggle v4)
     allowLegacy:
       !isCodeEvalConfig && (!isLangfuseCloud || hasLegacyEvals || canToggleV4),
     // Allow propagation filters only when using OTEL and spans are propagating
     allowPropagationFilters: isOtel && isPropagating,
     isLoading:
-      evalCounts.isLoading ||
-      isSessionLoading ||
-      (!isCodeEvalConfig && sdkVersionInfo.isLoading),
+      evalCounts.isLoading || isSessionLoading || sdkVersionInfo.isLoading,
     hasLegacyEvals,
   };
 }

@@ -50,7 +50,7 @@ import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationMode
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
-import { AlertCircle, PlusIcon, Trash } from "lucide-react";
+import { AlertCircle, AlertTriangle, PlusIcon, Trash } from "lucide-react";
 import { useValidateCustomModel } from "@/src/features/evals/hooks/useValidateCustomModel";
 import {
   Select,
@@ -72,6 +72,11 @@ import {
   EvalTemplateTypeSelector,
   type EvalTemplateTypeSelectorMode,
 } from "@/src/features/evals/components/eval-template-type-selector";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import {
+  useEvalCapabilities,
+  type EvalCapabilities,
+} from "@/src/features/evals/hooks/useEvalCapabilities";
 
 type PartialEvalTemplate = Partial<EvalTemplate> &
   Pick<EvalTemplate, "name" | "prompt" | "vars" | "outputDefinition">;
@@ -294,6 +299,9 @@ export const InnerEvalTemplateForm = (props: {
   const sourceCode = form.watch("sourceCode") ?? "";
   const showCodeTemplateForm =
     isCodeEvalEnabled && evalTemplateType === EvalTemplateType.CODE;
+  const evalCapabilities = useEvalCapabilities(props.projectId, {
+    isCodeEvalTemplate: showCodeTemplateForm,
+  });
   const {
     isValid: isCodeEvalSourceValid,
     validationResult: codeValidationResult,
@@ -558,22 +566,27 @@ export const InnerEvalTemplateForm = (props: {
       />
 
       {showCodeTemplateForm ? (
-        <FormField
-          control={form.control}
-          name="sourceCode"
-          render={({ field }) => (
-            <CodeEvalTemplateFormBody
-              sourceCode={field.value ?? ""}
-              sourceCodeLanguage={sourceCodeLanguage}
-              onSourceCodeChange={(value) => {
-                field.onChange(value);
-                setFormError(null);
-              }}
-              editable={Boolean(props.isEditing)}
-              validationResult={codeValidationResult}
-            />
-          )}
-        />
+        <div className="space-y-3">
+          {props.isEditing ? (
+            <CodeEvalSdkVersionCallout evalCapabilities={evalCapabilities} />
+          ) : null}
+          <FormField
+            control={form.control}
+            name="sourceCode"
+            render={({ field }) => (
+              <CodeEvalTemplateFormBody
+                sourceCode={field.value ?? ""}
+                sourceCodeLanguage={sourceCodeLanguage}
+                onSourceCodeChange={(value) => {
+                  field.onChange(value);
+                  setFormError(null);
+                }}
+                editable={Boolean(props.isEditing)}
+                validationResult={codeValidationResult}
+              />
+            )}
+          />
+        </div>
       ) : (
         <>
           {/* Model Selection Section */}
@@ -955,3 +968,47 @@ export const InnerEvalTemplateForm = (props: {
     </Form>
   );
 };
+
+function CodeEvalSdkVersionCallout({
+  evalCapabilities,
+}: {
+  evalCapabilities: EvalCapabilities;
+}) {
+  if (
+    evalCapabilities.isLoading ||
+    !evalCapabilities.compatibilityCheckWasPerformed ||
+    evalCapabilities.isNewCompatible
+  ) {
+    return null;
+  }
+
+  return (
+    <Alert
+      variant="default"
+      className="border-dark-yellow bg-light-yellow max-w-4xl"
+    >
+      <AlertTriangle className="text-dark-yellow h-4 w-4" />
+      <AlertDescription>
+        <div className="flex flex-col gap-1">
+          <span className="text-foreground font-medium">
+            Please verify your SDK version
+          </span>
+          <span className="text-foreground text-sm">
+            Code-based evaluators require JS SDK v4+ or Python SDK v3+. You can
+            create this evaluator now, but it will only run once your project
+            ingests data with a compatible SDK.{" "}
+            <a
+              href="https://langfuse.com/docs/observability/sdk/upgrade-path"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-dark-blue font-medium hover:opacity-80"
+            >
+              Learn more
+            </a>
+            .
+          </span>
+        </div>
+      </AlertDescription>
+    </Alert>
+  );
+}
