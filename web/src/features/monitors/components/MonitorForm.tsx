@@ -57,6 +57,7 @@ import { cn } from "@/src/utils/tailwind";
 import {
   CreateMonitorSchema,
   type CreateMonitor,
+  getValidMonitorAggregationsForMeasure,
   type Monitor,
   type MonitorNoData,
   type MonitorRenotify,
@@ -71,7 +72,6 @@ import {
 } from "@langfuse/shared/monitors";
 import {
   formatAggregation,
-  getValidAggregationsForMeasure,
   viewDeclarations,
   type FilterState,
 } from "@langfuse/shared";
@@ -337,7 +337,7 @@ export const MonitorForm = ({
       "observations") as keyof (typeof viewDeclarations)["v2"];
     const measureName = watched.metric?.measure ?? "count";
     const measureDef = viewDeclarations.v2[view]?.measures[measureName];
-    return getValidAggregationsForMeasure(measureDef);
+    return getValidMonitorAggregationsForMeasure(measureDef);
   }, [watched.view, watched.metric?.measure]);
 
   /** namePlaceholder builds an auto-suggested name from the current view + metric + threshold (e.g. "Count of Observations > 0"). */
@@ -479,9 +479,10 @@ export const MonitorForm = ({
                             // (e.g. "sum" against a string measure, or "p95"
                             // against `count`). Snap it to the first valid
                             // option whenever the current one isn't supported.
-                            const validAggs = getValidAggregationsForMeasure(
-                              measures[next],
-                            );
+                            const validAggs =
+                              getValidMonitorAggregationsForMeasure(
+                                measures[next],
+                              );
                             const currentAgg =
                               form.getValues("metric.aggregation");
                             if (!validAggs.includes(currentAgg)) {

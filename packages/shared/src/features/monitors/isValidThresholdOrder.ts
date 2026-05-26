@@ -3,26 +3,34 @@
  * via `validateThresholdOrder` in `./types`. */
 import { type MonitorThresholdOperator } from "./types";
 
-/**
- * isValidThresholdOrder returns true when the warning and alert thresholds
- * are ordered correctly for the given operator. Null `warningThreshold` and
- * the unordered `eq`/`neq` operators always pass.
- */
+/** isValidThresholdOrder returns ok when the warning and alert thresholds are ordered correctly for the given operator; null `warningThreshold` and the unordered `EQ`/`NEQ` operators always pass. */
 export const isValidThresholdOrder = (monitor: {
   thresholdOperator: MonitorThresholdOperator;
   alertThreshold: number;
   warningThreshold: number | null;
-}): boolean => {
-  if (monitor.warningThreshold == null) return true;
+}): { valid: true } | { valid: false; reason: string } => {
+  if (monitor.warningThreshold == null) return { valid: true };
   switch (monitor.thresholdOperator) {
     case "GT":
     case "GTE":
-      return monitor.warningThreshold < monitor.alertThreshold;
+      if (monitor.warningThreshold < monitor.alertThreshold) {
+        return { valid: true };
+      }
+      return {
+        valid: false,
+        reason: "alertThreshold must be > warningThreshold",
+      };
     case "LT":
     case "LTE":
-      return monitor.warningThreshold > monitor.alertThreshold;
+      if (monitor.warningThreshold > monitor.alertThreshold) {
+        return { valid: true };
+      }
+      return {
+        valid: false,
+        reason: "alertThreshold must be < warningThreshold",
+      };
     case "EQ":
     case "NEQ":
-      return true;
+      return { valid: true };
   }
 };

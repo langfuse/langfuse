@@ -7,9 +7,17 @@ import { type singleFilter } from "../../interfaces/filters";
 import { getViewDeclaration } from "../query/dataModel";
 import {
   getValidAggregationsForMeasure,
+  type MeasureDefinition,
   type metric,
+  type metricAggregations,
   type viewsV2,
 } from "../query/types";
+
+/** getValidMonitorAggregationsForMeasure returns the aggregations valid for a monitor metric: the widget set minus `histogram` (a bucket array can't be compared to a scalar threshold). */
+export const getValidMonitorAggregationsForMeasure = (
+  measure: MeasureDefinition | undefined,
+): z.infer<typeof metricAggregations>[] =>
+  getValidAggregationsForMeasure(measure).filter((a) => a !== "histogram");
 
 /**
  * isValidQuery ensures:
@@ -35,26 +43,22 @@ export function isValidQuery(input: {
   }
   const measureDef = declaration.measures[input.metric.measure];
 
-  const validAggs = getValidAggregationsForMeasure(measureDef);
-  if (!validAggs.some((a) => a === input.metric.aggregation)) {
-    return {
-      valid: false,
-      reason:
-        `Aggregation "${input.metric.aggregation}" is not valid for measure ` +
-        `"${input.metric.measure}" (type: ${measureDef.type}). Valid: ${validAggs.join(", ")}`,
-    };
-  }
-
-  // `histogram` returns a bucket-array (Array(Tuple(...))) at the ClickHouse
-  // layer; monitor thresholds are scalars (`z.number()`) compared with
-  // `gt`/`gte`/`lt`/`lte`/`eq`/`neq`. No defined comparison semantics →
-  // reject at the input boundary rather than failing in the worker.
   if (input.metric.aggregation === "histogram") {
     return {
       valid: false,
       reason:
         `Aggregation "histogram" is not supported for monitors — it produces ` +
         `a bucket array, not a scalar value comparable to the threshold.`,
+    };
+  }
+
+  const validAggs = getValidMonitorAggregationsForMeasure(measureDef);
+  if (!validAggs.some((a) => a === input.metric.aggregation)) {
+    return {
+      valid: false,
+      reason:
+        `Aggregation "${input.metric.aggregation}" is not valid for measure ` +
+        `"${input.metric.measure}" (type: ${measureDef.type}). Valid: ${validAggs.join(", ")}`,
     };
   }
 

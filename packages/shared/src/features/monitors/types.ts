@@ -112,10 +112,7 @@ export const MonitorNoDataSchema = z.discriminatedUnion("mode", [
 ]);
 export type MonitorNoData = z.infer<typeof MonitorNoDataSchema>;
 
-/**
- * validateThresholdOrder enforces correct warning/alert threshold ordering on
- * the Monitor input schemas.
- */
+/** validateThresholdOrder enforces correct warning/alert threshold ordering on the Monitor input schemas. */
 export const validateThresholdOrder = (
   input: {
     thresholdOperator: MonitorThresholdOperator;
@@ -124,15 +121,11 @@ export const validateThresholdOrder = (
   },
   ctx: z.RefinementCtx,
 ): void => {
-  if (!isValidThresholdOrder(input)) {
-    // For gt/gte the predicate requires `warning < alert` (strict);
-    // for lt/lte it requires `warning > alert` (strict). Map to the actual
-    // required relation symbol so the error message doesn't claim the
-    // non-strict variant for `gte`/`lte`.
-    const symbol = input.thresholdOperator.startsWith("G") ? ">" : "<";
+  const result = isValidThresholdOrder(input);
+  if (!result.valid) {
     ctx.addIssue({
       code: "custom",
-      message: `alertThreshold must be ${symbol} warningThreshold`,
+      message: result.reason,
       path: ["threshold"],
     });
   }

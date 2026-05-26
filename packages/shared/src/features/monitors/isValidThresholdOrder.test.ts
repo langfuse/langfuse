@@ -12,21 +12,21 @@ describe("isValidThresholdOrder", () => {
           alertThreshold: 100,
           warningThreshold: 50,
         }),
-      ).toBe(true);
-      expect(
-        isValidThresholdOrder({
-          thresholdOperator: op,
-          alertThreshold: 100,
-          warningThreshold: 100, // equal → invalid
-        }),
-      ).toBe(false);
-      expect(
-        isValidThresholdOrder({
-          thresholdOperator: op,
-          alertThreshold: 100,
-          warningThreshold: 200, // warning > alert → invalid for gt
-        }),
-      ).toBe(false);
+      ).toEqual({ valid: true });
+      const equal = isValidThresholdOrder({
+        thresholdOperator: op,
+        alertThreshold: 100,
+        warningThreshold: 100,
+      });
+      expect(equal.valid).toBe(false);
+      if (!equal.valid) expect(equal.reason).toContain(">");
+      const higher = isValidThresholdOrder({
+        thresholdOperator: op,
+        alertThreshold: 100,
+        warningThreshold: 200,
+      });
+      expect(higher.valid).toBe(false);
+      if (!higher.valid) expect(higher.reason).toContain(">");
     },
   );
 
@@ -39,21 +39,21 @@ describe("isValidThresholdOrder", () => {
           alertThreshold: 100,
           warningThreshold: 200,
         }),
-      ).toBe(true);
-      expect(
-        isValidThresholdOrder({
-          thresholdOperator: op,
-          alertThreshold: 100,
-          warningThreshold: 100,
-        }),
-      ).toBe(false);
-      expect(
-        isValidThresholdOrder({
-          thresholdOperator: op,
-          alertThreshold: 100,
-          warningThreshold: 50,
-        }),
-      ).toBe(false);
+      ).toEqual({ valid: true });
+      const equal = isValidThresholdOrder({
+        thresholdOperator: op,
+        alertThreshold: 100,
+        warningThreshold: 100,
+      });
+      expect(equal.valid).toBe(false);
+      if (!equal.valid) expect(equal.reason).toContain("<");
+      const lower = isValidThresholdOrder({
+        thresholdOperator: op,
+        alertThreshold: 100,
+        warningThreshold: 50,
+      });
+      expect(lower.valid).toBe(false);
+      if (!lower.valid) expect(lower.reason).toContain("<");
     },
   );
 
@@ -65,7 +65,7 @@ describe("isValidThresholdOrder", () => {
           alertThreshold: 100,
           warningThreshold: warning,
         }),
-      ).toBe(true);
+      ).toEqual({ valid: true });
     }
   });
 
@@ -78,7 +78,7 @@ describe("isValidThresholdOrder", () => {
           alertThreshold: 100,
           warningThreshold: null,
         }),
-      ).toBe(true);
+      ).toEqual({ valid: true });
     },
   );
 });
