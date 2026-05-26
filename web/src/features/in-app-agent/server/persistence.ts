@@ -13,13 +13,12 @@ import {
   type AgUiMessage,
 } from "@/src/features/in-app-agent/schema";
 
-const AG_UI_ROLE_TO_DB_ROLE: Record<string, InAppAgentMessageRole> = {
+const AG_UI_ROLE_TO_DB_ROLE: Record<
+  "user" | "assistant",
+  InAppAgentMessageRole
+> = {
   user: InAppAgentMessageRole.USER,
   assistant: InAppAgentMessageRole.ASSISTANT,
-  system: InAppAgentMessageRole.SYSTEM,
-  tool: InAppAgentMessageRole.TOOL,
-  activity: InAppAgentMessageRole.ACTIVITY,
-  reasoning: InAppAgentMessageRole.REASONING,
 };
 
 export type SerializedInAppAgentConversation = {
@@ -183,8 +182,12 @@ export async function finishRun(params: {
   errorMessage?: string | null;
 }) {
   await params.prisma.inAppAgentRun
-    .update({
-      where: { id: params.runId, projectId: params.projectId },
+    .updateMany({
+      where: {
+        id: params.runId,
+        projectId: params.projectId,
+        finishedAt: null,
+      },
       data: {
         finishedAt: new Date(),
         errorCode: params.errorCode ?? null,
@@ -302,15 +305,21 @@ export async function appendConversationMessage(params: {
   });
 }
 
+export type InAppAgentMessageDelta = {
+  message: AgUiMessage;
+  sequenceNumber: number;
+};
+
 export async function upsertConversationMessages(params: {
   prisma: PrismaClient;
   projectId: string;
   conversationId: string;
   userId: string;
-  messages: AgUiMessage[];
+  messages: InAppAgentMessageDelta[];
+  runId?: string;
 }) {
   const persistableMessages = params.messages
-    .map((message, index) => toPersistableMessage(message, index))
+    .map((delta) => toPersistableMessage(delta.message, delta.sequenceNumber))
     .filter((message): message is PersistableMessage => message !== null);
 
   if (persistableMessages.length === 0) {
@@ -341,6 +350,7 @@ export async function upsertConversationMessages(params: {
           projectId: params.projectId,
           conversationId: params.conversationId,
           externalId: message.externalId,
+          ...(params.runId !== undefined ? { runId: params.runId } : {}),
           sequenceNumber: message.sequenceNumber,
           role: message.role,
           content: message.content,
@@ -350,6 +360,7 @@ export async function upsertConversationMessages(params: {
               : undefined,
         },
         update: {
+          ...(params.runId !== undefined ? { runId: params.runId } : {}),
           sequenceNumber: message.sequenceNumber,
           role: message.role,
           content: message.content,

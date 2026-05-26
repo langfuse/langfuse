@@ -1,7 +1,7 @@
 import type { Session } from "next-auth";
 import { randomUUID } from "crypto";
 
-import { prisma } from "@langfuse/shared/src/db";
+import { InAppAgentMessageRole, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
@@ -93,15 +93,21 @@ describe("in-app agent persistence", () => {
       conversationId: conversation.id,
       messages: [
         {
-          id: "user-message-1",
-          role: "user",
-          content: "Please inspect today's traces for outliers",
+          sequenceNumber: 0,
+          message: {
+            id: "user-message-1",
+            role: "user",
+            content: "Please inspect today's traces for outliers",
+          },
         },
         {
-          id: "assistant-message-1",
-          role: "assistant",
-          content:
-            "I will inspect recent traces and look for latency outliers.",
+          sequenceNumber: 1,
+          message: {
+            id: "assistant-message-1",
+            role: "assistant",
+            content:
+              "I will inspect recent traces and look for latency outliers.",
+          },
         },
       ],
     });
@@ -159,6 +165,13 @@ describe("in-app agent persistence", () => {
       prisma,
       runId: run.id,
       projectId,
+      errorCode: "agent_error",
+      errorMessage: "Original agent error",
+    });
+    await finishRun({
+      prisma,
+      runId: run.id,
+      projectId,
       errorCode: "cancelled",
       errorMessage: "Client aborted request",
     });
@@ -166,8 +179,8 @@ describe("in-app agent persistence", () => {
     await expect(
       prisma.inAppAgentRun.findUniqueOrThrow({ where: { id: run.id } }),
     ).resolves.toMatchObject({
-      errorCode: "cancelled",
-      errorMessage: "Client aborted request",
+      errorCode: "agent_error",
+      errorMessage: "Original agent error",
     });
 
     expect(rows).toHaveLength(2);
@@ -187,12 +200,64 @@ describe("in-app agent persistence", () => {
     await caller.syncMessages({
       projectId,
       conversationId: conversation.id,
+      runId: run.id,
       messages: [
-        ...detail.messages,
         {
-          id: "user-message-2",
+          sequenceNumber: 1,
+          message: {
+            id: "assistant-message-1",
+            role: "assistant",
+            content: "Updated assistant response",
+          },
+        },
+      ],
+    });
+
+    await expect(
+      prisma.inAppAgentMessage.findMany({
+        where: { projectId, conversationId: conversation.id },
+        orderBy: [{ sequenceNumber: "asc" }, { createdAt: "asc" }],
+        select: {
+          externalId: true,
+          sequenceNumber: true,
+          content: true,
+          runId: true,
+        },
+      }),
+    ).resolves.toEqual([
+      {
+        externalId: "user-message-1",
+        sequenceNumber: 0,
+        content: {
+          id: "user-message-1",
           role: "user",
-          content: "Rename this conversation",
+          content: "Please inspect today's traces for outliers",
+        },
+        runId: null,
+      },
+      {
+        externalId: "assistant-message-1",
+        sequenceNumber: 1,
+        content: {
+          id: "assistant-message-1",
+          role: "assistant",
+          content: "Updated assistant response",
+        },
+        runId: run.id,
+      },
+    ]);
+
+    await caller.syncMessages({
+      projectId,
+      conversationId: conversation.id,
+      messages: [
+        {
+          sequenceNumber: 2,
+          message: {
+            id: "user-message-2",
+            role: "user",
+            content: "Rename this conversation",
+          },
         },
       ],
     });
@@ -248,7 +313,7 @@ describe("in-app agent persistence", () => {
       {
         externalId: "assistant-message-1",
         sequenceNumber: 1,
-        runId: null,
+        runId: run.id,
       },
       {
         externalId: "user-message-2",
@@ -272,6 +337,84 @@ describe("in-app agent persistence", () => {
         title: null,
       },
     });
+  });
+
+  it("syncs deltas for long conversations", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await caller.create({ projectId });
+
+    const existingMessages = Array.from(
+      { length: 201 },
+      (_, sequenceNumber) => {
+        const role = sequenceNumber % 2 === 0 ? "user" : "assistant";
+        const message = {
+          id: `message-${sequenceNumber}`,
+          role,
+          content: `message ${sequenceNumber}`,
+        };
+
+        return {
+          projectId,
+          conversationId: conversation.id,
+          externalId: message.id,
+          sequenceNumber,
+          role:
+            role === "user"
+              ? InAppAgentMessageRole.USER
+              : InAppAgentMessageRole.ASSISTANT,
+          content: message,
+          authorUserId: role === "user" ? userId : null,
+        };
+      },
+    );
+
+    await prisma.inAppAgentMessage.createMany({ data: existingMessages });
+
+    const run = await createRun({
+      prisma,
+      runId: `run-${randomUUID()}`,
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      model: "haiku",
+    });
+
+    await caller.syncMessages({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messages: [
+        {
+          sequenceNumber: 201,
+          message: {
+            id: "message-201",
+            role: "assistant",
+            content: "new assistant tail",
+          },
+        },
+      ],
+    });
+
+    const detail = await caller.get({
+      projectId,
+      conversationId: conversation.id,
+    });
+
+    expect(detail.messages).toHaveLength(202);
+    expect(detail.messages.at(-1)).toEqual({
+      id: "message-201",
+      role: "assistant",
+      content: "new assistant tail",
+    });
+    await expect(
+      prisma.inAppAgentMessage.findFirstOrThrow({
+        where: {
+          projectId,
+          conversationId: conversation.id,
+          externalId: "message-201",
+        },
+      }),
+    ).resolves.toMatchObject({ runId: run.id });
   });
 
   it("does not expose another user's conversation in the same project", async () => {

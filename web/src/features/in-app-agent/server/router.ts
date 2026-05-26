@@ -15,6 +15,11 @@ import {
 } from "@/src/features/in-app-agent/server/persistence";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
+const SyncMessageDeltaSchema = z.object({
+  message: AgUiMessageSchema,
+  sequenceNumber: z.number().int().min(0),
+});
+
 const ConversationIdInput = z.object({
   projectId: z.string(),
   conversationId: z.string(),
@@ -102,7 +107,8 @@ export const inAppAgentRouter = createTRPCRouter({
   syncMessages: protectedProjectProcedureWithoutTracing
     .input(
       ConversationIdInput.extend({
-        messages: z.array(AgUiMessageSchema).max(200),
+        runId: z.string().optional(),
+        messages: z.array(SyncMessageDeltaSchema).max(100),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -114,12 +120,32 @@ export const inAppAgentRouter = createTRPCRouter({
         userId: ctx.session.user.id,
       });
 
+      if (input.runId) {
+        const run = await ctx.prisma.inAppAgentRun.findFirst({
+          where: {
+            id: input.runId,
+            projectId: input.projectId,
+            conversationId: input.conversationId,
+            createdByUserId: ctx.session.user.id,
+          },
+          select: { id: true },
+        });
+
+        if (!run) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Agent run not found",
+          });
+        }
+      }
+
       await upsertConversationMessages({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
         userId: ctx.session.user.id,
         messages: input.messages,
+        runId: input.runId,
       });
 
       return { ok: true };
