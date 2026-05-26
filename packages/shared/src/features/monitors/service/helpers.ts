@@ -8,24 +8,25 @@ import {
   MonitorView as PrismaMonitorView,
   Prisma,
 } from "@prisma/client";
-import { type z } from "zod";
 
 import { InvalidRequestError } from "../../../errors";
-import { type singleFilter } from "../../../interfaces/filters";
 
 import { DAY, HOUR, MINUTE, WEEK } from "../helpers";
 import {
   type Monitor,
   type MonitorFilters,
   type MonitorSeverity,
-  MonitorSeveritySchema,
   type MonitorStatus,
   type MonitorView,
   type MonitorWindow,
   MonitorSchema,
 } from "../types";
 
-import { MonitorNotFoundError, type MonitorListOrderBy } from "./types";
+import {
+  MonitorNotFoundError,
+  type MonitorListFilter,
+  type MonitorListOrderBy,
+} from "./types";
 
 /** nullableOrderColumns is the list of sortable columns that are nullable. */
 export const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
@@ -33,48 +34,26 @@ export const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
   "alertedAt",
 ]);
 
-/** filterableMonitorColumns enumerates the filter columns the monitors list endpoint honors. */
-const filterableMonitorColumns = new Set<string>(["severity", "tags"]);
-
-type SingleFilter = z.infer<typeof singleFilter>;
-
-/** filterStateToMonitorWhere translates the monitors list FilterState into Prisma where clauses. */
-export const filterStateToMonitorWhere = (
-  filter: SingleFilter[] | undefined,
+/** monitorListFilterToWhere translates the service-shaped MonitorListFilter into Prisma where clauses. */
+export const monitorListFilterToWhere = (
+  filter: MonitorListFilter | undefined,
 ): Prisma.MonitorWhereInput[] => {
   if (!filter) return [];
   const clauses: Prisma.MonitorWhereInput[] = [];
-  for (const f of filter) {
-    if (!filterableMonitorColumns.has(f.column)) continue;
-    if (f.column === "severity" && f.type === "stringOptions") {
-      const values = f.value
-        .map((v) => MonitorSeveritySchema.safeParse(v))
-        .flatMap((r) => (r.success ? [r.data] : []));
-      // UI presents UNKNOWN and NO_DATA as one "NO DATA" filter; expand here
-      // so `any of` includes both and `none of` excludes both.
-      if (values.includes("NO_DATA") && !values.includes("UNKNOWN")) {
-        values.push("UNKNOWN");
-      }
-      if (values.length === 0) continue;
-      clauses.push(
-        f.operator === "any of"
-          ? { severity: { in: values } }
-          : { NOT: { severity: { in: values } } },
-      );
-      continue;
-    }
-    if (f.column === "tags" && f.type === "arrayOptions") {
-      if (f.operator === "any of") {
-        if (f.value.length === 0) continue;
-        clauses.push({ tags: { hasSome: f.value } });
-      } else if (f.operator === "all of") {
-        if (f.value.length === 0) continue;
-        clauses.push({ tags: { hasEvery: f.value } });
-      } else if (f.operator === "none of") {
-        if (f.value.length === 0) continue;
-        clauses.push({ NOT: { tags: { hasSome: f.value } } });
-      }
-    }
+  if (filter.severityIn?.length) {
+    clauses.push({ severity: { in: filter.severityIn } });
+  }
+  if (filter.severityNotIn?.length) {
+    clauses.push({ NOT: { severity: { in: filter.severityNotIn } } });
+  }
+  if (filter.tagsAnyOf?.length) {
+    clauses.push({ tags: { hasSome: filter.tagsAnyOf } });
+  }
+  if (filter.tagsAllOf?.length) {
+    clauses.push({ tags: { hasEvery: filter.tagsAllOf } });
+  }
+  if (filter.tagsNoneOf?.length) {
+    clauses.push({ NOT: { tags: { hasSome: filter.tagsNoneOf } } });
   }
   return clauses;
 };

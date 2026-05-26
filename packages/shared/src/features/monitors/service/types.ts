@@ -2,11 +2,11 @@
 import { z } from "zod";
 
 import { LangfuseNotFoundError } from "../../../errors";
-import { singleFilter } from "../../../interfaces/filters";
 import { paginationZod } from "../../../utils/zod";
 
 import {
   MonitorSchema,
+  MonitorSeveritySchema,
   MonitorWriteStatusSchema,
   validateMonitorQuery,
   validateThresholdOrder,
@@ -90,6 +90,16 @@ export const MonitorListOrderBySchema = z.enum([
 ]);
 export type MonitorListOrderBy = z.infer<typeof MonitorListOrderBySchema>;
 
+/** MonitorListFilterSchema is the service-shaped filter accepted by MonitorService.list. */
+export const MonitorListFilterSchema = z.object({
+  severityIn: z.array(MonitorSeveritySchema).optional(),
+  severityNotIn: z.array(MonitorSeveritySchema).optional(),
+  tagsAnyOf: z.array(z.string()).optional(),
+  tagsAllOf: z.array(z.string()).optional(),
+  tagsNoneOf: z.array(z.string()).optional(),
+});
+export type MonitorListFilter = z.infer<typeof MonitorListFilterSchema>;
+
 /** ListMonitorsSchema is the input for MonitorService.list. */
 export const ListMonitorsSchema = z.object({
   projectId: z.string(),
@@ -99,7 +109,7 @@ export const ListMonitorsSchema = z.object({
       order: z.enum(["ASC", "DESC"]),
     })
     .nullable(),
-  filter: z.array(singleFilter).optional(),
+  filter: MonitorListFilterSchema.optional(),
   ...paginationZod,
 });
 export type ListMonitors = z.infer<typeof ListMonitorsSchema>;
