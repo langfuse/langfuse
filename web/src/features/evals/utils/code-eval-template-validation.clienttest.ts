@@ -1,4 +1,3 @@
-import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_PYTHON_CODE_EVAL_SOURCE,
@@ -40,18 +39,18 @@ vi.mock("@astral-sh/ruff-wasm-web", () => ({
 
 describe("code eval template validation", () => {
   it("keeps language defaults distinct", () => {
-    expect(
-      getDefaultCodeEvalSource(EvalTemplateSourceCodeLanguage.TYPESCRIPT),
-    ).toBe(DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE);
-    expect(
-      getDefaultCodeEvalSource(EvalTemplateSourceCodeLanguage.PYTHON),
-    ).toBe(DEFAULT_PYTHON_CODE_EVAL_SOURCE);
+    expect(getDefaultCodeEvalSource("TYPESCRIPT")).toBe(
+      DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
+    );
+    expect(getDefaultCodeEvalSource("PYTHON")).toBe(
+      DEFAULT_PYTHON_CODE_EVAL_SOURCE,
+    );
     expect(isDefaultCodeEvalSource(DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE)).toBe(
       true,
     );
     expect(isDefaultCodeEvalSource(DEFAULT_PYTHON_CODE_EVAL_SOURCE)).toBe(true);
     expect(DEFAULT_PYTHON_CODE_EVAL_SOURCE).toMatch(
-      /^from typing import Any, NotRequired, TypedDict/,
+      /^from dataclasses import dataclass/,
     );
     expect(DEFAULT_PYTHON_CODE_EVAL_SOURCE).toContain(
       "def evaluate(ctx: EvaluationContext) -> EvaluationResult:",
@@ -68,7 +67,7 @@ describe("code eval template validation", () => {
       "type EvaluationResult =",
     );
     expect(DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE).toContain(
-      "export function evaluate(ctx: EvaluationContext): EvaluationResult",
+      "function evaluate(ctx: EvaluationContext): EvaluationResult",
     );
   });
 
@@ -76,27 +75,25 @@ describe("code eval template validation", () => {
     expect(
       stripCodeEvalSourceForSubmit({
         sourceCode: DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
-        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        sourceCodeLanguage: "TYPESCRIPT",
       }),
-    ).toContain(
-      "export function evaluate(ctx: EvaluationContext): EvaluationResult",
-    );
+    ).toContain("function evaluate(ctx: EvaluationContext): EvaluationResult");
     expect(
       stripCodeEvalSourceForSubmit({
         sourceCode: DEFAULT_PYTHON_CODE_EVAL_SOURCE,
-        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.PYTHON,
+        sourceCodeLanguage: "PYTHON",
       }),
     ).toMatch(/^def evaluate\(ctx: EvaluationContext\)/);
   });
 
   it("rehydrates stored evaluator functions for the editor", () => {
     const source =
-      "export function evaluate(ctx: EvaluationContext): EvaluationResult { return { scores: [] }; }";
+      "function evaluate(ctx: EvaluationContext): EvaluationResult { return { scores: [] }; }";
 
     expect(
       getCodeEvalSourceForEditor({
         sourceCode: source,
-        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        sourceCodeLanguage: "TYPESCRIPT",
       }),
     ).toContain(TYPESCRIPT_CODE_EVAL_CONTRACT);
   });
@@ -104,7 +101,7 @@ describe("code eval template validation", () => {
   it("accepts the default TypeScript source", async () => {
     const result = await validateCodeEvalSourceWithLanguage({
       source: DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
-      sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+      sourceCodeLanguage: "TYPESCRIPT",
     });
 
     expect(result.hasErrors).toBe(false);
@@ -113,30 +110,30 @@ describe("code eval template validation", () => {
   it("rejects async TypeScript evaluate functions", async () => {
     const result = await validateCodeEvalSourceWithLanguage({
       source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
-export async function evaluate(ctx: EvaluationContext): Promise<EvaluationResult> {
+async function evaluate(ctx: EvaluationContext): Promise<EvaluationResult> {
   return { scores: [] };
 }
 `,
-      sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+      sourceCodeLanguage: "TYPESCRIPT",
     });
 
     expect(result.hasErrors).toBe(true);
   });
 
-  it("rejects non-exported TypeScript evaluate functions", async () => {
+  it("rejects exported TypeScript evaluate functions", async () => {
     const result = await validateCodeEvalSourceWithLanguage({
       source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
-function evaluate(ctx: EvaluationContext): EvaluationResult {
+export function evaluate(ctx: EvaluationContext): EvaluationResult {
   return { scores: [] };
 }
 `,
-      sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+      sourceCodeLanguage: "TYPESCRIPT",
     });
 
     expect(result.hasErrors).toBe(true);
     expect(
       result.diagnostics.some((diagnostic) =>
-        diagnostic.message.includes("must export an evaluate(ctx) function"),
+        diagnostic.message.includes("Exports are not supported"),
       ),
     ).toBe(true);
   });
@@ -144,7 +141,7 @@ function evaluate(ctx: EvaluationContext): EvaluationResult {
   it("uses Ruff diagnostics for Python source", async () => {
     const result = await validateCodeEvalSourceWithLanguage({
       source: "def evaluate(ctx):\n    return missing_name\n",
-      sourceCodeLanguage: EvalTemplateSourceCodeLanguage.PYTHON,
+      sourceCodeLanguage: "PYTHON",
     });
 
     expect(result.hasErrors).toBe(true);
@@ -162,13 +159,13 @@ export default function evaluate(): EvaluationResult {
   return { scores: [] };
 }
 `,
-      sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+      sourceCodeLanguage: "TYPESCRIPT",
     });
 
     expect(result.hasErrors).toBe(true);
     expect(
       result.diagnostics.some((diagnostic) =>
-        diagnostic.message.includes("Default exports are not supported"),
+        diagnostic.message.includes("Exports are not supported"),
       ),
     ).toBe(true);
   });

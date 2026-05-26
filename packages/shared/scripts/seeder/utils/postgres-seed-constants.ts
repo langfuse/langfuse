@@ -712,7 +712,6 @@ export const SEED_EVALUATOR_TEMPLATES = [
     type: "CODE",
     prompt: null,
     model: null,
-<<<<<<< feat/lfe-code-based-evals-front-end
     vars: [
       "input",
       "output",
@@ -720,9 +719,6 @@ export const SEED_EVALUATOR_TEMPLATES = [
       "experimentItemExpectedOutput",
       "experimentItemMetadata",
     ],
-=======
-    vars: ["input", "output", "metadata"],
->>>>>>> lfe-9832-code-based-evals-data-model
     provider: null,
     outputDefinition: null,
     modelParams: null,

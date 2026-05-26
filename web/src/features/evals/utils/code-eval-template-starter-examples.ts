@@ -1,5 +1,3 @@
-import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
-
 export const TYPESCRIPT_CODE_EVAL_CONTRACT = `/**
  * The data Langfuse passes to a code evaluator.
  */
@@ -122,7 +120,7 @@ export const DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE = `${TYPESCRIPT_CODE_EVAL_CONTR
 /**
  * Evaluates one observation and returns one or more Langfuse scores.
  */
-export function evaluate(ctx: EvaluationContext): EvaluationResult {
+function evaluate(ctx: EvaluationContext): EvaluationResult {
   const input = ctx.observation.input;
   const matchesOutput =
     input !== undefined && ctx.observation.output === input;
@@ -142,35 +140,41 @@ export function evaluate(ctx: EvaluationContext): EvaluationResult {
 }
 `;
 
-export const PYTHON_CODE_EVAL_CONTRACT = `from typing import Any, NotRequired, TypedDict
+export const PYTHON_CODE_EVAL_CONTRACT = `from dataclasses import dataclass
+from typing import Any
 
 
-class Observation(TypedDict):
-    input: Any
-    output: Any
-    metadata: Any
+@dataclass
+class ObservationContext:
+    input: Any = None
+    output: Any = None
+    metadata: Any = None
 
 
-class Experiment(TypedDict):
-    item_expected_output: Any
-    item_metadata: Any
+@dataclass
+class ExperimentContext:
+    item_expected_output: Any = None
+    item_metadata: Any = None
 
 
-class Score(TypedDict):
-    name: str
-    dataType: str
+@dataclass
+class EvaluationContext:
+    observation: ObservationContext
+    experiment: ExperimentContext | None = None
+
+
+@dataclass
+class Score:
     value: int | float | str | bool
-    comment: NotRequired[str | None]
-    configId: NotRequired[str | None]
-    metadata: NotRequired[dict[str, Any]]
+    name: str
+    data_type: str | None = None
+    comment: str | None = None
+    config_id: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
-class EvaluationContext(TypedDict):
-    observation: Observation
-    experiment: NotRequired[Experiment | None]
-
-
-class EvaluationResult(TypedDict):
+@dataclass
+class EvaluationResult:
     scores: list[Score]
 `;
 
@@ -179,33 +183,31 @@ export const DEFAULT_PYTHON_CODE_EVAL_SOURCE = `${PYTHON_CODE_EVAL_CONTRACT}
 
 def evaluate(ctx: EvaluationContext) -> EvaluationResult:
     """Evaluates one observation and returns one or more Langfuse scores."""
-    input = ctx["observation"]["input"]
-    matches_output = input is not None and ctx["observation"]["output"] == input
+    input = ctx.observation.input
+    matches_output = input is not None and ctx.observation.output == input
 
-    return {
-        "scores": [
-            {
-                "name": "Exact match",
-                "value": matches_output,
-                "dataType": "BOOLEAN",
-                "comment": (
+    return EvaluationResult(
+        scores=[
+            Score(
+                name="Exact match",
+                value=matches_output,
+                data_type="BOOLEAN",
+                comment=(
                     "Output exactly matches the input."
                     if matches_output
                     else "Output does not match the input."
                 ),
-            }
+            )
         ]
-    }
+    )
 `;
 
-export type CodeEvalSourceCodeLanguage =
-  | typeof EvalTemplateSourceCodeLanguage.PYTHON
-  | typeof EvalTemplateSourceCodeLanguage.TYPESCRIPT;
+export type CodeEvalSourceCodeLanguage = "PYTHON" | "TYPESCRIPT";
 
 export function getDefaultCodeEvalSource(
   sourceCodeLanguage: CodeEvalSourceCodeLanguage,
 ) {
-  return sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+  return sourceCodeLanguage === "PYTHON"
     ? DEFAULT_PYTHON_CODE_EVAL_SOURCE
     : DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE;
 }
@@ -226,7 +228,7 @@ export function getCodeEvalSourceForEditor({
 }) {
   if (!sourceCode?.trim()) return getDefaultCodeEvalSource(sourceCodeLanguage);
 
-  if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
+  if (sourceCodeLanguage === "PYTHON") {
     return sourceCode.trimStart().startsWith(PYTHON_CODE_EVAL_CONTRACT)
       ? sourceCode
       : `${PYTHON_CODE_EVAL_CONTRACT}\n\n${sourceCode.trimStart()}`;
@@ -244,7 +246,7 @@ export function stripCodeEvalSourceForSubmit({
   sourceCode: string;
   sourceCodeLanguage: CodeEvalSourceCodeLanguage;
 }) {
-  if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
+  if (sourceCodeLanguage === "PYTHON") {
     const evaluateMatch = sourceCode.match(/(?:^|\n)\s*def\s+evaluate\s*\(/);
     if (!evaluateMatch || evaluateMatch.index === undefined) {
       return sourceCode.trim();

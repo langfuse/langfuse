@@ -1,6 +1,5 @@
 import type * as ts from "typescript";
 import type { Diagnostic as RuffDiagnostic } from "@astral-sh/ruff-wasm-web";
-import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 import {
   PYTHON_CODE_EVAL_CONTRACT,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
@@ -129,7 +128,7 @@ const PYTHON_ERROR_DIAGNOSTIC_CODES = new Set([
   "F822",
   "F823",
 ]);
-const PYTHON_TYPING_IMPORT = "from typing import Any, NotRequired, TypedDict";
+const PYTHON_CONTRACT_PREFIX = "from dataclasses import dataclass";
 const PYTHON_EVALUATE_SIGNATURE_PATTERN =
   /(?:^|\n)\s*def\s+evaluate\s*\(\s*ctx\s*:\s*EvaluationContext\s*\)\s*->\s*EvaluationResult\s*:/;
 let ruffWorkspacePromise: Promise<RuffWorkspace> | null = null;
@@ -141,7 +140,7 @@ export async function validateCodeEvalSourceWithLanguage({
   source: string;
   sourceCodeLanguage: CodeEvalSourceCodeLanguage;
 }): Promise<CodeEvalValidationResult> {
-  if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
+  if (sourceCodeLanguage === "PYTHON") {
     return validateCodeEvalSourceWithPython(source);
   }
 
@@ -160,7 +159,7 @@ export async function validateCodeEvalSourceWithPython(
 ): Promise<CodeEvalValidationResult> {
   const sourceBytes = getUtf8ByteLength(source);
   const diagnostics: CodeEvalDiagnostic[] = [];
-  const validationSource = source.trimStart().startsWith(PYTHON_TYPING_IMPORT)
+  const validationSource = source.trimStart().startsWith(PYTHON_CONTRACT_PREFIX)
     ? source
     : `${PYTHON_CODE_EVAL_CONTRACT}\n\n${source}`;
 
@@ -245,7 +244,6 @@ export function validateCodeEvalSource(
 
   const evaluatePosition = findEvaluatePosition(sourceFile, tsModule) ?? 0;
   const hasEvaluate = hasEvaluateFunction(sourceFile, tsModule);
-  const hasExportedEvaluate = hasExportedEvaluateFunction(sourceFile, tsModule);
 
   collectUnsupportedModuleSyntaxDiagnostics(sourceFile, diagnostics, tsModule);
 
@@ -255,15 +253,6 @@ export function validateCodeEvalSource(
       to: clampToSourceRange(source, evaluatePosition + "evaluate".length),
       severity: "error",
       message: "Evaluator source must define an evaluate function.",
-    });
-  }
-
-  if (hasEvaluate && !hasExportedEvaluate) {
-    diagnostics.push({
-      from: evaluatePosition,
-      to: clampToSourceRange(source, evaluatePosition + "evaluate".length),
-      severity: "error",
-      message: "Evaluator source must export an evaluate(ctx) function.",
     });
   }
 
@@ -407,13 +396,13 @@ function collectUnsupportedModuleSyntaxDiagnostics(
   const visit = (node: ts.Node) => {
     if (
       tsModule.isImportDeclaration(node) ||
-      (tsModule.isExportDeclaration(node) && Boolean(node.moduleSpecifier))
+      tsModule.isExportDeclaration(node)
     ) {
       diagnostics.push({
         from: node.getStart(sourceFile),
         to: node.getEnd(),
         severity: "error",
-        message: "Imports and re-exports are not supported in code evaluators.",
+        message: "Imports and exports are not supported in code evaluators.",
       });
     }
 
@@ -423,7 +412,7 @@ function collectUnsupportedModuleSyntaxDiagnostics(
 
     if (
       modifiers?.some(
-        (modifier) => modifier.kind === tsModule.SyntaxKind.DefaultKeyword,
+        (modifier) => modifier.kind === tsModule.SyntaxKind.ExportKeyword,
       )
     ) {
       diagnostics.push({
@@ -431,7 +420,7 @@ function collectUnsupportedModuleSyntaxDiagnostics(
         to: node.getEnd(),
         severity: "error",
         message:
-          "Default exports are not supported. Use a named `export function evaluate(ctx: EvaluationContext): EvaluationResult` instead.",
+          "Exports are not supported. Define `function evaluate(ctx: EvaluationContext): EvaluationResult` instead.",
       });
     }
 
@@ -481,60 +470,6 @@ function hasEvaluateFunction(
   sourceFile.forEachChild(visit);
 
   return hasEvaluate;
-}
-
-function hasExportedEvaluateFunction(
-  sourceFile: ts.SourceFile,
-  tsModule: TypeScriptModule,
-) {
-  let hasExportedEvaluate = false;
-
-  const visit = (node: ts.Node) => {
-    const modifiers = tsModule.canHaveModifiers(node)
-      ? tsModule.getModifiers(node)
-      : undefined;
-    const hasExportModifier =
-      modifiers?.some(
-        (modifier) => modifier.kind === tsModule.SyntaxKind.ExportKeyword,
-      ) ?? false;
-
-    if (
-      hasExportModifier &&
-      tsModule.isFunctionDeclaration(node) &&
-      node.name?.text === "evaluate"
-    ) {
-      hasExportedEvaluate = true;
-    }
-
-    if (
-      hasExportModifier &&
-      tsModule.isVariableStatement(node) &&
-      node.declarationList.declarations.some(
-        (declaration) =>
-          tsModule.isIdentifier(declaration.name) &&
-          declaration.name.text === "evaluate",
-      )
-    ) {
-      hasExportedEvaluate = true;
-    }
-
-    if (tsModule.isExportDeclaration(node) && !node.moduleSpecifier) {
-      const exportClause = node.exportClause;
-      if (exportClause && tsModule.isNamedExports(exportClause)) {
-        hasExportedEvaluate ||= exportClause.elements.some(
-          (element) =>
-            element.name.text === "evaluate" &&
-            (element.propertyName?.text ?? element.name.text) === "evaluate",
-        );
-      }
-    }
-
-    node.forEachChild(visit);
-  };
-
-  sourceFile.forEachChild(visit);
-
-  return hasExportedEvaluate;
 }
 
 function findEvaluatePosition(
@@ -607,12 +542,12 @@ function collectPythonContractDiagnostics(
 ) {
   if (source.trim().length === 0) return;
 
-  if (!source.trimStart().startsWith(PYTHON_TYPING_IMPORT)) {
+  if (!source.trimStart().startsWith(PYTHON_CONTRACT_PREFIX)) {
     diagnostics.push({
       from: 0,
-      to: Math.min(source.length, PYTHON_TYPING_IMPORT.length),
+      to: Math.min(source.length, PYTHON_CONTRACT_PREFIX.length),
       severity: "warning",
-      message: `Python evaluators should start with \`${PYTHON_TYPING_IMPORT}\`.`,
+      message: `Python evaluators should start with \`${PYTHON_CONTRACT_PREFIX}\`.`,
     });
   }
 

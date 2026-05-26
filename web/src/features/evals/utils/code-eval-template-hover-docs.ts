@@ -1,5 +1,3 @@
-import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
-
 import type { CodeEvalSourceCodeLanguage } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 
 export type CodeEvalHoverDocs = Record<string, string>;
@@ -19,20 +17,21 @@ type ScoreBase = {
 
 A Langfuse score returned by a TypeScript evaluator. The contract is shown at the top of the editor and is locked.`;
 
-const PYTHON_SCORE_DOC = `class Score(TypedDict):
-    name: str
-    dataType: str
+const PYTHON_SCORE_DOC = `@dataclass
+class Score:
     value: int | float | str | bool
-    comment: NotRequired[str | None]
-    configId: NotRequired[str | None]
-    metadata: NotRequired[dict[str, Any]]
+    name: str
+    data_type: str | None = None
+    comment: str | None = None
+    config_id: str | None = None
+    metadata: dict[str, Any] | None = None
 
 A Langfuse score returned by a Python evaluator.`;
 
 export const TYPESCRIPT_CODE_EVAL_HOVER_DOCS = {
-  evaluate: `export function evaluate(ctx: EvaluationContext): EvaluationResult
+  evaluate: `function evaluate(ctx: EvaluationContext): EvaluationResult
 
-The named TypeScript export Langfuse executes for each matched target observation.`,
+The TypeScript function Langfuse executes for each matched target observation.`,
   ctx: `parameter ctx: EvaluationContext
 
 The TypeScript value Langfuse passes to evaluate.`,
@@ -112,74 +111,75 @@ export const PYTHON_CODE_EVAL_HOVER_DOCS = {
 The Python function Langfuse executes for each matched target observation.`,
   ctx: `parameter ctx: EvaluationContext
 
-The Python TypedDict value Langfuse passes to evaluate.`,
+The Python dataclass value Langfuse passes to evaluate.`,
   Any: `typing.Any
 
 Use for JSON-like evaluator values whose concrete type depends on the target observation.`,
-  TypedDict: `typing.TypedDict
+  dataclass: `dataclasses.dataclass
 
-Use to describe the dictionary-shaped Python evaluator context and result.`,
-  NotRequired: `typing.NotRequired
-
-Use for optional keys in Python TypedDict definitions.`,
-  Observation: `class Observation(TypedDict):
-    input: Any
-    output: Any
-    metadata: Any
+Use to describe the Python evaluator context and result classes.`,
+  ObservationContext: `@dataclass
+class ObservationContext:
+    input: Any = None
+    output: Any = None
+    metadata: Any = None
 
 The observation selected by the evaluator target.`,
-  Experiment: `class Experiment(TypedDict):
-    item_expected_output: Any
-    item_metadata: Any
+  ExperimentContext: `@dataclass
+class ExperimentContext:
+    item_expected_output: Any = None
+    item_metadata: Any = None
 
 Experiment item data. Present when the evaluator runs on an experiment.`,
-  EvaluationContext: `class EvaluationContext(TypedDict):
-    observation: Observation
-    experiment: NotRequired[Experiment | None]
+  EvaluationContext: `@dataclass
+class EvaluationContext:
+    observation: ObservationContext
+    experiment: ExperimentContext | None = None
 
 The data Langfuse passes to a Python evaluator.`,
-  EvaluationResult: `class EvaluationResult(TypedDict):
+  EvaluationResult: `@dataclass
+class EvaluationResult:
     scores: list[Score]
 
 The value returned by evaluate.`,
   Score: PYTHON_SCORE_DOC,
-  observation: `key ctx["observation"]: Observation
+  observation: `property ctx.observation: ObservationContext
 
 The observation selected by the evaluator target.`,
-  experiment: `key ctx.get("experiment"): Experiment | None
+  experiment: `property ctx.experiment: ExperimentContext | None
 
 Experiment item data. Present when the evaluator runs on an experiment.`,
-  input: `key observation["input"]: Any
+  input: `property observation.input: Any
 
 The input recorded on the observation.`,
-  output: `key observation["output"]: Any
+  output: `property observation.output: Any
 
 The output recorded on the observation.`,
-  metadata: `key observation["metadata"] or score["metadata"]
+  metadata: `property observation.metadata or score.metadata
 
 Observation metadata is available on the evaluator context. Score metadata stores extra details on a returned score.`,
-  item_expected_output: `key experiment["item_expected_output"]: Any
+  item_expected_output: `property experiment.item_expected_output: Any
 
 The expected output from the experiment item.`,
-  item_metadata: `key experiment["item_metadata"]: Any
+  item_metadata: `property experiment.item_metadata: Any
 
 The metadata from the experiment item.`,
-  scores: `key result["scores"]: list[Score]
+  scores: `property result.scores: list[Score]
 
 One or more Langfuse scores to create for the target observation.`,
-  dataType: `key score["dataType"]: str
+  data_type: `property score.data_type: str | None
 
 The Langfuse score data type. Use NUMERIC, BOOLEAN, CATEGORICAL, or TEXT.`,
-  value: `key score["value"]: int | float | str | bool
+  value: `property score.value: int | float | str | bool
 
-The score value. The allowed value depends on dataType: NUMERIC uses a number, BOOLEAN uses a boolean, and CATEGORICAL or TEXT use a string.`,
-  name: `key score["name"]: str
+The score value. The allowed value depends on data_type: NUMERIC uses a number, BOOLEAN uses a boolean, and CATEGORICAL or TEXT use a string.`,
+  name: `property score.name: str
 
 The score name.`,
-  comment: `key score["comment"]: str | None
+  comment: `property score.comment: str | None
 
 The reasoning or explanation stored with the score.`,
-  configId: `key score["configId"]: str | None
+  config_id: `property score.config_id: str | None
 
 The score config id to attach to the score.`,
 } satisfies CodeEvalHoverDocs;
@@ -187,7 +187,7 @@ The score config id to attach to the score.`,
 export function getCodeEvalHoverDocs(
   sourceCodeLanguage: CodeEvalSourceCodeLanguage,
 ): CodeEvalHoverDocs {
-  return sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+  return sourceCodeLanguage === "PYTHON"
     ? PYTHON_CODE_EVAL_HOVER_DOCS
     : TYPESCRIPT_CODE_EVAL_HOVER_DOCS;
 }

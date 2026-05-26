@@ -41,15 +41,9 @@ describe("LocalCodeEvalDispatcher", () => {
             observation: { output: string };
             experiment: { itemExpectedOutput: string } | undefined;
           };
-<<<<<<< feat/lfe-code-based-evals-front-end
           function evaluate(ctx: EvaluationContext) {
             return {
-              scores: [{ name: "match", value: ctx.observation.output === ctx.experiment?.itemExpectedOutput, dataType: "BOOLEAN" }],
-=======
-          async function evaluate(ctx: EvaluationContext) {
-            return {
               scores: [{ name: "match", value: ctx.observation.output === ctx.experiment?.itemExpectedOutput ? 1 : 0, dataType: "BOOLEAN" }],
->>>>>>> lfe-9832-code-based-evals-data-model
             };
           }
         `,
@@ -64,16 +58,6 @@ describe("LocalCodeEvalDispatcher", () => {
   it("rejects unsupported TypeScript syntax with a docs link", async () => {
     const dispatcher = new LocalCodeEvalDispatcher();
 
-<<<<<<< feat/lfe-code-based-evals-front-end
-    await expect(
-      dispatcher.dispatch({
-        ...baseInput,
-        runtime: { language: "TYPESCRIPT" },
-        // Deliberate stray token that `stripTypeScriptTypes` cannot parse.
-        code: { source: "function evaluate(@@@) {}" },
-      }),
-    ).rejects.toMatchObject({
-=======
     const promise = dispatcher.dispatch({
       ...baseInput,
       runtime: { language: "TYPESCRIPT" },
@@ -92,7 +76,6 @@ describe("LocalCodeEvalDispatcher", () => {
     });
 
     await expect(promise).rejects.toMatchObject({
->>>>>>> lfe-9832-code-based-evals-data-model
       code: "INVALID_SOURCE",
       retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
@@ -210,11 +193,7 @@ describe("LocalCodeEvalDispatcher", () => {
     const dispatcher = new LocalCodeEvalDispatcher();
 
     const source = `
-<<<<<<< feat/lfe-code-based-evals-front-end
       function evaluate() {
-=======
-      async function evaluate() {
->>>>>>> lfe-9832-code-based-evals-data-model
         return {
           scores: [{
             value: "reasoning fits within the limit",
@@ -250,11 +229,7 @@ describe("LocalCodeEvalDispatcher", () => {
     // job execution fails clearly instead of completing and then having the
     // score silently dropped by the ingestion consumer.
     const source = `
-<<<<<<< feat/lfe-code-based-evals-front-end
       function evaluate() {
-=======
-      async function evaluate() {
->>>>>>> lfe-9832-code-based-evals-data-model
         return {
           scores: [{
             value: "a".repeat(${TEXT_SCORE_MAX_LENGTH + 1}),
