@@ -304,7 +304,7 @@ const automationCreateHref = (
   return `/project/${projectId}/automations?${params.toString()}`;
 };
 
-/** useAutomationRows annotates every automation with its trigger tags and whether the row matches the draft monitor's tags. `isHighlighted` is only true when tags are picked, so the empty-tags default shows every row in its neutral state. */
+/** useAutomationRows annotates every automation with its trigger tags and whether the trigger filter accepts the draft monitor's tags. */
 const useAutomationRows = (
   automations: AutomationDomain[] | undefined,
   tags: string[],
@@ -317,8 +317,7 @@ const useAutomationRows = (
     return (automations ?? []).map((automation) => ({
       automation,
       triggerTags: triggerTagsClause(automation.trigger.filter),
-      isHighlighted:
-        tags.length > 0 && tagClauseMatches(automation.trigger.filter, tags),
+      isHighlighted: tagClauseMatches(automation.trigger.filter, tags),
     }));
   }, [automations, tags]);
 };
