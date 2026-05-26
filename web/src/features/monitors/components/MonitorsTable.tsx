@@ -1,4 +1,3 @@
-import { MonitorSeveritySchema } from "@langfuse/shared/monitors";
 import { useRouter } from "next/router";
 import { useEffect, useMemo } from "react";
 import { useMediaQuery } from "react-responsive";
@@ -8,7 +7,6 @@ import { DataTableControls } from "@/src/components/table/data-table-controls";
 import { TableBadgeLoadingCell } from "@/src/components/table/loading-cells";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { cn } from "@/src/utils/tailwind";
 import { monitorFilterConfig } from "@/src/features/filters/config/monitors-config";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -16,32 +14,39 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TagList from "@/src/features/tag/components/TagList";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { api } from "@/src/utils/api";
-import { type RouterInputs, type RouterOutputs } from "@/src/utils/api";
+import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
+import { cn } from "@/src/utils/tailwind";
+import { MonitorSeveritySchema } from "@langfuse/shared/monitors";
 
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
 
+/** MonitorRow is one row of the monitors list, shaped by the `monitors.all` tRPC output. */
 type MonitorRow = RouterOutputs["monitors"]["all"]["monitors"][number];
+
+/** MonitorsOrderBy is the order-by argument accepted by the `monitors.all` tRPC query. */
 type MonitorsOrderBy = RouterInputs["monitors"]["all"]["orderBy"];
 
+/** MonitorsTable renders the project's monitors as a sortable, filterable, paginated table with row navigation to the edit page. */
 export function MonitorsTable() {
   const router = useRouter();
   const projectId = useProjectIdFromURL() ?? "";
   const { setDetailPageList } = useDetailPageLists();
-  // Hide the tags column at viewports narrower than the main nav's drawer
-  // breakpoint (<768px / Tailwind `md`).
+  /** isWiderThanPhone is true at viewports wider than the main nav's drawer breakpoint (768px / Tailwind `md`), the threshold at which the Tags column appears. */
   const isWiderThanPhone = useMediaQuery({ query: "(min-width: 768px)" });
 
+  /** paginationState is the bound page index + size, defaulting to 50 per page and synced to the `pageIndex`/`pageSize` URL params. */
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
     limit: "pageSize",
   });
 
+  /** orderByState is the bound table sort, defaulting to severity descending. */
   const [orderByState, setOrderByState] = useOrderByState({
     column: "severity",
     order: "DESC",
   });
 
+  /** filterOptions loads the project's sidebar filter dictionary (severity values, tag list). */
   const filterOptions = api.monitors.getFilterOptions.useQuery(
     { projectId },
     {
@@ -54,6 +59,7 @@ export function MonitorsTable() {
     },
   );
 
+  /** newFilterOptions reshapes filterOptions into the {value, displayValue} rows the sidebar expects, hiding UNKNOWN so the user sees a single "NO DATA" choice. */
   const newFilterOptions = useMemo(
     () => ({
       severity: MonitorSeveritySchema.options
@@ -70,6 +76,7 @@ export function MonitorsTable() {
     [filterOptions.data],
   );
 
+  /** queryFilter is the bound sidebar filter state, synced to the URL and to session storage per project. */
   const queryFilter = useSidebarFilterState(
     monitorFilterConfig,
     newFilterOptions,
@@ -80,6 +87,7 @@ export function MonitorsTable() {
     },
   );
 
+  /** monitors loads the paginated, filtered, sorted page of monitors from the server. */
   const monitors = api.monitors.all.useQuery(
     {
       projectId,
@@ -104,6 +112,7 @@ export function MonitorsTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monitors.isSuccess, monitors.data]);
 
+  /** columns is the DataTable column schema, conditionally including Tags on viewports wider than a phone. */
   const columns: LangfuseColumnDef<MonitorRow>[] = [
     {
       accessorKey: "severity",

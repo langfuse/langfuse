@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { type LucideIcon } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { startCase } from "lodash";
 
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
@@ -74,7 +75,6 @@ import {
   viewDeclarations,
   type FilterState,
 } from "@langfuse/shared";
-import { startCase } from "lodash";
 
 import { MonitorChartPreview } from "./MonitorChartPreview";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
@@ -173,19 +173,17 @@ const monitorToDefaults = (monitor: Monitor): UpdateMonitor => ({
       : (monitor.status as MonitorWriteStatus),
 });
 
-type MonitorFormProps = {
-  projectId: string;
-  monitor?: Monitor;
-  /** onNameChange fires on every form change so the host (e.g. the edit page header) can mirror the live name. */
-  onNameChange?: (name: string) => void;
-};
-
 /** MonitorForm renders the create/edit form for a Monitor. */
 export const MonitorForm = ({
   projectId,
   monitor,
   onNameChange,
-}: MonitorFormProps) => {
+}: {
+  projectId: string;
+  monitor?: Monitor;
+  /** onNameChange fires on every form change so the host (e.g. the edit page header) can mirror the live name. */
+  onNameChange?: (name: string) => void;
+}) => {
   /** router is the Next router used to redirect after a successful create. */
   const router = useRouter();
   /** isEdit is true when the form is bound to an existing monitor. */
@@ -937,11 +935,6 @@ const NoDataField = ({
   </div>
 );
 
-/** __test exposes private helpers to co-located tests without widening the module API. */
-export const __test = {
-  createDefaults,
-};
-
 /** RenotifyField renders the renotify mode picker plus its interval input. */
 const RenotifyField = ({
   value,
@@ -996,3 +989,8 @@ const RenotifyField = ({
     )}
   </div>
 );
+
+/** __test exposes private helpers to co-located tests without widening the module API. */
+export const __test = {
+  createDefaults,
+};
