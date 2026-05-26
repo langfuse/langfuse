@@ -65,16 +65,19 @@ type JsonSchemaObject = Record<string, unknown>;
 function isObjectLikeJsonSchema(schema: JsonSchemaObject): boolean {
   if (schema.type === "object") return true;
 
-  if ("oneOf" in schema || "anyOf" in schema || "discriminator" in schema) {
-    return true;
-  }
+  const subSchemas = (() => {
+    if ("oneOf" in schema && Array.isArray(schema.oneOf)) return schema.oneOf;
+    if ("anyOf" in schema && Array.isArray(schema.anyOf)) return schema.anyOf;
+    if ("allOf" in schema && Array.isArray(schema.allOf)) return schema.allOf;
+    return [];
+  })();
 
-  if (Array.isArray(schema.allOf)) {
-    return schema.allOf.every(
+  if (subSchemas.length > 0) {
+    return subSchemas.every(
       (subSchema) =>
         typeof subSchema === "object" &&
         subSchema !== null &&
-        isObjectLikeJsonSchema(subSchema as JsonSchemaObject),
+        isObjectLikeJsonSchema(subSchema),
     );
   }
 
@@ -138,11 +141,21 @@ export function defineTool<TInput>(
     );
   }
 
+  // The MCP TypeScript SDK validates Tool.inputSchema.type as `z.literal("object")`,
+  // so clients reject any tool whose root schema lacks `type: "object"`. Zod's
+  // JSON Schema converter omits the root `type` for intersection/union schemas
+  // (emitting allOf/oneOf/anyOf instead), so we inject it here. JSON Schema
+  // draft-7 allows `type` alongside these keywords — all constraints must hold.
+  const normalizedJsonSchema: JsonSchemaObject =
+    (jsonSchema as JsonSchemaObject).type === "object"
+      ? (jsonSchema as JsonSchemaObject)
+      : { ...(jsonSchema as JsonSchemaObject), type: "object" };
+
   // Build tool definition
   const toolDefinition: ToolDefinition = {
     name,
     description,
-    inputSchema: jsonSchema,
+    inputSchema: normalizedJsonSchema,
   };
 
   // Add annotations if provided
