@@ -1413,6 +1413,78 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(mergedIds).toEqual(expect.arrayContaining(datasetIds));
   });
 
+  it("should paginate v2 datasets deterministically when createdAt timestamps tie", async () => {
+    const authAndProject = await createOrgProjectAndApiKey();
+    const localAuth = authAndProject.auth;
+    const localProjectId = authAndProject.projectId;
+    const sharedCreatedAt = new Date("2025-01-01T00:00:00.000Z");
+    const datasetIds = [v4(), v4(), v4()];
+
+    await prisma.dataset.createMany({
+      data: [
+        {
+          id: datasetIds[0],
+          name: `dataset-v2-tie-a-${v4()}`,
+          projectId: localProjectId,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+        {
+          id: datasetIds[1],
+          name: `dataset-v2-tie-b-${v4()}`,
+          projectId: localProjectId,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+        {
+          id: datasetIds[2],
+          name: `dataset-v2-tie-c-${v4()}`,
+          projectId: localProjectId,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        },
+      ],
+    });
+
+    const page1 = await makeZodVerifiedAPICall(
+      GetDatasetsV2Response,
+      "GET",
+      "/api/public/v2/datasets?page=1&limit=2",
+      undefined,
+      localAuth,
+    );
+    const page2 = await makeZodVerifiedAPICall(
+      GetDatasetsV2Response,
+      "GET",
+      "/api/public/v2/datasets?page=2&limit=2",
+      undefined,
+      localAuth,
+    );
+    const page1Repeat = await makeZodVerifiedAPICall(
+      GetDatasetsV2Response,
+      "GET",
+      "/api/public/v2/datasets?page=1&limit=2",
+      undefined,
+      localAuth,
+    );
+
+    expect(page1.status).toBe(200);
+    expect(page2.status).toBe(200);
+    expect(page1Repeat.status).toBe(200);
+
+    const page1Ids = page1.body.data.map((dataset) => dataset.id);
+    const page2Ids = page2.body.data.map((dataset) => dataset.id);
+    const page1RepeatIds = page1Repeat.body.data.map((dataset) => dataset.id);
+
+    expect(page1Ids).toEqual(page1RepeatIds);
+    page2Ids.forEach((id) => {
+      expect(page1Ids).not.toContain(id);
+    });
+
+    const mergedIds = [...page1Ids, ...page2Ids];
+    expect(mergedIds).toEqual(expect.arrayContaining(datasetIds));
+  });
+
   it("should paginate dataset runs deterministically when createdAt timestamps tie", async () => {
     const authAndProject = await createOrgProjectAndApiKey();
     const localAuth = authAndProject.auth;
