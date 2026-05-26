@@ -9,7 +9,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 /** MonitorScope is the RBAC scope a monitor page can require for entry. */
 type MonitorScope = "monitors:read" | "monitors:CUD";
 
-/** MonitorPagePermissions gates a monitor page on the `monitors` feature flag and a project RBAC scope, rendering ErrorPage when the flag is off and SupportOrUpgradePage when the user lacks access. */
+/** MonitorPagePermissions gates a monitor page on the `monitors` feature flag and a project RBAC scope. */
 export function MonitorPagePermissions({
   scope,
   children,

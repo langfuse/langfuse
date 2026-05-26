@@ -37,7 +37,7 @@ const actionLabel: Record<ActionTypes, string> = {
   GITHUB_DISPATCH: "GitHub Dispatch",
 };
 
-/** MonitorAutomationsPanel lets the user pick monitor tags and shows the automations they fan out to. */
+/** MonitorAutomationsPanel lets the user select automations for a monitor by adding matching tags to the monitor. */
 export const MonitorAutomationsPanel = ({
   projectId,
   tags,

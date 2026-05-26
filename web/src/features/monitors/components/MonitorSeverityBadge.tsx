@@ -34,7 +34,7 @@ const severityLabel: Record<MonitorSeverity, string> = {
   ALERT: "ALERT",
 };
 
-/** MonitorSeverityBadge renders a Monitor's current severity as a Badge, with a pause icon for PAUSED and a spinner for UNKNOWN. */
+/** MonitorSeverityBadge displays the Monitor's severity, including loading states for pending monitors. */
 export function MonitorSeverityBadge({
   severity,
   className,

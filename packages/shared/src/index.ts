@@ -104,9 +104,3 @@ export * from "./features/analytics-integrations";
 export * from "./features/query/types";
 export * from "./features/query/dataModel";
 export * from "./features/query/validateQuery";
-
-// monitors: client-safe domain + service DTOs are intentionally NOT re-exported
-// from this root barrel because several names (Monitor, MonitorSeverity,
-// MonitorStatus, MonitorThresholdOperator, MonitorView) collide with Prisma's
-// own enum exports leaked via `export * from "@prisma/client"` above. Import
-// them via `@langfuse/shared/src/features/monitors` instead.

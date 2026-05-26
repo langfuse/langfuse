@@ -18,9 +18,7 @@ declare module "@tanstack/react-table" {
     isFixedPosition?: boolean; // if true, column cannot be reordered
     isPinnedLeft?: boolean; // if true, column will be pinned to left side
     isPinnedRight?: boolean; // if true, column will be pinned to right side
-    // if true, the column omits an explicit inline width and absorbs leftover
-    // space under `table-fixed` (only one column per table should set this).
-    isFlexWidth?: boolean;
+    isFlexWidth?: boolean; // if true, column absorbs leftover space (one per table)
     loadingCell?: React.ReactNode | (() => React.ReactNode);
   }
 }

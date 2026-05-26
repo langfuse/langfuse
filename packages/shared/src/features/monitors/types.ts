@@ -36,13 +36,7 @@ export type MonitorSeverity = z.infer<typeof MonitorSeveritySchema>;
 export const MonitorStatusSchema = z.enum(PrismaMonitorStatus);
 export type MonitorStatus = z.infer<typeof MonitorStatusSchema>;
 
-/**
- * MonitorWriteStatusSchema is the subset of `MonitorStatusSchema` callers may
- * submit on create/update. `ERROR_BAD_QUERY` is owned by the scheduler/worker
- * (flipped when a monitor's query fails to evaluate); accepting it on inputs
- * would let callers forge a broken state or clear a legitimately broken
- * monitor without scheduler revalidation.
- */
+/** MonitorWriteStatusSchema is the subset of MonitorStatusSchema callers may submit on create/update. */
 export const MonitorWriteStatusSchema = z.enum([
   PrismaMonitorStatus.ACTIVE,
   PrismaMonitorStatus.PAUSED,
