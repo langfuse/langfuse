@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import {
+  DEFAULT_TRACE_ENVIRONMENT,
   eventTypes,
   createW3CTraceId,
   extractObservationVariables,
   getEventsStreamForEval,
+  getObservationById,
   processEventBatch,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
@@ -14,6 +16,7 @@ import {
 import { TRPCError } from "@trpc/server";
 
 import {
+  LangfuseNotFoundError,
   LangfuseInternalTraceEnvironment,
   observationForEvalSchema,
   type EvalTargetObject,
@@ -23,6 +26,7 @@ import {
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { EvalTemplateType, type PrismaClient } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import {
   isEventTarget,
@@ -219,6 +223,10 @@ async function getObservationForEvalById(params: {
   traceId: string;
   startTime: Date;
 }): Promise<ObservationForEval> {
+  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS !== "true") {
+    return getObservationForEvalByIdFromLegacyObservations(params);
+  }
+
   const startTimeUpperBound = new Date(params.startTime.getTime() + 1);
 
   const stream = await getEventsStreamForEval({
@@ -256,6 +264,77 @@ async function getObservationForEvalById(params: {
     return observationForEvalSchema.parse(row);
   }
 
+  throwObservationNotFound();
+}
+
+async function getObservationForEvalByIdFromLegacyObservations(params: {
+  projectId: string;
+  id: string;
+  traceId: string;
+  startTime: Date;
+}): Promise<ObservationForEval> {
+  const observation = await getObservationById({
+    projectId: params.projectId,
+    id: params.id,
+    traceId: params.traceId,
+    startTime: params.startTime,
+    fetchWithInputOutput: true,
+  }).catch((error) => {
+    if (error instanceof LangfuseNotFoundError) {
+      throwObservationNotFound();
+    }
+
+    throw error;
+  });
+
+  if (!observation) {
+    throwObservationNotFound();
+  }
+
+  return observationForEvalSchema.parse({
+    span_id: observation.id,
+    trace_id: observation.traceId,
+    project_id: params.projectId,
+    parent_span_id: observation.parentObservationId,
+    type: observation.type,
+    name: observation.name ?? "",
+    environment: observation.environment ?? DEFAULT_TRACE_ENVIRONMENT,
+    version: observation.version,
+    level: observation.level,
+    status_message: observation.statusMessage,
+    trace_name: null,
+    user_id: null,
+    session_id: null,
+    tags: [],
+    release: null,
+    provided_model_name: observation.model,
+    model_parameters: observation.modelParameters,
+    prompt_id: observation.promptId,
+    prompt_name: observation.promptName,
+    prompt_version: observation.promptVersion,
+    provided_usage_details: observation.providedUsageDetails ?? {},
+    provided_cost_details: observation.providedCostDetails ?? {},
+    usage_details: observation.usageDetails ?? {},
+    cost_details: observation.costDetails ?? {},
+    tool_definitions: observation.toolDefinitions ?? {},
+    tool_calls: observation.toolCalls ?? [],
+    tool_call_names: observation.toolCallNames ?? [],
+    tool_call_count: observation.toolCallNames?.length ?? 0,
+    experiment_id: null,
+    experiment_name: null,
+    experiment_description: null,
+    experiment_dataset_id: null,
+    experiment_item_id: null,
+    experiment_item_expected_output: null,
+    experiment_item_metadata: null,
+    experiment_item_root_span_id: null,
+    input: observation.input,
+    output: observation.output,
+    metadata: observation.metadata,
+  });
+}
+
+function throwObservationNotFound(): never {
   throw new TRPCError({
     code: "NOT_FOUND",
     message: "Observation not found",

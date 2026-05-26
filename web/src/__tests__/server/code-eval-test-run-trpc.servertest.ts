@@ -15,7 +15,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   createEvent,
   createEventsCh,
+  createObservation,
+  createObservationsCh,
   createOrgProjectAndApiKey,
+  createTrace,
+  createTracesCh,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { EvalTargetObject } from "@langfuse/shared";
@@ -202,6 +206,100 @@ maybe("evals.testRunCodeEval", () => {
     });
 
     expect(Number(scoreCount[0]?.count ?? 0)).toBe(0);
+  });
+
+  it("runs against legacy observations when events table observations are disabled", async () => {
+    const { project, caller } = await prepare();
+    const observationId = randomUUID();
+    const traceId = randomUUID();
+    const startTime = new Date();
+    const template = await createCodeTemplate(
+      project.id,
+      `
+        function evaluate(ctx) {
+          const matched =
+            ctx.observation.input === "legacy input" &&
+            ctx.observation.output === "legacy output" &&
+            ctx.observation.metadata === "legacy";
+
+          return { scores: [{ name: "legacy-observation-score", value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
+        }
+      `,
+    );
+
+    await createTracesCh([
+      createTrace({
+        id: traceId,
+        project_id: project.id,
+        timestamp: startTime.getTime(),
+      }),
+    ]);
+    await createObservationsCh([
+      createObservation({
+        id: observationId,
+        trace_id: traceId,
+        project_id: project.id,
+        start_time: startTime.getTime(),
+        input: "legacy input",
+        output: "legacy output",
+        metadata: { quality: "legacy" },
+      }),
+    ]);
+
+    const mutableEnv = env as unknown as {
+      LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS: "true" | "false";
+    };
+    const originalEventsTableObservationFlag =
+      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS;
+
+    try {
+      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = "false";
+
+      const response = await caller.evals.testRunCodeEval({
+        projectId: project.id,
+        evalTemplateId: template.id,
+        target: EvalTargetObject.EVENT,
+        scoreName: "unsaved-score",
+        observationId,
+        traceId,
+        startTime,
+        mapping: [
+          {
+            templateVariable: "input",
+            selectedColumnId: "input",
+            jsonSelector: null,
+          },
+          {
+            templateVariable: "output",
+            selectedColumnId: "output",
+            jsonSelector: null,
+          },
+          {
+            templateVariable: "metadata",
+            selectedColumnId: "metadata",
+            jsonSelector: "$.quality",
+          },
+        ],
+      });
+
+      expect(response).toEqual({
+        success: true,
+        result: {
+          scores: [
+            {
+              name: "legacy-observation-score",
+              value: 1,
+              dataType: "BOOLEAN",
+            },
+          ],
+        },
+        executionTraceId: expect.stringMatching(/^[0-9a-f]{32}$/),
+        executionTraceFromTimestamp: expect.any(Date),
+      });
+    } finally {
+      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS =
+        originalEventsTableObservationFlag;
+    }
   });
 
   it("returns user-code dispatcher failures as structured failures", async () => {
