@@ -28,9 +28,9 @@ describe("defineTool", () => {
   // tools whose root schema omits it. Zod emits intersections as bare `allOf`,
   // so defineTool must inject `type: "object"`.
   it("injects root type: 'object' for intersection schemas (MCP SDK requires it)", () => {
-    const schema = z.object({ id: z.string() }).and(
-      z.object({ value: z.number() }),
-    );
+    const schema = z
+      .object({ id: z.string() })
+      .and(z.object({ value: z.number() }));
 
     const [tool] = defineTool({
       name: "intersectionTool",
