@@ -201,14 +201,6 @@ Minimum verification matrix:
 
 ## Git and Tooling Notes
 
-- Prefer WSL for repo commands on Windows hosts, especially `pnpm`, `bash`,
-  Prisma, Vitest, and Docker/compose workflows. Use native Windows execution
-  only when a task is explicitly Windows-specific or WSL is unavailable.
-- By default, prepare the minimum runnable environment before validation work:
-  install dependencies, ensure generated clients/artifacts exist, provide local
-  `.env` / `.env.test` values when required, and verify required infra
-  services (Postgres, Redis, ClickHouse, Docker) are reachable instead of
-  stopping at the first missing prerequisite.
 - Use `gh search issues` for GitHub issue search.
 - Do not use destructive git commands such as `reset --hard` unless explicitly
   requested.
@@ -216,13 +208,3 @@ Minimum verification matrix:
 - Keep commits focused and atomic.
 - Remaining `.cursor/rules/*.mdc` files should stay thin wrappers around shared
   docs or skills rather than owning durable repo guidance directly.
-- On Windows checkouts, `pnpm install` may fail in the root `postinstall` if
-  `scripts/postinstall.sh` has CRLF line endings; if that happens, use
-  `pnpm install --ignore-scripts` to bootstrap dependencies first, then repair
-  any missing generated artifacts explicitly.
-- If `@prisma/client` resolves but TypeScript reports missing `PrismaClient` /
-  `Prisma` exports, check whether the package-local
-  `node_modules/.pnpm/@prisma+client.../node_modules/.prisma/client/*`
-  artifacts exist. In this repo, running `pnpm exec prisma generate --schema packages/shared/prisma/schema.prisma`
-  and then `pnpm --filter @langfuse/shared run build` restores the missing
-  Prisma type surface after a script-skipped install.
