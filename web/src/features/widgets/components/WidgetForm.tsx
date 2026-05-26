@@ -10,7 +10,6 @@ import { api } from "@/src/utils/api";
 import {
   buildWidgetOrderBy,
   getResultUnit,
-  formatAggregation,
   getValidAggregationsForMeasure,
   isV2BreakdownChart,
   requiresV2,
@@ -1618,7 +1617,7 @@ export function WidgetForm({
                                             key={aggregation}
                                             value={aggregation}
                                           >
-                                            {formatAggregation(aggregation)}
+                                            {startCase(aggregation)}
                                           </SelectItem>
                                         ),
                                       )}
@@ -1693,7 +1692,7 @@ export function WidgetForm({
                           <SelectContent>
                             {validAggregationsForMeasure.map((aggregation) => (
                               <SelectItem key={aggregation} value={aggregation}>
-                                {formatAggregation(aggregation)}
+                                {startCase(aggregation)}
                               </SelectItem>
                             ))}
                           </SelectContent>

@@ -70,11 +70,7 @@ import {
   UpdateMonitorSchema,
   type UpdateMonitor,
 } from "@langfuse/shared/monitors";
-import {
-  formatAggregation,
-  viewDeclarations,
-  type FilterState,
-} from "@langfuse/shared";
+import { viewDeclarations, type FilterState } from "@langfuse/shared";
 
 import { MonitorChartPreview } from "./MonitorChartPreview";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
@@ -347,7 +343,7 @@ export const MonitorForm = ({
     const aggregation = watched.metric?.aggregation ?? "count";
     const op = (watched.thresholdOperator ?? "GT") as MonitorThresholdOperator;
     const threshold = watched.alertThreshold;
-    const aggLabel = formatAggregation(aggregation);
+    const aggLabel = startCase(aggregation);
     const viewLabel = viewLabels[view];
     const base =
       measure === "count"
@@ -541,7 +537,7 @@ export const MonitorForm = ({
                           <SelectContent>
                             {aggregationOptions.map((a) => (
                               <SelectItem key={a} value={a}>
-                                {formatAggregation(a)}
+                                {startCase(a)}
                               </SelectItem>
                             ))}
                           </SelectContent>
