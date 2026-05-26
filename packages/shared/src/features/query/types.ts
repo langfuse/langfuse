@@ -123,14 +123,14 @@ export const metricAggregations = z.enum([
 /** MeasureDefinition is a single `measures` entry on a ViewDeclaration. */
 export type MeasureDefinition = ViewDeclarationType["measures"][string];
 
-/** getValidAggregationsForMeasure returns the aggregations valid for a measure: every aggregation for numeric types, or `count`/`uniq` otherwise. */
-export function getValidAggregationsForMeasure(
-  measure: MeasureDefinition | undefined,
+/** getValidAggregationsForMeasureType returns the aggregations valid for a measure type: every aggregation for numeric types, or `count`/`uniq` otherwise. */
+export function getValidAggregationsForMeasureType(
+  measureType: string | undefined,
 ): z.infer<typeof metricAggregations>[] {
   if (
-    measure?.type === "integer" ||
-    measure?.type === "decimal" ||
-    measure?.type === "number"
+    measureType === "integer" ||
+    measureType === "decimal" ||
+    measureType === "number"
   ) {
     return [...metricAggregations.options];
   }

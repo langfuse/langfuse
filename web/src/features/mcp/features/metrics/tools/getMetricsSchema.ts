@@ -1,6 +1,5 @@
 import {
-  // getValidAggregationsForMeasureType,
-  getValidAggregationsForMeasure,
+  getValidAggregationsForMeasureType,
   granularities,
   viewsV2,
   viewDeclarations,
@@ -66,8 +65,9 @@ export const [getMetricsSchemaTool, handleGetMetricsSchema] = defineTool({
                         description: definition.description,
                         type: definition.type,
                         unit: definition.unit,
-                        validAggregations:
-                          getValidAggregationsForMeasure(definition),
+                        validAggregations: getValidAggregationsForMeasureType(
+                          definition.type,
+                        ),
                       },
                     ]),
                   ),

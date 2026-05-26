@@ -16,7 +16,7 @@ import {
   ChartConfigSchema,
 } from "@langfuse/shared/src/server";
 import {
-  getValidAggregationsForMeasure,
+  getValidAggregationsForMeasureType,
   getViewDeclaration,
   views,
   type ViewVersion,
@@ -97,7 +97,7 @@ function validateMetricAggregations(params: {
   for (const metric of params.metrics) {
     const measureDef = viewDecl.measures[metric.measure];
     if (!measureDef) continue; // measure existence is validated elsewhere
-    const validAggs = getValidAggregationsForMeasure(measureDef);
+    const validAggs = getValidAggregationsForMeasureType(measureDef.type);
     if (!validAggs.some((a) => a === metric.agg)) {
       throw new TRPCError({
         code: "BAD_REQUEST",

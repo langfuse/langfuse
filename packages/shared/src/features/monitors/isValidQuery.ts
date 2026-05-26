@@ -6,7 +6,7 @@ import { type z } from "zod";
 import { type singleFilter } from "../../interfaces/filters";
 import { getViewDeclaration } from "../query/dataModel";
 import {
-  getValidAggregationsForMeasure,
+  getValidAggregationsForMeasureType,
   type MeasureDefinition,
   type metric,
   type metricAggregations,
@@ -17,7 +17,7 @@ import {
 export const getValidMonitorAggregationsForMeasure = (
   measure: MeasureDefinition | undefined,
 ): z.infer<typeof metricAggregations>[] => {
-  const aggs = getValidAggregationsForMeasure(measure).filter(
+  const aggs = getValidAggregationsForMeasureType(measure?.type).filter(
     (a) => a !== "histogram",
   );
   const pinned = measure?.aggs?.agg as

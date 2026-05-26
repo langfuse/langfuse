@@ -11,7 +11,7 @@ import { importWidgetFile } from "@/src/features/widgets/utils/import-export-uti
 import {
   buildWidgetOrderBy,
   getResultUnit,
-  getValidAggregationsForMeasure,
+  getValidAggregationsForMeasureType,
   isV2BreakdownChart,
   requiresV2,
   validateQuery,
@@ -848,7 +848,7 @@ export function WidgetForm({
   const validAggregationsForMeasure = useMemo(() => {
     const measureDef =
       viewDeclarations[viewVersion][selectedView]?.measures?.[selectedMeasure];
-    return getValidAggregationsForMeasure(measureDef);
+    return getValidAggregationsForMeasureType(measureDef?.type);
   }, [viewVersion, selectedView, selectedMeasure]);
 
   const measureSupportsHistogram =
@@ -894,7 +894,9 @@ export function WidgetForm({
             .map((m) => m.aggregation);
 
           const measureDef = viewDeclaration.measures[measureKey];
-          const validAggs = getValidAggregationsForMeasure(measureDef);
+          const validAggs = getValidAggregationsForMeasureType(
+            measureDef?.type,
+          );
           const availableAggregationsForMeasure = validAggs.filter(
             (agg) =>
               agg !== "histogram" &&
@@ -930,7 +932,7 @@ export function WidgetForm({
   ): z.infer<typeof metricAggregations>[] => {
     const measureDef =
       viewDeclarations[viewVersion][selectedView]?.measures?.[measureKey];
-    const validAggs = getValidAggregationsForMeasure(measureDef);
+    const validAggs = getValidAggregationsForMeasureType(measureDef?.type);
     if (selectedChartType === "PIVOT_TABLE" && measureKey) {
       return validAggs.filter(
         (agg) =>
@@ -964,7 +966,9 @@ export function WidgetForm({
             .map((m) => m.aggregation);
 
           const measureDef = viewDeclaration.measures[measureKey];
-          const validAggs = getValidAggregationsForMeasure(measureDef);
+          const validAggs = getValidAggregationsForMeasureType(
+            measureDef?.type,
+          );
           const availableAggregationsForMeasure = validAggs.filter(
             (agg) =>
               agg !== "histogram" &&
