@@ -233,12 +233,14 @@ export const getAutomations = async ({
     },
   });
 
-  return automations.map((automation) => ({
+  const domains = automations.map((automation) => ({
     id: automation.id,
     name: automation.name,
     trigger: convertTriggerToDomain(automation.trigger),
     action: convertActionToDomain(automation.action),
   }));
+
+  return domains;
 };
 
 export const getConsecutiveAutomationFailures = async ({
