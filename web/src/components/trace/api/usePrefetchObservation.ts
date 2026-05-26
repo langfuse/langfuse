@@ -43,9 +43,11 @@ export function usePrefetchObservation({
           traceId,
           projectId,
           startTime,
+          verbosity: "truncated",
         },
         {
           staleTime: 5 * 60 * 1000, // 5 minutes
+          meta: { silentHttpCodes: [422] },
         },
       );
     }
