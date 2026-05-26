@@ -1,1 +1,1 @@
-export { default } from "@/src/features/monitors/components/MonitorsPage";
+export { default } from "@/src/features/monitors/pages/ListMonitorsPage";
