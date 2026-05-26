@@ -590,6 +590,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     logger.error(
       `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}: ${formatErrorChain(error)}`,
+      error instanceof Error ? { stack: error.stack } : {},
     );
     throw new Error(formatErrorChain(error), { cause: error });
   }
