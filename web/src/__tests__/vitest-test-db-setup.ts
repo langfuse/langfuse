@@ -1,3 +1,27 @@
+const ensurePrismaClientGenerated = async (databaseUrl: string) => {
+  const { execSync } = await import("child_process");
+  const path = await import("path");
+  const sharedDir = path.resolve(__dirname, "../../../packages/shared");
+
+  try {
+    const prismaModule = await import("@prisma/client");
+    if (typeof prismaModule.PrismaClient === "function") {
+      return;
+    }
+  } catch {
+    // Fall through to prisma generate when the client is unavailable.
+  }
+
+  execSync(
+    "dotenv -e ../../.env.test -e ../../.env -- npx prisma generate --no-hints",
+    {
+      cwd: sharedDir,
+      env: { ...process.env, DATABASE_URL: databaseUrl },
+      stdio: "inherit",
+    },
+  );
+};
+
 const migrateTestDatabase = async (databaseUrl: string) => {
   const { execSync } = await import("child_process");
   const path = await import("path");
@@ -5,15 +29,6 @@ const migrateTestDatabase = async (databaseUrl: string) => {
 
   execSync(
     "dotenv -e ../../.env.test -e ../../.env -- npx prisma migrate deploy",
-    {
-      cwd: sharedDir,
-      env: { ...process.env, DATABASE_URL: databaseUrl },
-      stdio: "inherit",
-    },
-  );
-
-  execSync(
-    "dotenv -e ../../.env.test -e ../../.env -- npx prisma generate --no-hints",
     {
       cwd: sharedDir,
       env: { ...process.env, DATABASE_URL: databaseUrl },
@@ -31,6 +46,8 @@ const ensureTestDatabaseExists = async () => {
   ) {
     return;
   }
+
+  await ensurePrismaClientGenerated(databaseUrl);
 
   const { PrismaClient } = await import("@prisma/client");
   const prisma = new PrismaClient({
