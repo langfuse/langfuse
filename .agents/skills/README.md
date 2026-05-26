@@ -173,6 +173,8 @@ Open: [debug-issue-with-datadog/SKILL.md](debug-issue-with-datadog/SKILL.md)
 Use for:
 - pnpm dependency bumps that need a specific target version
 - interactive upgrades where the package name or version may be missing
+- transitive lockfile bumps that may need temporary overrides and dedupe
+  verification before deciding whether the override should stay
 - checking whether `pnpm-workspace.yaml` `minimumReleaseAgeExclude` must change
 - comparing registry latest with the latest version installable under the
   current release-age gate
