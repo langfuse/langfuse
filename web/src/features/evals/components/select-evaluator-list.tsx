@@ -75,8 +75,8 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
 
   return (
     <>
-      <div className="mb-4 space-y-5">
-        <div className="space-y-2">
+      <div className="mb-4 flex max-h-full min-h-0 flex-col gap-5">
+        <div className="shrink-0 space-y-2">
           <h2 className="text-base font-semibold">Create from scratch</h2>
           <div className="flex flex-wrap gap-3">
             {isCodeEvalEnabled ? (
@@ -114,9 +114,9 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <h2 className="text-base font-semibold">Use existing</h2>
-          <Card className="grid h-[520px] max-h-[60vh] grid-rows-[minmax(0,1fr)_auto] overflow-hidden p-3">
+        <div className="flex max-h-full min-h-0 flex-col gap-2">
+          <h2 className="shrink-0 text-base font-semibold">Use existing</h2>
+          <Card className="grid max-h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-y-auto p-3">
             <div className="flex min-h-0 flex-col overflow-hidden">
               {templates.isLoading ? (
                 <Skeleton className="h-full w-full" />
