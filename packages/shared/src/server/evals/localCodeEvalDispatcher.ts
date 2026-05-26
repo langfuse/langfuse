@@ -11,6 +11,8 @@ import {
   type DispatchResult,
 } from "./codeEvalDispatcherTypes";
 
+const SCRIPT_TIMEOUT_MESSAGE = "Script execution timed out";
+
 export class LocalCodeEvalDispatcher implements CodeEvalDispatcher {
   public readonly name = "insecure-local";
   private readonly timeoutMs: number;
@@ -57,19 +59,37 @@ if (typeof evaluate !== "function") {
     }
 
     let result: unknown;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
-      result = await vm.runInContext("evaluate(payload)", context, {
+      const evaluatorResult = vm.runInContext("evaluate(payload)", context, {
         timeout: this.timeoutMs,
       });
+
+      result = await Promise.race([
+        evaluatorResult,
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `${SCRIPT_TIMEOUT_MESSAGE} after ${this.timeoutMs}ms`,
+                ),
+              ),
+            this.timeoutMs,
+          );
+        }),
+      ]);
     } catch (error) {
       const message = formatError(error);
       throw new CodeEvalDispatcherError(message, {
-        code: message.includes("Script execution timed out")
+        code: message.includes(SCRIPT_TIMEOUT_MESSAGE)
           ? CodeEvalDispatcherErrorCodes.TIMEOUT
           : CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
         cause: error,
-        retryable: message.includes("Script execution timed out"),
+        retryable: message.includes(SCRIPT_TIMEOUT_MESSAGE),
       });
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
 
     return parseDispatchResult(result);

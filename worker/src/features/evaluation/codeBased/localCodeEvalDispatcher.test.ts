@@ -149,6 +149,34 @@ describe("LocalCodeEvalDispatcher", () => {
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
+  it("times out async evaluators that never settle", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher({ timeoutMs: 10 });
+
+    const result = await Promise.race([
+      dispatcher
+        .dispatch({
+          ...baseInput,
+          runtime: { language: "TYPESCRIPT" },
+          code: {
+            source: `
+              async function evaluate() {
+                await new Promise(() => {});
+                return { scores: [{ name: "match", value: 1, dataType: "BOOLEAN" }] };
+              }
+            `,
+          },
+        })
+        .catch((error: unknown) => error),
+      new Promise((resolve) => setTimeout(() => resolve("test-timeout"), 100)),
+    ]);
+
+    expect(result).toBeInstanceOf(CodeEvalDispatcherError);
+    expect(result).toMatchObject({
+      code: "TIMEOUT",
+      retryable: true,
+    } satisfies Partial<CodeEvalDispatcherError>);
+  });
+
   it("rejects Python evaluators", async () => {
     const dispatcher = new LocalCodeEvalDispatcher();
 
