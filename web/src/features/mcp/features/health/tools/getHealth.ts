@@ -8,8 +8,8 @@ import {
   queryClickhouse,
   traceException,
 } from "@langfuse/shared/src/server";
-import { defineTool } from "../../core/define-tool";
-import { runMcpTool } from "../../core/run-mcp-tool";
+import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 
 const HealthInputSchema = z.object({
   failIfDatabaseUnavailable: z.boolean().optional().default(false),

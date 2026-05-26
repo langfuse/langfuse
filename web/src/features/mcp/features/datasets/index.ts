@@ -1,30 +1,40 @@
 import type { McpFeatureModule } from "../../server/registry";
+import { createDatasetTool, handleCreateDataset } from "./tools/createDataset";
 import {
   createDatasetItemTool,
-  createDatasetRunItemTool,
-  createDatasetTool,
-  deleteDatasetItemTool,
-  deleteDatasetRunTool,
-  getDatasetItemTool,
-  getDatasetRunTool,
-  getDatasetTool,
-  handleCreateDataset,
   handleCreateDatasetItem,
+} from "./tools/createDatasetItem";
+import {
+  createDatasetRunItemTool,
   handleCreateDatasetRunItem,
+} from "./tools/createDatasetRunItem";
+import {
+  deleteDatasetItemTool,
   handleDeleteDatasetItem,
+} from "./tools/deleteDatasetItem";
+import {
+  deleteDatasetRunTool,
   handleDeleteDatasetRun,
-  handleGetDataset,
+} from "./tools/deleteDatasetRun";
+import { getDatasetTool, handleGetDataset } from "./tools/getDataset";
+import {
+  getDatasetItemTool,
   handleGetDatasetItem,
-  handleGetDatasetRun,
+} from "./tools/getDatasetItem";
+import { getDatasetRunTool, handleGetDatasetRun } from "./tools/getDatasetRun";
+import {
   handleListDatasetItems,
-  handleListDatasetRunItems,
-  handleListDatasetRuns,
-  handleListDatasets,
   listDatasetItemsTool,
+} from "./tools/listDatasetItems";
+import {
+  handleListDatasetRunItems,
   listDatasetRunItemsTool,
+} from "./tools/listDatasetRunItems";
+import {
+  handleListDatasetRuns,
   listDatasetRunsTool,
-  listDatasetsTool,
-} from "./tools";
+} from "./tools/listDatasetRuns";
+import { handleListDatasets, listDatasetsTool } from "./tools/listDatasets";
 
 export const datasetsFeature: McpFeatureModule = {
   name: "datasets",
