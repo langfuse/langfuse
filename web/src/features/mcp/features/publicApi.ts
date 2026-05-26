@@ -1,7 +1,5 @@
 import { CloudConfigSchema, type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { instrumentAsync } from "@langfuse/shared/src/server";
-import { SpanKind } from "@opentelemetry/api";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import type { ServerContext } from "../types";
 
@@ -62,33 +60,3 @@ export const paginationMeta = ({
   totalItems,
   totalPages: Math.ceil(totalItems / limit),
 });
-
-export const runPublicApiTool = async <TResult>({
-  spanName,
-  context,
-  attributes,
-  fn,
-}: {
-  spanName: string;
-  context: ServerContext;
-  attributes?: Record<string, string | number | boolean | undefined>;
-  fn: () => Promise<TResult>;
-}): Promise<TResult> =>
-  instrumentAsync(
-    { name: spanName, spanKind: SpanKind.INTERNAL },
-    async (span) => {
-      span.setAttributes({
-        "langfuse.project.id": context.projectId,
-        "langfuse.org.id": context.orgId,
-        "mcp.api_key_id": context.apiKeyId,
-        ...Object.fromEntries(
-          Object.entries(attributes ?? {}).filter(
-            (entry): entry is [string, string | number | boolean] =>
-              entry[1] !== undefined,
-          ),
-        ),
-      });
-
-      return await fn();
-    },
-  );

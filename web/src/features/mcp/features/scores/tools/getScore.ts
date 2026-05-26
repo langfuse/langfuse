@@ -1,16 +1,12 @@
-import { SpanKind } from "@opentelemetry/api";
 import {
   GetScoreQueryV2,
   GetScoreResponseV2,
   InternalServerError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import {
-  instrumentAsync,
-  logger,
-  traceException,
-} from "@langfuse/shared/src/server";
+import { logger, traceException } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 
 export const [getScoreTool, handleGetScore] = defineTool({
@@ -20,16 +16,11 @@ export const [getScoreTool, handleGetScore] = defineTool({
   baseSchema: GetScoreQueryV2,
   inputSchema: GetScoreQueryV2,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.scores.get", spanKind: SpanKind.INTERNAL },
-      async (span) => {
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.score_id": input.scoreId,
-        });
-
+    return await runMcpTool({
+      spanName: "mcp.scores.get",
+      context,
+      attributes: { "mcp.score_id": input.scoreId },
+      fn: async () => {
         const scoresApiService = new ScoresApiService("v2");
         const score = await scoresApiService.getScoreById({
           projectId: context.projectId,
@@ -49,7 +40,7 @@ export const [getScoreTool, handleGetScore] = defineTool({
 
         return parsedScore.data;
       },
-    );
+    });
   },
   readOnlyHint: true,
 });

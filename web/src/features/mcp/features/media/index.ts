@@ -9,6 +9,7 @@ export const mediaFeature: McpFeatureModule = {
     {
       definition: getMediaTool,
       handler: handleGetMedia,
+      allowInAppAgentKey: true,
     },
   ],
 };
