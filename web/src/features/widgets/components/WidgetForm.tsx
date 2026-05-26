@@ -846,9 +846,10 @@ export function WidgetForm({
 
   // Resolve valid aggregations for the currently selected measure
   const validAggregationsForMeasure = useMemo(() => {
-    const measureDef =
-      viewDeclarations[viewVersion][selectedView]?.measures?.[selectedMeasure];
-    return getValidAggregationsForMeasureType(measureDef?.type);
+    const measureType =
+      viewDeclarations[viewVersion][selectedView]?.measures?.[selectedMeasure]
+        ?.type;
+    return getValidAggregationsForMeasureType(measureType);
   }, [viewVersion, selectedView, selectedMeasure]);
 
   const measureSupportsHistogram =
@@ -893,10 +894,8 @@ export function WidgetForm({
             .filter((m) => m.measure === measureKey)
             .map((m) => m.aggregation);
 
-          const measureDef = viewDeclaration.measures[measureKey];
-          const validAggs = getValidAggregationsForMeasureType(
-            measureDef?.type,
-          );
+          const measureType = viewDeclaration.measures[measureKey]?.type;
+          const validAggs = getValidAggregationsForMeasureType(measureType);
           const availableAggregationsForMeasure = validAggs.filter(
             (agg) =>
               agg !== "histogram" &&
@@ -930,9 +929,9 @@ export function WidgetForm({
     metricIndex: number,
     measureKey: string,
   ): z.infer<typeof metricAggregations>[] => {
-    const measureDef =
-      viewDeclarations[viewVersion][selectedView]?.measures?.[measureKey];
-    const validAggs = getValidAggregationsForMeasureType(measureDef?.type);
+    const measureType =
+      viewDeclarations[viewVersion][selectedView]?.measures?.[measureKey]?.type;
+    const validAggs = getValidAggregationsForMeasureType(measureType);
     if (selectedChartType === "PIVOT_TABLE" && measureKey) {
       return validAggs.filter(
         (agg) =>
@@ -965,10 +964,8 @@ export function WidgetForm({
             .filter((m, idx) => idx !== metricIndex && m.measure === measureKey)
             .map((m) => m.aggregation);
 
-          const measureDef = viewDeclaration.measures[measureKey];
-          const validAggs = getValidAggregationsForMeasureType(
-            measureDef?.type,
-          );
+          const measureType = viewDeclaration.measures[measureKey]?.type;
+          const validAggs = getValidAggregationsForMeasureType(measureType);
           const availableAggregationsForMeasure = validAggs.filter(
             (agg) =>
               agg !== "histogram" &&
