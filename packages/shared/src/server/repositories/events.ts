@@ -6,7 +6,11 @@ import type {
   ObservationType,
 } from "../../domain";
 import { env } from "../../env";
-import { InternalServerError, LangfuseNotFoundError } from "../../errors";
+import {
+  InternalServerError,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+} from "../../errors";
 import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
@@ -20,6 +24,7 @@ import {
 } from "./traces_converters";
 import {
   DateTimeFilter,
+  type Filter,
   FilterList,
   FullEventsObservations,
   orderByToClickhouseSql,
@@ -27,11 +32,17 @@ import {
   createPublicApiObservationsColumnMapping,
   createPublicApiTracesColumnMapping,
   deriveFilters,
+  isFtsAcceleratedIoOperator,
+  isFtsTextField,
   type ApiColumnMapping,
   ObservationPriceFields,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
-import type { FilterCondition, FilterState } from "../../types";
+import type {
+  FilterCondition,
+  FilterState,
+  PublicApiV2FilterState,
+} from "../../types";
 import type { TracingSearchType } from "../../interfaces/search";
 import {
   eventsScoresAggregation,
@@ -1056,7 +1067,7 @@ type PublicApiObservationsQuery = {
   toStartTime?: string;
   version?: string;
   environment?: string | string[];
-  advancedFilters?: FilterState;
+  advancedFilters?: PublicApiV2FilterState;
   parseIoAsJson?: boolean;
   cursor?: {
     lastStartTimeTo: Date;
@@ -1072,6 +1083,29 @@ type PublicApiObservationsQuery = {
   expandMetadataKeys?: string[] | null;
 };
 
+type BuildObservationsQueryComponentsOptions = {
+  requireIndexedIoFilter?: boolean;
+};
+
+const isInputOutputFilter = (filter: Filter): boolean =>
+  isFtsTextField(filter.field);
+
+const validatePublicApiV2InputOutputFilters = (filter: FilterList) => {
+  const hasIoFilter = filter.some(isInputOutputFilter);
+  if (!hasIoFilter) {
+    return;
+  }
+
+  const hasRequiredIoFilter = filter.some(
+    (f) => isInputOutputFilter(f) && isFtsAcceleratedIoOperator(f.operator),
+  );
+  if (!hasRequiredIoFilter) {
+    throw new InvalidRequestError(
+      "Input/output filters require at least one `matches` or `=` operator.",
+    );
+  }
+};
+
 /**
  * Build observation query components: an EventsQueryBuilder (with JOINs and filters but
  * without CTEs) and any external CTEs that should be composed at the outer level.
@@ -1082,6 +1116,7 @@ type PublicApiObservationsQuery = {
 function buildObservationsQueryComponents(
   opts: PublicApiObservationsQuery,
   columnDefinitions: UiColumnMappings = eventsTableNativeUiColumnDefinitions,
+  options: BuildObservationsQueryComponentsOptions = {},
 ): {
   queryBuilder: EventsQueryBuilder;
   externalCTEs: Array<{
@@ -1099,6 +1134,10 @@ function buildObservationsQueryComponents(
     columnDefinitions,
     eventsTableCols,
   );
+
+  if (options.requireIndexedIoFilter) {
+    validatePublicApiV2InputOutputFilters(observationsFilter);
+  }
 
   // Determine if we need to join traces (check both simple params and advanced filters)
   const hasTraceFilter = observationsFilter.some(
@@ -1349,6 +1388,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     buildObservationsQueryComponents(
       opts,
       eventsTableNativeUiColumnDefinitions,
+      { requireIndexedIoFilter: true },
     );
 
   baseBuilder.selectFieldSet("core");

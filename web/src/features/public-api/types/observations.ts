@@ -2,9 +2,21 @@ import {
   type Observation,
   type EventsObservation,
   ObservationLevel,
+  FTS_MATCH_OPERATOR,
+  arrayOptionsFilter,
+  booleanFilter,
+  categoryOptionsFilter,
+  filterOperators,
   paginationMetaResponseZod,
   publicApiPaginationZod,
+  nullFilter,
+  numberFilter,
+  numberObjectFilter,
+  positionInTraceFilter,
   singleFilter,
+  stringObjectFilter,
+  stringOptionsFilter,
+  timeFilter,
   InvalidRequestError,
 } from "@langfuse/shared";
 import {
@@ -311,6 +323,36 @@ export const encodeCursor = (
   ).toString("base64");
 };
 
+const publicV2EventsStringOperator = z.union([
+  z.enum(filterOperators.string),
+  z.literal(FTS_MATCH_OPERATOR),
+]);
+
+const publicV2EventsStringFilter = z.object({
+  column: z.string(),
+  operator: publicV2EventsStringOperator,
+  value: z.string(),
+  type: z.literal("string"),
+});
+
+const publicV2EventsStringObjectFilter = stringObjectFilter.extend({
+  operator: publicV2EventsStringOperator,
+});
+
+const publicV2EventsSingleFilter = z.discriminatedUnion("type", [
+  timeFilter,
+  publicV2EventsStringFilter,
+  numberFilter,
+  stringOptionsFilter,
+  categoryOptionsFilter,
+  arrayOptionsFilter,
+  publicV2EventsStringObjectFilter,
+  numberObjectFilter,
+  booleanFilter,
+  nullFilter,
+  positionInTraceFilter,
+]);
+
 // GET /v2/observations
 export const GetObservationsV2Query = z.object({
   // Field groups parameter (optional - defaults to all groups)
@@ -379,7 +421,7 @@ export const GetObservationsV2Query = z.object({
         throw new InvalidRequestError("Invalid JSON in filter parameter");
       }
     })
-    .pipe(z.array(singleFilter).optional()),
+    .pipe(z.array(publicV2EventsSingleFilter).optional()),
 });
 
 /**

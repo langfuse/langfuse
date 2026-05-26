@@ -1,6 +1,5 @@
-import z from "zod";
-import { singleFilter } from "../../../interfaces/filters";
-import { FilterCondition } from "../../../types";
+import { FTS_MATCH_OPERATOR } from "../../../interfaces/filters";
+import { type PublicApiV2FilterState } from "../../../types";
 import { InvalidRequestError } from "../../../errors";
 import { isValidTableName } from "../../clickhouse/schemaUtils";
 import { logger } from "../../logger";
@@ -23,6 +22,7 @@ import {
   StringObjectFilter,
   NullFilter,
 } from "./clickhouse-filter";
+import { hasFtsSearchToken, isFtsMetadataTarget, isFtsTextTarget } from "./fts";
 
 export class QueryBuilderError extends Error {
   constructor(message: string) {
@@ -35,7 +35,7 @@ export class QueryBuilderError extends Error {
 // The filter property in this column needs to be zod verified.
 // User input for values (e.g. project_id = <value>) are sent to Clickhouse as parameters to prevent SQL injection
 export const createFilterFromFilterState = (
-  filter: FilterCondition[],
+  filter: PublicApiV2FilterState,
   columnMapping: UiColumnMappings,
   columnDefinitions?: ColumnDefinition[],
 ) => {
@@ -58,6 +58,8 @@ export const createFilterFromFilterState = (
         }
       }
     }
+
+    validatePublicApiV2MatchesFilter(frontEndFilter, column);
 
     switch (frontEndFilter.type) {
       case "string":
@@ -155,8 +157,45 @@ export const createFilterFromFilterState = (
   });
 };
 
+const validatePublicApiV2MatchesFilter = (
+  filter: PublicApiV2FilterState[number],
+  column: UiColumnMappings[number],
+) => {
+  if (!("operator" in filter) || filter.operator !== FTS_MATCH_OPERATOR) {
+    return;
+  }
+
+  if (!("value" in filter) || !hasFtsSearchToken(String(filter.value))) {
+    throw new InvalidRequestError(
+      "`matches` requires at least one search token.",
+    );
+  }
+
+  if (filter.type === "string") {
+    if (
+      isFtsTextTarget(
+        column.clickhouseTableName,
+        column.clickhouseSelect,
+        FTS_MATCH_OPERATOR,
+      )
+    ) {
+      return;
+    }
+  } else if (filter.type === "stringObject") {
+    if (
+      isFtsMetadataTarget(column.clickhouseTableName, column.clickhouseSelect)
+    ) {
+      return;
+    }
+  }
+
+  throw new InvalidRequestError(
+    "`matches` is only supported for input, output, and metadata filters.",
+  );
+};
+
 const matchAndVerifyTracesUiColumn = (
-  filter: z.infer<typeof singleFilter>,
+  filter: PublicApiV2FilterState[number],
   uiTableDefinitions: UiColumnMappings,
 ) => {
   // tries to match the column name to the clickhouse table name

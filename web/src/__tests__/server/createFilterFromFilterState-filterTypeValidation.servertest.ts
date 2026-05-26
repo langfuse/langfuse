@@ -47,6 +47,31 @@ describe("createFilterFromFilterState filter type validation", () => {
       clickhouseTableName: "scores",
       clickhouseSelect: "s.score_categories",
     },
+    eventInput: {
+      uiTableName: "Input",
+      uiTableId: "input",
+      clickhouseTableName: "events_proto",
+      clickhouseSelect: "e.input",
+    },
+    eventOutput: {
+      uiTableName: "Output",
+      uiTableId: "output",
+      clickhouseTableName: "events_proto",
+      clickhouseSelect: "e.output",
+    },
+    eventMetadata: {
+      uiTableName: "Metadata",
+      uiTableId: "metadata",
+      clickhouseTableName: "events_proto",
+      clickhouseSelect: "metadata",
+      queryPrefix: "e",
+    },
+    eventName: {
+      uiTableName: "Event Name",
+      uiTableId: "eventName",
+      clickhouseTableName: "events_proto",
+      clickhouseSelect: "e.name",
+    },
   };
 
   const columnDefinitions: ColumnDefinition[] = [
@@ -89,6 +114,24 @@ describe("createFilterFromFilterState filter type validation", () => {
       type: "categoryOptions",
       internal: "s.score_categories",
       options: [],
+    },
+    {
+      name: "Input",
+      id: "input",
+      type: "string",
+      internal: "e.input",
+    },
+    {
+      name: "Output",
+      id: "output",
+      type: "string",
+      internal: "e.output",
+    },
+    {
+      name: "Event Name",
+      id: "eventName",
+      type: "string",
+      internal: "e.name",
     },
   ];
 
@@ -246,4 +289,121 @@ describe("createFilterFromFilterState filter type validation", () => {
     );
     expect(result).toHaveLength(1);
   });
+
+  it("generates case-insensitive FTS SQL for event input/output matches", () => {
+    const [result] = createFilterFromFilterState(
+      [
+        {
+          column: "output",
+          type: "string",
+          operator: "matches",
+          value: "needle",
+        } as any,
+      ],
+      [mappings.eventOutput],
+      columnDefinitions,
+    );
+
+    const { query, params } = result.apply();
+    const paramName = Object.keys(params)[0];
+
+    expect(query).toBe(
+      `hasAllTokens(lower(e.output), lower({${paramName}: String}))`,
+    );
+    expect(params).toEqual({ [paramName]: "needle" });
+  });
+
+  it("keeps equality acceleration for event input/output filters", () => {
+    const [result] = createFilterFromFilterState(
+      [
+        {
+          column: "input",
+          type: "string",
+          operator: "=",
+          value: "needle",
+        },
+      ],
+      [mappings.eventInput],
+      columnDefinitions,
+    );
+
+    const { query } = result.apply();
+
+    expect(query).toContain("e.input =");
+    expect(query).toContain("hasAllTokens(lower(e.input), lower(");
+  });
+
+  it("generates case-sensitive FTS SQL for event metadata matches", () => {
+    const [result] = createFilterFromFilterState(
+      [
+        {
+          column: "metadata",
+          type: "stringObject",
+          operator: "matches",
+          key: "source",
+          value: "needle",
+        } as any,
+      ],
+      [mappings.eventMetadata],
+      columnDefinitions,
+    );
+
+    const { query, params } = result.apply();
+
+    expect(query).toContain("has(e.metadata_names,");
+    expect(query).toContain("hasAllTokens(e.metadata_values,");
+    expect(query).toContain(
+      "hasAllTokens(e.metadata_values[indexOf(e.metadata_names,",
+    );
+    expect(query).not.toContain("lower(");
+    expect(Object.values(params)).toEqual(["source", "needle"]);
+  });
+
+  it.each([
+    {
+      description: "non-indexed event string column",
+      filter: {
+        column: "eventName",
+        type: "string",
+        operator: "matches",
+        value: "needle",
+      },
+      mapping: "eventName",
+      colDefs: columnDefinitions,
+    },
+    {
+      description: "non-events table",
+      filter: {
+        column: "metadata",
+        type: "stringObject",
+        operator: "matches",
+        key: "source",
+        value: "needle",
+      },
+      mapping: "metadata",
+      colDefs: columnDefinitions,
+    },
+    {
+      description: "tokenless value",
+      filter: {
+        column: "output",
+        type: "string",
+        operator: "matches",
+        value: "!!!",
+      },
+      mapping: "eventOutput",
+      colDefs: columnDefinitions,
+    },
+  ] as const)(
+    "rejects matches on $description",
+    ({ filter, mapping, colDefs }) => {
+      expect(() =>
+        createFilterFromFilterState(
+          [filter as any],
+          [mappings[mapping]],
+          colDefs,
+        ),
+      ).toThrow(InvalidRequestError);
+    },
+  );
 });
