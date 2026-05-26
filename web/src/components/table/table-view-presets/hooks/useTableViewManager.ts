@@ -64,7 +64,7 @@ const hasQueryParam = (
 ) => {
   const value = query[key];
   if (Array.isArray(value)) return value.length > 0;
-  return value !== undefined;
+  return value !== undefined && value !== "";
 };
 
 const hasExplicitTableStateInUrl = (query: NextRouter["query"]) =>
