@@ -589,10 +589,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
     notifyBlobStorageExportFailedInBackground(projectId);
 
     logger.error(
-      `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}`,
-      error,
+      `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}: ${formatErrorChain(error)}`,
     );
-    throw error; // Rethrow to trigger retries
+    throw new Error(formatErrorChain(error), { cause: error });
   }
 };
 
@@ -687,4 +686,15 @@ function extractStorageErrorMessage(error: unknown): string {
 
   // Fallback: ClickHouse errors or other non-wrapped errors
   return error.message.slice(0, 1000);
+}
+
+function formatErrorChain(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const parts: string[] = [];
+  let current: unknown = error;
+  while (current instanceof Error) {
+    parts.push(current.message);
+    current = current.cause;
+  }
+  return parts.join(" caused by ");
 }
