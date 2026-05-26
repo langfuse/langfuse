@@ -19,9 +19,22 @@ export function createDeterministicEvalScoreId(params: {
   );
 }
 
-// JSON.stringify disambiguates 1 vs "1", true/false vs strings, etc.
-// CodeEvalScoreWithName.value is `number | string | 0 | 1` after schema parse.
+// Canonical string key used to order positions within a multi-occurrence
+// (jobExecutionId, name) group. The key MUST distinguish every primitive
+// value that `CodeEvalScoreWithName.value` can hold so equal-value ties in
+// the sort fall back to original input order — which would reintroduce the
+// positional bug — only when the underlying values really are equal.
+//
+// JSON.stringify on its own collapses NaN/Infinity/-Infinity to the literal
+// "null", and that collision is reachable from numeric code-based eval
+// outputs (Zod's `z.number()` accepts NaN by default), so those three cases
+// are special-cased before falling back to JSON.stringify, which handles the
+// `1` vs `"1"` discrimination correctly.
 function stableValueKey(value: CodeEvalScoreWithName["value"]): string {
+  if (typeof value === "number" && !Number.isFinite(value)) {
+    if (Number.isNaN(value)) return "n:NaN";
+    return value > 0 ? "n:+Infinity" : "n:-Infinity";
+  }
   return JSON.stringify(value);
 }
 
@@ -34,9 +47,19 @@ export function buildDeterministicEvalScoreIds(params: {
   // VALUES, not from array position. Otherwise a retry whose LLM returns the
   // same value set in a different order maps the same occurrenceIndex to a
   // different value, and the ReplacingMergeTree score store silently
-  // overwrites the original record. The dispatch-result schema rejects
-  // duplicate values within a single eval run, so value keys within a
-  // (jobExecutionId, name) group are unique and produce a stable sort.
+  // overwrites the original record.
+  //
+  // Uniqueness invariant per (jobExecutionId, name) group:
+  //   - LLM-as-judge path: `buildEvalOutputResultSchema` rejects duplicate
+  //     categorical matches in a single run, so value keys are unique and
+  //     the sort is fully determined.
+  //   - Code-based path: `CodeEvalDispatchResultSchema` does not yet enforce
+  //     (name, value) uniqueness, so a code evaluator that returns two
+  //     scores with identical name AND value still ties in the comparator
+  //     and falls back — via JS's stable sort — to original input order for
+  //     that exact pair. That is the same positional behavior as before
+  //     this change, so we never regress; the gain is purely additive for
+  //     all other multi-occurrence cases.
   //
   // Single-occurrence names keep occurrenceIndex 0, which preserves the IDs
   // already produced for numeric/boolean/single-categorical evals.

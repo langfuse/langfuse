@@ -921,9 +921,42 @@ describe("evaluation helpers", () => {
       ]);
     });
 
+    it("distinguishes NaN, +Infinity, and -Infinity in multi-occurrence numeric groups", () => {
+      // JSON.stringify collapses NaN / +Infinity / -Infinity to the literal
+      // "null", which would tie the sort comparator for any numeric group
+      // that contains more than one of them and silently fall back to
+      // original-position keying — reintroducing the very collision this
+      // function was changed to avoid. `z.number()` accepts NaN by default
+      // in Zod, so code-based evaluators returning these special floats are
+      // a reachable input.
+      const jobExecutionId = "job-nonfinite";
+      const inOrder = buildDeterministicEvalScoreIds({
+        jobExecutionId,
+        scores: [
+          { value: Number.NaN, name: "raw" },
+          { value: Number.POSITIVE_INFINITY, name: "raw" },
+          { value: Number.NEGATIVE_INFINITY, name: "raw" },
+        ],
+      });
+      const reordered = buildDeterministicEvalScoreIds({
+        jobExecutionId,
+        scores: [
+          { value: Number.NEGATIVE_INFINITY, name: "raw" },
+          { value: Number.NaN, name: "raw" },
+          { value: Number.POSITIVE_INFINITY, name: "raw" },
+        ],
+      });
+
+      // Three distinct values, three distinct IDs — no sort-key collisions.
+      expect(new Set(inOrder).size).toBe(3);
+      // And the value -> id map is stable across the two orderings.
+      expect(inOrder[0]).toBe(reordered[1]); // NaN
+      expect(inOrder[1]).toBe(reordered[2]); // +Infinity
+      expect(inOrder[2]).toBe(reordered[0]); // -Infinity
+    });
+
     it("disambiguates score values across primitive types when ordering multi-occurrence groups", () => {
-      // The schema rejects duplicate values within a single eval run, but
-      // value keys must still disambiguate primitives in the canonical sort
+      // Value keys must still disambiguate primitives in the canonical sort
       // so the value -> id map remains well-defined for runners that mix
       // numeric and string values under the same name (untyped score variant).
       const jobExecutionId = "job-mixed";
