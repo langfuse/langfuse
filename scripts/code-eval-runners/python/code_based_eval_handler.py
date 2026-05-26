@@ -34,9 +34,7 @@ class EvaluationContext:
                 metadata=observation.get("metadata"),
             ),
             experiment=ExperimentContext(
-                item_expected_output=experiment.get(
-                    "itemExpectedOutput", experiment.get("expectedOutput")
-                ),
+                item_expected_output=experiment.get("itemExpectedOutput"),
                 item_metadata=experiment.get("itemMetadata"),
             )
             if isinstance(experiment, dict)
@@ -50,7 +48,7 @@ class EvaluationContext:
 # directly without manual key mangling.
 @dataclass
 class Score:
-    value: Any
+    value: int | float | str | bool
     name: str
     data_type: str | None = None
     comment: str | None = None

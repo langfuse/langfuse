@@ -13,7 +13,7 @@ const baseInput: DispatchInput = {
   },
   runtime: { language: "TYPESCRIPT" },
   execution: { jobExecutionId: "job-1" },
-  code: { source: "export function evaluate() {}" },
+  code: { source: "function evaluate() {}" },
   payload: {
     observation: {
       input: null,
@@ -212,6 +212,27 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
       code: "TIMEOUT",
       message: "Function.TimedOut: Task timed out after 30 seconds",
+      retryable: true,
+    } satisfies Partial<CodeEvalDispatcherError>);
+  });
+
+  it("classifies timeouts via errorType Sandbox.Timedout as retryable", async () => {
+    const send = vi.fn().mockResolvedValue({
+      FunctionError: "Unhandled",
+      Payload: Buffer.from(
+        JSON.stringify({
+          errorMessage: "Task timed out after 30 seconds",
+          errorType: "Sandbox.Timedout",
+        }),
+      ),
+    });
+    const dispatcher = new AwsLambdaCodeEvalDispatcher({
+      lambdaClient: { send } as any,
+    });
+
+    await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
+      code: "TIMEOUT",
+      message: "Sandbox.Timedout: Task timed out after 30 seconds",
       retryable: true,
     } satisfies Partial<CodeEvalDispatcherError>);
   });

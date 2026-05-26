@@ -943,16 +943,6 @@ export async function runLLMAsJudgeEvaluation({
         }`,
       );
 
-      logger.debug(
-        `Eval job ${job.id} produced ${
-          parsedLLMOutput.data.dataType === ScoreDataTypeEnum.NUMERIC
-            ? `score ${parsedLLMOutput.data.score}`
-            : parsedLLMOutput.data.dataType === ScoreDataTypeEnum.BOOLEAN
-              ? `score ${parsedLLMOutput.data.score}`
-              : `matches ${parsedLLMOutput.data.matches.join(",")}`
-        }`,
-      );
-
       const scores = toNormalizedScores({
         outputResult: parsedLLMOutput.data,
         scoreName: config.scoreName,

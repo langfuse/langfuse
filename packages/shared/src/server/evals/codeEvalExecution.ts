@@ -16,6 +16,7 @@ import {
   CODE_EVAL_SOURCE_MAX_BYTES,
   CodeEvalDispatcherError,
   CodeEvalDispatcherErrorCodes,
+  withCodeEvalDocs,
   type CodeEvalDispatcherErrorCode,
   type CodeEvalDispatcher,
   type CodeEvalPayload,
@@ -26,8 +27,6 @@ import type { ExtractedVariable } from "./extractObservationVariables";
 
 const INTERNAL_CODE_EVAL_ERROR_MESSAGE = "An internal error occurred";
 const INTERNAL_CODE_EVAL_ERROR_CODE = "INTERNAL_ERROR" as const;
-// TODO: Replace with a dedicated code-based evaluator limits docs page.
-const CODE_EVAL_DOCS_URL = "https://langfuse.com/docs/evaluation/overview";
 
 const INTERNAL_CODE_EVAL_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
   CodeEvalDispatcherErrorCodes.LAMBDA_CONCURRENCY_LIMIT,
@@ -42,7 +41,7 @@ const USER_VISIBLE_CODE_EVAL_ERROR_MESSAGE_BY_CODE: Partial<
     "The evaluator returned an invalid result. Return { scores: [...] } with at least one score. Each score requires a name, dataType, and value; dataType must match the value type.",
   ),
   [CodeEvalDispatcherErrorCodes.TIMEOUT]: withCodeEvalDocs(
-    "Evaluator timed out. Code-based evaluators are limited by the configured runtime limit. Optimize your evaluator code and try again.",
+    "Evaluator timed out. Code-based evaluators must complete within the configured runtime limit. Long executions can be caused by network calls, which are forbidden and may never complete. Remove network calls, optimize your evaluator code, and try again.",
   ),
   [CodeEvalDispatcherErrorCodes.SOURCE_TOO_LARGE]: withCodeEvalDocs(
     `Evaluator source code is too large. Code-based evaluator source code is limited to ${formatCodeEvalByteLimit(CODE_EVAL_SOURCE_MAX_BYTES)}. Shorten the evaluator code and try again.`,
@@ -54,10 +53,6 @@ const USER_VISIBLE_CODE_EVAL_ERROR_MESSAGE_BY_CODE: Partial<
     `Evaluator result is too large. Code-based evaluator results are limited to ${formatCodeEvalByteLimit(CODE_EVAL_DISPATCH_RESULT_MAX_BYTES)}. Return fewer scores or smaller score values, comments, and metadata.`,
   ),
 };
-
-function withCodeEvalDocs(message: string): string {
-  return `${message} See ${CODE_EVAL_DOCS_URL} for details.`;
-}
 
 function formatCodeEvalByteLimit(bytes: number): string {
   const unit = bytes >= 1024 * 1024 ? "MB" : "KB";
@@ -78,6 +73,18 @@ export type CodeEvalUserVisibleError = {
   message: string;
   retryable: boolean;
 };
+
+export class CodeEvalExecutionError extends Error {
+  public readonly code: CodeEvalUserVisibleErrorCode;
+  public readonly retryable: boolean;
+
+  constructor(error: CodeEvalUserVisibleError) {
+    super(error.message);
+    this.name = "CodeEvalExecutionError";
+    this.code = error.code;
+    this.retryable = error.retryable;
+  }
+}
 
 type CodeBasedEvaluationDispatchResult =
   | {
@@ -111,7 +118,7 @@ function buildCodeEvalPayload(params: {
 
   if (params.hasExperimentContext) {
     payload.experiment = {
-      itemExpectedOutput: byName.get("experimentExpectedOutput") ?? null,
+      itemExpectedOutput: byName.get("experimentItemExpectedOutput") ?? null,
       itemMetadata: byName.get("experimentItemMetadata") ?? null,
     };
   }

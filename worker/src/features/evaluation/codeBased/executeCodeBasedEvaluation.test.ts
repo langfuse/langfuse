@@ -7,6 +7,7 @@ import {
   CodeEvalDispatcherError,
   CodeEvalDispatcherErrorCodes,
 } from "../../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
+import { CodeEvalExecutionError } from "../../../../../packages/shared/src/server/evals/codeEvalExecution";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 
 const mocks = vi.hoisted(() => ({
@@ -24,11 +25,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
-  const { runCodeBasedEvaluationDispatch } =
+  const { CodeEvalExecutionError, runCodeBasedEvaluationDispatch } =
     await import("../../../../../packages/shared/src/server/evals/codeEvalExecution");
 
   return {
     ...actual,
+    CodeEvalExecutionError,
     INTERNAL_TRACE_EVENT_SOURCE: "test-source",
     LangfuseInternalTraceEnvironment: { CodeEval: "langfuse-code-eval" },
     instrumentAsync: vi.fn(async (_options, fn) => fn(mocks.span)),
@@ -83,7 +85,7 @@ describe("executeCodeBasedEvaluation", () => {
         name: "Code evaluator",
         type: EvalTemplateType.CODE,
         version: 1,
-        sourceCode: "export function evaluate() {}",
+        sourceCode: "function evaluate() {}",
         sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
         prompt: null,
         outputDefinition: null,
@@ -91,7 +93,7 @@ describe("executeCodeBasedEvaluation", () => {
       extractedVariables: [
         { var: "input", value: { question: "2+2" } },
         { var: "output", value: "4" },
-        { var: "experimentExpectedOutput", value: "4" },
+        { var: "experimentItemExpectedOutput", value: "4" },
       ],
       hasExperimentContext: true,
       executionMetadata: { job_execution_id: "job-1" },
@@ -135,7 +137,7 @@ describe("executeCodeBasedEvaluation", () => {
             environment: "langfuse-code-eval",
             metadata: expect.objectContaining({
               code_eval_runtime: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
-              code_eval_source_code: "export function evaluate() {}",
+              code_eval_source_code: "function evaluate() {}",
             }),
           }),
         ],
@@ -169,7 +171,7 @@ describe("executeCodeBasedEvaluation", () => {
         id: "template-1",
         type: EvalTemplateType.CODE,
         version: 1,
-        sourceCode: "export function evaluate() {}",
+        sourceCode: "function evaluate() {}",
         sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
         prompt: null,
         outputDefinition: null,
@@ -211,7 +213,7 @@ describe("executeCodeBasedEvaluation", () => {
         id: "template-1",
         type: EvalTemplateType.CODE,
         version: 1,
-        sourceCode: "export function evaluate() {}",
+        sourceCode: "function evaluate() {}",
         sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
         prompt: null,
         outputDefinition: null,
@@ -254,12 +256,12 @@ describe("executeCodeBasedEvaluation", () => {
         id: "template-1",
         type: EvalTemplateType.CODE,
         version: 1,
-        sourceCode: "export function evaluate() {}",
+        sourceCode: "function evaluate() {}",
         sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
         prompt: null,
         outputDefinition: null,
       } as any,
-      extractedVariables: [{ var: "experimentExpectedOutput", value: "4" }],
+      extractedVariables: [{ var: "experimentItemExpectedOutput", value: "4" }],
       hasExperimentContext: false,
       executionMetadata: { job_execution_id: "job-1" },
     });
@@ -293,7 +295,7 @@ describe("executeCodeBasedEvaluation", () => {
         id: "template-1",
         type: EvalTemplateType.CODE,
         version: 1,
-        sourceCode: "export function evaluate() {}",
+        sourceCode: "function evaluate() {}",
         sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
         prompt: null,
         outputDefinition: null,
@@ -301,7 +303,7 @@ describe("executeCodeBasedEvaluation", () => {
       extractedVariables: [
         { var: "output", value: "true" },
         { var: "metadata", value: "42" },
-        { var: "experimentExpectedOutput", value: "null" },
+        { var: "experimentItemExpectedOutput", value: "null" },
       ],
       hasExperimentContext: true,
       executionMetadata: { job_execution_id: "job-1" },
@@ -344,7 +346,7 @@ describe("executeCodeBasedEvaluation", () => {
         id: "template-1",
         type: EvalTemplateType.CODE,
         version: 1,
-        sourceCode: "export function evaluate() {}",
+        sourceCode: "function evaluate() {}",
         sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
         prompt: null,
         outputDefinition: null,
@@ -399,7 +401,7 @@ describe("executeCodeBasedEvaluation", () => {
           name: "Code evaluator",
           type: EvalTemplateType.CODE,
           version: 1,
-          sourceCode: "export function evaluate() {}",
+          sourceCode: "function evaluate() {}",
           sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
           prompt: null,
           outputDefinition: null,
@@ -436,7 +438,7 @@ describe("executeCodeBasedEvaluation", () => {
         name: "Code evaluator",
         type: EvalTemplateType.CODE,
         version: 1,
-        sourceCode: "export function evaluate() {}",
+        sourceCode: "function evaluate() {}",
         sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
         prompt: null,
         outputDefinition: null,
@@ -467,7 +469,7 @@ describe("executeCodeBasedEvaluation", () => {
             metadata: expect.objectContaining({
               dispatcher_name: "test-dispatcher",
               code_eval_runtime: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
-              code_eval_source_code: "export function evaluate() {}",
+              code_eval_source_code: "function evaluate() {}",
               job_execution_id: "job-1",
               error_name: "CodeEvalDispatcherError",
               error_message: "runner exploded",
@@ -489,36 +491,44 @@ describe("executeCodeBasedEvaluation", () => {
     });
     mocks.dispatcher.dispatch.mockRejectedValue(error);
 
-    await expect(
-      executeCodeBasedEvaluation({
-        projectId: "project-1",
-        organizationId: "org-1",
-        job: {
-          id: "job-1",
-          jobConfigurationId: "config-1",
-          jobInputTraceId: "trace-1",
-          jobInputObservationId: "obs-1",
-          jobInputDatasetItemId: null,
-        } as any,
-        config: { id: "config-1", scoreName: "default-score" } as any,
-        template: {
-          id: "template-1",
-          name: "Code evaluator",
-          type: EvalTemplateType.CODE,
-          version: 1,
-          sourceCode: "export function evaluate() {}",
-          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
-          prompt: null,
-          outputDefinition: null,
-        } as any,
-        extractedVariables: [{ var: "input", value: "prompt" }],
-        executionMetadata: { job_execution_id: "job-1" },
-      }),
-    ).rejects.toThrow("Evaluator timed out.");
+    const promise = executeCodeBasedEvaluation({
+      projectId: "project-1",
+      organizationId: "org-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: "obs-1",
+        jobInputDatasetItemId: null,
+      } as any,
+      config: { id: "config-1", scoreName: "default-score" } as any,
+      template: {
+        id: "template-1",
+        name: "Code evaluator",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [{ var: "input", value: "prompt" }],
+      executionMetadata: { job_execution_id: "job-1" },
+    });
+
+    await expect(promise).rejects.toThrow(CodeEvalExecutionError);
+    await expect(promise).rejects.toMatchObject({
+      code: CodeEvalDispatcherErrorCodes.TIMEOUT,
+      retryable: true,
+    });
+    await expect(promise).rejects.toThrow("Evaluator timed out.");
 
     expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);
     const trace = JSON.stringify(mocks.writeInternalTrace.mock.calls[0]?.[0]);
     expect(trace).toContain("Evaluator timed out.");
+    expect(trace).toContain(
+      "Long executions can be caused by network calls, which are forbidden and may never complete.",
+    );
     expect(trace).not.toContain(rawTimeoutMessage);
   });
 
@@ -548,7 +558,7 @@ describe("executeCodeBasedEvaluation", () => {
         name: "Code evaluator",
         type: EvalTemplateType.CODE,
         version: 1,
-        sourceCode: "export function evaluate() {}",
+        sourceCode: "function evaluate() {}",
         sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
         prompt: null,
         outputDefinition: null,
