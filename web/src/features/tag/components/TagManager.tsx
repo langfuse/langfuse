@@ -1,21 +1,33 @@
-import { Command, CommandList, CommandGroup } from "cmdk";
-
-import { Label } from "@/src/components/ui/label";
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import TagCommandItem from "@/src/features/tag/components/TagCommandItem";
 import TagCreateItem from "@/src/features/tag/components/TagCreateItem";
 import { TagInput } from "@/src/features/tag/components/TagInput";
 import TagList from "@/src/features/tag/components/TagList";
 import { useTagManager } from "@/src/features/tag/hooks/useTagManager";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/src/components/ui/popover";
+import { Command, CommandList, CommandGroup } from "cmdk";
 import { cn } from "@/src/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Label } from "@/src/components/ui/label";
 
-/** TagManager is a controlled tag editor: parent owns `tags`, every selection change calls `mutateTags` with the next list. */
+type TagManagerProps = {
+  itemName: "prompt" | "trace" | "monitor";
+  tags: string[];
+  allTags: string[];
+  hasAccess: boolean;
+  isLoading: boolean;
+  mutateTags: (value: string[]) => void;
+  className?: string;
+  isTableCell?: boolean;
+  allowTagRemoval?: boolean;
+  triggerButton?: React.ReactNode;
+  alignPopover?: "start" | "center" | "end";
+};
+
 const TagManager = ({
   itemName,
   tags,
@@ -28,28 +40,31 @@ const TagManager = ({
   allowTagRemoval = true,
   triggerButton,
   alignPopover,
-}: {
-  itemName: "prompt" | "trace" | "monitor";
-  tags: string[];
-  allTags: string[];
-  hasAccess: boolean;
-  isLoading: boolean;
-  mutateTags: (value: string[]) => void;
-  className?: string;
-  isTableCell?: boolean;
-  allowTagRemoval?: boolean;
-  /** triggerButton inserts a custom button that triggers the TagManager. */
-  triggerButton?: React.ReactNode;
-  alignPopover?: "start" | "center" | "end";
-}) => {
-  const { inputValue, availableTags, handleItemCreate, setInputValue } =
-    useTagManager({ tags, allTags, mutateTags });
+}: TagManagerProps) => {
+  const {
+    selectedTags,
+    inputValue,
+    availableTags,
+    handleItemCreate,
+    setInputValue,
+    setSelectedTags,
+  } = useTagManager({ initialTags: tags, allTags });
   const capture = usePostHogClientCapture();
   const filteredTags = availableTags.filter(
     (value) =>
       value.toLowerCase().includes(inputValue.trim().toLowerCase()) &&
-      !tags.includes(value),
+      !selectedTags.includes(value),
   );
+
+  const handlePopoverChange = (open: boolean) => {
+    if (open) {
+      capture("tag:modal_open");
+    }
+    if (!open && selectedTags !== tags) {
+      setInputValue("");
+      mutateTags(selectedTags);
+    }
+  };
 
   if (!hasAccess) {
     return (
@@ -61,7 +76,7 @@ const TagManager = ({
         )}
       >
         <TagList
-          selectedTags={tags}
+          selectedTags={selectedTags}
           isLoading={isLoading}
           viewOnly
           isTableCell={isTableCell}
@@ -71,29 +86,17 @@ const TagManager = ({
   }
 
   return (
-    <Popover
-      onOpenChange={(open) => {
-        if (open) {
-          capture("tag:modal_open");
-          setInputValue("");
-        }
-      }}
-    >
+    <Popover onOpenChange={(open) => handlePopoverChange(open)}>
       {triggerButton ? (
-        // Button-as-trigger mode: clicking either the button OR any pill
-        // opens the popover. PopoverAnchor pins the popup under the button
-        // so its position stays stable as pills are added. The button stays
-        // top-left and pills wrap inside a nested flex-wrap container so
-        // they fill the column to the right of (and not under) the button.
         <PopoverTrigger className="select-none" asChild>
           <div
             className={cn("flex cursor-pointer items-start gap-1", className)}
           >
             <PopoverAnchor asChild>{triggerButton}</PopoverAnchor>
-            {tags.length > 0 && (
+            {selectedTags.length > 0 && (
               <div className="flex flex-1 flex-wrap gap-1">
                 <TagList
-                  selectedTags={tags}
+                  selectedTags={selectedTags}
                   isLoading={isLoading}
                   isTableCell={isTableCell}
                 />
@@ -119,7 +122,7 @@ const TagManager = ({
             )}
           >
             <TagList
-              selectedTags={tags}
+              selectedTags={selectedTags}
               isLoading={isLoading}
               isTableCell={isTableCell}
             />
@@ -147,8 +150,8 @@ const TagManager = ({
           <TagInput
             value={inputValue}
             onValueChange={setInputValue}
-            selectedTags={tags}
-            setSelectedTags={mutateTags}
+            selectedTags={selectedTags}
+            setSelectedTags={setSelectedTags}
             allowTagRemoval={allowTagRemoval}
           />
           <CommandList>
@@ -163,8 +166,8 @@ const TagManager = ({
                 <TagCommandItem
                   key={value}
                   value={value}
-                  selectedTags={tags}
-                  setSelectedTags={mutateTags}
+                  selectedTags={selectedTags}
+                  setSelectedTags={setSelectedTags}
                 />
               ))}
             </CommandGroup>
