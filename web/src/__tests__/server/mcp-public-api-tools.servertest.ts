@@ -160,13 +160,34 @@ describe("MCP public API tools", () => {
       )
     ).map((tool) => tool.name);
 
-    expect(inAppToolNames).toContain("listDatasets");
-    expect(inAppToolNames).toContain("getHealth");
-    expect(inAppToolNames).not.toContain("listScores");
-    expect(inAppToolNames).not.toContain("getScore");
-    expect(inAppToolNames).not.toContain("listScoreConfigs");
+    expect(inAppToolNames).toEqual(
+      expect.arrayContaining([
+        "listDatasets",
+        "getHealth",
+        "listScores",
+        "getScore",
+        "listScoreConfigs",
+        "listPrompts",
+        "getPrompt",
+        "getPromptUnresolved",
+      ]),
+    );
     expect(inAppToolNames).not.toContain("createDataset");
     expect(inAppToolNames).not.toContain("createModel");
+
+    const readOnlyToolNames = toolNames.filter(
+      (toolName) =>
+        toolRegistry.getTool(toolName)?.definition.annotations?.readOnlyHint,
+    );
+    expect(inAppToolNames).toEqual(expect.arrayContaining(readOnlyToolNames));
+
+    const writableToolNames = toolNames.filter(
+      (toolName) =>
+        !toolRegistry.getTool(toolName)?.definition.annotations?.readOnlyHint,
+    );
+    for (const toolName of writableToolNames) {
+      expect(inAppToolNames).not.toContain(toolName);
+    }
 
     expect(mcpRouteConfig.api.bodyParser.sizeLimit).toBe("4.5mb");
   });

@@ -1979,12 +1979,12 @@ describe("MCP Read Tools", () => {
       verifyToolAnnotations(getPromptTool, { readOnlyHint: true });
     });
 
-    it("should not be available to in-app agent keys", async () => {
+    it("should be available to in-app agent keys", async () => {
       const context = mockServerContext({ isInAppAgentKey: true });
 
       await expect(
         toolRegistry.getEnabledTool(getPromptTool.name, context),
-      ).resolves.toBeUndefined();
+      ).resolves.toBeDefined();
     });
 
     it("should fetch prompt by name only (defaults to production label)", async () => {
@@ -2226,12 +2226,12 @@ describe("MCP Read Tools", () => {
       verifyToolAnnotations(listPromptsTool, { readOnlyHint: true });
     });
 
-    it("should not be available to in-app agent keys", async () => {
+    it("should be available to in-app agent keys", async () => {
       const context = mockServerContext({ isInAppAgentKey: true });
 
       await expect(
         toolRegistry.getEnabledTool(listPromptsTool.name, context),
-      ).resolves.toBeUndefined();
+      ).resolves.toBeDefined();
     });
 
     it("should list all prompts for project", async () => {
@@ -2605,12 +2605,12 @@ describe("MCP Read Tools", () => {
       verifyToolAnnotations(getPromptUnresolvedTool, { readOnlyHint: true });
     });
 
-    it("should not be available to in-app agent keys", async () => {
+    it("should be available to in-app agent keys", async () => {
       const context = mockServerContext({ isInAppAgentKey: true });
 
       await expect(
         toolRegistry.getEnabledTool(getPromptUnresolvedTool.name, context),
-      ).resolves.toBeUndefined();
+      ).resolves.toBeDefined();
     });
 
     it("should fetch prompt without resolving dependencies (by name only)", async () => {
