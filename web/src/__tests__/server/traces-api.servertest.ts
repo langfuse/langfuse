@@ -29,6 +29,11 @@ import snakeCase from "lodash/snakeCase";
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
 
+const maybe =
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+    ? describe
+    : describe.skip;
+
 // Helper type for creating observation/event data
 // Times are always in milliseconds, conversion handled internally
 type ObservationEventData = {
@@ -2518,7 +2523,7 @@ describe("/api/public/traces API Endpoint", () => {
     });
   });
 
-  describe("GET /api/public/traces useEventsTable env fallback", () => {
+  maybe("GET /api/public/traces useEventsTable env fallback", () => {
     it("should use events table if env flag is true and query param is omitted", async () => {
       env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = "true";
 

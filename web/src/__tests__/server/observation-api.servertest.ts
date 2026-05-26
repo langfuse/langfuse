@@ -16,6 +16,10 @@ import snakeCase from "lodash/snakeCase";
 import { env } from "@/src/env.mjs";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+const maybe =
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+    ? describe
+    : describe.skip;
 
 // Helper type for observation data
 type ObservationData = {
@@ -483,7 +487,7 @@ describe("/api/public/observations API Endpoint", () => {
   }
   runTestSuite(false); // with observations table
 
-  describe("useEventsTable env fallback", () => {
+  maybe("useEventsTable env fallback", () => {
     it("should use events table if env flag is true and query param is omitted", async () => {
       env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = "true";
 

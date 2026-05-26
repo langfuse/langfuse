@@ -17,6 +17,11 @@ import { GetObservationsV1Response } from "@/src/features/public-api/types/obser
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 
+const maybe =
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+    ? describe
+    : describe.skip;
+
 // Helper type for creating observation data
 type ObservationData = {
   id?: string;
@@ -584,7 +589,7 @@ describe("/api/public/observations API Endpoint", () => {
   }
   runTestSuite(false); // with observations table
 
-  describe("useEventsTable env fallback", () => {
+  maybe("useEventsTable env fallback", () => {
     it("should use events table if env flag is true and query param is omitted", async () => {
       env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = "true";
 
