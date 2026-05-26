@@ -147,6 +147,41 @@ describe("scheduleObservationEvals", () => {
       expect(schedulerDeps.upsertJobExecution).not.toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
     });
+
+    it("should schedule inactive configs for manual execution while skipping blocked configs", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+      const inactiveConfig = createMockConfig({
+        id: "inactive-config",
+        status: JobConfigState.INACTIVE,
+      });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            id: "blocked-config",
+            blockedAt: new Date(),
+          }),
+          inactiveConfig,
+        ],
+        schedulerDeps,
+        executionMode: "MANUAL",
+      });
+
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobConfigurationId: inactiveConfig.id,
+        }),
+      );
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionMode: "MANUAL",
+        }),
+      );
+    });
   });
 
   describe("S3 upload", () => {
