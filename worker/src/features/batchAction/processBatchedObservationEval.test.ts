@@ -78,6 +78,7 @@ describe("processBatchedObservationEval", () => {
     expect(scheduleObservationEvals).toHaveBeenCalledWith(
       expect.objectContaining({
         configs: evaluators,
+        executionMode: "MANUAL",
       }),
     );
     expect(

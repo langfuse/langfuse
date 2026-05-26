@@ -19,8 +19,14 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+vi.mock("@/src/features/media/server/getMediaStorageClient", () => ({
+  getMediaStorageServiceClient: () => ({
+    getSignedUrl: vi.fn().mockResolvedValue("https://media.example/download"),
+  }),
+}));
+
 import { nanoid } from "nanoid";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createEvent,
@@ -117,6 +123,10 @@ import {
   updateScoreConfigTool,
   handleUpdateScoreConfig,
 } from "@/src/features/mcp/features/scores/tools/updateScoreConfig";
+import {
+  getMediaTool,
+  handleGetMedia,
+} from "@/src/features/mcp/features/media/tools/getMedia";
 
 const maybeEventsTable =
   env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
@@ -209,6 +219,50 @@ const containsPropertyName = (value: unknown, expected: string): boolean => {
 };
 
 describe("MCP Read Tools", () => {
+  describe("getMedia tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getMediaTool, { readOnlyHint: true });
+    });
+
+    it("should return media metadata and a signed download URL", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const mediaId = `mcp-media-${nanoid()}`;
+      const uploadedAt = new Date("2026-01-01T00:00:00.000Z");
+
+      await prisma.media.create({
+        data: {
+          id: mediaId,
+          projectId,
+          sha256Hash: createHash("sha256").update(mediaId).digest("base64"),
+          bucketPath: `${projectId}/${mediaId}.png`,
+          bucketName: "media-test-bucket",
+          contentType: "image/png",
+          contentLength: 123n,
+          uploadedAt,
+          uploadHttpStatus: 200,
+        },
+      });
+
+      const result = (await handleGetMedia({ mediaId }, context)) as {
+        mediaId: string;
+        contentType: string;
+        contentLength: number;
+        uploadedAt: Date;
+        url: string;
+        urlExpiry: string;
+      };
+
+      expect(result).toMatchObject({
+        mediaId,
+        contentType: "image/png",
+        contentLength: 123,
+        url: "https://media.example/download",
+      });
+      expect(result.uploadedAt).toEqual(uploadedAt);
+      expect(new Date(result.urlExpiry).getTime()).toBeGreaterThan(Date.now());
+    });
+  });
+
   describe("getObservationFieldSchema tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getObservationFieldSchemaTool, {
