@@ -89,6 +89,16 @@ const TagManager = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveUpdate, selectedTags]);
 
+  // liveUpdate mode: sync external changes to `tags` into the internal
+  // selectedTags so the pill list reflects updates that originate outside the
+  // popover (e.g. the monitor form's per-automation toggle row).
+  useEffect(() => {
+    if (!liveUpdate) return;
+    setSelectedTags((current) =>
+      arraysShallowEqual(current, tags) ? current : tags,
+    );
+  }, [liveUpdate, tags, setSelectedTags]);
+
   if (!hasAccess) {
     return (
       <div
@@ -210,6 +220,16 @@ const TagManager = ({
       </PopoverContent>
     </Popover>
   );
+};
+
+/** arraysShallowEqual returns true when both arrays carry the same string values in the same order. Used to skip redundant syncs that would otherwise churn state without changing display. */
+const arraysShallowEqual = (a: string[], b: string[]): boolean => {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
 };
 
 export default TagManager;

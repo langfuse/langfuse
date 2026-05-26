@@ -1,83 +1,151 @@
 import { describe, expect, it } from "vitest";
 
+import { type FilterState } from "@langfuse/shared";
+
 import { __test } from "./MonitorAutomationsPanel";
 
 const {
-  emittableSeverities,
-  triggerSeverityClause,
+  triggerTagsClause,
+  tagClauseMatches,
+  toggleAutomationTags,
   buildFilterPreset,
   automationCreateHref,
 } = __test;
 
-describe("emittableSeverities", () => {
-  it("always includes ALERT + OK", () => {
-    expect(emittableSeverities(null, "SILENT")).toEqual(["ALERT", "OK"]);
-  });
-
-  it("adds WARNING when warningThreshold is set", () => {
-    expect(emittableSeverities(5, "SILENT")).toEqual([
-      "ALERT",
-      "OK",
-      "WARNING",
-    ]);
-  });
-
-  it("adds NO_DATA when noData.mode is NOTIFY", () => {
-    expect(emittableSeverities(null, "NOTIFY")).toEqual([
-      "ALERT",
-      "OK",
-      "NO_DATA",
-    ]);
-  });
-
-  it("includes both WARNING and NO_DATA when configured", () => {
-    expect(emittableSeverities(5, "NOTIFY")).toEqual([
-      "ALERT",
-      "OK",
-      "WARNING",
-      "NO_DATA",
-    ]);
-  });
-});
-
-describe("triggerSeverityClause", () => {
-  it("returns null when no severity clause is present", () => {
+describe("triggerTagsClause", () => {
+  it("returns the tag values from an arrayOptions clause", () => {
     expect(
-      triggerSeverityClause([
+      triggerTagsClause([
         {
           column: "tags",
           type: "arrayOptions",
           operator: "all of",
+          value: ["prod", "web"],
+        },
+      ]),
+    ).toEqual(["prod", "web"]);
+  });
+
+  it("returns the tag values from an `any of` arrayOptions clause", () => {
+    expect(
+      triggerTagsClause([
+        {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "any of",
           value: ["prod"],
         },
       ]),
-    ).toBeNull();
+    ).toEqual(["prod"]);
   });
 
-  it("returns the allowed severities from a stringOptions `any of` clause", () => {
+  it("returns an empty list when no tags clause is present", () => {
     expect(
-      triggerSeverityClause([
+      triggerTagsClause([
         {
           column: "severity",
           type: "stringOptions",
           operator: "any of",
-          value: ["ALERT", "WARNING"],
-        },
-      ]),
-    ).toEqual(["ALERT", "WARNING"]);
-  });
-
-  it("ignores severity clauses with other operators", () => {
-    expect(
-      triggerSeverityClause([
-        {
-          column: "severity",
-          type: "stringOptions",
-          operator: "none of",
           value: ["ALERT"],
         },
       ]),
-    ).toBeNull();
+    ).toEqual([]);
+  });
+
+  it("returns an empty list for an empty filter", () => {
+    expect(triggerTagsClause([])).toEqual([]);
+  });
+});
+
+describe("tagClauseMatches", () => {
+  it("returns true when the filter has no tags clause", () => {
+    expect(tagClauseMatches([], [])).toBe(true);
+    expect(tagClauseMatches([], ["prod"])).toBe(true);
+    expect(
+      tagClauseMatches(
+        [
+          {
+            column: "severity",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["ALERT"],
+          },
+        ],
+        ["prod"],
+      ),
+    ).toBe(true);
+  });
+
+  it("requires the monitor tags to be a superset for `all of`", () => {
+    const filter = [
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "all of",
+        value: ["prod", "web"],
+      },
+    ] satisfies FilterState;
+    expect(tagClauseMatches(filter, ["prod", "web", "extra"])).toBe(true);
+    expect(tagClauseMatches(filter, ["prod"])).toBe(false);
+    expect(tagClauseMatches(filter, [])).toBe(false);
+  });
+
+  it("requires at least one matching tag for `any of`", () => {
+    const filter = [
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "any of",
+        value: ["prod", "web"],
+      },
+    ] satisfies FilterState;
+    expect(tagClauseMatches(filter, ["web"])).toBe(true);
+    expect(tagClauseMatches(filter, ["staging"])).toBe(false);
+    expect(tagClauseMatches(filter, [])).toBe(false);
+  });
+
+  it("excludes overlapping tags for `none of`", () => {
+    const filter = [
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "none of",
+        value: ["prod"],
+      },
+    ] satisfies FilterState;
+    expect(tagClauseMatches(filter, ["web"])).toBe(true);
+    expect(tagClauseMatches(filter, ["prod", "web"])).toBe(false);
+  });
+});
+
+describe("toggleAutomationTags", () => {
+  it("adds the trigger tags when the row is not currently matched", () => {
+    expect(toggleAutomationTags(["prod"], ["web", "api"], false)).toEqual([
+      "prod",
+      "web",
+      "api",
+    ]);
+  });
+
+  it("dedupes when adding tags that already exist", () => {
+    expect(
+      toggleAutomationTags(["prod", "web"], ["web", "api"], false),
+    ).toEqual(["prod", "web", "api"]);
+  });
+
+  it("removes every trigger tag when the row is currently matched", () => {
+    expect(
+      toggleAutomationTags(["prod", "web", "extra"], ["prod", "web"], true),
+    ).toEqual(["extra"]);
+  });
+
+  it("removes only the trigger tags that are actually in the current list", () => {
+    expect(toggleAutomationTags(["prod"], ["prod", "web"], true)).toEqual([]);
+  });
+
+  it("is a no-op when the trigger has no tag clause", () => {
+    expect(toggleAutomationTags(["prod"], [], false)).toEqual(["prod"]);
+    expect(toggleAutomationTags(["prod"], [], true)).toEqual(["prod"]);
   });
 });
 

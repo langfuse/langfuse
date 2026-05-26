@@ -323,7 +323,7 @@ const MonitorTriggerFields = ({
       name="filter"
       render={({ field }) => (
         <FormItem>
-          <FormLabel>Tags</FormLabel>
+          <FormLabel>Monitor Tags</FormLabel>
           <FormControl>
             <TagManager
               itemName="monitor"

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
-import { Plus, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -45,13 +45,13 @@ import {
   normalizeStoredWidgetFiltersForEditor,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import TagManager from "@/src/features/tag/components/TagManager";
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import {
   getWidgetColumnsWithCustomSelect,
   getWidgetFilterColumns,
 } from "@/src/features/widgets/components/widgetFilterColumns";
 import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
+import { cn } from "@/src/utils/tailwind";
 
 import {
   CreateMonitorSchema,
@@ -275,23 +275,6 @@ export const MonitorForm = ({
     },
   );
 
-  /** monitorFilterOptions loads existing monitor tags; reused for TagManager autocomplete and deduped via the list page's cache. */
-  const monitorFilterOptions = api.monitors.getFilterOptions.useQuery(
-    { projectId },
-    {
-      trpc: { context: { skipBatch: true } },
-      staleTime: Infinity,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    },
-  );
-
-  /** availableTags is the flat list of tag values pulled from monitorFilterOptions for TagManager. */
-  const availableTags = useMemo(
-    () => monitorFilterOptions.data?.tags.map((t) => t.value) ?? [],
-    [monitorFilterOptions.data],
-  );
-
   /** datasets loads dataset metadata for the project; used to label experiment-dataset filter options. */
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
 
@@ -414,12 +397,12 @@ export const MonitorForm = ({
             <CardHeader>
               <CardTitle>Monitor Configuration</CardTitle>
               <CardDescription>
-                Get notified when observation metrics and scores cross a
-                threshold. (eg. &ldquo;sudden cost increase&rdquo;,
-                &ldquo;accuracy has dropped&rdquo;)
+                Receive notifications when a metric crosses a threshold. (eg.
+                &ldquo;sudden cost increase&rdquo;, &ldquo;accuracy has
+                dropped&rdquo;)
               </CardDescription>
             </CardHeader>
-            <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-0">
               <Section title="Metric Definition" step={1}>
                 <FormField
                   control={form.control}
@@ -780,7 +763,7 @@ export const MonitorForm = ({
                 </Accordion>
               </Section>
 
-              <Section title="Notifications" step={3}>
+              <Section title="Notifications" step={3} className="pb-2">
                 <FormField
                   control={form.control}
                   name="name"
@@ -800,45 +783,21 @@ export const MonitorForm = ({
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="tags"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <TagManager
-                          itemName="monitor"
-                          tags={(field.value ?? []) as string[]}
-                          allTags={availableTags}
-                          hasAccess={hasAccess}
-                          isLoading={false}
-                          mutateTags={(next) => field.onChange(next)}
-                          liveUpdate
-                          popoverAlign="start"
-                          triggerButton={
-                            <Button
-                              type="button"
-                              variant="default"
-                              size="sm"
-                              className="mr-2 ml-0.5 gap-1"
-                            >
-                              <Plus className="h-3 w-3" />
-                              Add Tags
-                            </Button>
-                          }
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
                 <div className="space-y-2">
-                  <Label>Channels</Label>
+                  <Label>Automations</Label>
+                  <p className="text-muted-foreground text-sm">
+                    Connect your monitors to Slack, Webhook, and GitHub Action
+                    Automations with tags.
+                  </p>
                   <MonitorAutomationsPanel
                     projectId={projectId}
                     tags={(watched.tags ?? []) as string[]}
-                    warningThreshold={watched.warningThreshold ?? null}
-                    noDataMode={watched.noData?.mode ?? "SILENT"}
+                    onTagsChange={(next) =>
+                      form.setValue("tags", next, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
                   />
                 </div>
               </Section>
@@ -909,15 +868,17 @@ const Section = ({
   step,
   icon,
   children,
+  className,
 }: {
   title: string;
   step?: number;
   icon?: LucideIcon;
   children: React.ReactNode;
+  className?: string;
 }) => (
   <div>
     <Header title={title} step={step} icon={icon} />
-    <div className="space-y-4 px-2 pb-4">{children}</div>
+    <div className={cn("space-y-4 px-2 pb-4", className)}>{children}</div>
   </div>
 );
 

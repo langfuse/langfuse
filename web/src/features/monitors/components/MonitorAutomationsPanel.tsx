@@ -1,6 +1,12 @@
 import { useMemo } from "react";
 import Link from "next/link";
-import { Webhook as WebhookIcon, Github, Plus, Slack } from "lucide-react";
+import {
+  Check,
+  Webhook as WebhookIcon,
+  Github,
+  Plus,
+  Slack,
+} from "lucide-react";
 
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
@@ -11,7 +17,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { cn } from "@/src/utils/tailwind";
 import {
   ActionTypeSchema,
   type ActionTypes,
@@ -19,32 +24,11 @@ import {
   type FilterState,
   TriggerEventSource,
 } from "@langfuse/shared";
-import {
-  type MonitorNoData,
-  type MonitorSeverity,
-} from "@langfuse/shared/monitors";
 import { serializeCreateAutomationPrefill } from "@/src/features/automations/components/automationForm";
-
-/** severityLabel maps each monitor severity to its short badge label. */
-const severityLabel: Record<MonitorSeverity, string> = {
-  UNKNOWN: "UNKNOWN",
-  NO_DATA: "NO-DATA",
-  PAUSED: "PAUSED",
-  OK: "OK",
-  WARNING: "WARN",
-  ALERT: "ALERT",
-};
-
-/** severityClassName maps each monitor severity to its badge tailwind classes. */
-const severityClassName: Record<MonitorSeverity, string> = {
-  UNKNOWN: "bg-muted text-muted-foreground",
-  NO_DATA: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200",
-  PAUSED: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200",
-  OK: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200",
-  WARNING:
-    "bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200",
-  ALERT: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-200",
-};
+import TagList from "@/src/features/tag/components/TagList";
+import TagManager from "@/src/features/tag/components/TagManager";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { cn } from "@/src/utils/tailwind";
 
 /** actionLabel maps each automation action type to its display name. */
 const actionLabel: Record<ActionTypes, string> = {
@@ -53,88 +37,140 @@ const actionLabel: Record<ActionTypes, string> = {
   GITHUB_DISPATCH: "GitHub Dispatch",
 };
 
-/** MonitorAutomationsPanel lists automations that would fire for the draft monitor and offers a CTA to add more. */
+/** MonitorAutomationsPanel lets the user pick monitor tags and shows the automations they fan out to. */
 export const MonitorAutomationsPanel = ({
   projectId,
   tags,
-  warningThreshold,
-  noDataMode,
+  onTagsChange,
 }: {
   projectId: string;
   tags: string[];
-  warningThreshold: number | null;
-  noDataMode: MonitorNoData["mode"];
+  onTagsChange: (next: string[]) => void;
 }) => {
-  /** severities is the set of severities the draft monitor can emit given its warning/no-data config. */
-  const severities = useMemo(
-    () => emittableSeverities(warningThreshold, noDataMode),
-    [warningThreshold, noDataMode],
-  );
+  /** hasAccess gates write controls behind the monitors:CUD RBAC scope. */
+  const hasAccess = useHasProjectAccess({ projectId, scope: "monitors:CUD" });
 
-  /** automations holds all monitor-source automations whose tag filter matches the draft. */
-  const automations = useGetAutomations(projectId, tags);
+  /** availableTags is the flat list of tag values used for TagManager autocomplete. */
+  const availableTags = useAvailableMonitorTags(projectId);
 
-  /** matched pairs each automation with the emittable severities its trigger filter would accept. */
-  const matched = useSeverityFilter(automations.data, severities);
+  /** automations holds every monitor-source automation in the project, unfiltered by tags. */
+  const automations = useGetAutomations(projectId);
+
+  /** rows is the display list: every monitor-source automation, annotated with `isHighlighted` when the row's trigger filter accepts the picked tags. */
+  const rows = useAutomationRows(automations.data, tags);
 
   /** preset is the FilterState seeded into the create-automation deep link for this draft. */
   const preset = useMemo(() => buildFilterPreset(tags), [tags]);
 
+  /** showEmptyState fires when the project has no monitor-source automations at all (not just when the tag filter narrows to zero). */
+  const showEmptyState = (automations.data ?? []).length === 0;
+
   return (
-    <Card>
-      <CardContent className="space-y-3 pt-4">
-        {matched.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-8">
-            <p className="text-muted-foreground text-center text-base">
-              Set up Slack, Webhook, and Github Action Notifications
-            </p>
-            <AddAutomationDropdown projectId={projectId} preset={preset} />
-          </div>
-        ) : (
-          <>
-            <ul className="space-y-1">
-              {matched.map(({ automation, matchedSeverities }) => {
-                const badges: MonitorSeverity[] = Array.from(matchedSeverities);
-                return (
-                  <li key={automation.id}>
-                    <Link
-                      href={`/project/${projectId}/automations?view=list&automationId=${automation.id}`}
-                      className="hover:bg-muted/60 flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
-                    >
-                      <ActionIcon
-                        type={automation.action.type as ActionTypes}
-                        className="h-3.5 w-3.5 shrink-0"
-                      />
-                      <span className="truncate">{automation.name}</span>
-                      <span className="ml-auto flex gap-1">
-                        {badges.map((b) => (
-                          <span
-                            key={b}
-                            className={cn(
-                              "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                              severityClassName[b],
-                            )}
-                          >
-                            {severityLabel[b]}
-                          </span>
-                        ))}
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-            <AddAutomationDropdown
-              projectId={projectId}
-              preset={preset}
-              fullWidth
-            />
-          </>
-        )}
-      </CardContent>
-    </Card>
+    <div className="space-y-3">
+      <TagManager
+        itemName="monitor"
+        tags={tags}
+        allTags={availableTags}
+        hasAccess={hasAccess}
+        isLoading={false}
+        mutateTags={onTagsChange}
+        liveUpdate
+        popoverAlign="start"
+        triggerButton={
+          <Button type="button" variant="default" size="sm" className="gap-1">
+            <Plus className="h-3 w-3" />
+            Add Tags
+          </Button>
+        }
+      />
+      <Card>
+        <CardContent className="space-y-3 pt-4">
+          {showEmptyState ? (
+            <>
+              <p className="text-muted-foreground px-4 py-6 text-center text-base">
+                Set up Slack, Webhook, and Github Action Automations to Receive
+                Alerts
+              </p>
+              <AddAutomationDropdown
+                projectId={projectId}
+                preset={preset}
+                fullWidth
+              />
+            </>
+          ) : (
+            <>
+              <ul className="space-y-1">
+                {rows.map(({ automation, triggerTags, isHighlighted }) => {
+                  const inert = triggerTags.length === 0;
+                  const toggle = () => {
+                    if (inert) return;
+                    onTagsChange(
+                      toggleAutomationTags(tags, triggerTags, isHighlighted),
+                    );
+                  };
+                  return (
+                    <li key={automation.id}>
+                      <div
+                        role="button"
+                        tabIndex={inert ? -1 : 0}
+                        aria-disabled={inert}
+                        aria-pressed={isHighlighted}
+                        onClick={toggle}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggle();
+                          }
+                        }}
+                        className={cn(
+                          "hover:bg-muted/60 focus-visible:ring-ring flex items-center gap-2 rounded-md border px-2 py-1 text-xs outline-hidden transition-colors focus-visible:ring-2",
+                          inert ? "cursor-not-allowed" : "cursor-pointer",
+                          tags.length > 0 && !isHighlighted && "opacity-50",
+                        )}
+                      >
+                        <RowCheckbox checked={isHighlighted} />
+                        <ActionIcon
+                          type={automation.action.type as ActionTypes}
+                          className="h-3.5 w-3.5 shrink-0"
+                        />
+                        <span className="truncate">{automation.name}</span>
+                        <span className="ml-auto flex flex-wrap justify-end gap-1">
+                          <TagList
+                            selectedTags={triggerTags}
+                            isLoading={false}
+                            viewOnly
+                          />
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              <AddAutomationDropdown
+                projectId={projectId}
+                preset={preset}
+                fullWidth
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
+
+/** RowCheckbox is a non-interactive visual stand-in for a checkbox */
+const RowCheckbox = ({ checked }: { checked: boolean }) => (
+  <span
+    aria-hidden
+    className={cn(
+      "border-primary flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
+      checked && "bg-primary text-primary-foreground",
+    )}
+  >
+    {checked && <Check className="h-3.5 w-3.5" />}
+  </span>
+);
 
 /** ActionIcon renders the lucide icon for a given automation action type. */
 const ActionIcon = ({
@@ -196,31 +232,48 @@ const AddAutomationDropdown = ({
   </DropdownMenu>
 );
 
-/** emittableSeverities derives which severities the draft monitor can emit, given warning + no-data config. */
-const emittableSeverities = (
-  warningThreshold: number | null,
-  noDataMode: MonitorNoData["mode"],
-): MonitorSeverity[] => {
-  const out: MonitorSeverity[] = ["ALERT", "OK"];
-  if (warningThreshold !== null) out.push("WARNING");
-  if (noDataMode === "NOTIFY") out.push("NO_DATA");
-  return out;
-};
-
-/** triggerSeverityClause finds a `severity` stringOptions clause on a trigger filter, if present. */
-const triggerSeverityClause = (
-  filter: FilterState,
-): MonitorSeverity[] | null => {
+/** triggerTagsClause returns the tags a trigger filter targets, or an empty list if no tags clause is present. */
+const triggerTagsClause = (filter: FilterState): string[] => {
   for (const cond of filter) {
-    if (
-      cond.column === "severity" &&
-      cond.type === "stringOptions" &&
-      cond.operator === "any of"
-    ) {
-      return cond.value as MonitorSeverity[];
+    if (cond.column === "tags" && cond.type === "arrayOptions") {
+      return cond.value;
     }
   }
-  return null;
+  return [];
+};
+
+/** tagClauseMatches returns true when the trigger's tags clause (if any) would accept the draft monitor's tags. Non-tags clauses are ignored — they're filtered server-side or irrelevant to the draft preview. */
+const tagClauseMatches = (filter: FilterState, tags: string[]): boolean => {
+  for (const cond of filter) {
+    if (cond.column !== "tags") continue;
+    if (cond.type !== "arrayOptions") continue;
+    switch (cond.operator) {
+      case "all of":
+        if (!cond.value.every((v) => tags.includes(v))) return false;
+        break;
+      case "any of":
+        if (!cond.value.some((v) => tags.includes(v))) return false;
+        break;
+      case "none of":
+        if (cond.value.some((v) => tags.includes(v))) return false;
+        break;
+    }
+  }
+  return true;
+};
+
+/** toggleAutomationTags returns the next monitor tag list after a row click: removes every trigger tag when the row is currently matched, or adds them (deduped) when it isn't. Empty `triggerTags` is a no-op so rows whose trigger filter has no tags clause stay inert. */
+const toggleAutomationTags = (
+  currentTags: string[],
+  triggerTags: string[],
+  isCurrentlyMatched: boolean,
+): string[] => {
+  if (triggerTags.length === 0) return currentTags;
+  if (isCurrentlyMatched) {
+    const removeSet = new Set(triggerTags);
+    return currentTags.filter((t) => !removeSet.has(t));
+  }
+  return Array.from(new Set([...currentTags, ...triggerTags]));
 };
 
 /** buildFilterPreset emits the FilterState a monitor-source trigger needs to match the draft's tags. */
@@ -251,37 +304,31 @@ const automationCreateHref = (
   return `/project/${projectId}/automations?${params.toString()}`;
 };
 
-/** useSeverityFilter pairs each automation with the emittable severities its trigger filter would accept, dropping any that match none. */
-const useSeverityFilter = (
+/** useAutomationRows annotates every automation with its trigger tags and whether the row matches the draft monitor's tags. `isHighlighted` is only true when tags are picked, so the empty-tags default shows every row in its neutral state. */
+const useAutomationRows = (
   automations: AutomationDomain[] | undefined,
-  severities: MonitorSeverity[],
+  tags: string[],
 ): {
   automation: AutomationDomain;
-  matchedSeverities: Set<MonitorSeverity>;
+  triggerTags: string[];
+  isHighlighted: boolean;
 }[] => {
   return useMemo(() => {
-    return (automations ?? [])
-      .map((automation) => {
-        const triggerSev = triggerSeverityClause(automation.trigger.filter);
-        const allowed = triggerSev
-          ? severities.filter((s) => triggerSev.includes(s))
-          : severities;
-        return {
-          automation,
-          matchedSeverities: new Set<MonitorSeverity>(allowed),
-        };
-      })
-      .filter((m) => m.matchedSeverities.size > 0);
-  }, [automations, severities]);
+    return (automations ?? []).map((automation) => ({
+      automation,
+      triggerTags: triggerTagsClause(automation.trigger.filter),
+      isHighlighted:
+        tags.length > 0 && tagClauseMatches(automation.trigger.filter, tags),
+    }));
+  }, [automations, tags]);
 };
 
-/** useGetAutomations fetches monitor-source automations whose tag filter matches the draft, across all severities. */
-const useGetAutomations = (projectId: string, tags: string[]) => {
+/** useGetAutomations fetches every monitor-source automation in the project. */
+const useGetAutomations = (projectId: string) => {
   return api.automations.getAutomations.useQuery(
     {
       projectId,
       eventSource: TriggerEventSource.Monitor,
-      matches: { tags },
     },
     {
       trpc: { context: { skipBatch: true } },
@@ -290,10 +337,28 @@ const useGetAutomations = (projectId: string, tags: string[]) => {
   );
 };
 
+/** useAvailableMonitorTags loads the project's existing monitor tags for TagManager autocomplete. */
+const useAvailableMonitorTags = (projectId: string): string[] => {
+  const monitorFilterOptions = api.monitors.getFilterOptions.useQuery(
+    { projectId },
+    {
+      trpc: { context: { skipBatch: true } },
+      staleTime: Infinity,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  );
+  return useMemo(
+    () => monitorFilterOptions.data?.tags.map((t) => t.value) ?? [],
+    [monitorFilterOptions.data],
+  );
+};
+
 /** __test exposes private helpers to co-located tests without widening the module API. */
 export const __test = {
-  emittableSeverities,
-  triggerSeverityClause,
+  triggerTagsClause,
+  tagClauseMatches,
+  toggleAutomationTags,
   buildFilterPreset,
   automationCreateHref,
 };
