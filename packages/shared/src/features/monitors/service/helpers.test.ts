@@ -14,12 +14,14 @@ import {
   errorFromPrisma,
   monitorFromPrisma,
   sortFiltersCanonically,
+  toPrismaWhere,
   updateSeverityForStatus,
   viewFromPrisma,
   viewToPrisma,
   windowFromMs,
   windowToMs,
 } from "./helpers";
+import { type ListMonitorFilter } from "./types";
 
 type Filter = z.infer<typeof singleFilter>;
 
@@ -118,6 +120,87 @@ describe("sortFiltersCanonically", () => {
     const once = sortFiltersCanonically(input);
     const twice = sortFiltersCanonically(once);
     expect(twice).toEqual(once);
+  });
+});
+
+describe("toPrismaWhere", () => {
+  it("returns an empty clause list for undefined or empty filter", () => {
+    expect(toPrismaWhere(undefined)).toEqual([]);
+    expect(toPrismaWhere([])).toEqual([]);
+  });
+
+  it("translates severity `any of` into a Prisma `in` clause", () => {
+    const filter: ListMonitorFilter = [
+      {
+        type: "stringOptions",
+        column: "severity",
+        operator: "any of",
+        value: ["ALERT", "WARNING"],
+      },
+    ];
+    expect(toPrismaWhere(filter)).toEqual([
+      { severity: { in: ["ALERT", "WARNING"] } },
+    ]);
+  });
+
+  it("translates severity `none of` into a negated `in` clause", () => {
+    const filter: ListMonitorFilter = [
+      {
+        type: "stringOptions",
+        column: "severity",
+        operator: "none of",
+        value: ["PAUSED"],
+      },
+    ];
+    expect(toPrismaWhere(filter)).toEqual([
+      { NOT: { severity: { in: ["PAUSED"] } } },
+    ]);
+  });
+
+  it("translates tags operators to Prisma array predicates", () => {
+    const filter: ListMonitorFilter = [
+      {
+        type: "arrayOptions",
+        column: "tags",
+        operator: "any of",
+        value: ["prod"],
+      },
+      {
+        type: "arrayOptions",
+        column: "tags",
+        operator: "all of",
+        value: ["prod", "latency"],
+      },
+      {
+        type: "arrayOptions",
+        column: "tags",
+        operator: "none of",
+        value: ["legacy"],
+      },
+    ];
+    expect(toPrismaWhere(filter)).toEqual([
+      { tags: { hasSome: ["prod"] } },
+      { tags: { hasEvery: ["prod", "latency"] } },
+      { NOT: { tags: { hasSome: ["legacy"] } } },
+    ]);
+  });
+
+  it("skips empty tag-value rows", () => {
+    const filter: ListMonitorFilter = [
+      {
+        type: "arrayOptions",
+        column: "tags",
+        operator: "all of",
+        value: [],
+      },
+      {
+        type: "arrayOptions",
+        column: "tags",
+        operator: "none of",
+        value: [],
+      },
+    ];
+    expect(toPrismaWhere(filter)).toEqual([]);
   });
 });
 

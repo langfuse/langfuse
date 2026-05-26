@@ -16,7 +16,12 @@ import { usePaginationState } from "@/src/hooks/usePaginationState";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { MonitorSeveritySchema } from "@langfuse/shared/monitors";
+import { type FilterState } from "@langfuse/shared";
+import {
+  type ListMonitorFilter,
+  ListMonitorFilterSchema,
+  MonitorSeveritySchema,
+} from "@langfuse/shared/monitors";
 
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
 
@@ -87,12 +92,17 @@ export function MonitorsTable() {
     },
   );
 
+  const monitorFilter = useMemo(
+    () => filterStateToListMonitorFilter(queryFilter.filterState),
+    [queryFilter.filterState],
+  );
+
   /** monitors loads the paginated, filtered, sorted page of monitors from the server. */
   const monitors = api.monitors.all.useQuery(
     {
       projectId,
       orderBy: orderByState as MonitorsOrderBy,
-      filter: queryFilter.filterState,
+      filter: monitorFilter,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
     },
@@ -219,3 +229,23 @@ export function MonitorsTable() {
     </div>
   );
 }
+
+/** filterStateToListMonitorFilter expands NO_DATA to (NO_DATA, UNKNOWN) on the severity column. */
+const filterStateToListMonitorFilter = (
+  state: FilterState,
+): ListMonitorFilter => {
+  const parsed = ListMonitorFilterSchema.safeParse(state);
+  if (!parsed.success) return [];
+  return parsed.data.map((row) => {
+    if (
+      row.column === "severity" &&
+      row.value.includes("NO_DATA") &&
+      !row.value.includes("UNKNOWN")
+    ) {
+      return { ...row, value: [...row.value, "UNKNOWN"] };
+    }
+    return row;
+  });
+};
+
+export const __test = { filterStateToListMonitorFilter };

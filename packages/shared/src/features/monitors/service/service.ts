@@ -9,10 +9,10 @@ import {
   calculateSchedulerBatchId,
   decimalToPrisma,
   errorFromPrisma,
-  monitorListFilterToWhere,
   monitorFromPrisma,
   nullableOrderColumns,
   sortFiltersCanonically,
+  toPrismaWhere,
   updateSeverityForStatus,
   viewToPrisma,
   windowToMs,
@@ -171,7 +171,7 @@ export class MonitorService {
 
     const where: Prisma.MonitorWhereInput = {
       projectId: input.projectId,
-      AND: monitorListFilterToWhere(input.filter),
+      AND: toPrismaWhere(input.filter),
     };
 
     const [monitors, totalCount] = await Promise.all([

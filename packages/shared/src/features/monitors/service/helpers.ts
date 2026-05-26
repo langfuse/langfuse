@@ -24,7 +24,7 @@ import {
 
 import {
   MonitorNotFoundError,
-  type MonitorListFilter,
+  type ListMonitorFilter,
   type MonitorListOrderBy,
 } from "./types";
 
@@ -34,26 +34,29 @@ export const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
   "alertedAt",
 ]);
 
-/** monitorListFilterToWhere translates the service-shaped MonitorListFilter into Prisma where clauses. */
-export const monitorListFilterToWhere = (
-  filter: MonitorListFilter | undefined,
+/** toPrismaWhere translates each row of a ListMonitorFilter into a Prisma where clause. */
+export const toPrismaWhere = (
+  filter: ListMonitorFilter | undefined,
 ): Prisma.MonitorWhereInput[] => {
-  if (!filter) return [];
+  if (!filter?.length) return [];
   const clauses: Prisma.MonitorWhereInput[] = [];
-  if (filter.severityIn?.length) {
-    clauses.push({ severity: { in: filter.severityIn } });
-  }
-  if (filter.severityNotIn?.length) {
-    clauses.push({ NOT: { severity: { in: filter.severityNotIn } } });
-  }
-  if (filter.tagsAnyOf?.length) {
-    clauses.push({ tags: { hasSome: filter.tagsAnyOf } });
-  }
-  if (filter.tagsAllOf?.length) {
-    clauses.push({ tags: { hasEvery: filter.tagsAllOf } });
-  }
-  if (filter.tagsNoneOf?.length) {
-    clauses.push({ NOT: { tags: { hasSome: filter.tagsNoneOf } } });
+  for (const f of filter) {
+    if (f.type === "stringOptions") {
+      clauses.push(
+        f.operator === "any of"
+          ? { [f.column]: { in: f.value } }
+          : { NOT: { [f.column]: { in: f.value } } },
+      );
+      continue;
+    }
+    if (f.value.length === 0) continue;
+    clauses.push(
+      f.operator === "any of"
+        ? { [f.column]: { hasSome: f.value } }
+        : f.operator === "all of"
+          ? { [f.column]: { hasEvery: f.value } }
+          : { NOT: { [f.column]: { hasSome: f.value } } },
+    );
   }
   return clauses;
 };

@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 
 import {
   CreateMonitorSchema,
+  ErrorListMonitorFilterDuplicateColumn,
+  ListMonitorFilterSchema,
   ListMonitorsSchema,
   UpdateMonitorSchema,
 } from "./types";
@@ -219,5 +221,52 @@ describe("ListMonitorsSchema", () => {
   it("rejects a missing projectId", () => {
     const result = ListMonitorsSchema.safeParse({ orderBy: null });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("ListMonitorFilterSchema", () => {
+  it("parses an empty filter", () => {
+    expect(ListMonitorFilterSchema.safeParse([]).success).toBe(true);
+  });
+
+  it("parses one severity row and one tags row", () => {
+    const result = ListMonitorFilterSchema.safeParse([
+      {
+        type: "stringOptions",
+        column: "severity",
+        operator: "any of",
+        value: ["ALERT"],
+      },
+      {
+        type: "arrayOptions",
+        column: "tags",
+        operator: "any of",
+        value: ["prod"],
+      },
+    ]);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects two rows on the same column with ErrorListMonitorFilterDuplicateColumn", () => {
+    const result = ListMonitorFilterSchema.safeParse([
+      {
+        type: "stringOptions",
+        column: "severity",
+        operator: "any of",
+        value: ["ALERT"],
+      },
+      {
+        type: "stringOptions",
+        column: "severity",
+        operator: "none of",
+        value: ["PAUSED"],
+      },
+    ]);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toBe(
+        ErrorListMonitorFilterDuplicateColumn,
+      );
+    }
   });
 });

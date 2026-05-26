@@ -90,15 +90,42 @@ export const MonitorListOrderBySchema = z.enum([
 ]);
 export type MonitorListOrderBy = z.infer<typeof MonitorListOrderBySchema>;
 
-/** MonitorListFilterSchema is the service-shaped filter accepted by MonitorService.list. */
-export const MonitorListFilterSchema = z.object({
-  severityIn: z.array(MonitorSeveritySchema).optional(),
-  severityNotIn: z.array(MonitorSeveritySchema).optional(),
-  tagsAnyOf: z.array(z.string()).optional(),
-  tagsAllOf: z.array(z.string()).optional(),
-  tagsNoneOf: z.array(z.string()).optional(),
+/** ListMonitorSeverityFilterSchema is the severity row of a ListMonitorFilter. */
+export const ListMonitorSeverityFilterSchema = z.object({
+  type: z.literal("stringOptions"),
+  column: z.literal("severity"),
+  operator: z.enum(["any of", "none of"]),
+  value: z.array(MonitorSeveritySchema).min(1),
 });
-export type MonitorListFilter = z.infer<typeof MonitorListFilterSchema>;
+export type ListMonitorSeverityFilter = z.infer<
+  typeof ListMonitorSeverityFilterSchema
+>;
+
+/** ListMonitorTagsFilterSchema is the tags row of a ListMonitorFilter. */
+export const ListMonitorTagsFilterSchema = z.object({
+  type: z.literal("arrayOptions"),
+  column: z.literal("tags"),
+  operator: z.enum(["any of", "all of", "none of"]),
+  value: z.array(z.string()),
+});
+export type ListMonitorTagsFilter = z.infer<typeof ListMonitorTagsFilterSchema>;
+
+/** ErrorListMonitorFilterDuplicateColumn is the message for a repeated column. */
+export const ErrorListMonitorFilterDuplicateColumn =
+  "Each column may appear at most once in a ListMonitorFilter";
+
+/** ListMonitorFilterSchema is the typed subset of `singleFilter[]` accepted by MonitorService.list. */
+export const ListMonitorFilterSchema = z
+  .array(
+    z.discriminatedUnion("column", [
+      ListMonitorSeverityFilterSchema,
+      ListMonitorTagsFilterSchema,
+    ]),
+  )
+  .refine((rows) => new Set(rows.map((r) => r.column)).size === rows.length, {
+    message: ErrorListMonitorFilterDuplicateColumn,
+  });
+export type ListMonitorFilter = z.infer<typeof ListMonitorFilterSchema>;
 
 /** ListMonitorsSchema is the input for MonitorService.list. */
 export const ListMonitorsSchema = z.object({
@@ -109,7 +136,7 @@ export const ListMonitorsSchema = z.object({
       order: z.enum(["ASC", "DESC"]),
     })
     .nullable(),
-  filter: MonitorListFilterSchema.optional(),
+  filter: ListMonitorFilterSchema.optional(),
   ...paginationZod,
 });
 export type ListMonitors = z.infer<typeof ListMonitorsSchema>;
