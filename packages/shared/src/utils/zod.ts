@@ -57,7 +57,7 @@ export const publicApiPaginationZod = {
   ),
   limit: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().lte(100).default(50),
+    z.coerce.number().gt(0).lte(100).default(50),
   ),
 };
 
