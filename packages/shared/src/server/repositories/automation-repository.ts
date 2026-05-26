@@ -21,7 +21,6 @@ import {
 } from "../../domain/automations";
 import { FilterState } from "../../types";
 import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
-import { matchesTriggerFilter } from "../automations";
 
 export const getActionByIdWithSecrets = async ({
   projectId,
@@ -212,13 +211,11 @@ export const getAutomations = async ({
   triggerId,
   actionId,
   eventSource,
-  matches,
 }: {
   projectId: string;
   triggerId?: string;
   actionId?: string;
   eventSource?: TriggerEventSource;
-  matches?: Record<string, unknown>;
 }): Promise<AutomationDomain[]> => {
   const automations = await prisma.automation.findMany({
     where: {
@@ -236,17 +233,12 @@ export const getAutomations = async ({
     },
   });
 
-  const domains = automations.map((automation) => ({
+  return automations.map((automation) => ({
     id: automation.id,
     name: automation.name,
     trigger: convertTriggerToDomain(automation.trigger),
     action: convertActionToDomain(automation.action),
   }));
-
-  if (!matches) return domains;
-  return domains.filter((automation) =>
-    matchesTriggerFilter(matches, automation.trigger),
-  );
 };
 
 export const getConsecutiveAutomationFailures = async ({
