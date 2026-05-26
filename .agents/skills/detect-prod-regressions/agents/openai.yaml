@@ -1,4 +1,4 @@
 interface:
   display_name: "Detect Prod Regressions"
-  short_description: "Datadog regression sweep with Linear handoff"
-  default_prompt: "Use $detect-prod-regressions to compare recent production Datadog signals against baselines across all prod environments and hand measured bugs to $linear-bug-triage."
+  short_description: "Datadog monitor/page and regression sweep"
+  default_prompt: "Use $detect-prod-regressions to check which paging monitors outside the SLO/burn-rate set alerted engineers, explain why they alerted, compare production Datadog signals against baselines across all prod environments, and prepare measured findings for human review before any Linear handoff."
