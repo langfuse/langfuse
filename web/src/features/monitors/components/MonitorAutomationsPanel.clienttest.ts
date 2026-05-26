@@ -13,7 +13,7 @@ const {
 } = __test;
 
 describe("triggerTagsClause", () => {
-  it("returns the tag values from an arrayOptions clause", () => {
+  it("returns the values and operator from an `all of` arrayOptions clause", () => {
     expect(
       triggerTagsClause([
         {
@@ -23,10 +23,10 @@ describe("triggerTagsClause", () => {
           value: ["prod", "web"],
         },
       ]),
-    ).toEqual(["prod", "web"]);
+    ).toEqual({ values: ["prod", "web"], operator: "all of" });
   });
 
-  it("returns the tag values from an `any of` arrayOptions clause", () => {
+  it("returns the values and operator from an `any of` arrayOptions clause", () => {
     expect(
       triggerTagsClause([
         {
@@ -36,10 +36,23 @@ describe("triggerTagsClause", () => {
           value: ["prod"],
         },
       ]),
-    ).toEqual(["prod"]);
+    ).toEqual({ values: ["prod"], operator: "any of" });
   });
 
-  it("returns an empty list when no tags clause is present", () => {
+  it("returns the values and operator from a `none of` arrayOptions clause", () => {
+    expect(
+      triggerTagsClause([
+        {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "none of",
+          value: ["prod"],
+        },
+      ]),
+    ).toEqual({ values: ["prod"], operator: "none of" });
+  });
+
+  it("returns null when no tags clause is present", () => {
     expect(
       triggerTagsClause([
         {
@@ -49,11 +62,11 @@ describe("triggerTagsClause", () => {
           value: ["ALERT"],
         },
       ]),
-    ).toEqual([]);
+    ).toBeNull();
   });
 
-  it("returns an empty list for an empty filter", () => {
-    expect(triggerTagsClause([])).toEqual([]);
+  it("returns null for an empty filter", () => {
+    expect(triggerTagsClause([])).toBeNull();
   });
 });
 

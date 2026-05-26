@@ -99,51 +99,59 @@ export const MonitorAutomationsPanel = ({
           ) : (
             <>
               <ul className="space-y-1">
-                {rows.map(({ automation, triggerTags, isHighlighted }) => {
-                  const inert = triggerTags.length === 0;
-                  const toggle = () => {
-                    if (inert) return;
-                    onTagsChange(
-                      toggleAutomationTags(tags, triggerTags, isHighlighted),
-                    );
-                  };
-                  return (
-                    <li key={automation.id}>
-                      <div
-                        role="button"
-                        tabIndex={inert ? -1 : 0}
-                        aria-disabled={inert}
-                        aria-pressed={isHighlighted}
-                        onClick={toggle}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            toggle();
-                          }
-                        }}
-                        className={cn(
-                          "hover:bg-muted/60 focus-visible:ring-ring flex items-center gap-2 rounded-md border px-2 py-1 text-xs outline-hidden transition-colors focus-visible:ring-2",
-                          inert ? "cursor-not-allowed" : "cursor-pointer",
-                          tags.length > 0 && !isHighlighted && "opacity-50",
-                        )}
-                      >
-                        <RowCheckbox checked={isHighlighted} />
-                        <ActionIcon
-                          type={automation.action.type as ActionTypes}
-                          className="h-3.5 w-3.5 shrink-0"
-                        />
-                        <span className="truncate">{automation.name}</span>
-                        <span className="ml-auto flex flex-wrap justify-end gap-1">
-                          <TagList
-                            selectedTags={triggerTags}
-                            isLoading={false}
-                            viewOnly
+                {rows.map(
+                  ({
+                    automation,
+                    triggerTags,
+                    triggerOperator,
+                    isHighlighted,
+                  }) => {
+                    const inert =
+                      triggerTags.length === 0 || triggerOperator === "none of";
+                    const toggle = () => {
+                      if (inert) return;
+                      onTagsChange(
+                        toggleAutomationTags(tags, triggerTags, isHighlighted),
+                      );
+                    };
+                    return (
+                      <li key={automation.id}>
+                        <div
+                          role="button"
+                          tabIndex={inert ? -1 : 0}
+                          aria-disabled={inert}
+                          aria-pressed={isHighlighted}
+                          onClick={toggle}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              toggle();
+                            }
+                          }}
+                          className={cn(
+                            "hover:bg-muted/60 focus-visible:ring-ring flex items-center gap-2 rounded-md border px-2 py-1 text-xs outline-hidden transition-colors focus-visible:ring-2",
+                            inert ? "cursor-not-allowed" : "cursor-pointer",
+                            tags.length > 0 && !isHighlighted && "opacity-50",
+                          )}
+                        >
+                          <RowCheckbox checked={isHighlighted} />
+                          <ActionIcon
+                            type={automation.action.type as ActionTypes}
+                            className="h-3.5 w-3.5 shrink-0"
                           />
-                        </span>
-                      </div>
-                    </li>
-                  );
-                })}
+                          <span className="truncate">{automation.name}</span>
+                          <span className="ml-auto flex flex-wrap justify-end gap-1">
+                            <TagList
+                              selectedTags={triggerTags}
+                              isLoading={false}
+                              viewOnly
+                            />
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  },
+                )}
               </ul>
               <AddAutomationDropdown
                 projectId={projectId}
@@ -231,14 +239,20 @@ const AddAutomationDropdown = ({
   </DropdownMenu>
 );
 
-/** triggerTagsClause returns the tags a trigger filter targets, or an empty list if no tags clause is present. */
-const triggerTagsClause = (filter: FilterState): string[] => {
+/** TriggerTagsClause is the tags clause a trigger filter targets, including its operator so the toggle can interpret "none of" inversely. */
+type TriggerTagsClause = {
+  values: string[];
+  operator: "any of" | "all of" | "none of";
+};
+
+/** triggerTagsClause returns the trigger filter's tags clause, or null when no tags clause is present. */
+const triggerTagsClause = (filter: FilterState): TriggerTagsClause | null => {
   for (const cond of filter) {
     if (cond.column === "tags" && cond.type === "arrayOptions") {
-      return cond.value;
+      return { values: cond.value, operator: cond.operator };
     }
   }
-  return [];
+  return null;
 };
 
 /** tagClauseMatches returns true when the trigger's tags clause (if any) would accept the draft monitor's tags. Non-tags clauses are ignored — they're filtered server-side or irrelevant to the draft preview. */
@@ -303,21 +317,26 @@ const automationCreateHref = (
   return `/project/${projectId}/automations?${params.toString()}`;
 };
 
-/** useAutomationRows annotates every automation with its trigger tags and whether the trigger filter accepts the draft monitor's tags. */
+/** useAutomationRows annotates every automation with its trigger tags clause and whether the trigger filter accepts the draft monitor's tags. */
 const useAutomationRows = (
   automations: AutomationDomain[] | undefined,
   tags: string[],
 ): {
   automation: AutomationDomain;
   triggerTags: string[];
+  triggerOperator: TriggerTagsClause["operator"] | null;
   isHighlighted: boolean;
 }[] => {
   return useMemo(() => {
-    return (automations ?? []).map((automation) => ({
-      automation,
-      triggerTags: triggerTagsClause(automation.trigger.filter),
-      isHighlighted: tagClauseMatches(automation.trigger.filter, tags),
-    }));
+    return (automations ?? []).map((automation) => {
+      const clause = triggerTagsClause(automation.trigger.filter);
+      return {
+        automation,
+        triggerTags: clause?.values ?? [],
+        triggerOperator: clause?.operator ?? null,
+        isHighlighted: tagClauseMatches(automation.trigger.filter, tags),
+      };
+    });
   }, [automations, tags]);
 };
 
