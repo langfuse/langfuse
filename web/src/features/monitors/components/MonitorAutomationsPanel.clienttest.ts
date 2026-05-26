@@ -184,7 +184,10 @@ const decodePrefill = (href: string): unknown => {
   const search = new URLSearchParams(href.split("?")[1] ?? "");
   const blob = search.get("prefill") ?? "";
   const padded = blob.replace(/-/g, "+").replace(/_/g, "/");
-  return JSON.parse(atob(padded));
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return JSON.parse(new TextDecoder().decode(bytes));
 };
 
 describe("automationCreateHref", () => {
@@ -215,6 +218,28 @@ describe("automationCreateHref", () => {
   it("omits the filter clause from the prefill when no tags are set", () => {
     expect(decodePrefill(automationCreateHref("proj_01", []))).toEqual({
       eventSource: "monitor",
+    });
+  });
+
+  it("round-trips non-ASCII tags through the prefill encoder", () => {
+    const href = automationCreateHref("proj_01", [
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "all of",
+        value: ["プロダクション", "🚀-prod"],
+      },
+    ]);
+    expect(decodePrefill(href)).toEqual({
+      eventSource: "monitor",
+      filter: [
+        {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "all of",
+          value: ["プロダクション", "🚀-prod"],
+        },
+      ],
     });
   });
 

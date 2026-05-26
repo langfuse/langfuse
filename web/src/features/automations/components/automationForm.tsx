@@ -92,7 +92,10 @@ export const parseCreateAutomationPrefill = (
   if (!raw) return {};
   try {
     const padded = raw.replace(/-/g, "+").replace(/_/g, "/");
-    const decoded = atob(padded);
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const decoded = new TextDecoder().decode(bytes);
     const result = createAutomationPrefillSchema.safeParse(JSON.parse(decoded));
     return result.success ? (result.data as CreateAutomationPrefill) : {};
   } catch {
@@ -100,14 +103,19 @@ export const parseCreateAutomationPrefill = (
   }
 };
 
-/** serializeCreateAutomationPrefill encodes a typed prefill as a base64url JSON blob for a single URL query param. */
+/** serializeCreateAutomationPrefill encodes a typed prefill as a base64url JSON blob for a single URL query param, UTF-8-safe so non-ASCII tags don't throw at btoa. */
 export const serializeCreateAutomationPrefill = (
   prefill: CreateAutomationPrefill,
-): string =>
-  btoa(JSON.stringify(prefill))
+): string => {
+  const bytes = new TextEncoder().encode(JSON.stringify(prefill));
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++)
+    binary += String.fromCharCode(bytes[i]);
+  return btoa(binary)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
+};
 
 // Define schemas for form validation
 const baseFormSchema = z.object({
