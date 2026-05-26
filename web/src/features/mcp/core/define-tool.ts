@@ -65,16 +65,19 @@ type JsonSchemaObject = Record<string, unknown>;
 function isObjectLikeJsonSchema(schema: JsonSchemaObject): boolean {
   if (schema.type === "object") return true;
 
-  if ("oneOf" in schema || "anyOf" in schema || "discriminator" in schema) {
-    return true;
-  }
+  const subSchemas = (() => {
+    if ("oneOf" in schema && Array.isArray(schema.oneOf)) return schema.oneOf;
+    if ("anyOf" in schema && Array.isArray(schema.anyOf)) return schema.anyOf;
+    if ("allOf" in schema && Array.isArray(schema.allOf)) return schema.allOf;
+    return [];
+  })();
 
-  if (Array.isArray(schema.allOf)) {
-    return schema.allOf.every(
+  if (subSchemas.length > 0) {
+    return subSchemas.every(
       (subSchema) =>
         typeof subSchema === "object" &&
         subSchema !== null &&
-        isObjectLikeJsonSchema(subSchema as JsonSchemaObject),
+        isObjectLikeJsonSchema(subSchema),
     );
   }
 

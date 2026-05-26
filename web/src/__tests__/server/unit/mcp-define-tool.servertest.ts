@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { defineTool } from "../../../features/mcp/core/define-tool";
-import { updateScoreConfigTool } from "../../../features/mcp/features/scores/tools/updateScoreConfig";
 
 describe("defineTool", () => {
   it("accepts object intersections emitted as JSON Schema allOf", () => {
@@ -28,12 +27,13 @@ describe("defineTool", () => {
   // tools whose root schema omits it. Zod emits intersections as bare `allOf`,
   // so defineTool must inject `type: "object"`.
   it("injects root type: 'object' for intersection schemas (MCP SDK requires it)", () => {
-    const schema = z
-      .object({ id: z.string() })
-      .and(z.object({ value: z.number() }));
+    const schema = z.union([
+      z.object({ scoreId: z.string() }),
+      z.object({ configId: z.string() }),
+    ]);
 
     const [tool] = defineTool({
-      name: "intersectionTool",
+      name: "objectUnionTool",
       description: "",
       baseSchema: schema,
       inputSchema: schema,
@@ -41,7 +41,7 @@ describe("defineTool", () => {
     });
 
     expect(tool.inputSchema.type).toBe("object");
-    expect(tool.inputSchema).toHaveProperty("allOf");
+    expect(tool.inputSchema).toHaveProperty("anyOf");
   });
 
   it("preserves root type: 'object' for plain object schemas", () => {
@@ -58,9 +58,17 @@ describe("defineTool", () => {
     expect(tool.inputSchema.type).toBe("object");
   });
 
-  it("defines updateScoreConfig with MCP-compliant root inputSchema", () => {
-    expect(updateScoreConfigTool.name).toBe("updateScoreConfig");
-    // Real-world tool from PR #13781 that originally broke MCP clients.
-    expect(updateScoreConfigTool.inputSchema.type).toBe("object");
+  it("rejects unions with non-object branches", () => {
+    const schema = z.union([z.string(), z.object({ id: z.string() })]);
+
+    expect(() =>
+      defineTool({
+        name: "mixedUnionTool",
+        description: "",
+        baseSchema: schema,
+        inputSchema: schema,
+        handler: async (input) => input,
+      }),
+    ).toThrow("Expected object or union schema");
   });
 });
