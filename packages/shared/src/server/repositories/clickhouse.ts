@@ -240,6 +240,8 @@ export async function* queryClickhouseStream<T>(
     kind: SpanKind.CLIENT,
   });
 
+  let queryId: string | undefined;
+
   try {
     setSpanQueryAttributes(span, opts.query);
 
@@ -254,17 +256,33 @@ export async function* queryClickhouseStream<T>(
         );
       });
 
+    queryId = res.query_id;
+    span.setAttribute("ch.queryId", queryId);
+
     for await (const rows of res.stream<T>()) {
       for (const row of rows) {
         yield handleExceptionRow(row.json());
       }
     }
   } catch (error) {
-    if (error instanceof ClickHouseResourceError) throw error;
-    throw ClickHouseResourceError.wrapIfResourceError(
-      error as Error,
-      opts.tags,
-    );
+    if (error instanceof ClickHouseResourceError) {
+      if (queryId) {
+        const enriched = new Error(`${error.message} [query_id: ${queryId}]`, {
+          cause: error,
+        });
+        throw new ClickHouseResourceError(
+          error.errorType,
+          enriched,
+          error.tags,
+        );
+      }
+      throw error;
+    }
+    const base = error as Error;
+    const toWrap = queryId
+      ? new Error(`${base.message} [query_id: ${queryId}]`, { cause: base })
+      : base;
+    throw ClickHouseResourceError.wrapIfResourceError(toWrap, opts.tags);
   } finally {
     span.end();
   }
