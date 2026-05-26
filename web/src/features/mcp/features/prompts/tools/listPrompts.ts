@@ -14,8 +14,7 @@ import {
 } from "../validation";
 import { ParamLimit, ParamPage } from "../../../core/validation";
 import { getPromptsMeta } from "@/src/features/prompts/server/actions/getPromptsMeta";
-import { instrumentAsync } from "@langfuse/shared/src/server";
-import { SpanKind } from "@opentelemetry/api";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 
 const ParamFromUpdatedAt = z.iso
   .datetime({ offset: true })
@@ -88,36 +87,21 @@ export const [listPromptsTool, handleListPrompts] = defineTool({
   baseSchema: ListPromptsBaseSchema,
   inputSchema: ListPromptsInputSchema,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.prompts.list", spanKind: SpanKind.INTERNAL },
-      async (span) => {
+    return await runMcpTool({
+      spanName: "mcp.prompts.list",
+      context,
+      attributes: {
+        "mcp.pagination_page": input.page ?? 1,
+        "mcp.pagination_limit": input.limit ?? 50,
+        "mcp.filter_name": input.name,
+        "mcp.filter_label": input.label,
+        "mcp.filter_tag": input.tag,
+        "mcp.filter_fromUpdatedAt": input.fromUpdatedAt,
+        "mcp.filter_toUpdatedAt": input.toUpdatedAt,
+      },
+      fn: async (span) => {
         const { name, label, tag, fromUpdatedAt, toUpdatedAt, page, limit } =
           input;
-
-        // Set span attributes for observability
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.pagination_page": page ?? 1,
-          "mcp.pagination_limit": limit ?? 50,
-        });
-
-        if (name) {
-          span.setAttribute("mcp.filter_name", name);
-        }
-        if (label) {
-          span.setAttribute("mcp.filter_label", label);
-        }
-        if (tag) {
-          span.setAttribute("mcp.filter_tag", tag);
-        }
-        if (fromUpdatedAt) {
-          span.setAttribute("mcp.filter_fromUpdatedAt", fromUpdatedAt);
-        }
-        if (toUpdatedAt) {
-          span.setAttribute("mcp.filter_toUpdatedAt", toUpdatedAt);
-        }
 
         // Fetch prompts metadata using existing service
         const result = await getPromptsMeta({
@@ -153,7 +137,7 @@ export const [listPromptsTool, handleListPrompts] = defineTool({
           },
         };
       },
-    );
+    });
   },
   readOnlyHint: true,
 });

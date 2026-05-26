@@ -1,4 +1,3 @@
-import { SpanKind } from "@opentelemetry/api";
 import {
   filterAndValidateV2GetScoreList,
   InvalidRequestError,
@@ -7,9 +6,9 @@ import {
   singleFilter,
   publicApiPaginationZod,
 } from "@langfuse/shared";
-import { instrumentAsync } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 
 const ScoreFieldsSchema = z
@@ -79,19 +78,16 @@ export const [listScoresTool, handleListScores] = defineTool({
   baseSchema: ListScoresInputSchema,
   inputSchema: ListScoresInputSchema,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.scores.list", spanKind: SpanKind.INTERNAL },
-      async (span) => {
+    return await runMcpTool({
+      spanName: "mcp.scores.list",
+      context,
+      attributes: {
+        "mcp.pagination_page": input.page,
+        "mcp.pagination_limit": input.limit,
+        "mcp.score_fields": input.fields.join(","),
+      },
+      fn: async (span) => {
         assertValidScoreFields(input);
-
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.pagination_page": input.page,
-          "mcp.pagination_limit": input.limit,
-          "mcp.score_fields": input.fields.join(","),
-        });
 
         const scoreParams = {
           projectId: context.projectId,
@@ -138,7 +134,7 @@ export const [listScoresTool, handleListScores] = defineTool({
           },
         };
       },
-    );
+    });
   },
   readOnlyHint: true,
 });

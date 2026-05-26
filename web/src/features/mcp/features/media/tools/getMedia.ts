@@ -1,9 +1,7 @@
-import { SpanKind } from "@opentelemetry/api";
-
 import { getMedia } from "@/src/features/media/server/mediaService";
 import { GetMediaQuerySchema } from "@/src/features/media/validation";
-import { instrumentAsync } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 
 export const [getMediaTool, handleGetMedia] = defineTool({
   name: "getMedia",
@@ -12,22 +10,17 @@ export const [getMediaTool, handleGetMedia] = defineTool({
   baseSchema: GetMediaQuerySchema,
   inputSchema: GetMediaQuerySchema,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.media.get", spanKind: SpanKind.INTERNAL },
-      async (span) => {
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.media_id": input.mediaId,
-        });
-
+    return await runMcpTool({
+      spanName: "mcp.media.get",
+      context,
+      attributes: { "mcp.media_id": input.mediaId },
+      fn: async () => {
         return await getMedia({
           projectId: context.projectId,
           mediaId: input.mediaId,
         });
       },
-    );
+    });
   },
   readOnlyHint: true,
 });

@@ -15,7 +15,8 @@ import {
   prismaToApiModelDefinition,
 } from "@/src/features/public-api/types/models";
 import { defineTool } from "../../core/define-tool";
-import { paginationMeta, runPublicApiTool } from "../publicApi";
+import { runMcpTool } from "../../core/run-mcp-tool";
+import { paginationMeta } from "../publicApi";
 
 const modelPricingInclude = {
   pricingTiers: {
@@ -43,7 +44,7 @@ export const [listModelsTool, handleListModels] = defineTool({
   baseSchema: GetModelsV1Query,
   inputSchema: GetModelsV1Query,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.models.list",
       context,
       attributes: {
@@ -95,7 +96,7 @@ export const [createModelTool, handleCreateModel] = defineTool({
   baseSchema: PostModelsV1Body,
   inputSchema: PostModelsV1Body,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.models.create",
       context,
       attributes: { "mcp.model_name": input.modelName },
@@ -233,7 +234,7 @@ export const [getModelTool, handleGetModel] = defineTool({
   baseSchema: GetModelV1Query,
   inputSchema: GetModelV1Query,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.models.get",
       context,
       attributes: { "mcp.model_id": input.modelId },
@@ -267,7 +268,7 @@ export const [deleteModelTool, handleDeleteModel] = defineTool({
   baseSchema: DeleteModelV1Query,
   inputSchema: DeleteModelV1Query,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.models.delete",
       context,
       attributes: { "mcp.model_id": input.modelId },

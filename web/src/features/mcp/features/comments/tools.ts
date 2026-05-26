@@ -12,7 +12,8 @@ import {
   PostCommentsV1Response,
 } from "@/src/features/public-api/types/comments";
 import { defineTool } from "../../core/define-tool";
-import { paginationMeta, runPublicApiTool } from "../publicApi";
+import { runMcpTool } from "../../core/run-mcp-tool";
+import { paginationMeta } from "../publicApi";
 
 const CreateCommentToolSchema = PostCommentsV1Body.omit({
   projectId: true,
@@ -45,7 +46,7 @@ export const [createCommentTool, handleCreateComment] = defineTool({
   baseSchema: CreateCommentToolSchema,
   inputSchema: CreateCommentToolSchema,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.comments.create",
       context,
       attributes: {
@@ -103,7 +104,7 @@ export const [listCommentsTool, handleListComments] = defineTool({
   baseSchema: GetCommentsV1Query,
   inputSchema: GetCommentsV1Query,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.comments.list",
       context,
       attributes: {
@@ -148,7 +149,7 @@ export const [getCommentTool, handleGetComment] = defineTool({
   baseSchema: GetCommentV1Query,
   inputSchema: GetCommentV1Query,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.comments.get",
       context,
       attributes: { "mcp.comment_id": input.commentId },

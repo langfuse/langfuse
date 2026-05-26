@@ -1,4 +1,3 @@
-import { SpanKind } from "@opentelemetry/api";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
@@ -6,9 +5,9 @@ import {
   PostScoresResponseV1,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { instrumentAsync } from "@langfuse/shared/src/server";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ApiServerError } from "../../../core/errors";
 
 type CreateScoreBatchError = {
@@ -42,17 +41,14 @@ export const [createScoreTool, handleCreateScore] = defineTool({
   baseSchema: PostScoresBodyV1,
   inputSchema: PostScoresBodyV1,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.scores.create", spanKind: SpanKind.INTERNAL },
-      async (span) => {
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          ...(input.id ? { "mcp.score_id": input.id } : {}),
-          "mcp.score_name": input.name,
-        });
-
+    return await runMcpTool({
+      spanName: "mcp.scores.create",
+      context,
+      attributes: {
+        "mcp.score_id": input.id ?? undefined,
+        "mcp.score_name": input.name,
+      },
+      fn: async (span) => {
         const scoresApiService = new ScoresApiService("v2");
         const { id: scoreId, result } = await scoresApiService.createScore({
           body: input,
@@ -80,7 +76,7 @@ export const [createScoreTool, handleCreateScore] = defineTool({
 
         return PostScoresResponseV1.parse({ id: scoreId });
       },
-    );
+    });
   },
   destructiveHint: true,
 });

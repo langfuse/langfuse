@@ -17,8 +17,7 @@ import {
 import { createPrompt as createPromptAction } from "@/src/features/prompts/server/actions/createPrompt";
 import { prisma } from "@langfuse/shared/src/db";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { instrumentAsync } from "@langfuse/shared/src/server";
-import { SpanKind } from "@opentelemetry/api";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 
 /**
  * Schema for a single chat message (role + content)
@@ -98,18 +97,14 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
   baseSchema: CreateChatPromptBaseSchema,
   inputSchema: CreateChatPromptInputSchema,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.prompts.create_chat", spanKind: SpanKind.INTERNAL },
-      async (span) => {
-        // Set span attributes for observability
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.prompt_name": input.name,
-          "mcp.prompt_type": "chat",
-        });
-
+    return await runMcpTool({
+      spanName: "mcp.prompts.create_chat",
+      context,
+      attributes: {
+        "mcp.prompt_name": input.name,
+        "mcp.prompt_type": "chat",
+      },
+      fn: async (span) => {
         const createdPrompt = await createPromptAction({
           projectId: context.projectId,
           name: input.name,
@@ -149,6 +144,6 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
           message: `Successfully created chat prompt '${createdPrompt.name}' version ${createdPrompt.version}${createdPrompt.labels.length > 0 ? ` with labels: ${createdPrompt.labels.join(", ")}` : ""}`,
         };
       },
-    );
+    });
   },
 });

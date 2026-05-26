@@ -1,13 +1,12 @@
-import { SpanKind } from "@opentelemetry/api";
 import {
   InvalidRequestError,
   ObservationTypeDomain,
   type timeFilter,
 } from "@langfuse/shared";
 import { z } from "zod";
-import { instrumentAsync } from "@langfuse/shared/src/server";
 import { getEventFilterValuePage } from "@/src/features/events/server/eventsService";
 import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   ObservationLimitSchema,
   type ObservationMcpFilterColumn,
@@ -154,17 +153,14 @@ export const [
   baseSchema: GetObservationFilterValuesBaseSchema,
   inputSchema: GetObservationFilterValuesBaseSchema,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.observations.filterValues", spanKind: SpanKind.INTERNAL },
-      async (span) => {
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.filter_column": input.column,
-          "mcp.pagination_limit": input.limit,
-        });
-
+    return await runMcpTool({
+      spanName: "mcp.observations.filterValues",
+      context,
+      attributes: {
+        "mcp.filter_column": input.column,
+        "mcp.pagination_limit": input.limit,
+      },
+      fn: async () => {
         const startTimeFilter = buildStartTimeFilter({
           fromStartTime: input.fromStartTime,
           toStartTime: input.toStartTime,
@@ -206,7 +202,7 @@ export const [
               : {},
         };
       },
-    );
+    });
   },
   readOnlyHint: true,
 });

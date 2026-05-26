@@ -59,11 +59,8 @@ import {
   transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
 import { defineTool } from "../../core/define-tool";
-import {
-  getMcpPublicApiAuth,
-  paginationMeta,
-  runPublicApiTool,
-} from "../publicApi";
+import { runMcpTool } from "../../core/run-mcp-tool";
+import { getMcpPublicApiAuth, paginationMeta } from "../publicApi";
 
 const resolveMetadata = (metadata: JSONValue): Record<string, unknown> => {
   if (Array.isArray(metadata)) {
@@ -100,7 +97,7 @@ export const [createDatasetTool, handleCreateDataset] = defineTool({
   baseSchema: PostDatasetsV2Body,
   inputSchema: PostDatasetsV2Body,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.datasets.create",
       context,
       attributes: { "mcp.dataset_name": input.name },
@@ -140,7 +137,7 @@ export const [listDatasetsTool, handleListDatasets] = defineTool({
   baseSchema: GetDatasetsV2Query,
   inputSchema: GetDatasetsV2Query,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.datasets.list",
       context,
       attributes: {
@@ -189,7 +186,7 @@ export const [getDatasetTool, handleGetDataset] = defineTool({
   baseSchema: GetDatasetMcpInput,
   inputSchema: GetDatasetMcpInput,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.datasets.get",
       context,
       attributes: { "mcp.dataset_name": input.datasetName },
@@ -220,7 +217,7 @@ export const [createDatasetItemTool, handleCreateDatasetItem] = defineTool({
   baseSchema: PostDatasetItemsV1Body,
   inputSchema: PostDatasetItemsV1Body,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.dataset_items.create",
       context,
       attributes: { "mcp.dataset_name": input.datasetName },
@@ -289,7 +286,7 @@ export const [listDatasetItemsTool, handleListDatasetItems] = defineTool({
   baseSchema: GetDatasetItemsV1Query,
   inputSchema: GetDatasetItemsV1Query,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.dataset_items.list",
       context,
       attributes: {
@@ -355,7 +352,7 @@ export const [getDatasetItemTool, handleGetDatasetItem] = defineTool({
   baseSchema: GetDatasetItemV1Query,
   inputSchema: GetDatasetItemV1Query,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.dataset_items.get",
       context,
       attributes: { "mcp.dataset_item_id": input.datasetItemId },
@@ -412,7 +409,7 @@ export const [deleteDatasetItemTool, handleDeleteDatasetItem] = defineTool({
   baseSchema: DeleteDatasetItemV1Query,
   inputSchema: DeleteDatasetItemV1Query,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.dataset_items.delete",
       context,
       attributes: { "mcp.dataset_item_id": input.datasetItemId },
@@ -448,7 +445,7 @@ export const [createDatasetRunItemTool, handleCreateDatasetRunItem] =
     baseSchema: PostDatasetRunItemsV1Body,
     inputSchema: PostDatasetRunItemsV1Body,
     handler: async (input, context) =>
-      runPublicApiTool({
+      runMcpTool({
         spanName: "mcp.dataset_run_items.create",
         context,
         attributes: {
@@ -568,7 +565,7 @@ export const [listDatasetRunItemsTool, handleListDatasetRunItems] = defineTool({
   baseSchema: GetDatasetRunItemsV1Query,
   inputSchema: GetDatasetRunItemsV1Query,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.dataset_run_items.list",
       context,
       attributes: {
@@ -635,7 +632,7 @@ export const [listDatasetRunsTool, handleListDatasetRuns] = defineTool({
   baseSchema: GetDatasetRunsMcpInput,
   inputSchema: GetDatasetRunsMcpInput,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.dataset_runs.list",
       context,
       attributes: { "mcp.dataset_name": input.name },
@@ -688,7 +685,7 @@ export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
   baseSchema: GetDatasetRunMcpInput,
   inputSchema: GetDatasetRunMcpInput,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.dataset_runs.get",
       context,
       attributes: {
@@ -743,7 +740,7 @@ export const [deleteDatasetRunTool, handleDeleteDatasetRun] = defineTool({
   baseSchema: DeleteDatasetRunMcpInput,
   inputSchema: DeleteDatasetRunMcpInput,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.dataset_runs.delete",
       context,
       attributes: {

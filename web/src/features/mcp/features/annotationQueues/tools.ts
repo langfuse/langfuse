@@ -33,11 +33,8 @@ import {
   UpdateAnnotationQueueItemResponse,
 } from "@/src/features/public-api/types/annotation-queues";
 import { defineTool } from "../../core/define-tool";
-import {
-  getMcpPublicApiAuth,
-  paginationMeta,
-  runPublicApiTool,
-} from "../publicApi";
+import { runMcpTool } from "../../core/run-mcp-tool";
+import { getMcpPublicApiAuth, paginationMeta } from "../publicApi";
 
 const annotationQueueToApi = (queue: {
   id: string;
@@ -104,7 +101,7 @@ export const [listAnnotationQueuesTool, handleListAnnotationQueues] =
     baseSchema: GetAnnotationQueuesQuery,
     inputSchema: GetAnnotationQueuesQuery,
     handler: async (input, context) =>
-      runPublicApiTool({
+      runMcpTool({
         spanName: "mcp.annotation_queues.list",
         context,
         attributes: {
@@ -145,7 +142,7 @@ export const [createAnnotationQueueTool, handleCreateAnnotationQueue] =
     baseSchema: CreateAnnotationQueueBody,
     inputSchema: CreateAnnotationQueueBody,
     handler: async (input, context) =>
-      runPublicApiTool({
+      runMcpTool({
         spanName: "mcp.annotation_queues.create",
         context,
         attributes: { "mcp.annotation_queue_name": input.name },
@@ -227,7 +224,7 @@ export const [getAnnotationQueueTool, handleGetAnnotationQueue] = defineTool({
   baseSchema: GetAnnotationQueueByIdQuery,
   inputSchema: GetAnnotationQueueByIdQuery,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.annotation_queues.get",
       context,
       attributes: { "mcp.annotation_queue_id": input.queueId },
@@ -253,7 +250,7 @@ export const [listAnnotationQueueItemsTool, handleListAnnotationQueueItems] =
     baseSchema: GetAnnotationQueueItemsQuery,
     inputSchema: GetAnnotationQueueItemsQuery,
     handler: async (input, context) =>
-      runPublicApiTool({
+      runMcpTool({
         spanName: "mcp.annotation_queue_items.list",
         context,
         attributes: {
@@ -304,7 +301,7 @@ export const [getAnnotationQueueItemTool, handleGetAnnotationQueueItem] =
     baseSchema: GetAnnotationQueueItemByIdQuery,
     inputSchema: GetAnnotationQueueItemByIdQuery,
     handler: async (input, context) =>
-      runPublicApiTool({
+      runMcpTool({
         spanName: "mcp.annotation_queue_items.get",
         context,
         attributes: {
@@ -351,7 +348,7 @@ export const [createAnnotationQueueItemTool, handleCreateAnnotationQueueItem] =
     baseSchema: CreateAnnotationQueueItemToolSchema,
     inputSchema: CreateAnnotationQueueItemToolSchema,
     handler: async (input, context) =>
-      runPublicApiTool({
+      runMcpTool({
         spanName: "mcp.annotation_queue_items.create",
         context,
         attributes: { "mcp.annotation_queue_id": input.queueId },
@@ -404,7 +401,7 @@ export const [updateAnnotationQueueItemTool, handleUpdateAnnotationQueueItem] =
     baseSchema: UpdateAnnotationQueueItemToolSchema,
     inputSchema: UpdateAnnotationQueueItemToolSchema,
     handler: async (input, context) =>
-      runPublicApiTool({
+      runMcpTool({
         spanName: "mcp.annotation_queue_items.update",
         context,
         attributes: {
@@ -470,7 +467,7 @@ export const [deleteAnnotationQueueItemTool, handleDeleteAnnotationQueueItem] =
     baseSchema: DeleteAnnotationQueueItemQuery,
     inputSchema: DeleteAnnotationQueueItemQuery,
     handler: async (input, context) =>
-      runPublicApiTool({
+      runMcpTool({
         spanName: "mcp.annotation_queue_items.delete",
         context,
         attributes: {
@@ -537,7 +534,7 @@ export const [
   baseSchema: CreateAnnotationQueueAssignmentToolSchema,
   inputSchema: CreateAnnotationQueueAssignmentToolSchema,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.annotation_queue_assignments.create",
       context,
       attributes: { "mcp.annotation_queue_id": input.queueId },
@@ -629,7 +626,7 @@ export const [
   baseSchema: DeleteAnnotationQueueAssignmentToolSchema,
   inputSchema: DeleteAnnotationQueueAssignmentToolSchema,
   handler: async (input, context) =>
-    runPublicApiTool({
+    runMcpTool({
       spanName: "mcp.annotation_queue_assignments.delete",
       context,
       attributes: { "mcp.annotation_queue_id": input.queueId },
