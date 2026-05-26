@@ -3,6 +3,7 @@ import { type ReactNode } from "react";
 import { ErrorPage } from "@/src/components/error-page";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
@@ -19,9 +20,10 @@ export function MonitorPagePermissions({
 }) {
   const projectId = useProjectIdFromURL();
   const isEnabled = useIsFeatureEnabled("monitors");
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const hasAccess = useHasProjectAccess({ projectId, scope });
 
-  if (!isEnabled) {
+  if (!isEnabled || !isLangfuseCloud) {
     return <ErrorPage title="Not found" message="This page does not exist." />;
   }
 
