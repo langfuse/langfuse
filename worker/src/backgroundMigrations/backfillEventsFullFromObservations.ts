@@ -244,6 +244,7 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
         prompt_id, prompt_name, prompt_version, model_id, provided_model_name,
         model_parameters, provided_usage_details, usage_details,
         provided_cost_details, cost_details, tool_definitions, tool_calls, tool_call_names,
+        usage_pricing_tier_id, usage_pricing_tier_name,
         input, output,
         metadata_names, metadata_values, source,
         blob_storage_file_path, event_bytes, created_at, updated_at, event_ts, is_deleted
@@ -282,6 +283,8 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
         o.tool_definitions,
         o.tool_calls,
         o.tool_call_names,
+        o.usage_pricing_tier_id,
+        o.usage_pricing_tier_name,
         coalesce(o.input, '') AS input,
         coalesce(o.output, '') AS output,
         mapKeys(o.metadata) AS metadata_names,
@@ -295,10 +298,9 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
         o.is_deleted
       FROM observations_pid_tid_sorting o
       LEFT ANY JOIN (
-        SELECT *
+        SELECT project_id, id, version, release, tags, public, bookmarked, name, user_id, session_id
         FROM traces t
-        WHERE t.created_at >= toStartOfMonth(toDateTime(parseDateTimeBestEffort({partitionFirstDay: String})) - INTERVAL 1 MONTH)
-          AND t.created_at <  toStartOfMonth(toDateTime(parseDateTimeBestEffort({partitionFirstDay: String})) + INTERVAL 2 MONTH)
+        WHERE t.partition_id = {partition: String}
       ) t
       ON o.project_id = t.project_id AND o.trace_id = t.id
       WHERE o._partition_id = {partition: String}
