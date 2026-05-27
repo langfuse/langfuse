@@ -49,7 +49,7 @@ export class MonitorScheduler {
 
     if (rows.length === 0) return 0;
 
-    const events = rows.map(toMonitorQueueEvent);
+    const events = rows.map((row) => toMonitorQueueEvent(row, scheduledAt));
     await this.publish(events);
     return events.length;
   }
@@ -68,11 +68,15 @@ type MonitorBatchRow = {
 };
 
 /** toMonitorQueueEvent converts a MonitorBatchRow into its wire-shape MonitorQueueEvent. */
-function toMonitorQueueEvent(row: MonitorBatchRow): MonitorQueueEvent {
+function toMonitorQueueEvent(
+  row: MonitorBatchRow,
+  publishedAt: Date,
+): MonitorQueueEvent {
   return {
     projectId: row.project_id,
     schedulerBatchId: row.scheduler_batch_id,
     runAt: row.run_at,
+    publishedAt,
     view: viewFromPrisma(row.view),
     filters: row.filters,
     window: windowFromMs(row.window_ms),

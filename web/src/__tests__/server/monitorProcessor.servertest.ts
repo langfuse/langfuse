@@ -55,6 +55,8 @@ const t0Plus5m = new Date("2026-05-27T12:05:00.000Z"); // exactly TTL after T0
 const t0Plus5mPlus1ms = new Date("2026-05-27T12:05:00.001Z");
 const t0Plus6m = new Date("2026-05-27T12:06:00.000Z"); // past TTL
 const tMinus10m = new Date("2026-05-27T11:50:00.000Z"); // prior run
+// Far-future default so parallel MonitorScheduler tests can't sweep these rows.
+const farFuture = new Date("2099-01-01T00:00:00.000Z");
 
 async function seedMonitor(projectId: string, seed: MonitorSeed) {
   return prisma.monitor.create({
@@ -76,7 +78,7 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       renotify: { mode: "OFF" } as unknown as Prisma.InputJsonValue,
       status: seed.status ?? "ACTIVE",
       schedulerBatchId: seed.schedulerBatchId ?? 0n,
-      nextRunAt: seed.nextRunAt === undefined ? null : seed.nextRunAt,
+      nextRunAt: seed.nextRunAt === undefined ? farFuture : seed.nextRunAt,
       lastPublishedAt: seed.lastPublishedAt ?? null,
       lastClaimedAt: seed.lastClaimedAt ?? null,
       lastCompletedAt: seed.lastCompletedAt ?? null,
@@ -91,11 +93,13 @@ function makeEvent(args: {
   runAt: Date;
   monitorIds: string[];
   schedulerBatchId?: bigint;
+  publishedAt?: Date;
 }): MonitorQueueEvent {
   return {
     projectId: args.projectId,
     schedulerBatchId: args.schedulerBatchId ?? 0n,
     runAt: args.runAt,
+    publishedAt: args.publishedAt ?? args.runAt,
     view: "observations",
     filters: [],
     window: "5m",

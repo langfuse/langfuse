@@ -57,7 +57,7 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       renotify: { mode: "OFF" } as unknown as Prisma.InputJsonValue,
       status: "ACTIVE",
       schedulerBatchId: 0n,
-      nextRunAt: null,
+      nextRunAt: new Date("2099-01-01T00:00:00.000Z"),
       lastPublishedAt: null,
       lastClaimedAt: null,
       lastCompletedAt: seed.lastCompletedAt ?? null,

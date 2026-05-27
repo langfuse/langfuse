@@ -529,21 +529,21 @@ describe("MonitorScheduler (integration)", () => {
     const publish = vi.fn<(events: MonitorQueueEvent[]) => Promise<void>>();
     await makeScheduler(publish, c.scheduler).schedule(c.tick);
 
-    if (c.expect.events.length === 0) {
-      expect(publish).not.toHaveBeenCalled();
-    } else {
-      expect(publish).toHaveBeenCalledTimes(1);
-      const events = publish.mock.calls[0][0];
-      expect(events).toHaveLength(c.expect.events.length);
-      events.forEach((event, i) => {
-        const exp = c.expect.events[i];
-        expect(event.schedulerBatchId).toBe(exp.schedulerBatchId);
-        expect(event.runAt.toISOString()).toBe(exp.runAt.toISOString());
-        expect(event.monitors.map((m) => m.monitorId).sort()).toEqual(
-          [...exp.monitorIds].sort(),
-        );
-      });
-    }
+    // Filter to this project's events — the scheduler is global, so concurrent
+    // test files in the same shard can leak monitors into the publish call.
+    const myEvents = publish.mock.calls
+      .flatMap((call) => call[0])
+      .filter((e) => e.projectId === projectId);
+
+    expect(myEvents).toHaveLength(c.expect.events.length);
+    myEvents.forEach((event, i) => {
+      const exp = c.expect.events[i];
+      expect(event.schedulerBatchId).toBe(exp.schedulerBatchId);
+      expect(event.runAt.toISOString()).toBe(exp.runAt.toISOString());
+      expect(event.monitors.map((m) => m.monitorId).sort()).toEqual(
+        [...exp.monitorIds].sort(),
+      );
+    });
 
     for (const exp of c.expect.rows) {
       const row = await prisma.monitor.findUniqueOrThrow({
