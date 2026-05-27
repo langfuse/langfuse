@@ -266,26 +266,27 @@ export async function* queryClickhouseStream<T>(
     }
   } catch (error) {
     if (error instanceof ClickHouseResourceError) {
-      if (queryId) {
-        const enriched = new Error(`${error.message} [query_id: ${queryId}]`, {
-          cause: error,
-        });
-        throw new ClickHouseResourceError(
-          error.errorType,
-          enriched,
-          error.tags,
-        );
-      }
-      throw error;
+      const enriched = enrichWithQueryId(error, queryId);
+      throw enriched === error
+        ? error
+        : new ClickHouseResourceError(error.errorType, enriched, error.tags);
     }
-    const base = error as Error;
-    const toWrap = queryId
-      ? new Error(`${base.message} [query_id: ${queryId}]`, { cause: base })
-      : base;
-    throw ClickHouseResourceError.wrapIfResourceError(toWrap, opts.tags);
+    throw ClickHouseResourceError.wrapIfResourceError(
+      enrichWithQueryId(error as Error, queryId),
+      opts.tags,
+    );
   } finally {
     span.end();
   }
+}
+
+function enrichWithQueryId(error: Error, queryId: string | undefined): Error {
+  if (!queryId) return error;
+  const enriched = new Error(`${error.message} [query_id: ${queryId}]`, {
+    cause: error,
+  });
+  enriched.stack = error.stack;
+  return enriched;
 }
 
 /**
