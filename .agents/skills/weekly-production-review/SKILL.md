@@ -111,7 +111,7 @@ When proposing or later creating links, use short stable titles:
 Do not write any of these links unless the user explicitly asks for changes
 after reviewing the report.
 
-## Linear Bug Baseline
+## Linear Bug Table
 
 Start from all Linear tickets with the `bug` label that were touched by the
 window. Do not rely only on text searches for `prod`, `incident`, or `Datadog`;
@@ -132,6 +132,8 @@ Column rules:
   evidence. Avoid fix guesses.
 - `Owner`: assignee if present; otherwise owning team if clear; otherwise
   `Unassigned`.
+- `Status`: the Linear status or state, plus completion timing when useful
+  such as `Done May 18`, `Todo`, `Triage`, or `Canceled`.
 - `Touched Last Week Because`: `created`, `updated`, `completed`, or
   `open production bug`.
 - `Production Evidence`: prod env, customer impact, status incident, Datadog
