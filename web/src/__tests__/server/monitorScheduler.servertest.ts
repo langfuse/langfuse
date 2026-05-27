@@ -495,4 +495,66 @@ describe("MonitorScheduler (integration)", () => {
       );
     }
   });
+
+  it("computes the same next_run_at across two ticks with the same (cadence, schedulerBatchId)", async () => {
+    await seedMonitor(projectId, {
+      id: "m_det",
+      schedulerBatchId: 17n,
+      nextRunAt: BOUNDARY_PREV_MINUTE,
+    });
+
+    const publish1 = vi.fn<(events: MonitorQueueEvent[]) => Promise<void>>();
+    await makeScheduler(publish1).schedule(TICK);
+    const firstNext = (
+      await prisma.monitor.findUniqueOrThrow({ where: { id: "m_det" } })
+    ).nextRunAt;
+
+    await prisma.monitor.update({
+      where: { id: "m_det" },
+      data: { nextRunAt: BOUNDARY_PREV_MINUTE, lastPublishedRunAt: null },
+    });
+
+    const publish2 = vi.fn<(events: MonitorQueueEvent[]) => Promise<void>>();
+    await makeScheduler(publish2).schedule(TICK);
+    const secondNext = (
+      await prisma.monitor.findUniqueOrThrow({ where: { id: "m_det" } })
+    ).nextRunAt;
+
+    expect(firstNext?.toISOString()).toBe(secondNext?.toISOString());
+  });
+
+  it.each([
+    {
+      label: "1m",
+      cadenceMs: 60n * 1000n,
+      expectedNext: new Date("2026-05-27T12:01:17.000Z"),
+    },
+    {
+      label: "30m",
+      cadenceMs: 30n * 60n * 1000n,
+      expectedNext: new Date("2026-05-27T12:30:17.000Z"),
+    },
+    {
+      label: "1d",
+      cadenceMs: 24n * 60n * 60n * 1000n,
+      expectedNext: new Date("2026-05-28T00:00:17.000Z"),
+    },
+  ])(
+    "advances next_run_at to the next cadence-aligned + 17s slot for $label cadence",
+    async ({ cadenceMs, expectedNext }) => {
+      await seedMonitor(projectId, {
+        id: "m_cadence",
+        schedulerBatchId: 17n,
+        cadenceMs,
+        nextRunAt: null,
+      });
+      const publish = vi.fn<(events: MonitorQueueEvent[]) => Promise<void>>();
+      await makeScheduler(publish).schedule(TICK);
+
+      const row = await prisma.monitor.findUniqueOrThrow({
+        where: { id: "m_cadence" },
+      });
+      expect(row.nextRunAt?.toISOString()).toBe(expectedNext.toISOString());
+    },
+  );
 });
