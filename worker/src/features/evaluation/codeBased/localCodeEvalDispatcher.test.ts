@@ -80,7 +80,7 @@ describe("LocalCodeEvalDispatcher", () => {
       retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
     await expect(promise).rejects.toThrow(
-      "See https://langfuse.com/docs/evaluation/overview for details.",
+      "See https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators for details.",
     );
   });
 
