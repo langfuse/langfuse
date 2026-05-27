@@ -7,7 +7,6 @@ import {
   sleep,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { env } from "../env";
 import { parseArgs } from "node:util";
 import {
   buildSpanMaps,
@@ -479,32 +478,6 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     args: Record<string, unknown>,
     attempts = 5,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
-    // Ensure the background migration record exists
-    // TODO: Remove for golive
-    await prisma.backgroundMigration.upsert({
-      where: { id: backgroundMigrationId },
-      create: {
-        id: backgroundMigrationId,
-        name: "20260521_v4_step_4_backfill_events_full_from_dataset_run_items",
-        script: "backfillEventsFullFromDatasetRunItems",
-        args: {},
-        state: {},
-      },
-      update: {},
-    });
-
-    if (
-      !env.CLICKHOUSE_URL ||
-      !env.CLICKHOUSE_USER ||
-      !env.CLICKHOUSE_PASSWORD
-    ) {
-      return {
-        valid: false,
-        invalidReason:
-          "ClickHouse credentials must be configured to perform migration",
-      };
-    }
-
     const tables = await clickhouseClient().query({ query: "SHOW TABLES" });
     const tableNames = (await tables.json()).data as { name: string }[];
 
@@ -513,6 +486,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
       "observations",
       "traces",
       "events_full",
+      "events_core",
     ];
     for (const table of requiredTables) {
       if (!tableNames.some((r) => r.name === table)) {
