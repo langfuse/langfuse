@@ -538,13 +538,12 @@ export async function fetchLLMCompletion(
   try {
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
     if (params.structuredOutputSchema) {
-      // Thinking-capable adapters may produce reasoning blocks that corrupt JSON schema
-      // parsing. Force function calling so the parser reads from tool_calls instead.
+      // Force function calling for all adapters. json_schema (LangChain's default when
+      // this is undefined) is not universally supported by OpenAI-compatible providers —
+      // they silently ignore it and return plain text, causing JSON parse failures.
+      // Function calling (tools + tool_choice) is more broadly supported.
       const structuredOutputSchema = params.structuredOutputSchema;
-      const structuredOutputConfig =
-        thinkingTypes != null
-          ? { method: "functionCalling" as const }
-          : undefined;
+      const structuredOutputConfig = { method: "functionCalling" as const };
 
       const structuredOutput = await executeWithRuntimeTimeout({
         enabled: runtimeTimeoutEnabled,
