@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { JobExecutionStatus, type Prisma } from "@prisma/client";
+import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
+  JobExecutionStatus,
+  type Prisma,
+} from "@prisma/client";
 import { randomUUID } from "crypto";
 import { scheduleObservationEvals } from "../scheduleObservationEvals";
 import { processObservationEval } from "../observationEvalProcessor";
@@ -8,8 +13,18 @@ import {
   createTestObservation,
   createTestEvalConfig,
   createFullyMockedEvalPipeline,
+  createMockEvalTemplate,
+  createMockJobConfiguration,
+  createMockJobExecution,
 } from "./fixtures";
-import { type ObservationForEval, EvalTargetObject } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  type ObservationVariableMapping,
+} from "@langfuse/shared";
+
+const mocks = vi.hoisted(() => ({
+  writeInternalTrace: vi.fn(),
+}));
 
 // Mock prisma for processObservationEval
 vi.mock("@langfuse/shared/src/db", () => ({
@@ -24,14 +39,20 @@ vi.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-// Mock executeLLMAsJudgeEvaluation
+// Mock runLLMAsJudgeEvaluation
 vi.mock("../../evalService", () => ({
-  executeLLMAsJudgeEvaluation: vi.fn(),
+  runLLMAsJudgeEvaluation: vi.fn(),
+}));
+
+vi.mock("../../../internal-tracing/createInternalEventsWriter", () => ({
+  createInternalEventsWriter: () => ({ write: mocks.writeInternalTrace }),
 }));
 
 // Mock logger
 vi.mock("@langfuse/shared/src/server", async () => {
-  const actual = await vi.importActual("@langfuse/shared/src/server");
+  const actual = await vi.importActual<
+    typeof import("@langfuse/shared/src/server")
+  >("@langfuse/shared/src/server");
   return {
     ...actual,
     logger: {
@@ -41,17 +62,36 @@ vi.mock("@langfuse/shared/src/server", async () => {
       error: vi.fn(),
     },
     DEFAULT_TRACE_ENVIRONMENT: "default",
+    resolveConfiguredCodeEvalDispatcher: vi.fn(
+      () => new actual.LocalCodeEvalDispatcher(),
+    ),
   };
 });
 
 import { prisma } from "@langfuse/shared/src/db";
-import { executeLLMAsJudgeEvaluation } from "../../evalService";
+import { runLLMAsJudgeEvaluation } from "../../evalService";
+
+const mockEvalExecutionResult = {
+  scores: [
+    {
+      dataType: "NUMERIC" as const,
+      value: 0.85,
+      name: "test-score",
+      comment: "Good response",
+    },
+  ],
+  executionTraceId: "trace-123",
+  metadata: {},
+};
 
 describe("Observation Eval E2E Pipeline", () => {
   const projectId = "test-project-123";
 
   beforeEach(() => {
     vi.clearAllMocks();
+    (runLLMAsJudgeEvaluation as Mock).mockResolvedValue(
+      mockEvalExecutionResult,
+    );
   });
 
   describe("full pipeline: schedule → process → execute", () => {
@@ -97,7 +137,7 @@ describe("Observation Eval E2E Pipeline", () => {
       let capturedJobExecutionId: string | undefined;
       const mockCreateJobExecution = vi
         .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
-        .mockImplementation(async (params) => {
+        .mockImplementation(async () => {
           capturedJobExecutionId = `job-exec-${randomUUID()}`;
           return { id: capturedJobExecutionId };
         });
@@ -159,6 +199,7 @@ describe("Observation Eval E2E Pipeline", () => {
         projectId,
         name: "Accuracy Evaluator",
         version: 1,
+        type: EvalTemplateType.LLM_AS_JUDGE,
         prompt: "Evaluate the accuracy of: {{output}}",
         model: "gpt-4",
         provider: "openai",
@@ -167,6 +208,8 @@ describe("Observation Eval E2E Pipeline", () => {
           score: "A number between 0 and 1",
           reasoning: "Explanation",
         },
+        sourceCode: null,
+        sourceCodeLanguage: null,
         vars: ["output"],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -188,6 +231,7 @@ describe("Observation Eval E2E Pipeline", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         evalTemplate: mockTemplate,
+        project: { orgId: "test-org-123" },
       };
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
@@ -200,6 +244,7 @@ describe("Observation Eval E2E Pipeline", () => {
           jobExecutionId: capturedJobExecutionId!,
           observationS3Path,
         },
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps: pipeline.processorDeps,
       });
 
@@ -207,9 +252,10 @@ describe("Observation Eval E2E Pipeline", () => {
       expect(
         pipeline.processorDeps.downloadObservationFromS3,
       ).toHaveBeenCalledWith(observationS3Path);
-      expect(executeLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           projectId,
+          organizationId: "test-org-123",
           jobExecutionId: capturedJobExecutionId,
           extractedVariables: expect.arrayContaining([
             expect.objectContaining({
@@ -218,6 +264,139 @@ describe("Observation Eval E2E Pipeline", () => {
             }),
           ]),
           environment: "production",
+        }),
+      );
+    });
+
+    it("should process a code-based eval through execution and score persistence", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        input: { question: "2+2" },
+        output: { answer: "4" },
+        metadata: { rubric: "math" },
+        experiment_id: "experiment-123",
+        experiment_item_expected_output: "4",
+        environment: "production",
+      });
+      const variableMapping: ObservationVariableMapping[] = [
+        { templateVariable: "input", selectedColumnId: "input" },
+        { templateVariable: "output", selectedColumnId: "output" },
+        {
+          templateVariable: "metadata",
+          selectedColumnId: "metadata",
+        },
+        {
+          templateVariable: "experimentItemExpectedOutput",
+          selectedColumnId: "experimentItemExpectedOutput",
+        },
+      ];
+      const config = createTestEvalConfig({
+        id: `config-${randomUUID()}`,
+        projectId,
+        scoreName: "code-score",
+        variableMapping,
+      });
+      const pipeline = createFullyMockedEvalPipeline({ observation });
+      const job = createMockJobExecution({
+        id: `job-exec-${randomUUID()}`,
+        projectId,
+        jobConfigurationId: config.id,
+        jobInputTraceId: observation.trace_id,
+        jobInputObservationId: observation.span_id,
+      });
+      const template = createMockEvalTemplate({
+        id: config.evalTemplateId,
+        projectId,
+        name: "Code nested context evaluator",
+        type: EvalTemplateType.CODE,
+        prompt: null,
+        outputDefinition: null,
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        sourceCode: `
+          function evaluate(ctx) {
+            const matched =
+              ctx.observation.input.question === "2+2" &&
+              ctx.observation.output.answer === ctx.experiment?.itemExpectedOutput &&
+              ctx.observation.metadata.rubric === "math";
+
+            return {
+              scores: [
+                {
+                  name: "nested-context-score",
+                  value: matched ? 1 : 0,
+                  dataType: "BOOLEAN",
+                  comment: ctx.experiment?.itemExpectedOutput,
+                },
+              ],
+            };
+          }
+        `,
+      });
+      const mockConfig = createMockJobConfiguration({
+        id: config.id,
+        projectId,
+        evalTemplateId: config.evalTemplateId,
+        scoreName: config.scoreName,
+        variableMapping,
+        evalTemplate: template,
+      });
+
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
+      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(mockConfig);
+
+      await processObservationEval({
+        event: {
+          projectId,
+          jobExecutionId: job.id,
+          observationS3Path: "test-path",
+        },
+        executionType: EvalTemplateType.CODE,
+        deps: pipeline.processorDeps,
+      });
+
+      expect(
+        pipeline.processorDeps.downloadObservationFromS3,
+      ).toHaveBeenCalledWith("test-path");
+      expect(pipeline.executionDeps.uploadScore).toHaveBeenCalledTimes(1);
+      expect(
+        pipeline.executionDeps.enqueueScoreIngestion,
+      ).toHaveBeenCalledTimes(1);
+      expect(pipeline.executionDeps.updateJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: job.id,
+          projectId,
+          data: expect.objectContaining({
+            status: JobExecutionStatus.COMPLETED,
+            executionTraceId: expect.any(String),
+            jobOutputScoreId: expect.any(String),
+          }),
+        }),
+      );
+      expect(pipeline.executionDeps.uploadScore).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId,
+          event: expect.objectContaining({
+            body: expect.objectContaining({
+              traceId: observation.trace_id,
+              observationId: observation.span_id,
+              name: "nested-context-score",
+              value: 1,
+              dataType: "BOOLEAN",
+              comment: "4",
+              environment: "production",
+              source: "EVAL",
+            }),
+          }),
+        }),
+      );
+      expect(mocks.writeInternalTrace).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventInputs: [
+            expect.objectContaining({
+              input: expect.stringContaining('"observation"'),
+              output: expect.stringContaining('"nested-context-score"'),
+            }),
+          ],
         }),
       );
     });
@@ -388,11 +567,14 @@ describe("Observation Eval E2E Pipeline", () => {
         projectId,
         name: "Test Eval",
         version: 1,
+        type: EvalTemplateType.LLM_AS_JUDGE,
         prompt: "Q: {{question}} A: {{answer}}",
         model: "gpt-4",
         provider: "openai",
         modelParams: {},
         outputDefinition: { score: "0-1", reasoning: "Why" },
+        sourceCode: null,
+        sourceCodeLanguage: null,
         vars: ["question", "answer"],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -414,6 +596,7 @@ describe("Observation Eval E2E Pipeline", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         evalTemplate: mockTemplate,
+        project: { orgId: "test-org-123" },
       };
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
@@ -425,10 +608,11 @@ describe("Observation Eval E2E Pipeline", () => {
           jobExecutionId: "job-123",
           observationS3Path: "test-path",
         },
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps: pipeline.processorDeps,
       });
 
-      expect(executeLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           extractedVariables: expect.arrayContaining([
             expect.objectContaining({
@@ -488,11 +672,14 @@ describe("Observation Eval E2E Pipeline", () => {
         projectId,
         name: "Test Eval",
         version: 1,
+        type: EvalTemplateType.LLM_AS_JUDGE,
         prompt: "Compare {{generated}} to {{expected}}",
         model: "gpt-4",
         provider: "openai",
         modelParams: {},
         outputDefinition: { score: "0-1", reasoning: "Why" },
+        sourceCode: null,
+        sourceCodeLanguage: null,
         vars: ["generated", "expected"],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -514,6 +701,7 @@ describe("Observation Eval E2E Pipeline", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         evalTemplate: mockTemplate,
+        project: { orgId: "test-org-123" },
       };
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
@@ -525,10 +713,11 @@ describe("Observation Eval E2E Pipeline", () => {
           jobExecutionId: "job-123",
           observationS3Path: "test-path",
         },
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
         deps: pipeline.processorDeps,
       });
 
-      expect(executeLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           extractedVariables: expect.arrayContaining([
             expect.objectContaining({
