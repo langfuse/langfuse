@@ -768,22 +768,38 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         limit: 1,
       }),
     });
-    // Get filtered list by datasetName
-    const getDatasetItemsByDatasetName = await makeZodVerifiedAPICall(
-      GetDatasetItemsV1Response,
-      "GET",
-      `/api/public/dataset-items?datasetName=dataset-name`,
-      undefined,
-      auth,
-    );
-    expect(getDatasetItemsByDatasetName.status).toBe(200);
-    expect(getDatasetItemsByDatasetName.body).toMatchObject({
-      data: dbDatasetItemsApiResponseFormat,
-      meta: expect.objectContaining({
-        totalItems: 5,
-        page: 1,
-      }),
-    });
+     // Get filtered list by datasetName
+     const getDatasetItemsByDatasetName = await makeZodVerifiedAPICall(
+       GetDatasetItemsV1Response,
+       "GET",
+       `/api/public/dataset-items?datasetName=dataset-name`,
+       undefined,
+       auth,
+     );
+     expect(getDatasetItemsByDatasetName.status).toBe(200);
+     expect(getDatasetItemsByDatasetName.body).toMatchObject({
+       data: dbDatasetItemsApiResponseFormat,
+       meta: expect.objectContaining({
+         totalItems: 5,
+         page: 1,
+       }),
+     });
+     // Get filtered list by datasetId
+     const getDatasetItemsByDatasetId = await makeZodVerifiedAPICall(
+       GetDatasetItemsV1Response,
+       "GET",
+       `/api/public/dataset-items?datasetId=${dataset1!.id}`,
+       undefined,
+       auth,
+     );
+     expect(getDatasetItemsByDatasetId.status).toBe(200);
+     expect(getDatasetItemsByDatasetId.body).toMatchObject({
+       data: dbDatasetItemsApiResponseFormat,
+       meta: expect.objectContaining({
+         totalItems: 5,
+         page: 1,
+       }),
+     });
     // Get filtered list by sourceTraceId
     const getDatasetItemsTrace = await makeZodVerifiedAPICall(
       GetDatasetItemsV1Response,
@@ -821,18 +837,115 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       }),
     });
 
-    // Get single item
-    const singleItem = dbDatasetItemsApiResponseFormat[0];
-    const getDatasetItem = await makeZodVerifiedAPICall(
-      GetDatasetItemV1Response,
-      "GET",
-      `/api/public/dataset-items/${singleItem.id}`,
-      undefined,
-      auth,
-    );
-    expect(getDatasetItem.status).toBe(200);
-    expect(getDatasetItem.body).toMatchObject(singleItem);
-  });
+     // Get single item
+     const singleItem = dbDatasetItemsApiResponseFormat[0];
+     const getDatasetItem = await makeZodVerifiedAPICall(
+       GetDatasetItemV1Response,
+       "GET",
+       `/api/public/dataset-items/${singleItem.id}`,
+       undefined,
+       auth,
+     );
+     expect(getDatasetItem.status).toBe(200);
+     expect(getDatasetItem.body).toMatchObject(singleItem);
+   });
+
+   it("should correctly filter dataset items by datasetId (issue #13285)", async () => {
+     // Create two datasets
+     const dataset1Res = await makeZodVerifiedAPICall(
+       PostDatasetsV1Response,
+       "POST",
+       "/api/public/datasets",
+       {
+         name: "dataset-a",
+       },
+       auth,
+     );
+     const dataset1Id = dataset1Res.body.id;
+
+     const dataset2Res = await makeZodVerifiedAPICall(
+       PostDatasetsV1Response,
+       "POST",
+       "/api/public/datasets",
+       {
+         name: "dataset-b",
+       },
+       auth,
+     );
+     const dataset2Id = dataset2Res.body.id;
+
+     // Create 3 items in dataset A
+     for (let i = 0; i < 3; i++) {
+       await makeZodVerifiedAPICall(
+         PostDatasetItemsV1Response,
+         "POST",
+         "/api/public/dataset-items",
+         {
+           datasetName: "dataset-a",
+           id: `dataset-a-item-${i}`,
+           input: { key: `value-a-${i}` },
+         },
+         auth,
+       );
+     }
+
+     // Create 2 items in dataset B
+     for (let i = 0; i < 2; i++) {
+       await makeZodVerifiedAPICall(
+         PostDatasetItemsV1Response,
+         "POST",
+         "/api/public/dataset-items",
+         {
+           datasetName: "dataset-b",
+           id: `dataset-b-item-${i}`,
+           input: { key: `value-b-${i}` },
+         },
+         auth,
+       );
+     }
+
+     // Test 1: Filter by dataset A ID should return exactly 3 items from dataset A
+     const itemsDatasetA = await makeZodVerifiedAPICall(
+       GetDatasetItemsV1Response,
+       "GET",
+       `/api/public/dataset-items?datasetId=${dataset1Id}`,
+       undefined,
+       auth,
+     );
+     expect(itemsDatasetA.status).toBe(200);
+     expect(itemsDatasetA.body.meta.totalItems).toBe(3);
+     expect(itemsDatasetA.body.data).toHaveLength(3);
+     expect(
+       itemsDatasetA.body.data.every((item) => item.datasetName === "dataset-a"),
+     ).toBe(true);
+
+     // Test 2: Filter by dataset B ID should return exactly 2 items from dataset B
+     const itemsDatasetB = await makeZodVerifiedAPICall(
+       GetDatasetItemsV1Response,
+       "GET",
+       `/api/public/dataset-items?datasetId=${dataset2Id}`,
+       undefined,
+       auth,
+     );
+     expect(itemsDatasetB.status).toBe(200);
+     expect(itemsDatasetB.body.meta.totalItems).toBe(2);
+     expect(itemsDatasetB.body.data).toHaveLength(2);
+     expect(
+       itemsDatasetB.body.data.every((item) => item.datasetName === "dataset-b"),
+     ).toBe(true);
+
+     // Test 3: Filter by bogus ID should return 0 items (not all project items)
+     const itemsBogus = await makeZodVerifiedAPICall(
+       GetDatasetItemsV1Response,
+       "GET",
+       `/api/public/dataset-items?datasetId=bogus-does-not-exist`,
+       undefined,
+       auth,
+     );
+     expect(itemsBogus.status).toBe(200);
+     expect(itemsBogus.body.meta.totalItems).toBe(0);
+     expect(itemsBogus.body.data).toHaveLength(0);
+   });
 
   it("should upsert a dataset item", async () => {
     await makeZodVerifiedAPICall(

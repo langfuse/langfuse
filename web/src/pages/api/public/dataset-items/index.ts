@@ -115,6 +115,7 @@ export default withMiddlewares({
     rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const {
+        datasetId: queryDatasetId,
         datasetName,
         sourceTraceId,
         sourceObservationId,
@@ -123,7 +124,8 @@ export default withMiddlewares({
         limit,
       } = query;
 
-      let datasetId: string | undefined = undefined;
+      let datasetId: string | undefined = queryDatasetId ?? undefined;
+      
       if (datasetName) {
         const dataset = await prisma.dataset.findFirst({
           where: {
