@@ -60,6 +60,11 @@ type SyncMessageDelta = {
   serializedMessage: string;
 };
 
+type SyncMessagesOptions = {
+  runId?: string;
+  runMessageIds?: ReadonlySet<string>;
+};
+
 export type InAppAiAgentConversation = {
   id: string;
   title: string | null;
@@ -288,7 +293,7 @@ function InAppAiAgentProviderInner({
     (
       conversationId: string,
       nextMessages: readonly unknown[],
-      runId?: string,
+      options: SyncMessagesOptions = {},
     ) => {
       const parsedMessages = nextMessages.filter(isAgentConversationMessage);
       setMessages(parsedMessages);
@@ -304,27 +309,50 @@ function InAppAiAgentProviderInner({
 
       void (async () => {
         try {
-          for (
-            let index = 0;
-            index < messageDeltas.length;
-            index += MAX_SYNC_MESSAGE_DELTAS
-          ) {
-            const chunk = messageDeltas.slice(
-              index,
-              index + MAX_SYNC_MESSAGE_DELTAS,
-            );
+          const runMessageIds = options.runId
+            ? options.runMessageIds
+            : undefined;
+          const attributedDeltas = runMessageIds
+            ? messageDeltas.filter((delta) =>
+                runMessageIds.has(delta.message.id),
+              )
+            : [];
+          const unattributedDeltas = runMessageIds
+            ? messageDeltas.filter(
+                (delta) => !runMessageIds.has(delta.message.id),
+              )
+            : messageDeltas;
 
-            await syncMessagesMutation.mutateAsync({
-              projectId,
-              conversationId,
-              ...(runId ? { runId } : {}),
-              messages: chunk.map(({ message, sequenceNumber }) => ({
-                message,
-                sequenceNumber,
-              })),
-            });
+          for (const { deltas, runId } of [
+            { deltas: unattributedDeltas },
+            { deltas: attributedDeltas, runId: options.runId },
+          ]) {
+            if (deltas.length === 0) {
+              continue;
+            }
 
-            markMessageDeltasSynced(conversationId, chunk);
+            for (
+              let index = 0;
+              index < deltas.length;
+              index += MAX_SYNC_MESSAGE_DELTAS
+            ) {
+              const chunk = deltas.slice(
+                index,
+                index + MAX_SYNC_MESSAGE_DELTAS,
+              );
+
+              await syncMessagesMutation.mutateAsync({
+                projectId,
+                conversationId,
+                ...(runId ? { runId } : {}),
+                messages: chunk.map(({ message, sequenceNumber }) => ({
+                  message,
+                  sequenceNumber,
+                })),
+              });
+
+              markMessageDeltasSynced(conversationId, chunk);
+            }
           }
 
           void utils.inAppAgent.list.invalidate({ projectId });
@@ -408,6 +436,7 @@ function InAppAiAgentProviderInner({
       syncMessages(conversationId, agent.messages);
       setIsRunning(true);
       const runId = crypto.randomUUID();
+      const runStartMessageIds = getMessageIds(agent.messages);
       let retriedWithFreshSession = false;
 
       void agent
@@ -448,7 +477,13 @@ function InAppAiAgentProviderInner({
           }
 
           setIsRunning(false);
-          syncMessages(conversationId, agent.messages, runId);
+          syncMessages(conversationId, agent.messages, {
+            runId,
+            runMessageIds: getRunGeneratedMessageIds(
+              agent.messages,
+              runStartMessageIds,
+            ),
+          });
           releaseSubmitLock();
         });
     },
@@ -667,6 +702,27 @@ function getUnsyncedMessageDeltas(
       },
     ];
   });
+}
+
+function getMessageIds(messages: readonly unknown[]): ReadonlySet<string> {
+  return new Set(
+    messages.filter(isAgentConversationMessage).map((message) => message.id),
+  );
+}
+
+function getRunGeneratedMessageIds(
+  messages: readonly unknown[],
+  runStartMessageIds: ReadonlySet<string>,
+): ReadonlySet<string> {
+  return new Set(
+    messages
+      .filter(isAgentConversationMessage)
+      .filter(
+        (message) =>
+          message.role === "assistant" && !runStartMessageIds.has(message.id),
+      )
+      .map((message) => message.id),
+  );
 }
 
 function serializeMessageForSync(message: InAppAiAgentMessage): string {
