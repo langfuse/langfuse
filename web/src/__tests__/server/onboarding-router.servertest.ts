@@ -83,20 +83,6 @@ describe("onboarding router", () => {
       userWasJustCreated: true,
     });
 
-    const caller = appRouter.createCaller({
-      ...createInnerTRPCContext({
-        session: makeSession({
-          userId,
-          email,
-          name: "Taylor Test",
-        }),
-        headers: {},
-      }),
-      prisma,
-    });
-
-    const result = await caller.onboarding.complete();
-
     const organizationMembership =
       await prisma.organizationMembership.findFirst({
         where: {
@@ -111,21 +97,53 @@ describe("onboarding router", () => {
         },
       });
 
-    expect(organizationMembership).toBeTruthy();
-    if (organizationMembership) {
-      createdOrgIds.push(organizationMembership.organization.id);
+    if (!organizationMembership) {
+      throw new Error("Expected starter organization membership to exist");
     }
+    createdOrgIds.push(organizationMembership.organization.id);
     const starterProjectId =
-      organizationMembership?.organization.projects[0]?.id;
-    expect(starterProjectId).toBeTruthy();
+      organizationMembership.organization.projects[0]?.id;
+    if (!starterProjectId) {
+      throw new Error("Expected starter project to exist");
+    }
+
+    await prisma.organization.update({
+      where: {
+        id: organizationMembership.organization.id,
+      },
+      data: {
+        name: `Renamed Starter Org ${userId}`,
+      },
+    });
+
+    await prisma.project.update({
+      where: {
+        id: starterProjectId,
+      },
+      data: {
+        name: `Renamed Starter Project ${userId}`,
+      },
+    });
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession({
+          userId,
+          email,
+          name: "Taylor Test",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    const result = await caller.onboarding.complete();
+
     expect(result).toEqual({
       redirectTo: `/project/${starterProjectId}/traces`,
     });
-    expect(organizationMembership?.role).toBe(Role.OWNER);
-    expect(organizationMembership?.organization.projects).toHaveLength(1);
-    expect(organizationMembership?.organization.projects[0]?.name).toBe(
-      "My Project",
-    );
+    expect(organizationMembership.role).toBe(Role.OWNER);
+    expect(organizationMembership.organization.projects).toHaveLength(1);
   });
 
   it("falls back to manual org creation when no real org exists", async () => {

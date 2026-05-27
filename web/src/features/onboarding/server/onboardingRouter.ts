@@ -9,7 +9,6 @@ export const onboardingRouter = createTRPCRouter({
     const existingTarget = await resolveOnboardingRedirectTarget({
       prisma: ctx.prisma,
       userId: ctx.session.user.id,
-      userName: ctx.session.user.name,
     });
 
     if (existingTarget) {

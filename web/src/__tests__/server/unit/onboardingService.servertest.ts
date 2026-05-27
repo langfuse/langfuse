@@ -6,7 +6,7 @@ vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: auditLogMock,
 }));
 
-import { Role } from "@langfuse/shared/src/db";
+import { type Prisma, Role } from "@langfuse/shared/src/db";
 import {
   provisionStarterOrganizationForNewUser,
   resolveOnboardingRedirectTarget,
@@ -16,11 +16,13 @@ import {
 const makeMembership = ({
   orgId,
   orgName = `Org ${orgId}`,
+  orgMetadata = null,
   role = Role.OWNER,
   projects,
 }: {
   orgId: string;
   orgName?: string;
+  orgMetadata?: Prisma.JsonValue;
   role?: Role;
   projects: Array<{
     id: string;
@@ -33,6 +35,7 @@ const makeMembership = ({
     organization: {
       id: orgId,
       name: orgName,
+      metadata: orgMetadata,
       projects,
     },
   }) as RealOrganizationMembership;
@@ -52,12 +55,16 @@ describe("resolveOnboardingRedirectTarget", () => {
       prisma: makePrisma([
         makeMembership({
           orgId: "org-1",
-          orgName: "Taylor's Organization",
-          projects: [{ id: "project-1", name: "My Project" }],
+          orgName: "Renamed Organization",
+          orgMetadata: {
+            langfuseOnboarding: {
+              starterOrganization: true,
+            },
+          },
+          projects: [{ id: "project-1", name: "Renamed Project" }],
         }),
       ]),
       userId: "user-1",
-      userName: "Taylor Test",
     });
 
     expect(result).toEqual({
@@ -74,7 +81,6 @@ describe("resolveOnboardingRedirectTarget", () => {
         }),
       ]),
       userId: "user-1",
-      userName: "Taylor Test",
     });
 
     expect(result).toEqual({
@@ -132,6 +138,15 @@ describe("provisionStarterOrganizationForNewUser", () => {
     expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
       tx.organizationMembership.findMany.mock.invocationCallOrder[0],
     );
+    expect(tx.organization.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        metadata: {
+          langfuseOnboarding: {
+            starterOrganization: true,
+          },
+        },
+      }),
+    });
     expect(result).toMatchObject({
       organization: { id: "org-1" },
       project: { id: "project-1" },

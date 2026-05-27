@@ -10,6 +10,29 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 
 const DEFAULT_STARTER_PROJECT_NAME = "My Project";
+const STARTER_ORGANIZATION_METADATA = {
+  langfuseOnboarding: {
+    starterOrganization: true,
+  },
+} as const;
+
+const isStarterOrganizationMetadata = (metadata: Prisma.JsonValue) => {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return false;
+  }
+
+  const onboardingMetadata = (metadata as Record<string, unknown>)[
+    "langfuseOnboarding"
+  ];
+
+  return (
+    typeof onboardingMetadata === "object" &&
+    onboardingMetadata !== null &&
+    !Array.isArray(onboardingMetadata) &&
+    (onboardingMetadata as Record<string, unknown>)["starterOrganization"] ===
+      true
+  );
+};
 
 const getStarterOrganizationName = (userName?: string | null) => {
   const firstName = userName?.trim().split(/\s+/)[0];
@@ -108,27 +131,23 @@ const getFirstOrganizationWithProjectCreationAccess = (
 export const resolveOnboardingRedirectTarget = async ({
   prisma,
   userId,
-  userName,
 }: {
   prisma: Pick<PrismaClient, "organizationMembership">;
   userId: string;
-  userName?: string | null;
 }) => {
   const organizationMemberships = await getRealOrganizationMemberships({
     prisma,
     userId,
   });
 
-  const starterOrganizationMembership =
-    organizationMemberships.length === 1 ? organizationMemberships[0] : null;
+  const starterOrganizationMembership = organizationMemberships.find(
+    (membership) =>
+      membership.role === Role.OWNER &&
+      isStarterOrganizationMetadata(membership.organization.metadata) &&
+      membership.organization.projects.length === 1,
+  );
 
-  if (
-    starterOrganizationMembership &&
-    starterOrganizationMembership.role === Role.OWNER &&
-    starterOrganizationMembership.organization.name ===
-      getStarterOrganizationName(userName) &&
-    starterOrganizationMembership.organization.projects.length === 1
-  ) {
+  if (starterOrganizationMembership) {
     const starterProject =
       starterOrganizationMembership.organization.projects[0];
     const starterProjectRole = resolveProjectRole({
@@ -137,10 +156,7 @@ export const resolveOnboardingRedirectTarget = async ({
       orgMembershipRole: starterOrganizationMembership.role,
     });
 
-    if (
-      starterProject.name === DEFAULT_STARTER_PROJECT_NAME &&
-      projectRoleAccessRights[starterProjectRole].includes("project:read")
-    ) {
+    if (projectRoleAccessRights[starterProjectRole].includes("project:read")) {
       return {
         redirectTo: `/project/${starterProject.id}/traces`,
       };
@@ -219,6 +235,7 @@ export const provisionStarterOrganizationForNewUser = async ({
     const organization = await tx.organization.create({
       data: {
         name: getStarterOrganizationName(userName),
+        metadata: STARTER_ORGANIZATION_METADATA,
         organizationMemberships: {
           create: {
             userId,
