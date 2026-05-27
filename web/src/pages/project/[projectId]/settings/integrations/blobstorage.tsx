@@ -55,7 +55,6 @@ import {
   EXPORT_FIELD_GROUP_OPTIONS,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
-  LEGACY_BLOB_EXPORT_SOURCES,
   isLegacyBlobExportAllowed,
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -243,20 +242,13 @@ const BlobStorageIntegrationSettingsForm = ({
   // Check if this is a self-hosted instance (no cloud region set)
   const isSelfHosted = !isLangfuseCloud;
 
-  // Post-cutoff Cloud projects may only use OBSERVATIONS_V2 (EVENTS).
+  // Post-cutoff Cloud projects may only use OBSERVATIONS_V2 (EVENTS). The
+  // Export Source field is hidden in that case; the form value is pinned to
+  // EVENTS via the default below.
   const isPostCutoffCloud =
     project?.createdAt != null &&
     !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
-
-  // Options shown in the dropdown. Legacy options are always hidden for
-  // post-cutoff Cloud projects, including any previously-persisted value.
-  const availableExportSourceOptions = EXPORT_SOURCE_OPTIONS.filter(
-    (opt) =>
-      !isPostCutoffCloud ||
-      !(LEGACY_BLOB_EXPORT_SOURCES as ReadonlyArray<string>).includes(
-        opt.value,
-      ),
-  );
+  const showExportSourceField = isBetaEnabled && !isPostCutoffCloud;
 
   const blobStorageForm = useForm({
     resolver: zodResolver(blobStorageIntegrationFormSchema),
@@ -690,7 +682,7 @@ const BlobStorageIntegrationSettingsForm = ({
           )}
         />
 
-        {isBetaEnabled && (
+        {showExportSourceField && (
           <FormField
             control={blobStorageForm.control}
             name="exportSource"
@@ -735,25 +727,17 @@ const BlobStorageIntegrationSettingsForm = ({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {availableExportSourceOptions.map((option) => (
+                    {EXPORT_SOURCE_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {isPostCutoffCloud ? (
-                  <FormDescription>
-                    Legacy export sources are not available for projects created
-                    on or after May 20, 2026. Use &quot;Enriched
-                    observations&quot; instead.
-                  </FormDescription>
-                ) : (
-                  <FormDescription>
-                    Choose which data sources to export to blob storage. Scores
-                    are always included.
-                  </FormDescription>
-                )}
+                <FormDescription>
+                  Choose which data sources to export to blob storage. Scores
+                  are always included.
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

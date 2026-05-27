@@ -95,6 +95,7 @@ export const getSessionTracesFromEvents = async (props: {
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -300,6 +301,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
         params: input.params,
         tags: input.tags,
         clickhouseConfigs,
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });

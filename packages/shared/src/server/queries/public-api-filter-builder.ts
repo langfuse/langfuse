@@ -218,7 +218,7 @@ export function createPublicApiObservationsColumnMapping(
     {
       id: "environment",
       clickhouseSelect: "environment",
-      filterType: "StringFilter",
+      filterType: "StringOptionsFilter",
       clickhouseTable: tableName,
       clickhousePrefix: tablePrefix,
     },

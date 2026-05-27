@@ -24,9 +24,7 @@ export default withMiddlewares({
           datasetRuns: {
             take: query.limit,
             skip: (query.page - 1) * query.limit,
-            orderBy: {
-              createdAt: "desc",
-            },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
           },
         },
       });

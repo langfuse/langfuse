@@ -24,6 +24,7 @@ env:
   # env context in jobs.<job_id>.name, so matrix jobs use matrix.node-version
   # for their display names.
   NODE_VERSION: 24
+  CLICKHOUSE_CLIENT_VERSION: "25.12.9.61"
 
   # Disable CI cache restores for fork PRs.
   #
@@ -96,7 +97,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 11.1.3
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
@@ -142,7 +143,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 11.1.3
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
@@ -180,8 +181,14 @@ jobs:
           if git diff --quiet --exit-code --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css'; then
             echo "No JS/TS/CSS files changed - skipping prettier check"
           else
+            # --experimental-cli is intentionally omitted: its glob resolver treats bracket characters
+            # in Next.js dynamic-route paths (e.g. [projectId]) as glob character classes, causing
+            # "No files matching the given patterns were found" (exit 123) for any PR that touches a
+            # file inside a bracket-named directory. Standard prettier resolves explicit paths correctly.
+            # Parallelism and the ephemeral cache (the only extras --experimental-cli adds) provide no
+            # benefit when checking a handful of per-PR changed files.
             git diff --name-only -z --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' \
-              | xargs -0 --no-run-if-empty pnpm prettier --check --experimental-cli --
+              | xargs -0 --no-run-if-empty pnpm prettier --check --
           fi
 
   tests-eslint-plugin:
@@ -193,7 +200,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 11.1.3
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
@@ -214,6 +221,43 @@ jobs:
           pnpm install
       - name: run eslint-plugin tests
         run: pnpm --filter @repo/eslint-plugin run test
+
+  tests-shared:
+    timeout-minutes: 15
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+        with:
+          version: 11.1.3
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] shared test dependency cache only; no published artifacts are built from this cached state
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm install
+      - name: Load default env (for prisma generate)
+        run: |
+          cp .env.dev.example .env
+      - name: generate prisma client
+        run: pnpm --filter=shared run db:generate
+      - name: run shared tests
+        run: pnpm --filter @langfuse/shared run test
 
   test-docker-build:
     timeout-minutes: 20
@@ -305,7 +349,7 @@ jobs:
           tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
-      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 11.1.3
       - name: Login to Docker Hub
@@ -374,9 +418,8 @@ jobs:
       - name: Download and extract ClickHouse client for dev-tables setup
         if: matrix.deploy-mode == ''
         run: |
-          CH_VERSION="24.9.3.128"
           ARCH="amd64"
-          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CH_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
+          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CLICKHOUSE_CLIENT_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
 
           # The binary is usually located in ./usr/bin/clickhouse in the archive
           dpkg-deb -x clickhouse-client.deb ch_client_dir
@@ -407,7 +450,7 @@ jobs:
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
         working-directory: web
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-unit
       - name: run test-client
         if: matrix.deploy-mode == ''
         working-directory: web
@@ -429,7 +472,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 11.1.3
       - name: Login to Docker Hub
@@ -487,9 +530,8 @@ jobs:
       - name: Download and extract ClickHouse client for dev-tables setup
         if: matrix.deploy-mode == ''
         run: |
-          CH_VERSION="24.9.3.128"
           ARCH="amd64"
-          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CH_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
+          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CLICKHOUSE_CLIENT_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
           dpkg-deb -x clickhouse-client.deb ch_client_dir
           sudo cp ch_client_dir/usr/bin/clickhouse /usr/local/bin/
       - name: Setup Dev Tables
@@ -512,7 +554,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 11.1.3
       - name: Login to Docker Hub
@@ -589,7 +631,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 11.1.3
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
@@ -690,7 +732,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-      - uses: pnpm/action-setup@739bfe42ca9233c5e6aca07c1a25a9d34aca49b0 # v6.0.7
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 11.1.3
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
@@ -763,6 +805,7 @@ jobs:
         lint,
         prettier-check,
         tests-eslint-plugin,
+        tests-shared,
         tests-web,
         tests-worker,
         test-worker-llm-connections,

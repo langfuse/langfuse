@@ -12,6 +12,9 @@ const EnvSchema = z.object({
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
   EMAIL_FROM_ADDRESS: z.string().optional(),
+  // Standard SMTP URL (`smtp://`, `smtps://`) or `ses://<region>` to send via
+  // AWS SES using the default AWS credential chain (IAM role, SSO, env vars).
+  // Example: `ses://us-east-1`.
   SMTP_CONNECTION_URL: z.string().optional(),
   CLOUD_CRM_EMAIL: z.string().optional(),
   REDIS_HOST: z.string().nullish(),
@@ -333,6 +336,24 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
@@ -378,6 +399,7 @@ const EnvSchema = z.object({
     .default(120_000), // 2 minutes
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.

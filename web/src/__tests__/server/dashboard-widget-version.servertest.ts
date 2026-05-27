@@ -113,6 +113,28 @@ describe("dashboard widget minVersion", () => {
         [{ column: "release" }],
         true,
       ],
+      // v2-only experiment filters
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentId" }],
+        true,
+      ],
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentName" }],
+        true,
+      ],
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentDatasetId" }],
+        true,
+      ],
       // v1-compatible fields
       [
         "observations",
@@ -314,6 +336,29 @@ describe("dashboard widget minVersion", () => {
   // validateMetricAggregations guard that lives in the tRPC router.
 
   describe("tRPC measure-aggregation validation", () => {
+    it("should return stored metrics from get without additional client-side parsing", async () => {
+      const caller = makeCaller();
+      const created = await caller.dashboardWidgets.create({
+        projectId,
+        name: "Get Widget",
+        description: "fetch metrics unchanged",
+        view: "observations",
+        dimensions: [],
+        metrics: [{ measure: "count", agg: "count" }],
+        filters: [],
+        chartType: "NUMBER",
+        chartConfig: { type: "NUMBER" },
+        minVersion: 2,
+      });
+
+      const fetched = await caller.dashboardWidgets.get({
+        projectId,
+        widgetId: created.widget.id,
+      });
+
+      expect(fetched.metrics).toEqual([{ measure: "count", agg: "count" }]);
+    });
+
     it("should reject invalid aggregation on a string measure", async () => {
       const caller = makeCaller();
       await expect(

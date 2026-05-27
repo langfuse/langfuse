@@ -1,6 +1,5 @@
-import { createTransport } from "nodemailer";
-import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
+import { createMailTransport } from "../transport";
 import { UsageThresholdWarningEmailTemplate } from "./UsageThresholdWarningEmailTemplate";
 import { logger } from "../../../logger";
 import { z } from "zod";
@@ -40,7 +39,7 @@ export const sendUsageThresholdWarningEmail = async ({
   }
 
   try {
-    const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
+    const mailer = createMailTransport(env.SMTP_CONNECTION_URL);
 
     const emailSubject = `Langfuse Free Tier: ${organizationName} usage reached ${limit.toLocaleString()} events`;
     const emailHtml = await render(
