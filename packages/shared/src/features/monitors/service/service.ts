@@ -97,8 +97,14 @@ export class MonitorService {
 
     const current = await prisma.monitor.findFirst({
       where: { id: input.id, projectId: input.projectId },
-      select: { status: true },
+      select: { status: true, schedulerBatchId: true },
     });
+
+    // When the query shape changes (new schedulerBatchId), prior publish
+    // lifecycle stamps refer to the OLD batch and would otherwise suppress
+    // the next publish via runIsPending for up to monitorProcessorTtl.
+    const schedulerBatchIdChanged =
+      current != null && current.schedulerBatchId !== schedulerBatchId;
 
     try {
       const updated = await prisma.monitor.update({
@@ -119,6 +125,9 @@ export class MonitorService {
           ...updateSeverityForStatus(current?.status, input.status),
           schedulerBatchId,
           nextRunAt: null,
+          ...(schedulerBatchIdChanged
+            ? { lastPublishedRunAt: null, lastCompletedRunAt: null }
+            : {}),
           name: input.name,
           tags: input.tags,
         },

@@ -226,6 +226,38 @@ describe("MonitorService (integration)", () => {
 
       expect(updated.severity).toBe("ALERT");
     });
+
+    it("clears worker lifecycle stamps when update changes schedulerBatchId", async () => {
+      const created = await MonitorService.create(
+        creator,
+        baseMonitorInput(projectId),
+      );
+
+      await prisma.monitor.update({
+        where: { id: created.id },
+        data: {
+          lastPublishedRunAt: new Date("2026-05-27T11:58:30.000Z"),
+          lastCompletedRunAt: null,
+        },
+      });
+
+      const updated = await MonitorService.update(editor, {
+        ...baseMonitorInput(projectId),
+        id: created.id,
+        filters: [
+          {
+            column: "environment" as const,
+            operator: "=" as const,
+            value: "production",
+            type: "string" as const,
+          },
+        ],
+      });
+
+      expect(updated.nextRunAt).toBeNull();
+      expect(updated.lastPublishedRunAt).toBeNull();
+      expect(updated.lastCompletedRunAt).toBeNull();
+    });
   });
 
   describe("getById / list / delete", () => {
