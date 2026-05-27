@@ -228,14 +228,6 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
   } {
     assertSafePartition(todo.partition);
 
-    const partitionFirstDay = `${todo.partition.slice(0, 4)}-${todo.partition.slice(4, 6)}-01 00:00:00`;
-
-    const params: Record<string, unknown> = {
-      partition: todo.partition,
-      partId: todo.partId,
-      partitionFirstDay,
-    };
-
     const query = `
       INSERT INTO events_full (
         project_id, trace_id, span_id, parent_span_id, start_time, end_time,
@@ -310,7 +302,13 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
         type_json_skip_duplicated_paths = 1
     `;
 
-    return { query, params };
+    return {
+      query,
+      params: {
+        partition: todo.partition,
+        partId: todo.partId,
+      },
+    };
   }
 
   // ============================================================================
