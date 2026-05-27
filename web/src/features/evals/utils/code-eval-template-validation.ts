@@ -50,6 +50,10 @@ const __langfuseEvaluateCheck: __LangfuseExpectedEvaluate = evaluate;
 
 const CONTRACT_DECLARATIONS = `
 type TimerHandle = unknown;
+type Awaited<T> = T extends PromiseLike<infer U> ? Awaited<U> : T;
+type PromiseSettledResult<T> =
+  | { status: "fulfilled"; value: T }
+  | { status: "rejected"; reason: any };
 
 interface Array<T> {
   length: number;
@@ -93,6 +97,10 @@ interface PromiseConstructor {
       reject: (reason?: any) => void,
     ) => void,
   ): Promise<T>;
+  all<T>(values: T[]): Promise<Awaited<T>[]>;
+  allSettled<T>(values: T[]): Promise<PromiseSettledResult<Awaited<T>>[]>;
+  any<T>(values: T[]): Promise<Awaited<T>>;
+  race<T>(values: T[]): Promise<Awaited<T>>;
   resolve<T>(value: T | PromiseLike<T>): Promise<T>;
   reject<T = never>(reason?: any): Promise<T>;
 }
@@ -107,6 +115,11 @@ interface String {
 interface Uint8Array {
   readonly length: number;
   [n: number]: number;
+  forEach(
+    callbackfn: (value: number, index: number, array: Uint8Array) => void,
+  ): void;
+  slice(start?: number, end?: number): Uint8Array;
+  subarray(begin?: number, end?: number): Uint8Array;
 }
 
 type Record<K extends string, T> = { [P in K]: T };

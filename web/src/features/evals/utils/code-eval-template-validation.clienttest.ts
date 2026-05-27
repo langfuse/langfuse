@@ -112,7 +112,18 @@ describe("code eval template validation", () => {
       source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
 async function evaluate(ctx: EvaluationContext): Promise<EvaluationResult> {
   await new Promise((resolve) => setTimeout(resolve, 2000));
-  return { scores: [] };
+  const allValues = await Promise.all([Promise.resolve(1), Promise.resolve(2)]);
+  const settled = await Promise.allSettled([Promise.resolve("ok"), Promise.reject("no")]);
+  const raced = await Promise.race([Promise.resolve(3)]);
+  const anyValue = await Promise.any([Promise.reject("no"), Promise.resolve(4)]);
+
+  return {
+    scores: [{
+      name: "async helpers",
+      value: allValues[0] + allValues[1] + settled.length + raced + anyValue,
+      dataType: "NUMERIC",
+    }],
+  };
 }
 `,
       sourceCodeLanguage: "TYPESCRIPT",
@@ -126,10 +137,15 @@ async function evaluate(ctx: EvaluationContext): Promise<EvaluationResult> {
       source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
 function evaluate(ctx: EvaluationContext): EvaluationResult {
   const encoded = new TextEncoder().encode(new URL("https://langfuse.com").hostname);
+  const sliced = encoded.slice(0, 4).subarray(0, 2);
+  let byteTotal = 0;
+  sliced.forEach((value) => {
+    byteTotal = byteTotal + value;
+  });
   const copy = structuredClone({ length: encoded.length });
   queueMicrotask(() => {});
 
-  return { scores: [{ name: "encoded", value: copy.length, dataType: "NUMERIC" }] };
+  return { scores: [{ name: "encoded", value: copy.length + byteTotal, dataType: "NUMERIC" }] };
 }
 `,
       sourceCodeLanguage: "TYPESCRIPT",
