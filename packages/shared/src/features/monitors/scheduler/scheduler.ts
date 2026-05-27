@@ -96,9 +96,9 @@ function buildScheduleQuery({
     TIMESTAMPTZ 'epoch' + (
       (
         ((EXTRACT(EPOCH FROM ${tick}::timestamptz) * 1000)::bigint
-          - (due.scheduler_batch_id % 60) * 1000) -- ms since the begining of time
+          - (due.scheduler_batch_id % 60) * 1000) -- ms since the beginning of time
           / due.cadence_ms * due.cadence_ms -- rounded down to the last cadence
-        + (due.scheduler_batch_id % 60) * 1000 -- plus some second jitter for better load distibution
+        + (due.scheduler_batch_id % 60) * 1000 -- plus some second jitter for better load distribution
         + due.cadence_ms -- advanced to the next cadence
       ) * INTERVAL '1 millisecond'
     )
