@@ -143,6 +143,7 @@ export const CodeEvalDispatcherErrorCodes = CodeEvalDispatcherErrorCode.enum;
 export class CodeEvalDispatcherError extends Error {
   public readonly code: CodeEvalDispatcherErrorCode;
   public readonly retryable: boolean;
+  public readonly returnedResult?: unknown;
 
   constructor(
     message: string,
@@ -150,12 +151,14 @@ export class CodeEvalDispatcherError extends Error {
       code: CodeEvalDispatcherErrorCode;
       retryable?: boolean;
       cause?: unknown;
+      returnedResult?: unknown;
     },
   ) {
     super(message, { cause: options.cause });
     this.name = "CodeEvalDispatcherError";
     this.code = options.code;
     this.retryable = options.retryable ?? false;
+    this.returnedResult = options.returnedResult;
   }
 }
 
@@ -205,7 +208,10 @@ export function parseDispatchResult(result: unknown): DispatchResult {
   if (!parsed.success) {
     throw new CodeEvalDispatcherError(
       `Invalid code eval result: ${parsed.error.message}`,
-      { code: CodeEvalDispatcherErrorCodes.INVALID_RESULT },
+      {
+        code: CodeEvalDispatcherErrorCodes.INVALID_RESULT,
+        returnedResult: result,
+      },
     );
   }
 

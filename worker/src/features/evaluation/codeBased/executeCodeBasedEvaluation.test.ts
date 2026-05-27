@@ -6,6 +6,7 @@ import {
 import {
   CodeEvalDispatcherError,
   CodeEvalDispatcherErrorCodes,
+  parseDispatchResult,
 } from "../../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
 import { CodeEvalExecutionError } from "../../../../../packages/shared/src/server/evals/codeEvalExecution";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
@@ -480,6 +481,60 @@ describe("executeCodeBasedEvaluation", () => {
         ],
       }),
     );
+  });
+
+  it("preserves a small invalid returned result in the structured trace error", async () => {
+    mocks.dispatcher.dispatch.mockImplementation(() =>
+      parseDispatchResult({ score: 1 }),
+    );
+
+    const promise = executeCodeBasedEvaluation({
+      projectId: "project-1",
+      organizationId: "org-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: "obs-1",
+        jobInputDatasetItemId: null,
+      } as any,
+      config: { id: "config-1", scoreName: "default-score" } as any,
+      template: {
+        id: "template-1",
+        name: "Code evaluator",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [{ var: "input", value: "prompt" }],
+      executionMetadata: { job_execution_id: "job-1" },
+    });
+
+    await expect(promise).rejects.toThrow(UnrecoverableError);
+    await expect(promise).rejects.toThrow(
+      "The evaluator returned an invalid result.",
+    );
+
+    const trace = mocks.writeInternalTrace.mock.calls[0]?.[0];
+    const output = JSON.parse(trace.eventInputs[0].output);
+
+    expect(mocks.writeInternalTrace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventInputs: [
+          expect.objectContaining({
+            statusMessage: expect.not.stringContaining("returnedResult"),
+            metadata: expect.objectContaining({
+              error_message: expect.not.stringContaining("returnedResult"),
+              error_code: "INVALID_RESULT",
+            }),
+          }),
+        ],
+      }),
+    );
+    expect(output.error.returnedResult).toEqual({ score: 1 });
   });
 
   it("writes an actionable user-visible timeout error", async () => {
