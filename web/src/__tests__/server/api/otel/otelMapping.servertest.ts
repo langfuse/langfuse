@@ -3045,6 +3045,18 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should extract zero cost from llm.cost.total",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.cost.total",
+          otelAttributeValue: {
+            doubleValue: 0,
+          },
+          entityAttributeKey: "costDetails.total",
+          entityAttributeValue: 0,
+        },
+      ],
+      [
         "should not treat usage.cost as usage",
         {
           entity: "observation",
