@@ -196,7 +196,7 @@ export const MonitorSchema = z.object({
 
   // MonitorScheduler State
   status: MonitorStatusSchema.default("ACTIVE"),
-  nextRunAt: z.date(),
+  nextRunAt: z.date().nullable(),
   lastPublishedRunAt: z.date().nullable(),
   lastCompletedRunAt: z.date().nullable(),
 });

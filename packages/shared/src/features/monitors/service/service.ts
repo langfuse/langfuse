@@ -5,7 +5,6 @@ import { type Monitor } from "../types";
 
 import {
   calculateCadence,
-  calculateLastRunAt,
   calculateSchedulerBatchId,
   decimalToPrisma,
   errorFromPrisma,
@@ -55,11 +54,6 @@ export class MonitorService {
       filters,
       windowMs,
     });
-    const nextRunAt = calculateLastRunAt(
-      new Date(),
-      cadenceMs,
-      schedulerBatchId,
-    );
 
     const created = await prisma.monitor.create({
       data: {
@@ -79,7 +73,7 @@ export class MonitorService {
         status: input.status,
         ...(input.status !== "ACTIVE" ? { severity: "PAUSED" as const } : {}),
         schedulerBatchId,
-        nextRunAt,
+        nextRunAt: null,
         name: input.name,
         tags: input.tags,
       },
@@ -100,11 +94,6 @@ export class MonitorService {
       filters,
       windowMs,
     });
-    const nextRunAt = calculateLastRunAt(
-      new Date(),
-      cadenceMs,
-      schedulerBatchId,
-    );
 
     const current = await prisma.monitor.findFirst({
       where: { id: input.id, projectId: input.projectId },
@@ -129,7 +118,7 @@ export class MonitorService {
           status: input.status,
           ...updateSeverityForStatus(current?.status, input.status),
           schedulerBatchId,
-          nextRunAt,
+          nextRunAt: null,
           name: input.name,
           tags: input.tags,
         },

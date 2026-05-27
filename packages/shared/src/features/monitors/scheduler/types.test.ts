@@ -9,7 +9,7 @@ describe("MonitorQueueEventSchema", () => {
   const validQueueEvent = {
     projectId: "proj_01",
     schedulerBatchId: 42n,
-    scheduledAt: new Date("2026-05-18T12:00:00.000Z"),
+    runAt: new Date("2026-05-18T12:00:00.000Z"),
     view: "observations" as const,
     filters: [],
     window: "5m" as const,
@@ -22,13 +22,13 @@ describe("MonitorQueueEventSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("coerces a string scheduledAt to a Date", () => {
+  it("coerces a string runAt to a Date", () => {
     const result = MonitorQueueEventSchema.safeParse({
       ...validQueueEvent,
-      scheduledAt: "2026-05-18T12:00:00.000Z",
+      runAt: "2026-05-18T12:00:00.000Z",
     });
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.scheduledAt).toBeInstanceOf(Date);
+    if (result.success) expect(result.data.runAt).toBeInstanceOf(Date);
   });
 
   it("coerces a string schedulerBatchId to a bigint", () => {
@@ -142,7 +142,7 @@ describe("scheduler DTO JSON round-trip (wire contract)", () => {
     const event = {
       projectId: "proj_01",
       schedulerBatchId: 42n,
-      scheduledAt: new Date("2026-05-18T12:00:00.000Z"),
+      runAt: new Date("2026-05-18T12:00:00.000Z"),
       view: "observations" as const,
       filters: [],
       window: "5m" as const,
@@ -154,7 +154,7 @@ describe("scheduler DTO JSON round-trip (wire contract)", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(typeof result.data.schedulerBatchId).toBe("bigint");
-      expect(result.data.scheduledAt).toBeInstanceOf(Date);
+      expect(result.data.runAt).toBeInstanceOf(Date);
       expect(result.data.window).toBe("5m");
     }
   });

@@ -68,7 +68,7 @@ describe("MonitorService (integration)", () => {
       // "5m" is a sub-day window → 1-minute cadence.
       expect(row!.cadenceMs).toBe(60_000n);
       expect(row!.schedulerBatchId).toBeGreaterThan(0n);
-      expect(row!.nextRunAt.getTime()).toBeLessThanOrEqual(Date.now());
+      expect(row!.nextRunAt).toBeNull();
       expect(row!.severity).toBe("UNKNOWN");
       expect(row!.createdBy).toBe(creator.userId);
       expect(row!.updatedBy).toBe(creator.userId);

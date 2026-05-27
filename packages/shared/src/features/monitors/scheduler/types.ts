@@ -24,8 +24,8 @@ export const MonitorQueueEventSchema = z.object({
   // Fingerprint of (projectId, view, filters, window)
   schedulerBatchId: z.coerce.bigint().nonnegative(),
 
-  // Scheduler tick time
-  scheduledAt: z.coerce.date(),
+  // Deterministic run boundary this batch represents.
+  runAt: z.coerce.date(),
 
   // Shared query primitives — every monitor in this batch agrees on these.
   view: MonitorViewSchema,

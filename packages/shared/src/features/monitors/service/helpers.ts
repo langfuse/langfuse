@@ -140,24 +140,6 @@ export const calculateSchedulerBatchId = (params: {
   return digest.readBigUInt64BE(0) & ((1n << 63n) - 1n);
 };
 
-/**
- * calculateLastRunAt picks the most recent cadence boundary at or before
- * `now`, offset by `(schedulerBatchId % 60) * 1000` ms. Persisted as
- * `monitor.nextRunAt` on create/update so the scheduler picks the monitor up
- * on its very next tick and advances it onto the deterministic slot.
- */
-export const calculateLastRunAt = (
-  now: Date,
-  cadenceMs: bigint,
-  schedulerBatchId: bigint,
-): Date => {
-  const cadence = Number(cadenceMs);
-  const offset = Number(schedulerBatchId % 60n) * 1000;
-  const aligned =
-    Math.floor((now.getTime() - offset) / cadence) * cadence + offset;
-  return new Date(aligned);
-};
-
 /** viewToPrisma converts the MonitorView api enum to the Prisma MonitorView enum. */
 export const viewToPrisma = (view: MonitorView): PrismaMonitorView => {
   switch (view) {
