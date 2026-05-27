@@ -83,7 +83,7 @@ def evaluate(ctx):
     contains = ctx.observation.input in ctx.observation.output
     return {
         "scores": [
-            {"name": "output-contains-input-bool", "value": contains, "dataType": "BOOLEAN"},
+            Score(name="output-contains-input-bool", value=contains),
             {"name": "output-contains-input-int", "value": 1 if contains else 0, "dataType": "BOOLEAN"},
             {"name": "output-contains-input-str", "value": "true" if contains else "false", "dataType": "BOOLEAN"},
             {"name": ctx.observation.metadata["topic"], "value": ctx.experiment.item_metadata["item"], "dataType": "NUMERIC"},

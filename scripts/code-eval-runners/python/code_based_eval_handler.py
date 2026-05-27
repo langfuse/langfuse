@@ -128,6 +128,12 @@ def to_jsonable(value):
                 continue
             key = _DATACLASS_FIELD_NAME_OVERRIDES.get(f.name, f.name)
             result[key] = to_jsonable(raw)
+        if (
+            isinstance(value, Score)
+            and "dataType" not in result
+            and isinstance(value.value, bool)
+        ):
+            result["dataType"] = "BOOLEAN"
         return result
 
     if isinstance(value, list):
