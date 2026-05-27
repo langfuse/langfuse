@@ -45,20 +45,22 @@ type SchedulerCase = {
   expect: { events: ExpectedEvent[]; rows: ExpectedRow[] };
 };
 
-const ONE_MINUTE_MS = 60n * 1000n;
+const oneMinuteMs = 60n * 1000n;
 
-const TICK = new Date("2026-05-27T12:00:30.000Z");
-// Next 1-minute cadence boundary strictly after TICK, offset by (batchId % 60) seconds.
-const BOUNDARY_PREV_MINUTE = new Date("2026-05-27T12:00:00.000Z");
-const BOUNDARY_NEXT_MINUTE = new Date("2026-05-27T12:01:00.000Z");
-const NEXT_BOUNDARY_BATCH_1 = new Date("2026-05-27T12:01:01.000Z");
-const NEXT_BOUNDARY_BATCH_2 = new Date("2026-05-27T12:01:02.000Z");
-const NEXT_BOUNDARY_BATCH_5 = new Date("2026-05-27T12:01:05.000Z");
-const NEXT_BOUNDARY_BATCH_7 = new Date("2026-05-27T12:01:07.000Z");
-const TWO_MIN_AGO = new Date("2026-05-27T11:58:30.000Z");
-const THREE_MIN_AGO = new Date("2026-05-27T11:57:30.000Z");
-const TEN_MIN_AGO = new Date("2026-05-27T11:50:30.000Z");
-const FUTURE_RUN = new Date("2026-05-27T12:01:30.000Z");
+// Scheduler times
+const now = new Date("2026-05-27T12:00:30.000Z");
+const twoMinutesAgo = new Date("2026-05-27T11:58:30.000Z");
+const threeMinutesAgo = new Date("2026-05-27T11:57:30.000Z");
+const tenMinutesAgo = new Date("2026-05-27T11:50:30.000Z");
+const oneMinuteFromNow = new Date("2026-05-27T12:01:30.000Z");
+
+// Cadence-aligned boundaries (cadence=1m), offset by (batchId % 60) seconds.
+const prevCadence = new Date("2026-05-27T12:00:00.000Z");
+const nextCadence = new Date("2026-05-27T12:01:00.000Z");
+const nextCadenceBatch1 = new Date("2026-05-27T12:01:01.000Z");
+const nextCadenceBatch2 = new Date("2026-05-27T12:01:02.000Z");
+const nextCadenceBatch5 = new Date("2026-05-27T12:01:05.000Z");
+const nextCadenceBatch7 = new Date("2026-05-27T12:01:07.000Z");
 
 async function seedMonitor(projectId: string, seed: MonitorSeed) {
   return prisma.monitor.create({
@@ -71,8 +73,8 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
         measure: "count",
         aggregation: "count",
       }) as unknown as Prisma.InputJsonValue,
-      windowMs: seed.windowMs ?? 5n * ONE_MINUTE_MS,
-      cadenceMs: seed.cadenceMs ?? ONE_MINUTE_MS,
+      windowMs: seed.windowMs ?? 5n * oneMinuteMs,
+      cadenceMs: seed.cadenceMs ?? oneMinuteMs,
       thresholdOperator: "GT",
       alertThreshold: 100,
       warningThreshold: null,
@@ -104,29 +106,29 @@ function makeScheduler(
 const cases: SchedulerCase[] = [
   {
     name: "no monitors on the system: schedule returns 0, publish not called",
-    tick: TICK,
+    tick: now,
     monitors: [],
     expect: { events: [], rows: [] },
   },
   {
     name: "all monitors ahead: every row filtered by WHERE, nothing published or advanced",
-    tick: TICK,
+    tick: now,
     monitors: [
-      { id: "m_ahead_a", nextRunAt: FUTURE_RUN },
-      { id: "m_ahead_b", nextRunAt: FUTURE_RUN },
+      { id: "m_ahead_a", nextRunAt: oneMinuteFromNow },
+      { id: "m_ahead_b", nextRunAt: oneMinuteFromNow },
     ],
     expect: {
       events: [],
       rows: [
         {
           id: "m_ahead_a",
-          nextRunAt: FUTURE_RUN,
+          nextRunAt: oneMinuteFromNow,
           lastPublishedRunAt: null,
           lastCompletedRunAt: null,
         },
         {
           id: "m_ahead_b",
-          nextRunAt: FUTURE_RUN,
+          nextRunAt: oneMinuteFromNow,
           lastPublishedRunAt: null,
           lastCompletedRunAt: null,
         },
@@ -135,15 +137,15 @@ const cases: SchedulerCase[] = [
   },
   {
     name: "new monitor: publishes at tick, advances to next boundary",
-    tick: TICK,
+    tick: now,
     monitors: [{ id: "m_new", nextRunAt: null }],
     expect: {
-      events: [{ schedulerBatchId: 0n, runAt: TICK, monitorIds: ["m_new"] }],
+      events: [{ schedulerBatchId: 0n, runAt: now, monitorIds: ["m_new"] }],
       rows: [
         {
           id: "m_new",
-          nextRunAt: BOUNDARY_NEXT_MINUTE,
-          lastPublishedRunAt: TICK,
+          nextRunAt: nextCadence,
+          lastPublishedRunAt: now,
           lastCompletedRunAt: null,
         },
       ],
@@ -151,21 +153,21 @@ const cases: SchedulerCase[] = [
   },
   {
     name: "behind monitor: publishes at prior next_run_at, advances",
-    tick: TICK,
-    monitors: [{ id: "m_behind", nextRunAt: BOUNDARY_PREV_MINUTE }],
+    tick: now,
+    monitors: [{ id: "m_behind", nextRunAt: prevCadence }],
     expect: {
       events: [
         {
           schedulerBatchId: 0n,
-          runAt: BOUNDARY_PREV_MINUTE,
+          runAt: prevCadence,
           monitorIds: ["m_behind"],
         },
       ],
       rows: [
         {
           id: "m_behind",
-          nextRunAt: BOUNDARY_NEXT_MINUTE,
-          lastPublishedRunAt: BOUNDARY_PREV_MINUTE,
+          nextRunAt: nextCadence,
+          lastPublishedRunAt: prevCadence,
           lastCompletedRunAt: null,
         },
       ],
@@ -173,12 +175,12 @@ const cases: SchedulerCase[] = [
   },
   {
     name: "in-flight + last_completed=NULL within TTL: not published, advanced",
-    tick: TICK,
+    tick: now,
     monitors: [
       {
         id: "m_pending",
-        nextRunAt: BOUNDARY_PREV_MINUTE,
-        lastPublishedRunAt: TWO_MIN_AGO,
+        nextRunAt: prevCadence,
+        lastPublishedRunAt: twoMinutesAgo,
         lastCompletedRunAt: null,
       },
     ],
@@ -187,8 +189,8 @@ const cases: SchedulerCase[] = [
       rows: [
         {
           id: "m_pending",
-          nextRunAt: BOUNDARY_NEXT_MINUTE,
-          lastPublishedRunAt: TWO_MIN_AGO,
+          nextRunAt: nextCadence,
+          lastPublishedRunAt: twoMinutesAgo,
           lastCompletedRunAt: null,
         },
       ],
@@ -196,13 +198,13 @@ const cases: SchedulerCase[] = [
   },
   {
     name: "in-flight + completed-before-published within TTL: not published, advanced",
-    tick: TICK,
+    tick: now,
     monitors: [
       {
         id: "m_inflight_completed",
-        nextRunAt: BOUNDARY_PREV_MINUTE,
-        lastPublishedRunAt: TWO_MIN_AGO,
-        lastCompletedRunAt: THREE_MIN_AGO,
+        nextRunAt: prevCadence,
+        lastPublishedRunAt: twoMinutesAgo,
+        lastCompletedRunAt: threeMinutesAgo,
       },
     ],
     expect: {
@@ -210,21 +212,21 @@ const cases: SchedulerCase[] = [
       rows: [
         {
           id: "m_inflight_completed",
-          nextRunAt: BOUNDARY_NEXT_MINUTE,
-          lastPublishedRunAt: TWO_MIN_AGO,
-          lastCompletedRunAt: THREE_MIN_AGO,
+          nextRunAt: nextCadence,
+          lastPublishedRunAt: twoMinutesAgo,
+          lastCompletedRunAt: threeMinutesAgo,
         },
       ],
     },
   },
   {
     name: "in-flight past TTL: republishes (rescue), advances",
-    tick: TICK,
+    tick: now,
     monitors: [
       {
         id: "m_stuck",
-        nextRunAt: BOUNDARY_PREV_MINUTE,
-        lastPublishedRunAt: TEN_MIN_AGO,
+        nextRunAt: prevCadence,
+        lastPublishedRunAt: tenMinutesAgo,
         lastCompletedRunAt: null,
       },
     ],
@@ -232,15 +234,15 @@ const cases: SchedulerCase[] = [
       events: [
         {
           schedulerBatchId: 0n,
-          runAt: BOUNDARY_PREV_MINUTE,
+          runAt: prevCadence,
           monitorIds: ["m_stuck"],
         },
       ],
       rows: [
         {
           id: "m_stuck",
-          nextRunAt: BOUNDARY_NEXT_MINUTE,
-          lastPublishedRunAt: BOUNDARY_PREV_MINUTE,
+          nextRunAt: nextCadence,
+          lastPublishedRunAt: prevCadence,
           lastCompletedRunAt: null,
         },
       ],
@@ -248,21 +250,21 @@ const cases: SchedulerCase[] = [
   },
   {
     name: "very behind: catches up to next boundary, skips intermediates",
-    tick: TICK,
-    monitors: [{ id: "m_far_behind", nextRunAt: TEN_MIN_AGO }],
+    tick: now,
+    monitors: [{ id: "m_far_behind", nextRunAt: tenMinutesAgo }],
     expect: {
       events: [
         {
           schedulerBatchId: 0n,
-          runAt: TEN_MIN_AGO,
+          runAt: tenMinutesAgo,
           monitorIds: ["m_far_behind"],
         },
       ],
       rows: [
         {
           id: "m_far_behind",
-          nextRunAt: BOUNDARY_NEXT_MINUTE,
-          lastPublishedRunAt: TEN_MIN_AGO,
+          nextRunAt: nextCadence,
+          lastPublishedRunAt: tenMinutesAgo,
           lastCompletedRunAt: null,
         },
       ],
@@ -270,12 +272,12 @@ const cases: SchedulerCase[] = [
   },
   {
     name: "paused monitor: untouched",
-    tick: TICK,
+    tick: now,
     monitors: [
       {
         id: "m_paused",
         status: "PAUSED",
-        nextRunAt: BOUNDARY_PREV_MINUTE,
+        nextRunAt: prevCadence,
       },
     ],
     expect: {
@@ -283,7 +285,7 @@ const cases: SchedulerCase[] = [
       rows: [
         {
           id: "m_paused",
-          nextRunAt: BOUNDARY_PREV_MINUTE,
+          nextRunAt: prevCadence,
           lastPublishedRunAt: null,
           lastCompletedRunAt: null,
         },
@@ -292,12 +294,12 @@ const cases: SchedulerCase[] = [
   },
   {
     name: "error monitor: untouched",
-    tick: TICK,
+    tick: now,
     monitors: [
       {
         id: "m_error",
         status: "ERROR_BAD_QUERY",
-        nextRunAt: BOUNDARY_PREV_MINUTE,
+        nextRunAt: prevCadence,
       },
     ],
     expect: {
@@ -305,7 +307,7 @@ const cases: SchedulerCase[] = [
       rows: [
         {
           id: "m_error",
-          nextRunAt: BOUNDARY_PREV_MINUTE,
+          nextRunAt: prevCadence,
           lastPublishedRunAt: null,
           lastCompletedRunAt: null,
         },
@@ -314,18 +316,18 @@ const cases: SchedulerCase[] = [
   },
   {
     name: "multi-monitor batch: one event, both monitors, deduped metrics",
-    tick: TICK,
+    tick: now,
     monitors: [
       {
         id: "m_a",
         schedulerBatchId: 7n,
-        nextRunAt: BOUNDARY_PREV_MINUTE,
+        nextRunAt: prevCadence,
         metric: { measure: "count", aggregation: "count" },
       },
       {
         id: "m_b",
         schedulerBatchId: 7n,
-        nextRunAt: BOUNDARY_PREV_MINUTE,
+        nextRunAt: prevCadence,
         metric: { measure: "latency", aggregation: "p95" },
       },
     ],
@@ -333,21 +335,21 @@ const cases: SchedulerCase[] = [
       events: [
         {
           schedulerBatchId: 7n,
-          runAt: BOUNDARY_PREV_MINUTE,
+          runAt: prevCadence,
           monitorIds: ["m_a", "m_b"],
         },
       ],
       rows: [
         {
           id: "m_a",
-          nextRunAt: NEXT_BOUNDARY_BATCH_7,
-          lastPublishedRunAt: BOUNDARY_PREV_MINUTE,
+          nextRunAt: nextCadenceBatch7,
+          lastPublishedRunAt: prevCadence,
           lastCompletedRunAt: null,
         },
         {
           id: "m_b",
-          nextRunAt: NEXT_BOUNDARY_BATCH_7,
-          lastPublishedRunAt: BOUNDARY_PREV_MINUTE,
+          nextRunAt: nextCadenceBatch7,
+          lastPublishedRunAt: prevCadence,
           lastCompletedRunAt: null,
         },
       ],
@@ -355,56 +357,56 @@ const cases: SchedulerCase[] = [
   },
   {
     name: "5 monitors batched into 2 events (batching + ordering)",
-    tick: TICK,
+    tick: now,
     monitors: [
-      { id: "m_a1", schedulerBatchId: 1n, nextRunAt: TWO_MIN_AGO },
-      { id: "m_a2", schedulerBatchId: 1n, nextRunAt: TWO_MIN_AGO },
-      { id: "m_a3", schedulerBatchId: 1n, nextRunAt: TWO_MIN_AGO },
-      { id: "m_b1", schedulerBatchId: 2n, nextRunAt: TEN_MIN_AGO },
-      { id: "m_b2", schedulerBatchId: 2n, nextRunAt: TEN_MIN_AGO },
+      { id: "m_a1", schedulerBatchId: 1n, nextRunAt: twoMinutesAgo },
+      { id: "m_a2", schedulerBatchId: 1n, nextRunAt: twoMinutesAgo },
+      { id: "m_a3", schedulerBatchId: 1n, nextRunAt: twoMinutesAgo },
+      { id: "m_b1", schedulerBatchId: 2n, nextRunAt: tenMinutesAgo },
+      { id: "m_b2", schedulerBatchId: 2n, nextRunAt: tenMinutesAgo },
     ],
     expect: {
       events: [
         {
           schedulerBatchId: 2n,
-          runAt: TEN_MIN_AGO,
+          runAt: tenMinutesAgo,
           monitorIds: ["m_b1", "m_b2"],
         },
         {
           schedulerBatchId: 1n,
-          runAt: TWO_MIN_AGO,
+          runAt: twoMinutesAgo,
           monitorIds: ["m_a1", "m_a2", "m_a3"],
         },
       ],
       rows: [
         {
           id: "m_a1",
-          nextRunAt: NEXT_BOUNDARY_BATCH_1,
-          lastPublishedRunAt: TWO_MIN_AGO,
+          nextRunAt: nextCadenceBatch1,
+          lastPublishedRunAt: twoMinutesAgo,
           lastCompletedRunAt: null,
         },
         {
           id: "m_a2",
-          nextRunAt: NEXT_BOUNDARY_BATCH_1,
-          lastPublishedRunAt: TWO_MIN_AGO,
+          nextRunAt: nextCadenceBatch1,
+          lastPublishedRunAt: twoMinutesAgo,
           lastCompletedRunAt: null,
         },
         {
           id: "m_a3",
-          nextRunAt: NEXT_BOUNDARY_BATCH_1,
-          lastPublishedRunAt: TWO_MIN_AGO,
+          nextRunAt: nextCadenceBatch1,
+          lastPublishedRunAt: twoMinutesAgo,
           lastCompletedRunAt: null,
         },
         {
           id: "m_b1",
-          nextRunAt: NEXT_BOUNDARY_BATCH_2,
-          lastPublishedRunAt: TEN_MIN_AGO,
+          nextRunAt: nextCadenceBatch2,
+          lastPublishedRunAt: tenMinutesAgo,
           lastCompletedRunAt: null,
         },
         {
           id: "m_b2",
-          nextRunAt: NEXT_BOUNDARY_BATCH_2,
-          lastPublishedRunAt: TEN_MIN_AGO,
+          nextRunAt: nextCadenceBatch2,
+          lastPublishedRunAt: tenMinutesAgo,
           lastCompletedRunAt: null,
         },
       ],
@@ -413,29 +415,29 @@ const cases: SchedulerCase[] = [
   {
     name: "sharding: only this scheduler's slot is claimed",
     scheduler: { id: 1, total: 4 },
-    tick: TICK,
+    tick: now,
     monitors: [
-      { id: "m_in", schedulerBatchId: 5n, nextRunAt: BOUNDARY_PREV_MINUTE },
-      { id: "m_out", schedulerBatchId: 4n, nextRunAt: BOUNDARY_PREV_MINUTE },
+      { id: "m_in", schedulerBatchId: 5n, nextRunAt: prevCadence },
+      { id: "m_out", schedulerBatchId: 4n, nextRunAt: prevCadence },
     ],
     expect: {
       events: [
         {
           schedulerBatchId: 5n,
-          runAt: BOUNDARY_PREV_MINUTE,
+          runAt: prevCadence,
           monitorIds: ["m_in"],
         },
       ],
       rows: [
         {
           id: "m_in",
-          nextRunAt: NEXT_BOUNDARY_BATCH_5,
-          lastPublishedRunAt: BOUNDARY_PREV_MINUTE,
+          nextRunAt: nextCadenceBatch5,
+          lastPublishedRunAt: prevCadence,
           lastCompletedRunAt: null,
         },
         {
           id: "m_out",
-          nextRunAt: BOUNDARY_PREV_MINUTE,
+          nextRunAt: prevCadence,
           lastPublishedRunAt: null,
           lastCompletedRunAt: null,
         },
@@ -500,22 +502,22 @@ describe("MonitorScheduler (integration)", () => {
     await seedMonitor(projectId, {
       id: "m_det",
       schedulerBatchId: 17n,
-      nextRunAt: BOUNDARY_PREV_MINUTE,
+      nextRunAt: prevCadence,
     });
 
     const publish1 = vi.fn<(events: MonitorQueueEvent[]) => Promise<void>>();
-    await makeScheduler(publish1).schedule(TICK);
+    await makeScheduler(publish1).schedule(now);
     const firstNext = (
       await prisma.monitor.findUniqueOrThrow({ where: { id: "m_det" } })
     ).nextRunAt;
 
     await prisma.monitor.update({
       where: { id: "m_det" },
-      data: { nextRunAt: BOUNDARY_PREV_MINUTE, lastPublishedRunAt: null },
+      data: { nextRunAt: prevCadence, lastPublishedRunAt: null },
     });
 
     const publish2 = vi.fn<(events: MonitorQueueEvent[]) => Promise<void>>();
-    await makeScheduler(publish2).schedule(TICK);
+    await makeScheduler(publish2).schedule(now);
     const secondNext = (
       await prisma.monitor.findUniqueOrThrow({ where: { id: "m_det" } })
     ).nextRunAt;
@@ -549,7 +551,7 @@ describe("MonitorScheduler (integration)", () => {
         nextRunAt: null,
       });
       const publish = vi.fn<(events: MonitorQueueEvent[]) => Promise<void>>();
-      await makeScheduler(publish).schedule(TICK);
+      await makeScheduler(publish).schedule(now);
 
       const row = await prisma.monitor.findUniqueOrThrow({
         where: { id: "m_cadence" },
