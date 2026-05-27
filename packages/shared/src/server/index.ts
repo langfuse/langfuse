@@ -45,6 +45,7 @@ export * from "./services/blobStorageEndpointValidation";
 export * from "./llm/getInternalTracingHandler";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
+export * from "./utils/metadata_conversion";
 export * from "./utils/billingCycleHelpers";
 export * from "./utils/compareVersions";
 export * from "./otel/utils";
