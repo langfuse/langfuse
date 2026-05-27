@@ -16,7 +16,7 @@ export const EvaluatorForm = (props: {
   disabled?: boolean;
   existingEvaluator?: PartialConfig & { evalTemplate: EvalTemplate };
   onFormSuccess?: () => void;
-  mode?: "create" | "edit";
+  mode?: "create" | "edit" | "clone";
   shouldWrapVariables?: boolean;
   templateId?: string;
   hideTargetSection?: boolean;

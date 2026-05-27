@@ -362,7 +362,7 @@ export const InnerEvaluatorForm = (props: {
   existingEvaluator?: PartialConfig;
   onFormSuccess?: () => void;
   shouldWrapVariables?: boolean;
-  mode?: "create" | "edit";
+  mode?: "create" | "edit" | "clone";
   hideTargetSection?: boolean;
   preventRedirect?: boolean;
   preprocessFormValues?: (values: any) => any;
@@ -490,9 +490,12 @@ export const InnerEvaluatorForm = (props: {
         (option): option is "NEW" | "EXISTING" =>
           ["NEW", "EXISTING"].includes(option),
       ),
-      runOnLive: props.existingEvaluator
-        ? props.existingEvaluator.status === "ACTIVE"
-        : (props.defaultRunOnLive ?? true),
+      runOnLive:
+        props.mode === "clone"
+          ? false
+          : props.existingEvaluator
+            ? props.existingEvaluator.status === "ACTIVE"
+            : (props.defaultRunOnLive ?? true),
     },
   }) as UseFormReturn<EvalFormType>;
 
@@ -608,7 +611,9 @@ export const InnerEvaluatorForm = (props: {
     capture(
       props.mode === "edit"
         ? "eval_config:update"
-        : "eval_config:new_form_submit",
+        : props.mode === "clone"
+          ? "eval_config:clone_form_submit"
+          : "eval_config:new_form_submit",
     );
 
     // Apply preprocessFormValues if it exists
@@ -701,11 +706,14 @@ export const InnerEvaluatorForm = (props: {
 
     // For modern targets, derive status from runOnLive
     const isModern = !isLegacyEvalTarget(values.target);
-    const status = isModern
-      ? values.runOnLive
-        ? JobConfigState.ACTIVE
-        : JobConfigState.INACTIVE
-      : undefined;
+    const status =
+      props.mode === "clone"
+        ? JobConfigState.INACTIVE
+        : isModern
+          ? values.runOnLive
+            ? JobConfigState.ACTIVE
+            : JobConfigState.INACTIVE
+          : undefined;
 
     (props.mode === "edit" && props.existingEvaluator?.id
       ? updateJobMutation.mutateAsync({
@@ -737,7 +745,11 @@ export const InnerEvaluatorForm = (props: {
       .then(() => {
         props.onFormSuccess?.();
 
-        if (props.mode !== "edit" && !props.preventRedirect) {
+        if (
+          props.mode !== "edit" &&
+          props.mode !== "clone" &&
+          !props.preventRedirect
+        ) {
           void router.push(`/project/${props.projectId}/evals`);
           // Don't reset form when redirecting - it will unmount anyway
         } else {
@@ -1389,7 +1401,11 @@ export const InnerEvaluatorForm = (props: {
           loading={mutationIsLoading}
           className="mt-3 max-w-fit"
         >
-          {props.mode === "edit" ? "Update" : "Execute"}
+          {props.mode === "edit"
+            ? "Update"
+            : props.mode === "clone"
+              ? "Clone"
+              : "Execute"}
         </Button>
       ) : null}
       {formError ? (

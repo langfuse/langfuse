@@ -24,7 +24,7 @@ import {
 } from "@/src/features/evals/utils/typeHelpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
-import { MoreVertical, ExternalLinkIcon, Edit, Info } from "lucide-react";
+import { MoreVertical, ExternalLinkIcon, Edit, Info, Copy } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { TablePeekView } from "@/src/components/table/peek";
@@ -63,6 +63,8 @@ import {
   type EvaluatorDataRow,
   useEvaluatorTableData,
 } from "@/src/features/evals/hooks/useEvaluatorTableData";
+import { buildClonedEvaluatorConfig } from "@/src/features/evals/utils/clone-evaluator-config";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import {
   TableBadgeLoadingCell,
@@ -122,7 +124,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     withDefault(StringParam, null),
   );
   const [editConfigId, setEditConfigId] = useState<string | null>(null);
+  const [cloneConfigId, setCloneConfigId] = useState<string | null>(null);
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "status",
@@ -161,6 +165,16 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     },
     {
       enabled: !!editConfigId,
+    },
+  );
+
+  const cloneSourceEvaluator = api.evals.configById.useQuery(
+    {
+      id: cloneConfigId as string,
+      projectId,
+    },
+    {
+      enabled: !!cloneConfigId,
     },
   );
 
@@ -397,6 +411,20 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 <Edit className="mr-2 h-4 w-4" />
                 Edit
               </DropdownMenuItem>
+              <DropdownMenuItem
+                aria-label="clone"
+                disabled={!hasAccess}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (id) {
+                    capture("eval_config:clone_form_open");
+                    setCloneConfigId(id);
+                  }
+                }}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Clone
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <DeleteEvalConfigButton
                   aria-label="delete"
@@ -427,7 +455,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       detailNavigationKey: "evals",
       peekEventOptions: {
         ignoredSelectors: [
-          "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
+          "[aria-label='edit'], [aria-label='clone'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
         ],
       },
       ...peekNavigationProps,
@@ -570,6 +598,52 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                   title: "Evaluator updated successfully",
                   description:
                     "Changes will automatically be reflected future evaluator runs",
+                });
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!cloneConfigId && cloneSourceEvaluator.isSuccess}
+        onOpenChange={(open) => {
+          if (!open) setCloneConfigId(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-xl) overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Clone evaluator</DialogTitle>
+          </DialogHeader>
+          {cloneSourceEvaluator.isLoading ? (
+            <div className="flex items-center justify-center p-4">
+              <Spinner size="lg" />
+            </div>
+          ) : (
+            <EvaluatorForm
+              projectId={projectId}
+              evalTemplates={[]}
+              existingEvaluator={
+                cloneSourceEvaluator.data &&
+                cloneSourceEvaluator.data.evalTemplate
+                  ? {
+                      ...buildClonedEvaluatorConfig(cloneSourceEvaluator.data),
+                      evalTemplate: {
+                        ...cloneSourceEvaluator.data.evalTemplate,
+                      },
+                    }
+                  : undefined
+              }
+              shouldWrapVariables={true}
+              useDialog={true}
+              mode="clone"
+              defaultRunOnLive={false}
+              onFormSuccess={() => {
+                setCloneConfigId(null);
+                void utils.evals.allConfigs.invalidate();
+                showSuccessToast({
+                  title: "Evaluator cloned successfully",
+                  description:
+                    "The cloned evaluator was created as inactive. Activate it when you are ready to run evaluations.",
                 });
               }}
             />

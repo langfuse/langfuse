@@ -89,6 +89,8 @@ export const events = {
   eval_config: [
     "new_form_submit",
     "new_form_open",
+    "clone_form_open",
+    "clone_form_submit",
     "activate",
     "deactivate",
     "update",
