@@ -3412,9 +3412,13 @@ paths:
 
             The `matches` operator is only supported for `input`, `output`, and
             stringObject `metadata` filters. It performs token-based full-text
-            search using the events table text indexes. For input/output it is
-            case-insensitive; for metadata values it is case-sensitive. Use
-            `contains` for substring semantics.
+            search using the events table text indexes. Case sensitivity differs
+            by target: `input` and `output` matches are case-insensitive, while
+            metadata value matches are case-sensitive. Use `contains` for
+            substring semantics. Any v2 `input` or `output` filter must be
+            accompanied by at least one `=` or `matches` filter on `input` or
+            `output`; standalone `contains`, `starts with`, `ends with`, and
+            `does not contain` filters on these columns are rejected.
 
 
             ## Filter Examples
