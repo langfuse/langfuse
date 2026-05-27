@@ -28,9 +28,7 @@ vi.hoisted(() => {
 const orgIds: string[] = [];
 
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
-    ? describe
-    : describe.skip;
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true" ? describe : describe.skip;
 
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -209,7 +207,7 @@ maybe("evals.testRunCodeEval", () => {
     expect(Number(scoreCount[0]?.count ?? 0)).toBe(0);
   });
 
-  it("runs against legacy observations when events table observations are disabled", async () => {
+  it("runs against legacy observations when events table evals are disabled", async () => {
     const { project, caller } = await prepare();
     const observationId = randomUUID();
     const traceId = randomUUID();
@@ -248,13 +246,13 @@ maybe("evals.testRunCodeEval", () => {
     ]);
 
     const mutableEnv = env as unknown as {
-      LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS: "true" | "false";
+      LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS: "true" | "false";
     };
-    const originalEventsTableObservationFlag =
-      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS;
+    const originalEventsTableFlagsFlag =
+      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS;
 
     try {
-      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = "false";
+      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS = "false";
 
       const response = await caller.evals.testRunCodeEval({
         projectId: project.id,
@@ -298,8 +296,8 @@ maybe("evals.testRunCodeEval", () => {
         executionTraceFromTimestamp: expect.any(Date),
       });
     } finally {
-      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS =
-        originalEventsTableObservationFlag;
+      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS =
+        originalEventsTableFlagsFlag;
     }
   });
 

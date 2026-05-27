@@ -227,7 +227,7 @@ async function getObservationForEvalById(params: {
   shouldReadFromObservationsTable?: boolean;
 }): Promise<ObservationForEval> {
   if (
-    env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS !== "true" ||
+    env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS !== "true" ||
     params.shouldReadFromObservationsTable
   ) {
     return getObservationForEvalByIdFromLegacyObservations(params);
