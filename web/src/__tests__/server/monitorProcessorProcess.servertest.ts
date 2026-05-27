@@ -101,6 +101,21 @@ async function seedObservationsInWindow(args: {
   await createObservationsCh(observations);
 }
 
+async function seedTrigger(
+  projectId: string,
+  filter: { column: string; operator: string; value: unknown; type: string }[],
+) {
+  return prisma.trigger.create({
+    data: {
+      projectId,
+      eventSource: "monitor",
+      eventActions: [],
+      filter: filter as unknown as Prisma.InputJsonValue,
+      status: "ACTIVE",
+    },
+  });
+}
+
 function makeEvent(args: {
   projectId: string;
   monitorIds: string[];
@@ -287,5 +302,201 @@ describe("MonitorProcessor.process — shell (integration)", () => {
     expect(done.severityChangedAt?.toISOString()).toBe(
       tenMinutesAgo.toISOString(),
     );
+  });
+});
+
+describe("MonitorProcessor.process — trigger filter + publisher emit (integration)", () => {
+  let projectId: string;
+
+  beforeAll(async () => {
+    const org = await createOrgProjectAndApiKey();
+    projectId = org.projectId;
+  });
+
+  afterEach(async () => {
+    await prisma.monitor.deleteMany({ where: { projectId } });
+    await prisma.trigger.deleteMany({ where: { projectId } });
+  });
+
+  it("case B: cold-start ALERT + matching severity trigger -> publish called once with the expected payload", async () => {
+    const monitorId = `m_alert_${v4()}`;
+    await seedMonitor(projectId, {
+      id: monitorId,
+      severity: "UNKNOWN",
+      lastPublishedRunAt: runAt,
+      alertThreshold: 100,
+      thresholdOperator: "GT",
+    });
+    await seedObservationsInWindow({
+      projectId,
+      count: 142,
+      runAt,
+      windowMs: 5 * 60 * 1000,
+    });
+    await seedTrigger(projectId, [
+      {
+        column: "severity",
+        operator: "any of",
+        value: ["ALERT"],
+        type: "stringOptions",
+      },
+    ]);
+
+    const publish = vi.fn<MonitorPublisher>(async () => {});
+    const processor = new MonitorProcessor({ db: prisma, publish });
+    await processor.process(
+      makeEvent({ projectId, monitorIds: [monitorId] }),
+      justAfterRunAt,
+    );
+
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish.mock.calls[0][0]).toMatchObject({
+      type: "monitor-alert",
+      version: "v1",
+      payload: {
+        monitorId,
+        projectId,
+        severity: "ALERT",
+        message: {
+          title: `[ALERT] Test ${monitorId}`,
+          body: "count(observations.count) is above 100",
+        },
+        view: "observations",
+        window: "5m",
+      },
+    });
+    expect(publish.mock.calls[0][0].payload.timestamp.toISOString()).toBe(
+      runAt.toISOString(),
+    );
+
+    const row = await prisma.monitor.findUniqueOrThrow({
+      where: { id: monitorId },
+    });
+    expect(row.severity).toBe("ALERT");
+    expect(row.severityChangedAt?.toISOString()).toBe(runAt.toISOString());
+    expect(row.alertedAt?.toISOString()).toBe(runAt.toISOString());
+    expect(row.lastCompletedRunAt?.toISOString()).toBe(runAt.toISOString());
+  });
+
+  it("case D: emit but NO matching trigger -> publish NOT called; row still written per state machine", async () => {
+    const monitorId = `m_no_match_${v4()}`;
+    await seedMonitor(projectId, {
+      id: monitorId,
+      severity: "UNKNOWN",
+      lastPublishedRunAt: runAt,
+      alertThreshold: 100,
+      thresholdOperator: "GT",
+    });
+    await seedObservationsInWindow({
+      projectId,
+      count: 142,
+      runAt,
+      windowMs: 5 * 60 * 1000,
+    });
+    // Trigger only matches WARNING; monitor emits ALERT -> no match.
+    await seedTrigger(projectId, [
+      {
+        column: "severity",
+        operator: "any of",
+        value: ["WARNING"],
+        type: "stringOptions",
+      },
+    ]);
+
+    const publish = vi.fn<MonitorPublisher>(async () => {});
+    const processor = new MonitorProcessor({ db: prisma, publish });
+    await processor.process(
+      makeEvent({ projectId, monitorIds: [monitorId] }),
+      justAfterRunAt,
+    );
+
+    expect(publish).not.toHaveBeenCalled();
+    // State machine still ran; lifecycle stamps reflect the emit decision.
+    const row = await prisma.monitor.findUniqueOrThrow({
+      where: { id: monitorId },
+    });
+    expect(row.severity).toBe("ALERT");
+    expect(row.severityChangedAt?.toISOString()).toBe(runAt.toISOString());
+    expect(row.alertedAt?.toISOString()).toBe(runAt.toISOString());
+    expect(row.lastCompletedRunAt?.toISOString()).toBe(runAt.toISOString());
+  });
+
+  it("case G: trigger filter on tags matches -> publish called once", async () => {
+    const monitorId = `m_tags_${v4()}`;
+    await seedMonitor(projectId, {
+      id: monitorId,
+      severity: "UNKNOWN",
+      lastPublishedRunAt: runAt,
+      alertThreshold: 100,
+      thresholdOperator: "GT",
+      tags: ["env:prod", "service:faq-bot"],
+    });
+    await seedObservationsInWindow({
+      projectId,
+      count: 142,
+      runAt,
+      windowMs: 5 * 60 * 1000,
+    });
+    await seedTrigger(projectId, [
+      {
+        column: "tags",
+        operator: "any of",
+        value: ["env:prod"],
+        type: "arrayOptions",
+      },
+    ]);
+
+    const publish = vi.fn<MonitorPublisher>(async () => {});
+    const processor = new MonitorProcessor({ db: prisma, publish });
+    await processor.process(
+      makeEvent({ projectId, monitorIds: [monitorId] }),
+      justAfterRunAt,
+    );
+
+    expect(publish).toHaveBeenCalledTimes(1);
+  });
+
+  it("case H: multiple triggers, one matches -> publish called ONCE per surviving Monitor (not per trigger)", async () => {
+    const monitorId = `m_multi_${v4()}`;
+    await seedMonitor(projectId, {
+      id: monitorId,
+      severity: "UNKNOWN",
+      lastPublishedRunAt: runAt,
+      alertThreshold: 100,
+      thresholdOperator: "GT",
+    });
+    await seedObservationsInWindow({
+      projectId,
+      count: 142,
+      runAt,
+      windowMs: 5 * 60 * 1000,
+    });
+    // Two triggers: one matches WARNING (won't match ALERT), one matches ALERT.
+    await seedTrigger(projectId, [
+      {
+        column: "severity",
+        operator: "any of",
+        value: ["WARNING"],
+        type: "stringOptions",
+      },
+    ]);
+    await seedTrigger(projectId, [
+      {
+        column: "severity",
+        operator: "any of",
+        value: ["ALERT"],
+        type: "stringOptions",
+      },
+    ]);
+
+    const publish = vi.fn<MonitorPublisher>(async () => {});
+    const processor = new MonitorProcessor({ db: prisma, publish });
+    await processor.process(
+      makeEvent({ projectId, monitorIds: [monitorId] }),
+      justAfterRunAt,
+    );
+
+    // RFC step 9: one MonitorWebhookQueueEvent per surviving Monitor.
+    expect(publish).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,4 +1,10 @@
-import { Prisma, type PrismaClient } from "../../../db";
+import type { Monitor as PrismaMonitor } from "@prisma/client";
+
+import { JobConfigState, Prisma, type PrismaClient } from "../../../db";
+import { env } from "../../../env";
+import { TriggerEventSource } from "../../../domain/automations";
+import { matchesTriggerFilter } from "../../../server/automations";
+import { getTriggerConfigurations } from "../../../server/repositories/automation-repository";
 import { executeQuery } from "../../query/server/queryExecutor";
 import type { QueryType } from "../../query/types";
 import { monitorProcessorTtl } from "../scheduler/scheduler";
@@ -7,7 +13,15 @@ import type {
   MonitorWebhookQueueEvent,
 } from "../scheduler/types";
 import { windowToMs } from "../service/helpers";
-import type { MonitorNoData, MonitorRenotify, MonitorSeverity } from "../types";
+import type {
+  MonitorAlert,
+  MonitorNoData,
+  MonitorRenotify,
+  MonitorSeverity,
+  MonitorThresholdOperator,
+  MonitorView,
+  MonitorWindow,
+} from "../types";
 import { applyStateMachine } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
 
@@ -65,13 +79,18 @@ export class MonitorProcessor {
     );
   }
 
-  /** process orchestrates one MonitorQueueEvent: claim, query CH, apply the state machine per monitor, and complete. The trigger filter + publisher emit are wired in commit 2. */
+  /** process orchestrates one MonitorQueueEvent: claim, query CH, load triggers, apply the state machine per monitor, publish surviving alerts (before commit per RFC step 9), and complete. */
   async process(event: MonitorQueueEvent, now: Date): Promise<void> {
     const claimedIds = await this.claim(event, now);
     if (claimedIds.length === 0) return;
 
-    const [chRows, rows] = await Promise.all([
+    const [chRows, triggers, rows] = await Promise.all([
       executeQuery(event.projectId, buildMonitorQuery(event)),
+      getTriggerConfigurations({
+        projectId: event.projectId,
+        eventSource: TriggerEventSource.Monitor,
+        status: JobConfigState.ACTIVE,
+      }),
       this.db.monitor.findMany({
         where: { id: { in: claimedIds }, projectId: event.projectId },
       }),
@@ -79,15 +98,16 @@ export class MonitorProcessor {
 
     const chRow = (chRows[0] ?? {}) as Record<string, unknown>;
     const metricByMonitor = new Map(
-      event.monitors.map((m) => [m.monitorId, m.metricName]),
+      event.monitors.map((m) => [m.monitorId, m]),
     );
 
     const completions: MonitorCompletion[] = [];
+    const alertsToPublish: MonitorWebhookQueueEvent[] = [];
     for (const row of rows) {
-      const metricName = metricByMonitor.get(row.id);
-      if (!metricName) continue;
+      const eventMonitor = metricByMonitor.get(row.id);
+      if (!eventMonitor) continue;
       const computed = computeSeverity({
-        value: parseNumericValue(chRow[metricName]),
+        value: parseNumericValue(chRow[eventMonitor.metricName]),
         operator: row.thresholdOperator,
         alertThreshold: row.alertThreshold.toNumber(),
         warningThreshold: row.warningThreshold?.toNumber() ?? null,
@@ -108,12 +128,28 @@ export class MonitorProcessor {
         severityChangedAt: decision.nextSeverityChangedAt,
         alertedAt: decision.nextAlertedAt,
       });
-      // commit 2 will branch on decision.emit here to filter triggers and publish.
+      if (!decision.emit) continue;
+
+      const alert = buildAlert({
+        row,
+        prevSeverity: row.severity,
+        severity: decision.nextSeverity,
+        event,
+      });
+      const filterData = toFilterData(row, alert);
+      const matched = triggers.some((t) => matchesTriggerFilter(filterData, t));
+      if (!matched) continue;
+      alertsToPublish.push({
+        type: "monitor-alert",
+        version: "v1",
+        payload: alert,
+      });
     }
 
-    // commit 2 will publish surviving alerts before complete.
-    void this.publish;
-
+    // RFC step 9: publish before complete so a tx failure prefers double-alert over lost-alert.
+    for (const alertEvent of alertsToPublish) {
+      await this.publish(alertEvent);
+    }
     await this.complete({ projectId: event.projectId, completions });
   }
 }
@@ -201,4 +237,125 @@ function parseNumericValue(raw: unknown): number | null {
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
   const n = Number(raw);
   return Number.isFinite(n) ? n : null;
+}
+
+/** buildAlert assembles the MonitorAlert payload from the row, the state-machine outcome, and the originating event. */
+function buildAlert(args: {
+  row: PrismaMonitor;
+  prevSeverity: MonitorSeverity;
+  severity: MonitorSeverity;
+  event: MonitorQueueEvent;
+}): MonitorAlert {
+  const eventMonitor = args.event.monitors.find(
+    (m) => m.monitorId === args.row.id,
+  );
+  // Recover the original (measure, aggregation) from event.metrics by matching on metricName.
+  const metric = args.event.metrics.find(
+    (m) => `${m.aggregation}_${m.measure}` === eventMonitor?.metricName,
+  ) ?? { measure: "value", aggregation: "count" };
+  return {
+    monitorId: args.row.id,
+    projectId: args.event.projectId,
+    severity: args.severity,
+    timestamp: args.event.runAt,
+    permalink: buildPermalink(args.event.projectId, args.row.id),
+    message: synthesizeAlertMessage({
+      monitorName: args.row.name,
+      prevSeverity: args.prevSeverity,
+      severity: args.severity,
+      thresholdOperator: args.row.thresholdOperator,
+      alertThreshold: args.row.alertThreshold.toNumber(),
+      warningThreshold: args.row.warningThreshold?.toNumber() ?? null,
+      measure: metric.measure,
+      aggregation: metric.aggregation,
+      view: args.event.view,
+      window: args.event.window,
+    }),
+    view: args.event.view,
+    filters: args.event.filters,
+    window: args.event.window,
+  };
+}
+
+/** buildPermalink composes the Langfuse Cloud URL for a monitor; falls back to a path-only URL if NEXTAUTH_URL is unset. */
+function buildPermalink(projectId: string, monitorId: string): string {
+  const base = (env.NEXTAUTH_URL ?? "").replace(/\/$/, "");
+  return `${base}/project/${projectId}/monitors/${monitorId}`;
+}
+
+/** synthesizeAlertMessage builds the human-readable title/body for a MonitorAlert. The body distinguishes no-data alerts from threshold-crossing alerts. */
+function synthesizeAlertMessage(args: {
+  monitorName: string;
+  prevSeverity: MonitorSeverity;
+  severity: MonitorSeverity;
+  thresholdOperator: MonitorThresholdOperator;
+  alertThreshold: number;
+  warningThreshold: number | null;
+  measure: string;
+  aggregation: string;
+  view: MonitorView;
+  window: MonitorWindow;
+}): { title: string; body: string } {
+  const title = `[${args.severity}] ${args.monitorName}`;
+  const metricRef = `${args.aggregation}(${args.view}.${args.measure})`;
+  let body: string;
+  if (args.severity === "NO_DATA") {
+    body = `${metricRef} has no data over the last ${args.window}`;
+  } else if (args.prevSeverity === "NO_DATA" && args.severity === "OK") {
+    body = `${metricRef} has data again`;
+  } else if (args.severity === "OK") {
+    body = `${metricRef} is back within threshold`;
+  } else {
+    // WARNING or ALERT (whether escalation, de-escalation, recovery from NO_DATA, or self-loop renotify).
+    const threshold = selectThreshold(
+      args.severity,
+      args.alertThreshold,
+      args.warningThreshold,
+    );
+    body = `${metricRef} is ${operatorWord(args.thresholdOperator)} ${threshold}`;
+  }
+  return { title, body };
+}
+
+/** operatorWord returns the human-readable form of a threshold operator. */
+function operatorWord(op: MonitorThresholdOperator): string {
+  switch (op) {
+    case "GT":
+      return "above";
+    case "GTE":
+      return "at or above";
+    case "LT":
+      return "below";
+    case "LTE":
+      return "at or below";
+    case "EQ":
+      return "equal to";
+    case "NEQ":
+      return "not equal to";
+  }
+}
+
+/** selectThreshold picks the threshold relevant to the current severity (warning band for WARNING, alert for everything else). */
+function selectThreshold(
+  severity: MonitorSeverity,
+  alertThreshold: number,
+  warningThreshold: number | null,
+): number {
+  if (severity === "WARNING" && warningThreshold !== null) {
+    return warningThreshold;
+  }
+  return alertThreshold;
+}
+
+/** toFilterData projects the row + alert into the flat record shape `matchesTriggerFilter` evaluates against trigger filters (severity, tags, monitorId, monitorName). */
+function toFilterData(
+  row: PrismaMonitor,
+  alert: MonitorAlert,
+): Record<string, unknown> {
+  return {
+    severity: alert.severity,
+    tags: row.tags,
+    monitorId: row.id,
+    monitorName: row.name,
+  };
 }
