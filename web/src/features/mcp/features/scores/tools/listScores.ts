@@ -1,4 +1,3 @@
-import { SpanKind } from "@opentelemetry/api";
 import {
   filterAndValidateV2GetScoreList,
   InvalidRequestError,
@@ -7,10 +6,11 @@ import {
   singleFilter,
   publicApiPaginationZod,
 } from "@langfuse/shared";
-import { instrumentAsync } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { paginationMeta } from "../../publicApi";
 
 const ScoreFieldsSchema = z
   .array(z.enum(["score", "trace"]))
@@ -72,26 +72,23 @@ const assertValidScoreFields = (input: ListScoresInput) => {
 export const [listScoresTool, handleListScores] = defineTool({
   name: "listScores",
   description: [
-    "Find scores in the current Langfuse project.",
-    "Uses the v2 /api/public/v2/scores semantics for numeric, categorical, boolean, correction, and text scores across traces, observations, sessions, and dataset runs.",
-    "Results are paginated with page and limit and return exactly data and meta at the top level.",
+    "Find scores in Langfuse.",
+    "Use this to review quality, evaluation, or feedback scores for traces, observations, sessions, and dataset runs.",
+    "Filter by score details, time range, environment, source, trace information, or dataset run context to narrow the results.",
   ].join("\n"),
   baseSchema: ListScoresInputSchema,
   inputSchema: ListScoresInputSchema,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.scores.list", spanKind: SpanKind.INTERNAL },
-      async (span) => {
+    return await runMcpTool({
+      spanName: "mcp.scores.list",
+      context,
+      attributes: {
+        "mcp.pagination_page": input.page,
+        "mcp.pagination_limit": input.limit,
+        "mcp.score_fields": input.fields.join(","),
+      },
+      fn: async (span) => {
         assertValidScoreFields(input);
-
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.pagination_page": input.page,
-          "mcp.pagination_limit": input.limit,
-          "mcp.score_fields": input.fields.join(","),
-        });
 
         const scoreParams = {
           projectId: context.projectId,
@@ -130,15 +127,14 @@ export const [listScoresTool, handleListScores] = defineTool({
 
         return {
           data,
-          meta: {
+          meta: paginationMeta({
             page: input.page,
             limit: input.limit,
             totalItems,
-            totalPages: Math.ceil(totalItems / input.limit),
-          },
+          }),
         };
       },
-    );
+    });
   },
   readOnlyHint: true,
 });

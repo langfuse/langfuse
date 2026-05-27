@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import {
   type EvalTemplate,
+  EvalTemplateType,
   isJobConfigExecutable,
   JobConfigState,
 } from "@langfuse/shared";
@@ -104,6 +105,9 @@ export function useExperimentEvaluatorData({
           ...config,
           evalTemplate: {
             ...config.evalTemplate,
+            type: EvalTemplateType.LLM_AS_JUDGE,
+            sourceCode: null,
+            sourceCodeLanguage: null,
             outputDefinition: config.evalTemplate
               .outputDefinition as EvalTemplate["outputDefinition"],
           },

@@ -2,7 +2,6 @@
  * MCP Tool: createTextPrompt
  *
  * Creates a new text prompt version in Langfuse.
- * Write operation with destructive hint.
  */
 
 import { z } from "zod";
@@ -17,8 +16,7 @@ import {
 import { createPrompt as createPromptAction } from "@/src/features/prompts/server/actions/createPrompt";
 import { prisma } from "@langfuse/shared/src/db";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { instrumentAsync } from "@langfuse/shared/src/server";
-import { SpanKind } from "@opentelemetry/api";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 
 /**
  * Base schema for JSON Schema generation (MCP client display)
@@ -86,18 +84,14 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
   baseSchema: CreateTextPromptBaseSchema,
   inputSchema: CreateTextPromptInputSchema,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.prompts.create_text", spanKind: SpanKind.INTERNAL },
-      async (span) => {
-        // Set span attributes for observability
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.prompt_name": input.name,
-          "mcp.prompt_type": "text",
-        });
-
+    return await runMcpTool({
+      spanName: "mcp.prompts.create_text",
+      context,
+      attributes: {
+        "mcp.prompt_name": input.name,
+        "mcp.prompt_type": "text",
+      },
+      fn: async (span) => {
         const createdPrompt = await createPromptAction({
           projectId: context.projectId,
           name: input.name,
@@ -137,6 +131,7 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
           message: `Successfully created text prompt '${createdPrompt.name}' version ${createdPrompt.version}${createdPrompt.labels.length > 0 ? ` with labels: ${createdPrompt.labels.join(", ")}` : ""}`,
         };
       },
-    );
+    });
   },
+  destructiveHint: true,
 });

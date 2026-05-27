@@ -1,14 +1,8 @@
 import type { McpFeatureModule } from "../../server/registry";
-import {
-  createModelTool,
-  deleteModelTool,
-  getModelTool,
-  handleCreateModel,
-  handleDeleteModel,
-  handleGetModel,
-  handleListModels,
-  listModelsTool,
-} from "./tools";
+import { createModelTool, handleCreateModel } from "./tools/createModel";
+import { deleteModelTool, handleDeleteModel } from "./tools/deleteModel";
+import { getModelTool, handleGetModel } from "./tools/getModel";
+import { handleListModels, listModelsTool } from "./tools/listModels";
 
 export const modelsFeature: McpFeatureModule = {
   name: "models",

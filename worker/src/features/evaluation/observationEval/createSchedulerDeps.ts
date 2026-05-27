@@ -1,5 +1,6 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import {
+  CodeEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
   QueueJobs,
   QueueName,
@@ -59,6 +60,34 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
 
     enqueueEvalJob: async (params) => {
       const shardingKey = `${params.projectId}-${params.jobExecutionId}`;
+      const payload = {
+        projectId: params.projectId,
+        jobExecutionId: params.jobExecutionId,
+        observationS3Path: params.observationS3Path,
+        ...(params.executionMode
+          ? { executionMode: params.executionMode }
+          : {}),
+      };
+
+      if (params.evalTemplateType === EvalTemplateType.CODE) {
+        const queue = CodeEvalExecutionQueue.getInstance({ shardingKey });
+        if (!queue) {
+          throw new Error("CodeEvalExecutionQueue is not initialized");
+        }
+
+        await queue.add(
+          QueueName.CodeEvalExecution,
+          {
+            name: QueueJobs.CodeEvalExecution,
+            id: params.jobExecutionId,
+            timestamp: new Date(),
+            payload,
+          },
+          { delay: params.delay },
+        );
+        return;
+      }
+
       const queue = LLMAsJudgeExecutionQueue.getInstance({ shardingKey });
       if (!queue) {
         throw new Error("LLMAsJudgeExecutionQueue is not initialized");
@@ -70,18 +99,9 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
           name: QueueJobs.LLMAsJudgeExecution,
           id: params.jobExecutionId,
           timestamp: new Date(),
-          payload: {
-            projectId: params.projectId,
-            jobExecutionId: params.jobExecutionId,
-            observationS3Path: params.observationS3Path,
-            ...(params.executionMode
-              ? { executionMode: params.executionMode }
-              : {}),
-          },
+          payload,
         },
-        {
-          delay: params.delay,
-        },
+        { delay: params.delay },
       );
     },
   };
