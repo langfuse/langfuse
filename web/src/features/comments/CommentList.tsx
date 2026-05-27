@@ -297,12 +297,15 @@ export function CommentList({
 
   const utils = api.useUtils();
   const invalidateCommentQueries = async () => {
-    await Promise.all([utils.comments.invalidate(), onCommentChange?.()]);
+    void (async () => {
+      await onCommentChange?.();
+    })().catch(() => undefined);
+
+    await utils.comments.invalidate();
   };
 
   const createCommentMutation = api.comments.create.useMutation({
     onSuccess: async () => {
-      await invalidateCommentQueries();
       form.reset();
 
       // Clear pending selection after successful comment creation
@@ -312,6 +315,8 @@ export function CommentList({
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }
+
+      await invalidateCommentQueries();
 
       // Scroll to bottom of comments list (newest comment in chronological order)
       if (commentsContainerRef.current) {
