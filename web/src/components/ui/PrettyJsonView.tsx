@@ -682,6 +682,9 @@ function JsonPrettyTable({
           row={row}
           expandedCells={expandedCells}
           toggleCellExpansion={toggleCellExpansion}
+          preserveStringWhitespace={
+            row.original.key === "code_eval_source_code"
+          }
         />
       ),
     },

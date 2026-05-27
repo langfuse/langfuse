@@ -102,7 +102,11 @@ CREATE TABLE IF NOT EXISTS events_full ON CLUSTER default
     INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_created_at created_at TYPE minmax GRANULARITY 1,
-    INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1
+    INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1,
+    INDEX idx_fts_input_low lower(input) TYPE text(tokenizer = splitByNonAlpha),
+    INDEX idx_fts_output_low lower(output) TYPE text(tokenizer = splitByNonAlpha),
+    INDEX idx_fts_metadata_values metadata_values TYPE text(tokenizer = splitByNonAlpha),
+    INDEX idx_fts_metadata_names metadata_names TYPE text(tokenizer = splitByNonAlpha)
 )
 ENGINE = ReplicatedReplacingMergeTree(event_ts, is_deleted)
 PARTITION BY toYYYYMM(start_time)
@@ -115,4 +119,5 @@ SETTINGS
     enable_block_number_column = 1,
     enable_block_offset_column = 1,
     prewarm_mark_cache = 1,
-    prewarm_primary_key_cache = 1;
+    prewarm_primary_key_cache = 1,
+    enable_full_text_index = 1;

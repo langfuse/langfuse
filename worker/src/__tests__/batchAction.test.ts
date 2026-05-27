@@ -4,6 +4,7 @@ import {
   BatchTableNames,
   BatchActionStatus,
   EvalTargetObject,
+  EvalTemplateType,
 } from "@langfuse/shared";
 import { expect, describe, it } from "vitest";
 import { v4 as uuidv4 } from "uuid";
@@ -663,6 +664,80 @@ describe("select all test suite", () => {
       await expect(
         handleBatchActionJob(payload, { evalCreatorQueue: queue }),
       ).resolves.not.toThrow();
+
+      const jobs = await waitForCreateEvalQueueJobs({
+        queue,
+        expectedLength: 0,
+      });
+
+      expect(jobs).toHaveLength(0);
+    });
+  });
+
+  it("should skip legacy eval-create for code eval templates", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = uuidv4();
+    const traceTimestamp = new Date("2024-01-01T00:00:00.000Z");
+    await createTracesCh([
+      createTrace({
+        project_id: projectId,
+        id: traceId,
+        timestamp: traceTimestamp.getTime(),
+      }),
+    ]);
+
+    const templateId = uuidv4();
+    await prisma.evalTemplate.create({
+      data: {
+        id: templateId,
+        projectId,
+        name: "test-code-template",
+        version: 1,
+        type: EvalTemplateType.CODE,
+        sourceCode: "return { score: 1 };",
+        modelParams: {},
+      },
+    });
+
+    const configId = uuidv4();
+    await prisma.jobConfiguration.create({
+      data: {
+        id: configId,
+        projectId,
+        filter: [],
+        jobType: "EVAL",
+        delay: 0,
+        sampling: new Decimal("1"),
+        targetObject: EvalTargetObject.TRACE,
+        scoreName: "score",
+        variableMapping: JSON.parse("[]"),
+        evalTemplateId: templateId,
+      },
+    });
+
+    const payload = {
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "eval-create" as const,
+        targetObject: EvalTargetObject.TRACE,
+        configId,
+        cutoffCreatedAt: new Date("2024-01-02T00:00:00.000Z"),
+        query: {
+          filter: [],
+          orderBy: {
+            column: "timestamp",
+            order: "DESC" as const,
+          },
+        },
+      },
+    };
+
+    await withIsolatedCreateEvalQueue(projectId, async (queue) => {
+      await handleBatchActionJob(payload, { evalCreatorQueue: queue });
 
       const jobs = await waitForCreateEvalQueueJobs({
         queue,

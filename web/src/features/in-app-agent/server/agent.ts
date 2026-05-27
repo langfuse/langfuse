@@ -20,10 +20,9 @@ const MAX_AGENT_BUDGET_USD = 5;
 type CreateAgUiStreamOptions = {
   resumeSessionId?: string;
   createResumeStateForSessionId: (sessionId: string) => unknown;
-  awsCredentials: {
-    accessKeyId: string;
-    secretAccessKey: string;
-    region: string;
+  awsBedrock: {
+    region?: string;
+    profile?: string;
   };
 };
 
@@ -33,6 +32,10 @@ export function createAgUiStream(params: {
   options: CreateAgUiStreamOptions;
 }) {
   const encoder = new TextEncoder();
+  const awsProfile =
+    process.env.AWS_PROFILE ?? params.options.awsBedrock.profile;
+  const awsSdkLoadConfig =
+    process.env.AWS_SDK_LOAD_CONFIG ?? (awsProfile ? "1" : undefined);
 
   const adapter = new ClaudeAgentAdapter({
     permissionMode: "dontAsk",
@@ -45,10 +48,14 @@ export function createAgUiStream(params: {
     env: {
       CLAUDE_CODE_USE_BEDROCK: "1",
       CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1",
-      AWS_DEFAULT_REGION: params.options.awsCredentials.region,
-      AWS_REGION: params.options.awsCredentials.region,
-      AWS_ACCESS_KEY_ID: params.options.awsCredentials.accessKeyId,
-      AWS_SECRET_ACCESS_KEY: params.options.awsCredentials.secretAccessKey,
+      ...(params.options.awsBedrock.region
+        ? {
+            AWS_DEFAULT_REGION: params.options.awsBedrock.region,
+            AWS_REGION: params.options.awsBedrock.region,
+          }
+        : {}),
+      ...(awsProfile ? { AWS_PROFILE: awsProfile } : {}),
+      ...(awsSdkLoadConfig ? { AWS_SDK_LOAD_CONFIG: awsSdkLoadConfig } : {}),
     },
     includePartialMessages: true,
     model: "haiku",

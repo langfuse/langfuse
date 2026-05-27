@@ -3303,12 +3303,12 @@ paths:
                 "column": string,         // Required. Column to filter on (see available columns below)
                 "operator": string,       // Required. Operator based on type:
                                           // - datetime: ">", "<", ">=", "<="
-                                          // - string: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - string: "=", "contains", "does not contain", "starts with", "ends with", "matches"
                                           // - stringOptions: "any of", "none of"
                                           // - categoryOptions: "any of", "none of"
                                           // - arrayOptions: "any of", "none of", "all of"
                                           // - number: "=", ">", "<", ">=", "<="
-                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches"
                                           // - numberObject: "=", ">", "<", ">=", "<="
                                           // - boolean: "=", "<>"
                                           // - null: "is null", "is not null"
@@ -3399,9 +3399,26 @@ paths:
 
             ### Structured Data
 
+            - `input` (string) - Observation input. Supports accelerated token
+            search with the `matches` operator.
+
+            - `output` (string) - Observation output. Supports accelerated token
+            search with the `matches` operator.
+
             - `metadata` (stringObject/numberObject/categoryOptions) - Metadata
             key-value pairs. Use `key` parameter to filter on specific metadata
             keys.
+
+
+            The `matches` operator is only supported for `input`, `output`, and
+            stringObject `metadata` filters. It performs token-based full-text
+            search using the events table text indexes. Case sensitivity differs
+            by target: `input` and `output` matches are case-insensitive, while
+            metadata value matches are case-sensitive. Use `contains` for
+            substring semantics. Any v2 `input` or `output` filter must be
+            accompanied by at least one `=` or `matches` filter on `input` or
+            `output`; standalone `contains`, `starts with`, `ends with`, and
+            `does not contain` filters on these columns are rejected.
 
 
             ## Filter Examples
@@ -3427,6 +3444,12 @@ paths:
                 "key": "environment",
                 "operator": "=",
                 "value": "production"
+              },
+              {
+                "type": "string",
+                "column": "output",
+                "operator": "matches",
+                "value": "needle"
               }
             ]
 
@@ -6189,7 +6212,8 @@ paths:
 
         - every evaluator prompt variable must be mapped exactly once
 
-        - `expected_output` mappings are only valid for `target=experiment`
+        - `expected_output` and `experiment_item_metadata` mappings are only
+        valid for `target=experiment`
 
         - if `enabled=true`, Langfuse validates that the referenced evaluator
         can currently run
@@ -8126,7 +8150,30 @@ components:
         modelId:
           type: string
           nullable: true
-          description: The matched model ID
+          description: >-
+            The matched model ID. Null when the `model` field group is not
+            requested.
+        inputPrice:
+          type: string
+          nullable: true
+          description: >-
+            The input token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
+        outputPrice:
+          type: string
+          nullable: true
+          description: >-
+            The output token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
+        totalPrice:
+          type: string
+          nullable: true
+          description: >-
+            The total token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
         traceName:
           type: string
           nullable: true
@@ -12146,7 +12193,7 @@ components:
         generations, spans, and events.
           It supports mapping from `input`, `output`, and `metadata`.
         - `experiment` evaluates live experiment executions and can additionally
-        map `expected_output`.
+        map `expected_output` and `experiment_item_metadata`.
           It currently supports filtering by `datasetId`.
           Discover valid dataset IDs with `GET /api/public/v2/datasets`, then use the returned dataset `id` values in your filter.
     unstableEvaluationRuleStatus:
@@ -12174,6 +12221,7 @@ components:
         - output
         - metadata
         - expected_output
+        - experiment_item_metadata
       description: >-
         Source field used to populate a prompt variable.
 
@@ -12185,8 +12233,8 @@ components:
 
         - `target=observation` supports `input`, `output`, and `metadata`
 
-        - `target=experiment` supports `input`, `output`, `metadata`, and
-        `expected_output`
+        - `target=experiment` supports `input`, `output`, `metadata`,
+        `expected_output`, and `experiment_item_metadata`
 
 
         Source semantics:
@@ -12200,6 +12248,9 @@ components:
 
         - `expected_output`: the experiment item's expected output. Only valid
         for `target=experiment`.
+
+        - `experiment_item_metadata`: the experiment item's metadata object.
+        Only valid for `target=experiment`.
     unstableEvaluatorModelConfig:
       title: unstableEvaluatorModelConfig
       type: object
@@ -12740,7 +12791,7 @@ components:
             - `target=observation`: `input`, `output`, `metadata`
 
             - `target=experiment`: `input`, `output`, `metadata`,
-            `expected_output`
+            `expected_output`, `experiment_item_metadata`
         jsonPath:
           type: string
           nullable: true

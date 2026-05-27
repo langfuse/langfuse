@@ -1,4 +1,10 @@
-import { JobConfiguration, JobExecutionStatus } from "@langfuse/shared/src/db";
+import {
+  EvalTemplate,
+  EvalTemplateType,
+  JobConfiguration,
+  JobExecutionStatus,
+} from "@langfuse/shared/src/db";
+import { type JobConfigExecutionMode } from "@langfuse/shared";
 
 /**
  * Re-export ObservationForEval as the canonical observation type for eval operations.
@@ -30,7 +36,9 @@ export type ObservationEvalConfig = Pick<
   | "variableMapping"
   | "status"
   | "blockedAt"
->;
+> & {
+  evalTemplate: Pick<EvalTemplate, "type">;
+};
 
 /**
  * Dependencies for scheduling observation evals.
@@ -61,5 +69,7 @@ export interface ObservationEvalSchedulerDeps {
     projectId: string;
     observationS3Path: string;
     delay: number;
+    evalTemplateType: EvalTemplateType;
+    executionMode?: JobConfigExecutionMode;
   }) => Promise<void>;
 }

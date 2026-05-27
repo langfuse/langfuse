@@ -37,7 +37,7 @@ export const getAllQueries = {
       return { generations };
     }),
   countAll: protectedProjectProcedure
-    .input(GetAllGenerationsInput)
+    .input(GenerationTableOptions)
     .query(async ({ input, ctx }) => {
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],

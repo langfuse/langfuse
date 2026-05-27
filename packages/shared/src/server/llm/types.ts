@@ -456,7 +456,9 @@ export const anthropicModels = [
 export const vertexAIModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.5-flash",
   "gemini-3.1-pro-preview",
+  "gemini-3.1-flash-lite",
   "gemini-3.1-flash-lite-preview",
   "gemini-3-pro-preview",
   "gemini-3-flash-preview",
@@ -477,7 +479,9 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.5-flash",
   "gemini-3.1-pro-preview",
+  "gemini-3.1-flash-lite",
   "gemini-3.1-flash-lite-preview",
   "gemini-3-pro-preview",
   "gemini-3-flash-preview",
@@ -536,6 +540,7 @@ export type LLMApiKey =
 export enum LangfuseInternalTraceEnvironment {
   PromptExperiments = "langfuse-prompt-experiment",
   LLMJudge = "langfuse-llm-as-a-judge",
+  CodeEval = "langfuse-code-eval",
 }
 
 export type ProcessedTraceEvent = {
@@ -544,16 +549,22 @@ export type ProcessedTraceEvent = {
   body: Record<string, unknown>;
 };
 
+export type InternalTraceWriteInput = {
+  rootSpanId: string;
+  eventInputs: InternalTraceEventInput[];
+};
+
+export type InternalTraceWriter = (
+  params: InternalTraceWriteInput,
+) => Promise<void>;
+
 /**
  * Configuration for direct writing of trace events to the events table.
  * Used by internal tracing (prompt experiments, evaluations).
  */
 export type InternalEventsWriter = {
   experimentContext?: InternalTraceExperimentContext;
-  write: (params: {
-    rootSpanId: string;
-    eventInputs: InternalTraceEventInput[];
-  }) => Promise<void>;
+  write: InternalTraceWriter;
 };
 
 export type TraceSinkParams = {

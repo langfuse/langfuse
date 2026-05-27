@@ -14,6 +14,21 @@
  * Defined in the client-safe domain layer (not inside the server-only
  * repository file) so frontend forms and Zod enums can reference the values
  * without pulling in repository runtime code.
+ *
+ * Enrichment fields (not driven by the field groups above):
+ * - The repository layer adds four enrichment fields to every v2 response row
+ *   regardless of the requested `fields`: `modelId`, `inputPrice`,
+ *   `outputPrice`, `totalPrice`.
+ * - For the v2 public API, the Postgres lookup that populates them only runs
+ *   when `"model"` is in `fields`; otherwise the fields are returned as null.
+ * - For the blob export path `"model"` triggers selection of the `model_export`
+ *   SQL field set so pricing can be enriched into the usage payload.
+ * - Code references:
+ *   - packages/shared/src/server/repositories/events.ts:
+ *     `enrichObservationsWithModelData` (v2 read path) and the export
+ *     streaming path that gates `model_export`.
+ *   - packages/shared/src/server/queries/clickhouse-sql/event-query-builder.ts:
+ *     `FIELD_SETS` and `EVENTS_FIELDS` for the underlying column projections.
  */
 
 export const OBSERVATION_FIELD_GROUPS_PUBLIC_API = [

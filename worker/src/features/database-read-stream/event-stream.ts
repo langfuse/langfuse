@@ -35,6 +35,26 @@ import { fetchCommentsForExport } from "./fetchCommentsForExport";
 import { BatchExportEventsRow } from "./types";
 
 const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
+const EVENT_SEARCH_COLUMNS = [
+  "span_id",
+  "name",
+  "trace_name",
+  "user_id",
+  "session_id",
+  "trace_id",
+] as const;
+
+const eventSearchCondition = (opts: {
+  query?: string;
+  searchType?: TracingSearchType[];
+}) =>
+  clickhouseSearchCondition({
+    query: opts.query,
+    searchType: opts.searchType,
+    tablePrefix: "e",
+    searchColumns: EVENT_SEARCH_COLUMNS,
+    useEventsTablePath: true,
+  });
 
 /**
  * Creates a stream of events from ClickHouse for batch export.
@@ -119,14 +139,10 @@ export const getEventsStream = async (props: {
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
-    "span_id",
-    "name",
-    "trace_name",
-    "user_id",
-    "session_id",
-    "trace_id",
-  ]);
+  const search = eventSearchCondition({
+    query: searchQuery,
+    searchType,
+  });
 
   // Build the query using EventsQueryBuilder
   const eventsQuery = new EventsQueryBuilder({ projectId })
@@ -146,6 +162,7 @@ export const getEventsStream = async (props: {
       "scores_agg s",
       "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
     )
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
     .where(search)
     .whereRaw("e.is_deleted = 0")
@@ -210,6 +227,7 @@ export const getEventsStream = async (props: {
       kind: "export",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   // Helper function to process a single event row
@@ -343,153 +361,6 @@ export const getEventsStream = async (props: {
 };
 
 /**
- * Lightweight event stream for batch observation evaluation.
- * Unlike getEventsStream, this:
- * - Uses the "eval" field set (no time/latency/modelId columns)
- * - Skips scores CTE and JOIN
- * - Skips comment fetching
- * - Maps ClickHouse rows to ObservationForEval at the stream boundary
- */
-export const getEventsStreamForEval = async (props: {
-  projectId: string;
-  cutoffCreatedAt: Date;
-  filter: FilterCondition[] | null;
-  searchQuery?: string;
-  searchType?: TracingSearchType[];
-  rowLimit?: number;
-}): Promise<Readable> => {
-  const {
-    projectId,
-    cutoffCreatedAt,
-    filter = [],
-    searchQuery,
-    searchType,
-    rowLimit = env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
-  } = props;
-
-  // Filter out score and comment filters since they're not relevant for eval
-  const eventOnlyFilters = (filter ?? []).filter((f) => {
-    const columnDef = eventsTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
-    );
-
-    return (
-      columnDef?.clickhouseTableName !== "scores" &&
-      columnDef?.clickhouseTableName !== "comments"
-    );
-  });
-
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      [
-        ...eventOnlyFilters,
-        {
-          column: "startTime",
-          operator: "<" as const,
-          value: cutoffCreatedAt,
-          type: "datetime" as const,
-        },
-      ],
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
-  );
-
-  const appliedEventsFilter = eventsFilter.apply();
-
-  const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
-    "span_id",
-    "name",
-    "trace_name",
-    "user_id",
-    "session_id",
-    "trace_id",
-  ]);
-
-  const eventsQuery = new EventsQueryBuilder({ projectId })
-    .selectFieldSet("eval")
-    .selectIO(false)
-    .selectFieldSet("metadata")
-    .where(appliedEventsFilter)
-    .where(search)
-    .whereRaw("e.is_deleted = 0")
-    .orderByDefault()
-    .limitBy("e.span_id", "e.project_id")
-    .limit(rowLimit);
-
-  const { query, params: queryParams } = eventsQuery.buildWithParams();
-
-  // Matches the aliased columns from the "eval" field set + selectIO + selectFieldSet("metadata")
-  type EvalEventRow = {
-    id: string; // aliased from span_id
-    trace_id: string;
-    project_id: string;
-    parent_observation_id: string | null; // aliased from parent_span_id
-    type: string;
-    name: string | null;
-    environment: string | null;
-    version: string | null;
-    level: string;
-    status_message: string | null;
-    trace_name: string | null;
-    user_id: string | null;
-    session_id: string | null;
-    tags: string[];
-    release: string | null;
-    provided_model_name: string | null;
-    model_parameters: unknown;
-    prompt_id: string | null;
-    prompt_name: string | null;
-    prompt_version: number | null;
-    provided_usage_details: Record<string, number>;
-    usage_details: Record<string, number>;
-    provided_cost_details: Record<string, number>;
-    cost_details: Record<string, number>;
-    tool_definitions: Record<string, unknown>;
-    tool_calls: unknown[];
-    tool_call_names: string[];
-    input: unknown;
-    output: unknown;
-    metadata: Record<string, unknown> | null;
-    experiment_id: string | null;
-    experiment_item_root_span_id: string | null;
-    experiment_item_expected_output: string | null;
-  };
-
-  const asyncGenerator = queryClickhouseStream<EvalEventRow>({
-    query,
-    params: queryParams,
-    clickhouseConfigs: {
-      request_timeout: 180_000,
-      clickhouse_settings: {
-        http_send_timeout: 300,
-        http_receive_timeout: 300,
-      },
-    },
-    tags: {
-      feature: "batch-eval",
-      type: "event",
-      kind: "eval",
-      projectId,
-    },
-  });
-
-  // Remap ClickHouse aliases to schema field names.
-  // Schema validation is left to the consumer so per-row errors can be handled gracefully.
-  return Readable.from(
-    (async function* () {
-      for await (const row of asyncGenerator) {
-        yield {
-          ...row,
-          span_id: row.id,
-          parent_span_id: row.parent_observation_id,
-        };
-      }
-    })(),
-  );
-};
-
-/**
  * Lightweight event stream for batch add-to-dataset.
  * Only fetches the fields needed for dataset item creation:
  * id, traceId, input, output, metadata.
@@ -540,19 +411,16 @@ export const getEventsStreamForDataset = async (props: {
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
-    "span_id",
-    "name",
-    "trace_name",
-    "user_id",
-    "session_id",
-    "trace_id",
-  ]);
+  const search = eventSearchCondition({
+    query: searchQuery,
+    searchType,
+  });
 
   const eventsQuery = new EventsQueryBuilder({ projectId })
     .selectFieldSet("core")
     .selectIO(false)
     .selectFieldSet("metadata")
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
     .where(search)
     .whereRaw("e.is_deleted = 0")
@@ -586,6 +454,7 @@ export const getEventsStreamForDataset = async (props: {
       kind: "dataset",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return Readable.from(
@@ -654,17 +523,14 @@ export const getEventsStreamForAnnotationQueue = async (props: {
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
-    "span_id",
-    "name",
-    "trace_name",
-    "user_id",
-    "session_id",
-    "trace_id",
-  ]);
+  const search = eventSearchCondition({
+    query: searchQuery,
+    searchType,
+  });
 
   const eventsQuery = new EventsQueryBuilder({ projectId })
     .selectFieldSet("core")
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
     .where(search)
     .whereRaw("e.is_deleted = 0")
@@ -695,6 +561,7 @@ export const getEventsStreamForAnnotationQueue = async (props: {
       kind: "annotation",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return Readable.from(

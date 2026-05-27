@@ -153,6 +153,19 @@ const viewFilterDefinitions: Record<
       sourceSpec("Observation Release", { uiTableId: "release" }),
     ),
     defineField("version", sourceSpec("Version", { uiTableId: "version" })),
+    // Experiment fields (v2 only - experiment data only exists in events table)
+    defineField(
+      "experimentName",
+      sourceSpec("Experiment Name", { uiTableId: "experimentName" }),
+    ),
+    defineField(
+      "experimentDatasetId",
+      sourceSpec("Experiment Dataset", { uiTableId: "experimentDatasetId" }),
+    ),
+    defineField(
+      "experimentId",
+      sourceSpec("Experiment ID", { uiTableId: "experimentId" }),
+    ),
   ],
   "scores-numeric": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),
@@ -274,6 +287,25 @@ const buildFilterMappings = (
 
 const currentWidgetFilterMappings = buildFilterMappings("current");
 const legacyDashboardFilterMappings = buildFilterMappings("legacy");
+
+export const getWidgetImportFilterConfig = (
+  view: z.infer<typeof views>,
+): {
+  allowedColumns: Set<string>;
+  columnAliases: Record<string, string>;
+} => {
+  const allowedColumns = new Set(
+    currentWidgetFilterMappings[view].map((mapping) => mapping.viewName),
+  );
+
+  const columnAliases: Record<string, string> = {};
+
+  if (view === "observations") {
+    columnAliases.observationModelName = "providedModelName";
+  }
+
+  return { allowedColumns, columnAliases };
+};
 
 const allWidgetFilterMappings = [
   ...Object.values(currentWidgetFilterMappings).flat(),

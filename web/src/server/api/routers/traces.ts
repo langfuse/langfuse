@@ -66,12 +66,14 @@ import {
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import partition from "lodash/partition";
 
-const TraceFilterOptions = z.object({
+const TraceCountOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   searchQuery: z.string().nullable(),
   searchType: z.array(TracingSearchType),
   filter: z.array(singleFilter).nullable(),
   orderBy: orderBy,
+});
+const TraceFilterOptions = TraceCountOptions.extend({
   ...paginationZod,
 });
 type TraceFilterOptions = z.infer<typeof TraceFilterOptions>;
@@ -151,7 +153,7 @@ export const traceRouter = createTRPCRouter({
       return { traces };
     }),
   countAll: protectedProjectProcedure
-    .input(TraceFilterOptions)
+    .input(TraceCountOptions)
     .query(async ({ input, ctx }) => {
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
