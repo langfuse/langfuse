@@ -330,7 +330,10 @@ describe("MonitorProcessor.complete (integration)", () => {
       await seedMonitor(projectId, m);
     }
 
-    const processor = new MonitorProcessor({ db: prisma });
+    const processor = new MonitorProcessor({
+      db: prisma,
+      publish: async () => {},
+    });
     await processor.complete({ projectId, completions: c.completions });
 
     for (const exp of c.expect.rows) {
@@ -358,7 +361,10 @@ describe("MonitorProcessor.complete (integration)", () => {
       lastCompletedRunAt: tMinus10m,
     });
 
-    const processor = new MonitorProcessor({ db: prisma });
+    const processor = new MonitorProcessor({
+      db: prisma,
+      publish: async () => {},
+    });
     await processor.complete({
       projectId: "proj_does_not_match",
       completions: [

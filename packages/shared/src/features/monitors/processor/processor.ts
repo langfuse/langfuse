@@ -1,7 +1,15 @@
 import { Prisma, type PrismaClient } from "../../../db";
+import { executeQuery } from "../../query/server/queryExecutor";
+import type { QueryType } from "../../query/types";
 import { monitorProcessorTtl } from "../scheduler/scheduler";
-import type { MonitorQueueEvent } from "../scheduler/types";
-import type { MonitorSeverity } from "../types";
+import type {
+  MonitorQueueEvent,
+  MonitorWebhookQueueEvent,
+} from "../scheduler/types";
+import { windowToMs } from "../service/helpers";
+import type { MonitorNoData, MonitorRenotify, MonitorSeverity } from "../types";
+import { applyStateMachine } from "./applyStateMachine";
+import { computeSeverity } from "./computeSeverity";
 
 /** MonitorCompletion is one row of the bulk-update emitted by the state machine — what to write back to a single monitor after evaluation. */
 export type MonitorCompletion = {
@@ -12,12 +20,20 @@ export type MonitorCompletion = {
   alertedAt: Date | null;
 };
 
+/** MonitorPublisher publishes one MonitorWebhookQueueEvent per surviving Monitor alert; wired up by the worker. */
+export type MonitorPublisher = (
+  event: MonitorWebhookQueueEvent,
+) => Promise<void>;
+
 /** MonitorProcessor consumes MonitorQueueEvents, evaluates the severity state machine, and emits monitor alerts. */
 export class MonitorProcessor {
   private readonly db: PrismaClient;
+  // Constructor seam; commit 2 wires the trigger filter + publisher emit.
+  private readonly publish: MonitorPublisher;
 
-  constructor(deps: { db: PrismaClient }) {
+  constructor(deps: { db: PrismaClient; publish: MonitorPublisher }) {
     this.db = deps.db;
+    this.publish = deps.publish;
   }
 
   /** claim attempts to lock the monitors in the event for this worker. Returns the ids that were locked. */
@@ -47,6 +63,58 @@ export class MonitorProcessor {
         completions: args.completions,
       }),
     );
+  }
+
+  /** process orchestrates one MonitorQueueEvent: claim, query CH, apply the state machine per monitor, and complete. The trigger filter + publisher emit are wired in commit 2. */
+  async process(event: MonitorQueueEvent, now: Date): Promise<void> {
+    const claimedIds = await this.claim(event, now);
+    if (claimedIds.length === 0) return;
+
+    const [chRows, rows] = await Promise.all([
+      executeQuery(event.projectId, buildMonitorQuery(event)),
+      this.db.monitor.findMany({
+        where: { id: { in: claimedIds }, projectId: event.projectId },
+      }),
+    ]);
+
+    const chRow = (chRows[0] ?? {}) as Record<string, unknown>;
+    const metricByMonitor = new Map(
+      event.monitors.map((m) => [m.monitorId, m.metricName]),
+    );
+
+    const completions: MonitorCompletion[] = [];
+    for (const row of rows) {
+      const metricName = metricByMonitor.get(row.id);
+      if (!metricName) continue;
+      const computed = computeSeverity({
+        value: parseNumericValue(chRow[metricName]),
+        operator: row.thresholdOperator,
+        alertThreshold: row.alertThreshold.toNumber(),
+        warningThreshold: row.warningThreshold?.toNumber() ?? null,
+      });
+      const decision = applyStateMachine({
+        prevSeverity: row.severity,
+        computedSeverity: computed,
+        prevSeverityChangedAt: row.severityChangedAt,
+        prevAlertedAt: row.alertedAt,
+        scheduledAt: event.runAt,
+        noData: row.noData as unknown as MonitorNoData,
+        renotify: row.renotify as unknown as MonitorRenotify,
+      });
+      completions.push({
+        monitorId: row.id,
+        lastCompletedRunAt: event.runAt,
+        severity: decision.nextSeverity,
+        severityChangedAt: decision.nextSeverityChangedAt,
+        alertedAt: decision.nextAlertedAt,
+      });
+      // commit 2 will branch on decision.emit here to filter triggers and publish.
+    }
+
+    // commit 2 will publish surviving alerts before complete.
+    void this.publish;
+
+    await this.complete({ projectId: event.projectId, completions });
   }
 }
 
@@ -109,4 +177,28 @@ function buildCompleteQuery(args: {
     WHERE m.id = data.id
       AND m.project_id = ${args.projectId}
   `;
+}
+
+/** buildMonitorQuery converts a MonitorQueueEvent into the scalar-shape QueryType `executeQuery` accepts (no dimensions, no time bucketing; window derived from event). */
+function buildMonitorQuery(event: MonitorQueueEvent): QueryType {
+  const windowMs = Number(windowToMs(event.window));
+  const fromTimestamp = new Date(event.runAt.getTime() - windowMs);
+  return {
+    view: event.view,
+    dimensions: [],
+    metrics: event.metrics,
+    filters: event.filters,
+    timeDimension: null,
+    fromTimestamp: fromTimestamp.toISOString(),
+    toTimestamp: event.runAt.toISOString(),
+    orderBy: null,
+  };
+}
+
+/** parseNumericValue safely coerces a ClickHouse-returned cell to number | null. Missing/non-finite values become null so they flow into computeSeverity as NO_DATA. */
+function parseNumericValue(raw: unknown): number | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
 }

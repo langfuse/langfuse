@@ -501,7 +501,10 @@ describe("MonitorProcessor.claim (integration)", () => {
       await seedMonitor(projectId, m);
     }
 
-    const processor = new MonitorProcessor({ db: prisma });
+    const processor = new MonitorProcessor({
+      db: prisma,
+      publish: async () => {},
+    });
     const event = makeEvent({
       projectId: c.event.projectId ?? projectId,
       runAt: c.event.runAt,
