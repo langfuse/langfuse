@@ -41,7 +41,7 @@ describe("LocalCodeEvalDispatcher", () => {
             observation: { output: string };
             experiment: { itemExpectedOutput: string } | undefined;
           };
-          async function evaluate(ctx: EvaluationContext) {
+          function evaluate(ctx: EvaluationContext) {
             return {
               scores: [{ name: "match", value: ctx.observation.output === ctx.experiment?.itemExpectedOutput ? 1 : 0, dataType: "BOOLEAN" }],
             };
@@ -193,7 +193,7 @@ describe("LocalCodeEvalDispatcher", () => {
     const dispatcher = new LocalCodeEvalDispatcher();
 
     const source = `
-      async function evaluate() {
+      function evaluate() {
         return {
           scores: [{
             value: "reasoning fits within the limit",
@@ -229,7 +229,7 @@ describe("LocalCodeEvalDispatcher", () => {
     // job execution fails clearly instead of completing and then having the
     // score silently dropped by the ingestion consumer.
     const source = `
-      async function evaluate() {
+      function evaluate() {
         return {
           scores: [{
             value: "a".repeat(${TEXT_SCORE_MAX_LENGTH + 1}),

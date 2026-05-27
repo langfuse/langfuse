@@ -21,6 +21,18 @@ function getObservationByName(
   return observations.find((o) => o.name === objectName) || null;
 }
 
+function normalizePreviewColumnId(selectedColumnId: string) {
+  switch (selectedColumnId) {
+    case "expected_output":
+    case "experiment_item_expected_output":
+      return "experimentItemExpectedOutput";
+    case "experiment_item_metadata":
+      return "experimentItemMetadata";
+    default:
+      return selectedColumnId;
+  }
+}
+
 type ExtractedVariable = {
   variable: string;
   value: string;
@@ -119,24 +131,27 @@ export function useExtractVariables({
       if (
         !mapping ||
         !mapping.selectedColumnId ||
-        (!mapping.langfuseObject && !(previewData.type === "event"))
+        (!mapping.langfuseObject && previewData.type !== EvalTargetObject.EVENT)
       ) {
         return { variable, value: "n/a" };
       }
 
       let object;
+      const selectedColumnId = normalizePreviewColumnId(
+        mapping.selectedColumnId,
+      );
 
-      if (previewData.type === "event") {
+      if (previewData.type === EvalTargetObject.EVENT) {
         object = previewData.data; // Already has input/output
       } else {
         // Trace eval: can map to trace or observation fields
         if (mapping.langfuseObject === "trace") {
-          object = previewData.data;
+          object = previewData.trace;
         } else if (mapping.langfuseObject !== "dataset_item") {
           // Find observation by name from mapping
           const observation = getObservationByName(
             mapping.objectName,
-            previewData.data.observations as Record<string, unknown>[],
+            previewData.trace.observations as Record<string, unknown>[],
           );
 
           if (observation?.id) {
@@ -146,8 +161,8 @@ export function useExtractVariables({
                 await utils.observations.byId.fetch({
                   observationId: observation.id as string,
                   startTime: observation.startTime as Date | null,
-                  traceId: previewData.data.id as string,
-                  projectId: previewData.data.projectId as string,
+                  traceId: previewData.trace.id as string,
+                  projectId: previewData.trace.projectId as string,
                 });
               object = observationWithInputAndOutput;
             } catch (error) {
@@ -163,7 +178,7 @@ export function useExtractVariables({
 
       const { value, error } = extractValueFromObjectAsString(
         object,
-        mapping.selectedColumnId,
+        selectedColumnId,
         mapping.jsonSelector ?? undefined,
       );
       return {

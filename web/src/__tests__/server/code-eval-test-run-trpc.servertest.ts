@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { describe, expect, it, afterAll } from "vitest";
+import { describe, expect, it, afterAll, vi } from "vitest";
 import type { Session } from "next-auth";
 import {
   EvalTemplateSourceCodeLanguage,
@@ -20,6 +20,10 @@ import {
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { EvalTargetObject } from "@langfuse/shared";
+
+vi.hoisted(() => {
+  process.env.NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED = "true";
+});
 
 const orgIds: string[] = [];
 
@@ -104,7 +108,7 @@ maybe("evals.testRunCodeEval", () => {
           ctx.observation.output === "4" &&
           ctx.observation.metadata.rubric === "math";
 
-        return { scores: [{ name: "saved-test-score", value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
+        return { scores: [{ name: "saved-test-score", value: matched, dataType: "BOOLEAN" }] };
       }
     `;
 
@@ -361,7 +365,7 @@ maybe("evals.testRunCodeEval", () => {
             ctx.observation.output === ctx.experiment.itemExpectedOutput &&
             ctx.experiment.itemMetadata.difficulty === "easy";
 
-          return { scores: [{ name: "experiment-test-score", value: matched ? 1 : 0, dataType: "BOOLEAN" }] };
+          return { scores: [{ name: "experiment-test-score", value: matched, dataType: "BOOLEAN" }] };
         }
       `,
     );
