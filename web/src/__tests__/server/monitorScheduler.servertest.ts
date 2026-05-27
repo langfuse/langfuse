@@ -46,20 +46,29 @@ type SchedulerCase = {
 };
 
 const oneMinuteMs = 60n * 1000n;
+const thirtyMinutesMs = 30n * 60n * 1000n;
 
 // Scheduler times
 const now = new Date("2026-05-27T12:00:30.000Z");
 const twoMinutesAgo = new Date("2026-05-27T11:58:30.000Z");
 const threeMinutesAgo = new Date("2026-05-27T11:57:30.000Z");
+const fourMinutesAgo = new Date("2026-05-27T11:56:30.000Z");
+const sixMinutesAgo = new Date("2026-05-27T11:54:30.000Z");
 const tenMinutesAgo = new Date("2026-05-27T11:50:30.000Z");
 const oneMinuteFromNow = new Date("2026-05-27T12:01:30.000Z");
+const prevCadence30m = new Date("2026-05-27T12:00:00.000Z");
+const nextCadence30m = new Date("2026-05-27T12:30:00.000Z");
 
 // Cadence-aligned boundaries (cadence=1m), offset by (batchId % 60) seconds.
 const prevCadence = new Date("2026-05-27T12:00:00.000Z");
 const nextCadence = new Date("2026-05-27T12:01:00.000Z");
+const prevCadenceBatch1 = new Date("2026-05-27T12:00:01.000Z");
 const nextCadenceBatch1 = new Date("2026-05-27T12:01:01.000Z");
+const prevCadenceBatch2 = new Date("2026-05-27T12:00:02.000Z");
 const nextCadenceBatch2 = new Date("2026-05-27T12:01:02.000Z");
+const prevCadenceBatch5 = new Date("2026-05-27T12:00:05.000Z");
 const nextCadenceBatch5 = new Date("2026-05-27T12:01:05.000Z");
+const prevCadenceBatch7 = new Date("2026-05-27T12:00:07.000Z");
 const nextCadenceBatch7 = new Date("2026-05-27T12:01:07.000Z");
 
 async function seedMonitor(projectId: string, seed: MonitorSeed) {
@@ -167,7 +176,7 @@ const cases: SchedulerCase[] = [
         {
           id: "m_behind",
           nextRunAt: nextCadence,
-          lastPublishedAt: prevCadence,
+          lastPublishedAt: now,
           lastCompletedAt: null,
         },
       ],
@@ -242,21 +251,75 @@ const cases: SchedulerCase[] = [
         {
           id: "m_stuck",
           nextRunAt: nextCadence,
-          lastPublishedAt: prevCadence,
+          lastPublishedAt: now,
           lastCompletedAt: null,
         },
       ],
     },
   },
   {
-    name: "very behind: catches up to next boundary, skips intermediates",
+    name: "long-cadence in-flight past TTL: rescue branch republishes",
+    tick: now,
+    monitors: [
+      {
+        id: "m_long_stuck",
+        cadenceMs: thirtyMinutesMs,
+        nextRunAt: nextCadence30m,
+        lastPublishedAt: sixMinutesAgo,
+        lastCompletedAt: null,
+      },
+    ],
+    expect: {
+      events: [
+        {
+          schedulerBatchId: 0n,
+          runAt: prevCadence30m,
+          monitorIds: ["m_long_stuck"],
+        },
+      ],
+      rows: [
+        {
+          id: "m_long_stuck",
+          nextRunAt: nextCadence30m,
+          lastPublishedAt: now,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "long-cadence in-flight within TTL: rescue branch does not fire",
+    tick: now,
+    monitors: [
+      {
+        id: "m_long_pending",
+        cadenceMs: thirtyMinutesMs,
+        nextRunAt: nextCadence30m,
+        lastPublishedAt: fourMinutesAgo,
+        lastCompletedAt: null,
+      },
+    ],
+    expect: {
+      events: [],
+      rows: [
+        {
+          id: "m_long_pending",
+          nextRunAt: nextCadence30m,
+          lastPublishedAt: fourMinutesAgo,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "very behind: snaps forward to most recent boundary, skips intermediates",
     tick: now,
     monitors: [{ id: "m_far_behind", nextRunAt: tenMinutesAgo }],
     expect: {
       events: [
         {
           schedulerBatchId: 0n,
-          runAt: tenMinutesAgo,
+          runAt: prevCadence,
           monitorIds: ["m_far_behind"],
         },
       ],
@@ -264,7 +327,7 @@ const cases: SchedulerCase[] = [
         {
           id: "m_far_behind",
           nextRunAt: nextCadence,
-          lastPublishedAt: tenMinutesAgo,
+          lastPublishedAt: now,
           lastCompletedAt: null,
         },
       ],
@@ -335,7 +398,7 @@ const cases: SchedulerCase[] = [
       events: [
         {
           schedulerBatchId: 7n,
-          runAt: prevCadence,
+          runAt: prevCadenceBatch7,
           monitorIds: ["m_a", "m_b"],
         },
       ],
@@ -343,13 +406,13 @@ const cases: SchedulerCase[] = [
         {
           id: "m_a",
           nextRunAt: nextCadenceBatch7,
-          lastPublishedAt: prevCadence,
+          lastPublishedAt: now,
           lastCompletedAt: null,
         },
         {
           id: "m_b",
           nextRunAt: nextCadenceBatch7,
-          lastPublishedAt: prevCadence,
+          lastPublishedAt: now,
           lastCompletedAt: null,
         },
       ],
@@ -368,45 +431,45 @@ const cases: SchedulerCase[] = [
     expect: {
       events: [
         {
-          schedulerBatchId: 2n,
-          runAt: tenMinutesAgo,
-          monitorIds: ["m_b1", "m_b2"],
+          schedulerBatchId: 1n,
+          runAt: prevCadenceBatch1,
+          monitorIds: ["m_a1", "m_a2", "m_a3"],
         },
         {
-          schedulerBatchId: 1n,
-          runAt: twoMinutesAgo,
-          monitorIds: ["m_a1", "m_a2", "m_a3"],
+          schedulerBatchId: 2n,
+          runAt: prevCadenceBatch2,
+          monitorIds: ["m_b1", "m_b2"],
         },
       ],
       rows: [
         {
           id: "m_a1",
           nextRunAt: nextCadenceBatch1,
-          lastPublishedAt: twoMinutesAgo,
+          lastPublishedAt: now,
           lastCompletedAt: null,
         },
         {
           id: "m_a2",
           nextRunAt: nextCadenceBatch1,
-          lastPublishedAt: twoMinutesAgo,
+          lastPublishedAt: now,
           lastCompletedAt: null,
         },
         {
           id: "m_a3",
           nextRunAt: nextCadenceBatch1,
-          lastPublishedAt: twoMinutesAgo,
+          lastPublishedAt: now,
           lastCompletedAt: null,
         },
         {
           id: "m_b1",
           nextRunAt: nextCadenceBatch2,
-          lastPublishedAt: tenMinutesAgo,
+          lastPublishedAt: now,
           lastCompletedAt: null,
         },
         {
           id: "m_b2",
           nextRunAt: nextCadenceBatch2,
-          lastPublishedAt: tenMinutesAgo,
+          lastPublishedAt: now,
           lastCompletedAt: null,
         },
       ],
@@ -424,7 +487,7 @@ const cases: SchedulerCase[] = [
       events: [
         {
           schedulerBatchId: 5n,
-          runAt: prevCadence,
+          runAt: prevCadenceBatch5,
           monitorIds: ["m_in"],
         },
       ],
@@ -432,7 +495,7 @@ const cases: SchedulerCase[] = [
         {
           id: "m_in",
           nextRunAt: nextCadenceBatch5,
-          lastPublishedAt: prevCadence,
+          lastPublishedAt: now,
           lastCompletedAt: null,
         },
         {

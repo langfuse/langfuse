@@ -91,17 +91,21 @@ function buildScheduleQuery({
   schedulerId: number;
   totalSchedulers: number;
 }): Prisma.Sql {
-  /** calculateNextRunAt computes the next deterministic cadence boundary strictly after tick. */
-  const calculateNextRunAt = Prisma.sql`
+  /** calculateRunAt returns the deterministic cadence boundary at or before tick for the given source. */
+  const calculateRunAt = (source: "monitors" | "due"): Prisma.Sql => Prisma.sql`
     TIMESTAMPTZ 'epoch' + (
       (
         ((EXTRACT(EPOCH FROM ${tick}::timestamptz) * 1000)::bigint
-          - (due.scheduler_batch_id % 60) * 1000) -- ms since the beginning of time
-          / due.cadence_ms * due.cadence_ms -- rounded down to the last cadence
-        + (due.scheduler_batch_id % 60) * 1000 -- plus some second jitter for better load distribution
-        + due.cadence_ms -- advanced to the next cadence
+          - (${Prisma.raw(source)}.scheduler_batch_id % 60) * 1000) -- ms since the beginning of time
+          / ${Prisma.raw(source)}.cadence_ms * ${Prisma.raw(source)}.cadence_ms -- rounded down to the last cadence
+        + (${Prisma.raw(source)}.scheduler_batch_id % 60) * 1000 -- plus some second jitter for better load distribution
       ) * INTERVAL '1 millisecond'
     )
+  `;
+
+  /** calculateNextRunAt is the next cadence boundary strictly after tick (snapshotted from due). */
+  const calculateNextRunAt = Prisma.sql`
+    ${calculateRunAt("due")} + due.cadence_ms * INTERVAL '1 millisecond'
   `;
 
   /** runIsPending is true when a prior publish has not completed within monitorProcessorTtl. */
@@ -129,24 +133,38 @@ function buildScheduleQuery({
         last_published_at,
         last_completed_at,
         status,
-        COALESCE(next_run_at, ${tick}::timestamptz) AS run_at
+        CASE
+          WHEN next_run_at IS NULL THEN ${tick}::timestamptz
+          ELSE ${calculateRunAt("monitors")}
+        END AS run_at
       FROM monitors
-      WHERE (next_run_at IS NULL OR next_run_at <= ${tick})
-        -- Only take monitors for this scheduler 
-        AND (scheduler_batch_id % ${totalSchedulers}::bigint) = ${schedulerId}::bigint
+      WHERE (scheduler_batch_id % ${totalSchedulers}::bigint) = ${schedulerId}::bigint
         AND status = 'ACTIVE'
+        AND (
+          -- due
+          next_run_at IS NULL
+          OR next_run_at <= ${tick}
+          -- last run expired
+          OR (
+            last_published_at IS NOT NULL
+            AND (
+              last_completed_at IS NULL
+              OR last_completed_at < last_published_at
+            )
+            AND ${tick}::timestamptz - last_published_at
+              > ${monitorProcessorTtl} * INTERVAL '1 millisecond'
+          )
+        )
       ORDER BY next_run_at ASC NULLS FIRST
       FOR UPDATE SKIP LOCKED
     ),
-    -- Advance all active monitors to the next run
-    -- Publish only if another run isn't already pending
     updated AS (
       UPDATE monitors
       SET
         next_run_at = ${calculateNextRunAt},
         last_published_at = CASE
           WHEN ${runIsPending} THEN monitors.last_published_at
-          ELSE due.run_at
+          ELSE ${tick}::timestamptz
         END
       FROM due
       WHERE monitors.id = due.id
