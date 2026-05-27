@@ -177,7 +177,7 @@ const CodeEvalTestRunSchema = z.object({
   observationId: z.string(),
   traceId: z.string(),
   startTime: z.coerce.date(),
-  shouldReadFromObservationsTable: z.boolean().optional().default(true),
+  shouldReadFromObservationsTable: z.boolean().optional().default(false),
 });
 
 const UpdateEvalJobSchema = z.object({
