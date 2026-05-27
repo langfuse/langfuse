@@ -172,7 +172,9 @@ export async function createProjectMembershipsOnSignup(
         userId: user.id,
         userName: user.name,
       });
+    }
 
+    if (isCloudDeployment && (options?.userWasJustCreated || isNewUser)) {
       const userRolloutState = await prisma.user.findUnique({
         where: { id: user.id },
         select: {

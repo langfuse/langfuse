@@ -4,6 +4,7 @@ import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/lib/v4Rollout";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { prisma, Role } from "@langfuse/shared/src/db";
 
@@ -234,6 +235,7 @@ describe("onboarding router", () => {
     const organization = await prisma.organization.create({
       data: {
         name: `Invited Org ${userId}`,
+        createdAt: new Date(V4_DEFAULT_ENABLED_FROM_AT.getTime() + 1_000),
       },
     });
     createdOrgIds.push(organization.id);
@@ -299,6 +301,17 @@ describe("onboarding router", () => {
     });
 
     expect(invitationCount).toBe(0);
+
+    const updatedUser = await prisma.user.findUniqueOrThrow({
+      where: {
+        id: userId,
+      },
+      select: {
+        v4BetaEnabled: true,
+      },
+    });
+
+    expect(updatedUser.v4BetaEnabled).toBe(true);
   });
 
   it("falls back to manual project creation when a real org exists without a project", async () => {
