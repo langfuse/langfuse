@@ -89,6 +89,7 @@ export function CommentList({
   isDrawerOpen = false,
   pendingSelection,
   onSelectionUsed,
+  onCommentChange,
 }: {
   projectId: string;
   objectId: string;
@@ -100,6 +101,7 @@ export function CommentList({
   isDrawerOpen?: boolean;
   pendingSelection?: SelectionData | null;
   onSelectionUsed?: () => void;
+  onCommentChange?: () => void | Promise<void>;
 }) {
   const session = useSession();
   const router = useRouter();
@@ -294,10 +296,13 @@ export function CommentList({
   }, [isDrawerOpen]);
 
   const utils = api.useUtils();
+  const invalidateCommentQueries = async () => {
+    await Promise.all([utils.comments.invalidate(), onCommentChange?.()]);
+  };
 
   const createCommentMutation = api.comments.create.useMutation({
     onSuccess: async () => {
-      await Promise.all([utils.comments.invalidate()]);
+      await invalidateCommentQueries();
       form.reset();
 
       // Clear pending selection after successful comment creation
@@ -357,7 +362,7 @@ export function CommentList({
 
   const deleteCommentMutation = api.comments.delete.useMutation({
     onSuccess: async () => {
-      await Promise.all([utils.comments.invalidate()]);
+      await invalidateCommentQueries();
     },
   });
 

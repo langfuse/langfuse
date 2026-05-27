@@ -145,10 +145,15 @@ export const PromptDetail = ({
     projectId,
     scope: "promptExperiments:CUD",
   });
+  const hasCommentReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "comments:read",
+  });
   const promptHistory = api.prompts.allVersions.useQuery(
     {
       name: promptName,
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+      includeCommentCounts: hasCommentReadAccess,
     },
     { enabled: Boolean(projectId) },
   );
@@ -230,27 +235,7 @@ export const PromptDetail = ({
     ).data?.tags ?? []
   ).map((t) => t.value);
 
-  const promptIds = useMemo(
-    () => promptHistory.data?.promptVersions.map((p) => p.id) ?? [],
-    [promptHistory.data?.promptVersions],
-  );
-
-  const commentCounts = api.comments.getCountByObjectIds.useQuery(
-    {
-      projectId: projectId as string,
-      objectType: "PROMPT",
-      objectIds: promptIds,
-    },
-    {
-      enabled: Boolean(projectId) && promptIds.length > 0,
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false, // prevents refetching loops
-    },
-  );
+  const commentCounts = promptHistory.data?.commentCounts;
 
   const { pythonCode, jsCode } = useMemo(() => {
     if (!prompt?.id) return { pythonCode: null, jsCode: null };
@@ -371,7 +356,7 @@ export const PromptDetail = ({
                 setCurrentPromptVersion(version);
                 setCurrentPromptLabel(null);
               }}
-              commentCounts={commentCounts.data}
+              commentCounts={commentCounts}
             />
           </div>
         </Command>
@@ -454,8 +439,15 @@ export const PromptDetail = ({
                   projectId={projectId as string}
                   objectId={prompt.id}
                   objectType="PROMPT"
-                  count={getNumberFromMap(commentCounts?.data, prompt.id)}
+                  count={getNumberFromMap(commentCounts, prompt.id)}
                   variant="outline"
+                  onCommentChange={() =>
+                    utils.prompts.allVersions.invalidate({
+                      projectId: projectId as string,
+                      name: promptName,
+                      includeCommentCounts: true,
+                    })
+                  }
                 />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
