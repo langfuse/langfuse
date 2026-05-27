@@ -15,6 +15,7 @@ export type PreferredClickhouseService =
 
 type ServiceClickhouseSettings = {
   enable_full_text_index?: 1;
+  enable_parallel_replicas?: 1;
 };
 
 /**
@@ -90,7 +91,7 @@ export class ClickHouseClientManager {
   ): ServiceClickhouseSettings {
     return preferredClickhouseService === "EventsReadOnly" &&
       this.isEventsTableReadPathEnabled()
-      ? { enable_full_text_index: 1 }
+      ? { enable_full_text_index: 1, enable_parallel_replicas: 1 }
       : {};
   }
 
