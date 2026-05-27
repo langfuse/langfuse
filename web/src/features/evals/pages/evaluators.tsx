@@ -60,7 +60,7 @@ export default function EvaluatorsPage() {
     return (
       <Page
         headerProps={{
-          title: "LLM-as-a-Judge Evaluators",
+          title: "Evaluators",
           help: {
             description:
               "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",
@@ -78,7 +78,7 @@ export default function EvaluatorsPage() {
     <>
       <Page
         headerProps={{
-          title: "LLM-as-a-Judge Evaluators",
+          title: "Evaluators",
           help: {
             description:
               "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",

@@ -159,10 +159,12 @@ export const ValueCell = memo(
     row,
     expandedCells,
     toggleCellExpansion,
+    preserveStringWhitespace = false,
   }: {
     row: Row<JsonTableRow>;
     expandedCells: Set<string>;
     toggleCellExpansion: (cellId: string) => void;
+    preserveStringWhitespace?: boolean;
   }) => {
     const { value, type } = row.original;
     const cellId = `${row.id}-value`;
@@ -194,7 +196,13 @@ export const ValueCell = memo(
 
           return {
             content: (
-              <span className="whitespace-pre-line text-green-600 dark:text-green-400">
+              <span
+                className={`text-green-600 dark:text-green-400 ${
+                  preserveStringWhitespace
+                    ? "whitespace-pre-wrap"
+                    : "whitespace-pre-line"
+                }`}
+              >
                 &quot;{renderStringWithLinks(displayValue)}&quot;
               </span>
             ),
