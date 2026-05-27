@@ -49,7 +49,6 @@ const __langfuseEvaluateCheck: __LangfuseExpectedEvaluate = evaluate;
 `;
 
 const CONTRACT_DECLARATIONS = `
-type TimerHandle = unknown;
 type Awaited<T> = T extends PromiseLike<infer U> ? Awaited<U> : T;
 type PromiseSettledResult<T> =
   | { status: "fulfilled"; value: T }
@@ -58,10 +57,28 @@ type PromiseSettledResult<T> =
 interface Array<T> {
   length: number;
   [n: number]: T;
+  every(callbackfn: (value: T, index: number, array: T[]) => unknown): boolean;
   map<U>(callbackfn: (value: T, index: number, array: T[]) => U): U[];
   filter(callbackfn: (value: T, index: number, array: T[]) => unknown): T[];
+  find(callbackfn: (value: T, index: number, array: T[]) => unknown): T | undefined;
+  forEach(callbackfn: (value: T, index: number, array: T[]) => void): void;
   includes(searchElement: T, fromIndex?: number): boolean;
   join(separator?: string): string;
+  reduce<U>(
+    callbackfn: (
+      previousValue: U,
+      currentValue: T,
+      currentIndex: number,
+      array: T[],
+    ) => U,
+    initialValue: U,
+  ): U;
+  slice(start?: number, end?: number): T[];
+  some(callbackfn: (value: T, index: number, array: T[]) => unknown): boolean;
+}
+
+interface ArrayConstructor {
+  isArray(value: unknown): value is unknown[];
 }
 
 interface Boolean {}
@@ -106,6 +123,7 @@ interface PromiseConstructor {
 }
 
 interface String {
+  readonly length: number;
   includes(searchString: string, position?: number): boolean;
   trim(): string;
   toLowerCase(): string;
@@ -125,6 +143,7 @@ interface Uint8Array {
 type Record<K extends string, T> = { [P in K]: T };
 
 declare const Promise: PromiseConstructor;
+declare const Array: ArrayConstructor;
 declare const String: (value?: unknown) => string;
 declare const Number: (value?: unknown) => number;
 declare const Boolean: (value?: unknown) => boolean;
@@ -148,14 +167,14 @@ declare function setTimeout(
   callback: (...args: any[]) => void,
   delay?: number,
   ...args: any[]
-): TimerHandle;
-declare function clearTimeout(handle?: TimerHandle): void;
+): unknown;
+declare function clearTimeout(handle?: unknown): void;
 declare function setInterval(
   callback: (...args: any[]) => void,
   delay?: number,
   ...args: any[]
-): TimerHandle;
-declare function clearInterval(handle?: TimerHandle): void;
+): unknown;
+declare function clearInterval(handle?: unknown): void;
 declare function queueMicrotask(callback: () => void): void;
 declare function structuredClone<T>(value: T): T;
 declare class TextEncoder {
@@ -166,16 +185,27 @@ declare class TextDecoder {
 }
 declare class URL {
   constructor(url: string, base?: string | URL);
+  hash: string;
+  host: string;
   href: string;
   hostname: string;
+  origin: string;
   pathname: string;
+  password: string;
+  port: string;
+  protocol: string;
   search: string;
   searchParams: URLSearchParams;
+  username: string;
   toString(): string;
 }
 declare class URLSearchParams {
-  constructor(init?: string | Record<string, string>);
+  constructor(init?: string | Record<string, string> | string[][] | URLSearchParams);
   append(name: string, value: string): void;
+  delete(name: string): void;
+  forEach(
+    callbackfn: (value: string, key: string, parent: URLSearchParams) => void,
+  ): void;
   get(name: string): string | null;
   has(name: string): boolean;
   set(name: string, value: string): void;
