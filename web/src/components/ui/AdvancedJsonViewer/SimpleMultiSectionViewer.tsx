@@ -14,6 +14,7 @@ import type {
   StringWrapMode,
   JsonSection,
   SectionContext,
+  JsonRowActionRenderContext,
 } from "./types";
 import { MultiSectionJsonViewerHeader } from "./components/MultiSectionJsonViewerHeader";
 import type { TreeState } from "./utils/treeStructure";
@@ -54,6 +55,7 @@ export interface SimpleMultiSectionViewerProps {
   scrollContainerRef?: RefObject<HTMLDivElement>;
   media?: MediaReturnType[];
   commentedPathsByField?: CommentedPathsByField;
+  renderRowActions?: (context: JsonRowActionRenderContext) => React.ReactNode;
 }
 
 const SimpleMultiSectionViewerInner = forwardRef<
@@ -77,6 +79,7 @@ const SimpleMultiSectionViewerInner = forwardRef<
     scrollContainerRef,
     media,
     commentedPathsByField,
+    renderRowActions,
   },
   ref,
 ) {
@@ -303,6 +306,7 @@ const SimpleMultiSectionViewerInner = forwardRef<
             jsonPath={rowJsonPath}
             commentRanges={commentRanges}
             sectionKey={node.sectionKey}
+            renderRowActions={renderRowActions}
           />
         </div>
       </div>

@@ -13,6 +13,7 @@ import { IOPreviewPretty } from "./IOPreviewPretty";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
 import { BookOpen, X } from "lucide-react";
+import { type TraceMetadataFilterHandler } from "@/src/components/trace/lib/trace-metadata-filter";
 
 export type { ViewMode };
 
@@ -81,6 +82,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   traceId: string;
   environment?: string;
   showCorrections?: boolean;
+  onTraceMetadataFilter?: TraceMetadataFilterHandler;
 }
 
 /**
@@ -137,6 +139,7 @@ export function IOPreview({
   traceId,
   environment = "default",
   showCorrections = true,
+  onTraceMetadataFilter,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
@@ -192,6 +195,7 @@ export function IOPreview({
     traceId,
     environment,
     showCorrections,
+    onTraceMetadataFilter,
   };
 
   // Only show empty state popup for traces (not observations) when there's no input/output
@@ -251,6 +255,7 @@ export function IOPreview({
           traceId={traceId}
           environment={environment}
           showCorrections={showCorrections}
+          onTraceMetadataFilter={onTraceMetadataFilter}
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple
@@ -277,6 +282,7 @@ export function IOPreview({
           projectId={projectId}
           traceId={traceId}
           environment={environment}
+          onTraceMetadataFilter={onTraceMetadataFilter}
         />
       ) : (
         <IOPreviewPretty

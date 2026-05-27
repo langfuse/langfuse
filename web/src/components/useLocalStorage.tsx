@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 /**
  * useLocalStorage is a hook for managing data with the localStorage API.
@@ -44,6 +44,11 @@ function useLocalStorage<T>(
       return initialValue;
     }
   });
+  const valueRef = useRef(value);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   // Helper object to safely interact with localStorage
   // Handles all error cases and provides consistent interface
@@ -73,6 +78,7 @@ function useLocalStorage<T>(
   // Function to clear both localStorage and state
   const clearValue = () => {
     safeLocalStorage.remove();
+    valueRef.current = initialValue;
     setValue(initialValue);
   };
 
@@ -91,7 +97,11 @@ function useLocalStorage<T>(
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === localStorageKey) {
         try {
-          setValue(e.newValue ? (JSON.parse(e.newValue) as T) : initialValue);
+          const nextValue = e.newValue
+            ? (JSON.parse(e.newValue) as T)
+            : initialValue;
+          valueRef.current = nextValue;
+          setValue(nextValue);
         } catch (error) {
           console.error("Error parsing storage change", error);
         }
@@ -100,15 +110,15 @@ function useLocalStorage<T>(
 
     // Handler for custom events (triggered within same tab)
     const handleCustomEvent = (
-      e: CustomEvent<{ key: string; newValue: string }>,
+      e: CustomEvent<{ key: string; newValue: string | null }>,
     ) => {
       if (e.detail.key === localStorageKey) {
         try {
-          setValue(
-            e.detail.newValue
-              ? (JSON.parse(e.detail.newValue) as T)
-              : initialValue,
-          );
+          const nextValue = e.detail.newValue
+            ? (JSON.parse(e.detail.newValue) as T)
+            : initialValue;
+          valueRef.current = nextValue;
+          setValue(nextValue);
         } catch (error) {
           console.error("Error parsing custom event", error);
         }
@@ -133,28 +143,35 @@ function useLocalStorage<T>(
   }, [localStorageKey, initialValue]);
 
   // Enhanced setValue function that also notifies other tabs
+  const notifySameTabListeners = useCallback(
+    (newValue: string | null) => {
+      if (typeof window === "undefined") return;
+
+      window.setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent("localStorageChange", {
+            detail: { key: localStorageKey, newValue },
+          }),
+        );
+      }, 0);
+    },
+    [localStorageKey],
+  );
+
   const setValueAndNotify: React.Dispatch<React.SetStateAction<T>> =
     useCallback(
       (newValue) => {
-        setValue((prev) => {
-          // Handle both direct values and updater functions
-          const resolvedValue =
-            newValue instanceof Function ? newValue(prev) : newValue;
-          const stringified = safeLocalStorage.set(resolvedValue);
+        const resolvedValue =
+          newValue instanceof Function ? newValue(valueRef.current) : newValue;
+        valueRef.current = resolvedValue;
+        setValue(resolvedValue);
 
-          // Dispatch custom event to notify other instances in the same tab
-          if (stringified) {
-            window.dispatchEvent(
-              new CustomEvent("localStorageChange", {
-                detail: { key: localStorageKey, newValue: stringified },
-              }),
-            );
-          }
-
-          return resolvedValue;
-        });
+        const stringified = safeLocalStorage.set(resolvedValue);
+        if (stringified) {
+          notifySameTabListeners(stringified);
+        }
       },
-      [localStorageKey, safeLocalStorage],
+      [notifySameTabListeners, safeLocalStorage],
     );
 
   return [value, setValueAndNotify, clearValue] as const;

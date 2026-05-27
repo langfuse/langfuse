@@ -5,7 +5,12 @@
  * It contains the actual JSON content (indentation, keys, values, and action buttons).
  */
 
-import type { FlatJSONRow, JSONTheme, SearchMatch } from "../types";
+import type {
+  FlatJSONRow,
+  JSONTheme,
+  JsonRowActionRenderContext,
+  SearchMatch,
+} from "../types";
 import { JsonKey } from "./JsonKey";
 import { JsonValue } from "./JsonValue";
 import { CopyButton } from "./CopyButton";
@@ -23,6 +28,7 @@ export interface JsonRowScrollableProps {
   jsonPath?: string;
   commentRanges?: CommentRange[];
   sectionKey?: string; // For inline comments - identifies which section (input/output/metadata) this row belongs to
+  renderRowActions?: (context: JsonRowActionRenderContext) => React.ReactNode;
 }
 
 export function JsonRowScrollable({
@@ -37,6 +43,7 @@ export function JsonRowScrollable({
   jsonPath,
   commentRanges,
   sectionKey,
+  renderRowActions,
 }: JsonRowScrollableProps) {
   const isKey = searchMatch?.matchType === "key";
   const isValue = searchMatch?.matchType === "value";
@@ -55,10 +62,11 @@ export function JsonRowScrollable({
     : searchMatch
       ? theme.searchMatchBackground
       : "transparent";
+  const rowActions = renderRowActions?.({ row, sectionKey, jsonPath });
 
   return (
     <div
-      className={className}
+      className={className ? `${className} group` : "group"}
       data-json-path={jsonPath}
       data-section-key={sectionKey}
       data-json-key-value="true"
@@ -112,8 +120,14 @@ export function JsonRowScrollable({
         valueOffset={valueOffset}
       />
 
+      {rowActions && (
+        <span className="ml-1 inline-flex h-4 w-4 shrink-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          {rowActions}
+        </span>
+      )}
+
       {/* Copy button (optional, on hover) */}
-      {enableCopy && (
+      {enableCopy && !rowActions && (
         <CopyButton value={row.value} theme={theme} className="mt-0.5" />
       )}
     </div>
