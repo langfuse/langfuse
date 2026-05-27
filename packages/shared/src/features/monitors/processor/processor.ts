@@ -4,7 +4,10 @@ import { JobConfigState, Prisma, type PrismaClient } from "../../../db";
 import { env } from "../../../env";
 import { TriggerEventSource } from "../../../domain/automations";
 import { matchesTriggerFilter } from "../../../server/automations";
-import { getTriggerConfigurations } from "../../../server/repositories/automation-repository";
+import {
+  getTriggerConfigurations,
+  type TriggerDomainWithActions,
+} from "../../../server/repositories/automation-repository";
 import { executeQuery } from "../../query/server/queryExecutor";
 import type { QueryType } from "../../query/types";
 import { monitorProcessorTtl } from "../scheduler/scheduler";
@@ -39,15 +42,48 @@ export type MonitorPublisher = (
   event: MonitorWebhookQueueEvent,
 ) => Promise<void>;
 
+/** MonitorQueryExecutor runs the scalar-shape ClickHouse query for a monitor evaluation; injected so tests can fake CH responses. */
+export type MonitorQueryExecutor = (
+  projectId: string,
+  query: QueryType,
+) => Promise<Array<Record<string, unknown>>>;
+
+/** MonitorTriggerLoader loads the Monitor-source trigger configurations for a project; injected so tests can fake trigger sets. */
+export type MonitorTriggerLoader = (
+  projectId: string,
+) => Promise<TriggerDomainWithActions[]>;
+
+/** defaultMonitorTriggerLoader is the production wiring: load ACTIVE Monitor-source triggers for the project. */
+export const defaultMonitorTriggerLoader: MonitorTriggerLoader = (projectId) =>
+  getTriggerConfigurations({
+    projectId,
+    eventSource: TriggerEventSource.Monitor,
+    status: JobConfigState.ACTIVE,
+  });
+
+/** defaultMonitorQueryExecutor is the production wiring: forward to the shared ClickHouse executeQuery. */
+export const defaultMonitorQueryExecutor: MonitorQueryExecutor = (
+  projectId,
+  query,
+) => executeQuery(projectId, query);
+
 /** MonitorProcessor consumes MonitorQueueEvents, evaluates the severity state machine, and emits monitor alerts. */
 export class MonitorProcessor {
   private readonly db: PrismaClient;
-  // Constructor seam; commit 2 wires the trigger filter + publisher emit.
   private readonly publish: MonitorPublisher;
+  private readonly executeQuery: MonitorQueryExecutor;
+  private readonly getTriggers: MonitorTriggerLoader;
 
-  constructor(deps: { db: PrismaClient; publish: MonitorPublisher }) {
+  constructor(deps: {
+    db: PrismaClient;
+    publish: MonitorPublisher;
+    executeQuery?: MonitorQueryExecutor;
+    getTriggers?: MonitorTriggerLoader;
+  }) {
     this.db = deps.db;
     this.publish = deps.publish;
+    this.executeQuery = deps.executeQuery ?? defaultMonitorQueryExecutor;
+    this.getTriggers = deps.getTriggers ?? defaultMonitorTriggerLoader;
   }
 
   /** claim attempts to lock the monitors in the event for this worker. Returns the ids that were locked. */
@@ -85,12 +121,8 @@ export class MonitorProcessor {
     if (claimedIds.length === 0) return;
 
     const [chRows, triggers, rows] = await Promise.all([
-      executeQuery(event.projectId, buildMonitorQuery(event)),
-      getTriggerConfigurations({
-        projectId: event.projectId,
-        eventSource: TriggerEventSource.Monitor,
-        status: JobConfigState.ACTIVE,
-      }),
+      this.executeQuery(event.projectId, buildMonitorQuery(event)),
+      this.getTriggers(event.projectId),
       this.db.monitor.findMany({
         where: { id: { in: claimedIds }, projectId: event.projectId },
       }),

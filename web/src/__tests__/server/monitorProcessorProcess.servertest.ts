@@ -1,31 +1,39 @@
 import { v4 } from "uuid";
 import { vi } from "vitest";
 
-import {
-  createObservation,
-  createObservationsCh,
-  createOrgProjectAndApiKey,
-} from "@langfuse/shared/src/server";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   MonitorProcessor,
   type MonitorPublisher,
+  type MonitorQueryExecutor,
   type MonitorQueueEvent,
+  type MonitorTriggerLoader,
 } from "@langfuse/shared/monitors/server";
 import { prisma } from "@langfuse/shared/src/db";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
+
+type MonitorStatus = "ACTIVE" | "PAUSED" | "ERROR_BAD_QUERY";
+type MonitorView = "OBSERVATIONS" | "SCORES_NUMERIC" | "SCORES_CATEGORICAL";
+type MonitorSeverity =
+  | "UNKNOWN"
+  | "OK"
+  | "WARNING"
+  | "ALERT"
+  | "NO_DATA"
+  | "PAUSED";
+type ThresholdOperator = "GT" | "GTE" | "LT" | "LTE" | "EQ" | "NEQ";
 
 type SeedOverrides = Partial<{
-  id: string;
   schedulerBatchId: bigint;
   windowMs: bigint;
-  status: "ACTIVE" | "PAUSED" | "ERROR_BAD_QUERY";
-  view: "OBSERVATIONS" | "SCORES_NUMERIC" | "SCORES_CATEGORICAL";
+  status: MonitorStatus;
+  view: MonitorView;
   alertThreshold: number;
   warningThreshold: number | null;
-  thresholdOperator: "GT" | "GTE" | "LT" | "LTE" | "EQ" | "NEQ";
+  thresholdOperator: ThresholdOperator;
   noData: { mode: "SILENT" } | { mode: "NOTIFY"; intervalMinutes: number };
   renotify: { mode: "OFF" } | { mode: "EVERY"; intervalMinutes: number };
-  severity: "UNKNOWN" | "OK" | "WARNING" | "ALERT" | "NO_DATA" | "PAUSED";
+  severity: MonitorSeverity;
   severityChangedAt: Date | null;
   alertedAt: Date | null;
   tags: string[];
@@ -36,13 +44,63 @@ type SeedOverrides = Partial<{
 
 type MonitorSeed = { id: string } & SeedOverrides;
 
+type TriggerSeed = {
+  filter: { column: string; operator: string; value: unknown; type: string }[];
+  eventActions?: string[];
+};
+
+type ExpectedRow = {
+  id: string;
+  severity: MonitorSeverity;
+  severityChangedAt: Date | null;
+  alertedAt: Date | null;
+  lastClaimedRunAt: Date | null;
+  lastCompletedRunAt: Date | null;
+};
+
+type InjectErrorStage =
+  | "claim"
+  | "executeQuery"
+  | "getTriggers"
+  | "publish"
+  | "complete";
+
+type ProcessCase = {
+  name: string;
+  monitors: MonitorSeed[];
+  triggers?: TriggerSeed[];
+  ch?: Record<string, unknown>[];
+  injectError?: { stage: InjectErrorStage; message: string };
+  expect: {
+    throws?: string;
+    publishCallCount: number;
+    publishMatch?: Record<string, unknown>;
+    rows: ExpectedRow[];
+  };
+};
+
 const oneMinuteMs = 60n * 1000n;
 const fiveMinutesMs = 5n * oneMinuteMs;
 
 const runAt = new Date("2026-05-27T12:00:00.000Z");
-const tenMinutesAgo = new Date("2026-05-27T11:50:00.000Z");
 const justAfterRunAt = new Date("2026-05-27T12:00:01.000Z");
+const tenMinutesAgo = new Date("2026-05-27T11:50:00.000Z");
 
+const matchAnyAlertTrigger: TriggerSeed = {
+  filter: [
+    {
+      column: "severity",
+      operator: "any of",
+      value: ["WARNING", "ALERT", "NO_DATA"],
+      type: "stringOptions",
+    },
+  ],
+};
+
+const monitorAId = `m_a_${v4()}`;
+const monitorBId = `m_b_${v4()}`;
+
+/** seedMonitor writes one Monitor row from a seed; defaults align with a fresh ACTIVE monitor whose run was just published. */
 async function seedMonitor(projectId: string, seed: MonitorSeed) {
   return prisma.monitor.create({
     data: {
@@ -68,7 +126,7 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       status: seed.status ?? "ACTIVE",
       schedulerBatchId: seed.schedulerBatchId ?? 0n,
       nextRunAt: null,
-      lastPublishedRunAt: seed.lastPublishedRunAt ?? null,
+      lastPublishedRunAt: seed.lastPublishedRunAt ?? runAt,
       lastClaimedRunAt: seed.lastClaimedRunAt ?? null,
       lastCompletedRunAt: seed.lastCompletedRunAt ?? null,
       severity: seed.severity ?? "UNKNOWN",
@@ -80,423 +138,551 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
   });
 }
 
-/** seedObservationsInWindow inserts `count` observations spread evenly across the window ending at runAt. */
-async function seedObservationsInWindow(args: {
-  projectId: string;
-  count: number;
-  runAt: Date;
-  windowMs: number;
-}) {
-  if (args.count === 0) return;
-  const stepMs = Math.max(1, Math.floor(args.windowMs / args.count));
-  const startMs = args.runAt.getTime() - args.windowMs;
-  const observations = Array.from({ length: args.count }, (_, i) =>
-    createObservation({
-      project_id: args.projectId,
-      start_time: startMs + i * stepMs,
-      end_time: startMs + i * stepMs,
-      event_ts: startMs + i * stepMs,
-    }),
-  );
-  await createObservationsCh(observations);
-}
-
-async function seedTrigger(
-  projectId: string,
-  filter: { column: string; operator: string; value: unknown; type: string }[],
-) {
-  return prisma.trigger.create({
-    data: {
-      projectId,
-      eventSource: "monitor",
-      eventActions: [],
-      filter: filter as unknown as Prisma.InputJsonValue,
-      status: "ACTIVE",
-    },
-  });
-}
-
-function makeEvent(args: {
-  projectId: string;
-  monitorIds: string[];
-  runAt?: Date;
-  windowMs?: bigint;
-}): MonitorQueueEvent {
+/** makeEvent builds the MonitorQueueEvent for the seeded monitors; metricName matches `${aggregation}_${measure}` from the seed's default metric. */
+function makeEvent(projectId: string, monitorIds: string[]): MonitorQueueEvent {
   return {
-    projectId: args.projectId,
+    projectId,
     schedulerBatchId: 0n,
-    runAt: args.runAt ?? runAt,
+    runAt,
     view: "observations",
     filters: [],
     window: "5m",
     metrics: [{ measure: "count", aggregation: "count" }],
-    monitors: args.monitorIds.map((id) => ({
+    monitors: monitorIds.map((id) => ({
       monitorId: id,
       metricName: "count_count",
     })),
   };
 }
 
-describe("MonitorProcessor.process — shell (integration)", () => {
-  let projectId: string;
+/** wrapDbToThrow returns a Proxy over `db` that rejects when `method` is called, delegating everything else through. Used to inject claim ($queryRaw) and complete ($executeRaw) errors without per-method seams. */
+function wrapDbToThrow(
+  db: PrismaClient,
+  method: "$queryRaw" | "$executeRaw",
+  message: string,
+): PrismaClient {
+  return new Proxy(db, {
+    get(target, prop, _receiver) {
+      if (prop === method) {
+        return () => Promise.reject(new Error(message));
+      }
+      return Reflect.get(target, prop, target);
+    },
+  }) as PrismaClient;
+}
 
-  beforeAll(async () => {
-    const org = await createOrgProjectAndApiKey();
-    projectId = org.projectId;
-  });
-
-  afterEach(async () => {
-    await prisma.monitor.deleteMany({ where: { projectId } });
-  });
-
-  it("case A: claim is empty -> no CH query, no complete, no publish", async () => {
-    const publish = vi.fn<MonitorPublisher>(async () => {});
-    const processor = new MonitorProcessor({ db: prisma, publish });
-
-    // No monitors in the event -> claim returns []
-    await processor.process(makeEvent({ projectId, monitorIds: [] }), runAt);
-
-    expect(publish).not.toHaveBeenCalled();
-  });
-
-  it("case C: single monitor, OK -> OK steady state -> only last_completed_run_at advances", async () => {
-    const monitorId = `m_ok_${v4()}`;
-    await seedMonitor(projectId, {
-      id: monitorId,
-      severity: "OK",
-      severityChangedAt: tenMinutesAgo,
-      alertedAt: null,
-      lastPublishedRunAt: runAt,
-      lastClaimedRunAt: null,
-      lastCompletedRunAt: null,
-      alertThreshold: 100,
-      thresholdOperator: "GT",
-    });
-    // 50 observations is below the alert threshold of 100 -> computed OK.
-    await seedObservationsInWindow({
-      projectId,
-      count: 50,
-      runAt,
-      windowMs: 5 * 60 * 1000,
-    });
-
-    const publish = vi.fn<MonitorPublisher>(async () => {});
-    const processor = new MonitorProcessor({ db: prisma, publish });
-    await processor.process(
-      makeEvent({ projectId, monitorIds: [monitorId] }),
-      justAfterRunAt,
-    );
-
-    expect(publish).not.toHaveBeenCalled();
-    const row = await prisma.monitor.findUniqueOrThrow({
-      where: { id: monitorId },
-    });
-    expect(row.severity).toBe("OK");
-    expect(row.severityChangedAt?.toISOString()).toBe(
-      tenMinutesAgo.toISOString(),
-    );
-    expect(row.alertedAt).toBeNull();
-    expect(row.lastCompletedRunAt?.toISOString()).toBe(runAt.toISOString());
-  });
-
-  it("case E: cold-start UNKNOWN -> ALERT -> state machine emits (alertedAt advances); publisher seam unused in this commit", async () => {
-    // NOTE: NO_DATA semantics are hard to test with count() (returns 0 on
-    // empty in ClickHouse, not NULL). Substitute a cold-start UNKNOWN -> ALERT
-    // case that exercises the emit branch of the state machine. NO_DATA can
-    // come back as a follow-up when we wire a NULL-returning aggregation.
-    const monitorId = `m_cold_start_alert_${v4()}`;
-    await seedMonitor(projectId, {
-      id: monitorId,
-      severity: "UNKNOWN",
-      severityChangedAt: null,
-      alertedAt: null,
-      lastPublishedRunAt: runAt,
-      lastClaimedRunAt: null,
-      lastCompletedRunAt: null,
-      alertThreshold: 100,
-      thresholdOperator: "GT",
-    });
-    // 142 observations crosses the alert threshold of 100 -> computed ALERT.
-    await seedObservationsInWindow({
-      projectId,
-      count: 142,
-      runAt,
-      windowMs: 5 * 60 * 1000,
-    });
-
-    const publish = vi.fn<MonitorPublisher>(async () => {});
-    const processor = new MonitorProcessor({ db: prisma, publish });
-    await processor.process(
-      makeEvent({ projectId, monitorIds: [monitorId] }),
-      justAfterRunAt,
-    );
-
-    // Commit 1 does not call the publisher even when the state machine emits.
-    expect(publish).not.toHaveBeenCalled();
-    const row = await prisma.monitor.findUniqueOrThrow({
-      where: { id: monitorId },
-    });
-    expect(row.severity).toBe("ALERT");
-    expect(row.severityChangedAt?.toISOString()).toBe(runAt.toISOString());
-    expect(row.alertedAt?.toISOString()).toBe(runAt.toISOString());
-    expect(row.lastCompletedRunAt?.toISOString()).toBe(runAt.toISOString());
-  });
-
-  it("case F: partial claim (1 of 2 already done) -> only claimable processed", async () => {
-    const claimableId = `m_claimable_${v4()}`;
-    const doneId = `m_done_${v4()}`;
-    // Both share the same scheduler batch, both have last_published_run_at == event.runAt.
-    // The done row also has last_completed_run_at == event.runAt (already finished),
-    // so claim's clause 2 rejects it.
-    await seedMonitor(projectId, {
-      id: claimableId,
-      schedulerBatchId: 7n,
-      severity: "OK",
-      severityChangedAt: tenMinutesAgo,
-      lastPublishedRunAt: runAt,
-      lastClaimedRunAt: null,
-      lastCompletedRunAt: null,
-    });
-    await seedMonitor(projectId, {
-      id: doneId,
-      schedulerBatchId: 7n,
-      severity: "OK",
-      severityChangedAt: tenMinutesAgo,
-      lastPublishedRunAt: runAt,
-      lastClaimedRunAt: runAt,
-      lastCompletedRunAt: runAt, // already done
-    });
-    await seedObservationsInWindow({
-      projectId,
-      count: 50,
-      runAt,
-      windowMs: 5 * 60 * 1000,
-    });
-
-    const publish = vi.fn<MonitorPublisher>(async () => {});
-    const processor = new MonitorProcessor({ db: prisma, publish });
-    await processor.process(
-      makeEvent({
-        projectId,
-        monitorIds: [claimableId, doneId],
-        runAt,
-      }),
-      justAfterRunAt,
-    );
-
-    expect(publish).not.toHaveBeenCalled();
-    const claimable = await prisma.monitor.findUniqueOrThrow({
-      where: { id: claimableId },
-    });
-    const done = await prisma.monitor.findUniqueOrThrow({
-      where: { id: doneId },
-    });
-    // claimable processed -> last_completed_run_at advanced
-    expect(claimable.lastCompletedRunAt?.toISOString()).toBe(
-      runAt.toISOString(),
-    );
-    // done row untouched -> last_completed_run_at unchanged (still == runAt)
-    expect(done.lastCompletedRunAt?.toISOString()).toBe(runAt.toISOString());
-    // and severity/severityChangedAt on the done row are NOT rewritten.
-    expect(done.severity).toBe("OK");
-    expect(done.severityChangedAt?.toISOString()).toBe(
-      tenMinutesAgo.toISOString(),
-    );
-  });
-});
-
-describe("MonitorProcessor.process — trigger filter + publisher emit (integration)", () => {
-  let projectId: string;
-
-  beforeAll(async () => {
-    const org = await createOrgProjectAndApiKey();
-    projectId = org.projectId;
-  });
-
-  afterEach(async () => {
-    await prisma.monitor.deleteMany({ where: { projectId } });
-    await prisma.trigger.deleteMany({ where: { projectId } });
-  });
-
-  it("case B: cold-start ALERT + matching severity trigger -> publish called once with the expected payload", async () => {
-    const monitorId = `m_alert_${v4()}`;
-    await seedMonitor(projectId, {
-      id: monitorId,
-      severity: "UNKNOWN",
-      lastPublishedRunAt: runAt,
-      alertThreshold: 100,
-      thresholdOperator: "GT",
-    });
-    await seedObservationsInWindow({
-      projectId,
-      count: 142,
-      runAt,
-      windowMs: 5 * 60 * 1000,
-    });
-    await seedTrigger(projectId, [
+const cases: ProcessCase[] = [
+  {
+    name: "all monitors claimed: no ack, no ts changes, no emit",
+    monitors: [
       {
-        column: "severity",
-        operator: "any of",
-        value: ["ALERT"],
-        type: "stringOptions",
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedRunAt: runAt,
+        lastClaimedRunAt: runAt,
+        lastCompletedRunAt: runAt,
       },
-    ]);
-
-    const publish = vi.fn<MonitorPublisher>(async () => {});
-    const processor = new MonitorProcessor({ db: prisma, publish });
-    await processor.process(
-      makeEvent({ projectId, monitorIds: [monitorId] }),
-      justAfterRunAt,
-    );
-
-    expect(publish).toHaveBeenCalledTimes(1);
-    expect(publish.mock.calls[0][0]).toMatchObject({
-      type: "monitor-alert",
-      version: "v1",
-      payload: {
-        monitorId,
-        projectId,
-        severity: "ALERT",
-        message: {
-          title: `[ALERT] Test ${monitorId}`,
-          body: "count(observations.count) is above 100",
+    ],
+    expect: {
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "OK",
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedRunAt: runAt,
+          lastCompletedRunAt: runAt,
         },
-        view: "observations",
-        window: "5m",
+      ],
+    },
+  },
+  {
+    name: "no severity change: ack, ts changes, no emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedRunAt: runAt,
       },
-    });
-    expect(publish.mock.calls[0][0].payload.timestamp.toISOString()).toBe(
-      runAt.toISOString(),
-    );
+    ],
+    ch: [{ count_count: 50 }],
+    expect: {
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "OK",
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedRunAt: runAt,
+          lastCompletedRunAt: runAt,
+        },
+      ],
+    },
+  },
+  {
+    name: "no triggers match: ack, ts + sev changes, no emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "UNKNOWN",
+        lastPublishedRunAt: runAt,
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [
+      {
+        filter: [
+          {
+            column: "severity",
+            operator: "any of",
+            value: ["WARNING"],
+            type: "stringOptions",
+          },
+        ],
+      },
+    ],
+    expect: {
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "ALERT",
+          severityChangedAt: runAt,
+          alertedAt: runAt,
+          lastClaimedRunAt: runAt,
+          lastCompletedRunAt: runAt,
+        },
+      ],
+    },
+  },
+  {
+    name: "alert: ack, ts + sev changes, emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "UNKNOWN",
+        lastPublishedRunAt: runAt,
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 1,
+      publishMatch: {
+        type: "monitor-alert",
+        version: "v1",
+        payload: {
+          monitorId: monitorAId,
+          severity: "ALERT",
+          message: {
+            title: `[ALERT] Test ${monitorAId}`,
+            body: "count(observations.count) is above 100",
+          },
+          view: "observations",
+          window: "5m",
+        },
+      },
+      rows: [
+        {
+          id: monitorAId,
+          severity: "ALERT",
+          severityChangedAt: runAt,
+          alertedAt: runAt,
+          lastClaimedRunAt: runAt,
+          lastCompletedRunAt: runAt,
+        },
+      ],
+    },
+  },
+  {
+    name: "renotify on: ack, ts changes, emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "ALERT",
+        severityChangedAt: tenMinutesAgo,
+        alertedAt: tenMinutesAgo,
+        lastPublishedRunAt: runAt,
+        renotify: { mode: "EVERY", intervalMinutes: 5 },
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 1,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "ALERT",
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: runAt,
+          lastClaimedRunAt: runAt,
+          lastCompletedRunAt: runAt,
+        },
+      ],
+    },
+  },
+  {
+    name: "renotify off: ack, ts changes, no emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "ALERT",
+        severityChangedAt: tenMinutesAgo,
+        alertedAt: tenMinutesAgo,
+        lastPublishedRunAt: runAt,
+        renotify: { mode: "OFF" },
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "ALERT",
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: tenMinutesAgo,
+          lastClaimedRunAt: runAt,
+          lastCompletedRunAt: runAt,
+        },
+      ],
+    },
+  },
+  {
+    name: "nodata on: ack, ts + sev changes, emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedRunAt: runAt,
+        noData: { mode: "NOTIFY", intervalMinutes: 5 },
+      },
+    ],
+    ch: [{}],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 1,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "NO_DATA",
+          severityChangedAt: runAt,
+          alertedAt: runAt,
+          lastClaimedRunAt: runAt,
+          lastCompletedRunAt: runAt,
+        },
+      ],
+    },
+  },
+  {
+    name: "nodata off: ack, ts + sev changes, no emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedRunAt: runAt,
+        noData: { mode: "SILENT" },
+      },
+    ],
+    ch: [{}],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "NO_DATA",
+          severityChangedAt: runAt,
+          alertedAt: null,
+          lastClaimedRunAt: runAt,
+          lastCompletedRunAt: runAt,
+        },
+      ],
+    },
+  },
+  {
+    name: "error on claim: no ack, no changes, no emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedRunAt: runAt,
+      },
+    ],
+    injectError: { stage: "claim", message: "PG down (claim)" },
+    expect: {
+      throws: "PG down (claim)",
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "OK",
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedRunAt: null,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "error on executeQuery: no ack, no changes, no emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedRunAt: runAt,
+      },
+    ],
+    injectError: { stage: "executeQuery", message: "CH timeout" },
+    expect: {
+      throws: "CH timeout",
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "OK",
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedRunAt: runAt,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "error on getTriggers: no ack, no changes, no emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedRunAt: runAt,
+      },
+    ],
+    injectError: { stage: "getTriggers", message: "trigger lookup failed" },
+    expect: {
+      throws: "trigger lookup failed",
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "OK",
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedRunAt: runAt,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "error on publish: no ack, no changes, emit (publish fired before throwing)",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "UNKNOWN",
+        lastPublishedRunAt: runAt,
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [matchAnyAlertTrigger],
+    injectError: { stage: "publish", message: "webhook queue rejected" },
+    expect: {
+      throws: "webhook queue rejected",
+      publishCallCount: 1,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "UNKNOWN",
+          severityChangedAt: null,
+          alertedAt: null,
+          lastClaimedRunAt: runAt,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "error on complete: no ack, no changes, emit (publish fired before throwing)",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "UNKNOWN",
+        lastPublishedRunAt: runAt,
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [matchAnyAlertTrigger],
+    injectError: { stage: "complete", message: "PG down (complete)" },
+    expect: {
+      throws: "PG down (complete)",
+      publishCallCount: 1,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "UNKNOWN",
+          severityChangedAt: null,
+          alertedAt: null,
+          lastClaimedRunAt: runAt,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "partial claim: ack + ts + sev changes + emit for claimable, untouched for already-completed",
+    monitors: [
+      // already-completed: claim's clause 2 rejects it (lastCompletedRunAt == lastPublishedRunAt)
+      {
+        id: monitorAId,
+        schedulerBatchId: 7n,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedRunAt: runAt,
+        lastClaimedRunAt: runAt,
+        lastCompletedRunAt: runAt,
+      },
+      // claimable: fresh, will emit ALERT
+      {
+        id: monitorBId,
+        schedulerBatchId: 7n,
+        severity: "UNKNOWN",
+        lastPublishedRunAt: runAt,
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 1,
+      publishMatch: {
+        payload: {
+          monitorId: monitorBId,
+          severity: "ALERT",
+        },
+      },
+      rows: [
+        // done: untouched
+        {
+          id: monitorAId,
+          severity: "OK",
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedRunAt: runAt,
+          lastCompletedRunAt: runAt,
+        },
+        // claimable: fully processed
+        {
+          id: monitorBId,
+          severity: "ALERT",
+          severityChangedAt: runAt,
+          alertedAt: runAt,
+          lastClaimedRunAt: runAt,
+          lastCompletedRunAt: runAt,
+        },
+      ],
+    },
+  },
+];
 
-    const row = await prisma.monitor.findUniqueOrThrow({
-      where: { id: monitorId },
-    });
-    expect(row.severity).toBe("ALERT");
-    expect(row.severityChangedAt?.toISOString()).toBe(runAt.toISOString());
-    expect(row.alertedAt?.toISOString()).toBe(runAt.toISOString());
-    expect(row.lastCompletedRunAt?.toISOString()).toBe(runAt.toISOString());
+describe("MonitorProcessor.process (integration)", () => {
+  let projectId: string;
+
+  beforeAll(async () => {
+    const org = await createOrgProjectAndApiKey();
+    projectId = org.projectId;
   });
 
-  it("case D: emit but NO matching trigger -> publish NOT called; row still written per state machine", async () => {
-    const monitorId = `m_no_match_${v4()}`;
-    await seedMonitor(projectId, {
-      id: monitorId,
-      severity: "UNKNOWN",
-      lastPublishedRunAt: runAt,
-      alertThreshold: 100,
-      thresholdOperator: "GT",
-    });
-    await seedObservationsInWindow({
-      projectId,
-      count: 142,
-      runAt,
-      windowMs: 5 * 60 * 1000,
-    });
-    // Trigger only matches WARNING; monitor emits ALERT -> no match.
-    await seedTrigger(projectId, [
-      {
-        column: "severity",
-        operator: "any of",
-        value: ["WARNING"],
-        type: "stringOptions",
-      },
-    ]);
-
-    const publish = vi.fn<MonitorPublisher>(async () => {});
-    const processor = new MonitorProcessor({ db: prisma, publish });
-    await processor.process(
-      makeEvent({ projectId, monitorIds: [monitorId] }),
-      justAfterRunAt,
-    );
-
-    expect(publish).not.toHaveBeenCalled();
-    // State machine still ran; lifecycle stamps reflect the emit decision.
-    const row = await prisma.monitor.findUniqueOrThrow({
-      where: { id: monitorId },
-    });
-    expect(row.severity).toBe("ALERT");
-    expect(row.severityChangedAt?.toISOString()).toBe(runAt.toISOString());
-    expect(row.alertedAt?.toISOString()).toBe(runAt.toISOString());
-    expect(row.lastCompletedRunAt?.toISOString()).toBe(runAt.toISOString());
+  afterEach(async () => {
+    await prisma.monitor.deleteMany({ where: { projectId } });
   });
 
-  it("case G: trigger filter on tags matches -> publish called once", async () => {
-    const monitorId = `m_tags_${v4()}`;
-    await seedMonitor(projectId, {
-      id: monitorId,
-      severity: "UNKNOWN",
-      lastPublishedRunAt: runAt,
-      alertThreshold: 100,
-      thresholdOperator: "GT",
-      tags: ["env:prod", "service:faq-bot"],
-    });
-    await seedObservationsInWindow({
-      projectId,
-      count: 142,
-      runAt,
-      windowMs: 5 * 60 * 1000,
-    });
-    await seedTrigger(projectId, [
-      {
-        column: "tags",
-        operator: "any of",
-        value: ["env:prod"],
-        type: "arrayOptions",
-      },
-    ]);
+  it.each(cases)("$name", async (c) => {
+    for (const m of c.monitors) {
+      await seedMonitor(projectId, m);
+    }
 
     const publish = vi.fn<MonitorPublisher>(async () => {});
-    const processor = new MonitorProcessor({ db: prisma, publish });
-    await processor.process(
-      makeEvent({ projectId, monitorIds: [monitorId] }),
-      justAfterRunAt,
-    );
+    if (c.injectError?.stage === "publish") {
+      publish.mockRejectedValueOnce(new Error(c.injectError.message));
+    }
 
-    expect(publish).toHaveBeenCalledTimes(1);
-  });
+    const executeQuery: MonitorQueryExecutor = async () => {
+      if (c.injectError?.stage === "executeQuery") {
+        throw new Error(c.injectError.message);
+      }
+      return c.ch ?? [{ count_count: 0 }];
+    };
 
-  it("case H: multiple triggers, one matches -> publish called ONCE per surviving Monitor (not per trigger)", async () => {
-    const monitorId = `m_multi_${v4()}`;
-    await seedMonitor(projectId, {
-      id: monitorId,
-      severity: "UNKNOWN",
-      lastPublishedRunAt: runAt,
-      alertThreshold: 100,
-      thresholdOperator: "GT",
+    const getTriggers: MonitorTriggerLoader = async () => {
+      if (c.injectError?.stage === "getTriggers") {
+        throw new Error(c.injectError.message);
+      }
+      // matchesTriggerFilter only reads filter + eventActions; cast minimal seeds.
+      return (c.triggers ?? []).map((t) => ({
+        filter: t.filter,
+        eventActions: t.eventActions ?? [],
+      })) as unknown as Awaited<ReturnType<MonitorTriggerLoader>>;
+    };
+
+    let db: PrismaClient = prisma;
+    if (c.injectError?.stage === "claim") {
+      db = wrapDbToThrow(prisma, "$queryRaw", c.injectError.message);
+    } else if (c.injectError?.stage === "complete") {
+      db = wrapDbToThrow(prisma, "$executeRaw", c.injectError.message);
+    }
+
+    const processor = new MonitorProcessor({
+      db,
+      publish,
+      executeQuery,
+      getTriggers,
     });
-    await seedObservationsInWindow({
+
+    const event = makeEvent(
       projectId,
-      count: 142,
-      runAt,
-      windowMs: 5 * 60 * 1000,
-    });
-    // Two triggers: one matches WARNING (won't match ALERT), one matches ALERT.
-    await seedTrigger(projectId, [
-      {
-        column: "severity",
-        operator: "any of",
-        value: ["WARNING"],
-        type: "stringOptions",
-      },
-    ]);
-    await seedTrigger(projectId, [
-      {
-        column: "severity",
-        operator: "any of",
-        value: ["ALERT"],
-        type: "stringOptions",
-      },
-    ]);
-
-    const publish = vi.fn<MonitorPublisher>(async () => {});
-    const processor = new MonitorProcessor({ db: prisma, publish });
-    await processor.process(
-      makeEvent({ projectId, monitorIds: [monitorId] }),
-      justAfterRunAt,
+      c.monitors.map((m) => m.id),
     );
+    if (c.expect.throws) {
+      await expect(processor.process(event, justAfterRunAt)).rejects.toThrow(
+        c.expect.throws,
+      );
+    } else {
+      await processor.process(event, justAfterRunAt);
+    }
 
-    // RFC step 9: one MonitorWebhookQueueEvent per surviving Monitor.
-    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish).toHaveBeenCalledTimes(c.expect.publishCallCount);
+    if (c.expect.publishMatch && c.expect.publishCallCount > 0) {
+      expect(publish.mock.calls[0][0]).toMatchObject(c.expect.publishMatch);
+    }
+
+    for (const exp of c.expect.rows) {
+      const row = await prisma.monitor.findUniqueOrThrow({
+        where: { id: exp.id },
+      });
+      expect(row.severity).toBe(exp.severity);
+      expect(row.severityChangedAt?.toISOString() ?? null).toBe(
+        exp.severityChangedAt?.toISOString() ?? null,
+      );
+      expect(row.alertedAt?.toISOString() ?? null).toBe(
+        exp.alertedAt?.toISOString() ?? null,
+      );
+      expect(row.lastClaimedRunAt?.toISOString() ?? null).toBe(
+        exp.lastClaimedRunAt?.toISOString() ?? null,
+      );
+      expect(row.lastCompletedRunAt?.toISOString() ?? null).toBe(
+        exp.lastCompletedRunAt?.toISOString() ?? null,
+      );
+    }
   });
 });
