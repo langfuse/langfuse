@@ -107,17 +107,51 @@ describe("code eval template validation", () => {
     expect(result.hasErrors).toBe(false);
   });
 
-  it("rejects async TypeScript evaluate functions", async () => {
+  it("accepts async TypeScript evaluate functions with timers", async () => {
     const result = await validateCodeEvalSourceWithLanguage({
       source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
 async function evaluate(ctx: EvaluationContext): Promise<EvaluationResult> {
+  await new Promise((resolve) => setTimeout(resolve, 2000));
   return { scores: [] };
 }
 `,
       sourceCodeLanguage: "TYPESCRIPT",
     });
 
-    expect(result.hasErrors).toBe(true);
+    expect(result.hasErrors).toBe(false);
+  });
+
+  it("accepts simple Node runtime globals and keeps process unavailable", async () => {
+    const result = await validateCodeEvalSourceWithLanguage({
+      source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
+function evaluate(ctx: EvaluationContext): EvaluationResult {
+  const encoded = new TextEncoder().encode(new URL("https://langfuse.com").hostname);
+  const copy = structuredClone({ length: encoded.length });
+  queueMicrotask(() => {});
+
+  return { scores: [{ name: "encoded", value: copy.length, dataType: "NUMERIC" }] };
+}
+`,
+      sourceCodeLanguage: "TYPESCRIPT",
+    });
+
+    expect(result.hasErrors).toBe(false);
+
+    const processResult = await validateCodeEvalSourceWithLanguage({
+      source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
+function evaluate(ctx: EvaluationContext): EvaluationResult {
+  return { scores: [{ name: "env", value: process.env.NODE_ENV ?? "", dataType: "TEXT" }] };
+}
+`,
+      sourceCodeLanguage: "TYPESCRIPT",
+    });
+
+    expect(processResult.hasErrors).toBe(true);
+    expect(
+      processResult.diagnostics.some((diagnostic) =>
+        diagnostic.message.includes("Cannot find name 'process'"),
+      ),
+    ).toBe(true);
   });
 
   it("rejects exported TypeScript evaluate functions", async () => {

@@ -44,11 +44,13 @@ type RuffWorkspace = {
 const SYNTHETIC_ASSERTION_PREFIX = `
 type __LangfuseExpectedEvaluate = (
   ctx: EvaluationContext,
-) => EvaluationResult;
+) => EvaluationResult | Promise<EvaluationResult>;
 const __langfuseEvaluateCheck: __LangfuseExpectedEvaluate = evaluate;
 `;
 
 const CONTRACT_DECLARATIONS = `
+type TimerHandle = unknown;
+
 interface Array<T> {
   length: number;
   [n: number]: T;
@@ -84,6 +86,17 @@ interface PromiseLike<T> {
   ): PromiseLike<TResult1 | TResult2>;
 }
 
+interface PromiseConstructor {
+  new <T>(
+    executor: (
+      resolve: (value: T | PromiseLike<T>) => void,
+      reject: (reason?: any) => void,
+    ) => void,
+  ): Promise<T>;
+  resolve<T>(value: T | PromiseLike<T>): Promise<T>;
+  reject<T = never>(reason?: any): Promise<T>;
+}
+
 interface String {
   includes(searchString: string, position?: number): boolean;
   trim(): string;
@@ -91,8 +104,14 @@ interface String {
   toString(): string;
 }
 
+interface Uint8Array {
+  readonly length: number;
+  [n: number]: number;
+}
+
 type Record<K extends string, T> = { [P in K]: T };
 
+declare const Promise: PromiseConstructor;
 declare const String: (value?: unknown) => string;
 declare const Number: (value?: unknown) => number;
 declare const Boolean: (value?: unknown) => boolean;
@@ -112,6 +131,43 @@ declare const console: {
   warn(...args: unknown[]): void;
   error(...args: unknown[]): void;
 };
+declare function setTimeout(
+  callback: (...args: any[]) => void,
+  delay?: number,
+  ...args: any[]
+): TimerHandle;
+declare function clearTimeout(handle?: TimerHandle): void;
+declare function setInterval(
+  callback: (...args: any[]) => void,
+  delay?: number,
+  ...args: any[]
+): TimerHandle;
+declare function clearInterval(handle?: TimerHandle): void;
+declare function queueMicrotask(callback: () => void): void;
+declare function structuredClone<T>(value: T): T;
+declare class TextEncoder {
+  encode(input?: string): Uint8Array;
+}
+declare class TextDecoder {
+  decode(input?: Uint8Array): string;
+}
+declare class URL {
+  constructor(url: string, base?: string | URL);
+  href: string;
+  hostname: string;
+  pathname: string;
+  search: string;
+  searchParams: URLSearchParams;
+  toString(): string;
+}
+declare class URLSearchParams {
+  constructor(init?: string | Record<string, string>);
+  append(name: string, value: string): void;
+  get(name: string): string | null;
+  has(name: string): boolean;
+  set(name: string, value: string): void;
+  toString(): string;
+}
 `;
 
 const IGNORED_DIAGNOSTIC_CODES = new Set([2318]);
