@@ -1,3 +1,9 @@
+export const hasGeneratedSchemaMatch = (
+  sourceSchema: string,
+  generatedSchemas: ReadonlyArray<string>,
+) =>
+  generatedSchemas.some((generatedSchema) => generatedSchema === sourceSchema);
+
 const ensurePrismaClientGenerated = async (databaseUrl: string) => {
   const { execSync } = await import("child_process");
   const fs = await import("fs");
@@ -5,11 +11,10 @@ const ensurePrismaClientGenerated = async (databaseUrl: string) => {
   const sharedDir = path.resolve(__dirname, "../../../packages/shared");
   const repoRoot = path.resolve(sharedDir, "../..");
   const schemaPath = path.join(sharedDir, "prisma", "schema.prisma");
-  const pnpmPrismaSchemaPaths = fs.existsSync(
-    path.join(repoRoot, "node_modules", ".pnpm"),
-  )
+  const pnpmStorePath = path.join(repoRoot, "node_modules", ".pnpm");
+  const pnpmPrismaSchemaPaths = fs.existsSync(pnpmStorePath)
     ? fs
-        .readdirSync(path.join(repoRoot, "node_modules", ".pnpm"), {
+        .readdirSync(pnpmStorePath, {
           withFileTypes: true,
         })
         .filter(
@@ -18,9 +23,7 @@ const ensurePrismaClientGenerated = async (databaseUrl: string) => {
         )
         .map((entry) =>
           path.join(
-            repoRoot,
-            "node_modules",
-            ".pnpm",
+            pnpmStorePath,
             entry.name,
             "node_modules",
             ".prisma",
@@ -35,16 +38,20 @@ const ensurePrismaClientGenerated = async (databaseUrl: string) => {
     ...pnpmPrismaSchemaPaths,
   ];
 
-  const sourceSchemaStat = fs.statSync(schemaPath);
-  const hasCurrentGeneratedClient = generatedSchemaPaths.some(
-    (generatedSchemaPath) => {
-      if (!fs.existsSync(generatedSchemaPath)) {
-        return false;
-      }
+  if (!fs.existsSync(schemaPath)) {
+    throw new Error(`Prisma schema not found at: ${schemaPath}`);
+  }
 
-      const generatedSchemaStat = fs.statSync(generatedSchemaPath);
-      return generatedSchemaStat.mtimeMs >= sourceSchemaStat.mtimeMs;
-    },
+  const sourceSchema = fs.readFileSync(schemaPath, "utf8");
+  const generatedSchemas = generatedSchemaPaths.flatMap(
+    (generatedSchemaPath) =>
+      fs.existsSync(generatedSchemaPath)
+        ? [fs.readFileSync(generatedSchemaPath, "utf8")]
+        : [],
+  );
+  const hasCurrentGeneratedClient = hasGeneratedSchemaMatch(
+    sourceSchema,
+    generatedSchemas,
   );
 
   if (hasCurrentGeneratedClient) {
@@ -60,13 +67,15 @@ const ensurePrismaClientGenerated = async (databaseUrl: string) => {
     },
   );
 
-  const generatedClientExists = generatedSchemaPaths.some(
-    (generatedSchemaPath) => fs.existsSync(generatedSchemaPath),
+  const generatedClientMatchesSchema = generatedSchemaPaths.some(
+    (generatedSchemaPath) =>
+      fs.existsSync(generatedSchemaPath) &&
+      fs.readFileSync(generatedSchemaPath, "utf8") === sourceSchema,
   );
 
-  if (!generatedClientExists) {
+  if (!generatedClientMatchesSchema) {
     throw new Error(
-      `Prisma client was not generated. Checked: ${generatedSchemaPaths.join(", ")}`,
+      `Prisma client was not generated from the current schema. Checked: ${generatedSchemaPaths.join(", ")}`,
     );
   }
 };

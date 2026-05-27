@@ -119,10 +119,18 @@ export type ErrorIngestion = {
   error: string;
 };
 
-const testBaseUrl =
-  process.env.LANGFUSE_TEST_BASE_URL ??
-  process.env.NEXTAUTH_URL ??
-  "http://localhost:3000";
+export const normalizeTestBaseUrl = (baseUrl?: string) => {
+  if (!baseUrl) {
+    return "http://localhost:3000";
+  }
+
+  const normalizedUrl = new URL(baseUrl);
+  return normalizedUrl.origin;
+};
+
+const testBaseUrl = normalizeTestBaseUrl(
+  process.env.LANGFUSE_TEST_BASE_URL ?? process.env.NEXTAUTH_URL,
+);
 
 export async function makeAPICall<T = IngestionAPIResponse>(
   method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
