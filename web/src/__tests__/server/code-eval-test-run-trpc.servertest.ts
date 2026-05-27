@@ -104,7 +104,7 @@ maybe("evals.testRunCodeEval", () => {
     const savedSource = `
       function evaluate(ctx) {
         const matched =
-          ctx.observation.input === ${JSON.stringify(JSON.stringify({ question: "2+2" }))} &&
+          ctx.observation.input.question === "2+2" &&
           ctx.observation.output === "4" &&
           ctx.observation.metadata.rubric === "math";
 
