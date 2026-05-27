@@ -84,6 +84,8 @@ test.describe("Create project", () => {
       "e2e test project",
     );
     await page.click('button[type="submit"]');
+
+    // should be redirected to the traces page of the new project
     await expect(page).toHaveURL(/\/project\/.*\/traces/, { timeout: 15000 });
 
     const projectUrl = new URL(page.url());
@@ -92,11 +94,11 @@ test.describe("Create project", () => {
     // check that the project exists by navigating to its home screen
     await page.goto("/project/" + projectId);
     await expect(page).toHaveURL(
-      (url) => url.pathname === `/project/${projectId}/traces`,
+      (url) => url.pathname === `/project/${projectId}`,
     );
 
     await page.waitForTimeout(10000);
-    await checkPageHeaderTitle(page, "Tracing");
+    await checkPageHeaderTitle(page, "Home");
 
     // Check for console errors
     // expect(errors).toHaveLength(0);
