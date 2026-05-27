@@ -49,24 +49,6 @@ export default class DropPidTidSortingTables implements IBackgroundMigration {
   async validate(
     _args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
-    if (!env.CLICKHOUSE_URL) {
-      return {
-        valid: false,
-        invalidReason: "CLICKHOUSE_URL is not configured",
-      };
-    }
-
-    if (
-      env.CLICKHOUSE_CLUSTER_ENABLED === "true" &&
-      !env.CLICKHOUSE_CLUSTER_NAME
-    ) {
-      return {
-        valid: false,
-        invalidReason:
-          "CLICKHOUSE_CLUSTER_NAME must be set when CLICKHOUSE_CLUSTER_ENABLED=true",
-      };
-    }
-
     return { valid: true, invalidReason: undefined };
   }
 
