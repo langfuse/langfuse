@@ -1,5 +1,5 @@
 import {
-  extractValueFromObject,
+  extractValueFromObjectAsString,
   type BatchActionQuery,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -42,7 +42,7 @@ export function renderPromptPreviewFromObservation(params: {
   const variableValues = new Map<string, string>();
 
   for (const mapping of variableMapping) {
-    const { value } = extractValueFromObject(
+    const { value } = extractValueFromObjectAsString(
       observation,
       mapping.selectedColumnId,
       mapping.jsonSelector ?? undefined,

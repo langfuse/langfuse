@@ -44,10 +44,9 @@ export const paginationZod = {
     (x) => (x === "" ? undefined : x),
     z.coerce.number().nonnegative().default(1),
   ),
-  // For internal use, we allow a limit of 0 until LFE-9976 is merged
   limit: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().nonnegative().lte(100).default(50),
+    z.coerce.number().gte(1).lte(100).default(50),
   ),
 };
 
