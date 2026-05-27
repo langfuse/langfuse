@@ -13,7 +13,7 @@ import {
 import { api } from "@/src/utils/api";
 import { useState, useMemo, useEffect } from "react";
 import { CodeMirrorEditor } from "@/src/components/editor";
-import { type Prisma } from "@langfuse/shared";
+import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
@@ -91,15 +91,13 @@ const formatJsonValue = (value: Prisma.JsonValue | undefined): string => {
 
   if (typeof value === "string") {
     try {
-      // Parse the string and re-stringify with proper formatting
       const parsed = JSON.parse(value);
-      return JSON.stringify(parsed, null, 2);
+      return JSON.stringify(deepParseJson(parsed), null, 2);
     } catch {
-      // If it's not valid JSON, stringify the string itself
       return JSON.stringify(value, null, 2);
     }
   }
-  return JSON.stringify(value, null, 2);
+  return JSON.stringify(deepParseJson(value), null, 2);
 };
 
 export const NewDatasetItemForm = (props: {
