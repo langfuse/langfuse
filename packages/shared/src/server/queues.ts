@@ -360,7 +360,7 @@ export enum QueueName {
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
-  MonitorProcessorQueue = "monitor-processor-queue",
+  MonitorQueue = "monitor-queue",
 }
 
 export enum QueueJobs {
@@ -396,7 +396,7 @@ export enum QueueJobs {
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
-  MonitorProcessorJob = "monitor-processor-job",
+  MonitorJob = "monitor-job",
 }
 
 export type TQueueJobTypes = {
@@ -571,10 +571,10 @@ export type TQueueJobTypes = {
     payload: NotificationEventType;
     name: QueueJobs.NotificationJob;
   };
-  [QueueName.MonitorProcessorQueue]: {
+  [QueueName.MonitorQueue]: {
     timestamp: Date;
     id: string;
     payload: MonitorQueueEvent;
-    name: QueueJobs.MonitorProcessorJob;
+    name: QueueJobs.MonitorJob;
   };
 };

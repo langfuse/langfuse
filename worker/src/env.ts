@@ -185,7 +185,7 @@ const EnvSchema = z.object({
   LANGFUSE_MONITOR_SCHEDULERS: z.coerce.number().int().min(1).default(1),
 
   // Flags to toggle queue consumers on or off.
-  QUEUE_CONSUMER_MONITOR_PROCESSOR_QUEUE_IS_ENABLED: z
+  QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z

@@ -21,7 +21,7 @@ import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
-import { monitorProcessorQueueProcessor } from "./queues/monitorProcessorQueue";
+import { monitorQueueProcessor } from "./queues/monitorQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
   CoreDataS3ExportQueue,
@@ -94,7 +94,7 @@ import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-clean
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
-import { MonitorSchedulerRunner } from "./features/monitor-scheduler";
+import { MonitorRunner } from "./features/monitor-runner";
 
 const app = express();
 
@@ -393,18 +393,14 @@ if (
   );
 }
 
-if (env.QUEUE_CONSUMER_MONITOR_PROCESSOR_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.MonitorProcessorQueue,
-    monitorProcessorQueueProcessor,
-    {
-      concurrency: 10,
-      // Scheduler is the only source of redelivery; disable BullMQ's stalled
-      // recovery so the unified TTL pacing is uncontested.
-      lockDuration: monitorProcessorTtl + 60_000,
-      stalledInterval: 0,
-    },
-  );
+if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.MonitorQueue, monitorQueueProcessor, {
+    concurrency: 10,
+    // Scheduler is the only source of redelivery; disable BullMQ's stalled
+    // recovery so the unified TTL pacing is uncontested.
+    lockDuration: monitorProcessorTtl + 60_000,
+    stalledInterval: 0,
+  });
 }
 
 // Cloud Spend Alert Queue: Only enable in cloud environment with Stripe
@@ -712,16 +708,13 @@ if (env.LANGFUSE_QUEUE_METRICS_ENABLED === "true") {
   queueMetricsRunner.start();
 }
 
-// Monitor scheduler runners — one per shard, distributed across workers via per-shard Redis locks
-export const monitorSchedulerRunners: MonitorSchedulerRunner[] = [];
+// Monitor runners — one per shard
+export const monitorRunners: MonitorRunner[] = [];
 
 if (env.LANGFUSE_MONITOR_SCHEDULER_ENABLED === "true") {
   for (let i = 0; i < env.LANGFUSE_MONITOR_SCHEDULERS; i++) {
-    const runner = new MonitorSchedulerRunner(
-      i,
-      env.LANGFUSE_MONITOR_SCHEDULERS,
-    );
-    monitorSchedulerRunners.push(runner);
+    const runner = new MonitorRunner(i, env.LANGFUSE_MONITOR_SCHEDULERS);
+    monitorRunners.push(runner);
     runner.start();
   }
 }

@@ -7,21 +7,21 @@ import {
 } from "./redis";
 import { logger } from "../logger";
 
-export class MonitorProcessorQueue {
+export class MonitorQueue {
   private static instance: Queue | null = null;
 
   public static getInstance(): Queue | null {
-    if (MonitorProcessorQueue.instance) return MonitorProcessorQueue.instance;
+    if (MonitorQueue.instance) return MonitorQueue.instance;
 
     const newRedis = createNewRedisInstance({
       enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 
-    MonitorProcessorQueue.instance = newRedis
-      ? new Queue<MonitorQueueEvent>(QueueName.MonitorProcessorQueue, {
+    MonitorQueue.instance = newRedis
+      ? new Queue<MonitorQueueEvent>(QueueName.MonitorQueue, {
           connection: newRedis,
-          prefix: getQueuePrefix(QueueName.MonitorProcessorQueue),
+          prefix: getQueuePrefix(QueueName.MonitorQueue),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,
@@ -30,10 +30,10 @@ export class MonitorProcessorQueue {
         })
       : null;
 
-    MonitorProcessorQueue.instance?.on("error", (err) => {
-      logger.error("MonitorProcessorQueue error", err);
+    MonitorQueue.instance?.on("error", (err) => {
+      logger.error("MonitorQueue error", err);
     });
 
-    return MonitorProcessorQueue.instance;
+    return MonitorQueue.instance;
   }
 }
