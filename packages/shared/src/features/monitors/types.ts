@@ -211,7 +211,10 @@ export type Monitor = z.infer<typeof MonitorSchema>;
 export const MonitorAlertSchema = z.object({
   monitorId: z.string(),
   projectId: z.string(),
-  permalink: z.url(),
+  // Absolute URL when NEXTAUTH_URL is configured; path-only on self-hosted
+  // instances that haven't set it. Wire shape stays string so the contract
+  // doesn't break on misconfiguration.
+  permalink: z.string(),
   message: z.object({ title: z.string(), body: z.string() }),
   severity: MonitorSeveritySchema,
   timestamp: z.coerce.date(),

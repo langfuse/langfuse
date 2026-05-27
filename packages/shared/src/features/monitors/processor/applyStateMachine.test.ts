@@ -555,6 +555,25 @@ const cases: StateMachineCase[] = [
       nextAlertedAt: null,
     },
   },
+  // === PAUSED guard: user paused between publish and process ===
+  {
+    name: "PAUSED -> anything: no-op, preserve PAUSED + prev stamps",
+    input: {
+      prevSeverity: "PAUSED",
+      computedSeverity: "ALERT",
+      prevSeverityChangedAt: tMinus10m,
+      prevAlertedAt: tMinus10m,
+      now: t0,
+      noData: noDataNotify5,
+      renotify: renotifyEvery5,
+    },
+    expected: {
+      emit: false,
+      nextSeverity: "PAUSED",
+      nextSeverityChangedAt: tMinus10m,
+      nextAlertedAt: tMinus10m,
+    },
+  },
 ];
 
 describe("applyStateMachine", () => {

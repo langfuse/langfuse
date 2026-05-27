@@ -171,11 +171,13 @@ describe("MonitorAlertSchema", () => {
     expect(MonitorAlertSchema.safeParse(validAlert).success).toBe(true);
   });
 
-  it("rejects a non-URL permalink", () => {
+  it("accepts a path-only permalink (self-hosted without NEXTAUTH_URL)", () => {
     expect(
-      MonitorAlertSchema.safeParse({ ...validAlert, permalink: "not-a-url" })
-        .success,
-    ).toBe(false);
+      MonitorAlertSchema.safeParse({
+        ...validAlert,
+        permalink: "/project/proj_01/monitors/mon_01",
+      }).success,
+    ).toBe(true);
   });
 
   it("rejects an unknown severity", () => {

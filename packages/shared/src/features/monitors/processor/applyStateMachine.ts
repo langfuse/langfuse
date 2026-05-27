@@ -20,6 +20,18 @@ export function applyStateMachine(args: {
   renotify: MonitorRenotify;
 }): StateMachineDecision {
   const { prevSeverity: prev, computedSeverity: next } = args;
+
+  // PAUSED is service-written; if a user paused the monitor between publish and
+  // process, no-op so the worker doesn't overwrite the user's intent.
+  if (prev === "PAUSED") {
+    return {
+      emit: false,
+      nextSeverity: "PAUSED",
+      nextSeverityChangedAt: args.prevSeverityChangedAt,
+      nextAlertedAt: args.prevAlertedAt,
+    };
+  }
+
   const severityChanged = prev !== next;
 
   const emit = shouldEmit({
@@ -54,9 +66,6 @@ function shouldEmit(args: {
   if (args.prev === "UNKNOWN") {
     return args.next === "WARNING" || args.next === "ALERT";
   }
-
-  // PAUSED is service-written; processor never sees it as `prev`. Refuse silently.
-  if (args.prev === "PAUSED") return false;
 
   // Recovery from NO_DATA.
   if (args.prev === "NO_DATA" && args.next === "OK") {
