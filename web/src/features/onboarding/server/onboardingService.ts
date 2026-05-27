@@ -17,6 +17,22 @@ const getStarterOrganizationName = (userName?: string | null) => {
   return firstName ? `${firstName}'s Organization` : "My Organization";
 };
 
+const getRealOrganizationMembershipWhereClause = (
+  userId: string,
+): NonNullable<
+  NonNullable<
+    Parameters<
+      | Prisma.OrganizationMembershipDelegate["findMany"]
+      | Prisma.OrganizationMembershipDelegate["count"]
+    >[0]
+  >["where"]
+> => ({
+  userId,
+  ...(env.NEXT_PUBLIC_DEMO_ORG_ID
+    ? { orgId: { not: env.NEXT_PUBLIC_DEMO_ORG_ID } }
+    : {}),
+});
+
 const getRealOrganizationMemberships = ({
   prisma,
   userId,
@@ -25,14 +41,7 @@ const getRealOrganizationMemberships = ({
   userId: string;
 }) =>
   prisma.organizationMembership.findMany({
-    where: userId
-      ? {
-          userId,
-          ...(env.NEXT_PUBLIC_DEMO_ORG_ID
-            ? { orgId: { not: env.NEXT_PUBLIC_DEMO_ORG_ID } }
-            : {}),
-        }
-      : {},
+    where: getRealOrganizationMembershipWhereClause(userId),
     include: {
       ProjectMemberships: true,
       organization: {
@@ -181,14 +190,7 @@ export const provisionStarterOrganizationForNewUser = async ({
 
     const realOrganizationMembershipCount =
       await tx.organizationMembership.count({
-        where: userId
-          ? {
-              userId,
-              ...(env.NEXT_PUBLIC_DEMO_ORG_ID
-                ? { orgId: { not: env.NEXT_PUBLIC_DEMO_ORG_ID } }
-                : {}),
-            }
-          : {},
+        where: getRealOrganizationMembershipWhereClause(userId),
       });
 
     if (realOrganizationMembershipCount > 0) {
