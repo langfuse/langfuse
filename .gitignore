@@ -55,6 +55,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
+# python
+__pycache__/
+*.py[cod]
+
 /generated
 
 # openapi spec that is copied during build

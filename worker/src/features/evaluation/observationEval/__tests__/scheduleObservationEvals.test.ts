@@ -8,6 +8,7 @@ import {
 import { type Prisma } from "@langfuse/shared/src/db";
 import {
   EvalTargetObject,
+  EvalTemplateType,
   JobConfigState,
   JobExecutionStatus,
 } from "@langfuse/shared";
@@ -82,6 +83,7 @@ describe("scheduleObservationEvals", () => {
     filter: [],
     sampling: { toNumber: () => 1 } as unknown as Prisma.Decimal,
     evalTemplateId: "template-1",
+    evalTemplate: { type: EvalTemplateType.LLM_AS_JUDGE },
     scoreName: "quality",
     variableMapping: [],
     targetObject: EvalTargetObject.EVENT,
@@ -375,7 +377,28 @@ describe("scheduleObservationEvals", () => {
         projectId: "project-789",
         observationS3Path: "observations/project-789/obs-123.json",
         delay: 0,
+        evalTemplateType: EvalTemplateType.LLM_AS_JUDGE,
       });
+    });
+
+    it("should pass code template type to the scheduler deps", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+      const config = createMockConfig({
+        evalTemplate: { type: EvalTemplateType.CODE },
+      });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [config],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          evalTemplateType: EvalTemplateType.CODE,
+        }),
+      );
     });
   });
 
