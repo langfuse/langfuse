@@ -1,5 +1,5 @@
+import type { EvalTemplateLlmAsAJudge } from "@langfuse/shared";
 import type {
-  EvalTemplate,
   JobConfiguration,
   Prisma as PrismaNamespace,
   prisma,
@@ -55,7 +55,7 @@ export type EvaluationRuleEvaluatorFamilyReference =
   PublicEvaluationRuleEvaluatorReferenceType;
 
 export type StoredPublicEvaluatorTemplate = Pick<
-  EvalTemplate,
+  EvalTemplateLlmAsAJudge,
   | "id"
   | "projectId"
   | "name"
@@ -89,7 +89,7 @@ export type StoredPublicEvaluationRuleConfig = Pick<
   | "updatedAt"
 > & {
   evalTemplate: Pick<
-    EvalTemplate,
-    "id" | "projectId" | "name" | "vars" | "prompt"
+    EvalTemplateLlmAsAJudge,
+    "id" | "projectId" | "name"
   > | null;
 };

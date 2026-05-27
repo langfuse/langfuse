@@ -60,7 +60,10 @@ import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import {
+  detailPageListKeys,
+  useDetailPageLists,
+} from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useRouter } from "next/router";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
@@ -482,7 +485,7 @@ export default function ObservationsEventsTable({
   useEffect(() => {
     if (observations.status === "success") {
       setDetailPageList(
-        "observations",
+        detailPageListKeys.events,
         observations?.rows?.map((o) => ({
           id: o?.id,
           params: {
@@ -1243,7 +1246,7 @@ export default function ObservationsEventsTable({
     if (hideControls) return undefined;
     return {
       itemType: "TRACE",
-      detailNavigationKey: "observations",
+      detailNavigationKey: detailPageListKeys.events,
       ...peekNavigationProps,
     };
   }, [peekNavigationProps, hideControls]);

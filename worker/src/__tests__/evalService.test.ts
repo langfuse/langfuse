@@ -2403,11 +2403,11 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(result).toEqual([
         {
-          value: '{"input":"This is a great prompt"}',
+          value: { input: "This is a great prompt" },
           var: "input",
         },
         {
-          value: '{"expected_output":"This is a great response"}',
+          value: { expected_output: "This is a great response" },
           var: "output",
         },
       ]);
@@ -2451,12 +2451,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(result).toEqual([
         {
-          value: '{"input":"This is a great prompt"}',
+          value: { input: "This is a great prompt" },
           var: "input",
           environment: "production",
         },
         {
-          value: '{"output":"This is a great response"}',
+          value: { output: "This is a great response" },
           var: "output",
           environment: "production",
         },
@@ -2516,12 +2516,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(result).toEqual([
         {
-          value: '{"huhu":"This is a great prompt"}',
+          value: { huhu: "This is a great prompt" },
           var: "input",
           environment: "production",
         },
         {
-          value: '{"haha":"This is a great response"}',
+          value: { haha: "This is a great response" },
           var: "output",
           environment: "production",
         },
@@ -2613,12 +2613,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(result).toEqual([
         {
           environment: "default",
-          value: "",
+          value: null,
           var: "input",
         },
         {
           environment: "default",
-          value: "",
+          value: null,
           var: "output",
         },
       ]);
@@ -2694,12 +2694,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(result).toEqual([
         {
           environment: "default",
-          value: '{"huhu":"This is a great prompt again"}',
+          value: { huhu: "This is a great prompt again" },
           var: "input",
         },
         {
           environment: "default",
-          value: '{"haha":"This is a great response again"}',
+          value: { haha: "This is a great response again" },
           var: "output",
         },
       ]);
@@ -2764,12 +2764,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
         expect(result).toEqual([
           {
-            value: '{"huhu":"This is a great prompt"}',
+            value: { huhu: "This is a great prompt" },
             var: "input",
             environment: "production",
           },
           {
-            value: '{"haha":"This is a great response"}',
+            value: { haha: "This is a great response" },
             var: "output",
             environment: "production",
           },
@@ -2852,7 +2852,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(resultV1).toEqual([
         {
-          value: '{"expected_output":"v1 expected output"}',
+          value: { expected_output: "v1 expected output" },
           var: "output",
         },
       ]);
@@ -2868,7 +2868,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(resultLatest).toEqual([
         {
-          value: '{"expected_output":"v2 expected output"}',
+          value: { expected_output: "v2 expected output" },
           var: "output",
         },
       ]);
@@ -3181,9 +3181,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         job_execution_id: jobExecutionId,
         job_configuration_id: configId,
         target_trace_id: traceId,
-        score_id: capturedTraceSinkParams.metadata.score_id,
       });
-      expect(capturedTraceSinkParams.metadata.score_id).toBeDefined();
     }, 15_000);
   });
 

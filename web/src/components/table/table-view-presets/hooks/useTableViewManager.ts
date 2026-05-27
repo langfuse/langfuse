@@ -6,7 +6,7 @@ import {
   type TableViewPresetState,
   type ColumnDefinition,
 } from "@langfuse/shared";
-import { useRouter } from "next/router";
+import { type NextRouter, useRouter } from "next/router";
 import { useEffect, useCallback, useState, useRef } from "react";
 import { type VisibilityState } from "@tanstack/react-table";
 import { StringParam } from "use-query-params";
@@ -52,6 +52,25 @@ const isViewApplicableToTable = (
   currentTableName === viewTableName ||
   (currentTableName === TableViewPresetTableName.ObservationsEvents &&
     viewTableName === TableViewPresetTableName.Observations);
+
+const IMPLICIT_VIEW_BLOCKING_QUERY_PARAMS = [
+  "filter",
+  "search",
+  "searchType",
+  "orderBy",
+] as const;
+
+const hasQueryParam = (
+  query: NextRouter["query"],
+  key: (typeof IMPLICIT_VIEW_BLOCKING_QUERY_PARAMS)[number],
+) => {
+  const value = query[key];
+  if (Array.isArray(value)) return value.length > 0;
+  return value !== undefined && value !== "";
+};
+
+const hasExplicitTableStateInUrl = (query: NextRouter["query"]) =>
+  IMPLICIT_VIEW_BLOCKING_QUERY_PARAMS.some((key) => hasQueryParam(query, key));
 
 /**
  * Hook to manage table view state with permalink support
@@ -163,6 +182,15 @@ export function useTableViewManager({
       return;
     }
 
+    // Query params such as `filter` are explicit table state. They must take
+    // precedence over implicit session/default view restoration, otherwise a
+    // direct filtered URL is immediately overwritten by the restored view.
+    if (hasExplicitTableStateInUrl(router.query)) {
+      setIsInitialized(true);
+      setIsLoading(false);
+      return;
+    }
+
     // Priority 1: Session storage (from a previous visit to this table)
     if (
       storedViewId &&
@@ -193,6 +221,7 @@ export function useTableViewManager({
     isInitialized,
     isRouterReady,
     selectedViewId,
+    router.query,
     storedViewId,
     isDefaultLoading,
     defaultViewId,

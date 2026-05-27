@@ -10,17 +10,17 @@ vi.mock("@langfuse/shared/src/server", async () => {
         disconnect: vi.fn(),
       }),
     },
-    ScoreDeleteQueue: {
-      getInstance: () => ({
-        add: vi.fn().mockResolvedValue(undefined),
-        disconnect: vi.fn(),
-      }),
-    },
   };
 });
 
+vi.mock("@/src/features/media/server/getMediaStorageClient", () => ({
+  getMediaStorageServiceClient: () => ({
+    getSignedUrl: vi.fn().mockResolvedValue("https://media.example/download"),
+  }),
+}));
+
 import { nanoid } from "nanoid";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createEvent,
@@ -90,10 +90,6 @@ import {
   handleCreateScore,
 } from "@/src/features/mcp/features/scores/tools/createScore";
 import {
-  deleteScoreTool,
-  handleDeleteScore,
-} from "@/src/features/mcp/features/scores/tools/deleteScore";
-import {
   deleteScoreConfigTool,
   handleDeleteScoreConfig,
 } from "@/src/features/mcp/features/scores/tools/deleteScoreConfig";
@@ -117,6 +113,10 @@ import {
   updateScoreConfigTool,
   handleUpdateScoreConfig,
 } from "@/src/features/mcp/features/scores/tools/updateScoreConfig";
+import {
+  getMediaTool,
+  handleGetMedia,
+} from "@/src/features/mcp/features/media/tools/getMedia";
 
 const maybeEventsTable =
   env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
@@ -209,6 +209,50 @@ const containsPropertyName = (value: unknown, expected: string): boolean => {
 };
 
 describe("MCP Read Tools", () => {
+  describe("getMedia tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getMediaTool, { readOnlyHint: true });
+    });
+
+    it("should return media metadata and a signed download URL", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const mediaId = `mcp-media-${nanoid()}`;
+      const uploadedAt = new Date("2026-01-01T00:00:00.000Z");
+
+      await prisma.media.create({
+        data: {
+          id: mediaId,
+          projectId,
+          sha256Hash: createHash("sha256").update(mediaId).digest("base64"),
+          bucketPath: `${projectId}/${mediaId}.png`,
+          bucketName: "media-test-bucket",
+          contentType: "image/png",
+          contentLength: 123n,
+          uploadedAt,
+          uploadHttpStatus: 200,
+        },
+      });
+
+      const result = (await handleGetMedia({ mediaId }, context)) as {
+        mediaId: string;
+        contentType: string;
+        contentLength: number;
+        uploadedAt: Date;
+        url: string;
+        urlExpiry: string;
+      };
+
+      expect(result).toMatchObject({
+        mediaId,
+        contentType: "image/png",
+        contentLength: 123,
+        url: "https://media.example/download",
+      });
+      expect(result.uploadedAt).toEqual(uploadedAt);
+      expect(new Date(result.urlExpiry).getTime()).toBeGreaterThan(Date.now());
+    });
+  });
+
   describe("getObservationFieldSchema tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getObservationFieldSchemaTool, {
@@ -1539,32 +1583,6 @@ describe("MCP Read Tools", () => {
     });
   });
 
-  describe("deleteScore tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(deleteScoreTool, { destructiveHint: true });
-    });
-
-    it("should queue score deletion using v1 route semantics", async () => {
-      const { context, projectId, apiKeyId } = await createMcpTestSetup();
-      const scoreId = randomUUID();
-
-      const result = await handleDeleteScore({ scoreId }, context);
-
-      expect(result).toEqual({
-        message: "Score deletion queued successfully",
-      });
-      await expect(
-        verifyAuditLog({
-          projectId,
-          resourceType: "score",
-          resourceId: scoreId,
-          action: "delete",
-          apiKeyId,
-        }),
-      ).resolves.toMatchObject({ action: "delete" });
-    });
-  });
-
   describe("listScoreConfigs tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(listScoreConfigsTool, { readOnlyHint: true });
@@ -1925,12 +1943,12 @@ describe("MCP Read Tools", () => {
       verifyToolAnnotations(getPromptTool, { readOnlyHint: true });
     });
 
-    it("should not be available to in-app agent keys", async () => {
+    it("should be available to in-app agent keys", async () => {
       const context = mockServerContext({ isInAppAgentKey: true });
 
       await expect(
         toolRegistry.getEnabledTool(getPromptTool.name, context),
-      ).resolves.toBeUndefined();
+      ).resolves.toBeDefined();
     });
 
     it("should fetch prompt by name only (defaults to production label)", async () => {
@@ -2172,12 +2190,12 @@ describe("MCP Read Tools", () => {
       verifyToolAnnotations(listPromptsTool, { readOnlyHint: true });
     });
 
-    it("should not be available to in-app agent keys", async () => {
+    it("should be available to in-app agent keys", async () => {
       const context = mockServerContext({ isInAppAgentKey: true });
 
       await expect(
         toolRegistry.getEnabledTool(listPromptsTool.name, context),
-      ).resolves.toBeUndefined();
+      ).resolves.toBeDefined();
     });
 
     it("should list all prompts for project", async () => {
@@ -2204,14 +2222,15 @@ describe("MCP Read Tools", () => {
         context,
       )) as {
         data: Array<{ name: string }>;
-        pagination: { totalItems: number };
+        meta: { totalItems: number };
       };
 
       // Should include our prompts (may include others from setup)
       const names = result.data.map((p) => p.name);
       expect(names).toContain(prompt1Name);
       expect(names).toContain(prompt2Name);
-      expect(result.pagination.totalItems).toBeGreaterThanOrEqual(2);
+      expect(result.meta.totalItems).toBeGreaterThanOrEqual(2);
+      expect(Object.keys(result).sort()).toEqual(["data", "meta"]);
     });
 
     it("should filter by name", async () => {
@@ -2447,13 +2466,13 @@ describe("MCP Read Tools", () => {
         context,
       )) as {
         data: Array<{ name: string }>;
-        pagination: { page: number; limit: number; totalPages: number };
+        meta: { page: number; limit: number; totalPages: number };
       };
 
       expect(result.data.length).toBeLessThanOrEqual(2);
-      expect(result.pagination.page).toBe(1);
-      expect(result.pagination.limit).toBe(2);
-      expect(result.pagination.totalPages).toBeGreaterThanOrEqual(1);
+      expect(result.meta.page).toBe(1);
+      expect(result.meta.limit).toBe(2);
+      expect(result.meta.totalPages).toBeGreaterThanOrEqual(1);
     });
 
     it("should return empty results for no matches", async () => {
@@ -2464,11 +2483,11 @@ describe("MCP Read Tools", () => {
         context,
       )) as {
         data: Array<unknown>;
-        pagination: { totalItems: number };
+        meta: { totalItems: number };
       };
 
       expect(result.data).toEqual([]);
-      expect(result.pagination.totalItems).toBe(0);
+      expect(result.meta.totalItems).toBe(0);
     });
 
     it("should use context.projectId for tenant isolation", async () => {
@@ -2507,12 +2526,12 @@ describe("MCP Read Tools", () => {
         { page: 1, limit: 100 },
         context,
       )) as {
-        pagination: { page: number; limit: number };
+        meta: { page: number; limit: number };
       };
 
       // Default values from validation schema
-      expect(result.pagination.page).toBe(1);
-      expect(result.pagination.limit).toBeLessThanOrEqual(100); // Max limit
+      expect(result.meta.page).toBe(1);
+      expect(result.meta.limit).toBeLessThanOrEqual(100); // Max limit
     });
 
     it("should include prompt metadata in list results", async () => {
@@ -2551,12 +2570,12 @@ describe("MCP Read Tools", () => {
       verifyToolAnnotations(getPromptUnresolvedTool, { readOnlyHint: true });
     });
 
-    it("should not be available to in-app agent keys", async () => {
+    it("should be available to in-app agent keys", async () => {
       const context = mockServerContext({ isInAppAgentKey: true });
 
       await expect(
         toolRegistry.getEnabledTool(getPromptUnresolvedTool.name, context),
-      ).resolves.toBeUndefined();
+      ).resolves.toBeDefined();
     });
 
     it("should fetch prompt without resolving dependencies (by name only)", async () => {

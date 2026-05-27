@@ -1,3 +1,4 @@
+import type * as PrismaClientModule from "@prisma/client";
 import type { Mock } from "vitest";
 
 const mockEvalTemplateCreate = vi.fn();
@@ -42,47 +43,53 @@ vi.mock("@langfuse/shared/src/server", async () => ({
   },
 }));
 
-vi.mock("@langfuse/shared/src/db", () => ({
-  Prisma: {
-    PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {
-      code: string;
-      clientVersion: string;
+vi.mock("@langfuse/shared/src/db", async () => {
+  const { EvalTemplateType } =
+    await vi.importActual<typeof PrismaClientModule>("@prisma/client");
 
-      constructor(
-        message: string,
-        {
-          code,
-          clientVersion,
-        }: {
-          code: string;
-          clientVersion: string;
-        },
-      ) {
-        super(message);
-        this.code = code;
-        this.clientVersion = clientVersion;
-      }
+  return {
+    EvalTemplateType,
+    Prisma: {
+      PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {
+        code: string;
+        clientVersion: string;
+
+        constructor(
+          message: string,
+          {
+            code,
+            clientVersion,
+          }: {
+            code: string;
+            clientVersion: string;
+          },
+        ) {
+          super(message);
+          this.code = code;
+          this.clientVersion = clientVersion;
+        }
+      },
     },
-  },
-  prisma: {
-    $transaction: vi.fn(),
-    dataset: {
-      findMany: vi.fn(),
+    prisma: {
+      $transaction: vi.fn(),
+      dataset: {
+        findMany: vi.fn(),
+      },
+      jobConfiguration: {
+        findFirst: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+      },
     },
-    jobConfiguration: {
-      findFirst: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-    },
-  },
-}));
+  };
+});
 
 import {
   createNumericEvalOutputDefinition,
   EvalTargetObject,
   JobConfigState,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import {
   createPublicEvaluationRule,
@@ -256,6 +263,7 @@ describe("unstable public eval services", () => {
       where: {
         projectId: "project_123",
         name: "Answer correctness",
+        type: EvalTemplateType.LLM_AS_JUDGE,
       },
       select: {
         id: true,
@@ -342,6 +350,11 @@ describe("unstable public eval services", () => {
         projectId: "project_123",
         evalTemplateId: {
           in: ["tmpl_project_v2", "tmpl_project_v1"],
+        },
+        evalTemplate: {
+          is: {
+            type: EvalTemplateType.LLM_AS_JUDGE,
+          },
         },
       },
       select: {
@@ -650,6 +663,25 @@ describe("unstable public eval services", () => {
       'An evaluation rule named "answer_quality" already exists in this project.',
     );
 
+    expect(mockedPrisma.jobConfiguration.findFirst).toHaveBeenCalledWith({
+      where: {
+        projectId: "project_123",
+        jobType: "EVAL",
+        targetObject: {
+          in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+        },
+        scoreName: "answer_quality",
+        evalTemplate: {
+          is: {
+            type: EvalTemplateType.LLM_AS_JUDGE,
+            OR: [{ projectId: "project_123" }, { projectId: null }],
+          },
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
     expect(mockLoadEvaluatorForEvaluationRule).not.toHaveBeenCalled();
     expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
   });

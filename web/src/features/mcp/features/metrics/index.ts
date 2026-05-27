@@ -14,10 +14,12 @@ export const metricsFeature: McpFeatureModule = {
     {
       definition: queryMetricsTool,
       handler: handleQueryMetrics,
+      allowInAppAgentKey: true,
     },
     {
       definition: getMetricsSchemaTool,
       handler: handleGetMetricsSchema,
+      allowInAppAgentKey: true,
     },
   ],
   isEnabled: async () => env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true",

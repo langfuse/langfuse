@@ -3,6 +3,7 @@ import { executeQuery } from "@langfuse/shared/query/server";
 import { validateQuery } from "@langfuse/shared/query";
 import { MetricsQueryObjectV2 } from "@/src/features/public-api/types/metrics";
 import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 
 const DEFAULT_ROW_LIMIT = 100;
 
@@ -13,30 +14,39 @@ export const [queryMetricsTool, handleQueryMetrics] = defineTool({
   baseSchema: MetricsQueryObjectV2,
   inputSchema: MetricsQueryObjectV2,
   handler: async (input, context) => {
-    const validation = validateQuery(input, "v2");
-
-    if (!validation.valid) {
-      throw new InvalidRequestError(validation.reason);
-    }
-
-    const { config, ...query } = input;
-    const queryParams = {
-      ...query,
-      chartConfig: {
-        type: "TABLE",
-        ...config,
-        row_limit: config?.row_limit ?? DEFAULT_ROW_LIMIT,
+    return await runMcpTool({
+      spanName: "mcp.metrics.query",
+      context,
+      attributes: {
+        "mcp.metrics_view": input.view,
       },
-    };
+      fn: async () => {
+        const validation = validateQuery(input, "v2");
 
-    const result = await executeQuery(
-      context.projectId,
-      queryParams,
-      "v2",
-      true,
-    );
+        if (!validation.valid) {
+          throw new InvalidRequestError(validation.reason);
+        }
 
-    return { data: result };
+        const { config, ...query } = input;
+        const queryParams = {
+          ...query,
+          chartConfig: {
+            type: "TABLE",
+            ...config,
+            row_limit: config?.row_limit ?? DEFAULT_ROW_LIMIT,
+          },
+        };
+
+        const result = await executeQuery(
+          context.projectId,
+          queryParams,
+          "v2",
+          true,
+        );
+
+        return { data: result };
+      },
+    });
   },
   readOnlyHint: true,
 });

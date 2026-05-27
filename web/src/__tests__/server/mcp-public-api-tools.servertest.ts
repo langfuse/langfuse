@@ -135,10 +135,11 @@ const createProjectUser = async ({
 };
 
 describe("MCP public API tools", () => {
-  it("registers new public API tools and gates mutating tools for in-app agent keys", async () => {
-    const toolNames = (
-      await toolRegistry.getToolDefinitions(mockServerContext())
-    ).map((tool) => tool.name);
+  const getToolNames = async (context = mockServerContext()) =>
+    (await toolRegistry.getToolDefinitions(context)).map((tool) => tool.name);
+
+  it("registers public API tools", async () => {
+    const toolNames = await getToolNames();
 
     expect(toolNames).toEqual(
       expect.arrayContaining([
@@ -153,21 +154,84 @@ describe("MCP public API tools", () => {
         "createScoreConfig",
       ]),
     );
+  });
 
-    const inAppToolNames = (
-      await toolRegistry.getToolDefinitions(
-        mockServerContext({ isInAppAgentKey: true }),
-      )
-    ).map((tool) => tool.name);
+  it("exposes read-only tools for in-app agent keys", async () => {
+    const toolNames = await getToolNames();
+    const inAppToolNames = await getToolNames(
+      mockServerContext({ isInAppAgentKey: true }),
+    );
 
-    expect(inAppToolNames).toContain("listDatasets");
-    expect(inAppToolNames).toContain("getHealth");
-    expect(inAppToolNames).not.toContain("listScores");
-    expect(inAppToolNames).not.toContain("getScore");
-    expect(inAppToolNames).not.toContain("listScoreConfigs");
+    expect(inAppToolNames).toEqual(
+      expect.arrayContaining([
+        "listDatasets",
+        "getHealth",
+        "listScores",
+        "getScore",
+        "listScoreConfigs",
+        "listPrompts",
+        "getPrompt",
+        "getPromptUnresolved",
+      ]),
+    );
+
+    const readOnlyToolNames = toolNames.filter(
+      (toolName) =>
+        toolRegistry.getTool(toolName)?.definition.annotations?.readOnlyHint,
+    );
+    expect(inAppToolNames).toEqual(expect.arrayContaining(readOnlyToolNames));
+  });
+
+  it("hides mutating tools for in-app agent keys", async () => {
+    const toolNames = await getToolNames();
+    const inAppToolNames = await getToolNames(
+      mockServerContext({ isInAppAgentKey: true }),
+    );
+
     expect(inAppToolNames).not.toContain("createDataset");
     expect(inAppToolNames).not.toContain("createModel");
 
+    const writableToolNames = toolNames.filter(
+      (toolName) =>
+        !toolRegistry.getTool(toolName)?.definition.annotations?.readOnlyHint,
+    );
+    for (const toolName of writableToolNames) {
+      expect(inAppToolNames).not.toContain(toolName);
+    }
+  });
+
+  it("marks destructive public API tools", async () => {
+    const toolNames = await getToolNames();
+
+    const destructiveToolNames = toolNames
+      .filter(
+        (toolName) =>
+          toolRegistry.getTool(toolName)?.definition.annotations
+            ?.destructiveHint,
+      )
+      .sort();
+    expect(destructiveToolNames).toEqual(
+      [
+        "createChatPrompt",
+        "createDataset",
+        "createDatasetItem",
+        "createScore",
+        "createScoreConfig",
+        "createTextPrompt",
+        "deleteAnnotationQueueAssignment",
+        "deleteAnnotationQueueItem",
+        "deleteDatasetItem",
+        "deleteDatasetRun",
+        "deleteModel",
+        "deleteScoreConfig",
+        "updateAnnotationQueueItem",
+        "updatePromptLabels",
+        "updateScoreConfig",
+      ].sort(),
+    );
+  });
+
+  it("uses a larger MCP request body limit", () => {
     expect(mcpRouteConfig.api.bodyParser.sizeLimit).toBe("4.5mb");
   });
 
