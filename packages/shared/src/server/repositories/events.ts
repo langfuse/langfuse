@@ -1367,6 +1367,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   opts: PublicApiObservationsQuery & {
     fields: ObservationFieldGroupPublicApi[];
   },
+  options: BuildObservationsQueryComponentsOptions = {},
 ): Promise<Array<EventsObservationPublic>> => {
   const { projectId, expandMetadataKeys } = opts;
 
@@ -1388,6 +1389,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     buildObservationsQueryComponents(
       opts,
       eventsTableNativeUiColumnDefinitions,
+      options,
     );
 
   baseBuilder.selectFieldSet("core");

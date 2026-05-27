@@ -61,24 +61,24 @@ describe("/api/public/v2/observations API Endpoint", () => {
     expect(response.status).toBe(400);
   });
 
-  it("allows legacy v1 contains filters on IO", async () => {
-    const filterParam = JSON.stringify([
-      {
-        type: "string",
-        column: "output",
-        operator: "contains",
-        value: "needle",
-      },
-    ]);
-
-    const response = await getRaw(
-      `/api/public/observations?useEventsTable=true&filter=${encodeURIComponent(filterParam)}`,
-    );
-
-    expect(response.status).toBe(200);
-  });
-
   maybe("GET /api/public/v2/observations", () => {
+    it("allows legacy v1 contains filters on IO", async () => {
+      const filterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "contains",
+          value: "needle",
+        },
+      ]);
+
+      const response = await getRaw(
+        `/api/public/observations?useEventsTable=true&filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(response.status).toBe(200);
+    });
+
     it("should fetch observations with only requested field groups", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();
@@ -862,6 +862,26 @@ describe("/api/public/v2/observations API Endpoint", () => {
         `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(metadataMatchesAndIoContainsFilter)}`,
       );
       expect(metadataMatchesAndIoContainsResponse.status).toBe(400);
+    });
+
+    it("rejects non-string public v2 IO filters", async () => {
+      const nullIoFilter = JSON.stringify([
+        {
+          type: "null",
+          column: "output",
+          operator: "is null",
+          value: "",
+        },
+      ]);
+
+      const response = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(nullIoFilter)}`,
+      );
+
+      expect(response.status).toBe(400);
+      expect(JSON.stringify(response.body)).toContain(
+        "Input/output filters only support filter type `string`.",
+      );
     });
 
     it.each([
