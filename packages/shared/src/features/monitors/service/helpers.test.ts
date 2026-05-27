@@ -483,6 +483,7 @@ describe("monitorFromPrisma", () => {
     status: "ACTIVE" as const,
     nextRunAt: new Date("2026-05-18T00:01:00.000Z"),
     lastPublishedRunAt: null,
+    lastClaimedRunAt: null,
     lastCompletedRunAt: null,
     name: "High error rate",
     tags: [] as string[],

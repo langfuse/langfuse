@@ -1648,6 +1648,7 @@ model Monitor {
   schedulerBatchId   BigInt        @map("scheduler_batch_id")
   nextRunAt          DateTime?     @map("next_run_at")
   lastPublishedRunAt DateTime?     @map("last_published_run_at")
+  lastClaimedRunAt   DateTime?     @map("last_claimed_run_at")
   lastCompletedRunAt DateTime?     @map("last_completed_run_at")
 
   // === Alerts ===
