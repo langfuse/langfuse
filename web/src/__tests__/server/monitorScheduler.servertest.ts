@@ -48,9 +48,17 @@ type SchedulerCase = {
 const ONE_MINUTE_MS = 60n * 1000n;
 
 const TICK = new Date("2026-05-27T12:00:30.000Z");
+// Next 1-minute cadence boundary strictly after TICK, offset by (batchId % 60) seconds.
 const BOUNDARY_PREV_MINUTE = new Date("2026-05-27T12:00:00.000Z");
 const BOUNDARY_NEXT_MINUTE = new Date("2026-05-27T12:01:00.000Z");
+const NEXT_BOUNDARY_BATCH_1 = new Date("2026-05-27T12:01:01.000Z");
+const NEXT_BOUNDARY_BATCH_2 = new Date("2026-05-27T12:01:02.000Z");
+const NEXT_BOUNDARY_BATCH_5 = new Date("2026-05-27T12:01:05.000Z");
+const NEXT_BOUNDARY_BATCH_7 = new Date("2026-05-27T12:01:07.000Z");
 const TWO_MIN_AGO = new Date("2026-05-27T11:58:30.000Z");
+const THREE_MIN_AGO = new Date("2026-05-27T11:57:30.000Z");
+const TEN_MIN_AGO = new Date("2026-05-27T11:50:30.000Z");
+const FUTURE_RUN = new Date("2026-05-27T12:01:30.000Z");
 
 async function seedMonitor(projectId: string, seed: MonitorSeed) {
   return prisma.monitor.create({
@@ -101,6 +109,69 @@ const cases: SchedulerCase[] = [
     expect: { events: [], rows: [] },
   },
   {
+    name: "all monitors ahead: every row filtered by WHERE, nothing published or advanced",
+    tick: TICK,
+    monitors: [
+      { id: "m_ahead_a", nextRunAt: FUTURE_RUN },
+      { id: "m_ahead_b", nextRunAt: FUTURE_RUN },
+    ],
+    expect: {
+      events: [],
+      rows: [
+        {
+          id: "m_ahead_a",
+          nextRunAt: FUTURE_RUN,
+          lastPublishedRunAt: null,
+          lastCompletedRunAt: null,
+        },
+        {
+          id: "m_ahead_b",
+          nextRunAt: FUTURE_RUN,
+          lastPublishedRunAt: null,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "new monitor: publishes at tick, advances to next boundary",
+    tick: TICK,
+    monitors: [{ id: "m_new", nextRunAt: null }],
+    expect: {
+      events: [{ schedulerBatchId: 0n, runAt: TICK, monitorIds: ["m_new"] }],
+      rows: [
+        {
+          id: "m_new",
+          nextRunAt: BOUNDARY_NEXT_MINUTE,
+          lastPublishedRunAt: TICK,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "behind monitor: publishes at prior next_run_at, advances",
+    tick: TICK,
+    monitors: [{ id: "m_behind", nextRunAt: BOUNDARY_PREV_MINUTE }],
+    expect: {
+      events: [
+        {
+          schedulerBatchId: 0n,
+          runAt: BOUNDARY_PREV_MINUTE,
+          monitorIds: ["m_behind"],
+        },
+      ],
+      rows: [
+        {
+          id: "m_behind",
+          nextRunAt: BOUNDARY_NEXT_MINUTE,
+          lastPublishedRunAt: BOUNDARY_PREV_MINUTE,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
     name: "in-flight + last_completed=NULL within TTL: not published, advanced",
     tick: TICK,
     monitors: [
@@ -118,6 +189,254 @@ const cases: SchedulerCase[] = [
           id: "m_pending",
           nextRunAt: BOUNDARY_NEXT_MINUTE,
           lastPublishedRunAt: TWO_MIN_AGO,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "in-flight + completed-before-published within TTL: not published, advanced",
+    tick: TICK,
+    monitors: [
+      {
+        id: "m_inflight_completed",
+        nextRunAt: BOUNDARY_PREV_MINUTE,
+        lastPublishedRunAt: TWO_MIN_AGO,
+        lastCompletedRunAt: THREE_MIN_AGO,
+      },
+    ],
+    expect: {
+      events: [],
+      rows: [
+        {
+          id: "m_inflight_completed",
+          nextRunAt: BOUNDARY_NEXT_MINUTE,
+          lastPublishedRunAt: TWO_MIN_AGO,
+          lastCompletedRunAt: THREE_MIN_AGO,
+        },
+      ],
+    },
+  },
+  {
+    name: "in-flight past TTL: republishes (rescue), advances",
+    tick: TICK,
+    monitors: [
+      {
+        id: "m_stuck",
+        nextRunAt: BOUNDARY_PREV_MINUTE,
+        lastPublishedRunAt: TEN_MIN_AGO,
+        lastCompletedRunAt: null,
+      },
+    ],
+    expect: {
+      events: [
+        {
+          schedulerBatchId: 0n,
+          runAt: BOUNDARY_PREV_MINUTE,
+          monitorIds: ["m_stuck"],
+        },
+      ],
+      rows: [
+        {
+          id: "m_stuck",
+          nextRunAt: BOUNDARY_NEXT_MINUTE,
+          lastPublishedRunAt: BOUNDARY_PREV_MINUTE,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "very behind: catches up to next boundary, skips intermediates",
+    tick: TICK,
+    monitors: [{ id: "m_far_behind", nextRunAt: TEN_MIN_AGO }],
+    expect: {
+      events: [
+        {
+          schedulerBatchId: 0n,
+          runAt: TEN_MIN_AGO,
+          monitorIds: ["m_far_behind"],
+        },
+      ],
+      rows: [
+        {
+          id: "m_far_behind",
+          nextRunAt: BOUNDARY_NEXT_MINUTE,
+          lastPublishedRunAt: TEN_MIN_AGO,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "paused monitor: untouched",
+    tick: TICK,
+    monitors: [
+      {
+        id: "m_paused",
+        status: "PAUSED",
+        nextRunAt: BOUNDARY_PREV_MINUTE,
+      },
+    ],
+    expect: {
+      events: [],
+      rows: [
+        {
+          id: "m_paused",
+          nextRunAt: BOUNDARY_PREV_MINUTE,
+          lastPublishedRunAt: null,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "error monitor: untouched",
+    tick: TICK,
+    monitors: [
+      {
+        id: "m_error",
+        status: "ERROR_BAD_QUERY",
+        nextRunAt: BOUNDARY_PREV_MINUTE,
+      },
+    ],
+    expect: {
+      events: [],
+      rows: [
+        {
+          id: "m_error",
+          nextRunAt: BOUNDARY_PREV_MINUTE,
+          lastPublishedRunAt: null,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "multi-monitor batch: one event, both monitors, deduped metrics",
+    tick: TICK,
+    monitors: [
+      {
+        id: "m_a",
+        schedulerBatchId: 7n,
+        nextRunAt: BOUNDARY_PREV_MINUTE,
+        metric: { measure: "count", aggregation: "count" },
+      },
+      {
+        id: "m_b",
+        schedulerBatchId: 7n,
+        nextRunAt: BOUNDARY_PREV_MINUTE,
+        metric: { measure: "latency", aggregation: "p95" },
+      },
+    ],
+    expect: {
+      events: [
+        {
+          schedulerBatchId: 7n,
+          runAt: BOUNDARY_PREV_MINUTE,
+          monitorIds: ["m_a", "m_b"],
+        },
+      ],
+      rows: [
+        {
+          id: "m_a",
+          nextRunAt: NEXT_BOUNDARY_BATCH_7,
+          lastPublishedRunAt: BOUNDARY_PREV_MINUTE,
+          lastCompletedRunAt: null,
+        },
+        {
+          id: "m_b",
+          nextRunAt: NEXT_BOUNDARY_BATCH_7,
+          lastPublishedRunAt: BOUNDARY_PREV_MINUTE,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "5 monitors batched into 2 events (batching + ordering)",
+    tick: TICK,
+    monitors: [
+      { id: "m_a1", schedulerBatchId: 1n, nextRunAt: TWO_MIN_AGO },
+      { id: "m_a2", schedulerBatchId: 1n, nextRunAt: TWO_MIN_AGO },
+      { id: "m_a3", schedulerBatchId: 1n, nextRunAt: TWO_MIN_AGO },
+      { id: "m_b1", schedulerBatchId: 2n, nextRunAt: TEN_MIN_AGO },
+      { id: "m_b2", schedulerBatchId: 2n, nextRunAt: TEN_MIN_AGO },
+    ],
+    expect: {
+      events: [
+        {
+          schedulerBatchId: 2n,
+          runAt: TEN_MIN_AGO,
+          monitorIds: ["m_b1", "m_b2"],
+        },
+        {
+          schedulerBatchId: 1n,
+          runAt: TWO_MIN_AGO,
+          monitorIds: ["m_a1", "m_a2", "m_a3"],
+        },
+      ],
+      rows: [
+        {
+          id: "m_a1",
+          nextRunAt: NEXT_BOUNDARY_BATCH_1,
+          lastPublishedRunAt: TWO_MIN_AGO,
+          lastCompletedRunAt: null,
+        },
+        {
+          id: "m_a2",
+          nextRunAt: NEXT_BOUNDARY_BATCH_1,
+          lastPublishedRunAt: TWO_MIN_AGO,
+          lastCompletedRunAt: null,
+        },
+        {
+          id: "m_a3",
+          nextRunAt: NEXT_BOUNDARY_BATCH_1,
+          lastPublishedRunAt: TWO_MIN_AGO,
+          lastCompletedRunAt: null,
+        },
+        {
+          id: "m_b1",
+          nextRunAt: NEXT_BOUNDARY_BATCH_2,
+          lastPublishedRunAt: TEN_MIN_AGO,
+          lastCompletedRunAt: null,
+        },
+        {
+          id: "m_b2",
+          nextRunAt: NEXT_BOUNDARY_BATCH_2,
+          lastPublishedRunAt: TEN_MIN_AGO,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "sharding: only this scheduler's slot is claimed",
+    scheduler: { id: 1, total: 4 },
+    tick: TICK,
+    monitors: [
+      { id: "m_in", schedulerBatchId: 5n, nextRunAt: BOUNDARY_PREV_MINUTE },
+      { id: "m_out", schedulerBatchId: 4n, nextRunAt: BOUNDARY_PREV_MINUTE },
+    ],
+    expect: {
+      events: [
+        {
+          schedulerBatchId: 5n,
+          runAt: BOUNDARY_PREV_MINUTE,
+          monitorIds: ["m_in"],
+        },
+      ],
+      rows: [
+        {
+          id: "m_in",
+          nextRunAt: NEXT_BOUNDARY_BATCH_5,
+          lastPublishedRunAt: BOUNDARY_PREV_MINUTE,
+          lastCompletedRunAt: null,
+        },
+        {
+          id: "m_out",
+          nextRunAt: BOUNDARY_PREV_MINUTE,
+          lastPublishedRunAt: null,
           lastCompletedRunAt: null,
         },
       ],
