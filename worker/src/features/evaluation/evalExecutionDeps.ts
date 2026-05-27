@@ -44,6 +44,7 @@ export type ModelConfigResult =
  * Parameters for calling the LLM.
  */
 export interface LLMCallParams {
+  projectId: string;
   messages: ReturnType<typeof buildEvalMessages>;
   modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
   structuredOutputSchema: StructuredOutputSchema;
@@ -191,6 +192,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
       >[0]["modelParams"]["adapter"];
 
       return fetchLLMCompletion({
+        projectId: params.projectId,
         streaming: false,
         llmConnection,
         messages: params.messages,

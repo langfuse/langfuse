@@ -7,6 +7,7 @@ import { createExperimentJobClickhouse } from "../features/experiments/experimen
 import {
   createDatasetItem,
   createOrgProjectAndApiKey,
+  fetchLLMCompletion,
   logger,
 } from "@langfuse/shared/src/server";
 
@@ -27,6 +28,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 describe("create experiment jobs", () => {
   const mockLogger = vi.mocked(logger);
+  const mockFetchLLMCompletion = vi.mocked(fetchLLMCompletion);
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -113,6 +115,12 @@ describe("create experiment jobs", () => {
         projectId,
         datasetId,
         runId,
+      }),
+    );
+
+    expect(mockFetchLLMCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId,
       }),
     );
   });

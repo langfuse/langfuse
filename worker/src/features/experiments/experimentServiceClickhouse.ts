@@ -212,6 +212,7 @@ async function processLLMCall(
   };
 
   await fetchLLMCompletion({
+    projectId: config.projectId,
     streaming: false,
     llmConnection: config.validatedApiKey,
     maxRetries: 1,
