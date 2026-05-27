@@ -37,9 +37,9 @@ type SeedOverrides = Partial<{
   severityChangedAt: Date | null;
   alertedAt: Date | null;
   tags: string[];
-  lastPublishedRunAt: Date | null;
-  lastClaimedRunAt: Date | null;
-  lastCompletedRunAt: Date | null;
+  lastPublishedAt: Date | null;
+  lastClaimedAt: Date | null;
+  lastCompletedAt: Date | null;
 }>;
 
 type MonitorSeed = { id: string } & SeedOverrides;
@@ -54,8 +54,8 @@ type ExpectedRow = {
   severity: MonitorSeverity;
   severityChangedAt: Date | null;
   alertedAt: Date | null;
-  lastClaimedRunAt: Date | null;
-  lastCompletedRunAt: Date | null;
+  lastClaimedAt: Date | null;
+  lastCompletedAt: Date | null;
 };
 
 type InjectErrorStage =
@@ -126,9 +126,9 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       status: seed.status ?? "ACTIVE",
       schedulerBatchId: seed.schedulerBatchId ?? 0n,
       nextRunAt: null,
-      lastPublishedRunAt: seed.lastPublishedRunAt ?? runAt,
-      lastClaimedRunAt: seed.lastClaimedRunAt ?? null,
-      lastCompletedRunAt: seed.lastCompletedRunAt ?? null,
+      lastPublishedAt: seed.lastPublishedAt ?? runAt,
+      lastClaimedAt: seed.lastClaimedAt ?? null,
+      lastCompletedAt: seed.lastCompletedAt ?? null,
       severity: seed.severity ?? "UNKNOWN",
       severityChangedAt: seed.severityChangedAt ?? null,
       alertedAt: seed.alertedAt ?? null,
@@ -179,9 +179,9 @@ const cases: ProcessCase[] = [
         id: monitorAId,
         severity: "OK",
         severityChangedAt: tenMinutesAgo,
-        lastPublishedRunAt: runAt,
-        lastClaimedRunAt: runAt,
-        lastCompletedRunAt: runAt,
+        lastPublishedAt: runAt,
+        lastClaimedAt: runAt,
+        lastCompletedAt: runAt,
       },
     ],
     expect: {
@@ -192,8 +192,8 @@ const cases: ProcessCase[] = [
           severity: "OK",
           severityChangedAt: tenMinutesAgo,
           alertedAt: null,
-          lastClaimedRunAt: runAt,
-          lastCompletedRunAt: runAt,
+          lastClaimedAt: runAt,
+          lastCompletedAt: runAt,
         },
       ],
     },
@@ -205,7 +205,7 @@ const cases: ProcessCase[] = [
         id: monitorAId,
         severity: "OK",
         severityChangedAt: tenMinutesAgo,
-        lastPublishedRunAt: runAt,
+        lastPublishedAt: runAt,
       },
     ],
     ch: [{ count_count: 50 }],
@@ -217,8 +217,8 @@ const cases: ProcessCase[] = [
           severity: "OK",
           severityChangedAt: tenMinutesAgo,
           alertedAt: null,
-          lastClaimedRunAt: runAt,
-          lastCompletedRunAt: runAt,
+          lastClaimedAt: runAt,
+          lastCompletedAt: runAt,
         },
       ],
     },
@@ -229,7 +229,7 @@ const cases: ProcessCase[] = [
       {
         id: monitorAId,
         severity: "UNKNOWN",
-        lastPublishedRunAt: runAt,
+        lastPublishedAt: runAt,
       },
     ],
     ch: [{ count_count: 200 }],
@@ -253,8 +253,8 @@ const cases: ProcessCase[] = [
           severity: "ALERT",
           severityChangedAt: runAt,
           alertedAt: runAt,
-          lastClaimedRunAt: runAt,
-          lastCompletedRunAt: runAt,
+          lastClaimedAt: runAt,
+          lastCompletedAt: runAt,
         },
       ],
     },
@@ -265,7 +265,7 @@ const cases: ProcessCase[] = [
       {
         id: monitorAId,
         severity: "UNKNOWN",
-        lastPublishedRunAt: runAt,
+        lastPublishedAt: runAt,
       },
     ],
     ch: [{ count_count: 200 }],
@@ -292,8 +292,8 @@ const cases: ProcessCase[] = [
           severity: "ALERT",
           severityChangedAt: runAt,
           alertedAt: runAt,
-          lastClaimedRunAt: runAt,
-          lastCompletedRunAt: runAt,
+          lastClaimedAt: runAt,
+          lastCompletedAt: runAt,
         },
       ],
     },
@@ -306,7 +306,7 @@ const cases: ProcessCase[] = [
         severity: "ALERT",
         severityChangedAt: tenMinutesAgo,
         alertedAt: tenMinutesAgo,
-        lastPublishedRunAt: runAt,
+        lastPublishedAt: runAt,
         renotify: { mode: "EVERY", intervalMinutes: 5 },
       },
     ],
@@ -320,8 +320,8 @@ const cases: ProcessCase[] = [
           severity: "ALERT",
           severityChangedAt: tenMinutesAgo,
           alertedAt: runAt,
-          lastClaimedRunAt: runAt,
-          lastCompletedRunAt: runAt,
+          lastClaimedAt: runAt,
+          lastCompletedAt: runAt,
         },
       ],
     },
@@ -334,7 +334,7 @@ const cases: ProcessCase[] = [
         severity: "ALERT",
         severityChangedAt: tenMinutesAgo,
         alertedAt: tenMinutesAgo,
-        lastPublishedRunAt: runAt,
+        lastPublishedAt: runAt,
         renotify: { mode: "OFF" },
       },
     ],
@@ -348,8 +348,8 @@ const cases: ProcessCase[] = [
           severity: "ALERT",
           severityChangedAt: tenMinutesAgo,
           alertedAt: tenMinutesAgo,
-          lastClaimedRunAt: runAt,
-          lastCompletedRunAt: runAt,
+          lastClaimedAt: runAt,
+          lastCompletedAt: runAt,
         },
       ],
     },
@@ -361,7 +361,7 @@ const cases: ProcessCase[] = [
         id: monitorAId,
         severity: "OK",
         severityChangedAt: tenMinutesAgo,
-        lastPublishedRunAt: runAt,
+        lastPublishedAt: runAt,
         noData: { mode: "NOTIFY", intervalMinutes: 5 },
       },
     ],
@@ -375,8 +375,8 @@ const cases: ProcessCase[] = [
           severity: "NO_DATA",
           severityChangedAt: runAt,
           alertedAt: runAt,
-          lastClaimedRunAt: runAt,
-          lastCompletedRunAt: runAt,
+          lastClaimedAt: runAt,
+          lastCompletedAt: runAt,
         },
       ],
     },
@@ -388,7 +388,7 @@ const cases: ProcessCase[] = [
         id: monitorAId,
         severity: "OK",
         severityChangedAt: tenMinutesAgo,
-        lastPublishedRunAt: runAt,
+        lastPublishedAt: runAt,
         noData: { mode: "SILENT" },
       },
     ],
@@ -402,8 +402,8 @@ const cases: ProcessCase[] = [
           severity: "NO_DATA",
           severityChangedAt: runAt,
           alertedAt: null,
-          lastClaimedRunAt: runAt,
-          lastCompletedRunAt: runAt,
+          lastClaimedAt: runAt,
+          lastCompletedAt: runAt,
         },
       ],
     },
@@ -415,7 +415,7 @@ const cases: ProcessCase[] = [
         id: monitorAId,
         severity: "OK",
         severityChangedAt: tenMinutesAgo,
-        lastPublishedRunAt: runAt,
+        lastPublishedAt: runAt,
       },
     ],
     injectError: { stage: "claim", message: "PG down (claim)" },
@@ -428,8 +428,8 @@ const cases: ProcessCase[] = [
           severity: "OK",
           severityChangedAt: tenMinutesAgo,
           alertedAt: null,
-          lastClaimedRunAt: null,
-          lastCompletedRunAt: null,
+          lastClaimedAt: null,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -441,7 +441,7 @@ const cases: ProcessCase[] = [
         id: monitorAId,
         severity: "OK",
         severityChangedAt: tenMinutesAgo,
-        lastPublishedRunAt: runAt,
+        lastPublishedAt: runAt,
       },
     ],
     injectError: { stage: "executeQuery", message: "CH timeout" },
@@ -454,8 +454,8 @@ const cases: ProcessCase[] = [
           severity: "OK",
           severityChangedAt: tenMinutesAgo,
           alertedAt: null,
-          lastClaimedRunAt: runAt,
-          lastCompletedRunAt: null,
+          lastClaimedAt: runAt,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -467,7 +467,7 @@ const cases: ProcessCase[] = [
         id: monitorAId,
         severity: "OK",
         severityChangedAt: tenMinutesAgo,
-        lastPublishedRunAt: runAt,
+        lastPublishedAt: runAt,
       },
     ],
     injectError: { stage: "getTriggers", message: "trigger lookup failed" },
@@ -480,8 +480,8 @@ const cases: ProcessCase[] = [
           severity: "OK",
           severityChangedAt: tenMinutesAgo,
           alertedAt: null,
-          lastClaimedRunAt: runAt,
-          lastCompletedRunAt: null,
+          lastClaimedAt: runAt,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -492,7 +492,7 @@ const cases: ProcessCase[] = [
       {
         id: monitorAId,
         severity: "UNKNOWN",
-        lastPublishedRunAt: runAt,
+        lastPublishedAt: runAt,
       },
     ],
     ch: [{ count_count: 200 }],
@@ -507,8 +507,8 @@ const cases: ProcessCase[] = [
           severity: "UNKNOWN",
           severityChangedAt: null,
           alertedAt: null,
-          lastClaimedRunAt: runAt,
-          lastCompletedRunAt: null,
+          lastClaimedAt: runAt,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -519,7 +519,7 @@ const cases: ProcessCase[] = [
       {
         id: monitorAId,
         severity: "UNKNOWN",
-        lastPublishedRunAt: runAt,
+        lastPublishedAt: runAt,
       },
     ],
     ch: [{ count_count: 200 }],
@@ -534,8 +534,8 @@ const cases: ProcessCase[] = [
           severity: "UNKNOWN",
           severityChangedAt: null,
           alertedAt: null,
-          lastClaimedRunAt: runAt,
-          lastCompletedRunAt: null,
+          lastClaimedAt: runAt,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -543,22 +543,22 @@ const cases: ProcessCase[] = [
   {
     name: "partial claim: ack + ts + sev changes + emit for claimable, untouched for already-completed",
     monitors: [
-      // already-completed: claim's clause 2 rejects it (lastCompletedRunAt == lastPublishedRunAt)
+      // already-completed: claim's clause 2 rejects it (lastCompletedAt == lastPublishedAt)
       {
         id: monitorAId,
         schedulerBatchId: 7n,
         severity: "OK",
         severityChangedAt: tenMinutesAgo,
-        lastPublishedRunAt: runAt,
-        lastClaimedRunAt: runAt,
-        lastCompletedRunAt: runAt,
+        lastPublishedAt: runAt,
+        lastClaimedAt: runAt,
+        lastCompletedAt: runAt,
       },
       // claimable: fresh, will emit ALERT
       {
         id: monitorBId,
         schedulerBatchId: 7n,
         severity: "UNKNOWN",
-        lastPublishedRunAt: runAt,
+        lastPublishedAt: runAt,
       },
     ],
     ch: [{ count_count: 200 }],
@@ -578,8 +578,8 @@ const cases: ProcessCase[] = [
           severity: "OK",
           severityChangedAt: tenMinutesAgo,
           alertedAt: null,
-          lastClaimedRunAt: runAt,
-          lastCompletedRunAt: runAt,
+          lastClaimedAt: runAt,
+          lastCompletedAt: runAt,
         },
         // claimable: fully processed
         {
@@ -587,8 +587,8 @@ const cases: ProcessCase[] = [
           severity: "ALERT",
           severityChangedAt: runAt,
           alertedAt: runAt,
-          lastClaimedRunAt: runAt,
-          lastCompletedRunAt: runAt,
+          lastClaimedAt: runAt,
+          lastCompletedAt: runAt,
         },
       ],
     },
@@ -677,11 +677,11 @@ describe("MonitorProcessor.process (integration)", () => {
       expect(row.alertedAt?.toISOString() ?? null).toBe(
         exp.alertedAt?.toISOString() ?? null,
       );
-      expect(row.lastClaimedRunAt?.toISOString() ?? null).toBe(
-        exp.lastClaimedRunAt?.toISOString() ?? null,
+      expect(row.lastClaimedAt?.toISOString() ?? null).toBe(
+        exp.lastClaimedAt?.toISOString() ?? null,
       );
-      expect(row.lastCompletedRunAt?.toISOString() ?? null).toBe(
-        exp.lastCompletedRunAt?.toISOString() ?? null,
+      expect(row.lastCompletedAt?.toISOString() ?? null).toBe(
+        exp.lastCompletedAt?.toISOString() ?? null,
       );
     }
   });

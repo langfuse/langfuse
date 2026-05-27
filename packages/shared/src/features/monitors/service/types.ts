@@ -35,8 +35,9 @@ const omitOnWrite = {
   severityChangedAt: true,
   alertedAt: true,
   nextRunAt: true,
-  lastPublishedRunAt: true,
-  lastCompletedRunAt: true,
+  lastPublishedAt: true,
+  lastClaimedAt: true,
+  lastCompletedAt: true,
 } as const;
 
 /** CreateMonitorSchema is the input for MonitorService.create. */

@@ -142,7 +142,7 @@ describe("MonitorService (integration)", () => {
           severity: "ALERT",
           severityChangedAt: new Date(),
           alertedAt: new Date(),
-          lastCompletedRunAt: new Date(),
+          lastCompletedAt: new Date(),
         },
       });
 
@@ -156,7 +156,7 @@ describe("MonitorService (integration)", () => {
       expect(updated.severity).toBe("ALERT");
       expect(updated.severityChangedAt).not.toBeNull();
       expect(updated.alertedAt).not.toBeNull();
-      expect(updated.lastCompletedRunAt).not.toBeNull();
+      expect(updated.lastCompletedAt).not.toBeNull();
 
       const row = await prisma.monitor.findUnique({
         where: { id: created.id },
@@ -236,8 +236,8 @@ describe("MonitorService (integration)", () => {
       await prisma.monitor.update({
         where: { id: created.id },
         data: {
-          lastPublishedRunAt: new Date("2026-05-27T11:58:30.000Z"),
-          lastCompletedRunAt: null,
+          lastPublishedAt: new Date("2026-05-27T11:58:30.000Z"),
+          lastCompletedAt: null,
         },
       });
 
@@ -255,8 +255,8 @@ describe("MonitorService (integration)", () => {
       });
 
       expect(updated.nextRunAt).toBeNull();
-      expect(updated.lastPublishedRunAt).toBeNull();
-      expect(updated.lastCompletedRunAt).toBeNull();
+      expect(updated.lastPublishedAt).toBeNull();
+      expect(updated.lastCompletedAt).toBeNull();
     });
   });
 

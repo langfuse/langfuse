@@ -31,7 +31,7 @@ import { computeSeverity } from "./computeSeverity";
 /** MonitorCompletion is one row of the bulk-update emitted by the state machine — what to write back to a single monitor after evaluation. */
 export type MonitorCompletion = {
   monitorId: string;
-  lastCompletedRunAt: Date;
+  lastCompletedAt: Date;
   severity: MonitorSeverity;
   severityChangedAt: Date | null;
   alertedAt: Date | null;
@@ -155,7 +155,7 @@ export class MonitorProcessor {
       });
       completions.push({
         monitorId: row.id,
-        lastCompletedRunAt: event.runAt,
+        lastCompletedAt: event.runAt,
         severity: decision.nextSeverity,
         severityChangedAt: decision.nextSeverityChangedAt,
         alertedAt: decision.nextAlertedAt,
@@ -195,21 +195,21 @@ function buildClaimQuery(args: {
 }): Prisma.Sql {
   return Prisma.sql`
     UPDATE monitors
-    SET last_claimed_run_at = ${args.runAt}
+    SET last_claimed_at = ${args.runAt}
     WHERE id = ANY(${args.monitorIds})
       AND project_id = ${args.projectId}
       -- clause 1: this row's published run matches the event
-      AND last_published_run_at = ${args.runAt}
+      AND last_published_at = ${args.runAt}
       -- clause 2: the published run isn't already complete
       AND (
-        last_completed_run_at IS NULL
-        OR last_completed_run_at < last_published_run_at
+        last_completed_at IS NULL
+        OR last_completed_at < last_published_at
       )
       -- clause 3: no live claim on this publish (NULL, prior run, or TTL expired)
       AND (
-        last_claimed_run_at IS NULL
-        OR last_claimed_run_at < last_published_run_at
-        OR ${args.now}::timestamptz - last_published_run_at
+        last_claimed_at IS NULL
+        OR last_claimed_at < last_published_at
+        OR ${args.now}::timestamptz - last_published_at
              > ${monitorProcessorTtl} * INTERVAL '1 millisecond'
       )
     RETURNING id
@@ -224,20 +224,20 @@ function buildCompleteQuery(args: {
   const valueRows = Prisma.join(
     args.completions.map(
       (c) =>
-        Prisma.sql`(${c.monitorId}, ${c.lastCompletedRunAt}::timestamptz, ${c.severity}::"MonitorSeverity", ${c.severityChangedAt}::timestamptz, ${c.alertedAt}::timestamptz)`,
+        Prisma.sql`(${c.monitorId}, ${c.lastCompletedAt}::timestamptz, ${c.severity}::"MonitorSeverity", ${c.severityChangedAt}::timestamptz, ${c.alertedAt}::timestamptz)`,
     ),
     ", ",
   );
   return Prisma.sql`
     UPDATE monitors AS m
     SET
-      last_completed_run_at = data.last_completed_run_at,
+      last_completed_at = data.last_completed_at,
       severity = data.severity,
       severity_changed_at = data.severity_changed_at,
       alerted_at = data.alerted_at
     FROM (VALUES ${valueRows}) AS data(
       id,
-      last_completed_run_at,
+      last_completed_at,
       severity,
       severity_changed_at,
       alerted_at

@@ -126,7 +126,7 @@ export class MonitorService {
           schedulerBatchId,
           nextRunAt: null,
           ...(schedulerBatchIdChanged
-            ? { lastPublishedRunAt: null, lastCompletedRunAt: null }
+            ? { lastPublishedAt: null, lastCompletedAt: null }
             : {}),
           name: input.name,
           tags: input.tags,

@@ -34,8 +34,9 @@ const validMonitorBase = {
 
   status: "ACTIVE" as const,
   nextRunAt: new Date("2026-05-18T00:01:00.000Z"),
-  lastPublishedRunAt: null,
-  lastCompletedRunAt: null,
+  lastPublishedAt: null,
+  lastClaimedAt: null,
+  lastCompletedAt: null,
 
   name: "High error rate",
   tags: [],

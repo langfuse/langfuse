@@ -15,9 +15,9 @@ type SeedOverrides = Partial<{
   cadenceMs: bigint;
   windowMs: bigint;
   nextRunAt: Date | null;
-  lastPublishedRunAt: Date | null;
-  lastClaimedRunAt: Date | null;
-  lastCompletedRunAt: Date | null;
+  lastPublishedAt: Date | null;
+  lastClaimedAt: Date | null;
+  lastCompletedAt: Date | null;
   status: MonitorStatus;
   view: MonitorView;
   metric: { measure: string; aggregation: string };
@@ -27,9 +27,9 @@ type MonitorSeed = { id: string } & SeedOverrides;
 
 type ExpectedRow = {
   id: string;
-  lastPublishedRunAt: Date | null;
-  lastClaimedRunAt: Date | null;
-  lastCompletedRunAt: Date | null;
+  lastPublishedAt: Date | null;
+  lastClaimedAt: Date | null;
+  lastCompletedAt: Date | null;
 };
 
 type EventOverrides = Partial<{
@@ -77,9 +77,9 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       status: seed.status ?? "ACTIVE",
       schedulerBatchId: seed.schedulerBatchId ?? 0n,
       nextRunAt: seed.nextRunAt === undefined ? null : seed.nextRunAt,
-      lastPublishedRunAt: seed.lastPublishedRunAt ?? null,
-      lastClaimedRunAt: seed.lastClaimedRunAt ?? null,
-      lastCompletedRunAt: seed.lastCompletedRunAt ?? null,
+      lastPublishedAt: seed.lastPublishedAt ?? null,
+      lastClaimedAt: seed.lastClaimedAt ?? null,
+      lastCompletedAt: seed.lastCompletedAt ?? null,
       name: `Test ${seed.id}`,
       tags: [],
     },
@@ -110,13 +110,13 @@ function makeEvent(args: {
 const cases: ClaimCase[] = [
   // === single-monitor success branches ===
   {
-    name: "fresh publish, never claimed: claims and writes last_claimed_run_at = event.runAt",
+    name: "fresh publish, never claimed: claims and writes last_claimed_at = event.runAt",
     monitors: [
       {
         id: "m_fresh",
-        lastPublishedRunAt: t0,
-        lastClaimedRunAt: null,
-        lastCompletedRunAt: null,
+        lastPublishedAt: t0,
+        lastClaimedAt: null,
+        lastCompletedAt: null,
       },
     ],
     event: { runAt: t0, monitorIds: ["m_fresh"] },
@@ -126,9 +126,9 @@ const cases: ClaimCase[] = [
       rows: [
         {
           id: "m_fresh",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: t0,
-          lastCompletedRunAt: null,
+          lastPublishedAt: t0,
+          lastClaimedAt: t0,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -138,9 +138,9 @@ const cases: ClaimCase[] = [
     monitors: [
       {
         id: "m_prior",
-        lastPublishedRunAt: t0,
-        lastClaimedRunAt: tMinus10m,
-        lastCompletedRunAt: tMinus10m,
+        lastPublishedAt: t0,
+        lastClaimedAt: tMinus10m,
+        lastCompletedAt: tMinus10m,
       },
     ],
     event: { runAt: t0, monitorIds: ["m_prior"] },
@@ -150,9 +150,9 @@ const cases: ClaimCase[] = [
       rows: [
         {
           id: "m_prior",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: t0,
-          lastCompletedRunAt: tMinus10m,
+          lastPublishedAt: t0,
+          lastClaimedAt: t0,
+          lastCompletedAt: tMinus10m,
         },
       ],
     },
@@ -162,9 +162,9 @@ const cases: ClaimCase[] = [
     monitors: [
       {
         id: "m_ttl_past",
-        lastPublishedRunAt: t0,
-        lastClaimedRunAt: t0,
-        lastCompletedRunAt: null,
+        lastPublishedAt: t0,
+        lastClaimedAt: t0,
+        lastCompletedAt: null,
       },
     ],
     event: { runAt: t0, monitorIds: ["m_ttl_past"] },
@@ -174,9 +174,9 @@ const cases: ClaimCase[] = [
       rows: [
         {
           id: "m_ttl_past",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: t0,
-          lastCompletedRunAt: null,
+          lastPublishedAt: t0,
+          lastClaimedAt: t0,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -186,9 +186,9 @@ const cases: ClaimCase[] = [
     monitors: [
       {
         id: "m_ttl_plus",
-        lastPublishedRunAt: t0,
-        lastClaimedRunAt: t0,
-        lastCompletedRunAt: null,
+        lastPublishedAt: t0,
+        lastClaimedAt: t0,
+        lastCompletedAt: null,
       },
     ],
     event: { runAt: t0, monitorIds: ["m_ttl_plus"] },
@@ -198,9 +198,9 @@ const cases: ClaimCase[] = [
       rows: [
         {
           id: "m_ttl_plus",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: t0,
-          lastCompletedRunAt: null,
+          lastPublishedAt: t0,
+          lastClaimedAt: t0,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -212,9 +212,9 @@ const cases: ClaimCase[] = [
     monitors: [
       {
         id: "m_inflight",
-        lastPublishedRunAt: t0,
-        lastClaimedRunAt: t0,
-        lastCompletedRunAt: null,
+        lastPublishedAt: t0,
+        lastClaimedAt: t0,
+        lastCompletedAt: null,
       },
     ],
     event: { runAt: t0, monitorIds: ["m_inflight"] },
@@ -224,9 +224,9 @@ const cases: ClaimCase[] = [
       rows: [
         {
           id: "m_inflight",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: t0,
-          lastCompletedRunAt: null,
+          lastPublishedAt: t0,
+          lastClaimedAt: t0,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -236,9 +236,9 @@ const cases: ClaimCase[] = [
     monitors: [
       {
         id: "m_ttl_exact",
-        lastPublishedRunAt: t0,
-        lastClaimedRunAt: t0,
-        lastCompletedRunAt: null,
+        lastPublishedAt: t0,
+        lastClaimedAt: t0,
+        lastCompletedAt: null,
       },
     ],
     event: { runAt: t0, monitorIds: ["m_ttl_exact"] },
@@ -248,9 +248,9 @@ const cases: ClaimCase[] = [
       rows: [
         {
           id: "m_ttl_exact",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: t0,
-          lastCompletedRunAt: null,
+          lastPublishedAt: t0,
+          lastClaimedAt: t0,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -260,9 +260,9 @@ const cases: ClaimCase[] = [
     monitors: [
       {
         id: "m_done",
-        lastPublishedRunAt: t0,
-        lastClaimedRunAt: t0,
-        lastCompletedRunAt: t0,
+        lastPublishedAt: t0,
+        lastClaimedAt: t0,
+        lastCompletedAt: t0,
       },
     ],
     event: { runAt: t0, monitorIds: ["m_done"] },
@@ -272,9 +272,9 @@ const cases: ClaimCase[] = [
       rows: [
         {
           id: "m_done",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: t0,
-          lastCompletedRunAt: t0,
+          lastPublishedAt: t0,
+          lastClaimedAt: t0,
+          lastCompletedAt: t0,
         },
       ],
     },
@@ -284,9 +284,9 @@ const cases: ClaimCase[] = [
     monitors: [
       {
         id: "m_advanced",
-        lastPublishedRunAt: t0,
-        lastClaimedRunAt: null,
-        lastCompletedRunAt: null,
+        lastPublishedAt: t0,
+        lastClaimedAt: null,
+        lastCompletedAt: null,
       },
     ],
     event: { runAt: tMinus10m, monitorIds: ["m_advanced"] },
@@ -296,21 +296,21 @@ const cases: ClaimCase[] = [
       rows: [
         {
           id: "m_advanced",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: null,
-          lastCompletedRunAt: null,
+          lastPublishedAt: t0,
+          lastClaimedAt: null,
+          lastCompletedAt: null,
         },
       ],
     },
   },
   {
-    name: "never-published monitor (last_published_run_at NULL): 0 claimed",
+    name: "never-published monitor (last_published_at NULL): 0 claimed",
     monitors: [
       {
         id: "m_never_pub",
-        lastPublishedRunAt: null,
-        lastClaimedRunAt: null,
-        lastCompletedRunAt: null,
+        lastPublishedAt: null,
+        lastClaimedAt: null,
+        lastCompletedAt: null,
       },
     ],
     event: { runAt: t0, monitorIds: ["m_never_pub"] },
@@ -320,9 +320,9 @@ const cases: ClaimCase[] = [
       rows: [
         {
           id: "m_never_pub",
-          lastPublishedRunAt: null,
-          lastClaimedRunAt: null,
-          lastCompletedRunAt: null,
+          lastPublishedAt: null,
+          lastClaimedAt: null,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -334,9 +334,9 @@ const cases: ClaimCase[] = [
     monitors: [
       {
         id: "m_untouched",
-        lastPublishedRunAt: t0,
-        lastClaimedRunAt: null,
-        lastCompletedRunAt: null,
+        lastPublishedAt: t0,
+        lastClaimedAt: null,
+        lastCompletedAt: null,
       },
     ],
     event: { runAt: t0, monitorIds: [] },
@@ -346,9 +346,9 @@ const cases: ClaimCase[] = [
       rows: [
         {
           id: "m_untouched",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: null,
-          lastCompletedRunAt: null,
+          lastPublishedAt: t0,
+          lastClaimedAt: null,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -365,9 +365,9 @@ const cases: ClaimCase[] = [
   {
     name: "multi-monitor batch all eligible: all claimed",
     monitors: [
-      { id: "m_a", lastPublishedRunAt: t0 },
-      { id: "m_b", lastPublishedRunAt: t0 },
-      { id: "m_c", lastPublishedRunAt: t0 },
+      { id: "m_a", lastPublishedAt: t0 },
+      { id: "m_b", lastPublishedAt: t0 },
+      { id: "m_c", lastPublishedAt: t0 },
     ],
     event: { runAt: t0, monitorIds: ["m_a", "m_b", "m_c"] },
     now: t0Plus1s,
@@ -376,21 +376,21 @@ const cases: ClaimCase[] = [
       rows: [
         {
           id: "m_a",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: t0,
-          lastCompletedRunAt: null,
+          lastPublishedAt: t0,
+          lastClaimedAt: t0,
+          lastCompletedAt: null,
         },
         {
           id: "m_b",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: t0,
-          lastCompletedRunAt: null,
+          lastPublishedAt: t0,
+          lastClaimedAt: t0,
+          lastCompletedAt: null,
         },
         {
           id: "m_c",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: t0,
-          lastCompletedRunAt: null,
+          lastPublishedAt: t0,
+          lastClaimedAt: t0,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -399,22 +399,22 @@ const cases: ClaimCase[] = [
     name: "multi-monitor batch with partial eligibility: only eligible claimed",
     monitors: [
       // claimable
-      { id: "m_ok", lastPublishedRunAt: t0 },
+      { id: "m_ok", lastPublishedAt: t0 },
       // already completed
       {
         id: "m_done",
-        lastPublishedRunAt: t0,
-        lastClaimedRunAt: t0,
-        lastCompletedRunAt: t0,
+        lastPublishedAt: t0,
+        lastClaimedAt: t0,
+        lastCompletedAt: t0,
       },
       // row advanced past this event
-      { id: "m_advanced", lastPublishedRunAt: t0Plus1m },
+      { id: "m_advanced", lastPublishedAt: t0Plus1m },
       // currently in-flight within TTL
       {
         id: "m_inflight",
-        lastPublishedRunAt: t0,
-        lastClaimedRunAt: t0,
-        lastCompletedRunAt: null,
+        lastPublishedAt: t0,
+        lastClaimedAt: t0,
+        lastCompletedAt: null,
       },
     ],
     event: {
@@ -427,27 +427,27 @@ const cases: ClaimCase[] = [
       rows: [
         {
           id: "m_ok",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: t0,
-          lastCompletedRunAt: null,
+          lastPublishedAt: t0,
+          lastClaimedAt: t0,
+          lastCompletedAt: null,
         },
         {
           id: "m_done",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: t0,
-          lastCompletedRunAt: t0,
+          lastPublishedAt: t0,
+          lastClaimedAt: t0,
+          lastCompletedAt: t0,
         },
         {
           id: "m_advanced",
-          lastPublishedRunAt: t0Plus1m,
-          lastClaimedRunAt: null,
-          lastCompletedRunAt: null,
+          lastPublishedAt: t0Plus1m,
+          lastClaimedAt: null,
+          lastCompletedAt: null,
         },
         {
           id: "m_inflight",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: t0,
-          lastCompletedRunAt: null,
+          lastPublishedAt: t0,
+          lastClaimedAt: t0,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -459,9 +459,9 @@ const cases: ClaimCase[] = [
     monitors: [
       {
         id: "m_other_project",
-        lastPublishedRunAt: t0,
-        lastClaimedRunAt: null,
-        lastCompletedRunAt: null,
+        lastPublishedAt: t0,
+        lastClaimedAt: null,
+        lastCompletedAt: null,
       },
     ],
     event: {
@@ -475,9 +475,9 @@ const cases: ClaimCase[] = [
       rows: [
         {
           id: "m_other_project",
-          lastPublishedRunAt: t0,
-          lastClaimedRunAt: null,
-          lastCompletedRunAt: null,
+          lastPublishedAt: t0,
+          lastClaimedAt: null,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -522,14 +522,14 @@ describe("MonitorProcessor.claim (integration)", () => {
       const row = await prisma.monitor.findUniqueOrThrow({
         where: { id: exp.id },
       });
-      expect(row.lastPublishedRunAt?.toISOString() ?? null).toBe(
-        exp.lastPublishedRunAt?.toISOString() ?? null,
+      expect(row.lastPublishedAt?.toISOString() ?? null).toBe(
+        exp.lastPublishedAt?.toISOString() ?? null,
       );
-      expect(row.lastClaimedRunAt?.toISOString() ?? null).toBe(
-        exp.lastClaimedRunAt?.toISOString() ?? null,
+      expect(row.lastClaimedAt?.toISOString() ?? null).toBe(
+        exp.lastClaimedAt?.toISOString() ?? null,
       );
-      expect(row.lastCompletedRunAt?.toISOString() ?? null).toBe(
-        exp.lastCompletedRunAt?.toISOString() ?? null,
+      expect(row.lastCompletedAt?.toISOString() ?? null).toBe(
+        exp.lastCompletedAt?.toISOString() ?? null,
       );
     }
   });

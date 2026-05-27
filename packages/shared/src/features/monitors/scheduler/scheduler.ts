@@ -106,12 +106,12 @@ function buildScheduleQuery({
 
   /** runIsPending is true when a prior publish has not completed within monitorProcessorTtl. */
   const runIsPending = Prisma.sql`
-    due.last_published_run_at IS NOT NULL -- not the first run
+    due.last_published_at IS NOT NULL -- not the first run
     AND (
-      due.last_completed_run_at IS NULL -- worker never reported completion
-      OR due.last_completed_run_at < due.last_published_run_at -- last run still in flight
+      due.last_completed_at IS NULL -- worker never reported completion
+      OR due.last_completed_at < due.last_published_at -- last run still in flight
     )
-    AND ${tick}::timestamptz - due.last_published_run_at
+    AND ${tick}::timestamptz - due.last_published_at
       <= ${monitorProcessorTtl} * INTERVAL '1 millisecond' -- before TTL
   `;
 
@@ -126,8 +126,8 @@ function buildScheduleQuery({
         filters,
         window_ms,
         metric,
-        last_published_run_at,
-        last_completed_run_at,
+        last_published_at,
+        last_completed_at,
         status,
         COALESCE(next_run_at, ${tick}::timestamptz) AS run_at
       FROM monitors
@@ -144,8 +144,8 @@ function buildScheduleQuery({
       UPDATE monitors
       SET
         next_run_at = ${calculateNextRunAt},
-        last_published_run_at = CASE
-          WHEN ${runIsPending} THEN monitors.last_published_run_at
+        last_published_at = CASE
+          WHEN ${runIsPending} THEN monitors.last_published_at
           ELSE due.run_at
         END
       FROM due

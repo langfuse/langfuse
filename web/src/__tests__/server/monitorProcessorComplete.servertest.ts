@@ -12,7 +12,7 @@ type SeedOverrides = Partial<{
   severity: MonitorSeverity;
   severityChangedAt: Date | null;
   alertedAt: Date | null;
-  lastCompletedRunAt: Date | null;
+  lastCompletedAt: Date | null;
 }>;
 
 type MonitorSeed = { id: string } & SeedOverrides;
@@ -22,7 +22,7 @@ type ExpectedRow = {
   severity: MonitorSeverity;
   severityChangedAt: Date | null;
   alertedAt: Date | null;
-  lastCompletedRunAt: Date | null;
+  lastCompletedAt: Date | null;
 };
 
 type CompleteCase = {
@@ -58,9 +58,9 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       status: "ACTIVE",
       schedulerBatchId: 0n,
       nextRunAt: null,
-      lastPublishedRunAt: null,
-      lastClaimedRunAt: null,
-      lastCompletedRunAt: seed.lastCompletedRunAt ?? null,
+      lastPublishedAt: null,
+      lastClaimedAt: null,
+      lastCompletedAt: seed.lastCompletedAt ?? null,
       severity: seed.severity ?? "UNKNOWN",
       severityChangedAt: seed.severityChangedAt ?? null,
       alertedAt: seed.alertedAt ?? null,
@@ -72,20 +72,20 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
 
 const cases: CompleteCase[] = [
   {
-    name: "no severity change, no emit: only last_completed_run_at advances",
+    name: "no severity change, no emit: only last_completed_at advances",
     monitors: [
       {
         id: "m_steady",
         severity: "OK",
         severityChangedAt: tMinus10m,
         alertedAt: null,
-        lastCompletedRunAt: tMinus10m,
+        lastCompletedAt: tMinus10m,
       },
     ],
     completions: [
       {
         monitorId: "m_steady",
-        lastCompletedRunAt: t0,
+        lastCompletedAt: t0,
         severity: "OK",
         severityChangedAt: tMinus10m,
         alertedAt: null,
@@ -98,26 +98,26 @@ const cases: CompleteCase[] = [
           severity: "OK",
           severityChangedAt: tMinus10m,
           alertedAt: null,
-          lastCompletedRunAt: t0,
+          lastCompletedAt: t0,
         },
       ],
     },
   },
   {
-    name: "severity change, no emit (e.g. OK<->NO_DATA silent): severity + severityChangedAt + last_completed_run_at advance",
+    name: "severity change, no emit (e.g. OK<->NO_DATA silent): severity + severityChangedAt + last_completed_at advance",
     monitors: [
       {
         id: "m_silent_no_data",
         severity: "OK",
         severityChangedAt: tMinus10m,
         alertedAt: null,
-        lastCompletedRunAt: tMinus10m,
+        lastCompletedAt: tMinus10m,
       },
     ],
     completions: [
       {
         monitorId: "m_silent_no_data",
-        lastCompletedRunAt: t0,
+        lastCompletedAt: t0,
         severity: "NO_DATA",
         severityChangedAt: t0,
         alertedAt: null,
@@ -130,26 +130,26 @@ const cases: CompleteCase[] = [
           severity: "NO_DATA",
           severityChangedAt: t0,
           alertedAt: null,
-          lastCompletedRunAt: t0,
+          lastCompletedAt: t0,
         },
       ],
     },
   },
   {
-    name: "no severity change, emit (renotify): alerted_at + last_completed_run_at advance",
+    name: "no severity change, emit (renotify): alerted_at + last_completed_at advance",
     monitors: [
       {
         id: "m_renotify",
         severity: "ALERT",
         severityChangedAt: tMinus10m,
         alertedAt: tMinus10m,
-        lastCompletedRunAt: tMinus10m,
+        lastCompletedAt: tMinus10m,
       },
     ],
     completions: [
       {
         monitorId: "m_renotify",
-        lastCompletedRunAt: t0,
+        lastCompletedAt: t0,
         severity: "ALERT",
         severityChangedAt: tMinus10m,
         alertedAt: t0,
@@ -162,7 +162,7 @@ const cases: CompleteCase[] = [
           severity: "ALERT",
           severityChangedAt: tMinus10m,
           alertedAt: t0,
-          lastCompletedRunAt: t0,
+          lastCompletedAt: t0,
         },
       ],
     },
@@ -175,13 +175,13 @@ const cases: CompleteCase[] = [
         severity: "OK",
         severityChangedAt: tMinus10m,
         alertedAt: null,
-        lastCompletedRunAt: tMinus10m,
+        lastCompletedAt: tMinus10m,
       },
     ],
     completions: [
       {
         monitorId: "m_escalation",
-        lastCompletedRunAt: t0,
+        lastCompletedAt: t0,
         severity: "ALERT",
         severityChangedAt: t0,
         alertedAt: t0,
@@ -194,7 +194,7 @@ const cases: CompleteCase[] = [
           severity: "ALERT",
           severityChangedAt: t0,
           alertedAt: t0,
-          lastCompletedRunAt: t0,
+          lastCompletedAt: t0,
         },
       ],
     },
@@ -207,41 +207,41 @@ const cases: CompleteCase[] = [
         severity: "OK",
         severityChangedAt: tMinus10m,
         alertedAt: null,
-        lastCompletedRunAt: tMinus10m,
+        lastCompletedAt: tMinus10m,
       },
       {
         id: "m_b_escalation",
         severity: "WARNING",
         severityChangedAt: tMinus10m,
         alertedAt: tMinus10m,
-        lastCompletedRunAt: tMinus10m,
+        lastCompletedAt: tMinus10m,
       },
       {
         id: "m_c_recovery",
         severity: "ALERT",
         severityChangedAt: tMinus10m,
         alertedAt: tMinus10m,
-        lastCompletedRunAt: tMinus10m,
+        lastCompletedAt: tMinus10m,
       },
     ],
     completions: [
       {
         monitorId: "m_a_steady",
-        lastCompletedRunAt: t0,
+        lastCompletedAt: t0,
         severity: "OK",
         severityChangedAt: tMinus10m,
         alertedAt: null,
       },
       {
         monitorId: "m_b_escalation",
-        lastCompletedRunAt: t0,
+        lastCompletedAt: t0,
         severity: "ALERT",
         severityChangedAt: t0,
         alertedAt: t0,
       },
       {
         monitorId: "m_c_recovery",
-        lastCompletedRunAt: t0,
+        lastCompletedAt: t0,
         severity: "OK",
         severityChangedAt: t0,
         alertedAt: t0,
@@ -254,21 +254,21 @@ const cases: CompleteCase[] = [
           severity: "OK",
           severityChangedAt: tMinus10m,
           alertedAt: null,
-          lastCompletedRunAt: t0,
+          lastCompletedAt: t0,
         },
         {
           id: "m_b_escalation",
           severity: "ALERT",
           severityChangedAt: t0,
           alertedAt: t0,
-          lastCompletedRunAt: t0,
+          lastCompletedAt: t0,
         },
         {
           id: "m_c_recovery",
           severity: "OK",
           severityChangedAt: t0,
           alertedAt: t0,
-          lastCompletedRunAt: t0,
+          lastCompletedAt: t0,
         },
       ],
     },
@@ -281,7 +281,7 @@ const cases: CompleteCase[] = [
         severity: "OK",
         severityChangedAt: tMinus10m,
         alertedAt: null,
-        lastCompletedRunAt: tMinus10m,
+        lastCompletedAt: tMinus10m,
       },
     ],
     completions: [],
@@ -292,7 +292,7 @@ const cases: CompleteCase[] = [
           severity: "OK",
           severityChangedAt: tMinus10m,
           alertedAt: null,
-          lastCompletedRunAt: tMinus10m,
+          lastCompletedAt: tMinus10m,
         },
       ],
     },
@@ -303,7 +303,7 @@ const cases: CompleteCase[] = [
     completions: [
       {
         monitorId: "m_bogus",
-        lastCompletedRunAt: t0,
+        lastCompletedAt: t0,
         severity: "OK",
         severityChangedAt: t0,
         alertedAt: null,
@@ -347,8 +347,8 @@ describe("MonitorProcessor.complete (integration)", () => {
       expect(row.alertedAt?.toISOString() ?? null).toBe(
         exp.alertedAt?.toISOString() ?? null,
       );
-      expect(row.lastCompletedRunAt?.toISOString() ?? null).toBe(
-        exp.lastCompletedRunAt?.toISOString() ?? null,
+      expect(row.lastCompletedAt?.toISOString() ?? null).toBe(
+        exp.lastCompletedAt?.toISOString() ?? null,
       );
     }
   });
@@ -358,7 +358,7 @@ describe("MonitorProcessor.complete (integration)", () => {
       id: "m_in_project",
       severity: "OK",
       severityChangedAt: tMinus10m,
-      lastCompletedRunAt: tMinus10m,
+      lastCompletedAt: tMinus10m,
     });
 
     const processor = new MonitorProcessor({
@@ -370,7 +370,7 @@ describe("MonitorProcessor.complete (integration)", () => {
       completions: [
         {
           monitorId: "m_in_project",
-          lastCompletedRunAt: t0,
+          lastCompletedAt: t0,
           severity: "ALERT",
           severityChangedAt: t0,
           alertedAt: t0,
@@ -384,6 +384,6 @@ describe("MonitorProcessor.complete (integration)", () => {
     expect(row.severity).toBe("OK");
     expect(row.severityChangedAt?.toISOString()).toBe(tMinus10m.toISOString());
     expect(row.alertedAt).toBeNull();
-    expect(row.lastCompletedRunAt?.toISOString()).toBe(tMinus10m.toISOString());
+    expect(row.lastCompletedAt?.toISOString()).toBe(tMinus10m.toISOString());
   });
 });

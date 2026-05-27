@@ -15,8 +15,8 @@ type SeedOverrides = Partial<{
   cadenceMs: bigint;
   windowMs: bigint;
   nextRunAt: Date | null;
-  lastPublishedRunAt: Date | null;
-  lastCompletedRunAt: Date | null;
+  lastPublishedAt: Date | null;
+  lastCompletedAt: Date | null;
   status: MonitorStatus;
   view: MonitorView;
   metric: { measure: string; aggregation: string };
@@ -33,8 +33,8 @@ type ExpectedEvent = {
 type ExpectedRow = {
   id: string;
   nextRunAt: Date | null;
-  lastPublishedRunAt: Date | null;
-  lastCompletedRunAt: Date | null;
+  lastPublishedAt: Date | null;
+  lastCompletedAt: Date | null;
 };
 
 type SchedulerCase = {
@@ -83,8 +83,8 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       status: seed.status ?? "ACTIVE",
       schedulerBatchId: seed.schedulerBatchId ?? 0n,
       nextRunAt: seed.nextRunAt === undefined ? null : seed.nextRunAt,
-      lastPublishedRunAt: seed.lastPublishedRunAt ?? null,
-      lastCompletedRunAt: seed.lastCompletedRunAt ?? null,
+      lastPublishedAt: seed.lastPublishedAt ?? null,
+      lastCompletedAt: seed.lastCompletedAt ?? null,
       name: `Test ${seed.id}`,
       tags: [],
     },
@@ -123,14 +123,14 @@ const cases: SchedulerCase[] = [
         {
           id: "m_ahead_a",
           nextRunAt: oneMinuteFromNow,
-          lastPublishedRunAt: null,
-          lastCompletedRunAt: null,
+          lastPublishedAt: null,
+          lastCompletedAt: null,
         },
         {
           id: "m_ahead_b",
           nextRunAt: oneMinuteFromNow,
-          lastPublishedRunAt: null,
-          lastCompletedRunAt: null,
+          lastPublishedAt: null,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -145,8 +145,8 @@ const cases: SchedulerCase[] = [
         {
           id: "m_new",
           nextRunAt: nextCadence,
-          lastPublishedRunAt: now,
-          lastCompletedRunAt: null,
+          lastPublishedAt: now,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -167,8 +167,8 @@ const cases: SchedulerCase[] = [
         {
           id: "m_behind",
           nextRunAt: nextCadence,
-          lastPublishedRunAt: prevCadence,
-          lastCompletedRunAt: null,
+          lastPublishedAt: prevCadence,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -180,8 +180,8 @@ const cases: SchedulerCase[] = [
       {
         id: "m_pending",
         nextRunAt: prevCadence,
-        lastPublishedRunAt: twoMinutesAgo,
-        lastCompletedRunAt: null,
+        lastPublishedAt: twoMinutesAgo,
+        lastCompletedAt: null,
       },
     ],
     expect: {
@@ -190,8 +190,8 @@ const cases: SchedulerCase[] = [
         {
           id: "m_pending",
           nextRunAt: nextCadence,
-          lastPublishedRunAt: twoMinutesAgo,
-          lastCompletedRunAt: null,
+          lastPublishedAt: twoMinutesAgo,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -203,8 +203,8 @@ const cases: SchedulerCase[] = [
       {
         id: "m_inflight_completed",
         nextRunAt: prevCadence,
-        lastPublishedRunAt: twoMinutesAgo,
-        lastCompletedRunAt: threeMinutesAgo,
+        lastPublishedAt: twoMinutesAgo,
+        lastCompletedAt: threeMinutesAgo,
       },
     ],
     expect: {
@@ -213,8 +213,8 @@ const cases: SchedulerCase[] = [
         {
           id: "m_inflight_completed",
           nextRunAt: nextCadence,
-          lastPublishedRunAt: twoMinutesAgo,
-          lastCompletedRunAt: threeMinutesAgo,
+          lastPublishedAt: twoMinutesAgo,
+          lastCompletedAt: threeMinutesAgo,
         },
       ],
     },
@@ -226,8 +226,8 @@ const cases: SchedulerCase[] = [
       {
         id: "m_stuck",
         nextRunAt: prevCadence,
-        lastPublishedRunAt: tenMinutesAgo,
-        lastCompletedRunAt: null,
+        lastPublishedAt: tenMinutesAgo,
+        lastCompletedAt: null,
       },
     ],
     expect: {
@@ -242,8 +242,8 @@ const cases: SchedulerCase[] = [
         {
           id: "m_stuck",
           nextRunAt: nextCadence,
-          lastPublishedRunAt: prevCadence,
-          lastCompletedRunAt: null,
+          lastPublishedAt: prevCadence,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -264,8 +264,8 @@ const cases: SchedulerCase[] = [
         {
           id: "m_far_behind",
           nextRunAt: nextCadence,
-          lastPublishedRunAt: tenMinutesAgo,
-          lastCompletedRunAt: null,
+          lastPublishedAt: tenMinutesAgo,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -286,8 +286,8 @@ const cases: SchedulerCase[] = [
         {
           id: "m_paused",
           nextRunAt: prevCadence,
-          lastPublishedRunAt: null,
-          lastCompletedRunAt: null,
+          lastPublishedAt: null,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -308,8 +308,8 @@ const cases: SchedulerCase[] = [
         {
           id: "m_error",
           nextRunAt: prevCadence,
-          lastPublishedRunAt: null,
-          lastCompletedRunAt: null,
+          lastPublishedAt: null,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -343,14 +343,14 @@ const cases: SchedulerCase[] = [
         {
           id: "m_a",
           nextRunAt: nextCadenceBatch7,
-          lastPublishedRunAt: prevCadence,
-          lastCompletedRunAt: null,
+          lastPublishedAt: prevCadence,
+          lastCompletedAt: null,
         },
         {
           id: "m_b",
           nextRunAt: nextCadenceBatch7,
-          lastPublishedRunAt: prevCadence,
-          lastCompletedRunAt: null,
+          lastPublishedAt: prevCadence,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -382,32 +382,32 @@ const cases: SchedulerCase[] = [
         {
           id: "m_a1",
           nextRunAt: nextCadenceBatch1,
-          lastPublishedRunAt: twoMinutesAgo,
-          lastCompletedRunAt: null,
+          lastPublishedAt: twoMinutesAgo,
+          lastCompletedAt: null,
         },
         {
           id: "m_a2",
           nextRunAt: nextCadenceBatch1,
-          lastPublishedRunAt: twoMinutesAgo,
-          lastCompletedRunAt: null,
+          lastPublishedAt: twoMinutesAgo,
+          lastCompletedAt: null,
         },
         {
           id: "m_a3",
           nextRunAt: nextCadenceBatch1,
-          lastPublishedRunAt: twoMinutesAgo,
-          lastCompletedRunAt: null,
+          lastPublishedAt: twoMinutesAgo,
+          lastCompletedAt: null,
         },
         {
           id: "m_b1",
           nextRunAt: nextCadenceBatch2,
-          lastPublishedRunAt: tenMinutesAgo,
-          lastCompletedRunAt: null,
+          lastPublishedAt: tenMinutesAgo,
+          lastCompletedAt: null,
         },
         {
           id: "m_b2",
           nextRunAt: nextCadenceBatch2,
-          lastPublishedRunAt: tenMinutesAgo,
-          lastCompletedRunAt: null,
+          lastPublishedAt: tenMinutesAgo,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -432,14 +432,14 @@ const cases: SchedulerCase[] = [
         {
           id: "m_in",
           nextRunAt: nextCadenceBatch5,
-          lastPublishedRunAt: prevCadence,
-          lastCompletedRunAt: null,
+          lastPublishedAt: prevCadence,
+          lastCompletedAt: null,
         },
         {
           id: "m_out",
           nextRunAt: prevCadence,
-          lastPublishedRunAt: null,
-          lastCompletedRunAt: null,
+          lastPublishedAt: null,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -489,11 +489,11 @@ describe("MonitorScheduler (integration)", () => {
       expect(row.nextRunAt?.toISOString() ?? null).toBe(
         exp.nextRunAt?.toISOString() ?? null,
       );
-      expect(row.lastPublishedRunAt?.toISOString() ?? null).toBe(
-        exp.lastPublishedRunAt?.toISOString() ?? null,
+      expect(row.lastPublishedAt?.toISOString() ?? null).toBe(
+        exp.lastPublishedAt?.toISOString() ?? null,
       );
-      expect(row.lastCompletedRunAt?.toISOString() ?? null).toBe(
-        exp.lastCompletedRunAt?.toISOString() ?? null,
+      expect(row.lastCompletedAt?.toISOString() ?? null).toBe(
+        exp.lastCompletedAt?.toISOString() ?? null,
       );
     }
   });
@@ -513,7 +513,7 @@ describe("MonitorScheduler (integration)", () => {
 
     await prisma.monitor.update({
       where: { id: "m_det" },
-      data: { nextRunAt: prevCadence, lastPublishedRunAt: null },
+      data: { nextRunAt: prevCadence, lastPublishedAt: null },
     });
 
     const publish2 = vi.fn<(events: MonitorQueueEvent[]) => Promise<void>>();
