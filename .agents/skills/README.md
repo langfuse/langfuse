@@ -132,6 +132,19 @@ Use for:
 
 Open: [detect-prod-regressions/SKILL.md](detect-prod-regressions/SKILL.md)
 
+### weekly-production-review
+
+Use for:
+- weekly engineering reviews of what broke in production
+- combining Linear `bug`-labeled tickets, Datadog alert/page signals, and
+  status-page or incident.io incidents
+- fixed/open production bug summaries with title, summary, owner, evidence, and
+  classification
+- event-centric reporting that separates source evidence from the engineering
+  narrative
+
+Open: [weekly-production-review/SKILL.md](weekly-production-review/SKILL.md)
+
 ### linear-bug-triage
 
 Use for:

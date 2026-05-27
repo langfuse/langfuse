@@ -60,6 +60,9 @@ evaluating, and debugging AI applications.
 - Proactive production regression sweeps across Datadog errors, logs, spans, and
   API latency with Linear handoff:
   `.agents/skills/detect-prod-regressions/SKILL.md`
+- Weekly production reviews of what broke, fixed/open `bug`-labeled Linear
+  tickets, Datadog alert/page signals, and status-page or incident.io incidents:
+  `.agents/skills/weekly-production-review/SKILL.md`
 - Changelog drafting for completed feature branches:
   `.agents/skills/changelog-writing/SKILL.md`
 - ClickHouse schema/query review:
