@@ -260,7 +260,7 @@ describe("Observation Eval E2E Pipeline", () => {
           extractedVariables: expect.arrayContaining([
             expect.objectContaining({
               var: "output",
-              value: '{"response": "The capital of France is Paris."}',
+              value: { response: "The capital of France is Paris." },
             }),
           ]),
           environment: "production",
@@ -272,7 +272,16 @@ describe("Observation Eval E2E Pipeline", () => {
       const observation = createTestObservation({
         project_id: projectId,
         input: { question: "2+2" },
-        output: { answer: "4" },
+        output: JSON.stringify({
+          evaluation: {
+            result: {
+              final: {
+                answer: "4",
+                numericString: "42",
+              },
+            },
+          },
+        }),
         metadata: { rubric: "math" },
         experiment_id: "experiment-123",
         experiment_item_expected_output: "4",
@@ -316,7 +325,9 @@ describe("Observation Eval E2E Pipeline", () => {
           function evaluate(ctx) {
             const matched =
               ctx.observation.input.question === "2+2" &&
-              ctx.observation.output.answer === ctx.experiment?.itemExpectedOutput &&
+              ctx.observation.output.evaluation.result.final.answer ===
+                ctx.experiment?.itemExpectedOutput &&
+              ctx.observation.output.evaluation.result.final.numericString === "42" &&
               ctx.observation.metadata.rubric === "math";
 
             return {
@@ -617,11 +628,11 @@ describe("Observation Eval E2E Pipeline", () => {
           extractedVariables: expect.arrayContaining([
             expect.objectContaining({
               var: "question",
-              value: '{"question": "What is 2+2?"}',
+              value: { question: "What is 2+2?" },
             }),
             expect.objectContaining({
               var: "answer",
-              value: '{"answer": "4"}',
+              value: { answer: "4" },
             }),
           ]),
         }),

@@ -24,15 +24,11 @@ export function extractObservationVariables(
   const { observation, variableMapping } = params;
   const variables: ExtractedVariable[] = [];
 
-  const fieldsWithSelectors = new Set<string>();
-  for (const mapping of variableMapping) {
-    if (mapping.jsonSelector) {
-      fieldsWithSelectors.add(mapping.selectedColumnId);
-    }
-  }
-
   const parsedFields = new Map<string, unknown>();
-  for (const fieldId of fieldsWithSelectors) {
+  for (const mapping of variableMapping) {
+    const fieldId = mapping.selectedColumnId;
+    if (parsedFields.has(fieldId)) continue;
+
     const internal = columns.find((col) => col.id === fieldId)?.internal;
     if (internal && observation[internal] !== undefined) {
       try {
@@ -59,10 +55,9 @@ export function extractObservationVariables(
       continue;
     }
 
-    const fieldValue =
-      mapping.jsonSelector && parsedFields.has(mapping.selectedColumnId)
-        ? parsedFields.get(mapping.selectedColumnId)
-        : observation[internal];
+    const fieldValue = parsedFields.has(mapping.selectedColumnId)
+      ? parsedFields.get(mapping.selectedColumnId)
+      : observation[internal];
 
     const { value, error } = extractValueFromObject(
       { [mapping.selectedColumnId]: fieldValue },
