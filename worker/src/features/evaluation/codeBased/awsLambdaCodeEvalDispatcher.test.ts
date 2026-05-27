@@ -357,6 +357,36 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
+  it("includes a small invalid Lambda result as structured error data", async () => {
+    const send = vi.fn().mockResolvedValue({
+      Payload: Buffer.from(JSON.stringify({ score: 1 })),
+    });
+    const dispatcher = new AwsLambdaCodeEvalDispatcher({
+      lambdaClient: { send } as any,
+    });
+
+    await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
+      code: "INVALID_RESULT",
+      retryable: false,
+      returnedResult: { score: 1 },
+    } satisfies Partial<CodeEvalDispatcherError>);
+  });
+
+  it("does not include a returned result for invalid JSON Lambda responses", async () => {
+    const send = vi.fn().mockResolvedValue({
+      Payload: Buffer.from("not-json"),
+    });
+    const dispatcher = new AwsLambdaCodeEvalDispatcher({
+      lambdaClient: { send } as any,
+    });
+
+    await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
+      code: "INVALID_RESULT",
+      retryable: false,
+      returnedResult: undefined,
+    } satisfies Partial<CodeEvalDispatcherError>);
+  });
+
   it("rejects Lambda responses that exceed the wire byte-size limit", async () => {
     // Build a response payload larger than the 256 KiB result cap. The
     // guard inspects `response.Payload.byteLength` before any JSON parsing,
