@@ -4,9 +4,6 @@ import { type PartialConfig } from "@/src/features/evals/types";
 export const CLONED_EVALUATOR_SCORE_NAME_SUFFIX = " (copy)";
 
 export function buildCloneScoreName(scoreName: string): string {
-  if (scoreName.endsWith(CLONED_EVALUATOR_SCORE_NAME_SUFFIX)) {
-    return scoreName;
-  }
   return `${scoreName}${CLONED_EVALUATOR_SCORE_NAME_SUFFIX}`;
 }
 

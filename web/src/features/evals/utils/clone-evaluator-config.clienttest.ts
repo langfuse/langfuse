@@ -37,10 +37,12 @@ describe("buildCloneScoreName", () => {
     );
   });
 
-  it("does not append the suffix twice", () => {
+  it("appends the suffix again when cloning a clone", () => {
     expect(
       buildCloneScoreName(`quality-score${CLONED_EVALUATOR_SCORE_NAME_SUFFIX}`),
-    ).toBe(`quality-score${CLONED_EVALUATOR_SCORE_NAME_SUFFIX}`);
+    ).toBe(
+      `quality-score${CLONED_EVALUATOR_SCORE_NAME_SUFFIX}${CLONED_EVALUATOR_SCORE_NAME_SUFFIX}`,
+    );
   });
 });
 

@@ -561,7 +561,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         </TablePeekView>
       </div>
       <Dialog
-        open={!!editConfigId && existingEvaluator.isSuccess}
+        open={!!editConfigId}
         onOpenChange={(open) => {
           if (!open) setEditConfigId(null);
         }}
@@ -574,20 +574,20 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <div className="flex items-center justify-center p-4">
               <Spinner size="lg" />
             </div>
-          ) : (
+          ) : existingEvaluator.isError ? (
+            <p className="text-destructive text-sm">
+              {existingEvaluator.error.message}
+            </p>
+          ) : existingEvaluator.data?.evalTemplate ? (
             <EvaluatorForm
               projectId={projectId}
               evalTemplates={[]}
-              existingEvaluator={
-                existingEvaluator.data && existingEvaluator.data.evalTemplate
-                  ? {
-                      ...existingEvaluator.data,
-                      evalTemplate: {
-                        ...existingEvaluator.data.evalTemplate,
-                      },
-                    }
-                  : undefined
-              }
+              existingEvaluator={{
+                ...existingEvaluator.data,
+                evalTemplate: {
+                  ...existingEvaluator.data.evalTemplate,
+                },
+              }}
               shouldWrapVariables={true}
               useDialog={true}
               mode="edit"
@@ -601,11 +601,15 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 });
               }}
             />
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              Evaluator not found.
+            </p>
           )}
         </DialogContent>
       </Dialog>
       <Dialog
-        open={!!cloneConfigId && cloneSourceEvaluator.isSuccess}
+        open={!!cloneConfigId}
         onOpenChange={(open) => {
           if (!open) setCloneConfigId(null);
         }}
@@ -618,21 +622,20 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <div className="flex items-center justify-center p-4">
               <Spinner size="lg" />
             </div>
-          ) : (
+          ) : cloneSourceEvaluator.isError ? (
+            <p className="text-destructive text-sm">
+              {cloneSourceEvaluator.error.message}
+            </p>
+          ) : cloneSourceEvaluator.data?.evalTemplate ? (
             <EvaluatorForm
               projectId={projectId}
               evalTemplates={[]}
-              existingEvaluator={
-                cloneSourceEvaluator.data &&
-                cloneSourceEvaluator.data.evalTemplate
-                  ? {
-                      ...buildClonedEvaluatorConfig(cloneSourceEvaluator.data),
-                      evalTemplate: {
-                        ...cloneSourceEvaluator.data.evalTemplate,
-                      },
-                    }
-                  : undefined
-              }
+              existingEvaluator={{
+                ...buildClonedEvaluatorConfig(cloneSourceEvaluator.data),
+                evalTemplate: {
+                  ...cloneSourceEvaluator.data.evalTemplate,
+                },
+              }}
               shouldWrapVariables={true}
               useDialog={true}
               mode="clone"
@@ -647,6 +650,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 });
               }}
             />
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              Evaluator not found.
+            </p>
           )}
         </DialogContent>
       </Dialog>
