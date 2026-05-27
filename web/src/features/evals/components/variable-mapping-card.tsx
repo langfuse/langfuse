@@ -118,15 +118,17 @@ export const VariableMappingCard = ({
   );
 
   const nonOtelCompatible = compatibilityCheckWasPerformed && !isNewCompatible;
+  const shouldDisablePreviewForNonOtel =
+    nonOtelCompatible && (isEventTarget(target) || isExperimentTarget(target));
 
   useEffect(() => {
-    // Disable preview for event targets only when SDK check was performed and user is not on OTEL SDK
-    const shouldDisableForNonOtel = isEventTarget(target) && nonOtelCompatible;
-
-    if (shouldShowPreviewForTarget && !disabled && !shouldDisableForNonOtel) {
+    if (
+      shouldShowPreviewForTarget &&
+      !disabled &&
+      !shouldDisablePreviewForNonOtel
+    ) {
       setShowPreview(true);
     } else {
-      // For dataset targets, non-v4 experiment targets, or event targets without OTEL SDK
       setShowPreview(false);
     }
 
@@ -137,8 +139,8 @@ export const VariableMappingCard = ({
     target,
     disabled,
     isPeekView,
-    nonOtelCompatible,
     shouldShowPreviewForTarget,
+    shouldDisablePreviewForNonOtel,
   ]);
 
   useEffect(() => {
@@ -147,11 +149,8 @@ export const VariableMappingCard = ({
     }
   }, [isPeekView, peekId]);
 
-  // Hide preview controls for event targets only when SDK check was performed and user is not on OTEL SDK
   const shouldShowPreviewControls =
-    shouldShowPreviewForTarget &&
-    !disabled &&
-    !(isEventTarget(target) && nonOtelCompatible);
+    shouldShowPreviewForTarget && !disabled && !shouldDisablePreviewForNonOtel;
   const previewNavigationListKey = getEvalPreviewDetailPageListKey(
     target,
     isBetaEnabled,
