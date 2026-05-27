@@ -21,6 +21,8 @@ import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
+import { monitorSchedulerQueueProcessor } from "./queues/monitorSchedulerQueue";
+import { monitorProcessorQueueProcessor } from "./queues/monitorProcessorQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
   CoreDataS3ExportQueue,
@@ -43,7 +45,9 @@ import {
   EvalExecutionQueue,
   SecondaryEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
+  MonitorSchedulerQueue,
 } from "@langfuse/shared/src/server";
+import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
@@ -386,6 +390,29 @@ if (
         max: 1,
         duration: 30_000,
       },
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_MONITOR_SCHEDULER_QUEUE_IS_ENABLED === "true") {
+  MonitorSchedulerQueue.getInstance();
+  WorkerManager.register(
+    QueueName.MonitorSchedulerQueue,
+    monitorSchedulerQueueProcessor,
+    { concurrency: 1 },
+  );
+}
+
+if (env.QUEUE_CONSUMER_MONITOR_PROCESSOR_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.MonitorProcessorQueue,
+    monitorProcessorQueueProcessor,
+    {
+      concurrency: 10,
+      // Scheduler is the only source of redelivery; disable BullMQ's stalled
+      // recovery so the unified TTL pacing is uncontested.
+      lockDuration: monitorProcessorTtl + 60_000,
+      stalledInterval: 0,
     },
   );
 }

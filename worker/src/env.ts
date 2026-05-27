@@ -181,7 +181,24 @@ const EnvSchema = z.object({
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
 
+  LANGFUSE_MONITOR_SCHEDULER_SHARD_ID: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .default(0),
+  LANGFUSE_MONITOR_SCHEDULER_TOTAL_SHARDS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .default(1),
+
   // Flags to toggle queue consumers on or off.
+  QUEUE_CONSUMER_MONITOR_SCHEDULER_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_MONITOR_PROCESSOR_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),

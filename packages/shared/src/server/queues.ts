@@ -11,6 +11,9 @@ import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
 import { EvalTargetObjectSchema } from "../features/evals/types";
 import { JobConfigExecutionMode } from "../features/evals/evalConfigBlocking";
+import { MonitorQueueEventSchema } from "../features/monitors/scheduler/types";
+
+export type MonitorQueueEvent = z.infer<typeof MonitorQueueEventSchema>;
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -357,6 +360,8 @@ export enum QueueName {
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
+  MonitorSchedulerQueue = "monitor-scheduler-queue",
+  MonitorProcessorQueue = "monitor-processor-queue",
 }
 
 export enum QueueJobs {
@@ -392,6 +397,8 @@ export enum QueueJobs {
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
+  MonitorSchedulerTickJob = "monitor-scheduler-tick-job",
+  MonitorProcessorJob = "monitor-processor-job",
 }
 
 export type TQueueJobTypes = {
@@ -565,5 +572,16 @@ export type TQueueJobTypes = {
     id: string;
     payload: NotificationEventType;
     name: QueueJobs.NotificationJob;
+  };
+  [QueueName.MonitorSchedulerQueue]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.MonitorSchedulerTickJob;
+  };
+  [QueueName.MonitorProcessorQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: MonitorQueueEvent;
+    name: QueueJobs.MonitorProcessorJob;
   };
 };
