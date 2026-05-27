@@ -126,6 +126,7 @@ Open: [code-review/SKILL.md](code-review/SKILL.md)
 
 Use for:
 - proactive Datadog sweeps across `prod-us`, `prod-eu`, `prod-hipaa`, and `prod-jp`
+- checking which paging monitors outside the SLO/burn-rate set alerted engineers and why
 - comparing recent production errors, logs, spans, and API latency to baselines
 - handing measured regressions to `linear-bug-triage` for Linear issues or comments
 
@@ -172,6 +173,8 @@ Open: [debug-issue-with-datadog/SKILL.md](debug-issue-with-datadog/SKILL.md)
 Use for:
 - pnpm dependency bumps that need a specific target version
 - interactive upgrades where the package name or version may be missing
+- transitive lockfile bumps that may need temporary overrides and dedupe
+  verification before deciding whether the override should stay
 - checking whether `pnpm-workspace.yaml` `minimumReleaseAgeExclude` must change
 - comparing registry latest with the latest version installable under the
   current release-age gate

@@ -346,6 +346,77 @@ describe("Saved view restore with implicit environment defaults", () => {
     );
   });
 
+  it("does not apply a default saved view over explicit URL filters", async () => {
+    const explicitUrlFilters: FilterState = [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["search"],
+      },
+    ];
+    const encodedFilters = encodeFiltersGeneric(explicitUrlFilters);
+
+    queryParamStore.delete("viewId");
+    queryParamStore.set("filter", encodedFilters);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { filter: encodedFilters },
+    });
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: { viewId: "view-1", scope: "project" },
+      isLoading: false,
+    });
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "search",
+    );
+    expect(screen.getByTestId("explicit-state").textContent).not.toContain(
+      "checkout",
+    );
+    expect(queryParamStore.has("viewId")).toBe(false);
+  });
+
+  it("does not restore a stored saved view over explicit URL filters", async () => {
+    const explicitUrlFilters: FilterState = [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["search"],
+      },
+    ];
+    const encodedFilters = encodeFiltersGeneric(explicitUrlFilters);
+
+    queryParamStore.delete("viewId");
+    queryParamStore.set("filter", encodedFilters);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { filter: encodedFilters },
+    });
+    sessionStorage.setItem("traces-project-1-viewId", JSON.stringify("view-1"));
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "search",
+    );
+    expect(screen.getByTestId("explicit-state").textContent).not.toContain(
+      "checkout",
+    );
+    expect(queryParamStore.has("viewId")).toBe(false);
+  });
+
   it("does not re-apply a saved view after explicit default selection during bootstrap", async () => {
     queryParamStore.set("viewId", "view-1");
 

@@ -1,4 +1,3 @@
-import { SpanKind } from "@opentelemetry/api";
 import {
   InvalidRequestError,
   OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS,
@@ -15,10 +14,7 @@ import {
   timeFilter,
   type ColumnDefinition,
 } from "@langfuse/shared";
-import {
-  getObservationsV2FromEventsTableForPublicApi,
-  instrumentAsync,
-} from "@langfuse/shared/src/server";
+import { getObservationsV2FromEventsTableForPublicApi } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import {
   EncodedObservationsCursorV2,
@@ -26,6 +22,7 @@ import {
   encodeCursor,
 } from "@/src/features/public-api/types/observations";
 import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   ExpandMetadataKeysSchema,
   getMetadataExpansionForProjection,
@@ -312,18 +309,18 @@ export const [listObservationsTool, handleListObservations] = defineTool({
   baseSchema: ListObservationsBaseSchema as z.ZodType<ListObservationsInput>,
   inputSchema: ListObservationsInputSchema,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.observations.list", spanKind: SpanKind.INTERNAL },
-      async (span) => {
+    return await runMcpTool({
+      spanName: "mcp.observations.list",
+      context,
+      attributes: {
+        "mcp.pagination_limit": input.limit,
+      },
+      fn: async (span) => {
         const projectionFields = getProjectionFields(input.fields);
         const fieldGroups = getProjectionFieldGroups(projectionFields);
         assertAllowedExpensiveObservationAccess(input, projectionFields);
 
         span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.pagination_limit": input.limit,
           "mcp.projection_fields": projectionFields.join(","),
           "mcp.field_groups": fieldGroups.join(","),
         });
@@ -385,7 +382,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
               : {},
         };
       },
-    );
+    });
   },
   readOnlyHint: true,
 });
