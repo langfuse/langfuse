@@ -583,7 +583,7 @@ export const InnerEvaluatorForm = (props: {
   const watchedScoreName = form.watch("scoreName");
   const watchedFilter = form.watch("filter") ?? EMPTY_FILTER_STATE;
   const shouldShowExperimentEventsPreview =
-    isCodeEvalConfig && isExperimentTarget(watchedTarget) && isBetaEnabled;
+    isExperimentTarget(watchedTarget) && isBetaEnabled;
   const shouldShowEventsPreview =
     isEventTarget(watchedTarget) || shouldShowExperimentEventsPreview;
   const eventsPreviewFilterState = useMemo(
