@@ -48,6 +48,9 @@ type SchedulerCase = {
 const ONE_MINUTE_MS = 60n * 1000n;
 
 const TICK = new Date("2026-05-27T12:00:30.000Z");
+const BOUNDARY_PREV_MINUTE = new Date("2026-05-27T12:00:00.000Z");
+const BOUNDARY_NEXT_MINUTE = new Date("2026-05-27T12:01:00.000Z");
+const TWO_MIN_AGO = new Date("2026-05-27T11:58:30.000Z");
 
 async function seedMonitor(projectId: string, seed: MonitorSeed) {
   return prisma.monitor.create({
@@ -96,6 +99,29 @@ const cases: SchedulerCase[] = [
     tick: TICK,
     monitors: [],
     expect: { events: [], rows: [] },
+  },
+  {
+    name: "in-flight + last_completed=NULL within TTL: not published, advanced",
+    tick: TICK,
+    monitors: [
+      {
+        id: "m_pending",
+        nextRunAt: BOUNDARY_PREV_MINUTE,
+        lastPublishedRunAt: TWO_MIN_AGO,
+        lastCompletedRunAt: null,
+      },
+    ],
+    expect: {
+      events: [],
+      rows: [
+        {
+          id: "m_pending",
+          nextRunAt: BOUNDARY_NEXT_MINUTE,
+          lastPublishedRunAt: TWO_MIN_AGO,
+          lastCompletedRunAt: null,
+        },
+      ],
+    },
   },
 ];
 

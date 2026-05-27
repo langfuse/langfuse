@@ -107,7 +107,10 @@ function buildScheduleQuery({
   /** runIsPending is true when a prior publish has not completed within monitorProcessorTtl. */
   const runIsPending = Prisma.sql`
     due.last_published_run_at IS NOT NULL -- not the first run
-    AND due.last_completed_run_at < due.last_published_run_at -- last run is pending
+    AND (
+      due.last_completed_run_at IS NULL -- worker never reported completion
+      OR due.last_completed_run_at < due.last_published_run_at -- last run still in flight
+    )
     AND ${tick}::timestamptz - due.last_published_run_at
       <= ${monitorProcessorTtl} * INTERVAL '1 millisecond' -- before TTL
   `;
