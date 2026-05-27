@@ -1,6 +1,16 @@
 import { Prisma, type PrismaClient } from "../../../db";
 import { monitorProcessorTtl } from "../scheduler/scheduler";
 import type { MonitorQueueEvent } from "../scheduler/types";
+import type { MonitorSeverity } from "../types";
+
+/** MonitorCompletion is one row of the bulk-update emitted by the state machine — what to write back to a single monitor after evaluation. */
+export type MonitorCompletion = {
+  monitorId: string;
+  lastCompletedRunAt: Date;
+  severity: MonitorSeverity;
+  severityChangedAt: Date | null;
+  alertedAt: Date | null;
+};
 
 /** MonitorProcessor consumes MonitorQueueEvents, evaluates the severity state machine, and emits monitor alerts. */
 export class MonitorProcessor {
@@ -23,6 +33,20 @@ export class MonitorProcessor {
       }),
     );
     return rows.map((r) => r.id);
+  }
+
+  /** complete writes the post-evaluation lifecycle stamps for every monitor in the batch in one statement. */
+  async complete(args: {
+    projectId: string;
+    completions: MonitorCompletion[];
+  }): Promise<void> {
+    if (args.completions.length === 0) return;
+    await this.db.$executeRaw(
+      buildCompleteQuery({
+        projectId: args.projectId,
+        completions: args.completions,
+      }),
+    );
   }
 }
 
@@ -53,5 +77,36 @@ function buildClaimQuery(args: {
              > ${monitorProcessorTtl} * INTERVAL '1 millisecond'
       )
     RETURNING id
+  `;
+}
+
+/** buildCompleteQuery returns the bulk UPDATE that lands every monitor's post-evaluation stamps via a VALUES-join. */
+function buildCompleteQuery(args: {
+  projectId: string;
+  completions: MonitorCompletion[];
+}): Prisma.Sql {
+  const valueRows = Prisma.join(
+    args.completions.map(
+      (c) =>
+        Prisma.sql`(${c.monitorId}, ${c.lastCompletedRunAt}::timestamptz, ${c.severity}::"MonitorSeverity", ${c.severityChangedAt}::timestamptz, ${c.alertedAt}::timestamptz)`,
+    ),
+    ", ",
+  );
+  return Prisma.sql`
+    UPDATE monitors AS m
+    SET
+      last_completed_run_at = data.last_completed_run_at,
+      severity = data.severity,
+      severity_changed_at = data.severity_changed_at,
+      alerted_at = data.alerted_at
+    FROM (VALUES ${valueRows}) AS data(
+      id,
+      last_completed_run_at,
+      severity,
+      severity_changed_at,
+      alerted_at
+    )
+    WHERE m.id = data.id
+      AND m.project_id = ${args.projectId}
   `;
 }
