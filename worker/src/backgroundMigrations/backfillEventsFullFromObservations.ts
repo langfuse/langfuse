@@ -1,13 +1,11 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
   clickhouseClient,
-  commandClickhouse,
   logger,
   queryClickhouse,
   sleep,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { env } from "../env";
 import { parseArgs } from "node:util";
 import {
   BaseChunkTodo,
@@ -27,8 +25,7 @@ const backgroundMigrationId = "7a3f8d6e-2c91-4b5e-8d72-f4a5b6c7d8e9";
 // ============================================================================
 
 interface ChunkTodo extends BaseChunkTodo {
-  lowerBound: { projectId: string; traceId: string };
-  upperBound: { projectId: string; traceId: string } | null;
+  partId: string;
 }
 
 interface MigrationArgs {
@@ -52,29 +49,6 @@ const DEFAULT_CONFIG: MigrationState["config"] = {
   pollIntervalMs: 30_000,
   maxRetries: 3,
 };
-
-// ============================================================================
-// Cluster-aware DDL helpers
-// ============================================================================
-
-function onClusterClause(): string {
-  if (env.CLICKHOUSE_CLUSTER_ENABLED === "true") {
-    return `ON CLUSTER ${env.CLICKHOUSE_CLUSTER_NAME}`;
-  }
-  return "";
-}
-
-/**
- * Engine for the chunk-tracking table. We use a plain MergeTree on single-node
- * deployments; clusters use the replicated variant so the chunk list survives
- * replica loss.
- */
-function chunkTableEngine(): string {
-  if (env.CLICKHOUSE_CLUSTER_ENABLED === "true") {
-    return "ReplicatedMergeTree";
-  }
-  return "MergeTree";
-}
 
 // ============================================================================
 // Migration Class
@@ -127,198 +101,100 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
   }
 
   // ============================================================================
-  // Lazy DDL: backfill_chunks tracking table
+  // Part discovery
   // ============================================================================
 
   /**
-   * Creates `backfill_chunks` if it does not exist. We use a small auxiliary
-   * table to track which (partition, project_id, trace_id) ranges remain to
-   * be processed. For self-hosters we default to one chunk per partition,
-   * but the table still acts as a stable reference the loader joins against
-   * to compute upper bounds and recover after restarts.
+   * Enumerates active parts of `observations_pid_tid_sorting` from
+   * `system.parts`, newest partition first. One todo per part keeps each
+   * INSERT bounded to a single ClickHouse part (single-digit GBs in most
+   * cases, capped well below an entire monthly partition), which is the only
+   * granularity that's safe to assume self-hoster hardware can chew through
+   * without OOM or memory-limit failures.
+   *
+   * Excludes meta partitions that aren't yyyymm data ranges:
+   *   - `all`        — appears on tables without a PARTITION BY clause.
+   *   - `patch-%`    — used by patch tables for ad hoc corrections.
    */
-  private async ensureBackfillChunksTable(): Promise<void> {
-    const ddl = `
-      CREATE TABLE IF NOT EXISTS backfill_chunks ${onClusterClause()} (
-        chunk_id String,
-        partition_id String,
-        project_id String,
-        trace_id String,
-        is_last_chunk UInt8 DEFAULT 0,
-        created_at DateTime64(3) DEFAULT now()
-      ) ENGINE = ${chunkTableEngine()}
-      PRIMARY KEY (partition_id, chunk_id)
-      ORDER BY (partition_id, chunk_id)
-    `;
-
+  private async loadPartsFromClickhouse(): Promise<ChunkTodo[]> {
     logger.info(
-      "[Backfill Events Observations] Ensuring backfill_chunks table exists",
+      "[Backfill Events Observations] Discovering parts from system.parts",
     );
 
-    await commandClickhouse({
-      query: ddl,
-      tags: {
-        feature: "background-migration",
-        operation: "ensureBackfillChunksTable",
-      },
-    });
-  }
-
-  /**
-   * Pre-populates `backfill_chunks` with one chunk per active partition of
-   * `observations_pid_tid_sorting`. Each chunk covers the entire partition
-   * (lower bound = empty string, is_last_chunk = 1) which on self-hoster
-   * scale is acceptable. Operators with very large partitions can pre-insert
-   * finer chunks before running this migration.
-   *
-   * No-op when the table already has rows.
-   */
-  private async populateBackfillChunksIfEmpty(): Promise<void> {
-    const existing = await queryClickhouse<{ count: string }>({
-      query: "SELECT count() AS count FROM backfill_chunks",
-      tags: {
-        feature: "background-migration",
-        operation: "populateBackfillChunksIfEmpty-count",
-      },
-    });
-    if (existing[0] && existing[0].count !== "0") {
-      logger.info(
-        `[Backfill Events Observations] backfill_chunks already has ${existing[0].count} rows; skipping auto-population`,
-      );
-      return;
-    }
-
-    const partitions = await queryClickhouse<{ partition_id: string }>({
+    const parts = await queryClickhouse<{
+      partition_id: string;
+      name: string;
+    }>({
       query: `
-        SELECT DISTINCT partition_id
+        SELECT partition_id, name
         FROM system.parts
         WHERE table = 'observations_pid_tid_sorting'
           AND active = 1
+          AND partition_id NOT LIKE 'patch-%'
           AND partition_id != 'all'
-        ORDER BY partition_id DESC
+        ORDER BY partition_id DESC, name
       `,
       tags: {
         feature: "background-migration",
-        operation: "populateBackfillChunksIfEmpty-partitions",
+        operation: "loadPartsFromClickhouse",
       },
     });
-
-    if (partitions.length === 0) {
-      logger.warn(
-        "[Backfill Events Observations] No partitions found in observations_pid_tid_sorting; nothing to do",
-      );
-      return;
-    }
 
     logger.info(
-      `[Backfill Events Observations] Populating backfill_chunks with ${partitions.length} partition-sized chunks`,
+      `[Backfill Events Observations] Loaded ${parts.length} parts from system.parts`,
     );
 
-    // Build a single INSERT VALUES so the auto-population is atomic. Each
-    // chunk_id is namespaced with the partition_id to avoid collisions if a
-    // self-hoster manually pre-inserts other chunks.
-    const valuesPlaceholders: string[] = [];
-    const params: Record<string, unknown> = {};
-    partitions.forEach((row, idx) => {
-      assertSafePartition(row.partition_id);
-      valuesPlaceholders.push(
-        `({chunkId${idx}: String}, {partition${idx}: String}, '', '', 1)`,
-      );
-      params[`chunkId${idx}`] = `chunk-${row.partition_id}`;
-      params[`partition${idx}`] = row.partition_id;
-    });
-
-    await commandClickhouse({
-      query: `
-        INSERT INTO backfill_chunks
-          (chunk_id, partition_id, project_id, trace_id, is_last_chunk)
-        VALUES ${valuesPlaceholders.join(", ")}
-      `,
-      params,
-      tags: {
-        feature: "background-migration",
-        operation: "populateBackfillChunksIfEmpty-insert",
-      },
-    });
+    return parts.map((part) => ({
+      id: part.name,
+      partId: part.name,
+      partition: part.partition_id,
+      status: "pending" as const,
+    }));
   }
-
-  // ============================================================================
-  // Load Chunks from ClickHouse
-  // ============================================================================
 
   /**
-   * Reads `backfill_chunks` and computes per-chunk upper bounds. Mirrors the
-   * cloud loader's grouping logic so a self-hoster who manually splits a
-   * partition into multiple finer chunks gets the same behaviour: each
-   * chunk's upper bound is the next chunk's lower bound within the same
-   * partition; chunks marked is_last_chunk=1 (or with no following chunk in
-   * the partition) get a null upper bound and run to the end.
-   *
-   * Partitions are loaded newest-first so a self-hoster watching the migration
-   * sees recent data show up first.
+   * Confirms a part is still active after an INSERT completes. ClickHouse
+   * merges parts in the background; if our source part disappeared between
+   * listing and processing, the INSERT may have read 0 rows. Surfacing this
+   * lets the operator wipe `state.chunksLoaded` and re-run so the merged
+   * successor part gets enumerated and processed.
    */
-  private async loadChunksFromClickhouse(): Promise<ChunkTodo[]> {
-    logger.info(
-      "[Backfill Events Observations] Loading chunks from backfill_chunks table",
-    );
-
-    const chunks = await queryClickhouse<{
-      chunk_id: string;
-      partition_id: string;
-      project_id: string;
-      trace_id: string;
-      is_last_chunk: string;
-    }>({
+  private async verifyPartStillActive(partId: string): Promise<boolean> {
+    const result = await queryClickhouse<{ count: string }>({
       query: `
-        SELECT chunk_id, partition_id, project_id, trace_id, is_last_chunk
-        FROM backfill_chunks
-        ORDER BY partition_id DESC, chunk_id
+        SELECT count() AS count
+        FROM system.parts
+        WHERE table = 'observations_pid_tid_sorting'
+          AND name = {partId: String}
+          AND active = 1
+      `,
+      params: { partId },
+      tags: {
+        feature: "background-migration",
+        operation: "verifyPartStillActive",
+      },
+    });
+    return result.length > 0 && parseInt(result[0].count, 10) > 0;
+  }
+
+  private async getActivePartIds(): Promise<Set<string>> {
+    const parts = await queryClickhouse<{ name: string }>({
+      query: `
+        SELECT name
+        FROM system.parts
+        WHERE table = 'observations_pid_tid_sorting'
+          AND active = 1
       `,
       tags: {
         feature: "background-migration",
-        operation: "loadChunksFromClickhouse",
+        operation: "getActivePartIds",
       },
     });
-
-    const todos: ChunkTodo[] = [];
-    const grouped = new Map<string, typeof chunks>();
-    for (const chunk of chunks) {
-      const key = chunk.partition_id;
-      if (!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key)!.push(chunk);
-    }
-
-    for (const [, partitionChunks] of grouped) {
-      for (let i = 0; i < partitionChunks.length; i++) {
-        const chunk = partitionChunks[i];
-        const nextChunk = partitionChunks[i + 1];
-        const isLastChunk = chunk.is_last_chunk === "1";
-
-        todos.push({
-          id: chunk.chunk_id,
-          partition: chunk.partition_id,
-          lowerBound: { projectId: chunk.project_id, traceId: chunk.trace_id },
-          upperBound:
-            isLastChunk || !nextChunk
-              ? null
-              : {
-                  projectId: nextChunk.project_id,
-                  traceId: nextChunk.trace_id,
-                },
-          status: "pending",
-        });
-      }
-    }
-
-    logger.info(
-      `[Backfill Events Observations] Loaded ${todos.length} chunks across ${grouped.size} partitions`,
-    );
-
-    return todos;
+    return new Set(parts.map((p) => p.name));
   }
 
   // ============================================================================
-  // Recovery Logic
+  // Recovery
   // ============================================================================
 
   private async recoverInProgressTodos(
@@ -337,14 +213,14 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
   // ============================================================================
 
   /**
-   * Builds the chunked INSERT into events_full.
+   * Builds the per-part INSERT into events_full.
    *
    * The traces side is read directly from the live `traces` table — there is
    * no `traces_pid_tid_sorting` rewrite for OSS. To keep the join scan small
-   * we bound `traces` by the chunk's project_id range and a `created_at`
-   * window aligned with the partition month (±1 month). Light trace property
-   * propagation only — `trace.metadata` is intentionally excluded; the
-   * observation's metadata is used as-is.
+   * we bound `traces` by a `created_at` window aligned with the observation
+   * partition's month (±1 month). Light trace property propagation only —
+   * `trace.metadata` is intentionally excluded; the observation's metadata is
+   * used as-is.
    */
   private buildQueryAndParams(todo: ChunkTodo): {
     query: string;
@@ -352,37 +228,13 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
   } {
     assertSafePartition(todo.partition);
 
-    const whereClause = todo.upperBound
-      ? `WHERE (o.project_id, o.trace_id) >= ({loBoundProjectId: String}, {loBoundTraceId: String})
-           AND (o.project_id, o.trace_id) < ({hiBoundProjectId: String}, {hiBoundTraceId: String})`
-      : `WHERE (o.project_id, o.trace_id) >= ({loBoundProjectId: String}, {loBoundTraceId: String})`;
-
-    // Bound the live traces scan with a calendar window aligned with the
-    // observations partition's month, so the LEFT ANY JOIN doesn't sweep the
-    // entire traces table.
-    const tracesCreatedAtFilter =
-      todo.partition !== "REST"
-        ? `AND t.created_at >= toStartOfMonth(toDateTime(parseDateTimeBestEffort({partitionFirstDay: String})) - INTERVAL 1 MONTH)
-           AND t.created_at <  toStartOfMonth(toDateTime(parseDateTimeBestEffort({partitionFirstDay: String})) + INTERVAL 2 MONTH)`
-        : "";
-
-    const partitionFirstDay =
-      todo.partition !== "REST"
-        ? `${todo.partition.slice(0, 4)}-${todo.partition.slice(4, 6)}-01 00:00:00`
-        : "";
+    const partitionFirstDay = `${todo.partition.slice(0, 4)}-${todo.partition.slice(4, 6)}-01 00:00:00`;
 
     const params: Record<string, unknown> = {
-      loBoundProjectId: todo.lowerBound.projectId,
-      loBoundTraceId: todo.lowerBound.traceId,
       partition: todo.partition,
+      partId: todo.partId,
+      partitionFirstDay,
     };
-    if (todo.upperBound) {
-      params.hiBoundProjectId = todo.upperBound.projectId;
-      params.hiBoundTraceId = todo.upperBound.traceId;
-    }
-    if (todo.partition !== "REST") {
-      params.partitionFirstDay = partitionFirstDay;
-    }
 
     const query = `
       INSERT INTO events_full (
@@ -445,13 +297,12 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
       LEFT ANY JOIN (
         SELECT *
         FROM traces t
-        WHERE t.project_id >= {loBoundProjectId: String}
-          ${todo.upperBound ? "AND t.project_id <= {hiBoundProjectId: String}" : ""}
-          ${tracesCreatedAtFilter}
+        WHERE t.created_at >= toStartOfMonth(toDateTime(parseDateTimeBestEffort({partitionFirstDay: String})) - INTERVAL 1 MONTH)
+          AND t.created_at <  toStartOfMonth(toDateTime(parseDateTimeBestEffort({partitionFirstDay: String})) + INTERVAL 2 MONTH)
       ) t
       ON o.project_id = t.project_id AND o.trace_id = t.id
-      ${whereClause}
-      ${todo.partition !== "REST" ? `AND o._partition_id = {partition: String}` : ""}
+      WHERE o._partition_id = {partition: String}
+        AND o._part = {partId: String}
       SETTINGS
         join_algorithm = 'full_sorting_merge',
         type_json_skip_duplicated_paths = 1
@@ -468,32 +319,6 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
     args: Record<string, unknown>,
     attempts = 5,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
-    // Ensure the background migration record exists
-    // TODO: Remove for golive
-    await prisma.backgroundMigration.upsert({
-      where: { id: backgroundMigrationId },
-      create: {
-        id: backgroundMigrationId,
-        name: "20260521_v4_step_3_backfill_events_full_from_observations",
-        script: "backfillEventsFullFromObservations",
-        args: {},
-        state: {},
-      },
-      update: {},
-    });
-
-    if (
-      !env.CLICKHOUSE_URL ||
-      !env.CLICKHOUSE_USER ||
-      !env.CLICKHOUSE_PASSWORD
-    ) {
-      return {
-        valid: false,
-        invalidReason:
-          "ClickHouse credentials must be configured to perform migration",
-      };
-    }
-
     const tables = await clickhouseClient().query({ query: "SHOW TABLES" });
     const tableNames = (await tables.json()).data as { name: string }[];
 
@@ -501,6 +326,7 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
       "observations_pid_tid_sorting",
       "traces",
       "events_full",
+      "events_core",
     ];
     for (const table of requiredTables) {
       if (!tableNames.some((r) => r.name === table)) {
@@ -520,26 +346,6 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
           invalidReason: `ClickHouse ${table} table does not exist`,
         };
       }
-    }
-
-    // Lazily create the chunk-tracking table and pre-populate it if a
-    // self-hoster has not already inserted custom chunk boundaries.
-    await this.ensureBackfillChunksTable();
-    await this.populateBackfillChunksIfEmpty();
-
-    const chunksCount = await queryClickhouse<{ count: string }>({
-      query: "SELECT count() AS count FROM backfill_chunks",
-      tags: {
-        feature: "background-migration",
-        operation: "validate-chunksCount",
-      },
-    });
-    if (chunksCount[0]?.count === "0") {
-      return {
-        valid: false,
-        invalidReason:
-          "backfill_chunks is empty after auto-population — observations_pid_tid_sorting may have no active partitions. Run M2 first.",
-      };
     }
 
     logger.info(
@@ -571,13 +377,13 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
     let state = await this.loadState();
     state.config = config;
 
-    // Phase 1: Load chunks from backfill_chunks (one-time)
+    // Phase 1: Load parts from system.parts (one-time)
     if (state.phase === "init" || state.phase === "loading_chunks") {
       if (!state.chunksLoaded) {
         state.phase = "loading_chunks";
         await this.updateState(state);
 
-        state.todos = await this.loadChunksFromClickhouse();
+        state.todos = await this.loadPartsFromClickhouse();
         state.chunksLoaded = true;
         state.phase = "backfill";
         await this.updateState(state);
@@ -587,13 +393,13 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
     // Phase 2: Recover any in-progress queries from previous run
     const stillRunningTodos = await this.recoverInProgressTodos(state);
 
-    // Phase 2.5: Reset failed chunks if --retry-failed was passed
+    // Phase 2.5: Reset failed parts if --retry-failed was passed
     if (migrationArgs.retryFailed) {
       state = await this.loadState();
-      const failedChunks = state.todos.filter((t) => t.status === "failed");
-      if (failedChunks.length > 0) {
+      const failedTodos = state.todos.filter((t) => t.status === "failed");
+      if (failedTodos.length > 0) {
         logger.info(
-          `[Backfill Events Observations] Resetting ${failedChunks.length} failed chunks to pending`,
+          `[Backfill Events Observations] Resetting ${failedTodos.length} failed parts to pending`,
         );
         for (const todo of state.todos) {
           if (todo.status === "failed") {
@@ -606,7 +412,7 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
       }
     }
 
-    // Phase 3: Execute chunks with concurrency
+    // Phase 3: Execute parts with concurrency
     const manager = new ConcurrentQueryManager<ChunkTodo>();
 
     const scheduleNext = async (): Promise<void> => {
@@ -619,7 +425,7 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
         manager.stopPolling();
         state.phase = "completed";
         await this.updateState(state);
-        logger.info("[Backfill Events Observations] All chunks completed!");
+        logger.info("[Backfill Events Observations] All parts completed!");
         return;
       }
 
@@ -628,11 +434,13 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
       const nextTodo = pendingTodos[0];
       if (!nextTodo) return;
 
-      const todoIndex = state.todos.findIndex((t) => t.id === nextTodo.id);
+      const todoIndex = state.todos.findIndex(
+        (t) => t.partId === nextTodo.partId,
+      );
       if (todoIndex === -1) return;
 
       state.todos[todoIndex].status = "in_progress";
-      state.todos[todoIndex].queryId = generateQueryId(nextTodo.id);
+      state.todos[todoIndex].queryId = generateQueryId(nextTodo.partId);
       state.todos[todoIndex].startedAt = new Date().toISOString();
       state.activeQueries.push(state.todos[todoIndex].queryId!);
       await this.updateState(state);
@@ -653,11 +461,11 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
           state.todos[todoIndex].queryId!,
         );
         logger.info(
-          `[Backfill Events Observations] Started chunk ${nextTodo.id} with query ${state.todos[todoIndex].queryId}`,
+          `[Backfill Events Observations] Started part ${nextTodo.partId} with query ${state.todos[todoIndex].queryId}`,
         );
       } catch (err) {
         logger.error(
-          `[Backfill Events Observations] Failed to start query for ${nextTodo.id}`,
+          `[Backfill Events Observations] Failed to start query for ${nextTodo.partId}`,
           err,
         );
         state.todos[todoIndex].status = "pending";
@@ -676,7 +484,7 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
       error?: string,
     ): Promise<void> => {
       state = await this.loadState();
-      const todoIndex = state.todos.findIndex((t) => t.id === todo.id);
+      const todoIndex = state.todos.findIndex((t) => t.partId === todo.partId);
       if (todoIndex === -1) return;
 
       state.activeQueries = state.activeQueries.filter(
@@ -684,6 +492,25 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
       );
 
       if (success) {
+        // Verify the part still exists. If a merge consolidated it mid-run
+        // the source rows are now in the merged successor — which is not in
+        // our todo list. Abort so the operator can clear `state.chunksLoaded`
+        // (or wipe state) and re-run to pick up the merged successor.
+        const partStillActive = await this.verifyPartStillActive(todo.partId);
+        if (!partStillActive) {
+          logger.error(
+            `[Backfill Events Observations] CRITICAL: Part ${todo.partId} no longer active after processing — ` +
+              `its rows are in a merged successor part that is not in this run's todo list. ` +
+              `Re-run with state.chunksLoaded=false to enumerate the merged successor and continue.`,
+          );
+          state.todos[todoIndex].status = "failed";
+          state.todos[todoIndex].error =
+            "Part no longer active after processing — re-run with state.chunksLoaded=false";
+          await this.updateState(state);
+          this.isAborted = true;
+          return;
+        }
+
         state.todos[todoIndex].status = "completed";
         state.todos[todoIndex].completedAt = new Date().toISOString();
         const completed = state.todos.filter(
@@ -691,7 +518,7 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
         ).length;
         const total = state.todos.length;
         logger.info(
-          `[Backfill Events Observations] Completed chunk ${todo.id} (${completed}/${total})`,
+          `[Backfill Events Observations] Completed part ${todo.partId} (${completed}/${total})`,
         );
       } else {
         state.todos[todoIndex].retryCount =
@@ -700,12 +527,12 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
           state.todos[todoIndex].status = "failed";
           state.todos[todoIndex].error = error;
           logger.error(
-            `[Backfill Events Observations] Chunk ${todo.id} failed permanently: ${error}`,
+            `[Backfill Events Observations] Part ${todo.partId} failed permanently: ${error}`,
           );
         } else {
           state.todos[todoIndex].status = "pending";
           logger.warn(
-            `[Backfill Events Observations] Chunk ${todo.id} failed, will retry (${state.todos[todoIndex].retryCount}/${config.maxRetries}): ${error}`,
+            `[Backfill Events Observations] Part ${todo.partId} failed, will retry (${state.todos[todoIndex].retryCount}/${config.maxRetries}): ${error}`,
           );
         }
       }
@@ -722,7 +549,7 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
     for (const todo of stillRunningTodos) {
       manager.addQuery(todo, todo.queryId!);
       logger.info(
-        `[Backfill Events Observations] Added recovered running query ${todo.queryId} for chunk ${todo.id} to manager`,
+        `[Backfill Events Observations] Added recovered running query ${todo.queryId} for part ${todo.partId} to manager`,
       );
     }
 
@@ -752,7 +579,43 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
     const failed = state.todos.filter((t) => t.status === "failed");
     if (failed.length > 0) {
       logger.error(
-        `[Backfill Events Observations] Migration completed with ${failed.length} failed chunks`,
+        `[Backfill Events Observations] Migration completed with ${failed.length} failed parts`,
+      );
+    }
+
+    // Final verification: confirm every completed part is still active. If a
+    // part merged into a larger successor that wasn't in our todo list, the
+    // successor's rows were never inserted — surface this so the operator
+    // knows to clear state.chunksLoaded and re-run.
+    const completedTodos = state.todos.filter((t) => t.status === "completed");
+    if (completedTodos.length > 0) {
+      logger.info(
+        `[Backfill Events Observations] Running final verification for ${completedTodos.length} completed parts...`,
+      );
+      const activePartIds = await this.getActivePartIds();
+      const missingParts = completedTodos.filter(
+        (t) => !activePartIds.has(t.partId),
+      );
+      if (missingParts.length > 0) {
+        const sample = missingParts
+          .slice(0, 10)
+          .map((p) => p.partId)
+          .join(", ");
+        const tail =
+          missingParts.length > 10
+            ? ` (and ${missingParts.length - 10} more)`
+            : "";
+        logger.error(
+          `[Backfill Events Observations] CRITICAL: ${missingParts.length} processed parts are no longer active. ` +
+            `Their merged successors are not in this run's todo list. ` +
+            `Re-run with state.chunksLoaded=false to enumerate and process them. Sample: ${sample}${tail}`,
+        );
+        throw new Error(
+          `Migration completed but ${missingParts.length} parts are no longer active — re-run with state.chunksLoaded=false`,
+        );
+      }
+      logger.info(
+        `[Backfill Events Observations] Final verification passed — all ${completedTodos.length} parts still active`,
       );
     }
 

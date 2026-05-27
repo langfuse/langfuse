@@ -1,6 +1,5 @@
 -- M5 of the V4 self-hosted historic backfill chain (LFE-8833).
--- Cleanup-only migration: drops `observations_pid_tid_sorting` and
--- `backfill_chunks` once the operator confirms the v4 read path is healthy.
+-- Cleanup-only migration: drops `observations_pid_tid_sorting` once the operator confirms the v4 read path is healthy.
 --
 -- Gated by `LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES` (separate from
 -- the other gate) so users keep scratch tables for forensics until they're

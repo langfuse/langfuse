@@ -25,15 +25,14 @@ function onClusterClause(): string {
 // ============================================================================
 
 /**
- * Cleanup migration that drops the scratch tables created by the V4 historic
+ * Cleanup migration that drops the scratch table created by the V4 historic
  * backfill chain (M2 → M3 → M4):
  *
  *   - `observations_pid_tid_sorting` — populated by M2, read by M3.
- *   - `backfill_chunks` — populated by M3 (chunk planner).
  *
  * This is a single-step migration with no chunking. It is gated by
  * `LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES` so self-hosters can keep
- * the scratch tables around for forensics/restartability until they're
+ * the scratch table around for forensics/restartability until they're
  * confident the new path is healthy.
  *
  * The `traces` rewrite was deliberately skipped for OSS (M3 joins live `traces`
@@ -59,9 +58,7 @@ export default class DropPidTidSortingTables implements IBackgroundMigration {
   async run(_args: Record<string, unknown>): Promise<void> {
     logger.info(`${LOG_PREFIX} Starting cleanup of V4 backfill scratch tables`);
 
-    // Tables are dropped in this order so that a half-completed run leaves the
-    // chunk planner intact for diagnostics if someone inspects state.
-    const tables = ["observations_pid_tid_sorting", "backfill_chunks"];
+    const tables = ["observations_pid_tid_sorting"];
 
     for (const table of tables) {
       if (this.isAborted) {
