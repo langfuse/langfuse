@@ -115,7 +115,7 @@ export const eventsRouter = createTRPCRouter({
       );
     }),
   countAll: protectedProjectProcedure
-    .input(GetAllEventsInput)
+    .input(EventsTableOptions)
     .query(async ({ input, ctx }) => {
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
