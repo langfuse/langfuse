@@ -8,6 +8,7 @@ import { ChatMessageList } from "./components/ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import { type ExpansionStateProps } from "./IOPreview";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
+import { getToolNamesMissingFromToolDefinitions } from "./components/tool-call-extraction-warning";
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;
@@ -94,6 +95,8 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   // Whether to show metadata section (default: false)
   showMetadata?: boolean;
   observationId?: string;
+  observationStartTime?: Date | string | null;
+  toolDefinitionNames?: string[];
   projectId: string;
   traceId: string;
   environment?: string;
@@ -135,6 +138,8 @@ export function IOPreviewPretty({
   onMetadataExpansionChange,
   showMetadata = false,
   observationId,
+  observationStartTime,
+  toolDefinitionNames,
   projectId,
   traceId,
   environment = "default",
@@ -220,6 +225,18 @@ export function IOPreviewPretty({
     return additionalInput;
   }, [additionalInput]);
 
+  const toolNamesWithExtractionWarning = useMemo(
+    () =>
+      new Set(
+        getToolNamesMissingFromToolDefinitions({
+          observationStartTime,
+          frontendToolDefinitionNames: allTools.map((tool) => tool.name),
+          toolDefinitionNames,
+        }),
+      ),
+    [observationStartTime, allTools, toolDefinitionNames],
+  );
+
   // Shared props for JsonInputOutputView
   const jsonViewProps = {
     parsedInput,
@@ -245,6 +262,7 @@ export function IOPreviewPretty({
         tools={allTools}
         toolCallCounts={toolCallCounts}
         toolNameToDefinitionNumber={toolNameToDefinitionNumber}
+        toolNamesWithExtractionWarning={toolNamesWithExtractionWarning}
       />
 
       {canDisplayAsChat ? (
@@ -257,6 +275,7 @@ export function IOPreviewPretty({
             currentView="pretty"
             messageToToolCallNumbers={messageToToolCallNumbers}
             inputMessageCount={inputMessageCount}
+            toolNamesWithExtractionWarning={toolNamesWithExtractionWarning}
           />
           {showCorrections && (
             <CorrectedOutputField

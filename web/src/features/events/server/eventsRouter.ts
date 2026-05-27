@@ -48,6 +48,7 @@ export type EventBatchIOOutput = {
   input: string | null;
   output: string | null;
   metadata: MetadataDomainClient;
+  toolDefinitionNames: string[];
 };
 
 export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;

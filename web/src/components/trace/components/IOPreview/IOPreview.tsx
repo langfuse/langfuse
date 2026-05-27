@@ -77,6 +77,8 @@ export interface IOPreviewProps extends ExpansionStateProps {
   onVirtualizationChange?: (isVirtualized: boolean) => void;
   // For CorrectedOutputField
   observationId?: string;
+  observationStartTime?: Date | string | null;
+  toolDefinitionNames?: string[];
   projectId: string;
   traceId: string;
   environment?: string;
@@ -133,6 +135,8 @@ export function IOPreview({
   showMetadata = false,
   onVirtualizationChange,
   observationId,
+  observationStartTime,
+  toolDefinitionNames,
   projectId,
   traceId,
   environment = "default",
@@ -188,6 +192,8 @@ export function IOPreview({
     onOutputExpansionChange,
     onMetadataExpansionChange,
     observationId,
+    observationStartTime,
+    toolDefinitionNames,
     projectId,
     traceId,
     environment,
