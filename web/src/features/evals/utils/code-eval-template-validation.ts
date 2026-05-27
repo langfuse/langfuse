@@ -44,18 +44,41 @@ type RuffWorkspace = {
 const SYNTHETIC_ASSERTION_PREFIX = `
 type __LangfuseExpectedEvaluate = (
   ctx: EvaluationContext,
-) => EvaluationResult;
+) => EvaluationResult | Promise<EvaluationResult>;
 const __langfuseEvaluateCheck: __LangfuseExpectedEvaluate = evaluate;
 `;
 
 const CONTRACT_DECLARATIONS = `
+type Awaited<T> = T extends PromiseLike<infer U> ? Awaited<U> : T;
+type PromiseSettledResult<T> =
+  | { status: "fulfilled"; value: T }
+  | { status: "rejected"; reason: any };
+
 interface Array<T> {
   length: number;
   [n: number]: T;
+  every(callbackfn: (value: T, index: number, array: T[]) => unknown): boolean;
   map<U>(callbackfn: (value: T, index: number, array: T[]) => U): U[];
   filter(callbackfn: (value: T, index: number, array: T[]) => unknown): T[];
+  find(callbackfn: (value: T, index: number, array: T[]) => unknown): T | undefined;
+  forEach(callbackfn: (value: T, index: number, array: T[]) => void): void;
   includes(searchElement: T, fromIndex?: number): boolean;
   join(separator?: string): string;
+  reduce<U>(
+    callbackfn: (
+      previousValue: U,
+      currentValue: T,
+      currentIndex: number,
+      array: T[],
+    ) => U,
+    initialValue: U,
+  ): U;
+  slice(start?: number, end?: number): T[];
+  some(callbackfn: (value: T, index: number, array: T[]) => unknown): boolean;
+}
+
+interface ArrayConstructor {
+  isArray(value: unknown): value is unknown[];
 }
 
 interface Boolean {}
@@ -84,15 +107,43 @@ interface PromiseLike<T> {
   ): PromiseLike<TResult1 | TResult2>;
 }
 
+interface PromiseConstructor {
+  new <T>(
+    executor: (
+      resolve: (value: T | PromiseLike<T>) => void,
+      reject: (reason?: any) => void,
+    ) => void,
+  ): Promise<T>;
+  all<T>(values: T[]): Promise<Awaited<T>[]>;
+  allSettled<T>(values: T[]): Promise<PromiseSettledResult<Awaited<T>>[]>;
+  any<T>(values: T[]): Promise<Awaited<T>>;
+  race<T>(values: T[]): Promise<Awaited<T>>;
+  resolve<T>(value: T | PromiseLike<T>): Promise<T>;
+  reject<T = never>(reason?: any): Promise<T>;
+}
+
 interface String {
+  readonly length: number;
   includes(searchString: string, position?: number): boolean;
   trim(): string;
   toLowerCase(): string;
   toString(): string;
 }
 
+interface Uint8Array {
+  readonly length: number;
+  [n: number]: number;
+  forEach(
+    callbackfn: (value: number, index: number, array: Uint8Array) => void,
+  ): void;
+  slice(start?: number, end?: number): Uint8Array;
+  subarray(begin?: number, end?: number): Uint8Array;
+}
+
 type Record<K extends string, T> = { [P in K]: T };
 
+declare const Promise: PromiseConstructor;
+declare const Array: ArrayConstructor;
 declare const String: (value?: unknown) => string;
 declare const Number: (value?: unknown) => number;
 declare const Boolean: (value?: unknown) => boolean;
@@ -112,6 +163,54 @@ declare const console: {
   warn(...args: unknown[]): void;
   error(...args: unknown[]): void;
 };
+declare function setTimeout(
+  callback: (...args: any[]) => void,
+  delay?: number,
+  ...args: any[]
+): unknown;
+declare function clearTimeout(handle?: unknown): void;
+declare function setInterval(
+  callback: (...args: any[]) => void,
+  delay?: number,
+  ...args: any[]
+): unknown;
+declare function clearInterval(handle?: unknown): void;
+declare function queueMicrotask(callback: () => void): void;
+declare function structuredClone<T>(value: T): T;
+declare class TextEncoder {
+  encode(input?: string): Uint8Array;
+}
+declare class TextDecoder {
+  decode(input?: Uint8Array): string;
+}
+declare class URL {
+  constructor(url: string, base?: string | URL);
+  hash: string;
+  host: string;
+  href: string;
+  hostname: string;
+  origin: string;
+  pathname: string;
+  password: string;
+  port: string;
+  protocol: string;
+  search: string;
+  searchParams: URLSearchParams;
+  username: string;
+  toString(): string;
+}
+declare class URLSearchParams {
+  constructor(init?: string | Record<string, string> | string[][] | URLSearchParams);
+  append(name: string, value: string): void;
+  delete(name: string): void;
+  forEach(
+    callbackfn: (value: string, key: string, parent: URLSearchParams) => void,
+  ): void;
+  get(name: string): string | null;
+  has(name: string): boolean;
+  set(name: string, value: string): void;
+  toString(): string;
+}
 `;
 
 const IGNORED_DIAGNOSTIC_CODES = new Set([2318]);
