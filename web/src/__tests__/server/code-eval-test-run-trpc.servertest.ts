@@ -28,9 +28,7 @@ vi.hoisted(() => {
 const orgIds: string[] = [];
 
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
-    ? describe
-    : describe.skip;
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true" ? describe : describe.skip;
 
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
