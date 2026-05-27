@@ -1,7 +1,5 @@
-process.env.NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED = "true";
-
 import { randomUUID } from "node:crypto";
-import { describe, expect, it, afterAll } from "vitest";
+import { describe, expect, it, afterAll, vi } from "vitest";
 import type { Session } from "next-auth";
 import {
   EvalTemplateSourceCodeLanguage,
@@ -22,6 +20,10 @@ import {
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { EvalTargetObject } from "@langfuse/shared";
+
+vi.hoisted(() => {
+  process.env.NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED = "true";
+});
 
 const orgIds: string[] = [];
 
