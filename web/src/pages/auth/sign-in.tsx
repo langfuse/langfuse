@@ -225,8 +225,8 @@ export function SSOButtons({
       });
   };
 
-  // Only show separator if credentials are enabled (for sign-in) or if action is sign-up (which always has the form)
-  const showSeparator = authProviders.credentials || action !== "sign in";
+  // Only show separator if credentials are enabled
+  const showSeparator = authProviders.credentials;
 
   return (
     // any authprovider from props is enabled
