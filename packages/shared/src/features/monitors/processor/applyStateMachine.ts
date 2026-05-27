@@ -9,13 +9,13 @@ export type StateMachineDecision = {
   nextAlertedAt: Date | null;
 };
 
-/** applyStateMachine encodes the RFC §Severity State Machine table — given a transition from prev to computed severity, returns whether to emit and the next lifecycle stamps. */
+/** applyStateMachine encodes the RFC §Severity State Machine table — given a transition from prev to computed severity, returns whether to emit and the next lifecycle stamps. `now` is the worker wallclock; severityChangedAt/alertedAt are wallclock stamps. */
 export function applyStateMachine(args: {
   prevSeverity: MonitorSeverity;
   computedSeverity: ComputedSeverity;
   prevSeverityChangedAt: Date | null;
   prevAlertedAt: Date | null;
-  scheduledAt: Date;
+  now: Date;
   noData: MonitorNoData;
   renotify: MonitorRenotify;
 }): StateMachineDecision {
@@ -26,7 +26,7 @@ export function applyStateMachine(args: {
     prev,
     next,
     prevAlertedAt: args.prevAlertedAt,
-    scheduledAt: args.scheduledAt,
+    now: args.now,
     noData: args.noData,
     renotify: args.renotify,
   });
@@ -35,9 +35,9 @@ export function applyStateMachine(args: {
     emit,
     nextSeverity: next,
     nextSeverityChangedAt: severityChanged
-      ? args.scheduledAt
+      ? args.now
       : args.prevSeverityChangedAt,
-    nextAlertedAt: emit ? args.scheduledAt : args.prevAlertedAt,
+    nextAlertedAt: emit ? args.now : args.prevAlertedAt,
   };
 }
 
@@ -46,7 +46,7 @@ function shouldEmit(args: {
   prev: MonitorSeverity;
   next: ComputedSeverity;
   prevAlertedAt: Date | null;
-  scheduledAt: Date;
+  now: Date;
   noData: MonitorNoData;
   renotify: MonitorRenotify;
 }): boolean {
@@ -68,17 +68,11 @@ function shouldEmit(args: {
     return true;
   }
 
-  // Escalation into NO_DATA: NOTIFY mode with cooldown elapsed (RFC text reads
-  // `alertedAt + interval > scheduledAt`, treated here as a typo for
-  // `<=`; NULL prevAlertedAt fires immediately).
+  // Escalation into NO_DATA: NOTIFY mode with cooldown elapsed (NULL prevAlertedAt fires immediately).
   if (args.next === "NO_DATA" && args.prev !== "NO_DATA") {
     return (
       args.noData.mode === "NOTIFY" &&
-      passedDelay(
-        args.prevAlertedAt,
-        args.noData.intervalMinutes,
-        args.scheduledAt,
-      )
+      passedDelay(args.prevAlertedAt, args.noData.intervalMinutes, args.now)
     );
   }
 
@@ -90,11 +84,7 @@ function shouldEmit(args: {
     if (args.prevAlertedAt === null) return false;
     return (
       args.renotify.mode === "EVERY" &&
-      passedDelay(
-        args.prevAlertedAt,
-        args.renotify.intervalMinutes,
-        args.scheduledAt,
-      )
+      passedDelay(args.prevAlertedAt, args.renotify.intervalMinutes, args.now)
     );
   }
 
@@ -106,9 +96,9 @@ function shouldEmit(args: {
 function passedDelay(
   prevAlertedAt: Date | null,
   intervalMinutes: number,
-  scheduledAt: Date,
+  now: Date,
 ): boolean {
   if (prevAlertedAt === null) return true;
   const intervalMs = intervalMinutes * 60_000;
-  return scheduledAt.getTime() - prevAlertedAt.getTime() >= intervalMs;
+  return now.getTime() - prevAlertedAt.getTime() >= intervalMs;
 }

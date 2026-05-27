@@ -51,9 +51,6 @@ const oneMinuteMs = 60n * 1000n;
 const t0 = new Date("2026-05-27T12:00:00.000Z");
 const t0Plus1s = new Date("2026-05-27T12:00:01.000Z");
 const t0Plus1m = new Date("2026-05-27T12:01:00.000Z");
-const t0Plus5m = new Date("2026-05-27T12:05:00.000Z"); // exactly TTL after T0
-const t0Plus5mPlus1ms = new Date("2026-05-27T12:05:00.001Z");
-const t0Plus6m = new Date("2026-05-27T12:06:00.000Z"); // past TTL
 const tMinus10m = new Date("2026-05-27T11:50:00.000Z"); // prior run
 // Far-future default so parallel MonitorScheduler tests can't sweep these rows.
 const farFuture = new Date("2099-01-01T00:00:00.000Z");
@@ -114,7 +111,7 @@ function makeEvent(args: {
 const cases: ClaimCase[] = [
   // === single-monitor success branches ===
   {
-    name: "fresh publish, never claimed: claims and writes last_claimed_at = event.runAt",
+    name: "fresh publish, never claimed: claims and stamps last_claimed_at = now",
     monitors: [
       {
         id: "m_fresh",
@@ -131,14 +128,14 @@ const cases: ClaimCase[] = [
         {
           id: "m_fresh",
           lastPublishedAt: t0,
-          lastClaimedAt: t0,
+          lastClaimedAt: t0Plus1s,
           lastCompletedAt: null,
         },
       ],
     },
   },
   {
-    name: "prior-run claim (older value branch): claims",
+    name: "prior-run claim (last_completed_at < event.publishedAt): claims",
     monitors: [
       {
         id: "m_prior",
@@ -155,106 +152,8 @@ const cases: ClaimCase[] = [
         {
           id: "m_prior",
           lastPublishedAt: t0,
-          lastClaimedAt: t0,
+          lastClaimedAt: t0Plus1s,
           lastCompletedAt: tMinus10m,
-        },
-      ],
-    },
-  },
-  {
-    name: "current-run claim past TTL (TTL branch): claims",
-    monitors: [
-      {
-        id: "m_ttl_past",
-        lastPublishedAt: t0,
-        lastClaimedAt: t0,
-        lastCompletedAt: null,
-      },
-    ],
-    event: { runAt: t0, monitorIds: ["m_ttl_past"] },
-    now: t0Plus6m,
-    expect: {
-      claimedMonitorIds: ["m_ttl_past"],
-      rows: [
-        {
-          id: "m_ttl_past",
-          lastPublishedAt: t0,
-          lastClaimedAt: t0,
-          lastCompletedAt: null,
-        },
-      ],
-    },
-  },
-  {
-    name: "TTL boundary + 1ms: claims (TTL is strict `>`)",
-    monitors: [
-      {
-        id: "m_ttl_plus",
-        lastPublishedAt: t0,
-        lastClaimedAt: t0,
-        lastCompletedAt: null,
-      },
-    ],
-    event: { runAt: t0, monitorIds: ["m_ttl_plus"] },
-    now: t0Plus5mPlus1ms,
-    expect: {
-      claimedMonitorIds: ["m_ttl_plus"],
-      rows: [
-        {
-          id: "m_ttl_plus",
-          lastPublishedAt: t0,
-          lastClaimedAt: t0,
-          lastCompletedAt: null,
-        },
-      ],
-    },
-  },
-
-  // === single-monitor denial branches ===
-  {
-    name: "current-run claim within TTL (BullMQ dup delivery): 0 claimed",
-    monitors: [
-      {
-        id: "m_inflight",
-        lastPublishedAt: t0,
-        lastClaimedAt: t0,
-        lastCompletedAt: null,
-      },
-    ],
-    event: { runAt: t0, monitorIds: ["m_inflight"] },
-    now: t0Plus1m,
-    expect: {
-      claimedMonitorIds: [],
-      rows: [
-        {
-          id: "m_inflight",
-          lastPublishedAt: t0,
-          lastClaimedAt: t0,
-          lastCompletedAt: null,
-        },
-      ],
-    },
-  },
-  {
-    name: "TTL boundary exact: 0 claimed (strict `>`)",
-    monitors: [
-      {
-        id: "m_ttl_exact",
-        lastPublishedAt: t0,
-        lastClaimedAt: t0,
-        lastCompletedAt: null,
-      },
-    ],
-    event: { runAt: t0, monitorIds: ["m_ttl_exact"] },
-    now: t0Plus5m,
-    expect: {
-      claimedMonitorIds: [],
-      rows: [
-        {
-          id: "m_ttl_exact",
-          lastPublishedAt: t0,
-          lastClaimedAt: t0,
-          lastCompletedAt: null,
         },
       ],
     },
@@ -381,19 +280,19 @@ const cases: ClaimCase[] = [
         {
           id: "m_a",
           lastPublishedAt: t0,
-          lastClaimedAt: t0,
+          lastClaimedAt: t0Plus1s,
           lastCompletedAt: null,
         },
         {
           id: "m_b",
           lastPublishedAt: t0,
-          lastClaimedAt: t0,
+          lastClaimedAt: t0Plus1s,
           lastCompletedAt: null,
         },
         {
           id: "m_c",
           lastPublishedAt: t0,
-          lastClaimedAt: t0,
+          lastClaimedAt: t0Plus1s,
           lastCompletedAt: null,
         },
       ],
@@ -404,26 +303,19 @@ const cases: ClaimCase[] = [
     monitors: [
       // claimable
       { id: "m_ok", lastPublishedAt: t0 },
-      // already completed
+      // already completed for this publish
       {
         id: "m_done",
         lastPublishedAt: t0,
         lastClaimedAt: t0,
         lastCompletedAt: t0,
       },
-      // row advanced past this event
+      // row advanced past this event (superseded by newer publish)
       { id: "m_advanced", lastPublishedAt: t0Plus1m },
-      // currently in-flight within TTL
-      {
-        id: "m_inflight",
-        lastPublishedAt: t0,
-        lastClaimedAt: t0,
-        lastCompletedAt: null,
-      },
     ],
     event: {
       runAt: t0,
-      monitorIds: ["m_ok", "m_done", "m_advanced", "m_inflight"],
+      monitorIds: ["m_ok", "m_done", "m_advanced"],
     },
     now: t0Plus1s,
     expect: {
@@ -432,7 +324,7 @@ const cases: ClaimCase[] = [
         {
           id: "m_ok",
           lastPublishedAt: t0,
-          lastClaimedAt: t0,
+          lastClaimedAt: t0Plus1s,
           lastCompletedAt: null,
         },
         {
@@ -445,12 +337,6 @@ const cases: ClaimCase[] = [
           id: "m_advanced",
           lastPublishedAt: t0Plus1m,
           lastClaimedAt: null,
-          lastCompletedAt: null,
-        },
-        {
-          id: "m_inflight",
-          lastPublishedAt: t0,
-          lastClaimedAt: t0,
           lastCompletedAt: null,
         },
       ],
@@ -516,9 +402,9 @@ describe("MonitorProcessor.claim (integration)", () => {
       schedulerBatchId: c.event.schedulerBatchId,
     });
 
-    const claimedMonitorIds = await processor.claim(event, c.now);
+    const claims = await processor.claim(event, c.now);
 
-    expect([...claimedMonitorIds].sort()).toEqual(
+    expect(claims.map((c) => c.id).sort()).toEqual(
       [...c.expect.claimedMonitorIds].sort(),
     );
 

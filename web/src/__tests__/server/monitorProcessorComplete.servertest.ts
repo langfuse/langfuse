@@ -12,6 +12,7 @@ type SeedOverrides = Partial<{
   severity: MonitorSeverity;
   severityChangedAt: Date | null;
   alertedAt: Date | null;
+  lastClaimedAt: Date | null;
   lastCompletedAt: Date | null;
 }>;
 
@@ -22,6 +23,7 @@ type ExpectedRow = {
   severity: MonitorSeverity;
   severityChangedAt: Date | null;
   alertedAt: Date | null;
+  lastClaimedAt?: Date | null;
   lastCompletedAt: Date | null;
 };
 
@@ -35,6 +37,7 @@ type CompleteCase = {
 const oneMinuteMs = 60n * 1000n;
 
 const t0 = new Date("2026-05-27T12:00:00.000Z");
+const t0Plus1s = new Date("2026-05-27T12:00:01.000Z");
 const tMinus10m = new Date("2026-05-27T11:50:00.000Z");
 
 async function seedMonitor(projectId: string, seed: MonitorSeed) {
@@ -59,7 +62,7 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       schedulerBatchId: 0n,
       nextRunAt: new Date("2099-01-01T00:00:00.000Z"),
       lastPublishedAt: null,
-      lastClaimedAt: null,
+      lastClaimedAt: seed.lastClaimedAt === undefined ? t0 : seed.lastClaimedAt,
       lastCompletedAt: seed.lastCompletedAt ?? null,
       severity: seed.severity ?? "UNKNOWN",
       severityChangedAt: seed.severityChangedAt ?? null,
@@ -85,6 +88,7 @@ const cases: CompleteCase[] = [
     completions: [
       {
         monitorId: "m_steady",
+        lastClaimedAt: t0,
         lastCompletedAt: t0,
         severity: "OK",
         severityChangedAt: tMinus10m,
@@ -117,6 +121,7 @@ const cases: CompleteCase[] = [
     completions: [
       {
         monitorId: "m_silent_no_data",
+        lastClaimedAt: t0,
         lastCompletedAt: t0,
         severity: "NO_DATA",
         severityChangedAt: t0,
@@ -149,6 +154,7 @@ const cases: CompleteCase[] = [
     completions: [
       {
         monitorId: "m_renotify",
+        lastClaimedAt: t0,
         lastCompletedAt: t0,
         severity: "ALERT",
         severityChangedAt: tMinus10m,
@@ -181,6 +187,7 @@ const cases: CompleteCase[] = [
     completions: [
       {
         monitorId: "m_escalation",
+        lastClaimedAt: t0,
         lastCompletedAt: t0,
         severity: "ALERT",
         severityChangedAt: t0,
@@ -227,6 +234,7 @@ const cases: CompleteCase[] = [
     completions: [
       {
         monitorId: "m_a_steady",
+        lastClaimedAt: t0,
         lastCompletedAt: t0,
         severity: "OK",
         severityChangedAt: tMinus10m,
@@ -234,6 +242,7 @@ const cases: CompleteCase[] = [
       },
       {
         monitorId: "m_b_escalation",
+        lastClaimedAt: t0,
         lastCompletedAt: t0,
         severity: "ALERT",
         severityChangedAt: t0,
@@ -241,6 +250,7 @@ const cases: CompleteCase[] = [
       },
       {
         monitorId: "m_c_recovery",
+        lastClaimedAt: t0,
         lastCompletedAt: t0,
         severity: "OK",
         severityChangedAt: t0,
@@ -303,6 +313,7 @@ const cases: CompleteCase[] = [
     completions: [
       {
         monitorId: "m_bogus",
+        lastClaimedAt: t0,
         lastCompletedAt: t0,
         severity: "OK",
         severityChangedAt: t0,
@@ -310,6 +321,42 @@ const cases: CompleteCase[] = [
       },
     ],
     expect: { rows: [] },
+  },
+  {
+    name: "stale claim (worker preempted, row's lastClaimedAt advanced): no-op",
+    monitors: [
+      {
+        id: "m_preempted",
+        severity: "OK",
+        severityChangedAt: tMinus10m,
+        alertedAt: null,
+        // worker B has already claimed since worker A stashed `t0`
+        lastClaimedAt: t0Plus1s,
+        lastCompletedAt: tMinus10m,
+      },
+    ],
+    completions: [
+      {
+        monitorId: "m_preempted",
+        lastClaimedAt: t0, // stale stash from preempted worker A
+        lastCompletedAt: t0,
+        severity: "ALERT",
+        severityChangedAt: t0,
+        alertedAt: t0,
+      },
+    ],
+    expect: {
+      rows: [
+        {
+          id: "m_preempted",
+          severity: "OK",
+          severityChangedAt: tMinus10m,
+          alertedAt: null,
+          lastClaimedAt: t0Plus1s,
+          lastCompletedAt: tMinus10m,
+        },
+      ],
+    },
   },
 ];
 
@@ -350,6 +397,11 @@ describe("MonitorProcessor.complete (integration)", () => {
       expect(row.lastCompletedAt?.toISOString() ?? null).toBe(
         exp.lastCompletedAt?.toISOString() ?? null,
       );
+      if (exp.lastClaimedAt !== undefined) {
+        expect(row.lastClaimedAt?.toISOString() ?? null).toBe(
+          exp.lastClaimedAt?.toISOString() ?? null,
+        );
+      }
     }
   });
 
@@ -370,6 +422,7 @@ describe("MonitorProcessor.complete (integration)", () => {
       completions: [
         {
           monitorId: "m_in_project",
+          lastClaimedAt: t0,
           lastCompletedAt: t0,
           severity: "ALERT",
           severityChangedAt: t0,
