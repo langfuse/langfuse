@@ -71,15 +71,15 @@ describe("code eval template validation", () => {
     );
   });
 
-  it("strips editor-only contracts before submit", () => {
+  it("strips editor-only contracts before submit", async () => {
     expect(
-      formatAndStripCodeEvalSourceForSubmit({
+      await formatAndStripCodeEvalSourceForSubmit({
         sourceCode: DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
         sourceCodeLanguage: "TYPESCRIPT",
       }),
     ).toContain("function evaluate(ctx: EvaluationContext): EvaluationResult");
     expect(
-      formatAndStripCodeEvalSourceForSubmit({
+      await formatAndStripCodeEvalSourceForSubmit({
         sourceCode: DEFAULT_PYTHON_CODE_EVAL_SOURCE,
         sourceCodeLanguage: "PYTHON",
       }),
