@@ -33,6 +33,7 @@ import {
   createPublicApiTracesColumnMapping,
   deriveFilters,
   isFtsAcceleratedIoOperator,
+  isFtsEventsTable,
   isFtsMetadataField,
   isFtsTextField,
   type ApiColumnMapping,
@@ -95,7 +96,10 @@ import {
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
-import { UiColumnMappings } from "../../tableDefinitions";
+import {
+  findUiColumnMapping,
+  type UiColumnMappings,
+} from "../../tableDefinitions";
 import { eventsTableCols } from "../../eventsTable";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
@@ -1088,6 +1092,27 @@ type BuildObservationsQueryComponentsOptions = {
   allowUnindexedIoFilters?: boolean;
 };
 
+const EVENTS_IO_FILTER_TYPE_ERROR =
+  "Input/output filters only support filter type `string`.";
+
+const validateInputOutputFilterTypes = (
+  filterState: EventsTableFilterState | undefined,
+  columnDefinitions: UiColumnMappings,
+) => {
+  for (const filter of filterState ?? []) {
+    const column = findUiColumnMapping(columnDefinitions, filter.column);
+
+    if (
+      column &&
+      isFtsEventsTable(column.clickhouseTableName) &&
+      isFtsTextField(column.clickhouseSelect) &&
+      filter.type !== "string"
+    ) {
+      throw new InvalidRequestError(EVENTS_IO_FILTER_TYPE_ERROR);
+    }
+  }
+};
+
 const isInputOutputFilter = (filter: Filter): boolean =>
   isFtsTextField(filter.field);
 
@@ -1126,6 +1151,10 @@ function buildObservationsQueryComponents(
   }>;
 } {
   const { projectId, advancedFilters, ...filterParams } = opts;
+
+  if (!options.allowUnindexedIoFilters) {
+    validateInputOutputFilterTypes(advancedFilters, columnDefinitions);
+  }
 
   // Convert and merge simple and advanced filters
   const observationsFilter = deriveFilters(

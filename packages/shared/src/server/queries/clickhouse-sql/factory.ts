@@ -22,14 +22,7 @@ import {
   StringObjectFilter,
   NullFilter,
 } from "./clickhouse-filter";
-import {
-  assertValidFtsMatchFilter,
-  isFtsEventsTable,
-  isFtsTextField,
-} from "./fts";
-
-const EVENTS_IO_FILTER_TYPE_ERROR =
-  "Input/output filters only support filter type `string`.";
+import { assertValidFtsMatchFilter } from "./fts";
 
 export class QueryBuilderError extends Error {
   constructor(message: string) {
@@ -53,8 +46,6 @@ export const createFilterFromFilterState = (
   return applicableFilters.map((frontEndFilter) => {
     // checks if the column exists in the clickhouse schema
     const column = matchAndVerifyTracesUiColumn(frontEndFilter, columnMapping);
-
-    validateEventsTableIoFilterType(frontEndFilter, column);
 
     if (columnDefinitions && frontEndFilter.type !== "null") {
       const colDef = columnDefinitions.find((c) => c.id === column.uiTableId);
@@ -193,19 +184,6 @@ const validateEventsTableMatchesFilter = (
   }
 
   throw new QueryBuilderError(`Invalid filter type`);
-};
-
-const validateEventsTableIoFilterType = (
-  filter: EventsTableFilterState[number],
-  column: UiColumnMappings[number],
-) => {
-  if (
-    isFtsEventsTable(column.clickhouseTableName) &&
-    isFtsTextField(column.clickhouseSelect) &&
-    filter.type !== "string"
-  ) {
-    throw new InvalidRequestError(EVENTS_IO_FILTER_TYPE_ERROR);
-  }
 };
 
 const matchAndVerifyTracesUiColumn = (

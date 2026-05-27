@@ -336,41 +336,6 @@ describe("createFilterFromFilterState filter type validation", () => {
     expect(query).toContain("hasAllTokens(lower(e.input), lower(");
   });
 
-  it.each([
-    {
-      column: "input",
-      mapping: "eventInput",
-    },
-    {
-      column: "output",
-      mapping: "eventOutput",
-    },
-  ] as const)(
-    "rejects non-string filters on event $column",
-    ({ column, mapping }) => {
-      const filters = [
-        {
-          column,
-          type: "null",
-          operator: "is null",
-          value: "",
-        },
-      ] satisfies EventsTableFilterState;
-
-      expect(() =>
-        createFilterFromFilterState(
-          filters,
-          [mappings[mapping]],
-          columnDefinitions,
-        ),
-      ).toThrow(
-        new InvalidRequestError(
-          "Input/output filters only support filter type `string`.",
-        ),
-      );
-    },
-  );
-
   it("generates case-sensitive FTS SQL for event metadata matches", () => {
     const filters = [
       {

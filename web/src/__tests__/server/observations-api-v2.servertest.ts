@@ -864,25 +864,40 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(metadataMatchesAndIoContainsResponse.status).toBe(400);
     });
 
-    it("rejects non-string public v2 IO filters", async () => {
-      const nullIoFilter = JSON.stringify([
-        {
+    it.each([
+      {
+        description: "null",
+        filter: {
           type: "null",
           column: "output",
           operator: "is null",
           value: "",
         },
-      ]);
+      },
+      {
+        description: "stringOptions",
+        filter: {
+          type: "stringOptions",
+          column: "output",
+          operator: "any of",
+          value: ["needle"],
+        },
+      },
+    ])(
+      "rejects non-string public v2 IO $description filters",
+      async ({ filter }) => {
+        const filterParam = JSON.stringify([filter]);
 
-      const response = await getRaw(
-        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(nullIoFilter)}`,
-      );
+        const response = await getRaw(
+          `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(filterParam)}`,
+        );
 
-      expect(response.status).toBe(400);
-      expect(JSON.stringify(response.body)).toContain(
-        "Input/output filters only support filter type `string`.",
-      );
-    });
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "Input/output filters only support filter type `string`.",
+        );
+      },
+    );
 
     it.each([
       {
