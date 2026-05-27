@@ -261,6 +261,25 @@ describe("onboarding router", () => {
       userWasJustCreated: true,
     });
 
+    const organizationMembership =
+      await prisma.organizationMembership.findFirst({
+        where: {
+          userId,
+        },
+        include: {
+          organization: {
+            include: {
+              projects: true,
+            },
+          },
+        },
+      });
+
+    if (!organizationMembership) {
+      throw new Error("Expected starter organization membership to exist");
+    }
+    createdOrgIds.push(organizationMembership.organization.id);
+
     const caller = appRouter.createCaller({
       ...createInnerTRPCContext({
         session: makeSession({
@@ -312,6 +331,95 @@ describe("onboarding router", () => {
     });
 
     expect(updatedUser.v4BetaEnabled).toBe(true);
+  });
+
+  it("creates starter resources when a consumed real invitation leaves no usable workspace", async () => {
+    const userId = randomUUID();
+    const email = `invited-none-${userId}@example.com`;
+    createdUserIds.push(userId);
+
+    const user = await prisma.user.create({
+      data: {
+        id: userId,
+        email,
+        name: "Jordan Test",
+      },
+    });
+
+    const organization = await prisma.organization.create({
+      data: {
+        name: `Restricted Org ${userId}`,
+        createdAt: new Date(V4_DEFAULT_ENABLED_FROM_AT.getTime() + 1_000),
+      },
+    });
+    createdOrgIds.push(organization.id);
+
+    await prisma.membershipInvitation.create({
+      data: {
+        orgId: organization.id,
+        email,
+        orgRole: Role.NONE,
+      },
+    });
+
+    await createProjectMembershipsOnSignup(user, {
+      userWasJustCreated: true,
+    });
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession({
+          userId,
+          email,
+          name: "Jordan Test",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    const result = await caller.onboarding.complete();
+
+    const organizationMemberships =
+      await prisma.organizationMembership.findMany({
+        where: {
+          userId,
+        },
+        include: {
+          organization: {
+            include: {
+              projects: {
+                where: {
+                  deletedAt: null,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
+
+    const realOrganizationMemberships = organizationMemberships.filter(
+      (membership) => membership.orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID,
+    );
+
+    expect(realOrganizationMemberships).toHaveLength(2);
+
+    const starterOrganizationMembership = realOrganizationMemberships.find(
+      (membership) => membership.role === Role.OWNER,
+    );
+
+    expect(starterOrganizationMembership?.organization.projects).toHaveLength(
+      1,
+    );
+    expect(starterOrganizationMembership?.organization.projects[0]?.name).toBe(
+      "My Project",
+    );
+    expect(result).toEqual({
+      redirectTo: `/project/${starterOrganizationMembership?.organization.projects[0]?.id}/traces`,
+    });
   });
 
   it("falls back to manual project creation when a real org exists without a project", async () => {

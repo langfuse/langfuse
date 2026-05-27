@@ -90,10 +90,11 @@ describe("provisionStarterOrganizationForNewUser", () => {
   });
 
   it("locks the user row before checking for existing real organizations", async () => {
+    const existingMemberships: RealOrganizationMembership[] = [];
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
       organizationMembership: {
-        count: vi.fn().mockResolvedValue(0),
+        findMany: vi.fn().mockResolvedValue(existingMemberships),
       },
       organization: {
         create: vi.fn().mockResolvedValue({
@@ -121,13 +122,15 @@ describe("provisionStarterOrganizationForNewUser", () => {
     });
 
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
-    expect(tx.organizationMembership.count).toHaveBeenCalledWith({
+    expect(tx.organizationMembership.findMany).toHaveBeenCalledWith({
       where: expect.objectContaining({
         userId: "user-1",
       }),
+      include: expect.any(Object),
+      orderBy: expect.any(Array),
     });
     expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
-      tx.organizationMembership.count.mock.invocationCallOrder[0],
+      tx.organizationMembership.findMany.mock.invocationCallOrder[0],
     );
     expect(result).toMatchObject({
       organization: { id: "org-1" },
@@ -135,11 +138,17 @@ describe("provisionStarterOrganizationForNewUser", () => {
     });
   });
 
-  it("does not create starter resources when the locked user already has a real org", async () => {
+  it("does not create starter resources when the locked user can already create a project", async () => {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
       organizationMembership: {
-        count: vi.fn().mockResolvedValue(1),
+        findMany: vi.fn().mockResolvedValue([
+          makeMembership({
+            orgId: "org-1",
+            role: Role.OWNER,
+            projects: [],
+          }),
+        ]),
       },
       organization: {
         create: vi.fn(),
@@ -163,5 +172,50 @@ describe("provisionStarterOrganizationForNewUser", () => {
     expect(tx.organization.create).not.toHaveBeenCalled();
     expect(tx.project.create).not.toHaveBeenCalled();
     expect(auditLogMock).not.toHaveBeenCalled();
+  });
+
+  it("creates starter resources when existing org memberships still leave the user stranded", async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
+      organizationMembership: {
+        findMany: vi.fn().mockResolvedValue([
+          makeMembership({
+            orgId: "org-1",
+            role: Role.NONE,
+            projects: [],
+          }),
+        ]),
+      },
+      organization: {
+        create: vi.fn().mockResolvedValue({
+          id: "org-2",
+          name: "Starter Org",
+        }),
+      },
+      project: {
+        create: vi.fn().mockResolvedValue({
+          id: "project-1",
+          name: "My Project",
+        }),
+      },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (callback) => callback(tx)),
+    } as unknown as Parameters<
+      typeof provisionStarterOrganizationForNewUser
+    >[0]["prisma"];
+
+    const result = await provisionStarterOrganizationForNewUser({
+      prisma,
+      userId: "user-1",
+      userName: "Taylor",
+    });
+
+    expect(result).toMatchObject({
+      organization: { id: "org-2" },
+      project: { id: "project-1" },
+    });
+    expect(tx.organization.create).toHaveBeenCalledTimes(1);
+    expect(tx.project.create).toHaveBeenCalledTimes(1);
   });
 });

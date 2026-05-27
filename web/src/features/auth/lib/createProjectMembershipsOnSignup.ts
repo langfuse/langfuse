@@ -7,6 +7,7 @@ import { getOrganizationPlanServerSide } from "@/src/features/entitlements/serve
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
+import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 
 export async function createProjectMembershipsOnSignup(
   user: {
@@ -264,8 +265,18 @@ async function processMembershipInvitations(email: string, userId: string) {
   });
   if (invitationsForUser.length === 0) return false;
 
-  const joinedRealOrganizationViaInvitation = invitationsForUser.some(
-    (invitation) => invitation.orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID,
+  const joinedReadableRealProjectViaInvitation = invitationsForUser.some(
+    (invitation) => {
+      if (
+        invitation.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ||
+        !invitation.projectId
+      ) {
+        return false;
+      }
+
+      const projectRole = invitation.projectRole ?? invitation.orgRole;
+      return projectRoleAccessRights[projectRole].includes("project:read");
+    },
   );
 
   // Map to individual payloads instead of using createMany as we can thereby use nested writes for ProjectMemberships
@@ -302,5 +313,5 @@ async function processMembershipInvitations(email: string, userId: string) {
     }),
   ]);
 
-  return joinedRealOrganizationViaInvitation;
+  return joinedReadableRealProjectViaInvitation;
 }

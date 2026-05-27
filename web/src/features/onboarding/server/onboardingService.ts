@@ -76,6 +76,35 @@ export type RealOrganizationMembership = Awaited<
   ReturnType<typeof getRealOrganizationMemberships>
 >[number];
 
+const getAccessibleProjects = (
+  organizationMemberships: RealOrganizationMembership[],
+) =>
+  organizationMemberships.flatMap((membership) =>
+    membership.organization.projects
+      .map((project) => ({
+        projectId: project.id,
+        role: resolveProjectRole({
+          projectId: project.id,
+          projectMemberships: membership.ProjectMemberships,
+          orgMembershipRole: membership.role,
+        }),
+      }))
+      .filter((project) =>
+        projectRoleAccessRights[project.role].includes("project:read"),
+      ),
+  );
+
+const getFirstOrganizationWithProjectCreationAccess = (
+  organizationMemberships: RealOrganizationMembership[],
+) =>
+  organizationMemberships.find((membership) =>
+    ((role: Role, scope: OrganizationScope): boolean =>
+      organizationRoleAccessRights[role].includes(scope))(
+      membership.role,
+      "projects:create",
+    ),
+  );
+
 export const resolveOnboardingRedirectTarget = async ({
   prisma,
   userId,
@@ -118,20 +147,7 @@ export const resolveOnboardingRedirectTarget = async ({
     }
   }
 
-  const accessibleProjects = organizationMemberships.flatMap((membership) =>
-    membership.organization.projects
-      .map((project) => ({
-        projectId: project.id,
-        role: resolveProjectRole({
-          projectId: project.id,
-          projectMemberships: membership.ProjectMemberships,
-          orgMembershipRole: membership.role,
-        }),
-      }))
-      .filter((project) =>
-        projectRoleAccessRights[project.role].includes("project:read"),
-      ),
-  );
+  const accessibleProjects = getAccessibleProjects(organizationMemberships);
 
   const firstProject = accessibleProjects[0];
 
@@ -141,19 +157,13 @@ export const resolveOnboardingRedirectTarget = async ({
     };
   }
 
-  const firstCreatableOrganization = organizationMemberships.find(
-    (membership) =>
-      ((role: Role, scope: OrganizationScope): boolean =>
-        organizationRoleAccessRights[role].includes(scope))(
-        membership.role,
-        "projects:create",
-      ),
-  );
+  const firstOrganizationWithProjectCreationAccess =
+    getFirstOrganizationWithProjectCreationAccess(organizationMemberships);
 
-  if (firstCreatableOrganization) {
+  if (firstOrganizationWithProjectCreationAccess) {
     return {
       redirectTo: createProjectRoute(
-        firstCreatableOrganization.organization.id,
+        firstOrganizationWithProjectCreationAccess.organization.id,
       ),
     };
   }
@@ -188,12 +198,21 @@ export const provisionStarterOrganizationForNewUser = async ({
       FOR UPDATE
     `;
 
-    const realOrganizationMembershipCount =
-      await tx.organizationMembership.count({
-        where: getRealOrganizationMembershipWhereClause(userId),
-      });
+    const realOrganizationMemberships = await getRealOrganizationMemberships({
+      prisma: tx,
+      userId,
+    });
 
-    if (realOrganizationMembershipCount > 0) {
+    const accessibleProjects = getAccessibleProjects(
+      realOrganizationMemberships,
+    );
+    const firstOrganizationWithProjectCreationAccess =
+      getFirstOrganizationWithProjectCreationAccess(
+        realOrganizationMemberships,
+      );
+
+    if (accessibleProjects[0] || firstOrganizationWithProjectCreationAccess) {
+      // Do not create a starter org if the user already has access to a project or can create projects in an existing org
       return null;
     }
 
