@@ -3,11 +3,11 @@ import {
   DEFAULT_PYTHON_CODE_EVAL_SOURCE,
   DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
+  formatAndStripCodeEvalSourceForSubmit,
   formatPythonCodeEvalSourceWithRuff,
   getCodeEvalSourceForEditor,
   getDefaultCodeEvalSource,
   isDefaultCodeEvalSource,
-  stripCodeEvalSourceForSubmit,
   validateCodeEvalSourceWithLanguage,
 } from "@/src/features/evals/utils/code-eval-template-validation";
 
@@ -73,13 +73,13 @@ describe("code eval template validation", () => {
 
   it("strips editor-only contracts before submit", () => {
     expect(
-      stripCodeEvalSourceForSubmit({
+      formatAndStripCodeEvalSourceForSubmit({
         sourceCode: DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
         sourceCodeLanguage: "TYPESCRIPT",
       }),
     ).toContain("function evaluate(ctx: EvaluationContext): EvaluationResult");
     expect(
-      stripCodeEvalSourceForSubmit({
+      formatAndStripCodeEvalSourceForSubmit({
         sourceCode: DEFAULT_PYTHON_CODE_EVAL_SOURCE,
         sourceCodeLanguage: "PYTHON",
       }),

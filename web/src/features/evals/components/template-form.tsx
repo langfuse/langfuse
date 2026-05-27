@@ -65,7 +65,7 @@ import {
   type CodeEvalSourceCodeLanguage,
   getCodeEvalSourceForEditor,
   getDefaultCodeEvalSource,
-  stripCodeEvalSourceForSubmit,
+  formatAndStripCodeEvalSourceForSubmit,
 } from "@/src/features/evals/utils/code-eval-template-validation";
 import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
 import {
@@ -449,14 +449,16 @@ export const InnerEvalTemplateForm = (props: {
         return;
       }
 
+      const formattedSourceCode = await formatAndStripCodeEvalSourceForSubmit({
+        sourceCode: values.sourceCode ?? "",
+        sourceCodeLanguage: submittedSourceCodeLanguage,
+      });
+
       const evalTemplate = {
         type: EvalTemplateType.CODE,
         name: values.name,
         projectId: props.projectId,
-        sourceCode: stripCodeEvalSourceForSubmit({
-          sourceCode: values.sourceCode ?? "",
-          sourceCodeLanguage: submittedSourceCodeLanguage,
-        }),
+        sourceCode: formattedSourceCode,
         sourceCodeLanguage: submittedSourceCodeLanguage,
         referencedEvaluators: values.referencedEvaluators,
         cloneSourceId: props.cloneSourceId ?? undefined,

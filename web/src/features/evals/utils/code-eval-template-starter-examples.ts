@@ -239,23 +239,72 @@ export function getCodeEvalSourceForEditor({
     : `${TYPESCRIPT_CODE_EVAL_CONTRACT}\n\n${sourceCode.trimStart()}`;
 }
 
-export function stripCodeEvalSourceForSubmit({
+async function formatTypeScriptSource(source: string): Promise<string> {
+  const [{ format }, typescriptPlugin, estreePlugin] = await Promise.all([
+    import("prettier/standalone"),
+    import("prettier/plugins/typescript"),
+    import("prettier/plugins/estree"),
+  ]);
+
+  return format(source, {
+    parser: "typescript",
+    plugins: [typescriptPlugin, estreePlugin],
+  });
+}
+
+async function formatPythonSource(source: string): Promise<string> {
+  const ruffModule = await import("@astral-sh/ruff-wasm-web");
+  await ruffModule.default();
+
+  const workspace = new ruffModule.Workspace(
+    {
+      "line-length": 88,
+      "indent-width": 4,
+    },
+    ruffModule.PositionEncoding.Utf16,
+  );
+
+  return workspace.format(source);
+}
+
+/**
+ * Formats the source code and strips the contract types for submission.
+ * For Python: Formats with Ruff, then extracts starting from `def evaluate(`.
+ * For TypeScript: Strips contract types, formats with prettier, then returns.
+ */
+export async function formatAndStripCodeEvalSourceForSubmit({
   sourceCode,
   sourceCodeLanguage,
 }: {
   sourceCode: string;
   sourceCodeLanguage: CodeEvalSourceCodeLanguage;
-}) {
+}): Promise<string> {
   if (sourceCodeLanguage === "PYTHON") {
     const evaluateMatch = sourceCode.match(/(?:^|\n)\s*def\s+evaluate\s*\(/);
     if (!evaluateMatch || evaluateMatch.index === undefined) {
       return sourceCode.trim();
     }
 
-    return sourceCode.slice(evaluateMatch.index).trimStart().trimEnd();
+    const strippedSource = sourceCode
+      .slice(evaluateMatch.index)
+      .trimStart()
+      .trimEnd();
+
+    try {
+      return (await formatPythonSource(strippedSource)).trimEnd();
+    } catch {
+      return strippedSource;
+    }
   }
 
-  return sourceCode.startsWith(TYPESCRIPT_CODE_EVAL_CONTRACT)
+  // TypeScript: strip contract types first, then format
+  const strippedSource = sourceCode.startsWith(TYPESCRIPT_CODE_EVAL_CONTRACT)
     ? sourceCode.slice(TYPESCRIPT_CODE_EVAL_CONTRACT.length).trim()
     : sourceCode.trim();
+
+  try {
+    return (await formatTypeScriptSource(strippedSource)).trimEnd();
+  } catch {
+    return strippedSource;
+  }
 }

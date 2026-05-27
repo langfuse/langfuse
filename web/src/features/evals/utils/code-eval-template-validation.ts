@@ -11,10 +11,10 @@ export {
   DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
   PYTHON_CODE_EVAL_CONTRACT,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
+  formatAndStripCodeEvalSourceForSubmit,
   getCodeEvalSourceForEditor,
   getDefaultCodeEvalSource,
   isDefaultCodeEvalSource,
-  stripCodeEvalSourceForSubmit,
   type CodeEvalSourceCodeLanguage,
 } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 
