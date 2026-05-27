@@ -1,15 +1,54 @@
 const ensurePrismaClientGenerated = async (databaseUrl: string) => {
   const { execSync } = await import("child_process");
+  const fs = await import("fs");
   const path = await import("path");
   const sharedDir = path.resolve(__dirname, "../../../packages/shared");
+  const repoRoot = path.resolve(sharedDir, "../..");
+  const schemaPath = path.join(sharedDir, "prisma", "schema.prisma");
+  const pnpmPrismaSchemaPaths = fs.existsSync(
+    path.join(repoRoot, "node_modules", ".pnpm"),
+  )
+    ? fs
+        .readdirSync(path.join(repoRoot, "node_modules", ".pnpm"), {
+          withFileTypes: true,
+        })
+        .filter(
+          (entry) =>
+            entry.isDirectory() && entry.name.startsWith("@prisma+client@"),
+        )
+        .map((entry) =>
+          path.join(
+            repoRoot,
+            "node_modules",
+            ".pnpm",
+            entry.name,
+            "node_modules",
+            ".prisma",
+            "client",
+            "schema.prisma",
+          ),
+        )
+    : [];
+  const generatedSchemaPaths = [
+    path.join(repoRoot, "node_modules", ".prisma", "client", "schema.prisma"),
+    path.join(sharedDir, "node_modules", ".prisma", "client", "schema.prisma"),
+    ...pnpmPrismaSchemaPaths,
+  ];
 
-  try {
-    const prismaModule = await import("@prisma/client");
-    if (typeof prismaModule.PrismaClient === "function") {
-      return;
-    }
-  } catch {
-    // Fall through to prisma generate when the client is unavailable.
+  const sourceSchemaStat = fs.statSync(schemaPath);
+  const hasCurrentGeneratedClient = generatedSchemaPaths.some(
+    (generatedSchemaPath) => {
+      if (!fs.existsSync(generatedSchemaPath)) {
+        return false;
+      }
+
+      const generatedSchemaStat = fs.statSync(generatedSchemaPath);
+      return generatedSchemaStat.mtimeMs >= sourceSchemaStat.mtimeMs;
+    },
+  );
+
+  if (hasCurrentGeneratedClient) {
+    return;
   }
 
   execSync(
@@ -20,6 +59,16 @@ const ensurePrismaClientGenerated = async (databaseUrl: string) => {
       stdio: "inherit",
     },
   );
+
+  const generatedClientExists = generatedSchemaPaths.some(
+    (generatedSchemaPath) => fs.existsSync(generatedSchemaPath),
+  );
+
+  if (!generatedClientExists) {
+    throw new Error(
+      `Prisma client was not generated. Checked: ${generatedSchemaPaths.join(", ")}`,
+    );
+  }
 };
 
 const migrateTestDatabase = async (databaseUrl: string) => {
