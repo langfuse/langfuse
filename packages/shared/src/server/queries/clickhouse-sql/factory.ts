@@ -1,6 +1,5 @@
-import z from "zod";
-import { singleFilter } from "../../../interfaces/filters";
-import { FilterCondition } from "../../../types";
+import { FTS_MATCH_OPERATOR } from "../../../interfaces/filters";
+import { type EventsTableFilterState } from "../../../types";
 import { InvalidRequestError } from "../../../errors";
 import { isValidTableName } from "../../clickhouse/schemaUtils";
 import { logger } from "../../logger";
@@ -23,6 +22,7 @@ import {
   StringObjectFilter,
   NullFilter,
 } from "./clickhouse-filter";
+import { assertValidFtsMatchFilter } from "./fts";
 
 export class QueryBuilderError extends Error {
   constructor(message: string) {
@@ -35,7 +35,7 @@ export class QueryBuilderError extends Error {
 // The filter property in this column needs to be zod verified.
 // User input for values (e.g. project_id = <value>) are sent to Clickhouse as parameters to prevent SQL injection
 export const createFilterFromFilterState = (
-  filter: FilterCondition[],
+  filter: EventsTableFilterState,
   columnMapping: UiColumnMappings,
   columnDefinitions?: ColumnDefinition[],
 ) => {
@@ -58,6 +58,8 @@ export const createFilterFromFilterState = (
         }
       }
     }
+
+    validateEventsTableMatchesFilter(frontEndFilter, column);
 
     switch (frontEndFilter.type) {
       case "string":
@@ -155,8 +157,37 @@ export const createFilterFromFilterState = (
   });
 };
 
+const validateEventsTableMatchesFilter = (
+  filter: EventsTableFilterState[number],
+  column: UiColumnMappings[number],
+) => {
+  if (!("operator" in filter) || filter.operator !== FTS_MATCH_OPERATOR) {
+    return;
+  }
+
+  if (filter.type === "string") {
+    assertValidFtsMatchFilter({
+      filterType: "string",
+      clickhouseTable: column.clickhouseTableName,
+      field: column.clickhouseSelect,
+      value: filter.value,
+    });
+    return;
+  } else if (filter.type === "stringObject") {
+    assertValidFtsMatchFilter({
+      filterType: "stringObject",
+      clickhouseTable: column.clickhouseTableName,
+      field: column.clickhouseSelect,
+      value: filter.value,
+    });
+    return;
+  }
+
+  throw new QueryBuilderError(`Invalid filter type`);
+};
+
 const matchAndVerifyTracesUiColumn = (
-  filter: z.infer<typeof singleFilter>,
+  filter: EventsTableFilterState[number],
   uiTableDefinitions: UiColumnMappings,
 ) => {
   // tries to match the column name to the clickhouse table name
