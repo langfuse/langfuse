@@ -68,7 +68,7 @@ export function CodeEvalTestRunCard({
 }) {
   const { isBetaEnabled } = useV4Beta();
   const isSupportedTarget = isCodeEvalTestTarget(target);
-  const canPreview = isBetaEnabled && isSupportedTarget && !disabled;
+  const canPreview = isSupportedTarget && !disabled;
   const previewPointer = useFirstEvalPreviewPointer({
     target,
     useEventsTable: isBetaEnabled,
@@ -159,6 +159,7 @@ export function CodeEvalTestRunCard({
                   observationId,
                   traceId,
                   startTime: timestamp,
+                  shouldReadFromObservationsTable: !isBetaEnabled,
                 });
               }}
             >

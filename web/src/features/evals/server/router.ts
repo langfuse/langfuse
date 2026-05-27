@@ -177,6 +177,7 @@ const CodeEvalTestRunSchema = z.object({
   observationId: z.string(),
   traceId: z.string(),
   startTime: z.coerce.date(),
+  shouldReadFromObservationsTable: z.boolean().optional().default(true),
 });
 
 const UpdateEvalJobSchema = z.object({
@@ -292,22 +293,29 @@ const assertCodeEvalJobConfigTestSucceeds = async ({
 
   const parsedMapping = z.array(observationVariableMapping).parse(mapping);
 
-  const result = await runCodeEvalTestForJobConfig({
-    prisma,
-    orgId,
-    projectId,
-    evalTemplateId,
-    target,
-    mapping: parsedMapping,
-    scoreName,
-    filter,
-  });
-
-  if (!result.success) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: result.error.message,
+  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true") {
+    const result = await runCodeEvalTestForJobConfig({
+      prisma,
+      orgId,
+      projectId,
+      evalTemplateId,
+      target,
+      mapping: parsedMapping,
+      scoreName,
+      filter,
     });
+
+    if (!result.success) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: result.error.message,
+      });
+    }
+  } else if (target === EvalTargetObject.EXPERIMENT) {
+    return;
+  } else {
+    // TODO: add self-hosting path for target events
+    return;
   }
 };
 
@@ -985,6 +993,7 @@ export const evalRouter = createTRPCRouter({
         observationId: input.observationId,
         traceId: input.traceId,
         startTime: input.startTime,
+        shouldReadFromObservationsTable: input.shouldReadFromObservationsTable,
       });
     }),
   createTemplate: protectedProjectProcedure

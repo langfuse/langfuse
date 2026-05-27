@@ -994,9 +994,9 @@ function CodeEvalSdkVersionCallout({
             Please verify your SDK version
           </span>
           <span className="text-foreground text-sm">
-            Code-based evaluators require JS SDK v4+ or Python SDK v3+. You can
-            create this evaluator now, but it will only run once your project
-            ingests data with a compatible SDK.{" "}
+            Code evaluators require JS SDK v4+ or Python SDK v3+. You can create
+            this evaluator now, but it will only run once your project ingests
+            data with a compatible SDK.{" "}
             <a
               href="https://langfuse.com/docs/observability/sdk/upgrade-path"
               target="_blank"

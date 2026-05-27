@@ -88,7 +88,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
               >
                 <Code2 className="h-5 w-5 shrink-0" />
                 <span className="flex flex-col gap-1">
-                  <span className="font-medium">Code-based evaluator</span>
+                  <span className="font-medium">Code evaluator</span>
                   <span className="text-muted-foreground text-sm font-normal">
                     Run TypeScript or Python logic to create Langfuse scores.
                   </span>

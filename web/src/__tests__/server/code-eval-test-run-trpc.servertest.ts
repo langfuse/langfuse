@@ -1,4 +1,3 @@
-process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "dev";
 process.env.NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED = "true";
 
 import { randomUUID } from "node:crypto";

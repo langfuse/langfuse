@@ -61,12 +61,14 @@ export async function runCodeEvalTest(params: {
   observationId: string;
   traceId: string;
   startTime: Date;
+  shouldReadFromObservationsTable?: boolean;
 }): Promise<CodeEvalTestRunResult> {
   const observation = await getObservationForEvalById({
     projectId: params.projectId,
     id: params.observationId,
     traceId: params.traceId,
     startTime: params.startTime,
+    shouldReadFromObservationsTable: params.shouldReadFromObservationsTable,
   });
 
   return runCodeEvalTestForObservation({
@@ -222,8 +224,12 @@ async function getObservationForEvalById(params: {
   id: string;
   traceId: string;
   startTime: Date;
+  shouldReadFromObservationsTable?: boolean;
 }): Promise<ObservationForEval> {
-  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS !== "true") {
+  if (
+    env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS !== "true" ||
+    params.shouldReadFromObservationsTable
+  ) {
     return getObservationForEvalByIdFromLegacyObservations(params);
   }
 

@@ -116,8 +116,6 @@ import {
   resolveCodeEvalTarget,
 } from "@/src/features/evals/utils/code-eval-template-utils";
 import { CodeEvalTestRunCard } from "@/src/features/evals/components/code-eval-test-run-card";
-import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-eval-template-form-body";
-import { getCodeEvalSourceForEditor } from "@/src/features/evals/utils/code-eval-template-validation";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import { cn } from "@/src/utils/tailwind";
 
@@ -304,7 +302,15 @@ const ObservationsPreview = memo(
 
 ObservationsPreview.displayName = "ObservationsPreview";
 
-function CodeEvalSourcePreview({
+function getCodeEvalSourceLanguageLabel(
+  sourceCodeLanguage: EvalTemplate["sourceCodeLanguage"],
+) {
+  return sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+    ? "Python"
+    : "TypeScript";
+}
+
+function CodeEvalSourceLink({
   projectId,
   evalTemplate,
 }: {
@@ -314,43 +320,34 @@ function CodeEvalSourcePreview({
   const sourceCodeLanguage =
     evalTemplate.sourceCodeLanguage ??
     EvalTemplateSourceCodeLanguage.TYPESCRIPT;
+  const languageLabel = getCodeEvalSourceLanguageLabel(sourceCodeLanguage);
+
+  const editButton = evalTemplate.projectId ? (
+    <Button asChild variant="outline">
+      <Link
+        href={`/project/${projectId}/evals/templates/${evalTemplate.id}?mode=edit`}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Edit source code
+        <ExternalLink className="ml-1 h-3.5 w-3.5" />
+      </Link>
+    </Button>
+  ) : (
+    <Button
+      variant="outline"
+      disabled
+      title="Only user-managed templates can be edited"
+    >
+      Edit source code
+      <ExternalLink className="ml-1 h-3.5 w-3.5" />
+    </Button>
+  );
 
   return (
-    <div className="min-w-0">
-      <CodeEvalTemplateFormBody
-        sourceCode={getCodeEvalSourceForEditor({
-          sourceCode: evalTemplate.sourceCode,
-          sourceCodeLanguage,
-        })}
-        sourceCodeLanguage={sourceCodeLanguage}
-        onSourceCodeChange={() => undefined}
-        editable={false}
-        validationResult={null}
-        headerAction={
-          evalTemplate.projectId ? (
-            <Button asChild variant="outline" className="h-7 px-2">
-              <Link
-                href={`/project/${projectId}/evals/templates/${evalTemplate.id}?mode=edit`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Edit source
-                <ExternalLink className="ml-1 h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              className="h-7 px-2"
-              disabled
-              title="Only user-managed templates can be edited"
-            >
-              Edit source
-              <ExternalLink className="ml-1 h-3.5 w-3.5" />
-            </Button>
-          )
-        }
-      />
+    <div className="bg-muted/20 flex max-w-[500px] items-center justify-between gap-3 rounded-md border px-3 py-2">
+      <span className="text-muted-foreground text-sm">{languageLabel}</span>
+      {editButton}
     </div>
   );
 }
@@ -822,6 +819,11 @@ export const InnerEvaluatorForm = (props: {
     !props.disabled &&
     (isEventTarget(watchedTarget) ||
       (isExperimentTarget(watchedTarget) && isBetaEnabled));
+  const shouldShowCodeEvalSourceLinkInSettingsCard =
+    isCodeEvalConfig &&
+    !props.disabled &&
+    isExperimentTarget(watchedTarget) &&
+    !isBetaEnabled;
 
   const formBody = (
     <div
@@ -1335,6 +1337,12 @@ export const InnerEvaluatorForm = (props: {
                     )}
                   </>
                 )}
+                {shouldShowCodeEvalSourceLinkInSettingsCard ? (
+                  <CodeEvalSourceLink
+                    projectId={props.projectId}
+                    evalTemplate={props.evalTemplate}
+                  />
+                ) : null}
               </>
             )}
           </div>
@@ -1349,12 +1357,7 @@ export const InnerEvaluatorForm = (props: {
           disabled={props.disabled}
           enableExecutionTracePeek={!props.existingEvaluator}
         />
-      ) : isCodeEvalConfig ? (
-        <CodeEvalSourcePreview
-          projectId={props.projectId}
-          evalTemplate={props.evalTemplate}
-        />
-      ) : (
+      ) : isCodeEvalConfig ? null : (
         <VariableMappingCard
           projectId={props.projectId}
           availableVariables={availableVariables}
