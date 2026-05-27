@@ -251,4 +251,20 @@ describe("LocalCodeEvalDispatcher", () => {
       retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
   });
+
+  it("includes a small invalid returned result as structured error data", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher();
+
+    await expect(
+      dispatcher.dispatch({
+        ...baseInput,
+        runtime: { language: "TYPESCRIPT" },
+        code: { source: `function evaluate() { return { score: 1 }; }` },
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_RESULT",
+      retryable: false,
+      returnedResult: { score: 1 },
+    } satisfies Partial<CodeEvalDispatcherError>);
+  });
 });

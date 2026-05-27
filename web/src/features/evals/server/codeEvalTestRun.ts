@@ -9,7 +9,7 @@ import {
   processEventBatch,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
-  type CodeEvalUserVisibleErrorCode,
+  type CodeEvalUserVisibleError,
   type DispatchResult,
   type InternalTraceWriteInput,
 } from "@langfuse/shared/src/server";
@@ -33,6 +33,8 @@ import {
   isExperimentTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 
+type CodeEvalTestRunError = Omit<CodeEvalUserVisibleError, "retryable">;
+
 export type CodeEvalTestRunResult =
   | {
       success: true;
@@ -42,10 +44,7 @@ export type CodeEvalTestRunResult =
     }
   | {
       success: false;
-      error: {
-        code: CodeEvalUserVisibleErrorCode;
-        message: string;
-      };
+      error: CodeEvalTestRunError;
       executionTraceId: string;
       executionTraceFromTimestamp: Date;
     };
@@ -181,13 +180,17 @@ async function runCodeEvalTestForObservation(params: {
 
   return {
     success: false,
-    error: {
-      code: dispatchOutcome.error.code,
-      message: dispatchOutcome.error.message,
-    },
+    error: toCodeEvalTestRunError(dispatchOutcome.error),
     executionTraceId: dispatchOutcome.executionTraceId,
     executionTraceFromTimestamp: dispatchOutcome.executionTraceFromTimestamp,
   };
+}
+
+function toCodeEvalTestRunError({
+  retryable: _retryable,
+  ...error
+}: CodeEvalUserVisibleError): CodeEvalTestRunError {
+  return error;
 }
 
 async function getObservationForEvalByFilter(params: {
