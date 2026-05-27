@@ -52,10 +52,10 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
     tableName: TableViewPresetTableName.ObservationsEvents,
     filters: [
       {
-        column: "hasParentObservation",
+        column: "isRootObservation",
         type: "boolean",
         operator: "=",
-        value: false,
+        value: true,
       },
     ],
   }),
