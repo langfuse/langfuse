@@ -57,9 +57,6 @@ evaluating, and debugging AI applications.
 - Measured bug or regression evidence that needs Linear deduplication, evidence
   comments, or Triage bug issue creation:
   `.agents/skills/linear-bug-triage/SKILL.md`
-- Proactive production regression sweeps across Datadog errors, logs, spans, and
-  API latency with Linear handoff:
-  `.agents/skills/detect-prod-regressions/SKILL.md`
 - Weekly production reviews of what broke, fixed/open `bug`-labeled Linear
   tickets, Datadog alert/page signals, and status-page or incident.io incidents:
   `.agents/skills/weekly-production-review/SKILL.md`

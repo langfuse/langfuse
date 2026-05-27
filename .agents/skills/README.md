@@ -122,16 +122,6 @@ Use for:
 
 Open: [code-review/SKILL.md](code-review/SKILL.md)
 
-### detect-prod-regressions
-
-Use for:
-- proactive Datadog sweeps across `prod-us`, `prod-eu`, `prod-hipaa`, and `prod-jp`
-- checking which paging monitors outside the SLO/burn-rate set alerted engineers and why
-- comparing recent production errors, logs, spans, and API latency to baselines
-- handing measured regressions to `linear-bug-triage` for Linear issues or comments
-
-Open: [detect-prod-regressions/SKILL.md](detect-prod-regressions/SKILL.md)
-
 ### weekly-production-review
 
 Use for:

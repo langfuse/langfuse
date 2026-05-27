@@ -36,9 +36,6 @@ output.
 
 - Use [`datadog-query-recipes`](../datadog-query-recipes/SKILL.md) for
   production Datadog query shapes and environment/site routing.
-- Use [`detect-prod-regressions`](../detect-prod-regressions/SKILL.md) when the
-  review needs deeper Datadog baseline comparisons or measured regression
-  analysis.
 - Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) only after a human
   explicitly approves a Linear write-back.
 
