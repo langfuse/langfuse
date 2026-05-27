@@ -2,6 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { Streamdown } from "streamdown";
+import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { cn } from "@/src/utils/tailwind";
 
 export type InAppAgentMessageRole = "assistant" | "user";
@@ -59,11 +60,23 @@ function MessageText({
           h5: ({ children }) => <h5>{children}</h5>,
           h6: ({ children }) => <h6>{children}</h6>,
           p: ({ children }) => <p>{children}</p>,
-          a: ({ children, href }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer">
-              {children}
-            </a>
-          ),
+          a: ({ children, href }) => {
+            const safeHref = getSafeLinkUrl(href);
+
+            if (!safeHref) {
+              return (
+                <span className="text-muted-foreground underline">
+                  {children}
+                </span>
+              );
+            }
+
+            return (
+              <a href={safeHref} target="_blank" rel="noopener noreferrer">
+                {children}
+              </a>
+            );
+          },
           ul: ({ children }) => <ul>{children}</ul>,
           ol: ({ children }) => <ol>{children}</ol>,
           li: ({ children }) => <li>{children}</li>,
