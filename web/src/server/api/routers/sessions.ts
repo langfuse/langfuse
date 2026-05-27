@@ -54,10 +54,12 @@ import chunk from "lodash/chunk";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { toDomainArrayWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
-const SessionFilterOptions = z.object({
+const SessionCountOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter).nullable(),
   orderBy: orderBy,
+});
+const SessionFilterOptions = SessionCountOptions.extend({
   ...paginationZod,
 });
 
@@ -293,7 +295,7 @@ export const sessionRouter = createTRPCRouter({
       };
     }),
   countAll: protectedProjectProcedure
-    .input(SessionFilterOptions)
+    .input(SessionCountOptions)
     .query(async ({ input, ctx }) => {
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
@@ -327,7 +329,7 @@ export const sessionRouter = createTRPCRouter({
       };
     }),
   countAllFromEvents: protectedProjectProcedure
-    .input(SessionFilterOptions)
+    .input(SessionCountOptions)
     .query(async ({ input, ctx }) => {
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],

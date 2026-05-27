@@ -400,8 +400,6 @@ export default function TracesTable({
     filter: filterState,
     searchQuery: searchQuery,
     searchType: searchType,
-    page: 0,
-    limit: 0,
     orderBy: null,
   };
 
