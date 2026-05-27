@@ -399,7 +399,7 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
     // Scheduler is the only source of redelivery; disable BullMQ's stalled
     // recovery so the unified TTL pacing is uncontested.
     lockDuration: monitorProcessorTtl + 60_000,
-    stalledInterval: 0,
+    maxStalledCount: 0,
   });
 }
 
