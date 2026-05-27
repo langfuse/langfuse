@@ -1,14 +1,6 @@
 ---
 name: detect-prod-regressions
-description: |
-  Proactively detect production regressions in Langfuse by comparing recent
-  Datadog paging alerts from monitors outside the SLO/burn-rate set, errors,
-  error logs, error spans, and API route latency signals against baseline
-  benchmarks or traces across prod-us, prod-eu, prod-hipaa, and prod-jp. Use
-  when asked to sweep production for new bugs, catch regressions early,
-  understand why engineers were paged, catch low-occurrence coding bugs or edge
-  cases, compare recent changes to Datadog measurements, or prepare measured
-  production evidence for human review before any optional Linear handoff.
+description: Sweep Datadog production regressions in Langfuse across monitors, errors, logs, spans, API latency, baselines, prod regions, paging alerts, and Linear handoff evidence.
 ---
 
 # Detect Prod Regressions

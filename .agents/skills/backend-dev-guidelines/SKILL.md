@@ -1,6 +1,6 @@
 ---
 name: backend-dev-guidelines
-description: Shared backend guide for Langfuse's Next.js, tRPC, BullMQ, and TypeScript monorepo. Use when creating or reviewing tRPC routers, public REST endpoints, BullMQ queue processors, backend services, middleware, Prisma or ClickHouse data access, OpenTelemetry instrumentation, Zod validation, env configuration, or backend tests across web, worker, or packages/shared.
+description: Langfuse backend/API guidance for tRPC, public REST, BullMQ, Prisma, ClickHouse, middleware, auth, validation, env config, observability, and tests.
 ---
 
 # Backend Development Guidelines

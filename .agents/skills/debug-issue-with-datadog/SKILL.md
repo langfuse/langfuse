@@ -1,12 +1,6 @@
 ---
 name: debug-issue-with-datadog
-description: |
-  Debug a user-reported issue, Linear ticket, or incident report by combining
-  Datadog (APM, logs, metrics) with the Langfuse repo to establish a
-  root cause. Use when given a Linear issue URL/ID (e.g. LFE-XXXX), a GitHub
-  issue, or a pasted error/report and asked to investigate, root-cause, or
-  triage. Produces a structured analysis — error breakdown, hypothesis-by-class,
-  suggested patches with code references.
+description: Debug Linear/GitHub/incidents with Datadog APM, logs, metrics, and repo code to root cause errors, form hypotheses, and suggest patches.
 ---
 
 # Debug Issue with Datadog
