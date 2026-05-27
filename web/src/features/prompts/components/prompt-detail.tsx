@@ -149,14 +149,17 @@ export const PromptDetail = ({
     projectId,
     scope: "comments:read",
   });
-  const promptHistory = api.prompts.allVersions.useQuery(
-    {
+  const promptHistoryInput = useMemo(
+    () => ({
       name: promptName,
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       includeCommentCounts: hasCommentReadAccess,
-    },
-    { enabled: Boolean(projectId) },
+    }),
+    [hasCommentReadAccess, projectId, promptName],
   );
+  const promptHistory = api.prompts.allVersions.useQuery(promptHistoryInput, {
+    enabled: Boolean(projectId),
+  });
   const prompt = currentPromptVersion
     ? promptHistory.data?.promptVersions.find(
         (prompt) => prompt.version === currentPromptVersion,
@@ -300,6 +303,7 @@ export const PromptDetail = ({
             availableTags={allTags}
             projectId={projectId as string}
             promptName={prompt.name}
+            includeCommentCounts={promptHistoryInput.includeCommentCounts}
           />
         ),
         actionButtonsRight: (
@@ -442,11 +446,7 @@ export const PromptDetail = ({
                   count={getNumberFromMap(commentCounts, prompt.id)}
                   variant="outline"
                   onCommentChange={() =>
-                    utils.prompts.allVersions.invalidate({
-                      projectId: projectId as string,
-                      name: promptName,
-                      includeCommentCounts: true,
-                    })
+                    utils.prompts.allVersions.invalidate(promptHistoryInput)
                   }
                 />
                 <DropdownMenu>
