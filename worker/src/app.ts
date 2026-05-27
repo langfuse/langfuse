@@ -21,7 +21,6 @@ import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
-import { monitorSchedulerQueueProcessor } from "./queues/monitorSchedulerQueue";
 import { monitorProcessorQueueProcessor } from "./queues/monitorProcessorQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
@@ -45,7 +44,6 @@ import {
   EvalExecutionQueue,
   SecondaryEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
-  MonitorSchedulerQueue,
 } from "@langfuse/shared/src/server";
 import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
 import { env } from "./env";
@@ -96,6 +94,7 @@ import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-clean
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
+import { MonitorSchedulerRunner } from "./features/monitor-scheduler";
 
 const app = express();
 
@@ -391,15 +390,6 @@ if (
         duration: 30_000,
       },
     },
-  );
-}
-
-if (env.QUEUE_CONSUMER_MONITOR_SCHEDULER_QUEUE_IS_ENABLED === "true") {
-  MonitorSchedulerQueue.getInstance();
-  WorkerManager.register(
-    QueueName.MonitorSchedulerQueue,
-    monitorSchedulerQueueProcessor,
-    { concurrency: 1 },
   );
 }
 
@@ -720,6 +710,20 @@ export let queueMetricsRunner: QueueMetricsRunner | null = null;
 if (env.LANGFUSE_QUEUE_METRICS_ENABLED === "true") {
   queueMetricsRunner = new QueueMetricsRunner();
   queueMetricsRunner.start();
+}
+
+// Monitor scheduler runners — one per shard, distributed across workers via per-shard Redis locks
+export const monitorSchedulerRunners: MonitorSchedulerRunner[] = [];
+
+if (env.LANGFUSE_MONITOR_SCHEDULER_ENABLED === "true") {
+  for (let i = 0; i < env.LANGFUSE_MONITOR_SCHEDULERS; i++) {
+    const runner = new MonitorSchedulerRunner(
+      i,
+      env.LANGFUSE_MONITOR_SCHEDULERS,
+    );
+    monitorSchedulerRunners.push(runner);
+    runner.start();
+  }
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));
