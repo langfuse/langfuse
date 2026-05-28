@@ -521,11 +521,7 @@ export async function fetchLLMCompletion(
         baseURL,
         dispatcher: proxyDispatcher,
       }),
-      ...(googleProviderOptions
-        ? {
-            thinkingConfig: googleProviderOptions as any, // Typecast as thinkingLevel is intentionally looser typed
-          }
-        : {}),
+      ...((googleProviderOptions as any) ?? {}), // Typecast as thinkingLevel is intentionally looser typed
     });
   } else {
     const _exhaustiveCheck: never = modelParams.adapter;

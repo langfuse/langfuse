@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AIMessage } from "../../../packages/shared/node_modules/@langchain/core/messages";
 
 const invokeMock = vi.fn();
 const streamMock = vi.fn();
@@ -72,9 +73,12 @@ describe("fetchLLMCompletion runtime timeouts", () => {
     vi.resetModules();
     originalCloudRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    vi.doMock("@langchain/google", () => ({
-      ChatGoogle: chatGoogleConstructorMock,
-    }));
+    vi.doMock(
+      "../../../packages/shared/node_modules/@langchain/google",
+      () => ({
+        ChatGoogle: chatGoogleConstructorMock,
+      }),
+    );
     vi.doMock("../../../packages/shared/src/server/llm/errors", () => ({
       LLMCompletionError: MockLLMCompletionError,
     }));
@@ -173,6 +177,47 @@ describe("fetchLLMCompletion runtime timeouts", () => {
 
     await vi.runOnlyPendingTimersAsync();
     await completionRejection;
+  });
+
+  it("passes Google AI Studio thinking provider options as ChatGoogle top-level fields", async () => {
+    invokeMock.mockResolvedValue(new AIMessage("4"));
+
+    await fetchLLMCompletion({
+      streaming: false,
+      messages: [
+        {
+          role: "user",
+          content: "What is 2+2? Answer only with the number.",
+          type: "public-api-created",
+        },
+      ],
+      modelParams: {
+        provider: "google-ai-studio",
+        adapter: "google-ai-studio",
+        model: "gemini-2.5-flash",
+        temperature: 0,
+        max_tokens: 10,
+        providerOptions: {
+          thinkingBudget: 1024,
+          thinkingLevel: "high",
+        },
+      },
+      llmConnection: {
+        secretKey: encrypt("google-api-key"),
+      },
+    });
+
+    expect(chatGoogleConstructorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        thinkingBudget: 1024,
+        thinkingLevel: "high",
+      }),
+    );
+    expect(chatGoogleConstructorMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        thinkingConfig: expect.anything(),
+      }),
+    );
   });
 });
 
