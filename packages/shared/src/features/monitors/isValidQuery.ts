@@ -12,6 +12,7 @@ import {
   type metricAggregations,
   type viewsV2,
 } from "../query/types";
+import { disallowedMonitorFilterColumns } from "./filterColumns";
 
 /** getValidMonitorAggregationsForMeasure returns the aggregations valid for a monitor metric: the widget set minus `histogram`, and pinned to the measure's inner `aggs.agg` when set (e.g. observations.count is always `count`). */
 export const getValidMonitorAggregationsForMeasure = (
@@ -30,11 +31,13 @@ export const getValidMonitorAggregationsForMeasure = (
 };
 
 /**
- * isValidQuery ensures:
- * - The measure exists on the view's v2 declaration.
- * - The aggregation is compatible with the measure's declared type.
- * - Each filter column is either a declared dimension or the `metadata`
- *   escape hatch.
+ * isValidQuery ensures the measure/aggregation pair resolves on the view's v2
+ * declaration, the filter column isn't in `disallowedMonitorFilterColumns`,
+ * and set-semantics filter values are unique. Filter-column-vs-view alignment
+ * is intentionally NOT checked here (see LF-2181) — dimensions are the
+ * group-by surface, not the filter surface, so the dimension map is the wrong
+ * proxy. The scheduler's ERROR_BAD_QUERY path catches unresolvable filters at
+ * evaluation time.
  */
 export function isValidQuery(input: {
   view: z.infer<typeof viewsV2>;
@@ -73,35 +76,12 @@ export function isValidQuery(input: {
   }
 
   for (const filter of input.filters) {
-    if (filter.column === "metadata") {
-      if (filter.type !== "stringObject") {
-        return {
-          valid: false,
-          reason:
-            `Filter on "metadata" must be type "stringObject" with a "key" property ` +
-            `(got "${filter.type}"). queryBuilder rejects other metadata filter types.`,
-        };
-      }
-      continue;
-    }
-    if (!Object.hasOwn(declaration.dimensions, filter.column)) {
+    if (disallowedMonitorFilterColumns.includes(filter.column)) {
       return {
         valid: false,
         reason:
-          `Invalid filter column "${filter.column}" for view "${input.view}". ` +
-          `Must be a dimension on the view or the special "metadata" column.`,
-      };
-    }
-    // Array-typed dimensions (e.g. `tags`) require the `arrayOptions` filter
-    // variant; queryBuilder rejects scalar filters on them. Fail fast at the
-    // input boundary instead of letting the scheduler tick fail.
-    const dimension = declaration.dimensions[filter.column];
-    if (dimension.type === "string[]" && filter.type !== "arrayOptions") {
-      return {
-        valid: false,
-        reason:
-          `Filter on "${filter.column}" must be type "arrayOptions" — the dimension is an array ` +
-          `(got "${filter.type}"). queryBuilder requires scalar dimensions for non-array filter types.`,
+          `Filter on "${filter.column}" is not supported for monitors — ` +
+          `too expensive at evaluation cadence.`,
       };
     }
     // Set-semantics value arrays must not contain duplicates — `any of` /

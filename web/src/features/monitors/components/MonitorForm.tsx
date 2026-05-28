@@ -58,6 +58,7 @@ import {
   CreateMonitorSchema,
   type CreateMonitor,
   getValidMonitorAggregationsForMeasure,
+  getValidMonitorFilterColumns,
   type Monitor,
   type MonitorNoData,
   type MonitorRenotify,
@@ -337,7 +338,8 @@ export const MonitorForm = ({
 
   /** filterColumns is the InlineFilterBuilder column schema for the picked view. */
   const filterColumns = useMemo(
-    () => getWidgetFilterColumns(filterColumnsParams),
+    () =>
+      getValidMonitorFilterColumns(getWidgetFilterColumns(filterColumnsParams)),
     [filterColumnsParams],
   );
 
