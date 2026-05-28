@@ -11,7 +11,10 @@ import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
 import { EvalTargetObjectSchema } from "../features/evals/types";
 import { JobConfigExecutionMode } from "../features/evals/evalConfigBlocking";
-import { MonitorQueueEventSchema } from "../features/monitors/scheduler/types";
+import {
+  MonitorQueueEventSchema,
+  MonitorWebhookQueueEventSchema,
+} from "../features/monitors/scheduler/types";
 
 export type MonitorQueueEvent = z.infer<typeof MonitorQueueEventSchema>;
 
@@ -235,10 +238,10 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
   // Future notification types can be added here
 ]);
 
-export const WebhookOutboundEnvelopeSchema = z.object({
+export const promptVersionWebhookEnvelopeSchema = z.object({
+  type: z.literal("prompt-version"),
   prompt: PromptDomainSchema,
   action: EventActionSchema,
-  type: z.literal("prompt-version"),
   user: z
     .object({
       id: z.string(),
@@ -247,6 +250,12 @@ export const WebhookOutboundEnvelopeSchema = z.object({
     })
     .optional(),
 });
+
+/** WebhookOutboundEnvelopeSchema is the WebhookInput.payload contract: a discriminated union over `type`. The monitor-alert variant is the unified envelope (queue payload = HTTP outbound body); the prompt-version variant keeps its original dispatch-time wrap. */
+export const WebhookOutboundEnvelopeSchema = z.discriminatedUnion("type", [
+  promptVersionWebhookEnvelopeSchema,
+  MonitorWebhookQueueEventSchema,
+]);
 
 export const WebhookInputSchema = z.object({
   projectId: z.string(),
