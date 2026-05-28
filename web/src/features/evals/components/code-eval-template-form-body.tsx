@@ -27,6 +27,7 @@ import {
   type CodeEvalHoverDocs,
 } from "@/src/features/evals/utils/code-eval-template-hover-docs";
 import {
+  formatPythonCodeEvalSourceWithRuff,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
   type CodeEvalSourceCodeLanguage,
   type CodeEvalValidationResult,
@@ -257,6 +258,19 @@ async function formatTypeScriptSource(source: string) {
   return `${source.slice(0, ranges.prelude.to)}\n${formattedEditableSource.trimStart()}`;
 }
 
+async function formatPythonSource(source: string) {
+  const ranges = findPythonContractRanges(source);
+  if (!ranges?.prelude) {
+    return formatPythonCodeEvalSourceWithRuff(source);
+  }
+
+  const formattedEditableSource = await formatPythonCodeEvalSourceWithRuff(
+    source.slice(ranges.prelude.to),
+  );
+
+  return `${source.slice(0, ranges.prelude.to).trimEnd()}\n\n\n${formattedEditableSource.trimStart()}`;
+}
+
 function scrollCodeMirrorToBottom(view: EditorView) {
   if (typeof window === "undefined") return;
 
@@ -285,9 +299,7 @@ export function CodeEvalTemplateFormBody({
     sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
       ? "Python"
       : "TypeScript";
-  const canFormatSource =
-    sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT;
-  const shouldShowFormatButton = editable && canFormatSource;
+  const shouldShowFormatButton = editable;
 
   const handleCreateEditor = useCallback((view: EditorView) => {
     codeMirrorViewRef.current = view;
@@ -307,18 +319,27 @@ export function CodeEvalTemplateFormBody({
   );
 
   const formatSource = useCallback(async () => {
-    if (!editable || isFormatting || !canFormatSource) return;
+    if (!editable || isFormatting) return;
 
     setIsFormatting(true);
     try {
-      const formatted = await formatTypeScriptSource(sourceCode);
+      const formatted =
+        sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+          ? await formatPythonSource(sourceCode)
+          : await formatTypeScriptSource(sourceCode);
       onSourceCodeChange(formatted);
     } catch (error) {
       console.error(error);
     } finally {
       setIsFormatting(false);
     }
-  }, [editable, isFormatting, canFormatSource, onSourceCodeChange, sourceCode]);
+  }, [
+    editable,
+    isFormatting,
+    onSourceCodeChange,
+    sourceCode,
+    sourceCodeLanguage,
+  ]);
 
   const linterExtension = useMemo(
     () =>
