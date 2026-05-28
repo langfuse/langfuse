@@ -141,7 +141,7 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
               </SelectItem>
               {conversations.map((conversation) => (
                 <SelectItem key={conversation.id} value={conversation.id}>
-                  {getConversationTitle(conversation)}
+                  {conversation.title?.trim() || "Untitled conversation"}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -273,8 +273,4 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
       </div>
     </section>
   );
-}
-
-function getConversationTitle(conversation: InAppAgentDrawerConversation) {
-  return conversation.title?.trim() || "Untitled conversation";
 }

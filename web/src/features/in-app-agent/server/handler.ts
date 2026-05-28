@@ -9,10 +9,6 @@ import {
 } from "@/src/features/in-app-agent/schema";
 import { createAgUiStream } from "@/src/features/in-app-agent/server/agent";
 import {
-  InvalidInAppAgentSessionTokenError,
-  verifyInAppAgentSessionToken,
-} from "@/src/features/in-app-agent/server/auth";
-import {
   appendConversationMessage,
   createRun,
   ensureOwnedConversation,
@@ -97,45 +93,21 @@ export default async function handler(request: Request) {
 
     const auth = { userId: session.user.id, user: session.user };
 
-    const {
-      projectId,
-      claudeSessionId: tokenClaudeSessionId,
-      conversationId,
-    } = (() => {
-      if (parsedState.data.type === "newSession") {
+    const { projectId, conversationId } = (() => {
+      if (parsedState.data.type === "newConversation") {
         return {
           projectId: parsedState.data.projectId,
           conversationId: input.threadId,
-          claudeSessionId: undefined,
         };
       }
 
-      if (parsedState.data.type === "existingConversation") {
-        if (parsedState.data.conversationId !== input.threadId) {
-          throw new InvalidRequestError(
-            "Conversation id does not match thread",
-          );
-        }
-
-        return {
-          projectId: parsedState.data.projectId,
-          conversationId: parsedState.data.conversationId,
-          claudeSessionId: undefined,
-        };
+      if (parsedState.data.conversationId !== input.threadId) {
+        throw new InvalidRequestError("Conversation id does not match thread");
       }
-
-      const token = verifyInAppAgentSessionToken(
-        parsedState.data.claudeSessionToken,
-        {
-          userId: auth.userId,
-          threadId: input.threadId,
-        },
-      );
 
       return {
-        projectId: token.projectId,
-        conversationId: input.threadId,
-        claudeSessionId: token.claudeSessionId,
+        projectId: parsedState.data.projectId,
+        conversationId: parsedState.data.conversationId,
       };
     })();
 
@@ -201,21 +173,24 @@ export default async function handler(request: Request) {
         runId: sanitizedInput.runId,
       });
 
-      const resumeSessionId =
-        tokenClaudeSessionId ?? conversation.providerSessionId ?? undefined;
+      const finishCurrentRun = (error?: {
+        errorCode: string;
+        errorMessage: string;
+      }) =>
+        finishRun({
+          prisma,
+          runId: sanitizedInput.runId,
+          projectId,
+          ...error,
+        });
 
       stream = createAgUiStream({
         input: sanitizedInput,
         signal: request.signal,
         options: {
-          resumeSessionId,
-          createResumeStateForSessionId: (_claudeSessionId) => ({
-            type: "existingConversation",
-            projectId,
-            conversationId: conversation.id,
-          }),
+          resumeSessionId: conversation.providerSessionId ?? undefined,
           onResumeSessionId: (claudeSessionId) => {
-            void updateProviderSessionId({
+            updateProviderSessionId({
               prisma,
               projectId,
               conversationId: conversation.id,
@@ -223,33 +198,25 @@ export default async function handler(request: Request) {
             }).catch((error) =>
               console.error("Failed to persist agent session id", error),
             );
-          },
-          onComplete: () => {
-            void finishRun({
-              prisma,
-              runId: sanitizedInput.runId,
+
+            return {
+              type: "existingConversation",
               projectId,
-            });
+              conversationId: conversation.id,
+            };
           },
-          onAbort: () => {
-            void finishRun({
-              prisma,
-              runId: sanitizedInput.runId,
-              projectId,
+          onComplete: () => finishCurrentRun(),
+          onAbort: () =>
+            finishCurrentRun({
               errorCode: "cancelled",
               errorMessage: "Client aborted request",
-            });
-          },
-          onError: (error) => {
-            void finishRun({
-              prisma,
-              runId: sanitizedInput.runId,
-              projectId,
+            }),
+          onError: (error) =>
+            finishCurrentRun({
               errorCode: "agent_error",
               errorMessage:
                 error instanceof Error ? error.message : "Unknown agent error",
-            });
-          },
+            }),
           awsBedrock: {
             region: env.LANGFUSE_AWS_BEDROCK_REGION,
             ...(awsProfile ? { profile: awsProfile } : {}),
@@ -283,13 +250,6 @@ export default async function handler(request: Request) {
   } catch (err) {
     if (err instanceof BaseError) {
       return Response.json({ error: err.message }, { status: err.httpCode });
-    }
-
-    if (err instanceof InvalidInAppAgentSessionTokenError) {
-      return Response.json(
-        { error: err.message, code: "invalid_session_token" },
-        { status: 400 },
-      );
     }
 
     if (err instanceof TRPCError) {

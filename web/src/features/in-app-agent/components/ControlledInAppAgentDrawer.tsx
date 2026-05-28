@@ -25,14 +25,18 @@ export function ControlledInAppAgentDrawer(
   const {
     conversations,
     error,
-    isInputDisabled,
     isRunning,
+    isSelectedConversationHydrating,
+    isSubmitting,
     messages,
     selectConversation,
     selectedConversationId,
     startNewConversation,
     submit,
   } = useInAppAiAgent();
+  const isInputDisabled =
+    isRunning || isSubmitting || isSelectedConversationHydrating;
+
   const drawerMessages = useMemo(() => {
     const parsedMessages = z.array(AgUiMessageSchema).parse(messages);
 

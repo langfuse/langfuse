@@ -42,7 +42,8 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   open: false,
   setOpen: () => undefined,
   isRunning: false,
-  isInputDisabled: false,
+  isSubmitting: false,
+  isSelectedConversationHydrating: false,
   error: null,
   messages: [],
   conversations: [],
@@ -77,7 +78,8 @@ type InAppAiAgentContextType = {
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
   isRunning: boolean;
-  isInputDisabled: boolean;
+  isSubmitting: boolean;
+  isSelectedConversationHydrating: boolean;
   error: string | null;
   messages: InAppAiAgentMessage[];
   conversations: InAppAiAgentConversation[];
@@ -165,7 +167,7 @@ function InAppAiAgentProviderInner({
     null,
   );
 
-  const conversationsQuery = api.inAppAgent.list.useQuery(
+  const conversationListQuery = api.inAppAgent.list.useQuery(
     { projectId },
     { enabled: open },
   );
@@ -180,16 +182,13 @@ function InAppAiAgentProviderInner({
   const syncMessagesMutation = api.inAppAgent.syncMessages.useMutation();
 
   const conversations = useMemo(
-    () => conversationsQuery.data ?? [],
-    [conversationsQuery.data],
+    () => conversationListQuery.data ?? [],
+    [conversationListQuery.data],
   );
   const isSelectedConversationHydrating =
     Boolean(selectedConversationId) &&
     conversationQuery.isLoading &&
     !conversationQuery.data;
-  const isInputDisabled =
-    isRunning || isSubmitting || isSelectedConversationHydrating;
-
   const resetAgent = useCallback(() => {
     subscriptionRef.current?.unsubscribe();
     subscriptionRef.current = null;
@@ -230,6 +229,7 @@ function InAppAiAgentProviderInner({
     [],
   );
 
+  // Hydrate local state from the selected persisted conversation once it loads.
   useEffect(() => {
     if (!selectedConversationId) {
       if (!isRunning) {
@@ -263,11 +263,12 @@ function InAppAiAgentProviderInner({
     selectedConversationId,
   ]);
 
+  // Clear local selection when the selected conversation was deleted remotely.
   useEffect(() => {
     if (
       !selectedConversationId ||
       isRunning ||
-      !isNotFoundTrpcError(conversationQuery.error)
+      conversationQuery.error?.data?.code !== "NOT_FOUND"
     ) {
       return;
     }
@@ -307,7 +308,7 @@ function InAppAiAgentProviderInner({
         return;
       }
 
-      void (async () => {
+      (async () => {
         try {
           const runMessageIds = options.runId
             ? options.runMessageIds
@@ -355,8 +356,8 @@ function InAppAiAgentProviderInner({
             }
           }
 
-          void utils.inAppAgent.list.invalidate({ projectId });
-          void utils.inAppAgent.get.invalidate({
+          utils.inAppAgent.list.invalidate({ projectId });
+          utils.inAppAgent.get.invalidate({
             projectId,
             conversationId,
           });
@@ -364,7 +365,7 @@ function InAppAiAgentProviderInner({
           const errorMessage = getAgentErrorMessage(error);
           showErrorToast("Failed to save conversation", errorMessage);
           console.error("Failed to sync in-app agent messages", error);
-          void utils.inAppAgent.get.invalidate({
+          utils.inAppAgent.get.invalidate({
             projectId,
             conversationId,
           });
@@ -428,54 +429,20 @@ function InAppAiAgentProviderInner({
   }, []);
 
   const runAgent = useCallback(
-    (
-      agent: HttpAgent,
-      conversationId: string,
-      retryOnInvalidSession = true,
-    ) => {
+    (agent: HttpAgent, conversationId: string) => {
       syncMessages(conversationId, agent.messages);
       setIsRunning(true);
       const runId = crypto.randomUUID();
       const runStartMessageIds = getMessageIds(agent.messages);
-      let retriedWithFreshSession = false;
-
-      void agent
+      agent
         .runAgent({ runId })
         .catch((error) => {
-          if (retryOnInvalidSession && isInvalidSessionTokenError(error)) {
-            retriedWithFreshSession = true;
-            subscriptionRef.current?.unsubscribe();
-            subscriptionRef.current = null;
-            agent.abortRun();
-
-            const freshAgent = new HttpAgent({
-              url: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/in-app-agent`,
-              threadId: conversationId,
-              initialMessages: agent.messages.filter(
-                isAgentConversationMessage,
-              ),
-              initialState: getConversationAgentState(
-                projectId,
-                conversationId,
-              ),
-            });
-
-            agentRef.current = freshAgent;
-            ensureSubscription(freshAgent, conversationId);
-            runAgent(freshAgent, conversationId, false);
-            return;
-          }
-
           const errorMessage = getAgentErrorMessage(error);
           setError(errorMessage);
           showErrorToast("Assistant failed", errorMessage);
           console.error("In-app agent drawer error", error);
         })
         .finally(() => {
-          if (retriedWithFreshSession) {
-            return;
-          }
-
           setIsRunning(false);
           const runGeneratedMessageIds = getRunGeneratedMessageIds(
             agent.messages,
@@ -491,7 +458,7 @@ function InAppAiAgentProviderInner({
           releaseSubmitLock();
         });
     },
-    [ensureSubscription, projectId, releaseSubmitLock, syncMessages],
+    [releaseSubmitLock, syncMessages],
   );
 
   const selectConversation = useCallback(
@@ -526,7 +493,7 @@ function InAppAiAgentProviderInner({
       setIsSubmitting(true);
       setError(null);
 
-      void (async () => {
+      (async () => {
         let startedRun = false;
 
         try {
@@ -540,7 +507,7 @@ function InAppAiAgentProviderInner({
 
           if (!selectedConversationId) {
             setSelectedConversationId(conversationId);
-            void utils.inAppAgent.list.invalidate({ projectId });
+            utils.inAppAgent.list.invalidate({ projectId });
           }
 
           const storedMessages =
@@ -604,7 +571,8 @@ function InAppAiAgentProviderInner({
       open,
       setOpen,
       isRunning,
-      isInputDisabled,
+      isSubmitting,
+      isSelectedConversationHydrating,
       error,
       messages,
       conversations,
@@ -616,8 +584,9 @@ function InAppAiAgentProviderInner({
     [
       conversations,
       error,
-      isInputDisabled,
       isRunning,
+      isSelectedConversationHydrating,
+      isSubmitting,
       messages,
       open,
       selectConversation,
@@ -632,36 +601,6 @@ function InAppAiAgentProviderInner({
     <InAppAiAgentContext.Provider value={value}>
       {children}
     </InAppAiAgentContext.Provider>
-  );
-}
-
-function isInvalidSessionTokenError(error: unknown): boolean {
-  if (!error || typeof error !== "object") {
-    return false;
-  }
-
-  const payload = "payload" in error ? error.payload : undefined;
-
-  return (
-    typeof payload === "object" &&
-    payload !== null &&
-    "code" in payload &&
-    payload.code === "invalid_session_token"
-  );
-}
-
-function isNotFoundTrpcError(error: unknown): boolean {
-  if (!error || typeof error !== "object") {
-    return false;
-  }
-
-  const data = "data" in error ? error.data : undefined;
-
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    "code" in data &&
-    data.code === "NOT_FOUND"
   );
 }
 

@@ -19,8 +19,7 @@ const MAX_AGENT_BUDGET_USD = 5;
 
 type CreateAgUiStreamOptions = {
   resumeSessionId?: string;
-  createResumeStateForSessionId: (sessionId: string) => unknown;
-  onResumeSessionId?: (sessionId: string) => void;
+  onResumeSessionId: (sessionId: string) => unknown;
   onComplete?: () => void;
   onAbort?: () => void;
   onError?: (error: unknown) => void;
@@ -95,7 +94,7 @@ export function createAgUiStream(params: {
         }
 
         params.options.onAbort?.();
-        void adapter.interrupt().catch(() => undefined);
+        adapter.interrupt().catch(() => undefined);
         closeController();
       };
 
@@ -123,7 +122,6 @@ export function createAgUiStream(params: {
 
           for (const agUiEvent of normalizeAdapterEvent(
             event,
-            params.options.createResumeStateForSessionId,
             params.options.onResumeSessionId,
           )) {
             if (
@@ -184,8 +182,7 @@ export function createAgUiStream(params: {
 
 function normalizeAdapterEvent(
   event: AgUiEvent,
-  createResumeStateForSessionId: (sessionId: string) => unknown,
-  onResumeSessionId?: (sessionId: string) => void,
+  onResumeSessionId: (sessionId: string) => unknown,
 ): AgUiEvent[] {
   if (isSystemInitEvent(event)) {
     let sessionId: string | undefined;
@@ -208,8 +205,6 @@ function normalizeAdapterEvent(
       return [];
     }
 
-    onResumeSessionId?.(sessionId);
-
     return [
       {
         type: EventType.STATE_DELTA,
@@ -217,7 +212,7 @@ function normalizeAdapterEvent(
           {
             op: "replace",
             path: "",
-            value: createResumeStateForSessionId(sessionId),
+            value: onResumeSessionId(sessionId),
           },
         ],
       },
