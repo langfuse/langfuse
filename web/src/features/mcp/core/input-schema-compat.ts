@@ -7,13 +7,6 @@ type ObjectShape = {
 
 const ROOT_COMPOSITION_KEYWORDS = ["oneOf", "anyOf", "allOf"] as const;
 const MAX_SCHEMA_NORMALIZATION_DEPTH = 10;
-const DROPPED_ROOT_KEYS = new Set([
-  "type",
-  "properties",
-  "required",
-  "additionalProperties",
-  ...ROOT_COMPOSITION_KEYWORDS,
-]);
 
 const isRecord = (value: unknown): value is JsonSchemaObject =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -88,12 +81,6 @@ function collectObjectShape(
   };
 }
 
-function copyRootMetadata(schema: JsonSchemaObject): JsonSchemaObject {
-  return Object.fromEntries(
-    Object.entries(schema).filter(([key]) => !DROPPED_ROOT_KEYS.has(key)),
-  );
-}
-
 export const isObjectLikeJsonSchema = (schema: JsonSchemaObject): boolean =>
   collectObjectShape(schema) !== undefined;
 
@@ -108,9 +95,19 @@ export function normalizeMcpInputSchema(
   }
 
   const shape = collectObjectShape(schema);
+  const {
+    type: _type,
+    properties: _properties,
+    required: _required,
+    additionalProperties: _additionalProperties,
+    oneOf: _oneOf,
+    anyOf: _anyOf,
+    allOf: _allOf,
+    ...metadata
+  } = schema;
 
   return {
-    ...copyRootMetadata(schema),
+    ...metadata,
     type: "object",
     properties: shape?.properties ?? {},
     ...(shape?.required.length ? { required: shape.required } : {}),
