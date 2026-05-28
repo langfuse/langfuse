@@ -10,12 +10,6 @@ vi.mock("@langfuse/shared/src/server", async () => {
         disconnect: vi.fn(),
       }),
     },
-    ScoreDeleteQueue: {
-      getInstance: () => ({
-        add: vi.fn().mockResolvedValue(undefined),
-        disconnect: vi.fn(),
-      }),
-    },
   };
 });
 
@@ -95,10 +89,6 @@ import {
   createScoreTool,
   handleCreateScore,
 } from "@/src/features/mcp/features/scores/tools/createScore";
-import {
-  deleteScoreTool,
-  handleDeleteScore,
-} from "@/src/features/mcp/features/scores/tools/deleteScore";
 import {
   deleteScoreConfigTool,
   handleDeleteScoreConfig,
@@ -1590,32 +1580,6 @@ describe("MCP Read Tools", () => {
       );
 
       expect(result).toEqual({ id: scoreId });
-    });
-  });
-
-  describe("deleteScore tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(deleteScoreTool, { destructiveHint: true });
-    });
-
-    it("should queue score deletion using v1 route semantics", async () => {
-      const { context, projectId, apiKeyId } = await createMcpTestSetup();
-      const scoreId = randomUUID();
-
-      const result = await handleDeleteScore({ scoreId }, context);
-
-      expect(result).toEqual({
-        message: "Score deletion queued successfully",
-      });
-      await expect(
-        verifyAuditLog({
-          projectId,
-          resourceType: "score",
-          resourceId: scoreId,
-          action: "delete",
-          apiKeyId,
-        }),
-      ).resolves.toMatchObject({ action: "delete" });
     });
   });
 

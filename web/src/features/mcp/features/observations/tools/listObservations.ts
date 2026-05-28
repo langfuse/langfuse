@@ -325,30 +325,35 @@ export const [listObservationsTool, handleListObservations] = defineTool({
           "mcp.field_groups": fieldGroups.join(","),
         });
 
-        const items = await getObservationsV2FromEventsTableForPublicApi({
-          projectId: context.projectId,
-          page: 0,
-          limit: input.limit,
-          traceId: input.traceId,
-          userId: input.userId,
-          level: input.level,
-          name: input.name,
-          type: input.type,
-          environment: input.environment,
-          parentObservationId: input.parentObservationId,
-          fromStartTime: input.fromStartTime,
-          toStartTime: input.toStartTime,
-          version: input.version,
-          advancedFilters: input.filter,
-          cursor: input.cursor
-            ? EncodedObservationsCursorV2.parse(input.cursor)
-            : undefined,
-          fields: fieldGroups,
-          expandMetadataKeys: getMetadataExpansionForProjection(
-            projectionFields,
-            input.expandMetadataKeys,
-          ),
-        });
+        const items = await getObservationsV2FromEventsTableForPublicApi(
+          {
+            projectId: context.projectId,
+            page: 0,
+            limit: input.limit,
+            traceId: input.traceId,
+            userId: input.userId,
+            level: input.level,
+            name: input.name,
+            type: input.type,
+            environment: input.environment,
+            parentObservationId: input.parentObservationId,
+            fromStartTime: input.fromStartTime,
+            toStartTime: input.toStartTime,
+            version: input.version,
+            advancedFilters: input.filter,
+            cursor: input.cursor
+              ? EncodedObservationsCursorV2.parse(input.cursor)
+              : undefined,
+            fields: fieldGroups,
+            expandMetadataKeys: getMetadataExpansionForProjection(
+              projectionFields,
+              input.expandMetadataKeys,
+            ),
+          },
+          // MCP keeps the legacy observation filter contract. Its separate
+          // selective-scope guard above limits expensive input/output filters.
+          { allowUnindexedIoFilters: true },
+        );
 
         const hasMore = items.length > input.limit;
         const dataToReturn = hasMore ? items.slice(0, input.limit) : items;

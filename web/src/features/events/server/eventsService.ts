@@ -24,6 +24,7 @@ import {
   getEventsGroupedByExperimentId,
   getEventsGroupedByExperimentName,
   getEventsGroupedByHasParentObservation,
+  getEventsGroupedByIsRootObservation,
   getEventsGroupedByToolName,
   getEventsGroupedByCalledToolName,
   getNumericScoresGroupedByName,
@@ -75,6 +76,7 @@ interface GetObservationsCountParams {
 interface GetObservationsFilterOptionsParams {
   projectId: string;
   startTimeFilter?: TimeFilter[];
+  isRootObservation?: boolean;
   hasParentObservation?: boolean;
   observationType?: string;
 }
@@ -247,11 +249,26 @@ const toFilterValueOptions = <
 const getEventFilterOptionsScope = (
   params: GetObservationsFilterOptionsParams,
 ) => {
-  const { startTimeFilter, hasParentObservation, observationType } = params;
+  const {
+    startTimeFilter,
+    isRootObservation,
+    hasParentObservation,
+    observationType,
+  } = params;
 
-  // Build filter with optional hasParentObservation for scoping filter options
+  // Build filter with optional scoping for filter options.
   const eventsFilter: FilterState = [
     ...(startTimeFilter ?? []),
+    ...(isRootObservation !== undefined
+      ? [
+          {
+            column: "isRootObservation" as const,
+            type: "boolean" as const,
+            operator: "=" as const,
+            value: isRootObservation,
+          },
+        ]
+      : []),
     ...(hasParentObservation !== undefined
       ? [
           {
@@ -476,7 +493,7 @@ export async function getEventFilterOptions(
     experimentDatasetIds,
     experimentIds,
     experimentNames,
-    hasParentObservationResults,
+    isRootObservationResults,
     toolNames,
     calledToolNames,
   ] = await Promise.all([
@@ -501,7 +518,7 @@ export async function getEventFilterOptions(
     getEventsGroupedByExperimentDatasetId(projectId, eventsFilter),
     getEventsGroupedByExperimentId(projectId, eventsFilter),
     getEventsGroupedByExperimentName(projectId, eventsFilter),
-    getEventsGroupedByHasParentObservation(projectId, eventsFilter),
+    getEventsGroupedByIsRootObservation(projectId, eventsFilter),
     getEventsGroupedByToolName(projectId, eventsFilter),
     getEventsGroupedByCalledToolName(projectId, eventsFilter),
   ]);
@@ -550,9 +567,9 @@ export async function getEventFilterOptions(
     ),
     experimentId: toFilterValueOptions(experimentIds, "experimentId"),
     experimentName: toFilterValueOptions(experimentNames, "experimentName"),
-    hasParentObservation: hasParentObservationResults.map((i) => ({
+    isRootObservation: isRootObservationResults.map((i) => ({
       // ClickHouse returns UInt8 (0/1) for computed boolean; normalize to "true"/"false"
-      value: i.hasParentObservation ? "true" : "false",
+      value: i.isRootObservation ? "true" : "false",
       count: i.count,
     })),
     toolNames: toolNames

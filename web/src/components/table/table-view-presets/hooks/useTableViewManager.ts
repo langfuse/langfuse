@@ -18,6 +18,7 @@ import isEqual from "lodash/isEqual";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { validateOrderBy, validateFilters } from "../validation";
 import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
+import type { FilterStateMigration } from "@/src/features/filters/lib/filter-config";
 
 interface TableStateUpdaters {
   setColumnOrder: (columnOrder: string[]) => void;
@@ -36,6 +37,7 @@ interface UseTableStateProps {
     columns?: LangfuseColumnDef<any, any>[];
     filterColumnDefinition?: ColumnDefinition[];
     expandableFilterColumns?: string[];
+    migrateFilterState?: FilterStateMigration;
   };
   currentFilterState?: FilterState;
   currentExpandedFilters?: string[];
@@ -253,6 +255,7 @@ export function useTableViewManager({
         validFilters = validateFilters(
           viewData.filters,
           validationContext.filterColumnDefinition,
+          validationContext.migrateFilterState,
         );
       }
 
@@ -294,7 +297,7 @@ export function useTableViewManager({
         // Track expected filters to observe when state actually updates (for useEffect below)
         // If filters are already applied, don't set pending ref (will unlock immediately).
         // Also track pre-apply state so we can unlock when filters propagate but get
-        // canonicalized into an equivalent shape by downstream hooks.
+        // migrated into an equivalent shape by downstream hooks.
         if (!filtersAlreadyApplied) {
           pendingFiltersRef.current = validFilters;
           pendingFiltersPreviousStateRef.current = currentFilterState ?? [];

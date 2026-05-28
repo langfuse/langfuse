@@ -1,12 +1,10 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { listCommentsForApi } from "@/src/features/comments/server/publicCommentService";
 import {
   GetCommentsV1Query,
   GetCommentsV1Response,
 } from "@/src/features/public-api/types/comments";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { paginationMeta } from "../../publicApi";
-import { publicComment } from "../schema";
 
 export const [listCommentsTool, handleListComments] = defineTool({
   name: "listComments",
@@ -25,30 +23,12 @@ export const [listCommentsTool, handleListComments] = defineTool({
         "mcp.pagination_limit": input.limit,
       },
       fn: async () => {
-        const where = {
+        const result = await listCommentsForApi({
+          ...input,
           projectId: context.projectId,
-          objectType: input.objectType ?? undefined,
-          objectId: input.objectId ?? undefined,
-          authorUserId: input.authorUserId ?? undefined,
-        };
-
-        const [comments, totalItems] = await Promise.all([
-          prisma.comment.findMany({
-            where,
-            take: input.limit,
-            skip: (input.page - 1) * input.limit,
-          }),
-          prisma.comment.count({ where }),
-        ]);
-
-        return GetCommentsV1Response.parse({
-          data: comments.map(publicComment),
-          meta: paginationMeta({
-            page: input.page,
-            limit: input.limit,
-            totalItems,
-          }),
         });
+
+        return GetCommentsV1Response.parse(result);
       },
     }),
   readOnlyHint: true,

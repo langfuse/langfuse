@@ -515,7 +515,7 @@ describe("processObservationEval", () => {
           extractedVariables: expect.arrayContaining([
             expect.objectContaining({
               var: "output",
-              value: '{"response": "test output"}',
+              value: { response: "test output" },
             }),
           ]),
           hasExperimentContext: true,
@@ -673,7 +673,7 @@ describe("processObservationEval", () => {
           extractedVariables: expect.arrayContaining([
             expect.objectContaining({
               var: "output",
-              value: '{"response": "test output"}',
+              value: { response: "test output" },
             }),
           ]),
         }),
@@ -771,11 +771,11 @@ describe("processObservationEval", () => {
           extractedVariables: expect.arrayContaining([
             expect.objectContaining({
               var: "input",
-              value: '{"prompt": "Hello"}',
+              value: { prompt: "Hello" },
             }),
             expect.objectContaining({
               var: "output",
-              value: '{"response": "World"}',
+              value: { response: "World" },
             }),
           ]),
         }),
