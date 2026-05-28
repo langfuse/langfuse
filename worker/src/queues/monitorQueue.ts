@@ -1,8 +1,10 @@
 import { Processor } from "bullmq";
+import { v4 } from "uuid";
 import {
   instrumentAsync,
-  logger,
   QueueJobs,
+  QueueName,
+  WebhookQueue,
 } from "@langfuse/shared/src/server";
 import { MonitorProcessor } from "@langfuse/shared/monitors/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -17,12 +19,20 @@ export const monitorQueueProcessor: Processor = async (job) => {
       spanKind: SpanKind.CONSUMER,
     },
     async () => {
+      const webhookQueue = WebhookQueue.getInstance();
+      if (!webhookQueue) {
+        throw new Error(
+          "monitorQueueProcessor: WebhookQueue is unavailable; cannot publish monitor alerts",
+        );
+      }
       const processor = new MonitorProcessor({
         db: prisma,
-        // TODO(LFE-9817): publish into WebhookQueue; for now just log.
-        publish: async (event) => {
-          logger.info("[MonitorProcessor] alert", {
-            payload: event.payload,
+        publish: async (input) => {
+          await webhookQueue.add(QueueName.WebhookQueue, {
+            timestamp: new Date(),
+            id: v4(),
+            payload: input,
+            name: QueueJobs.WebhookJob,
           });
         },
       });
