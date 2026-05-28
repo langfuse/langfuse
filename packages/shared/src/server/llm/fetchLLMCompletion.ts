@@ -5,7 +5,9 @@ import { ChatGoogle } from "@langchain/google";
 import { ChatBedrockConverse } from "@langchain/aws";
 import {
   AIMessage,
+  AIMessageChunk,
   BaseMessage,
+  ContentBlock,
   HumanMessage,
   SystemMessage,
   ToolMessage,
@@ -57,11 +59,12 @@ import {
 import { createSecureLlmFetch } from "./secureLlmFetch";
 
 export type CompletionWithReasoning = { text: string; reasoning?: string };
-type AIMessageContent = AIMessage["content"];
-type AIMessageContentBlock = Exclude<AIMessageContent, string>[number];
 type SplitAIMessageContent = {
   text: string;
-  contentWithoutThinking: AIMessageContent;
+  // Standard `ContentBlock` shape exposed by `AIMessage#contentBlocks`, stripped
+  // of `tool_call` and `reasoning` blocks. A plain string is preserved when the
+  // upstream message carried plain-string content.
+  contentWithoutThinking: string | Array<ContentBlock.Standard>;
   reasoning?: string;
 };
 
@@ -77,16 +80,18 @@ const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 const AZURE_OPENAI_API_KEY_HEADER = "api-key";
 const ANTHROPIC_API_KEY_HEADER = "x-api-key";
 
-// Maps adapters to the content block types that represent "thinking".
-// Used to extract reasoning separately and strip thinking parts from parsed output.
-const THINKING_BLOCK_TYPES: Partial<Record<LLMAdapter, Set<string>>> = {
-  [LLMAdapter.Bedrock]: new Set(["reasoning_content"]),
-  [LLMAdapter.VertexAI]: new Set(["reasoning"]),
-  [LLMAdapter.GoogleAIStudio]: new Set(["reasoning"]),
-};
+// Adapters whose models can return separate reasoning content. We route their
+// responses through `AIMessage#contentBlocks`, which normalizes provider-specific
+// shapes (Bedrock `reasoning_content`, Gemini `{ thought: true }` text parts, etc.)
+// into the documented `{ type: "reasoning", reasoning: string }` standard block.
+const ADAPTERS_WITH_REASONING_SUPPORT = new Set<LLMAdapter>([
+  LLMAdapter.Bedrock,
+  LLMAdapter.VertexAI,
+  LLMAdapter.GoogleAIStudio,
+]);
 
-function getThinkingBlockTypes(adapter: LLMAdapter): Set<string> | undefined {
-  return THINKING_BLOCK_TYPES[adapter];
+function adapterSupportsReasoning(adapter: LLMAdapter): boolean {
+  return ADAPTERS_WITH_REASONING_SUPPORT.has(adapter);
 }
 
 const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
@@ -549,7 +554,7 @@ export async function fetchLLMCompletion(
       }
     : runConfig;
 
-  const thinkingTypes = getThinkingBlockTypes(modelParams.adapter);
+  const supportsReasoning = adapterSupportsReasoning(modelParams.adapter);
 
   try {
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
@@ -557,10 +562,9 @@ export async function fetchLLMCompletion(
       // Thinking-capable adapters may produce reasoning blocks that corrupt JSON schema
       // parsing. Force function calling so the parser reads from tool_calls instead.
       const structuredOutputSchema = params.structuredOutputSchema;
-      const structuredOutputConfig =
-        thinkingTypes != null
-          ? { method: "functionCalling" as const }
-          : undefined;
+      const structuredOutputConfig = supportsReasoning
+        ? { method: "functionCalling" as const }
+        : undefined;
 
       const structuredOutput = await executeWithRuntimeTimeout({
         enabled: runtimeTimeoutEnabled,
@@ -594,28 +598,20 @@ export async function fetchLLMCompletion(
             .invoke(finalMessages, runConfigWithTimeout),
       });
 
-      if (thinkingTypes != null && Array.isArray(result.content)) {
-        const { contentWithoutThinking, reasoning } = splitAIMessageContent(
-          result.content,
-          thinkingTypes,
-        );
-        const parsed = ToolCallResponseSchema.safeParse({
-          content: contentWithoutThinking,
-          tool_calls: result.tool_calls,
-        });
-        if (!parsed.success)
-          throw Error("Failed to parse LLM tool call result");
-
-        return {
-          ...parsed.data,
-          ...(reasoning ? { reasoning } : {}),
-        };
-      }
-
-      const parsed = ToolCallResponseSchema.safeParse(result);
+      // Always normalize through `splitAIMessage` so we feed the schema the
+      // standard `contentBlocks` shape regardless of provider, instead of the
+      // raw, provider-specific message content.
+      const { contentWithoutThinking, reasoning } = splitAIMessage(result);
+      const parsed = ToolCallResponseSchema.safeParse({
+        content: contentWithoutThinking,
+        tool_calls: result.tool_calls,
+      });
       if (!parsed.success) throw Error("Failed to parse LLM tool call result");
 
-      return parsed.data;
+      return {
+        ...parsed.data,
+        ...(reasoning ? { reasoning } : {}),
+      };
     }
 
     if (streaming)
@@ -625,23 +621,20 @@ export async function fetchLLMCompletion(
         abortController: runtimeTimeoutController,
         operation: () =>
           chatModel
-            .pipe(createBytesOutputParser(thinkingTypes))
+            .pipe(createBytesOutputParser(supportsReasoning))
             .stream(finalMessages, runConfigWithTimeout),
       });
 
     // content with thinking blocks can't be handled by StringOutputParser
     // Invoke model directly and extract text + reasoning separately.
-    if (thinkingTypes != null) {
+    if (supportsReasoning) {
       const aiMessage = await executeWithRuntimeTimeout({
         enabled: runtimeTimeoutEnabled,
         timeoutMs,
         abortController: runtimeTimeoutController,
         operation: () => chatModel.invoke(finalMessages, runConfigWithTimeout),
       });
-      const completion = extractCompletionWithReasoning(
-        aiMessage,
-        thinkingTypes,
-      );
+      const completion = extractCompletionWithReasoning(aiMessage);
 
       // Bedrock only returns reasoning blocks for selected models. Preserve the
       // historical plain-string shape when the response contains no reasoning.
@@ -719,12 +712,8 @@ export async function fetchLLMCompletion(
 
 function extractCompletionWithReasoning(
   message: AIMessage,
-  thinkingBlockTypes: Set<string>,
 ): CompletionWithReasoning {
-  const { text, reasoning } = splitAIMessageContent(
-    message.content,
-    thinkingBlockTypes,
-  );
+  const { text, reasoning } = splitAIMessage(message);
 
   return {
     text,
@@ -733,58 +722,56 @@ function extractCompletionWithReasoning(
 }
 
 function createBytesOutputParser(
-  thinkingBlockTypes: Set<string> | undefined,
+  filterReasoningBlocks: boolean,
 ): BytesOutputParser {
-  return thinkingBlockTypes != null
-    ? new ThinkingBlockFilteringBytesOutputParser(thinkingBlockTypes)
+  return filterReasoningBlocks
+    ? new ReasoningStrippingBytesOutputParser()
     : new BytesOutputParser();
 }
 
-class ThinkingBlockFilteringBytesOutputParser extends BytesOutputParser {
-  constructor(private readonly thinkingBlockTypes: Set<string>) {
-    super();
-  }
-
-  protected _baseMessageContentToString(
-    content: Exclude<AIMessageContent, string>,
-  ): string {
-    return splitAIMessageContent(content, this.thinkingBlockTypes).text;
+class ReasoningStrippingBytesOutputParser extends BytesOutputParser {
+  // Override `_baseMessageToString` (not `_baseMessageContentToString`) so we
+  // have the whole AIMessage(Chunk) and can read `contentBlocks`, which the
+  // langchain provider translator normalizes into standard blocks. Streaming
+  // yields AIMessageChunk instances, so we check both predicates explicitly.
+  protected _baseMessageToString(message: BaseMessage): string {
+    if (AIMessage.isInstance(message) || AIMessageChunk.isInstance(message)) {
+      return splitAIMessage(message).text;
+    }
+    return typeof message.content === "string"
+      ? message.content
+      : super._baseMessageToString(message);
   }
 }
 
-function splitAIMessageContent(
-  content: AIMessageContent,
-  thinkingBlockTypes: Set<string>,
+// Reads the standard `contentBlocks` view of an AIMessage(Chunk) and splits it
+// into displayable text, reasoning, and a content array stripped of reasoning
+// and tool_call blocks (tool calls live on `message.tool_calls`).
+function splitAIMessage(
+  message: AIMessage | AIMessageChunk,
 ): SplitAIMessageContent {
-  if (typeof content === "string") {
-    return { text: content, contentWithoutThinking: content };
-  }
-
-  if (!Array.isArray(content)) {
-    return { text: String(content), contentWithoutThinking: content };
+  if (typeof message.content === "string") {
+    return { text: message.content, contentWithoutThinking: message.content };
   }
 
   const textParts: string[] = [];
   const reasoningParts: string[] = [];
-  const contentWithoutThinking: AIMessageContentBlock[] = [];
+  const contentWithoutThinking: Array<ContentBlock.Standard> = [];
 
-  for (const block of content) {
-    if (typeof block === "string") {
-      textParts.push(block);
-      contentWithoutThinking.push(block as AIMessageContentBlock);
-    } else if (
-      thinkingBlockTypes.has(block.type) ||
-      // ChatGoogle marks thinking parts as `{ type: "text", thought: true }`
-      // rather than using a dedicated block type.
-      (block as { thought?: unknown }).thought === true
-    ) {
-      const reasoning = extractReasoningBlockText(block);
-      if (typeof reasoning === "string") reasoningParts.push(reasoning);
-    } else {
-      const text = extractTextBlockText(block);
-      if (typeof text === "string") textParts.push(text);
-      contentWithoutThinking.push(block);
+  for (const block of message.contentBlocks) {
+    if (block.type === "reasoning") {
+      if (typeof block.reasoning === "string")
+        reasoningParts.push(block.reasoning);
+      continue;
     }
+    if (block.type === "tool_call") {
+      // Already represented in `message.tool_calls`; omit to avoid duplicates.
+      continue;
+    }
+    if (block.type === "text" && typeof block.text === "string") {
+      textParts.push(block.text);
+    }
+    contentWithoutThinking.push(block);
   }
 
   return {
@@ -794,19 +781,6 @@ function splitAIMessageContent(
       ? { reasoning: reasoningParts.join("") }
       : {}),
   };
-}
-
-function extractTextBlockText(block: AIMessageContentBlock) {
-  return (block as any).text ?? (block as any).reasoning;
-}
-
-function extractReasoningBlockText(block: AIMessageContentBlock) {
-  const reasoningText = (block as any).reasoningText;
-
-  if (typeof reasoningText === "string") return reasoningText;
-  if (typeof reasoningText?.text === "string") return reasoningText.text;
-
-  return extractTextBlockText(block);
 }
 
 /**
