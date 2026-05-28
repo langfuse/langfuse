@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
-import { type LucideIcon } from "lucide-react";
+import { type LucideIcon, Plus } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { startCase } from "lodash";
@@ -798,22 +798,31 @@ export const MonitorForm = ({
                   name="tags"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Tags</FormLabel>
-                      <TagManager
-                        itemName="monitor"
-                        tags={(field.value ?? []) as string[]}
-                        allTags={
-                          monitorFilterOptions.data?.tags.map((t) => t.value) ??
-                          []
-                        }
-                        hasAccess={hasAccess}
-                        isLoading={monitorFilterOptions.isPending}
-                        mutateTags={field.onChange}
-                      />
-                      <p className="text-muted-foreground text-xs">
-                        Tags help you organize and filter monitors in the list
-                        view.
-                      </p>
+                      <FormControl>
+                        <TagManager
+                          itemName="monitor"
+                          tags={(field.value ?? []) as string[]}
+                          allTags={
+                            monitorFilterOptions.data?.tags.map(
+                              (t) => t.value,
+                            ) ?? []
+                          }
+                          hasAccess={hasAccess}
+                          isLoading={monitorFilterOptions.isPending}
+                          mutateTags={field.onChange}
+                          triggerButton={
+                            <Button
+                              type="button"
+                              variant="default"
+                              size="sm"
+                              className="gap-1"
+                            >
+                              <Plus className="h-3 w-3" />
+                              Add tag
+                            </Button>
+                          }
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

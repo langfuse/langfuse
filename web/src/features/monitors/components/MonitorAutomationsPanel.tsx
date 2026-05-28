@@ -1,11 +1,16 @@
 import { useMemo } from "react";
 import Link from "next/link";
-import { Webhook as WebhookIcon, Github, Plus, Slack } from "lucide-react";
+import {
+  Check,
+  Webhook as WebhookIcon,
+  Github,
+  Plus,
+  Slack,
+} from "lucide-react";
 
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
-import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +23,7 @@ import {
   TriggerEventSource,
 } from "@langfuse/shared";
 import { serializeCreateAutomationPrefill } from "@/src/features/automations/components/automationForm";
+import { cn } from "@/src/utils/tailwind";
 
 /** actionLabel maps each automation action type to its display name. */
 const actionLabel: Record<ActionTypes, string> = {
@@ -83,26 +89,29 @@ export const MonitorAutomationsPanel = ({
               <ul className="space-y-1">
                 {(automations.data ?? []).map((automation) => {
                   const checked = selectedSet.has(automation.trigger.id);
+                  const handleClick = () => handleToggle(automation.trigger.id);
                   return (
-                    <li key={automation.id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={automation.trigger.id}
-                        checked={checked}
-                        onCheckedChange={() =>
-                          handleToggle(automation.trigger.id)
-                        }
-                        aria-label={automation.name}
-                      />
-                      <label
-                        htmlFor={automation.trigger.id}
-                        className="flex cursor-pointer items-center gap-2 text-sm"
+                    <li key={automation.id}>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={checked}
+                        onClick={handleClick}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleClick();
+                          }
+                        }}
+                        className="hover:bg-muted/60 focus-visible:ring-ring flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1 text-xs outline-hidden transition-colors focus-visible:ring-2"
                       >
+                        <RowCheckbox checked={checked} />
                         <ActionIcon
                           type={automation.action.type as ActionTypes}
                           className="h-3.5 w-3.5 shrink-0"
                         />
-                        {automation.name}
-                      </label>
+                        <span className="truncate">{automation.name}</span>
+                      </div>
                     </li>
                   );
                 })}
@@ -115,6 +124,19 @@ export const MonitorAutomationsPanel = ({
     </div>
   );
 };
+
+/** RowCheckbox is a non-interactive visual stand-in for a checkbox. */
+const RowCheckbox = ({ checked }: { checked: boolean }) => (
+  <span
+    aria-hidden
+    className={cn(
+      "border-primary flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
+      checked && "bg-primary text-primary-foreground",
+    )}
+  >
+    {checked && <Check className="h-3.5 w-3.5" />}
+  </span>
+);
 
 /** ActionIcon renders the lucide icon for a given automation action type. */
 const ActionIcon = ({
