@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { type Prompt } from "@langfuse/shared";
 
-import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
+import { getPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
 
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -79,7 +79,7 @@ export const createPromptReadTool = (options: CreatePromptReadToolOptions) => {
         fn: async () => {
           const { name, label, version } = input;
 
-          const prompt = await getPromptByName({
+          const prompt = await getPromptForApi({
             promptName: name,
             projectId: context.projectId,
             label,

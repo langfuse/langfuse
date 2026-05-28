@@ -1,10 +1,5 @@
-import { ApiError, LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import { generateDatasetRunItemsForPublicApi } from "@/src/features/public-api/server/dataset-run-items";
-import {
-  GetDatasetRunV1Response,
-  transformDbDatasetRunToAPIDatasetRun,
-} from "@/src/features/public-api/types/datasets";
+import { GetDatasetRunV1Response } from "@/src/features/public-api/types/datasets";
+import { getDatasetRunForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { GetDatasetRunMcpInput } from "../schema";
@@ -24,41 +19,13 @@ export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
         "mcp.dataset_run_name": input.runName,
       },
       fn: async () => {
-        const datasetRuns = await prisma.datasetRuns.findMany({
-          where: {
-            projectId: context.projectId,
-            name: input.runName,
-            dataset: {
-              name: input.name,
-              projectId: context.projectId,
-            },
-          },
-          include: { dataset: { select: { name: true } } },
+        const result = await getDatasetRunForApi({
+          projectId: context.projectId,
+          name: input.name,
+          runName: input.runName,
         });
 
-        if (datasetRuns.length > 1) {
-          throw new ApiError("Found more than one dataset run with this name");
-        }
-        if (!datasetRuns[0]) {
-          throw new LangfuseNotFoundError("Dataset run not found");
-        }
-
-        const { dataset, ...run } = datasetRuns[0];
-        const datasetRunItems = await generateDatasetRunItemsForPublicApi({
-          props: {
-            datasetId: run.datasetId,
-            runId: run.id,
-            projectId: context.projectId,
-          },
-        });
-
-        return GetDatasetRunV1Response.parse({
-          ...transformDbDatasetRunToAPIDatasetRun({
-            ...run,
-            datasetName: dataset.name,
-          }),
-          datasetRunItems,
-        });
+        return GetDatasetRunV1Response.parse(result);
       },
     }),
   readOnlyHint: true,

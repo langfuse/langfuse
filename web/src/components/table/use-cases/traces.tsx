@@ -34,7 +34,10 @@ import {
   LevelSymbols,
 } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import {
+  detailPageListKeys,
+  useDetailPageLists,
+} from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type FilterState,
@@ -400,8 +403,6 @@ export default function TracesTable({
     filter: filterState,
     searchQuery: searchQuery,
     searchType: searchType,
-    page: 0,
-    limit: 0,
     orderBy: null,
   };
 
@@ -454,7 +455,7 @@ export default function TracesTable({
   useEffect(() => {
     if (traces.isSuccess) {
       setDetailPageList(
-        "traces",
+        detailPageListKeys.traces,
         traces.data.traces.map((t) => ({
           id: t.id,
           params: { timestamp: t.timestamp.toISOString() },
@@ -1294,7 +1295,7 @@ export default function TracesTable({
     if (hideControls) return undefined;
     return {
       itemType: "TRACE" as const,
-      detailNavigationKey: "traces",
+      detailNavigationKey: detailPageListKeys.traces,
       peekEventOptions: {
         ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
       },

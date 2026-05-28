@@ -24,6 +24,7 @@ import {
   getEventsGroupedByExperimentId,
   getEventsGroupedByExperimentName,
   getEventsGroupedByHasParentObservation,
+  getEventsGroupedByIsRootObservation,
   getEventsGroupedByToolName,
   getEventsGroupedByCalledToolName,
   getNumericScoresGroupedByName,
@@ -75,6 +76,7 @@ interface GetObservationsCountParams {
 interface GetObservationsFilterOptionsParams {
   projectId: string;
   startTimeFilter?: TimeFilter[];
+  isRootObservation?: boolean;
   hasParentObservation?: boolean;
   observationType?: string;
 }
@@ -247,11 +249,26 @@ const toFilterValueOptions = <
 const getEventFilterOptionsScope = (
   params: GetObservationsFilterOptionsParams,
 ) => {
-  const { startTimeFilter, hasParentObservation, observationType } = params;
+  const {
+    startTimeFilter,
+    isRootObservation,
+    hasParentObservation,
+    observationType,
+  } = params;
 
-  // Build filter with optional hasParentObservation for scoping filter options
+  // Build filter with optional scoping for filter options.
   const eventsFilter: FilterState = [
     ...(startTimeFilter ?? []),
+    ...(isRootObservation !== undefined
+      ? [
+          {
+            column: "isRootObservation" as const,
+            type: "boolean" as const,
+            operator: "=" as const,
+            value: isRootObservation,
+          },
+        ]
+      : []),
     ...(hasParentObservation !== undefined
       ? [
           {
@@ -476,7 +493,7 @@ export async function getEventFilterOptions(
     experimentDatasetIds,
     experimentIds,
     experimentNames,
-    hasParentObservationResults,
+    isRootObservationResults,
     toolNames,
     calledToolNames,
   ] = await Promise.all([
@@ -501,7 +518,7 @@ export async function getEventFilterOptions(
     getEventsGroupedByExperimentDatasetId(projectId, eventsFilter),
     getEventsGroupedByExperimentId(projectId, eventsFilter),
     getEventsGroupedByExperimentName(projectId, eventsFilter),
-    getEventsGroupedByHasParentObservation(projectId, eventsFilter),
+    getEventsGroupedByIsRootObservation(projectId, eventsFilter),
     getEventsGroupedByToolName(projectId, eventsFilter),
     getEventsGroupedByCalledToolName(projectId, eventsFilter),
   ]);
@@ -550,9 +567,9 @@ export async function getEventFilterOptions(
     ),
     experimentId: toFilterValueOptions(experimentIds, "experimentId"),
     experimentName: toFilterValueOptions(experimentNames, "experimentName"),
-    hasParentObservation: hasParentObservationResults.map((i) => ({
+    isRootObservation: isRootObservationResults.map((i) => ({
       // ClickHouse returns UInt8 (0/1) for computed boolean; normalize to "true"/"false"
-      value: i.hasParentObservation ? "true" : "false",
+      value: i.isRootObservation ? "true" : "false",
       count: i.count,
     })),
     toolNames: toolNames
@@ -564,7 +581,7 @@ export async function getEventFilterOptions(
   };
 }
 
-interface GetEventBatchIOParams {
+interface GetEventBatchIOParams<TIncludeExperiment extends boolean = false> {
   projectId: string;
   observations: Array<{
     id: string;
@@ -573,17 +590,46 @@ interface GetEventBatchIOParams {
   minStartTime: Date;
   maxStartTime: Date;
   truncated?: boolean;
+  includeExperimentFields?: TIncludeExperiment;
 }
+
+type EventBatchIOStringOutput = Awaited<
+  ReturnType<typeof getObservationsBatchIOFromEventsTable>
+>[number];
+
+type EventBatchIOWithExperimentOutput = EventBatchIOStringOutput & {
+  experimentItemExpectedOutput: string | null;
+  experimentItemMetadata: unknown;
+};
 
 /**
  * Batch fetch input/output and metadata for multiple observations
  */
-export async function getEventBatchIO(params: GetEventBatchIOParams) {
+export async function getEventBatchIO<
+  TIncludeExperiment extends boolean = false,
+>(
+  params: GetEventBatchIOParams<TIncludeExperiment>,
+): Promise<
+  Array<
+    TIncludeExperiment extends true
+      ? EventBatchIOWithExperimentOutput
+      : EventBatchIOStringOutput
+  >
+> {
   return getObservationsBatchIOFromEventsTable({
     projectId: params.projectId,
     observations: params.observations,
     minStartTime: params.minStartTime,
     maxStartTime: params.maxStartTime,
     truncated: params.truncated,
-  });
+    includeExperimentFields: params.includeExperimentFields,
+  } as Parameters<typeof getObservationsBatchIOFromEventsTable>[0] & {
+    includeExperimentFields?: TIncludeExperiment;
+  }) as Promise<
+    Array<
+      TIncludeExperiment extends true
+        ? EventBatchIOWithExperimentOutput
+        : EventBatchIOStringOutput
+    >
+  >;
 }

@@ -1,8 +1,4 @@
-import { v4 } from "uuid";
-import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
+import { createCommentForApi } from "@/src/features/comments/server/publicCommentService";
 import {
   PostCommentsV1Body,
   PostCommentsV1Response,
@@ -30,40 +26,12 @@ export const [createCommentTool, handleCreateComment] = defineTool({
           projectId: context.projectId,
         });
 
-        const result = await validateCommentReferenceObject({
-          ctx: {
-            prisma,
-            auth: { scope: { projectId: context.projectId } },
-          },
+        const result = await createCommentForApi({
           input: body,
+          auditScope: context,
         });
 
-        if (result.errorMessage) {
-          throw new LangfuseNotFoundError(result.errorMessage);
-        }
-
-        const comment = await prisma.comment.create({
-          data: {
-            content: body.content,
-            objectId: body.objectId,
-            objectType: body.objectType,
-            authorUserId: body.authorUserId,
-            id: v4(),
-            projectId: context.projectId,
-          },
-        });
-
-        await auditLog({
-          action: "create",
-          resourceType: "comment",
-          resourceId: comment.id,
-          projectId: context.projectId,
-          orgId: context.orgId,
-          apiKeyId: context.apiKeyId,
-          after: comment,
-        });
-
-        return PostCommentsV1Response.parse({ id: comment.id });
+        return PostCommentsV1Response.parse(result);
       },
     }),
 });

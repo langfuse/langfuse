@@ -55,6 +55,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
+# python
+__pycache__/
+*.py[cod]
+
 /generated
 
 # openapi spec that is copied during build
@@ -105,3 +109,6 @@ web/test-results/*
 
 # Local overrides for AGENTS.md
 **/AGENTS.override.md
+
+# Superset config
+.superset/

@@ -13,7 +13,7 @@ import {
   ParamPromptTag,
 } from "../validation";
 import { ParamLimit, ParamPage } from "../../../core/validation";
-import { getPromptsMeta } from "@/src/features/prompts/server/actions/getPromptsMeta";
+import { listPromptsForApi } from "@/src/features/prompts/server/prompt-api-service";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { paginationMeta } from "../../publicApi";
 
@@ -105,7 +105,7 @@ export const [listPromptsTool, handleListPrompts] = defineTool({
           input;
 
         // Fetch prompts metadata using existing service
-        const result = await getPromptsMeta({
+        const result = await listPromptsForApi({
           projectId: context.projectId, // Auto-injected from authenticated API key
           name,
           label,

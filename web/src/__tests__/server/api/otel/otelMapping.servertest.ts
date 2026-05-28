@@ -1210,6 +1210,50 @@ describe("OTel Resource Span Mapping", () => {
       },
     };
 
+    it.each([
+      ["missing attribute", undefined, false],
+      ["boolean true", { boolValue: true }, true],
+      ["string true", { stringValue: "true" }, true],
+      ["boolean false", { boolValue: false }, false],
+      ["string false", { stringValue: "false" }, false],
+    ])(
+      "should extract isAppRoot from %s",
+      (
+        _name: string,
+        otelAttributeValue: Record<string, unknown> | undefined,
+        expectedIsAppRoot: boolean,
+      ) => {
+        const attributes = otelAttributeValue
+          ? [
+              {
+                key: "langfuse.internal.is_app_root",
+                value: otelAttributeValue,
+              },
+            ]
+          : [];
+        const resourceSpan = {
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  attributes,
+                },
+              ],
+            },
+          ],
+        };
+
+        const processor = new OtelIngestionProcessor({
+          projectId: "test-project",
+        });
+        const eventInputs = processor.processToEvent([resourceSpan]);
+
+        expect(eventInputs).toHaveLength(1);
+        expect(eventInputs[0].isAppRoot).toBe(expectedIsAppRoot);
+      },
+    );
+
     const aiSdkWeatherToolInputSchema = {
       type: "object",
       properties: {
