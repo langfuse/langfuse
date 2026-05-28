@@ -42,6 +42,22 @@ describe("MonitorQueueEventSchema", () => {
       expect(typeof result.data.schedulerBatchId).toBe("bigint");
   });
 
+  it("preserves full precision when coercing a large bigint string wire value", () => {
+    // 30-digit value far beyond Number.MAX_SAFE_INTEGER (2^53 - 1). Locks the
+    // schema-as-codec contract: producer emits `schedulerBatchId.toString()`,
+    // consumer parses to bigint with no precision loss.
+    const huge = 123456789012345678901234567890n;
+    const result = MonitorQueueEventSchema.safeParse({
+      ...validQueueEvent,
+      schedulerBatchId: huge.toString(),
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(typeof result.data.schedulerBatchId).toBe("bigint");
+      expect(result.data.schedulerBatchId).toBe(huge);
+    }
+  });
+
   it("rejects a window outside the MonitorWindow tier set", () => {
     expect(
       MonitorQueueEventSchema.safeParse({

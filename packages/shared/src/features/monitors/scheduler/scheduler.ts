@@ -5,7 +5,7 @@ import { Prisma, type PrismaClient } from "../../../db";
 import type { singleFilter } from "../../../interfaces/filters";
 import type { metric as MetricSchema } from "../../query/types";
 import { viewFromPrisma, windowFromMs } from "../service/helpers";
-import type { MonitorQueueEvent } from "./types";
+import type { MonitorQueueEventWire } from "./types";
 
 /** monitorProcessorTtl bounds how long a published run can be in flight before the scheduler republishes it. */
 export const monitorProcessorTtl = 5 * 60 * 1000;
@@ -13,7 +13,7 @@ export const monitorProcessorTtl = 5 * 60 * 1000;
 type Metric = z.infer<typeof MetricSchema>;
 type FilterState = z.infer<typeof singleFilter>[];
 
-type PublishMonitorEvents = (events: MonitorQueueEvent[]) => Promise<void>;
+type PublishMonitorEvents = (events: MonitorQueueEventWire[]) => Promise<void>;
 
 /** MonitorScheduler claims and publishes due monitors for its scheduler slot. */
 export class MonitorScheduler {
@@ -67,14 +67,14 @@ type MonitorBatchRow = {
   monitors: { monitorId: string; metricName: string }[];
 };
 
-/** toMonitorQueueEvent converts a MonitorBatchRow into its wire-shape MonitorQueueEvent. */
+/** toMonitorQueueEvent converts a MonitorBatchRow into its JSON-safe wire shape. `schedulerBatchId` is stringified at this boundary so the bigint never crosses BullMQ's JSON.stringify. Consumer parses back to bigint via `z.coerce.bigint()`. */
 function toMonitorQueueEvent(
   row: MonitorBatchRow,
   publishedAt: Date,
-): MonitorQueueEvent {
+): MonitorQueueEventWire {
   return {
     projectId: row.project_id,
-    schedulerBatchId: row.scheduler_batch_id,
+    schedulerBatchId: row.scheduler_batch_id.toString(),
     runAt: row.run_at,
     publishedAt,
     view: viewFromPrisma(row.view),

@@ -42,7 +42,11 @@ export const MonitorQueueEventSchema = z.object({
     z.object({ monitorId: z.string(), metricName: z.string() }),
   ),
 });
+/** MonitorQueueEvent is the parsed/domain shape — schedulerBatchId is a bigint. */
 export type MonitorQueueEvent = z.infer<typeof MonitorQueueEventSchema>;
+
+/** MonitorQueueEventWire is the unparsed wire shape — schedulerBatchId is string|number|bigint. Producers (the scheduler) emit this; consumers parse to MonitorQueueEvent. Keeps BullMQ JSON.stringify safe. */
+export type MonitorQueueEventWire = z.input<typeof MonitorQueueEventSchema>;
 
 /**
  * MonitorWebhookQueueEventSchema is the transport envelope wrapping
