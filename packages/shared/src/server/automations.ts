@@ -1,14 +1,11 @@
 import { FilterState } from "../types";
-import { type TriggerDomain, TriggerEventSource } from "../domain/automations";
+import { type TriggerDomain } from "../domain/automations";
 import { InMemoryFilterService } from "./services/InMemoryFilterService";
 
-/** matchesTriggerFilter returns true when data satisfies a trigger's filter. Appends a synthetic "action" clause (from eventActions) and, for monitor-source triggers only, a synthetic "triggerIds any-of [id]" clause so monitors opt in by listing trigger IDs. */
+/** matchesTriggerFilter returns true when data satisfies a trigger's filter. Appends a synthetic "action" clause (from eventActions) and, when the event data carries a triggerIds array, a synthetic "triggerIds any-of [id]" clause so the data can opt into a trigger by listing its ID. */
 export const matchesTriggerFilter = (
   data: Record<string, unknown>,
-  trigger: Pick<
-    TriggerDomain,
-    "id" | "eventSource" | "filter" | "eventActions"
-  >,
+  trigger: Pick<TriggerDomain, "id" | "filter" | "eventActions">,
 ): boolean => {
   const synthetic: FilterState = [];
 
@@ -21,9 +18,9 @@ export const matchesTriggerFilter = (
     });
   }
 
-  // Prompt-source triggers never carry a triggerIds field on the event data,
-  // so the opt-in clause must be scoped to monitor-source triggers.
-  if (trigger.eventSource === TriggerEventSource.Monitor) {
+  // Data-side opt-in: if the event publishes a triggerIds array, gate by it.
+  // Sources that don't publish the field (eg. prompt-version events) skip it.
+  if (Array.isArray(data.triggerIds)) {
     synthetic.push({
       column: "triggerIds",
       operator: "any of",
