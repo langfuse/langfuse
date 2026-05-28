@@ -1,24 +1,36 @@
-import { type TriggerDomain } from "../domain/automations";
 import { FilterState } from "../types";
+import { type TriggerEventAction } from "../domain/automations";
 import { InMemoryFilterService } from "./services/InMemoryFilterService";
 
-/** matchesTriggerFilter returns true when data satisfies a trigger's filter, treating `trigger.eventActions` as a synthetic "action" condition appended to the filter. */
+/** matchesTriggerFilter returns true when data satisfies a trigger's filter, with a synthetic "action" clause (from eventActions) and a synthetic "triggerIds any-of [triggerId]" clause appended so monitors opt in by listing trigger IDs. */
 export const matchesTriggerFilter = (
   data: Record<string, unknown>,
-  trigger: Pick<TriggerDomain, "filter" | "eventActions">,
+  trigger: {
+    triggerId: string;
+    filter: FilterState;
+    eventActions: TriggerEventAction[];
+  },
 ): boolean => {
-  const mergedFilter: FilterState =
-    trigger.eventActions.length > 0
-      ? [
-          ...trigger.filter,
-          {
-            column: "action",
-            operator: "any of",
-            type: "stringOptions",
-            value: trigger.eventActions,
-          },
-        ]
-      : trigger.filter;
+  const synthetic: FilterState = [];
+
+  if (trigger.eventActions.length > 0) {
+    synthetic.push({
+      column: "action",
+      operator: "any of",
+      type: "stringOptions",
+      value: trigger.eventActions,
+    });
+  }
+
+  synthetic.push({
+    column: "triggerIds",
+    operator: "any of",
+    type: "arrayOptions",
+    value: [trigger.triggerId],
+  });
+
+  const mergedFilter: FilterState = [...trigger.filter, ...synthetic];
+
   return InMemoryFilterService.evaluateFilter(
     data,
     mergedFilter,
