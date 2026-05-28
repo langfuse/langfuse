@@ -82,30 +82,52 @@ const ThresholdOverlay = ({
         />,
       );
       break;
-    case "NEQ":
-      const bandEpsilon =
+    case "EQ":
+    case "NEQ": {
+      // Floor at 1 so threshold.value === 0 with no extent doesn't collapse
+      // the band to a zero-height area (which Recharts then tiles across the
+      // full chart).
+      const bandEpsilon = Math.max(
         extent && extent.max > extent.min
           ? (extent.max - extent.min) * 0.01
-          : Math.abs(threshold.value) * 0.01;
-      elements.push(
-        <ReferenceArea
-          key={`area-above-${threshold.value}`}
-          y2={threshold.value + bandEpsilon}
-          ifOverflow="extendDomain"
-          fill={fill}
-          fillOpacity={0.14}
-          stroke="none"
-        />,
-        <ReferenceArea
-          key={`area-below-${threshold.value}`}
-          y1={threshold.value - bandEpsilon}
-          ifOverflow="extendDomain"
-          fill={fill}
-          fillOpacity={0.14}
-          stroke="none"
-        />,
+          : Math.abs(threshold.value) * 0.01,
+        1,
       );
+      if (threshold.operator === "EQ") {
+        // The violation IS the band: a thin shaded region centered on value.
+        elements.push(
+          <ReferenceArea
+            key={`area-${threshold.value}`}
+            y1={threshold.value - bandEpsilon}
+            y2={threshold.value + bandEpsilon}
+            ifOverflow="extendDomain"
+            fill={fill}
+            fillOpacity={0.14}
+            stroke="none"
+          />,
+        );
+      } else {
+        elements.push(
+          <ReferenceArea
+            key={`area-above-${threshold.value}`}
+            y2={threshold.value + bandEpsilon}
+            ifOverflow="extendDomain"
+            fill={fill}
+            fillOpacity={0.14}
+            stroke="none"
+          />,
+          <ReferenceArea
+            key={`area-below-${threshold.value}`}
+            y1={threshold.value - bandEpsilon}
+            ifOverflow="extendDomain"
+            fill={fill}
+            fillOpacity={0.14}
+            stroke="none"
+          />,
+        );
+      }
       break;
+    }
   }
 
   // Inclusive operators get solid lines, exclusive operators get dashed lines

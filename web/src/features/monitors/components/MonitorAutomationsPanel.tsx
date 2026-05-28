@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import {
   Check,
   Webhook as WebhookIcon,
@@ -70,7 +71,10 @@ export const MonitorAutomationsPanel = ({
     onTriggerIdsChange(toggle(triggerId, triggerIds, liveTriggerIds));
   };
 
-  const showEmptyState = (automations.data ?? []).length === 0;
+  // Only show the empty splash after the query has actually resolved with no
+  // rows; otherwise loading or errored requests would flash the splash and
+  // make linked automations look like they have vanished.
+  const showEmptyState = automations.isSuccess && automations.data.length === 0;
 
   return (
     <div className="space-y-3">
@@ -158,43 +162,48 @@ const ActionIcon = ({
   }
 };
 
-/** AddAutomationDropdown renders the "+ Automation" CTA used in both the empty state and the populated-list footer. */
+/** AddAutomationDropdown renders the "+ Automation" CTA used in both the empty state and the populated-list footer. Threads the current route through `redirectUrl` so the create-automation flow returns the user here on save. */
 const AddAutomationDropdown = ({
   projectId,
   fullWidth,
 }: {
   projectId: string;
   fullWidth?: boolean;
-}) => (
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <Button
-        variant="outline"
-        size="lg"
-        className={fullWidth ? "w-full" : undefined}
-      >
-        <Plus className="mr-2 h-4 w-4" />
-        Automation
-      </Button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="end" className="w-48">
-      <DropdownMenuItem asChild>
-        <Link href={automationCreateHref(projectId)}>
-          <Plus className="mr-2 h-3.5 w-3.5" />
-          New automation
-        </Link>
-      </DropdownMenuItem>
-      {ActionTypeSchema.options.map((t) => (
-        <DropdownMenuItem key={t} asChild>
-          <Link href={automationCreateHref(projectId, t)}>
-            <ActionIcon type={t} className="mr-2 h-3.5 w-3.5" />
-            {actionLabel[t]}
+}) => {
+  const router = useRouter();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="lg"
+          className={fullWidth ? "w-full" : undefined}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Automation
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem asChild>
+          <Link
+            href={automationCreateHref(projectId, undefined, router.asPath)}
+          >
+            <Plus className="mr-2 h-3.5 w-3.5" />
+            New automation
           </Link>
         </DropdownMenuItem>
-      ))}
-    </DropdownMenuContent>
-  </DropdownMenu>
-);
+        {ActionTypeSchema.options.map((t) => (
+          <DropdownMenuItem key={t} asChild>
+            <Link href={automationCreateHref(projectId, t, router.asPath)}>
+              <ActionIcon type={t} className="mr-2 h-3.5 w-3.5" />
+              {actionLabel[t]}
+            </Link>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
 
 /** computeSelectedSet returns the intersection of triggerIds with liveTriggerIds, dropping stale IDs. */
 const computeSelectedSet = (

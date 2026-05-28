@@ -159,8 +159,7 @@ export class MonitorService {
     _session: SessionContext,
     input: ListMonitors,
   ): Promise<{ monitors: Monitor[]; totalCount: number }> {
-    const skip =
-      input.page && input.limit ? (input.page - 1) * input.limit : undefined;
+    const skip = input.limit ? input.page * input.limit : undefined;
 
     const sortOrder = input.orderBy?.order.toLowerCase();
     const orderByValue =
