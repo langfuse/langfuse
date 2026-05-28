@@ -89,6 +89,7 @@ export function CommentList({
   isDrawerOpen = false,
   pendingSelection,
   onSelectionUsed,
+  onCommentChange,
 }: {
   projectId: string;
   objectId: string;
@@ -100,6 +101,7 @@ export function CommentList({
   isDrawerOpen?: boolean;
   pendingSelection?: SelectionData | null;
   onSelectionUsed?: () => void;
+  onCommentChange?: () => void | Promise<void>;
 }) {
   const session = useSession();
   const router = useRouter();
@@ -294,10 +296,16 @@ export function CommentList({
   }, [isDrawerOpen]);
 
   const utils = api.useUtils();
+  const invalidateCommentQueries = async () => {
+    void (async () => {
+      await onCommentChange?.();
+    })().catch(() => undefined);
+
+    await utils.comments.invalidate();
+  };
 
   const createCommentMutation = api.comments.create.useMutation({
     onSuccess: async () => {
-      await Promise.all([utils.comments.invalidate()]);
       form.reset();
 
       // Clear pending selection after successful comment creation
@@ -307,6 +315,8 @@ export function CommentList({
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }
+
+      await invalidateCommentQueries();
 
       // Scroll to bottom of comments list (newest comment in chronological order)
       if (commentsContainerRef.current) {
@@ -357,7 +367,7 @@ export function CommentList({
 
   const deleteCommentMutation = api.comments.delete.useMutation({
     onSuccess: async () => {
-      await Promise.all([utils.comments.invalidate()]);
+      await invalidateCommentQueries();
     },
   });
 
