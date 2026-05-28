@@ -10,6 +10,8 @@ import type {
   GetDatasetRunsV1Query,
   GetDatasetsV2Query,
   GetDatasetV2Query,
+  PostDatasetsV1Body,
+  PostDatasetsV2Body,
   PostDatasetItemsV1Body,
 } from "@/src/features/public-api/types/datasets";
 import {
@@ -24,6 +26,7 @@ import {
   Prisma,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { upsertDataset } from "./actions/createDataset";
 import {
   addToDeleteDatasetQueue,
   createDatasetItemFilterState,
@@ -58,6 +61,14 @@ type GetDatasetV1Input = z.infer<typeof GetDatasetV1Query> & {
   projectId: string;
 };
 
+type CreateDatasetInput = {
+  input:
+    | z.infer<typeof PostDatasetsV1Body>
+    | z.infer<typeof PostDatasetsV2Body>;
+  projectId: string;
+  auditScope?: DatasetAuditScope;
+};
+
 type ListDatasetItemsInput = z.infer<typeof GetDatasetItemsV1Query> & {
   projectId: string;
 };
@@ -68,7 +79,8 @@ type GetDatasetItemInput = z.infer<typeof GetDatasetItemV1Query> & {
 
 type CreateDatasetItemInput = {
   input: z.infer<typeof PostDatasetItemsV1Body>;
-  auditScope: DatasetAuditScope;
+  projectId: string;
+  auditScope?: DatasetAuditScope;
 };
 
 type ListDatasetRunsInput = z.infer<typeof GetDatasetRunsV1Query> & {
@@ -144,6 +156,40 @@ const getDatasetRunRecordOrThrow = async ({
   }
 
   return datasetRuns[0];
+};
+
+export const createDatasetForApi = async ({
+  input,
+  projectId,
+  auditScope,
+}: CreateDatasetInput) => {
+  const dataset = await upsertDataset({
+    input: {
+      name: input.name,
+      description: input.description ?? undefined,
+      metadata: input.metadata ?? undefined,
+      inputSchema: input.inputSchema,
+      expectedOutputSchema: input.expectedOutputSchema,
+    },
+    projectId,
+  });
+
+  if (auditScope) {
+    await auditLog({
+      action:
+        dataset.createdAt.getTime() === dataset.updatedAt.getTime()
+          ? "create"
+          : "update",
+      resourceType: "dataset",
+      resourceId: dataset.id,
+      projectId,
+      orgId: auditScope.orgId,
+      apiKeyId: auditScope.apiKeyId,
+      after: dataset,
+    });
+  }
+
+  return transformDbDatasetToAPIDataset(dataset);
 };
 
 export const listDatasetsForApi = async ({
@@ -384,11 +430,19 @@ export const getDatasetItemForApi = async ({
 
 export const createDatasetItemForApi = async ({
   input,
+  projectId,
   auditScope,
 }: CreateDatasetItemInput) => {
   try {
+    const existingDatasetItem = input.id
+      ? await getDatasetItemById({
+          projectId,
+          datasetItemId: input.id,
+        })
+      : null;
+
     const datasetItem = await upsertDatasetItem({
-      projectId: auditScope.projectId,
+      projectId,
       datasetName: input.datasetName,
       datasetItemId: input.id ?? undefined,
       input: input.input ?? undefined,
@@ -401,15 +455,18 @@ export const createDatasetItemForApi = async ({
       validateOpts: { normalizeUndefinedToNull: !!input.id ? false : true },
     });
 
-    await auditLog({
-      action: "create",
-      resourceType: "datasetItem",
-      resourceId: datasetItem.id,
-      projectId: auditScope.projectId,
-      orgId: auditScope.orgId,
-      apiKeyId: auditScope.apiKeyId,
-      after: datasetItem,
-    });
+    if (auditScope) {
+      await auditLog({
+        action: existingDatasetItem ? "update" : "create",
+        resourceType: "datasetItem",
+        resourceId: datasetItem.id,
+        projectId,
+        orgId: auditScope.orgId,
+        apiKeyId: auditScope.apiKeyId,
+        before: existingDatasetItem ?? undefined,
+        after: datasetItem,
+      });
+    }
 
     return transformDbDatasetItemDomainToAPIDatasetItem({
       ...datasetItem,

@@ -5,11 +5,11 @@ import {
   GetDatasetsV1Response,
   PostDatasetsV1Body,
   PostDatasetsV1Response,
-  transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
-import { upsertDataset } from "@/src/features/datasets/server/actions/createDataset";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { listDatasetsByProjectForApi } from "@/src/features/datasets/server/publicDatasetService";
+import {
+  createDatasetForApi,
+  listDatasetsByProjectForApi,
+} from "@/src/features/datasets/server/publicDatasetService";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -18,32 +18,14 @@ export default withMiddlewares({
     responseSchema: PostDatasetsV1Response,
     rateLimitResource: "datasets",
     fn: async ({ body, auth }) => {
-      const { name, description, metadata, inputSchema, expectedOutputSchema } =
-        body;
-
-      const dataset = await upsertDataset({
-        input: {
-          name,
-          description: description ?? undefined,
-          metadata: metadata ?? undefined,
-          inputSchema,
-          expectedOutputSchema,
-        },
+      const dataset = await createDatasetForApi({
+        input: body,
         projectId: auth.scope.projectId,
-      });
-
-      await auditLog({
-        action: "create",
-        resourceType: "dataset",
-        resourceId: dataset.id,
-        projectId: auth.scope.projectId,
-        orgId: auth.scope.orgId,
-        apiKeyId: auth.scope.apiKeyId,
-        after: dataset,
+        auditScope: auth.scope,
       });
 
       return {
-        ...transformDbDatasetToAPIDataset(dataset),
+        ...dataset,
         items: [],
         runs: [],
       };

@@ -20,6 +20,7 @@ export const [upsertDatasetItemTool, handleUpsertDatasetItem] = defineTool({
       fn: async () => {
         const result = await createDatasetItemForApi({
           input,
+          projectId: context.projectId,
           auditScope: context,
         });
 
