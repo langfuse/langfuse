@@ -3411,6 +3411,37 @@
     ]
   },
   {
+    "id": "80753fd5-342b-4ed3-bbb1-57d3d57b7e03",
+    "modelName": "claude-opus-4-8",
+    "matchPattern": "(?i)^((anthropic\/)?claude-opus-4-8|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-8(-v1(:0)?)?)$",
+    "createdAt": "2026-05-28T00:00:00.000Z",
+    "updatedAt": "2026-05-28T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "80753fd5-342b-4ed3-bbb1-57d3d57b7e03_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 5e-6,
+          "input_tokens": 5e-6,
+          "output": 25e-6,
+          "output_tokens": 25e-6,
+          "cache_creation_input_tokens": 6.25e-6,
+          "input_cache_creation": 6.25e-6,
+          "input_cache_creation_5m": 6.25e-6,
+          "input_cache_creation_1h": 10e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "cmig1hb7i000104l72qrzgc6h",
     "modelName": "gemini-2.5-pro",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-pro)$",

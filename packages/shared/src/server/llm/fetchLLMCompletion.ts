@@ -345,7 +345,10 @@ export async function fetchLLMCompletion(
 
   let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse | ChatGoogle;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
-    const isClaude45Family =
+    const shouldNormalizeAnthropicSamplingParams =
+      modelParams.model?.includes("claude-opus-4-8") ||
+      modelParams.model?.includes("claude-opus-4-7") ||
+      modelParams.model?.includes("claude-sonnet-4-6") ||
       modelParams.model?.includes("claude-sonnet-4-5") ||
       modelParams.model?.includes("claude-opus-4-1") ||
       modelParams.model?.includes("claude-opus-4-5") ||
@@ -373,7 +376,7 @@ export async function fetchLLMCompletion(
 
     chatModel = new ChatAnthropic(chatOptions);
 
-    if (isClaude45Family) {
+    if (shouldNormalizeAnthropicSamplingParams) {
       if (chatModel.topP === -1) {
         chatModel.topP = undefined;
       }
