@@ -87,7 +87,7 @@ const createAutomationPrefillSchema = z.object({
 });
 
 /** parseCreateAutomationPrefill decodes a base64url JSON blob into a typed prefill; returns {} when absent or malformed. */
-export const parseCreateAutomationPrefill = (
+const parseCreateAutomationPrefill = (
   raw: string | null | undefined,
 ): CreateAutomationPrefill => {
   if (!raw) return {};
@@ -105,7 +105,7 @@ export const parseCreateAutomationPrefill = (
 };
 
 /** serializeCreateAutomationPrefill encodes a typed prefill as a base64url JSON blob for a single URL query param, UTF-8-safe so non-ASCII tags don't throw at btoa. */
-export const serializeCreateAutomationPrefill = (
+const serializeCreateAutomationPrefill = (
   prefill: CreateAutomationPrefill,
 ): string => {
   const bytes = new TextEncoder().encode(JSON.stringify(prefill));
@@ -116,6 +116,19 @@ export const serializeCreateAutomationPrefill = (
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
+};
+
+/** automationCreateHref builds the deep-link to the automations create form, prefilling eventSource as Monitor and (optionally) the chosen actionType. */
+export const automationCreateHref = (
+  projectId: string,
+  actionType?: ActionTypes,
+): string => {
+  const prefill = serializeCreateAutomationPrefill({
+    eventSource: TriggerEventSource.Monitor,
+    ...(actionType ? { actionType } : {}),
+  });
+  const params = new URLSearchParams({ view: "create", prefill });
+  return `/project/${projectId}/automations?${params.toString()}`;
 };
 
 // Define schemas for form validation

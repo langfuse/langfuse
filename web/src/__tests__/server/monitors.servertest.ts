@@ -545,4 +545,82 @@ describe("monitors trpc", () => {
       expect(resultB.count).toBe(2);
     });
   });
+
+  describe("hasAny", () => {
+    it("returns false on an empty project", async () => {
+      const { project, caller } = await prepare();
+      const result = await caller.monitors.hasAny({ projectId: project.id });
+      expect(result).toBe(false);
+    });
+
+    it("returns true once a monitor has been created", async () => {
+      const { project, caller } = await prepare();
+      await caller.monitors.create(validMonitorInput(project.id));
+      const result = await caller.monitors.hasAny({ projectId: project.id });
+      expect(result).toBe(true);
+    });
+
+    it("is project-scoped, not org-scoped", async () => {
+      // Two projects in the same org: a monitor in project A must not flip
+      // hasAny for project B, which is the read on which the empty-state
+      // splash is gated.
+      const {
+        org,
+        project: projectA,
+        session: sessionA,
+        caller: callerA,
+      } = await prepare();
+
+      const projectB = await prisma.project.create({
+        data: {
+          name: `sibling-${v4().substring(0, 8)}`,
+          orgId: org.id,
+        },
+      });
+
+      // Re-issue the session with projectB added so the caller has RBAC
+      // access to read it; the procedure itself enforces project-scoped
+      // RBAC, not org-scoped.
+      const userA = sessionA.user!;
+      const orgA = userA.organizations[0];
+      const sessionAB = {
+        ...sessionA,
+        user: {
+          ...userA,
+          organizations: [
+            {
+              ...orgA,
+              projects: [
+                ...orgA.projects,
+                {
+                  id: projectB.id,
+                  role: "ADMIN",
+                  retentionDays: 30,
+                  deletedAt: null,
+                  name: projectB.name,
+                  metadata: {},
+                  hasTraces: false,
+                  createdAt: new Date().toISOString(),
+                },
+              ],
+            },
+          ],
+        },
+      } as Session;
+      const ctxAB = createInnerTRPCContext({ session: sessionAB, headers: {} });
+      const callerAB = appRouter.createCaller({ ...ctxAB, prisma });
+
+      await callerA.monitors.create(validMonitorInput(projectA.id));
+
+      const hasAnyA = await callerAB.monitors.hasAny({
+        projectId: projectA.id,
+      });
+      const hasAnyB = await callerAB.monitors.hasAny({
+        projectId: projectB.id,
+      });
+
+      expect(hasAnyA).toBe(true);
+      expect(hasAnyB).toBe(false);
+    });
+  });
 });

@@ -22,7 +22,7 @@ import {
   type ActionTypes,
   TriggerEventSource,
 } from "@langfuse/shared";
-import { serializeCreateAutomationPrefill } from "@/src/features/automations/components/automationForm";
+import { automationCreateHref } from "@/src/features/automations/components/automationForm";
 import { cn } from "@/src/utils/tailwind";
 
 /** actionLabel maps each automation action type to its display name. */
@@ -195,19 +195,6 @@ const AddAutomationDropdown = ({
     </DropdownMenuContent>
   </DropdownMenu>
 );
-
-/** automationCreateHref builds the deep-link to the automations create form, prefilling eventSource as Monitor and (optionally) the chosen actionType. */
-const automationCreateHref = (
-  projectId: string,
-  actionType?: ActionTypes,
-): string => {
-  const prefill = serializeCreateAutomationPrefill({
-    eventSource: TriggerEventSource.Monitor,
-    ...(actionType ? { actionType } : {}),
-  });
-  const params = new URLSearchParams({ view: "create", prefill });
-  return `/project/${projectId}/automations?${params.toString()}`;
-};
 
 /** computeSelectedSet returns the intersection of triggerIds with liveTriggerIds, dropping stale IDs. */
 const computeSelectedSet = (

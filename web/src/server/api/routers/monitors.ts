@@ -111,6 +111,22 @@ export const monitorsRouter = createTRPCRouter({
       return { count };
     }),
 
+  /** hasAny reports whether the project owns at least one monitor; drives the list-page onboarding splash. */
+  hasAny: monitorsProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "monitors:read",
+      });
+      const monitor = await ctx.prisma.monitor.findFirst({
+        where: { projectId: input.projectId },
+        select: { id: true },
+      });
+      return monitor !== null;
+    }),
+
   getFilterOptions: monitorsProcedure
     .input(GetMonitorFilterOptionsSchema)
     .query(async ({ ctx, input }) => {
