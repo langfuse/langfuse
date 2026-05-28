@@ -25,6 +25,7 @@ export function CommentDrawerButton({
   size = "default",
   pendingSelection,
   onSelectionUsed,
+  onCommentChange,
   isOpen: controlledIsOpen,
   onOpenChange: controlledOnOpenChange,
 }: {
@@ -37,6 +38,7 @@ export function CommentDrawerButton({
   size?: ButtonProps["size"];
   pendingSelection?: SelectionData | null;
   onSelectionUsed?: () => void;
+  onCommentChange?: () => void | Promise<void>;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -212,6 +214,7 @@ export function CommentDrawerButton({
               isDrawerOpen={isDrawerOpen}
               pendingSelection={pendingSelection}
               onSelectionUsed={onSelectionUsed}
+              onCommentChange={onCommentChange}
             />
           </div>
         </div>
