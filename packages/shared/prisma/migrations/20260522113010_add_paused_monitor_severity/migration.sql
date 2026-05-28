@@ -26,3 +26,5 @@ DROP TYPE "MonitorSeverity_old";
 -- view renders them with the new "paused" appearance from the first deploy.
 -- New transitions are written by MonitorService.update going forward.
 UPDATE monitors SET severity = 'PAUSED' WHERE status <> 'ACTIVE';
+
+ALTER TABLE "monitors" ADD COLUMN "trigger_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

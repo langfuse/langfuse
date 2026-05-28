@@ -1652,7 +1652,8 @@ model Monitor {
 
   // === Alerts ===
   name      String
-  tags      String[]  @default([])
+  tags       String[]  @default([])
+  triggerIds String[]  @default([]) @map("trigger_ids")
   alertedAt DateTime? @map("alerted_at")
 
   @@index([projectId])
