@@ -93,9 +93,10 @@ function StandardSignupFlow({
   const [formError, setFormError] = useState<string | null>(null);
 
   // Two-step login flow: ask for email first, detect SSO, then either redirect to SSO or reveal password field.
-  // Skip this flow when no SSO is configured - show password field immediately
+  // Skip this flow when no SSO is configured and credentials are enabled - show password field immediately.
+  // Never show password step when credentials auth is disabled (AUTH_DISABLE_USERNAME_PASSWORD=true).
   const [showPasswordStep, setShowPasswordStep] = useState<boolean>(
-    !authProviders.sso,
+    !authProviders.sso && authProviders.credentials,
   );
   const [continueLoading, setContinueLoading] = useState<boolean>(false);
   const [lastUsedAuthMethod, setLastUsedAuthMethod] =
@@ -166,21 +167,25 @@ function StandardSignupFlow({
         return; // stop further execution – page redirect expected
       }
 
-      // No SSO – fall back to password step
-      setShowPasswordStep(true);
+      if (authProviders.credentials) {
+        // No SSO – fall back to password step
+        setShowPasswordStep(true);
 
-      // Auto-focus password input when password step becomes visible
-      setTimeout(() => {
-        // Find and focus the name input (since it's the first new field) or password?
-        // Plan says "name + password fields". Usually Name is first in Sign Up.
-        // Let's focus Name.
-        const nameInput = document.querySelector(
-          'input[name="name"]',
-        ) as HTMLInputElement;
-        if (nameInput) {
-          nameInput.focus();
-        }
-      }, 100);
+        // Auto-focus name input when password step becomes visible
+        setTimeout(() => {
+          const nameInput = document.querySelector(
+            'input[name="name"]',
+          ) as HTMLInputElement;
+          if (nameInput) {
+            nameInput.focus();
+          }
+        }, 100);
+      } else {
+        // Credentials auth is disabled – cannot fall back to password step
+        setFormError(
+          "No sign-in method available for this email. Please use one of the available SSO options.",
+        );
+      }
     } catch (error) {
       console.error(error);
       setFormError("Unable to check SSO configuration. Please try again.");
