@@ -673,14 +673,17 @@ export async function fetchLLMCompletion(
       (e as any)?.$metadata?.httpStatusCode ??
       500;
     const rawMessage = e instanceof Error ? e.message : String(e);
-    const message = extractCleanErrorMessage(rawMessage);
-
-    // Check for non-retryable error patterns. Walks the `.cause` chain because
     // Anthropic/OpenAI/Azure SDKs wrap synchronous fetch errors as
     // `APIConnectionError { message: "Connection error.", cause: original }`,
-    // which hides the original `secureLlmFetch` validation message from a
-    // top-level `e.message` check.
-    const hasNonRetryablePattern = hasNonRetryablePatternInCauseChain(e);
+    // hiding the actual secureLlmFetch validation reason. Walk the `.cause`
+    // chain for both retryability classification and the user-visible message
+    // so operators see "Blocked hostname detected" / "Redirect validation
+    // failed ..." instead of the unhelpful wrapper text.
+    const nonRetryableCauseMessage = findNonRetryableCauseMessage(e);
+    const message =
+      nonRetryableCauseMessage ?? extractCleanErrorMessage(rawMessage);
+
+    const hasNonRetryablePattern = nonRetryableCauseMessage !== undefined;
 
     // Determine retryability:
     // - 429 (rate limit): retryable with custom delay
@@ -810,7 +813,7 @@ function processOpenAIBaseURL(params: {
   return url.replace("{model}", modelName);
 }
 
-function hasNonRetryablePatternInCauseChain(error: unknown): boolean {
+function findNonRetryableCauseMessage(error: unknown): string | undefined {
   const visited = new Set<unknown>();
   for (
     let current: unknown = error;
@@ -826,10 +829,10 @@ function hasNonRetryablePatternInCauseChain(error: unknown): boolean {
         message.includes(pattern),
       )
     ) {
-      return true;
+      return message;
     }
   }
-  return false;
+  return undefined;
 }
 
 function extractCleanErrorMessage(rawMessage: string): string {
