@@ -1,5 +1,5 @@
 import { GetDatasetRunsV1Response } from "@/src/features/public-api/types/datasets";
-import { listDatasetRunsForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { listDatasetRunsByDatasetIdForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { GetDatasetRunsMcpInput } from "../schema";
@@ -7,18 +7,18 @@ import { GetDatasetRunsMcpInput } from "../schema";
 export const [listDatasetRunsTool, handleListDatasetRuns] = defineTool({
   name: "listDatasetRuns",
   description:
-    "List dataset runs, each experiment or evaluation execution over a dataset, by dataset name.",
+    "List dataset runs, each experiment or evaluation execution over a dataset, by dataset ID.",
   baseSchema: GetDatasetRunsMcpInput,
   inputSchema: GetDatasetRunsMcpInput,
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.dataset_runs.list",
       context,
-      attributes: { "mcp.dataset_name": input.name },
+      attributes: { "mcp.dataset_id": input.datasetId },
       fn: async () => {
-        const result = await listDatasetRunsForApi({
+        const result = await listDatasetRunsByDatasetIdForApi({
           projectId: context.projectId,
-          name: input.name,
+          datasetId: input.datasetId,
           page: input.page,
           limit: input.limit,
         });
