@@ -26,6 +26,9 @@ import type {
 import { applyStateMachine } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
 
+/** monitorEvaluationOffsetMs shifts the CH query window back so the planner reads data old enough to be settled past the events-table write lag. Anchored to `event.runAt` so retries scan an identical window. */
+export const monitorEvaluationOffsetMs = 30 * 1000;
+
 /** MonitorClaim is one row returned by claim — the worker's stash for the matching complete CAS. */
 export type MonitorClaim = {
   id: string;
@@ -266,10 +269,9 @@ function buildCompleteQuery(args: {
   `;
 }
 
-/** buildMonitorQuery converts a MonitorQueueEvent into the scalar-shape QueryType `executeQuery` accepts (no dimensions, no time bucketing; window derived from event). */
+/** buildMonitorQuery converts a MonitorQueueEvent into the scalar-shape QueryType `executeQuery` accepts (no dimensions, no time bucketing; window derived from event, shifted by `monitorEvaluationOffsetMs`). */
 function buildMonitorQuery(event: MonitorQueueEvent): QueryType {
-  const windowMs = Number(windowToMs(event.window));
-  const fromTimestamp = new Date(event.runAt.getTime() - windowMs);
+  const { fromTimestamp, toTimestamp } = evaluationWindow(event);
   return {
     view: event.view,
     dimensions: [],
@@ -277,9 +279,22 @@ function buildMonitorQuery(event: MonitorQueueEvent): QueryType {
     filters: event.filters,
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
-    toTimestamp: event.runAt.toISOString(),
+    toTimestamp: toTimestamp.toISOString(),
     orderBy: null,
   };
+}
+
+/** evaluationWindow returns the absolute CH window for an event: both edges of `[runAt - window, runAt]` shifted back by `monitorEvaluationOffsetMs`. */
+function evaluationWindow(event: MonitorQueueEvent): {
+  fromTimestamp: Date;
+  toTimestamp: Date;
+} {
+  const windowMs = Number(windowToMs(event.window));
+  const toTimestamp = new Date(
+    event.runAt.getTime() - monitorEvaluationOffsetMs,
+  );
+  const fromTimestamp = new Date(toTimestamp.getTime() - windowMs);
+  return { fromTimestamp, toTimestamp };
 }
 
 /** parseNumericValue safely coerces a ClickHouse-returned cell to number | null. Missing/non-finite values become null so they flow into computeSeverity as NO_DATA. */
@@ -304,11 +319,14 @@ function buildAlert(args: {
   const metric = args.event.metrics.find(
     (m) => `${m.aggregation}_${m.measure}` === eventMonitor?.metricName,
   ) ?? { measure: "value", aggregation: "count" };
+  const { fromTimestamp, toTimestamp } = evaluationWindow(args.event);
   return {
     monitorId: args.row.id,
     projectId: args.event.projectId,
     severity: args.severity,
     timestamp: args.event.runAt,
+    fromTimestamp,
+    toTimestamp,
     permalink: buildPermalink(args.event.projectId, args.row.id),
     message: synthesizeAlertMessage({
       monitorName: args.row.name,

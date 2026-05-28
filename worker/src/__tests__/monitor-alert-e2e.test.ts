@@ -253,10 +253,19 @@ describe("monitor-alert e2e (scheduler → processor → dispatcher → webhook 
     const requests = webhookServer.getReceivedRequests();
     expect(requests).toHaveLength(1);
     const body = JSON.parse(requests[0].body);
+    const expectedTo = new Date(now.getTime() - 30_000).toISOString();
+    const expectedFrom = new Date(
+      now.getTime() - 30_000 - 5 * 60_000,
+    ).toISOString();
     expect(body).toMatchObject({
       type: "monitor-alert",
       apiVersion: "v1",
-      payload: { monitorId, severity: "ALERT" },
+      payload: {
+        monitorId,
+        severity: "ALERT",
+        fromTimestamp: expectedFrom,
+        toTimestamp: expectedTo,
+      },
     });
   });
 

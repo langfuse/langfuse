@@ -14,6 +14,8 @@ const validMonitorEnvelope = {
     message: { title: "[ALERT] err", body: "errors > 100" },
     severity: "ALERT" as const,
     timestamp: new Date("2026-05-18T12:01:00.000Z"),
+    fromTimestamp: new Date("2026-05-18T11:55:30.000Z"),
+    toTimestamp: new Date("2026-05-18T12:00:30.000Z"),
     view: "observations" as const,
     filters: [],
     window: "5m" as const,

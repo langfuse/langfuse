@@ -827,3 +827,74 @@ describe("MonitorProcessor.process (integration)", () => {
     }
   });
 });
+
+describe("MonitorProcessor.process evaluation offset", () => {
+  let projectId: string;
+
+  beforeAll(async () => {
+    const org = await createOrgProjectAndApiKey();
+    projectId = org.projectId;
+  });
+
+  afterEach(async () => {
+    await prisma.monitor.deleteMany({ where: { projectId } });
+  });
+
+  it("shifts the CH query window back by 30s and stamps it onto the alert payload", async () => {
+    const monitorId = `m_off_${v4()}`;
+    await seedMonitor(projectId, {
+      id: monitorId,
+      severity: "UNKNOWN",
+      lastPublishedAt: runAt,
+    });
+
+    let capturedQuery: { fromTimestamp: string; toTimestamp: string } | null =
+      null;
+    const publish = vi.fn<MonitorPublisher>(async () => {});
+    const executeQuery: MonitorQueryExecutor = async (_p, query) => {
+      capturedQuery = {
+        fromTimestamp: query.fromTimestamp,
+        toTimestamp: query.toTimestamp,
+      };
+      return [{ count_count: 200 }];
+    };
+    const getTriggers: MonitorTriggerLoader = async () =>
+      [
+        {
+          filter: matchAnyAlertTrigger.filter,
+          eventActions: [],
+          automations: [{ id: "auto_off", actionId: "act_off" }],
+        },
+      ] as unknown as Awaited<ReturnType<MonitorTriggerLoader>>;
+
+    const processor = new MonitorProcessor({
+      db: prisma,
+      publish,
+      executeQuery,
+      getTriggers,
+    });
+
+    const event = makeEvent(projectId, [monitorId]);
+    await processor.process(event, justAfterRunAt);
+
+    const offsetMs = 30_000;
+    const windowMs = 5 * 60_000;
+    const expectedTo = new Date(runAt.getTime() - offsetMs).toISOString();
+    const expectedFrom = new Date(
+      runAt.getTime() - offsetMs - windowMs,
+    ).toISOString();
+
+    expect(capturedQuery).toEqual({
+      fromTimestamp: expectedFrom,
+      toTimestamp: expectedTo,
+    });
+
+    expect(publish).toHaveBeenCalledTimes(1);
+    const sent = publish.mock.calls[0][0].payload;
+    if (sent.type !== "monitor-alert") throw new Error("unexpected envelope");
+    expect(sent.payload.fromTimestamp.toISOString()).toBe(expectedFrom);
+    expect(sent.payload.toTimestamp.toISOString()).toBe(expectedTo);
+    // The cadence-boundary stamp stays unshifted — alerts say "fired at runAt".
+    expect(sent.payload.timestamp.toISOString()).toBe(runAt.toISOString());
+  });
+});

@@ -207,6 +207,8 @@ export type Monitor = z.infer<typeof MonitorSchema>;
  * MonitorAlertSchema is emitted when a monitor alerts. It carries the query
  * shape (`view` / `filters` / `window`) alongside the rendered message so
  * that recipients can reconstruct the underlying observations / scores query.
+ * `fromTimestamp` / `toTimestamp` record the absolute CH window the
+ * evaluation scanned — the offset-adjusted window, not `timestamp - window`.
  */
 export const MonitorAlertSchema = z.object({
   monitorId: z.string(),
@@ -218,6 +220,8 @@ export const MonitorAlertSchema = z.object({
   message: z.object({ title: z.string(), body: z.string() }),
   severity: MonitorSeveritySchema,
   timestamp: z.coerce.date(),
+  fromTimestamp: z.coerce.date(),
+  toTimestamp: z.coerce.date(),
   view: MonitorViewSchema,
   filters: MonitorFiltersSchema,
   window: MonitorWindowSchema,

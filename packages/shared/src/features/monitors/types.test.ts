@@ -161,6 +161,8 @@ describe("MonitorAlertSchema", () => {
     severity: "ALERT" as const,
     permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
     timestamp: new Date("2026-05-18T12:01:00.000Z"),
+    fromTimestamp: new Date("2026-05-18T11:55:30.000Z"),
+    toTimestamp: new Date("2026-05-18T12:00:30.000Z"),
     message: { title: "High error rate", body: "errors > 100" },
     view: "observations" as const,
     filters: [],
@@ -200,5 +202,28 @@ describe("MonitorAlertSchema", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.timestamp).toBeInstanceOf(Date);
+  });
+
+  it("rejects an alert missing fromTimestamp", () => {
+    const { fromTimestamp: _unused, ...withoutFrom } = validAlert;
+    expect(MonitorAlertSchema.safeParse(withoutFrom).success).toBe(false);
+  });
+
+  it("rejects an alert missing toTimestamp", () => {
+    const { toTimestamp: _unused, ...withoutTo } = validAlert;
+    expect(MonitorAlertSchema.safeParse(withoutTo).success).toBe(false);
+  });
+
+  it("coerces fromTimestamp/toTimestamp strings to Dates", () => {
+    const result = MonitorAlertSchema.safeParse({
+      ...validAlert,
+      fromTimestamp: "2026-05-18T11:55:30.000Z",
+      toTimestamp: "2026-05-18T12:00:30.000Z",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.fromTimestamp).toBeInstanceOf(Date);
+      expect(result.data.toTimestamp).toBeInstanceOf(Date);
+    }
   });
 });
