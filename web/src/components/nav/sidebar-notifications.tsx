@@ -32,7 +32,7 @@ const notifications: SidebarNotification[] = [
     title: "Launch Week: Day 1",
     description:
       "Run experiments inside GitHub Actions to test every PR against a Langfuse dataset.",
-    link: "https://langfuse.com/launch-week-5",
+    link: "https://langfuse.com/changelog/2026-05-25-experiment-ci-cd-gates",
     linkTitle: "Learn more",
     createdAt: "2026-05-25",
   },
@@ -41,11 +41,18 @@ const notifications: SidebarNotification[] = [
     title: "Launch Week: Day 2",
     description:
       "Langfuse agent skill turns Langfuse into a headless platform to evaluate, query and instrument your application.",
-    link: "https://langfuse.com/launch-week-5",
+    link: "https://langfuse.com/changelog/2026-05-26-langfuse-agent-skill",
     linkTitle: "Learn more",
     createdAt: "2026-05-26",
   },
-
+  {
+    id: "lw5-3",
+    title: "Launch Week: Day 3",
+    description: "Fast full-text search on observation i/o via the UI and API",
+    link: "https://langfuse.com/changelog/2026-05-27-clickhouse-full-text-search-fast-mode",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-27",
+  },
   {
     id: "github-star",
     title: "Star Langfuse",
