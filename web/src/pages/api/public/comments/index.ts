@@ -69,6 +69,7 @@ export default withMiddlewares({
           objectId: objectId ?? undefined,
           authorUserId: authorUserId ?? undefined,
         },
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
         take: limit,
         skip: (page - 1) * limit,
       });
