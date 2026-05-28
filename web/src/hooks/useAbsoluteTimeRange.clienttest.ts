@@ -4,7 +4,9 @@ import { type TimeRange } from "@/src/utils/date-range-utils";
 
 describe("useAbsoluteTimeRange", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    // Only fake the clock, not setTimeout/scheduler — faking timers wholesale
+    // stalls React's scheduler and testing-library cleanup.
+    vi.useFakeTimers({ toFake: ["Date"] });
   });
 
   afterEach(() => {
@@ -32,6 +34,29 @@ describe("useAbsoluteTimeRange", () => {
       "2026-05-18T09:00:00.000Z",
     );
     expect(result.current?.to.toISOString()).toBe("2026-05-18T15:00:00.000Z");
+  });
+
+  it("rolls the window forward on visibilitychange when the tab becomes visible", () => {
+    vi.setSystemTime(new Date("2026-05-18T12:00:00.000Z"));
+    const timeRange: TimeRange = { range: "last6Hours" };
+
+    const { result } = renderHook(() => useAbsoluteTimeRange(timeRange));
+
+    expect(result.current?.to.toISOString()).toBe("2026-05-18T12:00:00.000Z");
+
+    act(() => {
+      vi.setSystemTime(new Date("2026-05-18T14:00:00.000Z"));
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => "visible",
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(result.current?.from.toISOString()).toBe(
+      "2026-05-18T08:00:00.000Z",
+    );
+    expect(result.current?.to.toISOString()).toBe("2026-05-18T14:00:00.000Z");
   });
 
   it("keeps an absolute range stable across focus events", () => {

@@ -32,7 +32,15 @@ export function useAbsoluteTimeRange(
   useEffect(() => {
     if (!isRelative || typeof window === "undefined") return;
 
-    const bump = () => setTick((t) => t + 1);
+    // `focus` and `visibilitychange` both fire when returning to a tab; coalesce
+    // them so a single return-to-view triggers exactly one re-evaluation.
+    let lastBump = 0;
+    const bump = () => {
+      const now = Date.now();
+      if (now - lastBump < 50) return;
+      lastBump = now;
+      setTick((t) => t + 1);
+    };
     const onVisibility = () => {
       if (document.visibilityState === "visible") bump();
     };
