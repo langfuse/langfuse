@@ -89,6 +89,20 @@ import { handleGetScoreConfig } from "@/src/features/mcp/features/scores/tools/g
 import { handleListScoreConfigs } from "@/src/features/mcp/features/scores/tools/listScoreConfigs";
 import { handleUpdateScoreConfig } from "@/src/features/mcp/features/scores/tools/updateScoreConfig";
 
+const TOP_LEVEL_SCHEMA_COMPOSITION_KEYWORDS = [
+  "oneOf",
+  "anyOf",
+  "allOf",
+] as const;
+
+const getTopLevelSchemaCompositionKeywords = (
+  schema: Record<string, unknown>,
+) =>
+  TOP_LEVEL_SCHEMA_COMPOSITION_KEYWORDS.filter((keyword) => keyword in schema);
+
+const referencesDefinitions = (schema: Record<string, unknown>) =>
+  JSON.stringify(schema).includes("#/definitions/");
+
 const createScoreConfig = async (projectId: string) =>
   prisma.scoreConfig.create({
     data: {
@@ -154,6 +168,36 @@ describe("MCP public API tools", () => {
         "createScoreConfig",
       ]),
     );
+  });
+
+  it("exposes model-compatible root input schemas", async () => {
+    const tools = await toolRegistry.getToolDefinitions(mockServerContext());
+
+    const incompatibleTools = tools.flatMap((tool) => {
+      const schema = tool.inputSchema;
+      const compositionKeywords = getTopLevelSchemaCompositionKeywords(schema);
+      const missingDefinitions =
+        referencesDefinitions(schema) && !("definitions" in schema);
+
+      if (
+        schema.type === "object" &&
+        compositionKeywords.length === 0 &&
+        !missingDefinitions
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          name: tool.name,
+          type: schema.type,
+          compositionKeywords,
+          missingDefinitions,
+        },
+      ];
+    });
+
+    expect(incompatibleTools).toEqual([]);
   });
 
   it("exposes read-only tools for in-app agent keys", async () => {

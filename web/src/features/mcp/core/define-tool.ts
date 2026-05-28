@@ -7,6 +7,11 @@
 
 import { z } from "zod";
 import { wrapErrorHandling } from "./error-formatting";
+import {
+  isObjectLikeJsonSchema,
+  normalizeMcpInputSchema,
+  type JsonSchemaObject,
+} from "./input-schema-compat";
 import type { ServerContext } from "../types";
 
 /**
@@ -58,30 +63,6 @@ export interface ToolDefinition {
     destructiveHint?: boolean;
     expensiveHint?: boolean;
   };
-}
-
-type JsonSchemaObject = Record<string, unknown>;
-
-function isObjectLikeJsonSchema(schema: JsonSchemaObject): boolean {
-  if (schema.type === "object") return true;
-
-  const subSchemas = (() => {
-    if ("oneOf" in schema && Array.isArray(schema.oneOf)) return schema.oneOf;
-    if ("anyOf" in schema && Array.isArray(schema.anyOf)) return schema.anyOf;
-    if ("allOf" in schema && Array.isArray(schema.allOf)) return schema.allOf;
-    return [];
-  })();
-
-  if (subSchemas.length > 0) {
-    return subSchemas.every(
-      (subSchema) =>
-        typeof subSchema === "object" &&
-        subSchema !== null &&
-        isObjectLikeJsonSchema(subSchema),
-    );
-  }
-
-  return false;
 }
 
 /**
@@ -141,15 +122,13 @@ export function defineTool<TInput>(
     );
   }
 
-  // The MCP TypeScript SDK validates Tool.inputSchema.type as `z.literal("object")`,
-  // so clients reject any tool whose root schema lacks `type: "object"`. Zod's
-  // JSON Schema converter omits the root `type` for intersection/union schemas
-  // (emitting allOf/oneOf/anyOf instead), so we inject it here. JSON Schema
-  // draft-7 allows `type` alongside these keywords — all constraints must hold.
-  const normalizedJsonSchema: JsonSchemaObject =
-    (jsonSchema as JsonSchemaObject).type === "object"
-      ? (jsonSchema as JsonSchemaObject)
-      : { ...(jsonSchema as JsonSchemaObject), type: "object" };
+  // The MCP TypeScript SDK requires root `type: "object"`, while model tool
+  // validators can reject root `oneOf`/`anyOf`/`allOf`. Zod emits those for
+  // object intersections and unions, so keep nested detail but normalize the
+  // root into a plain object schema for client compatibility.
+  const normalizedJsonSchema = normalizeMcpInputSchema(
+    jsonSchema as JsonSchemaObject,
+  );
 
   // Build tool definition
   const toolDefinition: ToolDefinition = {
