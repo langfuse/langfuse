@@ -82,6 +82,7 @@ export class MonitorService {
         nextRunAt,
         name: input.name,
         tags: input.tags,
+        triggerIds: input.triggerIds,
       },
     });
     return monitorFromPrisma(created);
@@ -132,6 +133,7 @@ export class MonitorService {
           nextRunAt,
           name: input.name,
           tags: input.tags,
+          triggerIds: input.triggerIds,
         },
       });
       return monitorFromPrisma(updated);
