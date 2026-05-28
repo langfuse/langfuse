@@ -8,8 +8,7 @@ packages:
 minimumReleaseAge: 7200
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
-minimumReleaseAgeExclude:
-  - "@langchain/core@1.1.48"
+minimumReleaseAgeExclude: []
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
