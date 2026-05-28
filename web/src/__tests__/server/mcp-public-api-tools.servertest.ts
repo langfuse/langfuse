@@ -64,8 +64,6 @@ import {
   handleListComments,
 } from "@/src/features/mcp/features/comments/tools";
 import {
-  handleCreateDataset,
-  handleCreateDatasetItem,
   handleCreateDatasetRunItem,
   handleDeleteDatasetItem,
   handleDeleteDatasetRun,
@@ -76,6 +74,8 @@ import {
   handleListDatasetRunItems,
   handleListDatasetRuns,
   handleListDatasets,
+  handleUpsertDataset,
+  handleUpsertDatasetItem,
 } from "@/src/features/mcp/features/datasets/tools";
 import { handleGetHealth } from "@/src/features/mcp/features/health/tools";
 import {
@@ -188,7 +188,7 @@ describe("MCP public API tools", () => {
       mockServerContext({ isInAppAgentKey: true }),
     );
 
-    expect(inAppToolNames).not.toContain("createDataset");
+    expect(inAppToolNames).not.toContain("upsertDataset");
     expect(inAppToolNames).not.toContain("createModel");
 
     const writableToolNames = toolNames.filter(
@@ -213,8 +213,6 @@ describe("MCP public API tools", () => {
     expect(destructiveToolNames).toEqual(
       [
         "createChatPrompt",
-        "createDataset",
-        "createDatasetItem",
         "createScore",
         "createScoreConfig",
         "createTextPrompt",
@@ -227,6 +225,8 @@ describe("MCP public API tools", () => {
         "updateAnnotationQueueItem",
         "updatePromptLabels",
         "updateScoreConfig",
+        "upsertDataset",
+        "upsertDatasetItem",
       ].sort(),
     );
   });
@@ -470,7 +470,7 @@ describe("MCP public API tools", () => {
       }),
     ]);
 
-    const dataset = (await handleCreateDataset(
+    const dataset = (await handleUpsertDataset(
       {
         name: datasetName,
         description: "MCP dataset",
@@ -490,7 +490,7 @@ describe("MCP public API tools", () => {
       handleGetDataset({ datasetName }, context),
     ).resolves.toMatchObject({ id: dataset.id, name: datasetName });
 
-    const datasetItem = (await handleCreateDatasetItem(
+    const datasetItem = (await handleUpsertDatasetItem(
       {
         datasetName,
         input: { question: "ping" },
@@ -627,7 +627,7 @@ describe("MCP public API tools", () => {
     ).rejects.toThrow("Annotation queue not found");
 
     const datasetName = `mcp-dataset-isolation-${uuidv4()}`;
-    const dataset = (await handleCreateDataset(
+    const dataset = (await handleUpsertDataset(
       { name: datasetName },
       sourceContext,
     )) as { id: string };
