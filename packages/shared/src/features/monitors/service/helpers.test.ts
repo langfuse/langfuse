@@ -575,6 +575,7 @@ describe("monitorFromPrisma", () => {
     lastCompletedRunAt: null,
     name: "High error rate",
     tags: [] as string[],
+    triggerIds: [] as string[],
   };
 
   it("translates a representative row to the domain shape", () => {
