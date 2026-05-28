@@ -1,9 +1,4 @@
-import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import {
-  generateDatasetRunItemsForPublicApi,
-  getDatasetRunItemsCountForPublicApi,
-} from "@/src/features/public-api/server/dataset-run-items";
+import { listDatasetRunItemsForApi } from "@/src/features/public-api/server/dataset-run-items-api-service";
 import {
   GetDatasetRunItemsV1Query,
   GetDatasetRunItemsV1Response,
@@ -27,52 +22,17 @@ export const [listDatasetRunItemsTool, handleListDatasetRunItems] = defineTool({
         "mcp.dataset_run_name": input.runName,
       },
       fn: async () => {
-        const datasetRun = await prisma.datasetRuns.findUnique({
-          where: {
-            datasetId_projectId_name: {
-              datasetId: input.datasetId,
-              name: input.runName,
-              projectId: context.projectId,
-            },
-          },
-          select: { id: true, name: true },
+        const result = await listDatasetRunItemsForApi({
+          datasetId: input.datasetId,
+          runName: input.runName,
+          projectId: context.projectId,
+          limit: input.limit,
+          page: input.page,
         });
 
-        if (!datasetRun) {
-          throw new LangfuseNotFoundError(
-            "Dataset run not found for the given project and dataset id",
-          );
-        }
-
-        const [items, count] = await Promise.all([
-          generateDatasetRunItemsForPublicApi({
-            props: {
-              datasetId: input.datasetId,
-              runId: datasetRun.id,
-              projectId: context.projectId,
-              limit: input.limit,
-              page: input.page,
-            },
-          }),
-          getDatasetRunItemsCountForPublicApi({
-            props: {
-              datasetId: input.datasetId,
-              runId: datasetRun.id,
-              projectId: context.projectId,
-              limit: input.limit,
-              page: input.page,
-            },
-          }),
-        ]);
-
-        const totalItems = count || 0;
         return GetDatasetRunItemsV1Response.parse({
-          data: items,
-          meta: paginationMeta({
-            page: input.page,
-            limit: input.limit,
-            totalItems,
-          }),
+          data: result.data,
+          meta: paginationMeta(result.meta),
         });
       },
     }),
