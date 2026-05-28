@@ -6,6 +6,7 @@ import { fetchSecureLlmUrl } from "./secureLlmFetch";
 
 const GOOGLE_AI_STUDIO_ORIGIN = "https://generativelanguage.googleapis.com";
 const GOOGLE_API_KEY_HEADER = "X-Goog-Api-Key";
+const VERTEX_AI_AUTH_HEADER = "authorization";
 const VERTEX_AI_AUTH_SCOPES = [
   "https://www.googleapis.com/auth/cloud-platform",
 ];
@@ -80,6 +81,7 @@ export function createSecureVertexAIApiClient({
         headers,
         whitelist,
         logContext: "Vertex AI LLM endpoint",
+        additionalSensitiveHeaders: [VERTEX_AI_AUTH_HEADER],
         dispatcher,
       });
     },

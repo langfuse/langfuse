@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { encrypt } from "../../../packages/shared/src/encryption";
 import { env } from "../../../packages/shared/src/env";
 import {
@@ -51,6 +51,7 @@ describe("secure LLM fetch", () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await Promise.all(servers.splice(0).map((s) => s.close()));
     env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = originalWhitelistedHosts;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
@@ -111,6 +112,38 @@ describe("secure LLM fetch", () => {
   });
 
   describe("SSRF protection", () => {
+    test("ignores caller-supplied dispatchers so connection validation can install its own", async () => {
+      const leakedDispatcher = { name: "sdk-dispatcher" };
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response("ok"));
+
+      await expect(
+        fetchSecureLlmUrl(
+          "https://example.com/v1/chat/completions",
+          {
+            method: "POST",
+            dispatcher: leakedDispatcher,
+          } as RequestInit & { dispatcher: unknown },
+          {
+            logContext: "Test LLM endpoint",
+            whitelist: { hosts: ["example.com"], ips: [], ip_ranges: [] },
+          },
+        ),
+      ).resolves.toBeInstanceOf(Response);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [, fetchOptions] = fetchSpy.mock.calls[0] as Parameters<
+        typeof fetch
+      >;
+      expect(
+        (fetchOptions as { dispatcher?: unknown }).dispatcher,
+      ).toBeDefined();
+      expect((fetchOptions as { dispatcher?: unknown }).dispatcher).not.toBe(
+        leakedDispatcher,
+      );
+    });
+
     test("rejects link-local metadata hostnames before opening a socket", async () => {
       env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = [];
 
