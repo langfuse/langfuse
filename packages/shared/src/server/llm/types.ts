@@ -48,26 +48,6 @@ export const LLMToolDefinitionSchema = z.object({
 });
 export type LLMToolDefinition = z.infer<typeof LLMToolDefinitionSchema>;
 
-const AnthropicMessageContentWithToolUse = z.union([
-  z.object({
-    type: z.literal("text"),
-    text: z.string(),
-  }),
-  z.object({
-    type: z.literal("tool_use"),
-    id: z.string(),
-    name: z.string(),
-    input: z.unknown(),
-  }),
-]);
-
-const GoogleAIStudioMessageContentWithToolUse = z.object({
-  functionCall: z.object({
-    name: z.string(),
-    args: z.unknown(),
-  }),
-});
-
 export const LLMToolCallSchema = z.object({
   name: z.string(),
   id: z.string(),
@@ -114,12 +94,18 @@ export const OpenAIResponseFormatSchema = z.object({
   }),
 });
 
+// Standard ContentBlock shape per @langchain/core. fetchLLMCompletion routes
+// every provider through `AIMessage#contentBlocks`, so every element in the
+// array variant carries a `type` discriminator and the well-known fields for
+// that type (e.g. `text` for "text", `value` for "non_standard").
+const StandardContentBlockSchema = z
+  .object({
+    type: z.string(),
+  })
+  .loose();
+
 export const ToolCallResponseSchema = z.object({
-  content: z.union([
-    z.string(),
-    z.array(AnthropicMessageContentWithToolUse),
-    z.array(GoogleAIStudioMessageContentWithToolUse),
-  ]),
+  content: z.union([z.string(), z.array(StandardContentBlockSchema)]),
   tool_calls: z.array(LLMToolCallSchema),
 });
 export type ToolCallResponse = z.infer<typeof ToolCallResponseSchema>;
