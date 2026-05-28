@@ -100,7 +100,10 @@ export const getActionById = async ({
   return actionDomain;
 };
 
-export type TriggerDomainWithActions = TriggerDomain & { actionIds: string[] };
+export type TriggerDomainWithActions = TriggerDomain & {
+  actionIds: string[];
+  automations: { id: string; actionId: string }[];
+};
 
 export const getTriggerConfigurations = async ({
   projectId,
@@ -129,6 +132,10 @@ export const getTriggerConfigurations = async ({
   const triggerConfigurations = triggers.map((trigger) => ({
     ...convertTriggerToDomain(trigger),
     actionIds: trigger.automations.map((automation) => automation.action.id),
+    automations: trigger.automations.map((automation) => ({
+      id: automation.id,
+      actionId: automation.action.id,
+    })),
   }));
 
   return triggerConfigurations;
