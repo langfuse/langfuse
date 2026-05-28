@@ -58,7 +58,11 @@ export function MonitorsOnboarding({ projectId }: { projectId: string }) {
                     className="w-full justify-between gap-2 px-6 py-5"
                   >
                     <Link
-                      href={automationCreateHref(projectId, channel.actionType)}
+                      href={automationCreateHref(
+                        projectId,
+                        channel.actionType,
+                        `/project/${projectId}/monitors`,
+                      )}
                     >
                       <span className="flex items-center gap-2">
                         {channel.icon}

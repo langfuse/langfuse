@@ -1,7 +1,10 @@
 import { useRouter } from "next/router";
 import { AutomationSidebar } from "@/src/features/automations/components/AutomationSidebar";
 import { AutomationDetails } from "@/src/features/automations/components/AutomationDetails";
-import { AutomationForm } from "@/src/features/automations/components/automationForm";
+import {
+  AutomationForm,
+  parseCreateAutomationPrefill,
+} from "@/src/features/automations/components/automationForm";
 import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
@@ -28,6 +31,10 @@ export default function AutomationsPage() {
   const projectId = router.query.projectId as string;
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
   const [showSecretDialog, setShowSecretDialog] = useState(false);
+  /** pendingRedirectUrl defers a same-origin redirect (decoded from the prefill blob) until after the webhook-secret dialog is dismissed. */
+  const [pendingRedirectUrl, setPendingRedirectUrl] = useState<string | null>(
+    null,
+  );
 
   const [urlParams, setUrlParams] = useQueryParams({
     view: withDefault(StringParam, "list"),
@@ -37,6 +44,12 @@ export default function AutomationsPage() {
   });
 
   const { view, automationId } = urlParams;
+
+  /** parsedPrefill decodes the deep-link blob once; the form receives the parsed object and the create-success path reads its redirectUrl. */
+  const parsedPrefill = useMemo(
+    () => parseCreateAutomationPrefill(urlParams.prefill),
+    [urlParams.prefill],
+  );
 
   const selectedAutomation = useMemo(
     () => (automationId ? { automationId } : undefined),
@@ -169,9 +182,19 @@ export default function AutomationsPage() {
     webhookSecret?: string,
     actionType?: "WEBHOOK" | "GITHUB_DISPATCH",
   ) => {
+    /** Honor a same-origin redirectUrl baked into the prefill, deferring it past the webhook-secret dialog when present so the user can copy the secret first. */
+    const redirectUrl = parsedPrefill.redirectUrl ?? null;
+
     if (webhookSecret && actionType === "WEBHOOK") {
       setWebhookSecret(webhookSecret);
       setShowSecretDialog(true);
+      if (redirectUrl) {
+        setPendingRedirectUrl(redirectUrl);
+        return;
+      }
+    } else if (redirectUrl) {
+      void router.push(redirectUrl);
+      return;
     }
 
     // Navigate to the newly created automation detail page without history entry
@@ -286,7 +309,7 @@ export default function AutomationsPage() {
             onSuccess={handleCreateSuccess}
             onCancel={handleReturnToList}
             isEditing={true}
-            prefill={urlParams.prefill}
+            prefill={parsedPrefill}
           />
         </div>
       );
@@ -384,6 +407,11 @@ export default function AutomationsPage() {
               onClick={() => {
                 setShowSecretDialog(false);
                 setWebhookSecret(null);
+                if (pendingRedirectUrl) {
+                  const target = pendingRedirectUrl;
+                  setPendingRedirectUrl(null);
+                  void router.push(target);
+                }
               }}
             >
               {"I've saved the secret"}

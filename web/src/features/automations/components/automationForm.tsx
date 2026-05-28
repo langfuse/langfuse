@@ -77,17 +77,40 @@ export type CreateAutomationPrefill = {
   eventSource?: TriggerEventSource;
   filter?: FilterState;
   actionType?: ActionTypes;
+  /** redirectUrl is a same-origin path the caller wants to return to after the automation is saved. */
+  redirectUrl?: string;
 };
+
+/** isSameOriginRedirect resolves a candidate URL against the current Next-rendered origin and accepts it only if the resulting origin still matches; falls back to path-only validation during SSR where `window` is absent. */
+const isSameOriginRedirect = (url: string): boolean => {
+  if (url.startsWith("//")) return false;
+  if (typeof window === "undefined") {
+    // Without window we cannot resolve absolute URLs; trust relative paths only.
+    return url.startsWith("/") && !url.includes("\\");
+  }
+  try {
+    const resolved = new URL(url, window.location.origin);
+    return resolved.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+};
+
+/** safeRedirectPath defends against open-redirect by requiring the URL to resolve back to the current origin. */
+const safeRedirectPath = z.string().refine(isSameOriginRedirect, {
+  message: "redirectUrl must resolve to the same origin",
+});
 
 /** createAutomationPrefillSchema validates a decoded prefill payload. */
 const createAutomationPrefillSchema = z.object({
   eventSource: TriggerEventSourceSchema.optional(),
   filter: z.array(z.any()).optional(),
   actionType: ActionTypeSchema.optional(),
+  redirectUrl: safeRedirectPath.optional(),
 });
 
 /** parseCreateAutomationPrefill decodes a base64url JSON blob into a typed prefill; returns {} when absent or malformed. */
-const parseCreateAutomationPrefill = (
+export const parseCreateAutomationPrefill = (
   raw: string | null | undefined,
 ): CreateAutomationPrefill => {
   if (!raw) return {};
@@ -118,14 +141,16 @@ const serializeCreateAutomationPrefill = (
     .replace(/=+$/, "");
 };
 
-/** automationCreateHref builds the deep-link to the automations create form, prefilling eventSource as Monitor and (optionally) the chosen actionType. */
+/** automationCreateHref builds the deep-link to the automations create form, prefilling eventSource as Monitor and (optionally) the chosen actionType + a same-origin redirectUrl to return to after save. */
 export const automationCreateHref = (
   projectId: string,
   actionType?: ActionTypes,
+  redirectUrl?: string,
 ): string => {
   const prefill = serializeCreateAutomationPrefill({
     eventSource: TriggerEventSource.Monitor,
     ...(actionType ? { actionType } : {}),
+    ...(redirectUrl ? { redirectUrl } : {}),
   });
   const params = new URLSearchParams({ view: "create", prefill });
   return `/project/${projectId}/automations?${params.toString()}`;
@@ -325,8 +350,8 @@ interface AutomationFormProps {
   /** automation is the existing record being edited. Mutually exclusive with prefill in practice. */
   automation?: AutomationDomain;
   isEditing?: boolean;
-  /** prefill is a raw base64url JSON deep-link blob; the form decodes it. Ignored when automation is set. */
-  prefill?: string | null;
+  /** prefill is the pre-parsed deep-link payload (decoded by the caller). Ignored when automation is set. */
+  prefill?: CreateAutomationPrefill | null;
 }
 
 export const AutomationForm = ({
@@ -363,10 +388,10 @@ export const AutomationForm = ({
     },
   );
 
-  // Decoded prefill values; empty when editing an existing automation or when the blob is absent/malformed.
+  // Prefill is empty when editing an existing automation; otherwise the caller-decoded payload is used directly.
   const parsedPrefill: CreateAutomationPrefill = automation
     ? {}
-    : parseCreateAutomationPrefill(prefill);
+    : (prefill ?? {});
 
   // Get the action type for the form when editing
   const getActionType = (): ActionTypes =>

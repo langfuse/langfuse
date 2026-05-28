@@ -7,7 +7,7 @@ const PROJECT_ID = "proj_test123";
 /** parsePrefill decodes the `prefill` query param into the same shape the form's serializer produced. */
 const parsePrefill = (
   href: string,
-): { eventSource?: string; actionType?: string } => {
+): { eventSource?: string; actionType?: string; redirectUrl?: string } => {
   const url = new URL(href, "http://localhost");
   const raw = url.searchParams.get("prefill");
   if (!raw) return {};
@@ -62,6 +62,7 @@ describe("MonitorsOnboarding", () => {
       const decoded = parsePrefill(href);
       expect(decoded.eventSource).toBe("monitor");
       expect(decoded.actionType).toBe(expected);
+      expect(decoded.redirectUrl).toBe(`/project/${PROJECT_ID}/monitors`);
     }
   });
 
