@@ -159,3 +159,13 @@ jobs:
 
           # Create PR with original author as reviewer
           gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" --reviewer "$ORIGINAL_AUTHOR"
+
+  notify-slack-on-failure:
+    needs: generate-sdk-api-specs
+    if: failure()
+    uses: ./.github/workflows/_notify_slack_failure.yml
+    secrets:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    with:
+      title: "❌ SDK API Spec Generation Failed"
+      message: "❌ SDK API spec generation failed on ${{ github.ref_name }}"

@@ -116,3 +116,13 @@ jobs:
     with:
       service: ${{ matrix.service }}
       environment: ${{ matrix.environment }}
+
+  notify-slack-on-failure:
+    needs: [affected-services, affected-environments, ecs-deploy]
+    if: failure()
+    uses: ./.github/workflows/_notify_slack_failure.yml
+    secrets:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    with:
+      title: "❌ Deploy Failed"
+      message: "❌ Deploy failed on ${{ github.ref_name }}"
