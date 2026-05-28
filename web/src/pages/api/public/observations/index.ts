@@ -3,7 +3,6 @@ import {
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
 } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
 
 import {
   LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
@@ -47,13 +46,7 @@ export default withMiddlewares(
           advancedFilters: query.filter,
         };
 
-        // Use events table if query parameter is explicitly set, otherwise use environment variable
-        const useEventsTable =
-          query.useEventsTable !== undefined && query.useEventsTable !== null
-            ? query.useEventsTable === true
-            : env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
-
-        if (useEventsTable) {
+        if (query.useEventsTable) {
           const [items, count] = await Promise.all([
             getObservationsFromEventsTableForPublicApi(filterProps),
             getObservationsCountFromEventsTableForPublicApi(filterProps),

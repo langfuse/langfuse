@@ -127,13 +127,7 @@ export default withMiddlewares(
           toTimestamp: query.toTimestamp ?? undefined,
         };
 
-        // Use events table if query parameter is explicitly set, otherwise use environment variable
-        const useEventsTable =
-          query.useEventsTable !== undefined && query.useEventsTable !== null
-            ? query.useEventsTable === true
-            : env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
-
-        if (useEventsTable) {
+        if (query.useEventsTable) {
           const [items, count] = await Promise.all([
             getTracesFromEventsTableForPublicApi({
               ...filterProps,

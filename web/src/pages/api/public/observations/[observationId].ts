@@ -15,7 +15,6 @@ import {
   getObservationById,
   getObservationByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
 
 export default withMiddlewares(
   {
@@ -26,13 +25,7 @@ export default withMiddlewares(
       responseSchema: GetObservationV1Response,
       rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
-        // Use events table if query parameter is explicitly set, otherwise use environment variable
-        const useEventsTable =
-          query.useEventsTable !== undefined && query.useEventsTable !== null
-            ? query.useEventsTable === true
-            : env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
-
-        const clickhouseObservation = useEventsTable
+        const clickhouseObservation = query.useEventsTable
           ? await getObservationByIdFromEventsTable({
               id: query.observationId,
               projectId: auth.scope.projectId,
