@@ -17,8 +17,8 @@ export default withMiddlewares({
     bodySchema: PostDatasetRunItemsV1Body,
     responseSchema: PostDatasetRunItemsV1Response,
     rateLimitResource: "datasets",
-    fn: async ({ body, auth }) => {
-      return await createDatasetRunItemForApi({ body, auth });
+    fn: async ({ body, auth, res }) => {
+      return await createDatasetRunItemForApi({ body, auth, res });
     },
   }),
   GET: createAuthedProjectAPIRoute({

@@ -330,6 +330,8 @@ describe("MCP public API tools", () => {
       projectId,
     });
 
+    // Assignment creation uses an upsert for public API parity, so duplicate
+    // calls are audited even when the assignment already exists.
     await expect(
       prisma.auditLog.count({
         where: {
@@ -338,7 +340,7 @@ describe("MCP public API tools", () => {
           action: "create",
         },
       }),
-    ).resolves.toBe(assignmentAuditLogCount);
+    ).resolves.toBe(assignmentAuditLogCount + 1);
 
     const auditLogCreateSpy = vi
       .spyOn(prisma.auditLog, "create")

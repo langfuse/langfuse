@@ -592,18 +592,20 @@ export const deleteAnnotationQueueAssignmentForApi = async ({
     // If the record doesn't exist, that's fine - we still return success.
     // Only catch NotFound errors, re-throw other errors.
     if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code !== "P2025"
     ) {
-      return {
-        deleted: false,
-        response: {
-          success: true,
-        },
-      };
+      throw error;
     }
 
-    throw error;
+    return {
+      deleted: false,
+      response: {
+        success: true,
+      },
+    };
   }
 
   if (auditScope) {

@@ -1,4 +1,5 @@
 import { v4 } from "uuid";
+import type { NextApiResponse } from "next";
 import type { z } from "zod";
 
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
@@ -13,7 +14,6 @@ import {
   type PostDatasetRunItemsV1Body,
 } from "@/src/features/public-api/types/datasets";
 import {
-  InvalidRequestError,
   type JSONValue,
   LangfuseNotFoundError,
   UnauthorizedError,
@@ -41,9 +41,11 @@ const resolveMetadata = (metadata: JSONValue): Record<string, unknown> => {
 export const createDatasetRunItemForApi = async ({
   body,
   auth,
+  res,
 }: {
   body: z.infer<typeof PostDatasetRunItemsV1Body>;
   auth: AuthHeaderValidVerificationResultIngestion;
+  res?: NextApiResponse;
 }) => {
   /**************
    * VALIDATION *
@@ -136,22 +138,12 @@ export const createDatasetRunItemForApi = async ({
 
   if (ingestionResult.errors.length > 0) {
     const error = ingestionResult.errors[0];
-    const message =
-      error?.error ?? error?.message ?? "Failed to create dataset run item";
-
-    if (error?.status === 400) {
-      throw new InvalidRequestError(message);
+    if (res) {
+      res.status(error.status).json({ message: error.error ?? error.message });
+      // We will still return the mock dataset run item in the response for now. Logs are to be monitored.
+    } else {
+      throw new Error(error.error ?? error.message);
     }
-
-    if (error?.status === 401) {
-      throw new UnauthorizedError(message);
-    }
-
-    if (error?.status === 404) {
-      throw new LangfuseNotFoundError(message);
-    }
-
-    throw new Error(message);
   }
 
   if (ingestionResult.successes.length !== 1) {
