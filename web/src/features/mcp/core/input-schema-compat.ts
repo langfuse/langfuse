@@ -6,6 +6,7 @@ type ObjectShape = {
 };
 
 const ROOT_COMPOSITION_KEYWORDS = ["oneOf", "anyOf", "allOf"] as const;
+const MAX_SCHEMA_NORMALIZATION_DEPTH = 10;
 const DROPPED_ROOT_KEYS = new Set([
   "type",
   "properties",
@@ -37,9 +38,10 @@ const withoutDefaults = (
 function mergeShapes(
   schemas: unknown[],
   mode: "intersection" | "union",
+  depth: number,
 ): ObjectShape | undefined {
   const shapes = schemas.map((schema) =>
-    isRecord(schema) ? collectObjectShape(schema) : undefined,
+    isRecord(schema) ? collectObjectShape(schema, depth - 1) : undefined,
   );
 
   if (!shapes.every(Boolean)) {
@@ -62,12 +64,17 @@ function mergeShapes(
   };
 }
 
-function collectObjectShape(schema: JsonSchemaObject): ObjectShape | undefined {
+function collectObjectShape(
+  schema: JsonSchemaObject,
+  depth = MAX_SCHEMA_NORMALIZATION_DEPTH,
+): ObjectShape | undefined {
+  if (depth <= 0) return undefined;
+
   const allOf = asArray(schema.allOf);
-  if (allOf) return mergeShapes(allOf, "intersection");
+  if (allOf) return mergeShapes(allOf, "intersection", depth);
 
   const oneOfOrAnyOf = asArray(schema.oneOf) ?? asArray(schema.anyOf);
-  if (oneOfOrAnyOf) return mergeShapes(oneOfOrAnyOf, "union");
+  if (oneOfOrAnyOf) return mergeShapes(oneOfOrAnyOf, "union", depth);
 
   if (schema.type !== "object") {
     return undefined;
