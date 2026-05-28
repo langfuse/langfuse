@@ -200,9 +200,22 @@ export const MonitorForm = ({
     ? monitorToDefaults(monitor as Monitor)
     : createDefaults(projectId);
 
+  /** resolver wraps zodResolver so filter columns are mapped from UI-table-space ("Environment") into view-space ("environment") before validation runs — matches the same mapping the submit handler applies. */
+  const resolver = useMemo(() => {
+    const base = zodResolver(schema as any);
+    return ((values, context, options) => {
+      const v = values as { view: MonitorView; filters?: FilterState };
+      const mapped = {
+        ...values,
+        filters: mapWidgetUiTableFilterToView(v.view, v.filters ?? []),
+      };
+      return base(mapped as any, context, options);
+    }) as typeof base;
+  }, [schema]);
+
   /** form is the react-hook-form instance bound to schema and defaultValues. */
   const form = useForm<CreateMonitor | UpdateMonitor>({
-    resolver: zodResolver(schema as any),
+    resolver,
     defaultValues: defaultValues as CreateMonitor,
     mode: "onChange",
   });
@@ -829,6 +842,9 @@ export const MonitorForm = ({
                 />
                 <div className="space-y-2">
                   <Label>Automations</Label>
+                  <p className="text-muted-foreground text-xs">
+                    Send Alerts to Slack, Webhooks, and GitHub Actions.
+                  </p>
                   <MonitorAutomationsPanel
                     projectId={projectId}
                     triggerIds={(watched.triggerIds ?? []) as string[]}
