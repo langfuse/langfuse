@@ -72,6 +72,8 @@ import {
 } from "@langfuse/shared/monitors";
 import { viewDeclarations, type FilterState } from "@langfuse/shared";
 
+import TagManager from "@/src/features/tag/components/TagManager";
+
 import { MonitorChartPreview } from "./MonitorChartPreview";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
@@ -139,6 +141,7 @@ const createDefaults = (projectId: string): Partial<CreateMonitor> => ({
   noData: { mode: "SILENT" },
   renotify: { mode: "OFF" },
   tags: [],
+  triggerIds: [],
   status: "ACTIVE",
 });
 
@@ -161,6 +164,7 @@ const monitorToDefaults = (monitor: Monitor): UpdateMonitor => ({
   renotify: monitor.renotify,
   name: monitor.name,
   tags: monitor.tags,
+  triggerIds: monitor.triggerIds,
   // Persisted ERROR_BAD_QUERY status is scheduler-owned and not a valid
   // write value, so coerce it back to ACTIVE for the form's default.
   status:
@@ -276,6 +280,12 @@ export const MonitorForm = ({
 
   /** datasets loads dataset metadata for the project; used to label experiment-dataset filter options. */
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
+
+  /** monitorFilterOptions loads the project's existing monitor tags for the tag picker's available-options list. */
+  const monitorFilterOptions = api.monitors.getFilterOptions.useQuery(
+    { projectId },
+    { staleTime: Infinity, refetchOnWindowFocus: false },
+  );
 
   /** filterColumnsParams collects the filter-column descriptor for InlineFilterBuilder, derived from the picked view and live option dictionaries. */
   const filterColumnsParams = useMemo(() => {
@@ -783,19 +793,39 @@ export const MonitorForm = ({
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="tags"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tags</FormLabel>
+                      <TagManager
+                        itemName="monitor"
+                        tags={(field.value ?? []) as string[]}
+                        allTags={
+                          monitorFilterOptions.data?.tags.map((t) => t.value) ??
+                          []
+                        }
+                        hasAccess={hasAccess}
+                        isLoading={monitorFilterOptions.isPending}
+                        mutateTags={field.onChange}
+                      />
+                      <p className="text-muted-foreground text-xs">
+                        Tags help you organize and filter monitors in the list
+                        view.
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <div className="space-y-2">
                   <Label>Automations</Label>
-                  <p className="text-muted-foreground text-sm">
-                    Connect your monitors to Slack, Webhook, and GitHub Action
-                    Automations with tags.
-                  </p>
                   <MonitorAutomationsPanel
                     projectId={projectId}
-                    tags={(watched.tags ?? []) as string[]}
-                    onTagsChange={(next) =>
-                      form.setValue("tags", next, {
+                    triggerIds={(watched.triggerIds ?? []) as string[]}
+                    onTriggerIdsChange={(next) =>
+                      form.setValue("triggerIds", next, {
                         shouldDirty: true,
-                        shouldValidate: true,
                       })
                     }
                   />
@@ -995,4 +1025,5 @@ const RenotifyField = ({
 /** __test exposes private helpers to co-located tests without widening the module API. */
 export const __test = {
   createDefaults,
+  monitorToDefaults,
 };

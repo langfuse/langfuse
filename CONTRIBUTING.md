@@ -324,8 +324,11 @@ We're using Vitest in the `web` package. There are two types of unit tests:
 To run a specific test by name within a file, run:
 
 ```sh
-cd web  # or with --filter=web
-pnpm test -- prompts.v2.servertest -t "should handle special characters in prompt names"
+# from inside web/
+pnpm test prompts.v2.servertest -t "should handle special characters in prompt names"
+
+# from the repo root (the `--` is required so turbo forwards args to vitest)
+pnpm test --filter=web -- prompts.v2.servertest -t "should handle special characters in prompt names"
 ```
 
 To run all tests:
