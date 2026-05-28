@@ -50,6 +50,9 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import Link from "next/link";
+import { Info } from "lucide-react";
 
 // Define Slack action schema
 const slackSchema = z.object({
@@ -280,53 +283,22 @@ const PromptTriggerFields = ({
   </>
 );
 
-/** MonitorTriggerFields renders the eventAction picker for monitor-source automations. */
-const MonitorTriggerFields = ({
-  control,
-  disabled,
-}: {
-  control: Control<FormValues>;
-  disabled: boolean;
-}) => (
-  <FormField
-    control={control}
-    name="eventAction"
-    render={({ field }) => (
-      <FormItem>
-        <FormLabel>Event Action</FormLabel>
-        <FormControl>
-          <MultiSelect
-            title="Event Actions"
-            label="Actions"
-            values={field.value}
-            onValueChange={field.onChange}
-            options={[
-              {
-                value: "created",
-                description: "Whenever a monitor enters an alerted state",
-              },
-              {
-                value: "updated",
-                description: "Whenever a monitor's severity changes",
-              },
-              {
-                value: "deleted",
-                description: "Whenever a monitor recovers",
-              },
-            ]}
-            className="my-0 w-auto overflow-hidden"
-            disabled={disabled}
-            labelTruncateCutOff={4}
-          />
-        </FormControl>
-        <FormDescription>
-          Connect monitors to this automation from the monitor configuration
-          page.
-        </FormDescription>
-        <FormMessage />
-      </FormItem>
-    )}
-  />
+/** MonitorTriggerFields renders an info card explaining that monitors connect to this automation via the create-monitor page. */
+const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
+  <Alert>
+    <Info className="h-4 w-4" />
+    <AlertTitle>How Monitors Connect</AlertTitle>
+    <AlertDescription>
+      Add this automation to a monitor from the{" "}
+      <Link
+        href={`/project/${projectId}/monitors/new`}
+        className="text-primary underline underline-offset-2"
+      >
+        create monitors page
+      </Link>
+      .
+    </AlertDescription>
+  </Alert>
 );
 
 interface AutomationFormProps {
@@ -392,7 +364,6 @@ export const AutomationForm = ({
   // Get default values based on action type
   const getDefaultValues = (): FormValues => {
     const actionType = getActionType();
-    const today = new Date().toLocaleString("sv").split("T")[0]; // YYYY-MM-DD
 
     const resolvedEventSource: TriggerEventSource =
       automation?.trigger.eventSource ??
@@ -409,8 +380,7 @@ export const AutomationForm = ({
       automation?.trigger.filter ?? parsedPrefill.filter ?? [];
 
     const baseValues = {
-      name:
-        isEditing && automation ? automation.name : `${actionType} ${today}`,
+      name: isEditing && automation ? automation.name : "",
       eventSource: resolvedEventSource,
       eventAction: resolvedEventAction,
       status: (isEditing && automation
@@ -564,12 +534,6 @@ export const AutomationForm = ({
       const defaultValues = handler.getDefaultValues();
       form.setValue("githubDispatch", defaultValues.githubDispatch);
     }
-
-    // If we are creating a new automation, update the default name
-    if (!automation) {
-      const today = new Date().toLocaleString("sv").split("T")[0];
-      form.setValue("name", `${value} ${today}`);
-    }
   };
 
   // Handle cancel button click
@@ -624,6 +588,7 @@ export const AutomationForm = ({
                       <Input
                         placeholder="Automation name"
                         {...field}
+                        autoFocus={!automation}
                         disabled={!hasAccess || !isEditing}
                         className="border-border rounded-none border-0 border-b bg-transparent px-0 text-2xl font-semibold focus-visible:ring-0 focus-visible:ring-offset-0"
                       />
@@ -669,10 +634,7 @@ export const AutomationForm = ({
               disabled={!hasAccess || !isEditing}
             />
             {watchedEventSource === TriggerEventSource.Monitor ? (
-              <MonitorTriggerFields
-                control={form.control}
-                disabled={!hasAccess || !isEditing}
-              />
+              <MonitorTriggerFields projectId={projectId} />
             ) : (
               <PromptTriggerFields
                 control={form.control}
