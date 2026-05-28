@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { type UseFormReturn } from "react-hook-form";
 import { type z } from "zod";
 import {
@@ -17,7 +18,6 @@ import { type templateFormSchema } from "@/src/features/evals/utils/template-for
 import {
   type CodeEvalSourceCodeLanguage,
   getDefaultCodeEvalSource,
-  isDefaultCodeEvalSource,
 } from "@/src/features/evals/utils/code-eval-template-validation";
 
 type EvalTemplateFormInput = z.input<typeof templateFormSchema>;
@@ -27,6 +27,7 @@ type EvalTemplateFormReturn = UseFormReturn<
   unknown,
   EvalTemplateFormOutput
 >;
+type CodeEvalSourceDrafts = Partial<Record<CodeEvalSourceCodeLanguage, string>>;
 
 export type EvalTemplateTypeSelectorMode = "all" | "code-only" | "hidden";
 
@@ -43,6 +44,7 @@ export function EvalTemplateTypeSelector({
   hasExistingTemplate: boolean;
   onChange?: () => void;
 }) {
+  const sourceCodeDraftsRef = useRef<CodeEvalSourceDrafts>({});
   const evalTemplateType = form.watch("type");
   const sourceCodeLanguage =
     form.watch("sourceCodeLanguage") ??
@@ -61,23 +63,29 @@ export function EvalTemplateTypeSelector({
       | typeof EvalTemplateType.LLM_AS_JUDGE
       | CodeEvalSourceCodeLanguage,
   ) => {
+    const currentSourceCode = form.getValues("sourceCode") ?? "";
+    const currentSourceCodeLanguage =
+      form.getValues("sourceCodeLanguage") ??
+      EvalTemplateSourceCodeLanguage.TYPESCRIPT;
+
+    if (evalTemplateType === EvalTemplateType.CODE) {
+      sourceCodeDraftsRef.current[currentSourceCodeLanguage] =
+        currentSourceCode;
+    }
+
     if (nextValue === EvalTemplateType.LLM_AS_JUDGE) {
       form.setValue("type", EvalTemplateType.LLM_AS_JUDGE);
       onChange?.();
       return;
     }
 
-    const currentSourceCode = form.getValues("sourceCode") ?? "";
-    const shouldReplaceSourceCode =
-      currentSourceCode.trim().length === 0 ||
-      isDefaultCodeEvalSource(currentSourceCode);
-
     form.setValue("type", EvalTemplateType.CODE);
     form.setValue("sourceCodeLanguage", nextValue);
-
-    if (shouldReplaceSourceCode) {
-      form.setValue("sourceCode", getDefaultCodeEvalSource(nextValue));
-    }
+    form.setValue(
+      "sourceCode",
+      sourceCodeDraftsRef.current[nextValue] ??
+        getDefaultCodeEvalSource(nextValue),
+    );
 
     onChange?.();
   };

@@ -518,8 +518,6 @@ export default function ObservationsTable({
     filter: backendFilterState,
     searchQuery,
     searchType,
-    page: 0,
-    limit: 0,
     orderBy: null,
   };
 

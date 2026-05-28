@@ -88,7 +88,10 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("input");
-      expect(result[0].value).toBe(mockObservation.input);
+      expect(result[0].value).toEqual({
+        prompt: "Hello, how are you?",
+        context: "greeting",
+      });
     });
 
     it("should extract output variable", () => {
@@ -106,7 +109,10 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("output");
-      expect(result[0].value).toBe(mockObservation.output);
+      expect(result[0].value).toEqual({
+        response: "I am fine, thank you!",
+        sentiment: "positive",
+      });
     });
 
     it("should extract metadata variable as JSON string", () => {
@@ -144,9 +150,15 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(3);
       expect(result[0].var).toBe("userInput");
-      expect(result[0].value).toBe(mockObservation.input);
+      expect(result[0].value).toEqual({
+        prompt: "Hello, how are you?",
+        context: "greeting",
+      });
       expect(result[1].var).toBe("modelOutput");
-      expect(result[1].value).toBe(mockObservation.output);
+      expect(result[1].value).toEqual({
+        response: "I am fine, thank you!",
+        sentiment: "positive",
+      });
       expect(result[2].var).toBe("metadata");
     });
   });
@@ -229,7 +241,7 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("params");
-      expect(result[0].value).toBe(mockObservation.model_parameters);
+      expect(result[0].value).toEqual({ temperature: 0.7 });
     });
   });
 
@@ -396,7 +408,7 @@ describe("extractObservationVariables", () => {
       expect(result[0].value).toEqual(["get_weather", "search_web"]);
     });
 
-    it("should handle null jsonSelector by returning full value", () => {
+    it("should handle null jsonSelector by returning full parsed value", () => {
       const variableMapping: ObservationVariableMapping[] = [
         {
           templateVariable: "input",
@@ -410,10 +422,13 @@ describe("extractObservationVariables", () => {
         variableMapping,
       });
 
-      expect(result[0].value).toBe(mockObservation.input);
+      expect(result[0].value).toEqual({
+        prompt: "Hello, how are you?",
+        context: "greeting",
+      });
     });
 
-    it("should handle undefined jsonSelector by returning full value", () => {
+    it("should handle undefined jsonSelector by returning full parsed value", () => {
       const variableMapping: ObservationVariableMapping[] = [
         {
           templateVariable: "input",
@@ -427,10 +442,13 @@ describe("extractObservationVariables", () => {
         variableMapping,
       });
 
-      expect(result[0].value).toBe(mockObservation.input);
+      expect(result[0].value).toEqual({
+        prompt: "Hello, how are you?",
+        context: "greeting",
+      });
     });
 
-    it("keeps raw value for no-selector mapping when selector sibling uses the same JSON string column", () => {
+    it("keeps parsed value for no-selector mapping when selector sibling uses the same JSON string column", () => {
       const variableMapping: ObservationVariableMapping[] = [
         {
           templateVariable: "rawInput",
@@ -449,8 +467,50 @@ describe("extractObservationVariables", () => {
       });
 
       expect(result).toEqual([
-        { var: "rawInput", value: mockObservation.input },
+        {
+          var: "rawInput",
+          value: {
+            prompt: "Hello, how are you?",
+            context: "greeting",
+          },
+        },
         { var: "prompt", value: "Hello, how are you?" },
+      ]);
+    });
+
+    it("deep-parses mapped values without coercing numeric strings", () => {
+      const observationWithNestedJson: ObservationForEval = {
+        ...mockObservation,
+        input: JSON.stringify({
+          question: "2+2",
+          nested: JSON.stringify({ answer: 4 }),
+          num: "42",
+        }),
+        output: "true",
+        experiment_item_expected_output: "null",
+      };
+
+      const variableMapping: ObservationVariableMapping[] = [
+        { templateVariable: "input", selectedColumnId: "input" },
+        { templateVariable: "output", selectedColumnId: "output" },
+        {
+          templateVariable: "expected",
+          selectedColumnId: "experimentItemExpectedOutput",
+        },
+      ];
+
+      const result = extractObservationVariables({
+        observation: observationWithNestedJson,
+        variableMapping,
+      });
+
+      expect(result).toEqual([
+        {
+          var: "input",
+          value: { question: "2+2", nested: { answer: 4 }, num: "42" },
+        },
+        { var: "output", value: true },
+        { var: "expected", value: null },
       ]);
     });
   });
@@ -551,7 +611,10 @@ describe("extractObservationVariables", () => {
         availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
       );
 
-      expect(result[0].value).toBe(mockObservation.input);
+      expect(result[0].value).toEqual({
+        prompt: "Hello, how are you?",
+        context: "greeting",
+      });
     });
 
     it("should map 'output' to observation output field", () => {
@@ -567,7 +630,10 @@ describe("extractObservationVariables", () => {
         availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
       );
 
-      expect(result[0].value).toBe(mockObservation.output);
+      expect(result[0].value).toEqual({
+        response: "I am fine, thank you!",
+        sentiment: "positive",
+      });
     });
 
     it("should map 'metadata' to observation metadata field as JSON string", () => {

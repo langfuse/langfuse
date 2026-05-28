@@ -55,6 +55,35 @@ describe("LocalCodeEvalDispatcher", () => {
     });
   });
 
+  it("exposes the supported Node-like evaluator globals", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher();
+
+    const result = await dispatcher.dispatch({
+      ...baseInput,
+      runtime: { language: "TYPESCRIPT" },
+      code: {
+        source: `
+          async function evaluate() {
+            await new Promise((resolve) => setTimeout(resolve, 1));
+
+            const encoded = new TextEncoder().encode(
+              new URL("https://langfuse.com/docs").hostname,
+            );
+            const copy = structuredClone({ length: encoded.length });
+
+            return {
+              scores: [{ name: "encoded", value: copy.length, dataType: "NUMERIC" }],
+            };
+          }
+        `,
+      },
+    });
+
+    expect(result).toEqual({
+      scores: [{ name: "encoded", value: 12, dataType: "NUMERIC" }],
+    });
+  });
+
   it("rejects unsupported TypeScript syntax with a docs link", async () => {
     const dispatcher = new LocalCodeEvalDispatcher();
 
@@ -80,7 +109,7 @@ describe("LocalCodeEvalDispatcher", () => {
       retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
     await expect(promise).rejects.toThrow(
-      "See https://langfuse.com/docs/evaluation/overview for details.",
+      "See https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators for details.",
     );
   });
 
@@ -249,6 +278,22 @@ describe("LocalCodeEvalDispatcher", () => {
     ).rejects.toMatchObject({
       code: "INVALID_RESULT",
       retryable: false,
+    } satisfies Partial<CodeEvalDispatcherError>);
+  });
+
+  it("includes a small invalid returned result as structured error data", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher();
+
+    await expect(
+      dispatcher.dispatch({
+        ...baseInput,
+        runtime: { language: "TYPESCRIPT" },
+        code: { source: `function evaluate() { return { score: 1 }; }` },
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_RESULT",
+      retryable: false,
+      returnedResult: { score: 1 },
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 });
