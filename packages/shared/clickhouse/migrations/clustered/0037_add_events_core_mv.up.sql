@@ -18,6 +18,7 @@ SELECT
     level,
     status_message,
     completion_start_time,
+    is_app_root,
     bookmarked,
     public,
     prompt_id,

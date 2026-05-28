@@ -4,9 +4,8 @@ import { ScoreDataTypeEnum, TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
 export const CODE_EVAL_SOURCE_MAX_BYTES = 256 * 1024;
 export const CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES = 5.5 * 1024 * 1024;
 export const CODE_EVAL_DISPATCH_RESULT_MAX_BYTES = 256 * 1024;
-// TODO: Replace with a dedicated code-based evaluator limits docs page.
 export const CODE_EVAL_DOCS_URL =
-  "https://langfuse.com/docs/evaluation/overview";
+  "https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators";
 
 export function withCodeEvalDocs(message: string): string {
   const trimmedMessage = message.trim();
@@ -143,6 +142,7 @@ export const CodeEvalDispatcherErrorCodes = CodeEvalDispatcherErrorCode.enum;
 export class CodeEvalDispatcherError extends Error {
   public readonly code: CodeEvalDispatcherErrorCode;
   public readonly retryable: boolean;
+  public readonly returnedResult?: unknown;
 
   constructor(
     message: string,
@@ -150,12 +150,14 @@ export class CodeEvalDispatcherError extends Error {
       code: CodeEvalDispatcherErrorCode;
       retryable?: boolean;
       cause?: unknown;
+      returnedResult?: unknown;
     },
   ) {
     super(message, { cause: options.cause });
     this.name = "CodeEvalDispatcherError";
     this.code = options.code;
     this.retryable = options.retryable ?? false;
+    this.returnedResult = options.returnedResult;
   }
 }
 
@@ -205,7 +207,10 @@ export function parseDispatchResult(result: unknown): DispatchResult {
   if (!parsed.success) {
     throw new CodeEvalDispatcherError(
       `Invalid code eval result: ${parsed.error.message}`,
-      { code: CodeEvalDispatcherErrorCodes.INVALID_RESULT },
+      {
+        code: CodeEvalDispatcherErrorCodes.INVALID_RESULT,
+        returnedResult: result,
+      },
     );
   }
 

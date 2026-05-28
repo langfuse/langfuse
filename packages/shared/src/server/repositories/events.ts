@@ -97,10 +97,14 @@ import {
 } from "../queries/clickhouse-sql/event-query-builder";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
+  eventsTableCols,
+  eventsTableHasParentObservationSql,
+  eventsTableIsRootObservationSql,
+} from "../../eventsTable";
+import {
   findUiColumnMapping,
   type UiColumnMappings,
 } from "../../tableDefinitions";
-import { eventsTableCols } from "../../eventsTable";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
@@ -2504,8 +2508,7 @@ export const getEventsGroupedByExperimentName = async (
 };
 
 /**
- * Get grouped hasParentObservation boolean from events table
- * Used for filter options (counts for "Is Root Observation" facet)
+ * Get grouped literal parent-pointer boolean from events table.
  */
 export const getEventsGroupedByHasParentObservation = async (
   projectId: string,
@@ -2524,9 +2527,8 @@ export const getEventsGroupedByHasParentObservation = async (
 
   const queryBuilder = new EventsAggQueryBuilder({
     projectId,
-    groupByColumn: "(e.parent_span_id != '')",
-    selectExpression:
-      "(e.parent_span_id != '') as hasParentObservation, count() as count",
+    groupByColumn: eventsTableHasParentObservationSql,
+    selectExpression: `${eventsTableHasParentObservationSql} as hasParentObservation, count() as count`,
   })
     .where(appliedEventsFilter)
     .orderBy(opts?.orderBy ?? "ORDER BY hasParentObservation ASC")
@@ -2535,6 +2537,48 @@ export const getEventsGroupedByHasParentObservation = async (
   const { query, params } = queryBuilder.buildWithParams();
 
   return queryClickhouse<{ hasParentObservation: boolean; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+};
+
+/**
+ * Get grouped root observation boolean from events table.
+ * Used for filter options for the "Is Root Observation" facet.
+ */
+export const getEventsGroupedByIsRootObservation = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      filter,
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    ),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: eventsTableIsRootObservationSql,
+    selectExpression: `${eventsTableIsRootObservationSql} as isRootObservation, count() as count`,
+  })
+    .where(appliedEventsFilter)
+    .orderBy("ORDER BY isRootObservation ASC")
+    .limit(2, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  return queryClickhouse<{ isRootObservation: boolean; count: number }>({
     query,
     params,
     tags: {

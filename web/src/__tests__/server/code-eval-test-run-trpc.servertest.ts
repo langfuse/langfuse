@@ -23,6 +23,7 @@ import { EvalTargetObject } from "@langfuse/shared";
 
 vi.hoisted(() => {
   process.env.NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED = "true";
+  process.env.LANGFUSE_CODE_EVAL_DISPATCHER = "insecure-local";
 });
 
 const orgIds: string[] = [];
@@ -341,6 +342,53 @@ maybe("evals.testRunCodeEval", () => {
       error: {
         code: "USER_CODE_ERROR",
         message: "User code raised ValueError",
+      },
+      executionTraceId: expect.stringMatching(/^[0-9a-f]{32}$/),
+      executionTraceFromTimestamp: expect.any(Date),
+    });
+  });
+
+  it("returns invalid evaluator results for test-run debugging", async () => {
+    const { project, caller } = await prepare();
+    const observationId = randomUUID();
+    const traceId = randomUUID();
+    const startTime = new Date();
+    const template = await createCodeTemplate(
+      project.id,
+      `function evaluate() {
+        return { score: 1 };
+      }`,
+    );
+
+    await createEventsCh([
+      createEvent({
+        project_id: project.id,
+        trace_id: traceId,
+        span_id: observationId,
+        id: observationId,
+        start_time: startTime.getTime() * 1000,
+      }),
+    ]);
+
+    const response = await caller.evals.testRunCodeEval({
+      projectId: project.id,
+      evalTemplateId: template.id,
+      target: EvalTargetObject.EVENT,
+      scoreName: "unsaved-score",
+      observationId,
+      traceId,
+      startTime,
+      mapping: [],
+    });
+
+    expect(response).toEqual({
+      success: false,
+      error: {
+        code: "INVALID_RESULT",
+        message: expect.stringContaining(
+          "The evaluator returned an invalid result.",
+        ),
+        returnedResult: { score: 1 },
       },
       executionTraceId: expect.stringMatching(/^[0-9a-f]{32}$/),
       executionTraceFromTimestamp: expect.any(Date),

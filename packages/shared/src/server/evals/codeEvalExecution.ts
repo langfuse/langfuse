@@ -72,6 +72,7 @@ export type CodeEvalUserVisibleError = {
   code: CodeEvalUserVisibleErrorCode;
   message: string;
   retryable: boolean;
+  returnedResult?: unknown;
 };
 
 export class CodeEvalExecutionError extends Error {
@@ -129,6 +130,7 @@ function buildCodeEvalPayload(params: {
 function getCodeEvalErrorDetails(error: unknown): {
   name: string;
   message: string;
+  returnedResult?: unknown;
   code: CodeEvalUserVisibleErrorCode;
   retryable: boolean;
 } {
@@ -136,6 +138,7 @@ function getCodeEvalErrorDetails(error: unknown): {
     return {
       name: error.name,
       message: error.message,
+      returnedResult: error.returnedResult,
       code: error.code,
       retryable: error.retryable,
     };
@@ -175,6 +178,9 @@ export function getCodeEvalUserVisibleError(
     code: details.code,
     message: message ?? details.message,
     retryable: details.retryable,
+    ...(details.returnedResult !== undefined
+      ? { returnedResult: details.returnedResult }
+      : {}),
   };
 }
 
@@ -240,6 +246,9 @@ export async function runCodeBasedEvaluationDispatch(params: {
       code: visibleError.code,
       message: visibleError.message,
       retryable: errorDetails.retryable,
+      ...(visibleError.returnedResult !== undefined
+        ? { returnedResult: visibleError.returnedResult }
+        : {}),
     };
     const errorCodeForTrace = errorDetails.code;
 

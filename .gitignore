@@ -112,3 +112,6 @@ web/test-results/*
 
 # Local overrides for AGENTS.md
 **/AGENTS.override.md
+
+# Superset config
+.superset/

@@ -1,6 +1,7 @@
 import { stripTypeScriptTypes } from "node:module";
 
-const CODE_EVAL_DOCS_URL = "https://langfuse.com/docs/evaluation/overview";
+const CODE_EVAL_DOCS_URL =
+  "https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators";
 
 // `stripTypeScriptTypes` is loaded lazily - we call it hear to avoid doing the import in the call itself
 stripTypeScriptTypes("");

@@ -132,9 +132,9 @@ signoff of user-visible changes.
 - Lint: `pnpm --filter web run lint`
 - Lint fix: `pnpm --filter web run lint:fix`
 - Typecheck: `pnpm --filter web run typecheck`
-- Server tests: `pnpm --filter web run test -- <args>`
-- In-source tests: `pnpm --filter web run test:in-source -- <args>`
-- Client tests: `pnpm --filter web run test-client -- <args>`
+- Server tests: `pnpm --filter web run test <args>`
+- In-source tests: `pnpm --filter web run test:in-source <args>`
+- Client tests: `pnpm --filter web run test-client <args>`
 - E2E tests: `pnpm --filter web run test:e2e`
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`

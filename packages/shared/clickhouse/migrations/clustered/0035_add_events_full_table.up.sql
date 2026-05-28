@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS events_full ON CLUSTER default
     level LowCardinality(String),
     status_message String,
     completion_start_time Nullable(DateTime64(6)),
+    is_app_root Bool DEFAULT false,
 
     -- Updateable properties
     bookmarked Bool DEFAULT false,
