@@ -113,6 +113,19 @@ const validMonitorInput = (projectId: string) => ({
   tags: [],
 });
 
+const seedMonitors = async (
+  caller: ReturnType<typeof appRouter.createCaller>,
+  projectId: string,
+  count: number,
+) => {
+  for (let i = 0; i < count; i++) {
+    await caller.monitors.create({
+      ...validMonitorInput(projectId),
+      name: `Seeded monitor ${i + 1}`,
+    });
+  }
+};
+
 describe("monitors trpc", () => {
   afterAll(async () => {
     if (orgIds.length > 0) {
@@ -455,6 +468,81 @@ describe("monitors trpc", () => {
         projectId: project.id,
       });
       expect(opts.tags.map((t) => t.value).sort()).toEqual(["latency", "prod"]);
+    });
+  });
+
+  describe("entitlement limit", () => {
+    it("rejects monitors.create when org is at the monitor-count limit", async () => {
+      const { project, caller } = await prepare();
+      await seedMonitors(caller, project.id, 10);
+
+      await expect(
+        caller.monitors.create({
+          ...validMonitorInput(project.id),
+          name: "Eleventh monitor",
+        }),
+      ).rejects.toThrow(/monitor-count/i);
+    });
+
+    it("counts monitors with non-ACTIVE status toward the limit", async () => {
+      const { project, caller } = await prepare();
+      await seedMonitors(caller, project.id, 10);
+
+      const seeded = await prisma.monitor.findMany({
+        where: { projectId: project.id },
+        take: 2,
+      });
+      await prisma.monitor.update({
+        where: { id: seeded[0].id },
+        data: { status: "PAUSED" },
+      });
+      await prisma.monitor.update({
+        where: { id: seeded[1].id },
+        data: { status: "ERROR_BAD_QUERY" },
+      });
+
+      await expect(
+        caller.monitors.create({
+          ...validMonitorInput(project.id),
+          name: "Eleventh monitor",
+        }),
+      ).rejects.toThrow(/monitor-count/i);
+    });
+
+    it("allows monitors.update when at the limit", async () => {
+      const { project, caller } = await prepare();
+      await seedMonitors(caller, project.id, 10);
+
+      const [first] = await prisma.monitor.findMany({
+        where: { projectId: project.id },
+        take: 1,
+      });
+
+      const updated = await caller.monitors.update({
+        ...validMonitorInput(project.id),
+        id: first.id,
+        name: "Renamed at limit",
+      });
+      expect(updated.name).toBe("Renamed at limit");
+    });
+
+    it("monitors.count is scoped to the caller's org", async () => {
+      // Two independent orgs prove the count is org-scoped, not global.
+      const orgA = await prepare();
+      const orgB = await prepare();
+
+      await seedMonitors(orgA.caller, orgA.project.id, 3);
+      await seedMonitors(orgB.caller, orgB.project.id, 2);
+
+      const resultA = await orgA.caller.monitors.count({
+        projectId: orgA.project.id,
+      });
+      const resultB = await orgB.caller.monitors.count({
+        projectId: orgB.project.id,
+      });
+
+      expect(resultA.count).toBe(3);
+      expect(resultB.count).toBe(2);
     });
   });
 });
