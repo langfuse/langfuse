@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import {
   NumberParam,
   StringParam,
@@ -24,7 +24,7 @@ import { type RouterOutput } from "@/src/utils/types";
 import { type FilterState, usersTableCols } from "@langfuse/shared";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import { useAbsoluteTimeRange } from "@/src/hooks/useAbsoluteTimeRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import Page from "@/src/components/layouts/page";
 import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
@@ -136,10 +136,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
-  // Convert timeRange to absolute date range for compatibility
-  const dateRange = useMemo(() => {
-    return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange]);
+  const dateRange = useAbsoluteTimeRange(timeRange);
 
   const dateRangeFilter: FilterState = dateRange
     ? [

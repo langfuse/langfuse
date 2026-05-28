@@ -26,7 +26,7 @@ import { numberFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import { useAbsoluteTimeRange } from "@/src/hooks/useAbsoluteTimeRange";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -96,10 +96,7 @@ export default function ExperimentsTable({
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
-  // Convert timeRange to absolute date range for compatibility
-  const tableDateRange = useMemo(() => {
-    return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange]);
+  const tableDateRange = useAbsoluteTimeRange(timeRange);
 
   const dateRangeFilter: FilterState = tableDateRange
     ? [

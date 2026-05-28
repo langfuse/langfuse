@@ -49,7 +49,7 @@ import {
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import { useAbsoluteTimeRange } from "@/src/hooks/useAbsoluteTimeRange";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -215,12 +215,10 @@ export default function TracesTable({
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
-  // Convert timeRange to absolute date range for compatibility
-  // refreshTick forces recalculation on each refresh cycle
-  const tableDateRange = useMemo(() => {
-    return toAbsoluteTimeRange(timeRange) ?? undefined;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange, refreshTick]);
+  // Relative presets are rolling windows: useAbsoluteTimeRange re-evaluates
+  // "now" on focus/visibility and whenever refreshTick advances (auto-refresh
+  // / manual refresh), so the window doesn't freeze at selection time.
+  const tableDateRange = useAbsoluteTimeRange(timeRange, refreshTick);
 
   const dateRange = externalDateRange ?? tableDateRange;
 

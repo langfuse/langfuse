@@ -3,6 +3,7 @@ import {
   type TimeRange,
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
+import { useAbsoluteTimeRange } from "@/src/hooks/useAbsoluteTimeRange";
 import { api } from "@/src/utils/api";
 import { useMemo, useEffect } from "react";
 
@@ -69,10 +70,7 @@ export function useEnvironmentFilterOptionsCache({
   projectId: string;
   timeRange: TimeRange;
 }) {
-  const absoluteTimeRange = useMemo(
-    () => toAbsoluteTimeRange(timeRange) ?? undefined,
-    [timeRange],
-  );
+  const absoluteTimeRange = useAbsoluteTimeRange(timeRange);
   const cacheBucket = getCacheBucketFromTimeRange(timeRange);
   const ttlMs = getTtlMsFromTimeRange(timeRange);
 

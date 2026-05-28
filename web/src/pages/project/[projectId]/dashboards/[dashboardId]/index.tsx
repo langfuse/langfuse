@@ -22,10 +22,8 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
-import {
-  DASHBOARD_AGGREGATION_OPTIONS,
-  toAbsoluteTimeRange,
-} from "@/src/utils/date-range-utils";
+import { DASHBOARD_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
+import { useAbsoluteTimeRange } from "@/src/hooks/useAbsoluteTimeRange";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 import {
@@ -83,10 +81,7 @@ export default function DashboardDetail() {
 
   // Date range state - use the hook for all date range logic
   const { timeRange, setTimeRange } = useDashboardDateRange();
-  const absoluteTimeRange = useMemo(
-    () => toAbsoluteTimeRange(timeRange) ?? undefined,
-    [timeRange],
-  );
+  const absoluteTimeRange = useAbsoluteTimeRange(timeRange);
 
   // Check if current filters differ from saved filters
   const hasUnsavedFilterChanges = useMemo(() => {

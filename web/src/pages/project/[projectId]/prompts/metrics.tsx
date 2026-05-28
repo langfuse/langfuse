@@ -28,8 +28,7 @@ import {
 } from "@/src/features/scores/lib/scoreColumns";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { useMemo } from "react";
+import { useAbsoluteTimeRange } from "@/src/hooks/useAbsoluteTimeRange";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -110,10 +109,7 @@ export default function PromptVersionTable({
   const { timeRange, setTimeRange } = useTableDateRange(projectId, {
     defaultRelativeAggregation: "last30Days",
   });
-  const dateRange = useMemo(
-    () => ("range" in timeRange ? toAbsoluteTimeRange(timeRange) : timeRange),
-    [timeRange],
-  );
+  const dateRange = useAbsoluteTimeRange(timeRange) ?? null;
 
   const promptVersions = api.prompts.allVersions.useQuery(
     {

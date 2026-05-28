@@ -8,10 +8,8 @@ import {
 import { useAnalyticsUrlState } from "@/src/features/score-analytics/lib/analytics-url-state";
 import { type ScoreOption } from "@/src/features/score-analytics/components/charts/ScoreCombobox";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
-import {
-  toAbsoluteTimeRange,
-  getOptimalInterval,
-} from "@/src/utils/date-range-utils";
+import { getOptimalInterval } from "@/src/utils/date-range-utils";
+import { useAbsoluteTimeRange } from "@/src/hooks/useAbsoluteTimeRange";
 import { BarChart3 } from "lucide-react";
 import { api } from "@/src/utils/api";
 import {
@@ -140,11 +138,7 @@ export default function ScoresAnalyticsV2Page() {
     };
   }, [urlState.score2, scoreOptions]);
 
-  // Convert time range to absolute dates
-  const absoluteTimeRange = useMemo(
-    () => toAbsoluteTimeRange(timeRange),
-    [timeRange],
-  );
+  const absoluteTimeRange = useAbsoluteTimeRange(timeRange) ?? null;
 
   // Calculate optimal interval based on time range
   const interval = useMemo(() => {

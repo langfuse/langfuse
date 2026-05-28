@@ -30,7 +30,7 @@ import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-tr
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import { useAbsoluteTimeRange } from "@/src/hooks/useAbsoluteTimeRange";
 import { api } from "@/src/utils/api";
 
 import type { RouterOutput } from "@/src/utils/types";
@@ -147,10 +147,7 @@ export default function ScoresTable({
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
-  // Convert timeRange to absolute date range for compatibility
-  const dateRange = React.useMemo(() => {
-    return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange]);
+  const dateRange = useAbsoluteTimeRange(timeRange);
 
   const dateRangeFilter: FilterState = dateRange
     ? [
