@@ -9,6 +9,7 @@ import {
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { env } from "@/src/env.mjs";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import {
   enrichObservationWithModelData,
@@ -25,14 +26,18 @@ export default withMiddlewares(
       responseSchema: GetObservationV1Response,
       rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
-        const clickhouseObservation = query.useEventsTable
+        // Use events table if query parameter is explicitly set, otherwise use environment variable
+        const useEventsTable =
+          query.useEventsTable ??
+          env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
+
+        const clickhouseObservation = useEventsTable
           ? await getObservationByIdFromEventsTable({
               id: query.observationId,
               projectId: auth.scope.projectId,
               fetchWithInputOutput: true,
             })
-          : // eslint-disable-next-line @typescript-eslint/no-deprecated
-            await getObservationById({
+          : await getObservationById({
               id: query.observationId,
               projectId: auth.scope.projectId,
               fetchWithInputOutput: true,

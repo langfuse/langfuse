@@ -19,6 +19,7 @@ import {
   generateObservationsForPublicApi,
   getObservationsCountForPublicApi,
 } from "@/src/features/public-api/server/observations";
+import { env } from "@/src/env.mjs";
 
 export default withMiddlewares(
   {
@@ -46,7 +47,12 @@ export default withMiddlewares(
           advancedFilters: query.filter,
         };
 
-        if (query.useEventsTable) {
+        // Use events table if query parameter is explicitly set, otherwise use environment variable
+        const useEventsTable =
+          query.useEventsTable ??
+          env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
+
+        if (useEventsTable) {
           const [items, count] = await Promise.all([
             getObservationsFromEventsTableForPublicApi(filterProps),
             getObservationsCountFromEventsTableForPublicApi(filterProps),
