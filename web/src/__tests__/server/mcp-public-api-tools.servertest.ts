@@ -223,7 +223,6 @@ describe("MCP public API tools", () => {
         "deleteDatasetItem",
         "deleteDatasetRun",
         "deleteModel",
-        "deleteScore",
         "deleteScoreConfig",
         "updateAnnotationQueueItem",
         "updatePromptLabels",
