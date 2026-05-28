@@ -302,8 +302,16 @@ const MonitorTriggerFields = ({
             onValueChange={field.onChange}
             options={[
               {
-                value: "threshold_breach",
-                description: "Whenever a monitor threshold is breached",
+                value: "created",
+                description: "Whenever a monitor enters an alerted state",
+              },
+              {
+                value: "updated",
+                description: "Whenever a monitor's severity changes",
+              },
+              {
+                value: "deleted",
+                description: "Whenever a monitor recovers",
               },
             ]}
             className="my-0 w-auto overflow-hidden"
