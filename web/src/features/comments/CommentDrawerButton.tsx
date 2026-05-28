@@ -180,7 +180,10 @@ export function CommentDrawerButton({
           )}
         </Button>
       </DrawerTrigger>
-      <DrawerContent overlayClassName="bg-primary/10">
+      <DrawerContent
+        overlayClassName="bg-primary/10"
+        className="h-screen-with-banner max-h-screen-with-banner overflow-hidden"
+      >
         <div
           className="mx-auto flex h-full w-full flex-col overflow-hidden focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:outline-hidden md:max-h-full"
           tabIndex={-1}
@@ -197,7 +200,10 @@ export function CommentDrawerButton({
               <Header title="Comments"></Header>
             </DrawerTitle>
           </DrawerHeader>
-          <div data-vaul-no-drag className="min-h-0 flex-1 px-2 pt-2">
+          <div
+            data-vaul-no-drag
+            className="min-h-0 flex-1 overflow-hidden px-2 py-2"
+          >
             <CommentList
               projectId={projectId}
               objectId={objectId}
