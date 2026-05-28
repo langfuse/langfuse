@@ -11,9 +11,26 @@ import {
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
-import { type ActionTypes, TriggerEventSource } from "@langfuse/shared";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import {
+  ActionTypeSchema,
+  type ActionTypes,
+  TriggerEventSource,
+} from "@langfuse/shared";
 import { serializeCreateAutomationPrefill } from "@/src/features/automations/components/automationForm";
 import { cn } from "@/src/utils/tailwind";
+
+/** actionLabel maps each automation action type to its display name. */
+const actionLabel: Record<ActionTypes, string> = {
+  WEBHOOK: "Webhook",
+  SLACK: "Slack",
+  GITHUB_DISPATCH: "GitHub Dispatch",
+};
 
 /** MonitorAutomationsPanel lets the user select which automations fire for a monitor via explicit trigger IDs. */
 export const MonitorAutomationsPanel = ({
@@ -149,23 +166,44 @@ const AddAutomationDropdown = ({
   projectId: string;
   fullWidth?: boolean;
 }) => (
-  <Button
-    asChild
-    variant="outline"
-    size="lg"
-    className={fullWidth ? "w-full" : undefined}
-  >
-    <Link href={automationCreateHref(projectId)}>
-      <Plus className="mr-2 h-4 w-4" />
-      New automation
-    </Link>
-  </Button>
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button
+        variant="outline"
+        size="lg"
+        className={fullWidth ? "w-full" : undefined}
+      >
+        <Plus className="mr-2 h-4 w-4" />
+        Automation
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuItem asChild>
+        <Link href={automationCreateHref(projectId)}>
+          <Plus className="mr-2 h-3.5 w-3.5" />
+          New automation
+        </Link>
+      </DropdownMenuItem>
+      {ActionTypeSchema.options.map((t) => (
+        <DropdownMenuItem key={t} asChild>
+          <Link href={automationCreateHref(projectId, t)}>
+            <ActionIcon type={t} className="mr-2 h-3.5 w-3.5" />
+            {actionLabel[t]}
+          </Link>
+        </DropdownMenuItem>
+      ))}
+    </DropdownMenuContent>
+  </DropdownMenu>
 );
 
-/** automationCreateHref builds the deep-link to the automations create form, prefilling the eventSource as Monitor. */
-const automationCreateHref = (projectId: string): string => {
+/** automationCreateHref builds the deep-link to the automations create form, prefilling eventSource as Monitor and (optionally) the chosen actionType. */
+const automationCreateHref = (
+  projectId: string,
+  actionType?: ActionTypes,
+): string => {
   const prefill = serializeCreateAutomationPrefill({
     eventSource: TriggerEventSource.Monitor,
+    ...(actionType ? { actionType } : {}),
   });
   const params = new URLSearchParams({ view: "create", prefill });
   return `/project/${projectId}/automations?${params.toString()}`;
