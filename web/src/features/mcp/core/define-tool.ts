@@ -8,7 +8,6 @@
 import { z } from "zod";
 import { wrapErrorHandling } from "./error-formatting";
 import {
-  isObjectLikeJsonSchema,
   normalizeMcpInputSchema,
   type JsonSchemaObject,
 } from "./input-schema-compat";
@@ -114,14 +113,6 @@ export function defineTool<TInput>(
     );
   }
 
-  // Validate that we got a usable schema. Intersections of object schemas are
-  // emitted as top-level allOf by Zod's JSON Schema converter.
-  if (!isObjectLikeJsonSchema(jsonSchema)) {
-    throw new Error(
-      `Failed to convert Zod schema to JSON Schema for tool: ${name}. Expected object or union schema, got: ${JSON.stringify(jsonSchema).slice(0, 100)}`,
-    );
-  }
-
   // The MCP TypeScript SDK requires root `type: "object"`, while model tool
   // validators can reject root `oneOf`/`anyOf`/`allOf`. Zod emits those for
   // object intersections and unions, so keep nested detail but normalize the
@@ -129,6 +120,12 @@ export function defineTool<TInput>(
   const normalizedJsonSchema = normalizeMcpInputSchema(
     jsonSchema as JsonSchemaObject,
   );
+
+  if (!normalizedJsonSchema) {
+    throw new Error(
+      `Failed to convert Zod schema to JSON Schema for tool: ${name}. Expected object or union schema, got: ${JSON.stringify(jsonSchema).slice(0, 100)}`,
+    );
+  }
 
   // Build tool definition
   const toolDefinition: ToolDefinition = {

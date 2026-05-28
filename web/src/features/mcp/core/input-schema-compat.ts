@@ -81,12 +81,9 @@ function collectObjectShape(
   };
 }
 
-export const isObjectLikeJsonSchema = (schema: JsonSchemaObject): boolean =>
-  collectObjectShape(schema) !== undefined;
-
 export function normalizeMcpInputSchema(
   schema: JsonSchemaObject,
-): JsonSchemaObject {
+): JsonSchemaObject | undefined {
   if (
     schema.type === "object" &&
     !ROOT_COMPOSITION_KEYWORDS.some((keyword) => keyword in schema)
@@ -95,6 +92,8 @@ export function normalizeMcpInputSchema(
   }
 
   const shape = collectObjectShape(schema);
+  if (!shape) return undefined;
+
   const {
     type: _type,
     properties: _properties,
@@ -109,7 +108,7 @@ export function normalizeMcpInputSchema(
   return {
     ...metadata,
     type: "object",
-    properties: shape?.properties ?? {},
-    ...(shape?.required.length ? { required: shape.required } : {}),
+    properties: shape.properties,
+    ...(shape.required.length ? { required: shape.required } : {}),
   };
 }
