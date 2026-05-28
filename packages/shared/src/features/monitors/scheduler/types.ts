@@ -49,12 +49,17 @@ export type MonitorQueueEvent = z.infer<typeof MonitorQueueEventSchema>;
 export type MonitorQueueEventWire = z.input<typeof MonitorQueueEventSchema>;
 
 /**
- * MonitorWebhookQueueEventSchema is the transport envelope wrapping
- * `MonitorAlertSchema` for the `WebhookQueue`.
+ * MonitorWebhookQueueEventSchema is the unified envelope: it's both the BullMQ
+ * payload the MonitorProcessor publishes onto `WebhookQueue` and the HTTP body
+ * the dispatcher posts to customer webhooks. `id` is the executionId and
+ * `timestamp` is publish-time wallclock — both stable across BullMQ retries
+ * so consumers can dedupe.
  */
 export const MonitorWebhookQueueEventSchema = z.object({
+  id: z.string(),
+  timestamp: z.coerce.date(),
   type: z.literal("monitor-alert"),
-  version: z.literal("v1"),
+  apiVersion: z.literal("v1"),
   payload: MonitorAlertSchema,
 });
 export type MonitorWebhookQueueEvent = z.infer<

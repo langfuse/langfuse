@@ -104,8 +104,10 @@ describe("MonitorQueueEventSchema", () => {
 
 describe("MonitorWebhookQueueEventSchema", () => {
   const validEnvelope = {
+    id: "exe_01",
+    timestamp: new Date("2026-05-18T12:01:00.000Z"),
     type: "monitor-alert" as const,
-    version: "v1" as const,
+    apiVersion: "v1" as const,
     payload: {
       monitorId: "mon_01",
       projectId: "proj_01",
@@ -134,13 +136,36 @@ describe("MonitorWebhookQueueEventSchema", () => {
     ).toBe(false);
   });
 
-  it("rejects a wrong version literal", () => {
+  it("rejects a wrong apiVersion literal", () => {
     expect(
       MonitorWebhookQueueEventSchema.safeParse({
         ...validEnvelope,
-        version: "v2",
+        apiVersion: "v2",
       }).success,
     ).toBe(false);
+  });
+
+  it("requires id", () => {
+    const { id: _unused, ...withoutId } = validEnvelope;
+    expect(MonitorWebhookQueueEventSchema.safeParse(withoutId).success).toBe(
+      false,
+    );
+  });
+
+  it("requires timestamp", () => {
+    const { timestamp: _unused, ...withoutTs } = validEnvelope;
+    expect(MonitorWebhookQueueEventSchema.safeParse(withoutTs).success).toBe(
+      false,
+    );
+  });
+
+  it("coerces a string timestamp to a Date", () => {
+    const result = MonitorWebhookQueueEventSchema.safeParse({
+      ...validEnvelope,
+      timestamp: "2026-05-18T12:01:00.000Z",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.timestamp).toBeInstanceOf(Date);
   });
 });
 
@@ -179,8 +204,10 @@ describe("scheduler DTO JSON round-trip (wire contract)", () => {
 
   it("round-trips a MonitorWebhookQueueEvent envelope through JSON", () => {
     const envelope = {
+      id: "exe_01",
+      timestamp: new Date("2026-05-18T12:01:00.000Z"),
       type: "monitor-alert" as const,
-      version: "v1" as const,
+      apiVersion: "v1" as const,
       payload: {
         monitorId: "mon_01",
         projectId: "proj_01",
@@ -197,6 +224,7 @@ describe("scheduler DTO JSON round-trip (wire contract)", () => {
     const result = MonitorWebhookQueueEventSchema.safeParse(wire);
     expect(result.success).toBe(true);
     if (result.success) {
+      expect(result.data.timestamp).toBeInstanceOf(Date);
       expect(result.data.payload.timestamp).toBeInstanceOf(Date);
     }
   });

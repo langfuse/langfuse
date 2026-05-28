@@ -1,4 +1,5 @@
 import type { Monitor as PrismaMonitor } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 import { JobConfigState, Prisma, type PrismaClient } from "../../../db";
 import { env } from "../../../env";
@@ -185,8 +186,10 @@ export class MonitorProcessor {
       const matched = triggers.some((t) => matchesTriggerFilter(filterData, t));
       if (!matched) continue;
       alertsToPublish.push({
+        id: randomUUID(),
+        timestamp: now,
         type: "monitor-alert",
-        version: "v1",
+        apiVersion: "v1",
         payload: alert,
       });
     }
