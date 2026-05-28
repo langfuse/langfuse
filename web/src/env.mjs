@@ -485,6 +485,11 @@ export const env = createEnv({
       .enum(["true", "false"])
       .optional()
       .default("true"),
+    // Code-based evals: must match LANGFUSE_CODE_EVAL_DISPATCHER being set in packages/shared/src/env.ts
+    NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
   },
 
   /**
@@ -773,6 +778,9 @@ export const env = createEnv({
     // Playground
     NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT:
       process.env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT,
+    // Code-based evals
+    NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED:
+      process.env.NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,

@@ -3,7 +3,7 @@ import { SidebarNotifications } from "./sidebar-notifications";
 
 vi.mock("../useLocalStorage", () => ({
   __esModule: true,
-  default: () => [[], vi.fn()],
+  default: () => [["lw5-1", "lw5-2", "lw5-3"], vi.fn()],
 }));
 
 describe("SidebarNotifications", () => {

@@ -3,7 +3,7 @@ import {
   JobConfigState,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { EvalTemplateType, Prisma, prisma } from "@langfuse/shared/src/db";
 import type {
   EvaluationRuleEvaluatorFamilyReference,
   PrismaClientLike,
@@ -25,6 +25,7 @@ export async function findPublicEvaluatorTemplateOrThrow(params: {
   const template = await client.evalTemplate.findUnique({
     where: {
       id: params.evaluatorId,
+      type: EvalTemplateType.LLM_AS_JUDGE,
     },
   });
 
@@ -50,6 +51,7 @@ export async function findLatestPublicEvaluatorTemplateInFamilyOrThrow(params: {
     where: {
       name: params.evaluator.name,
       projectId: params.evaluator.scope === "project" ? params.projectId : null,
+      type: EvalTemplateType.LLM_AS_JUDGE,
     },
     orderBy: {
       version: "desc",
@@ -135,7 +137,8 @@ export async function listPublicEvaluatorTemplates(params: {
             name,
             updated_at
           FROM eval_templates
-          WHERE project_id = ${params.projectId} OR project_id IS NULL
+          WHERE (project_id = ${params.projectId} OR project_id IS NULL)
+            AND type = ${EvalTemplateType.LLM_AS_JUDGE}::"EvalTemplateType"
           ORDER BY project_id, name, version DESC
         )
         SELECT id
@@ -155,7 +158,8 @@ export async function listPublicEvaluatorTemplates(params: {
         FROM (
           SELECT DISTINCT project_id, name
           FROM eval_templates
-          WHERE project_id = ${params.projectId} OR project_id IS NULL
+          WHERE (project_id = ${params.projectId} OR project_id IS NULL)
+            AND type = ${EvalTemplateType.LLM_AS_JUDGE}::"EvalTemplateType"
         ) latest_template_families
       `,
     ),
@@ -214,6 +218,7 @@ export async function findPublicEvaluationRuleOrThrow(params: {
       },
       evalTemplate: {
         is: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
           OR: [{ projectId: params.projectId }, { projectId: null }],
         },
       },
@@ -224,8 +229,6 @@ export async function findPublicEvaluationRuleOrThrow(params: {
           id: true,
           projectId: true,
           name: true,
-          vars: true,
-          prompt: true,
         },
       },
     },
@@ -267,6 +270,12 @@ export async function countActiveEvaluationRules(params: {
       },
       status: JobConfigState.ACTIVE,
       blockedAt: null,
+      evalTemplate: {
+        is: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          OR: [{ projectId: params.projectId }, { projectId: null }],
+        },
+      },
     },
   });
 }
@@ -285,6 +294,7 @@ export async function listPublicEvaluationRuleConfigs(params: {
         },
         evalTemplate: {
           is: {
+            type: EvalTemplateType.LLM_AS_JUDGE,
             OR: [{ projectId: params.projectId }, { projectId: null }],
           },
         },
@@ -295,8 +305,6 @@ export async function listPublicEvaluationRuleConfigs(params: {
             id: true,
             projectId: true,
             name: true,
-            vars: true,
-            prompt: true,
           },
         },
       },
@@ -314,6 +322,7 @@ export async function listPublicEvaluationRuleConfigs(params: {
         },
         evalTemplate: {
           is: {
+            type: EvalTemplateType.LLM_AS_JUDGE,
             OR: [{ projectId: params.projectId }, { projectId: null }],
           },
         },

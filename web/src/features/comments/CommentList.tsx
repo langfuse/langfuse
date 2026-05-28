@@ -490,7 +490,7 @@ export function CommentList({
     <div
       className={cn(
         cardView && "rounded-md border",
-        "flex h-full min-h-0 flex-col",
+        "flex h-full min-h-0 flex-col overflow-hidden",
         className,
       )}
     >
@@ -499,7 +499,7 @@ export function CommentList({
           Comments ({comments.data?.length ?? 0})
         </div>
       )}
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {!cardView && (
           <div className="shrink-0 border-b">
             <div className="flex items-center justify-between gap-2 px-2 py-1.5">
@@ -697,13 +697,13 @@ export function CommentList({
         </div>
 
         {hasWriteAccess && (
-          <>
-            <div className="text-muted-foreground relative mt-2 mr-4 ml-2.5 flex flex-row items-center justify-between text-xs">
+          <div className="bg-background shrink-0 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
+            <div className="text-muted-foreground relative flex flex-row items-center justify-between text-xs">
               <span className="sr-only">New comment</span>
               <span></span>
               <span>Markdown and @-mentions support</span>
             </div>
-            <div className="border-border/60 relative mt-0.5 mr-3 mb-2 ml-2 min-h-[70px] shrink-0 rounded-lg border pt-1">
+            <div className="border-border/60 relative mt-0.5 min-h-[70px] rounded-lg border pt-1">
               {/* Visually hidden header for accessibility */}
 
               <Form {...form}>
@@ -803,7 +803,7 @@ export function CommentList({
                 </form>
               </Form>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
