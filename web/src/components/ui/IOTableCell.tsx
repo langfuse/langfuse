@@ -13,17 +13,27 @@ import {
 } from "@/src/components/ui/hover-card";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 
+type IOTableCellPadding = "default" | "compact";
+
+const ioTableCellPaddingClassNames: Record<IOTableCellPadding, string> = {
+  default: "px-2 py-1",
+  compact: "px-1 py-1",
+};
+
 const IOTableCellContent = ({
   data,
   singleLine,
   className,
+  padding,
 }: {
   data: unknown;
   singleLine: boolean;
   className?: string;
+  padding: IOTableCellPadding;
 }) => {
   const stringifiedJson =
     data !== null && data !== undefined ? stringifyJsonNode(data) : undefined;
+  const paddingClassName = ioTableCellPaddingClassNames[padding];
 
   // perf: truncate to IO_TABLE_CHAR_LIMIT characters as table becomes unresponsive attempting to render large JSONs with high levels of nesting
   const shouldTruncate =
@@ -32,7 +42,8 @@ const IOTableCellContent = ({
   return singleLine ? (
     <div
       className={cn(
-        "h-full w-full self-stretch truncate overflow-hidden overflow-y-auto px-2 py-1",
+        "h-full w-full self-stretch truncate overflow-hidden overflow-y-auto",
+        paddingClassName,
         className,
       )}
     >
@@ -49,7 +60,7 @@ const IOTableCellContent = ({
           true, // greedy mode for double-escaped Unicode (e.g., \\uXXXX)
         )}
         className={cn("h-full w-full self-stretch", className)}
-        codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
+        codeClassName={cn("min-h-0 h-full overflow-y-auto", paddingClassName)}
         collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
         borderless
       />
@@ -63,7 +74,7 @@ const IOTableCellContent = ({
         stringifiedJson ? decodeUnicodeEscapesOnly(stringifiedJson, true) : data
       }
       className={cn("h-full w-full self-stretch", className)}
-      codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
+      codeClassName={cn("min-h-0 h-full overflow-y-auto", paddingClassName)}
       collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
       borderless
     />
@@ -74,12 +85,14 @@ export const IOTableCell = ({
   data,
   isLoading = false,
   className,
+  padding = "default",
   singleLine = false,
   enableExpandOnHover = false,
 }: {
   data: unknown;
   isLoading?: boolean;
   className?: string;
+  padding?: IOTableCellPadding;
   singleLine?: boolean;
   enableExpandOnHover?: boolean;
 }) => {
@@ -99,6 +112,7 @@ export const IOTableCell = ({
         data={data}
         singleLine={singleLine}
         className={className}
+        padding={padding}
       />
     );
   }
@@ -111,6 +125,7 @@ export const IOTableCell = ({
             data={data}
             singleLine={singleLine}
             className={className}
+            padding={padding}
           />
         </div>
       </HoverCardTrigger>

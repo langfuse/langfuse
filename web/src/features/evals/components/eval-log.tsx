@@ -125,11 +125,16 @@ export default function EvalLogTable({
       header: "Score Comment",
       id: "scoreComment",
       enableHiding: true,
+      cellPadding: "none",
       cell: (row) => {
         const value = row.getValue();
         return (
           value !== undefined && (
-            <IOTableCell data={value} singleLine={rowHeight === "s"} />
+            <IOTableCell
+              data={value}
+              padding="compact"
+              singleLine={rowHeight === "s"}
+            />
           )
         );
       },
@@ -138,11 +143,16 @@ export default function EvalLogTable({
       id: "error",
       header: "Error",
       enableHiding: true,
+      cellPadding: "none",
       cell: (row) => {
         const value = row.getValue();
         return (
           value !== undefined && (
-            <IOTableCell data={value} singleLine={rowHeight === "s"} />
+            <IOTableCell
+              data={value}
+              padding="compact"
+              singleLine={rowHeight === "s"}
+            />
           )
         );
       },
