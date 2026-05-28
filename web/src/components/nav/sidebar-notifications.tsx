@@ -26,7 +26,7 @@ type SidebarNotification = {
   ttlMs?: number;
 };
 
-const notifications: SidebarNotification[] = [
+export const notifications: SidebarNotification[] = [
   {
     id: "lw5-1",
     title: "Launch Week: Day 1",
