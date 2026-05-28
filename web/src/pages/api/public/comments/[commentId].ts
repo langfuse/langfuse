@@ -1,7 +1,6 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { getCommentForApi } from "@/src/features/comments/server/publicCommentService";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { LangfuseNotFoundError } from "@langfuse/shared";
 import {
   GetCommentV1Query,
   GetCommentV1Response,
@@ -12,26 +11,10 @@ export default withMiddlewares({
     name: "Get Comment",
     querySchema: GetCommentV1Query,
     responseSchema: GetCommentV1Response,
-    fn: async ({ query, auth }) => {
-      const { commentId } = query;
-
-      const comment = await prisma.comment.findUnique({
-        where: {
-          id: commentId,
-          projectId: auth.scope.projectId,
-        },
-      });
-
-      if (!comment) {
-        throw new LangfuseNotFoundError(
-          "Comment not found within authorized project",
-        );
-      }
-
-      // Exclude inline positioning fields from public API
-      const { dataField, path, rangeStart, rangeEnd, ...publicComment } =
-        comment;
-      return publicComment;
-    },
+    fn: async ({ query, auth }) =>
+      await getCommentForApi({
+        commentId: query.commentId,
+        projectId: auth.scope.projectId,
+      }),
   }),
 });

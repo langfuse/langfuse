@@ -26,13 +26,13 @@ type SidebarNotification = {
   ttlMs?: number;
 };
 
-const notifications: SidebarNotification[] = [
+export const notifications: SidebarNotification[] = [
   {
     id: "lw5-1",
     title: "Launch Week: Day 1",
     description:
       "Run experiments inside GitHub Actions to test every PR against a Langfuse dataset.",
-    link: "https://langfuse.com/launch-week-5",
+    link: "https://langfuse.com/changelog/2026-05-25-experiment-ci-cd-gates",
     linkTitle: "Learn more",
     createdAt: "2026-05-25",
   },
@@ -41,11 +41,27 @@ const notifications: SidebarNotification[] = [
     title: "Launch Week: Day 2",
     description:
       "Langfuse agent skill turns Langfuse into a headless platform to evaluate, query and instrument your application.",
-    link: "https://langfuse.com/launch-week-5",
+    link: "https://langfuse.com/changelog/2026-05-26-langfuse-agent-skill",
     linkTitle: "Learn more",
     createdAt: "2026-05-26",
   },
-
+  {
+    id: "lw5-3",
+    title: "Launch Week: Day 3",
+    description: "Fast full-text search on observation I/O via the UI and API",
+    link: "https://langfuse.com/changelog/2026-05-27-clickhouse-full-text-search-fast-mode",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-27",
+  },
+  {
+    id: "lw5-4",
+    title: "Launch Week: Day 4",
+    description:
+      "Code evaluators let you score observations and experiments with Python/TypeScript checks.",
+    link: "https://langfuse.com/changelog/2026-05-28-code-evaluators",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-28",
+  },
   {
     id: "github-star",
     title: "Star Langfuse",

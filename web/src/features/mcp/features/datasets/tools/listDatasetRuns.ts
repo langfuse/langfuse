@@ -1,12 +1,7 @@
-import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import {
-  GetDatasetRunsV1Response,
-  transformDbDatasetRunToAPIDatasetRun,
-} from "@/src/features/public-api/types/datasets";
+import { GetDatasetRunsV1Response } from "@/src/features/public-api/types/datasets";
+import { listDatasetRunsForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { paginationMeta } from "../../publicApi";
 import { GetDatasetRunsMcpInput } from "../schema";
 
 export const [listDatasetRunsTool, handleListDatasetRuns] = defineTool({
@@ -21,42 +16,14 @@ export const [listDatasetRunsTool, handleListDatasetRuns] = defineTool({
       context,
       attributes: { "mcp.dataset_name": input.name },
       fn: async () => {
-        const dataset = await prisma.dataset.findFirst({
-          where: {
-            name: input.name,
-            projectId: context.projectId,
-          },
-          include: {
-            datasetRuns: {
-              where: { projectId: context.projectId },
-              take: input.limit,
-              skip: (input.page - 1) * input.limit,
-              orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-            },
-          },
+        const result = await listDatasetRunsForApi({
+          projectId: context.projectId,
+          name: input.name,
+          page: input.page,
+          limit: input.limit,
         });
 
-        if (!dataset) {
-          throw new LangfuseNotFoundError("Dataset not found");
-        }
-
-        const totalItems = await prisma.datasetRuns.count({
-          where: {
-            datasetId: dataset.id,
-            projectId: context.projectId,
-          },
-        });
-
-        return GetDatasetRunsV1Response.parse({
-          data: dataset.datasetRuns
-            .map((run) => ({ ...run, datasetName: dataset.name }))
-            .map(transformDbDatasetRunToAPIDatasetRun),
-          meta: paginationMeta({
-            page: input.page,
-            limit: input.limit,
-            totalItems,
-          }),
-        });
+        return GetDatasetRunsV1Response.parse(result);
       },
     }),
   readOnlyHint: true,
