@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import {
   Card,
   CardContent,
@@ -50,8 +50,6 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
-import TagManager from "@/src/features/tag/components/TagManager";
-import { Plus } from "lucide-react";
 
 // Define Slack action schema
 const slackSchema = z.object({
@@ -282,100 +280,46 @@ const PromptTriggerFields = ({
   </>
 );
 
-/** filterToTags extracts the tag list from a monitor-source trigger filter, if a tags clause is present. */
-const filterToTags = (filter: FilterState): string[] => {
-  for (const cond of filter) {
-    if (
-      cond.column === "tags" &&
-      cond.type === "arrayOptions" &&
-      cond.operator === "all of"
-    ) {
-      return cond.value as string[];
-    }
-  }
-  return [];
-};
-
-/** tagsToFilter encodes a tag list as the FilterState a monitor-source trigger expects. */
-const tagsToFilter = (tags: string[]): FilterState =>
-  tags.length === 0
-    ? []
-    : [
-        {
-          column: "tags",
-          type: "arrayOptions",
-          operator: "all of",
-          value: tags,
-        },
-      ];
-
-/** MonitorTriggerFields renders the tag picker for monitor-source automations, loading suggestions from the project's existing monitor tags. */
+/** MonitorTriggerFields renders the eventAction picker for monitor-source automations. */
 const MonitorTriggerFields = ({
   control,
-  projectId,
   disabled,
 }: {
   control: Control<FormValues>;
-  projectId: string;
   disabled: boolean;
-}) => {
-  /** monitorTagsQuery loads existing monitor tags for TagManager autocomplete. */
-  const monitorTagsQuery = api.monitors.getFilterOptions.useQuery(
-    { projectId },
-    {
-      trpc: { context: { skipBatch: true } },
-      staleTime: Infinity,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    },
-  );
-
-  /** availableTags is the flat list of tag values pulled from monitorTagsQuery for TagManager. */
-  const availableTags = useMemo(
-    () => monitorTagsQuery.data?.tags.map((t) => t.value) ?? [],
-    [monitorTagsQuery.data],
-  );
-
-  return (
-    <FormField
-      control={control}
-      name="filter"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>Monitor Tags</FormLabel>
-          <FormControl>
-            <TagManager
-              itemName="monitor"
-              tags={filterToTags((field.value ?? []) as FilterState)}
-              allTags={availableTags}
-              hasAccess={!disabled}
-              isLoading={false}
-              mutateTags={(next) => field.onChange(tagsToFilter(next))}
-              alignPopover="start"
-              triggerButton={
-                <Button
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  className="mr-2 ml-0.5 gap-1"
-                  disabled={disabled}
-                >
-                  <Plus className="h-3 w-3" />
-                  Add Tags
-                </Button>
-              }
-            />
-          </FormControl>
-          <FormDescription>
-            Fire on monitors carrying all of the selected tags. Leave empty to
-            fire on every monitor in the project.
-          </FormDescription>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  );
-};
+}) => (
+  <FormField
+    control={control}
+    name="eventAction"
+    render={({ field }) => (
+      <FormItem>
+        <FormLabel>Event Action</FormLabel>
+        <FormControl>
+          <MultiSelect
+            title="Event Actions"
+            label="Actions"
+            values={field.value}
+            onValueChange={field.onChange}
+            options={[
+              {
+                value: "threshold_breach",
+                description: "Whenever a monitor threshold is breached",
+              },
+            ]}
+            className="my-0 w-auto overflow-hidden"
+            disabled={disabled}
+            labelTruncateCutOff={4}
+          />
+        </FormControl>
+        <FormDescription>
+          Connect monitors to this automation from the monitor configuration
+          page.
+        </FormDescription>
+        <FormMessage />
+      </FormItem>
+    )}
+  />
+);
 
 interface AutomationFormProps {
   projectId: string;
@@ -719,7 +663,6 @@ export const AutomationForm = ({
             {watchedEventSource === TriggerEventSource.Monitor ? (
               <MonitorTriggerFields
                 control={form.control}
-                projectId={projectId}
                 disabled={!hasAccess || !isEditing}
               />
             ) : (
