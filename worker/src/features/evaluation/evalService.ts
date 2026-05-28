@@ -882,6 +882,7 @@ export async function runLLMAsJudgeEvaluation({
 
           try {
             return await deps.callLLM({
+              projectId,
               messages,
               modelConfig: modelConfig.config,
               structuredOutputSchema:

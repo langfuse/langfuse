@@ -67,6 +67,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
       }
 
       const fetchLLMCompletionParams = {
+        projectId: body.projectId,
         llmConnection: parsedKey.data,
         messages,
         modelParams,

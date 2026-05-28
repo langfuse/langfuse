@@ -36,6 +36,8 @@ export type ParsedMediaReferenceType = z.infer<
   typeof ParsedMediaReferenceSchema
 >;
 
+export const MEDIA_REFERENCE_PATTERN = /@@@langfuseMedia:[\s\S]*?@@@/g;
+
 /**
  * Schema that parses Langfuse media reference magic strings.
  * Format: @@@langfuseMedia:type=image/jpeg|id=<uuid>|source=base64@@@

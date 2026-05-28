@@ -35,6 +35,7 @@ describe("createProductionEvalExecutionDeps", () => {
     const deps = createProductionEvalExecutionDeps();
 
     await deps.callLLM({
+      projectId: "project-123",
       messages: [
         {
           role: "user",
@@ -66,6 +67,7 @@ describe("createProductionEvalExecutionDeps", () => {
 
     expect(mockFetchLLMCompletion).toHaveBeenCalledWith(
       expect.objectContaining({
+        projectId: "project-123",
         traceSinkParams: expect.objectContaining({
           traceId: "trace-123",
           environment: "langfuse-llm-as-a-judge",

@@ -7,6 +7,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import {
   AIMessage,
   BaseMessage,
+  ContentBlock,
   HumanMessage,
   SystemMessage,
   ToolMessage,
@@ -51,6 +52,13 @@ import {
 } from "./utils";
 import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
+import {
+  MEDIA_REFERENCE_PATTERN,
+  MediaReferenceStringSchema,
+  ParsedMediaReferenceType,
+} from "../../utils/IORepresentation";
+import { prisma } from "../../db";
+import { getS3MediaStorageClient } from "../s3";
 
 export type CompletionWithReasoning = { text: string; reasoning?: string };
 type AIMessageContent = AIMessage["content"];
@@ -89,16 +97,6 @@ const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.Anthropic,
   LLMAdapter.Bedrock,
 ];
-
-const transformSystemMessageToUserMessage = (
-  messages: ChatMessage[],
-): BaseMessage[] => {
-  const safeContent =
-    typeof messages[0].content === "string"
-      ? messages[0].content
-      : JSON.stringify(messages[0].content);
-  return [new HumanMessage(safeContent)];
-};
 
 const googleProviderOptionsSchema = z
   .object({
@@ -169,6 +167,7 @@ type LLMCompletionParams = {
   maxRetries?: number;
   traceSinkParams?: TraceSinkParams;
   shouldUseLangfuseAPIKey?: boolean;
+  projectId?: string;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -252,8 +251,9 @@ export async function fetchLLMCompletion(
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
 
-  // Helper function to safely stringify content
   const safeStringify = (content: any): string => {
+    if (typeof content === "string") return content;
+
     try {
       return JSON.stringify(content);
     } catch {
@@ -261,31 +261,95 @@ export async function fetchLLMCompletion(
     }
   };
 
-  let finalMessages: BaseMessage[];
-  // Some providers require at least 1 user message
-  if (
-    messages.length === 1 &&
-    PROVIDERS_WITH_REQUIRED_USER_MESSAGE.includes(modelParams.adapter)
-  ) {
-    // Ensure provider schema compliance
-    finalMessages = transformSystemMessageToUserMessage(messages);
-  } else {
-    finalMessages = messages.map((message, idx) => {
-      // For arbitrary content types, convert to string safely
-      const safeContent =
-        typeof message.content === "string"
-          ? message.content
-          : safeStringify(message.content);
+  const isHumanMessage = (message: ChatMessage, idx: number) => {
+    return (
+      message.role === ChatMessageRole.User ||
+      (PROVIDERS_WITH_REQUIRED_USER_MESSAGE.includes(modelParams.adapter) &&
+        messages.length === 1) ||
+      ((message.role === ChatMessageRole.System ||
+        message.role === ChatMessageRole.Developer) &&
+        idx > 0)
+    );
+  };
 
-      if (message.role === ChatMessageRole.User)
-        return new HumanMessage(safeContent);
+  const parsedMediaRefByToken = new Map<string, ParsedMediaReferenceType>();
+  let mediaUrlById: Map<string, string> | undefined;
+  if (params.projectId) {
+    for (const [idx, message] of messages.entries()) {
+      if (!isHumanMessage(message, idx)) continue;
+
+      const mediaRefTokenMatches = safeStringify(message.content).matchAll(
+        MEDIA_REFERENCE_PATTERN,
+      );
+
+      for (const [mediaRefToken] of mediaRefTokenMatches) {
+        if (parsedMediaRefByToken.has(mediaRefToken)) continue;
+
+        const parseRes = MediaReferenceStringSchema.safeParse(mediaRefToken);
+        if (parseRes.success)
+          parsedMediaRefByToken.set(mediaRefToken, parseRes.data);
+      }
+    }
+
+    const mediaIds = new Set(
+      [...parsedMediaRefByToken.values()].map(
+        (parsedMediaRef) => parsedMediaRef.id,
+      ),
+    );
+
+    const media =
+      mediaIds.size > 0
+        ? await prisma.media.findMany({
+            select: {
+              id: true,
+              bucketName: true,
+              bucketPath: true,
+            },
+            where: {
+              projectId: params.projectId,
+              id: { in: [...mediaIds] },
+              uploadHttpStatus: { in: [200, 201] },
+            },
+          })
+        : [];
+
+    if (media.length > 0) {
+      mediaUrlById = new Map(
+        await Promise.all(
+          media.map(async (media) => {
+            const storageService = getS3MediaStorageClient(media.bucketName);
+            return [
+              media.id,
+              await storageService.getSignedUrl(media.bucketPath, 60, false),
+            ] as const;
+          }),
+        ),
+      );
+    }
+  }
+
+  const finalMessages = messages
+    .map((message, idx): BaseMessage => {
+      // For arbitrary content types, convert to string safely
+      const safeContent = safeStringify(message.content);
+
+      if (isHumanMessage(message, idx))
+        return new HumanMessage(
+          mediaUrlById
+            ? createHumanMessageContentWithMedia({
+                safeContent,
+                parsedMediaRefByToken,
+                mediaUrlById,
+              })
+            : safeContent,
+        );
+
+      // for idx > 0, these messages are mapped to human messages above
       if (
         message.role === ChatMessageRole.System ||
         message.role === ChatMessageRole.Developer
       )
-        return idx === 0
-          ? new SystemMessage(safeContent)
-          : new HumanMessage(safeContent);
+        return new SystemMessage(safeContent);
 
       if (message.type === ChatMessageType.ToolResult) {
         return new ToolMessage({
@@ -301,12 +365,8 @@ export async function fetchLLMCompletion(
             ? (message.toolCalls as any)
             : undefined,
       });
-    });
-  }
-
-  finalMessages = finalMessages.filter(
-    (m) => m.content.length > 0 || "tool_calls" in m,
-  );
+    })
+    .filter((m) => m.content.length > 0 || "tool_calls" in m);
 
   // Common proxy configuration for all adapters
   const proxyUrl = env.HTTPS_PROXY;
@@ -699,6 +759,80 @@ export async function fetchLLMCompletion(
   } finally {
     await processTracedEvents();
   }
+}
+
+function createHumanMessageContentWithMedia(params: {
+  safeContent: string;
+  parsedMediaRefByToken: Map<string, ParsedMediaReferenceType>;
+  mediaUrlById: Map<string, string>;
+}): string | ContentBlock[] {
+  const { safeContent, parsedMediaRefByToken, mediaUrlById } = params;
+  const mediaRefTokenMatches = [
+    ...safeContent.matchAll(MEDIA_REFERENCE_PATTERN),
+  ];
+  if (mediaRefTokenMatches.length === 0) return safeContent;
+
+  const content: ContentBlock[] = [];
+  let lastIndex = 0;
+  let hasResolvedMedia = false;
+
+  const appendTextContentBlock = (text: string) => {
+    if (text.length === 0) return;
+
+    const previousBlock = content.at(-1);
+    if (
+      previousBlock?.type === "text" &&
+      typeof previousBlock.text === "string"
+    ) {
+      previousBlock.text += text;
+      return;
+    }
+
+    content.push({ type: "text", text });
+  };
+
+  for (const match of mediaRefTokenMatches) {
+    const mediaRefToken = match[0];
+    appendTextContentBlock(safeContent.slice(lastIndex, match.index));
+
+    const parsedMediaRef = parsedMediaRefByToken.get(mediaRefToken);
+    const signedUrl = parsedMediaRef
+      ? mediaUrlById.get(parsedMediaRef.id)
+      : undefined;
+
+    const mediaContentBlock =
+      parsedMediaRef && signedUrl
+        ? createMediaContentBlock(parsedMediaRef, signedUrl)
+        : undefined;
+
+    if (mediaContentBlock) {
+      content.push(mediaContentBlock);
+      hasResolvedMedia = true;
+    } else {
+      appendTextContentBlock(mediaRefToken);
+    }
+
+    lastIndex = match.index + mediaRefToken.length;
+  }
+
+  appendTextContentBlock(safeContent.slice(lastIndex));
+
+  return hasResolvedMedia ? content : safeContent;
+}
+
+function createMediaContentBlock(
+  parsedMediaRef: ParsedMediaReferenceType,
+  signedUrl: string,
+): ContentBlock | undefined {
+  const mimeType = parsedMediaRef.type;
+  if (mimeType.startsWith("image/"))
+    return { type: "image", mimeType, url: signedUrl };
+
+  if (mimeType.startsWith("audio/"))
+    return { type: "audio", mimeType, url: signedUrl };
+
+  if (mimeType.startsWith("video/"))
+    return { type: "video", mimeType, url: signedUrl };
 }
 
 function extractCompletionWithReasoning(
