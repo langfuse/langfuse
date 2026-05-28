@@ -256,8 +256,10 @@ export const listAnnotationQueueItemsForApi = async ({
 }: {
   projectId: string;
 } & GetAnnotationQueueItemsInput) => {
+  // Verify the queue exists
   await getAnnotationQueueRecordOrThrow({ projectId, queueId });
 
+  // Build the where clause based on the query parameters
   const where: {
     projectId: string;
     queueId: string;
@@ -301,6 +303,7 @@ export const getAnnotationQueueItemRecordOrThrow = async ({
 }: {
   projectId: string;
 } & GetAnnotationQueueItemByIdInput) => {
+  // Verify the queue exists
   await getAnnotationQueueRecordOrThrow({ projectId, queueId });
 
   const item = await prisma.annotationQueueItem.findUnique({
@@ -344,9 +347,13 @@ export const createAnnotationQueueItemForApi = async ({
   queueId: string;
   input: CreateAnnotationQueueItemInput;
 } & OptionalAuditScope) => {
+  // Check if the queue exists
   await getAnnotationQueueRecordOrThrow({ projectId, queueId });
 
+  // Create the queue item with status defaulting to PENDING if not provided
   const status = input.status || AnnotationQueueStatus.PENDING;
+
+  // Set completedAt if status is COMPLETED
   const completedAt =
     status === AnnotationQueueStatus.COMPLETED ? new Date() : null;
 
@@ -388,6 +395,7 @@ export const updateAnnotationQueueItemForApi = async ({
   itemId: string;
   input: UpdateAnnotationQueueItemInput;
 } & OptionalAuditScope) => {
+  // Verify the queue and item exist
   const existingItem = await getAnnotationQueueItemRecordOrThrow({
     projectId,
     queueId,
@@ -434,6 +442,7 @@ export const deleteAnnotationQueueItemForApi = async ({
   projectId: string;
 } & DeleteAnnotationQueueItemInput &
   OptionalAuditScope) => {
+  // Verify the queue and item exist
   const existingItem = await getAnnotationQueueItemRecordOrThrow({
     projectId,
     queueId,
@@ -511,7 +520,10 @@ export const createAnnotationQueueAssignmentForApi = async ({
   queueId: string;
   input: CreateAnnotationQueueAssignmentInput;
 } & OptionalAuditScope) => {
+  // Verify the annotation queue exists and belongs to the project
   await getAnnotationQueueRecordOrThrow({ projectId, queueId });
+
+  // Verify the user exists and has access to the project
   await verifyAssignmentUserAccess({ projectId, orgId, userId: input.userId });
 
   const assignmentWhere = {
@@ -520,6 +532,7 @@ export const createAnnotationQueueAssignmentForApi = async ({
     userId: input.userId,
   };
 
+  // Create the assignment while handling duplicates gracefully
   const { count } = await prisma.annotationQueueAssignment.createMany({
     data: [assignmentWhere],
     skipDuplicates: true,
@@ -567,10 +580,12 @@ export const deleteAnnotationQueueAssignmentForApi = async ({
   queueId: string;
   input: DeleteAnnotationQueueAssignmentInput;
 } & OptionalAuditScope) => {
+  // Verify the annotation queue exists and belongs to the project
   await getAnnotationQueueRecordOrThrow({ projectId, queueId });
 
   let assignment;
   try {
+    // Delete the assignment if it exists
     assignment = await prisma.annotationQueueAssignment.delete({
       where: {
         projectId_queueId_userId: {
@@ -581,6 +596,8 @@ export const deleteAnnotationQueueAssignmentForApi = async ({
       },
     });
   } catch (error) {
+    // If the record doesn't exist, that's fine - we still return success.
+    // Only catch NotFound errors, re-throw other errors.
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2025"

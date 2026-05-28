@@ -30,6 +30,7 @@ type GetCommentInput = z.infer<typeof GetCommentV1Query> & {
   projectId: string;
 };
 
+// Exclude inline positioning fields from public API.
 const toPublicComment = (comment: {
   id: string;
   projectId: string;
@@ -86,6 +87,7 @@ export const createCommentForApi = async ({
     throw new LangfuseNotFoundError(result.errorMessage);
   }
 
+  // Create comment with content as-is (no mention processing, no inline positioning).
   const comment = await prisma.comment.create({
     data: {
       content: input.content,

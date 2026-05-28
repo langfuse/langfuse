@@ -229,6 +229,7 @@ export const listDatasetsByProjectForApi = async ({
     includeIO: false,
   });
 
+  // create Map of dataset id to dataset item ids
   const datasetItemIdsMap = new Map<string, string[]>();
   for (const item of datasetItems) {
     datasetItemIdsMap.set(item.datasetId, [
@@ -369,6 +370,7 @@ export const getDatasetItemForApi = async ({
     select: { name: true },
   });
 
+  // Note that we cascade items on delete, so returning a 404 here is expected.
   if (!dataset) {
     throw new LangfuseNotFoundError("Dataset not found");
   }
@@ -417,6 +419,10 @@ export const createDatasetItemForApi = async ({
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2025") {
+        // this case happens when a dataset item was created for a different dataset.
+        // In the database, the uniqueness constraint is on (id, projectId) only.
+        // When this constraint is violated, the database will upsert based on (id, projectId, datasetId).
+        // If this record does not exist, the database will throw an error.
         logger.warn(
           `Failed to upsert dataset item. Dataset item ${input.id} already exists for a different dataset than ${input.datasetName}`,
         );
@@ -426,6 +432,9 @@ export const createDatasetItemForApi = async ({
       }
 
       if (error.code === "P2002") {
+        // Unique constraint violation on (id, projectId, validFrom).
+        // This can happen when concurrent requests try to update the same dataset item
+        // and create versions with the same timestamp.
         logger.warn(
           `Failed to upsert dataset item due to version conflict. Dataset item ${input.id} was modified concurrently.`,
         );
@@ -545,6 +554,7 @@ export const deleteDatasetRunForApi = async ({
   name,
   runName,
 }: DeleteDatasetRunInput) => {
+  // First get the dataset run to check if it exists
   const { dataset: _dataset, ...datasetRun } = await getDatasetRunRecordOrThrow(
     {
       projectId,
@@ -574,6 +584,7 @@ export const deleteDatasetRunForApi = async ({
     before: datasetRun,
   });
 
+  // Trigger async delete of dataset run items
   await addToDeleteDatasetQueue({
     deletionType: "dataset-runs",
     projectId,

@@ -54,6 +54,7 @@ export const createPromptForApi = async ({
       typeof err === "object" &&
       err?.constructor.name === "PrismaClientKnownRequestError" &&
       "code" in err &&
+      // Unique constraint failed: https://www.prisma.io/docs/orm/reference/error-reference#p2002
       err.code === "P2002"
     ) {
       throw new InvalidRequestError(

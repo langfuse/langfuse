@@ -138,6 +138,7 @@ export const createModelForApi = async ({
       );
     }
 
+    // 1. Create model
     const createdModel = await tx.model.create({
       data: {
         ...rest,
@@ -146,8 +147,11 @@ export const createModelForApi = async ({
       },
     });
 
+    // 2. Handle pricing: flat prices OR pricing tiers
     if (tierData && tierData.length > 0) {
+      // NEW: Create pricing tiers
       for (const tier of tierData) {
+        // Create tier (Prisma generates CUID)
         const createdTier = await tx.pricingTier.create({
           data: {
             modelId: createdModel.id,
@@ -158,6 +162,7 @@ export const createModelForApi = async ({
           },
         });
 
+        // Create prices for this tier
         await Promise.all(
           Object.entries(tier.prices).map(([usageType, price]) =>
             tx.price.create({
@@ -173,6 +178,7 @@ export const createModelForApi = async ({
         );
       }
     } else {
+      // BACKWARD COMPATIBLE: Create default tier from flat prices
       const defaultTierId = `${createdModel.id}_tier_default`;
       const defaultTier = await tx.pricingTier.create({
         data: {
@@ -201,7 +207,7 @@ export const createModelForApi = async ({
                 projectId: createdModel.projectId,
                 pricingTierId: defaultTier.id,
                 usageType,
-                price: new Prisma.Decimal(price as number),
+                price: new Prisma.Decimal(price as number), // type guard checked in array filter
               },
             }),
           ),
@@ -221,8 +227,10 @@ export const createModelForApi = async ({
     return createdModel;
   });
 
+  // Clear model cache for the project after successful creation
   await clearModelCacheForProject(projectId);
 
+  // Fetch the created model with pricingTiers relation
   const modelWithTiers = await prisma.model.findUnique({
     where: { id: model.id, projectId },
     include: modelPricingInclude,
@@ -271,6 +279,7 @@ export const deleteModelForApi = async ({
     before: model,
   });
 
+  // Clear model cache for the project after successful deletion
   await clearModelCacheForProject(projectId);
 
   return {

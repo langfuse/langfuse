@@ -45,6 +45,9 @@ export const createDatasetRunItemForApi = async ({
   body: z.infer<typeof PostDatasetRunItemsV1Body>;
   auth: AuthHeaderValidVerificationResultIngestion;
 }) => {
+  /**************
+   * VALIDATION *
+   **************/
   const { traceId, observationId, datasetItemId } = body;
   const projectId = auth.scope.projectId;
 
@@ -66,6 +69,8 @@ export const createDatasetRunItemForApi = async ({
   }
 
   let finalTraceId = traceId;
+
+  // Backwards compatibility: historically, dataset run items were linked to observations, not traces
   if (!traceId && observationId) {
     const observation = await getObservationById({
       id: observationId,
@@ -82,6 +87,9 @@ export const createDatasetRunItemForApi = async ({
     throw new LangfuseNotFoundError("Trace not found");
   }
 
+  /****************
+   * RUN CREATION *
+   ****************/
   const metadata = {
     ...(body.metadata ? resolveMetadata(body.metadata) : {}),
     ...(body.datasetVersion
@@ -100,6 +108,10 @@ export const createDatasetRunItemForApi = async ({
   });
 
   const runItemId = v4();
+
+  /*********************
+   * RUN ITEM CREATION *
+   *********************/
   const event = {
     id: runItemId,
     type: eventTypes.DATASET_RUN_ITEM_CREATE,
@@ -117,6 +129,7 @@ export const createDatasetRunItemForApi = async ({
     },
   };
 
+  // note: currently we do not accept user defined ids for dataset run items
   const ingestionResult = await processEventBatch([event], auth, {
     isLangfuseInternal: true,
   });
@@ -148,6 +161,9 @@ export const createDatasetRunItemForApi = async ({
     throw new Error("Failed to create dataset run item");
   }
 
+  /***********************
+   * ASYNC RUN ITEM EVAL *
+   ***********************/
   await addDatasetRunItemsToEvalQueue({
     projectId,
     datasetItemId: datasetItem.id,
@@ -183,6 +199,9 @@ export const listDatasetRunItemsForApi = async ({
   limit: number;
   page: number;
 }) => {
+  /**************
+   * VALIDATION *
+   **************/
   const datasetRun = await prisma.datasetRuns.findUnique({
     where: {
       datasetId_projectId_name: {
@@ -200,6 +219,9 @@ export const listDatasetRunItemsForApi = async ({
     );
   }
 
+  /************
+   * RESPONSE *
+   ************/
   const [items, count] = await Promise.all([
     generateDatasetRunItemsForPublicApi({
       props: {
