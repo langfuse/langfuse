@@ -31,8 +31,8 @@ export default function AutomationsPage() {
   const projectId = router.query.projectId as string;
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
   const [showSecretDialog, setShowSecretDialog] = useState(false);
-  /** pendingRedirectUrl defers a same-origin redirect (decoded from the prefill blob) until after the webhook-secret dialog is dismissed. */
-  const [pendingRedirectUrl, setPendingRedirectUrl] = useState<string | null>(
+  /** pendingAutomationId is the id to select once the webhook-secret dialog dismisses, when no prefill.redirectUrl is set. */
+  const [pendingAutomationId, setPendingAutomationId] = useState<string | null>(
     null,
   );
 
@@ -170,22 +170,40 @@ export default function AutomationsPage() {
     });
   };
 
-  /** dismissSecretDialog clears the dialog + secret state and fires any pending same-origin redirect; shared by the X / Escape close path and the explicit "I've saved the secret" button. */
+  /** finishFlow returns the user to parsedPrefill.redirectUrl when present; otherwise invokes the caller-supplied fallback, defaulting to the automations list view with no selection. */
+  const finishFlow = useCallback(
+    (fallback?: () => void) => {
+      if (parsedPrefill.redirectUrl) {
+        void router.push(parsedPrefill.redirectUrl);
+        return;
+      }
+      if (fallback) {
+        fallback();
+      } else {
+        navigateWithoutHistory({ view: "list" });
+      }
+    },
+    [parsedPrefill.redirectUrl, router, navigateWithoutHistory],
+  );
+
+  /** selectAutomationFallback navigates back to the automations list with the given id selected; used as the fallback after a successful create when no redirectUrl is set. */
+  const selectAutomationFallback = (id: string) => () =>
+    navigateWithoutHistory({
+      view: "list",
+      automationId: id,
+      tab: urlParams.tab,
+    });
+
   const dismissSecretDialog = () => {
     setShowSecretDialog(false);
     setWebhookSecret(null);
-    if (pendingRedirectUrl) {
-      const target = pendingRedirectUrl;
-      setPendingRedirectUrl(null);
-      void router.push(target);
-    }
+    const id = pendingAutomationId;
+    setPendingAutomationId(null);
+    finishFlow(id ? selectAutomationFallback(id) : undefined);
   };
 
   const handleReturnToList = () => {
-    // Use router.replace to avoid creating history entry when canceling
-    navigateWithoutHistory({
-      view: "list",
-    });
+    finishFlow();
   };
 
   const handleCreateSuccess = (
@@ -193,33 +211,16 @@ export default function AutomationsPage() {
     webhookSecret?: string,
     actionType?: "WEBHOOK" | "GITHUB_DISPATCH",
   ) => {
-    /** Honor a same-origin redirectUrl baked into the prefill, deferring it past the webhook-secret dialog when present so the user can copy the secret first. */
-    const redirectUrl = parsedPrefill.redirectUrl ?? null;
-
     if (webhookSecret && actionType === "WEBHOOK") {
       setWebhookSecret(webhookSecret);
       setShowSecretDialog(true);
-      if (redirectUrl) {
-        setPendingRedirectUrl(redirectUrl);
-        return;
-      }
-    } else if (redirectUrl) {
-      void router.push(redirectUrl);
+      setPendingAutomationId(automationId ?? null);
       return;
     }
 
-    // Navigate to the newly created automation detail page without history entry
-    if (automationId) {
-      navigateWithoutHistory({
-        view: "list",
-        automationId,
-        tab: urlParams.tab,
-      });
-    } else {
-      navigateWithoutHistory({
-        view: "list",
-      });
-    }
+    finishFlow(
+      automationId ? selectAutomationFallback(automationId) : undefined,
+    );
   };
 
   const handleEditSuccess = () => {
