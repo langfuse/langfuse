@@ -9,12 +9,10 @@ import {
   getTriggerConfigurations,
   type TriggerDomainWithActions,
 } from "../../../server/repositories/automation-repository";
+import type { WebhookInput } from "../../../server/queues";
 import { executeQuery } from "../../query/server/queryExecutor";
 import type { QueryType } from "../../query/types";
-import type {
-  MonitorQueueEvent,
-  MonitorWebhookQueueEvent,
-} from "../scheduler/types";
+import type { MonitorQueueEvent } from "../scheduler/types";
 import { windowToMs } from "../service/helpers";
 import type {
   MonitorAlert,
@@ -44,10 +42,8 @@ export type MonitorCompletion = {
   alertedAt: Date | null;
 };
 
-/** MonitorPublisher publishes one MonitorWebhookQueueEvent per surviving Monitor alert; wired up by the worker. */
-export type MonitorPublisher = (
-  event: MonitorWebhookQueueEvent,
-) => Promise<void>;
+/** MonitorPublisher pushes one fully-built WebhookInput per (alert × matched-trigger) onto WebhookQueue. The processor owns the fan-out — the callback is a thin queue.add boundary. */
+export type MonitorPublisher = (input: WebhookInput) => Promise<void>;
 
 /** MonitorQueryExecutor runs the scalar-shape ClickHouse query for a monitor evaluation; injected so tests can fake CH responses. */
 export type MonitorQueryExecutor = (
@@ -146,7 +142,7 @@ export class MonitorProcessor {
     );
 
     const completions: MonitorCompletion[] = [];
-    const alertsToPublish: MonitorWebhookQueueEvent[] = [];
+    const publishInputs: WebhookInput[] = [];
     for (const row of rows) {
       const eventMonitor = metricByMonitor.get(row.id);
       const lastClaimedAt = claimedAtById.get(row.id);
@@ -183,20 +179,33 @@ export class MonitorProcessor {
         event,
       });
       const filterData = toFilterData(row, alert);
-      const matched = triggers.some((t) => matchesTriggerFilter(filterData, t));
-      if (!matched) continue;
-      alertsToPublish.push({
-        id: randomUUID(),
-        timestamp: now,
-        type: "monitor-alert",
-        apiVersion: "v1",
-        payload: alert,
-      });
+      // Fan out: one publish per (matched trigger × automation under it). The
+      // 1:1 trigger:automation invariant means automations[] is length 1 in
+      // practice, but iterating respects the data model.
+      for (const trigger of triggers.filter((t) =>
+        matchesTriggerFilter(filterData, t),
+      )) {
+        for (const automation of trigger.automations) {
+          const executionId = randomUUID();
+          publishInputs.push({
+            projectId: alert.projectId,
+            automationId: automation.id,
+            executionId,
+            payload: {
+              id: executionId,
+              timestamp: now,
+              type: "monitor-alert",
+              apiVersion: "v1",
+              payload: alert,
+            },
+          });
+        }
+      }
     }
 
     // RFC step 9: publish before complete so a tx failure prefers double-alert over lost-alert.
-    for (const alertEvent of alertsToPublish) {
-      await this.publish(alertEvent);
+    for (const input of publishInputs) {
+      await this.publish(input);
     }
     await this.complete({ projectId: event.projectId, completions });
   }
@@ -339,10 +348,12 @@ function synthesizeAlertMessage(args: {
   window: MonitorWindow;
 }): { title: string; body: string } {
   const title = `[${args.severity}] ${args.monitorName}`;
-  const metricRef = `${args.aggregation}(${args.view}.${args.measure})`;
+  // Standard markdown: `code` and **bold**. The Slack message builder runs
+  // this through slackify-markdown; webhook/GH consumers see standard markdown.
+  const metricRef = `\`${args.aggregation}(${args.view}.${args.measure})\``;
   let body: string;
   if (args.severity === "NO_DATA") {
-    body = `${metricRef} has no data over the last ${args.window}`;
+    body = `${metricRef} has no data over the last **${args.window}**`;
   } else if (args.prevSeverity === "NO_DATA" && args.severity === "OK") {
     body = `${metricRef} has data again`;
   } else if (args.severity === "OK") {
@@ -354,7 +365,7 @@ function synthesizeAlertMessage(args: {
       args.alertThreshold,
       args.warningThreshold,
     );
-    body = `${metricRef} is ${operatorWord(args.thresholdOperator)} ${threshold}`;
+    body = `${metricRef} is **${operatorWord(args.thresholdOperator)}** \`${threshold}\``;
   }
   return { title, body };
 }

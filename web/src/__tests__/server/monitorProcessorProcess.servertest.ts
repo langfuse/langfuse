@@ -47,6 +47,7 @@ type MonitorSeed = { id: string } & SeedOverrides;
 type TriggerSeed = {
   filter: { column: string; operator: string; value: unknown; type: string }[];
   eventActions?: string[];
+  automations?: { id: string; actionId: string }[];
 };
 
 type ExpectedRow = {
@@ -75,6 +76,7 @@ type ProcessCase = {
     throws?: string;
     publishCallCount: number;
     publishMatch?: Record<string, unknown>;
+    publishCallsMatch?: Record<string, unknown>[];
     rows: ExpectedRow[];
   };
 };
@@ -274,17 +276,22 @@ const cases: ProcessCase[] = [
     expect: {
       publishCallCount: 1,
       publishMatch: {
-        type: "monitor-alert",
-        version: "v1",
+        projectId: expect.any(String),
+        automationId: expect.any(String),
+        executionId: expect.any(String),
         payload: {
-          monitorId: monitorAId,
-          severity: "ALERT",
-          message: {
-            title: `[ALERT] Test ${monitorAId}`,
-            body: "count(observations.count) is above 100",
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: {
+            monitorId: monitorAId,
+            severity: "ALERT",
+            message: {
+              title: `[ALERT] Test ${monitorAId}`,
+              body: "`count(observations.count)` is **above** `100`",
+            },
+            view: "observations",
+            window: "5m",
           },
-          view: "observations",
-          window: "5m",
         },
       },
       rows: [
@@ -568,8 +575,12 @@ const cases: ProcessCase[] = [
       publishCallCount: 1,
       publishMatch: {
         payload: {
-          monitorId: monitorBId,
-          severity: "ALERT",
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: {
+            monitorId: monitorBId,
+            severity: "ALERT",
+          },
         },
       },
       rows: [
@@ -585,6 +596,107 @@ const cases: ProcessCase[] = [
         // claimable: fully processed
         {
           id: monitorBId,
+          severity: "ALERT",
+          severityChangedAt: justAfterRunAt,
+          alertedAt: justAfterRunAt,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: justAfterRunAt,
+        },
+      ],
+    },
+  },
+  {
+    name: "fan-out: 2 matching triggers → 2 publish calls, distinct executionIds + automationIds",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "UNKNOWN",
+        lastPublishedAt: runAt,
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [
+      {
+        ...matchAnyAlertTrigger,
+        automations: [{ id: "auto_fan_a", actionId: "act_fan_a" }],
+      },
+      {
+        ...matchAnyAlertTrigger,
+        automations: [{ id: "auto_fan_b", actionId: "act_fan_b" }],
+      },
+    ],
+    expect: {
+      publishCallCount: 2,
+      publishCallsMatch: [
+        {
+          automationId: "auto_fan_a",
+          payload: {
+            type: "monitor-alert",
+            apiVersion: "v1",
+            payload: { monitorId: monitorAId, severity: "ALERT" },
+          },
+        },
+        {
+          automationId: "auto_fan_b",
+          payload: {
+            type: "monitor-alert",
+            apiVersion: "v1",
+            payload: { monitorId: monitorAId, severity: "ALERT" },
+          },
+        },
+      ],
+      rows: [
+        {
+          id: monitorAId,
+          severity: "ALERT",
+          severityChangedAt: justAfterRunAt,
+          alertedAt: justAfterRunAt,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: justAfterRunAt,
+        },
+      ],
+    },
+  },
+  {
+    name: "fan-out: 1 matched + 1 rejected → 1 publish for matched trigger",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "UNKNOWN",
+        lastPublishedAt: runAt,
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [
+      {
+        ...matchAnyAlertTrigger,
+        automations: [{ id: "auto_match", actionId: "act_match" }],
+      },
+      {
+        filter: [
+          {
+            column: "severity",
+            operator: "any of",
+            value: ["WARNING"],
+            type: "stringOptions",
+          },
+        ],
+        automations: [{ id: "auto_reject", actionId: "act_reject" }],
+      },
+    ],
+    expect: {
+      publishCallCount: 1,
+      publishMatch: {
+        automationId: "auto_match",
+        payload: {
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: { monitorId: monitorAId, severity: "ALERT" },
+        },
+      },
+      rows: [
+        {
+          id: monitorAId,
           severity: "ALERT",
           severityChangedAt: justAfterRunAt,
           alertedAt: justAfterRunAt,
@@ -629,10 +741,14 @@ describe("MonitorProcessor.process (integration)", () => {
       if (c.injectError?.stage === "getTriggers") {
         throw new Error(c.injectError.message);
       }
-      // matchesTriggerFilter only reads filter + eventActions; cast minimal seeds.
-      return (c.triggers ?? []).map((t) => ({
+      // matchesTriggerFilter only reads filter + eventActions; processor
+      // iterates `automations` for fan-out. Cast minimal seeds.
+      return (c.triggers ?? []).map((t, i) => ({
         filter: t.filter,
         eventActions: t.eventActions ?? [],
+        automations: t.automations ?? [
+          { id: `auto_default_${i}`, actionId: `act_default_${i}` },
+        ],
       })) as unknown as Awaited<ReturnType<MonitorTriggerLoader>>;
     };
 
@@ -665,6 +781,30 @@ describe("MonitorProcessor.process (integration)", () => {
     expect(publish).toHaveBeenCalledTimes(c.expect.publishCallCount);
     if (c.expect.publishMatch && c.expect.publishCallCount > 0) {
       expect(publish.mock.calls[0][0]).toMatchObject(c.expect.publishMatch);
+    }
+    if (c.expect.publishCallsMatch) {
+      // Match each expected entry against any actual publish call using
+      // toMatchObject semantics (deep-partial). Order-independent.
+      const actual = publish.mock.calls.map((args) => args[0]);
+      for (const expected of c.expect.publishCallsMatch) {
+        const found = actual.some((call) => {
+          try {
+            expect(call).toMatchObject(expected);
+            return true;
+          } catch {
+            return false;
+          }
+        });
+        expect(
+          found,
+          `no publish call matched ${JSON.stringify(expected)}`,
+        ).toBe(true);
+      }
+      // Assert distinct executionIds across calls.
+      const executionIds = actual.map(
+        (a) => (a as { executionId: string }).executionId,
+      );
+      expect(new Set(executionIds).size).toBe(executionIds.length);
     }
 
     for (const exp of c.expect.rows) {
