@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { matchesTriggerFilter } from "./automations";
+import { TriggerEventSource } from "../domain/automations";
 import type { FilterState } from "../types";
 
 describe("matchesTriggerFilter", () => {
@@ -8,7 +9,12 @@ describe("matchesTriggerFilter", () => {
       expect(
         matchesTriggerFilter(
           { Name: "anything", triggerIds: ["trig-test"] },
-          { triggerId: "trig-test", filter: [], eventActions: [] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter: [],
+            eventActions: [],
+          },
         ),
       ).toBe(true);
     });
@@ -20,7 +26,12 @@ describe("matchesTriggerFilter", () => {
       expect(
         matchesTriggerFilter(
           { Name: "p95", triggerIds: ["trig-test"] },
-          { triggerId: "trig-test", filter, eventActions: [] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter,
+            eventActions: [],
+          },
         ),
       ).toBe(true);
     });
@@ -32,7 +43,12 @@ describe("matchesTriggerFilter", () => {
       expect(
         matchesTriggerFilter(
           { Name: "error rate", triggerIds: ["trig-test"] },
-          { triggerId: "trig-test", filter, eventActions: [] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter,
+            eventActions: [],
+          },
         ),
       ).toBe(false);
     });
@@ -44,7 +60,12 @@ describe("matchesTriggerFilter", () => {
       expect(
         matchesTriggerFilter(
           { triggerIds: ["trig-test"] },
-          { triggerId: "trig-test", filter, eventActions: [] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter,
+            eventActions: [],
+          },
         ),
       ).toBe(false);
     });
@@ -56,7 +77,8 @@ describe("matchesTriggerFilter", () => {
         matchesTriggerFilter(
           { action: "created", triggerIds: ["trig-test"] },
           {
-            triggerId: "trig-test",
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
             filter: [],
             eventActions: ["created", "updated"],
           },
@@ -69,7 +91,8 @@ describe("matchesTriggerFilter", () => {
         matchesTriggerFilter(
           { action: "deleted", triggerIds: ["trig-test"] },
           {
-            triggerId: "trig-test",
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
             filter: [],
             eventActions: ["created", "updated"],
           },
@@ -81,7 +104,12 @@ describe("matchesTriggerFilter", () => {
       expect(
         matchesTriggerFilter(
           { triggerIds: ["trig-test"] },
-          { triggerId: "trig-test", filter: [], eventActions: ["created"] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter: [],
+            eventActions: ["created"],
+          },
         ),
       ).toBe(false);
     });
@@ -91,7 +119,12 @@ describe("matchesTriggerFilter", () => {
       expect(
         matchesTriggerFilter(
           { action: "anything", triggerIds: ["trig-test"] },
-          { triggerId: "trig-test", filter: [], eventActions: [] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter: [],
+            eventActions: [],
+          },
         ),
       ).toBe(true);
     });
@@ -104,7 +137,12 @@ describe("matchesTriggerFilter", () => {
       expect(
         matchesTriggerFilter(
           { Name: "p95", action: "created", triggerIds: ["trig-test"] },
-          { triggerId: "trig-test", filter, eventActions: ["created"] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter,
+            eventActions: ["created"],
+          },
         ),
       ).toBe(true);
 
@@ -112,7 +150,12 @@ describe("matchesTriggerFilter", () => {
       expect(
         matchesTriggerFilter(
           { Name: "p95", action: "updated", triggerIds: ["trig-test"] },
-          { triggerId: "trig-test", filter, eventActions: ["created"] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter,
+            eventActions: ["created"],
+          },
         ),
       ).toBe(false);
 
@@ -120,27 +163,42 @@ describe("matchesTriggerFilter", () => {
       expect(
         matchesTriggerFilter(
           { Name: "other", action: "created", triggerIds: ["trig-test"] },
-          { triggerId: "trig-test", filter, eventActions: ["created"] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter,
+            eventActions: ["created"],
+          },
         ),
       ).toBe(false);
     });
   });
 
-  describe("matchesTriggerFilter — synthetic triggerIds clause", () => {
-    it("matches when data.triggerIds contains trigger.triggerId", () => {
+  describe("synthetic triggerIds clause (monitor-source only)", () => {
+    it("matches when data.triggerIds contains trigger.id", () => {
       expect(
         matchesTriggerFilter(
           { triggerIds: ["trig-test"] },
-          { triggerId: "trig-test", filter: [], eventActions: [] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter: [],
+            eventActions: [],
+          },
         ),
       ).toBe(true);
     });
 
-    it("rejects when data.triggerIds does not contain trigger.triggerId", () => {
+    it("rejects when data.triggerIds does not contain trigger.id", () => {
       expect(
         matchesTriggerFilter(
           { triggerIds: ["other-trigger"] },
-          { triggerId: "trig-test", filter: [], eventActions: [] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter: [],
+            eventActions: [],
+          },
         ),
       ).toBe(false);
     });
@@ -149,7 +207,12 @@ describe("matchesTriggerFilter", () => {
       expect(
         matchesTriggerFilter(
           { triggerIds: [] },
-          { triggerId: "trig-test", filter: [], eventActions: [] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter: [],
+            eventActions: [],
+          },
         ),
       ).toBe(false);
     });
@@ -158,7 +221,12 @@ describe("matchesTriggerFilter", () => {
       expect(
         matchesTriggerFilter(
           {},
-          { triggerId: "trig-test", filter: [], eventActions: [] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter: [],
+            eventActions: [],
+          },
         ),
       ).toBe(false);
     });
@@ -170,7 +238,12 @@ describe("matchesTriggerFilter", () => {
       expect(
         matchesTriggerFilter(
           { Name: "error rate", triggerIds: ["trig-test"] },
-          { triggerId: "trig-test", filter, eventActions: [] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter,
+            eventActions: [],
+          },
         ),
       ).toBe(false);
     });
@@ -182,7 +255,28 @@ describe("matchesTriggerFilter", () => {
       expect(
         matchesTriggerFilter(
           { Name: "p95", triggerIds: ["trig-test"] },
-          { triggerId: "trig-test", filter, eventActions: [] },
+          {
+            id: "trig-test",
+            eventSource: TriggerEventSource.Monitor,
+            filter,
+            eventActions: [],
+          },
+        ),
+      ).toBe(true);
+    });
+
+    it("skips the triggerIds clause for prompt-source triggers so prompt data without triggerIds still matches", () => {
+      // Regression: prompt automations do not carry a triggerIds field on the
+      // event data, so the synthetic clause must not gate them.
+      expect(
+        matchesTriggerFilter(
+          { Name: "my-prompt", action: "created" },
+          {
+            id: "trig-prompt",
+            eventSource: TriggerEventSource.Prompt,
+            filter: [],
+            eventActions: ["created"],
+          },
         ),
       ).toBe(true);
     });

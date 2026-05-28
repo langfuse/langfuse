@@ -82,6 +82,7 @@ function EditMonitorPageContent() {
         renotify: data.renotify,
         name: data.name,
         tags: data.tags,
+        triggerIds: data.triggerIds,
         status: nextStatus,
       },
       {
