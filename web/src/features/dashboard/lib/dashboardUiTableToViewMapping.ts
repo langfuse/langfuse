@@ -64,14 +64,12 @@ const viewFilterDefinitions: Record<
 > = {
   traces: [
     defineField("name", sourceSpec("Trace Name", { uiTableId: "traceName" })),
-    defineField(
-      "observationName",
-      sourceSpec("Observation Name", { uiTableId: "observationName" }),
-    ),
+    // observationName intentionally omitted: traces:observations is 1:n and traceView has no
+    // observationName dimension.
     // scoreName intentionally omitted: traces:scores is 1:n, and traceView has
-    // no scoreName dimension. The legacy *Name->name fallback would silently
-    // rewrite this to traces.name (LFE-9773). Filter on the scores-numeric /
-    // scores-categorical views instead.
+    // no scoreName dimension.
+    // The legacy *Name->name fallback would silently rewrite this to traces.name.
+    // Filter on the scores-numeric / scores-categorical views instead.
     defineField("tags", sourceSpec("Tags", { uiTableId: "traceTags" })),
     defineField(
       "userId",
