@@ -39,11 +39,19 @@ export default function ListMonitorsPage() {
     { projectId: projectId ?? "" },
     { enabled: !!projectId },
   );
-  const showOnboarding = monitorsHasAnyQuery.data === false;
+  const showOnboarding =
+    monitorsHasAnyQuery.isSuccess && monitorsHasAnyQuery.data === false;
 
   return (
     <MonitorPagePermissions scope="monitors:read">
-      {showOnboarding && projectId ? (
+      {!monitorsHasAnyQuery.isSuccess ? (
+        // Hold both branches off the screen until hasAny resolves so the
+        // empty-project flow doesn't flash the table loading skeleton before
+        // swapping to the onboarding splash.
+        <Page headerProps={{ title: "Monitors", help: monitorsPageHelp }}>
+          {null}
+        </Page>
+      ) : showOnboarding && projectId ? (
         <Page headerProps={{ title: "Monitors", help: monitorsPageHelp }}>
           <MonitorsOnboarding projectId={projectId} />
         </Page>
