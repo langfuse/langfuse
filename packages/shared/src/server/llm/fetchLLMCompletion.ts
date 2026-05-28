@@ -74,6 +74,16 @@ const NON_RETRYABLE_LLM_ERROR_PATTERNS = [
   "Unterminated string in JSON at position",
   "TypeError",
   "reached the end of its life",
+  // secureLlmFetch validation failures: synchronous, status-less errors that
+  // would otherwise default to 500 + retryable and burn the eval-retry budget
+  // on permanent config or redirect-target failures.
+  "Only HTTP and HTTPS protocols are allowed",
+  "Only HTTPS base URLs are allowed",
+  "Blocked hostname detected",
+  "Blocked IP address detected",
+  "Redirect validation failed",
+  "Maximum redirects",
+  "Circular redirect detected",
 ] as const;
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
