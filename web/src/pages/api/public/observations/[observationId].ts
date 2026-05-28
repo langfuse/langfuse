@@ -24,6 +24,7 @@ export default withMiddlewares(
       allowInAppAgentKey: true,
       querySchema: GetObservationV1Query,
       responseSchema: GetObservationV1Response,
+      rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
         // Use events table if query parameter is explicitly set, otherwise use environment variable
         const useEventsTable =

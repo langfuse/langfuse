@@ -21,10 +21,7 @@ type ServiceClickhouseSettings = {
  * Remove these once we remove corresponding variables
  */
 const EVENTS_TABLE_READ_PATH_ENV_KEYS = [
-  "LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS",
-  "LANGFUSE_ENABLE_EVENTS_TABLE_UI",
-  "LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS",
-  "LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS",
+  "LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN",
 ] as const;
 
 /**

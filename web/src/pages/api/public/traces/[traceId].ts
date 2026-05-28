@@ -34,6 +34,7 @@ export default withMiddlewares(
       name: "Get Single Trace",
       querySchema: GetTraceV1Query,
       responseSchema: GetTraceV1Response,
+      rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
         const { traceId } = query;
 

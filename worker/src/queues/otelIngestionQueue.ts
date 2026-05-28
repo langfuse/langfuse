@@ -24,7 +24,12 @@ import {
   applyIngestionMasking,
   isIngestionMaskingEnabled,
 } from "@langfuse/shared/src/server/ee/ingestionMasking";
-import { env, v4ForceDirectOtelWrite, v4WritesToEventsTable } from "../env";
+import {
+  env,
+  v4ForceDirectOtelWrite,
+  v4WritesToEventsTable,
+  v4WritesToLegacyTables,
+} from "../env";
 import { IngestionService } from "../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
@@ -402,36 +407,51 @@ export const otelIngestionQueueProcessorBuilder = (
         path: writePath,
       });
 
-      const shouldForwardToEventsTable =
-        !useDirectEventWrite && v4WritesToEventsTable(env);
+      // V4 events_only mode: skip the legacy traces/observations write paths.
+      // The direct events_full write below is the sole destination — env
+      // validation already guarantees useDirectEventWrite is true here, so
+      // observations and traces don't need the mergeAndWrite / IngestionQueue
+      // detour that would otherwise populate the legacy tables.
+      const skipLegacyWrites = !v4WritesToLegacyTables(env);
 
-      // Running everything concurrently might be detrimental to the event loop, but has probably
-      // the highest possible throughput. Therefore, we start with a Promise.all.
-      // If necessary, we may use a for each instead.
+      if (skipLegacyWrites) {
+        span?.setAttribute(
+          "langfuse.ingestion.otel.skipped_legacy_writes",
+          true,
+        );
+        recordIncrement("langfuse.ingestion.otel.skipped_legacy_writes", 1);
+      } else {
+        const shouldForwardToEventsTable =
+          !useDirectEventWrite && v4WritesToEventsTable(env);
 
-      // Process observations via mergeAndWrite
-      const observationWritePromise = Promise.all(
-        observations.map((observation) =>
-          ingestionService.mergeAndWrite(
-            getClickhouseEntityType(observation.type),
-            auth.scope.projectId,
-            observation.body.id || "", // id is always defined for observations
-            new Date(), // Use the current timestamp as event time
-            [observation],
-            shouldForwardToEventsTable,
+        // Running everything concurrently might be detrimental to the event loop, but has probably
+        // the highest possible throughput. Therefore, we start with a Promise.all.
+        // If necessary, we may use a for each instead.
+
+        // Process observations via mergeAndWrite
+        const observationWritePromise = Promise.all(
+          observations.map((observation) =>
+            ingestionService.mergeAndWrite(
+              getClickhouseEntityType(observation.type),
+              auth.scope.projectId,
+              observation.body.id || "", // id is always defined for observations
+              new Date(), // Use the current timestamp as event time
+              [observation],
+              shouldForwardToEventsTable,
+            ),
           ),
-        ),
-      );
+        );
 
-      // Process traces and observations concurrently
-      await Promise.all([
-        observationWritePromise,
-        processEventBatch(traces, auth, {
-          delay: 0,
-          source: "otel",
-          forwardToEventsTable: shouldForwardToEventsTable,
-        }),
-      ]);
+        // Process traces and observations concurrently
+        await Promise.all([
+          observationWritePromise,
+          processEventBatch(traces, auth, {
+            delay: 0,
+            source: "otel",
+            forwardToEventsTable: shouldForwardToEventsTable,
+          }),
+        ]);
+      }
 
       // Process events for observation evals and direct event writes
       // This phase handles two independent concerns:

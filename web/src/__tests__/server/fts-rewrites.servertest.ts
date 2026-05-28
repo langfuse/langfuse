@@ -9,7 +9,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 const maybeEventsTable =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 

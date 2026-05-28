@@ -28,6 +28,7 @@ export default withMiddlewares(
       allowInAppAgentKey: true,
       querySchema: GetObservationsV1Query,
       responseSchema: GetObservationsV1Response,
+      rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
         const filterProps = {
           projectId: auth.scope.projectId,

@@ -424,6 +424,13 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: z
       .enum(["true", "false"])
       .default("false"),
+    // V4 write mode. Mirrors worker/src/env.ts so the web package can gate
+    // public API routes that rely on the legacy traces/observations tables.
+    // The worker owns the writes; the web only needs to know whether legacy
+    // tables are still being populated to decide whether to serve reads.
+    LANGFUSE_MIGRATION_V4_WRITE_MODE: z
+      .enum(["legacy", "dual", "events_only"])
+      .default("legacy"),
 
     // Blocked users for chat completion API (userId:reason format)
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
@@ -836,6 +843,8 @@ export const env = createEnv({
       process.env.LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS,
     LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN:
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
+    LANGFUSE_MIGRATION_V4_WRITE_MODE:
+      process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
       process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },
