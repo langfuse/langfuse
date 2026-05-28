@@ -1,10 +1,16 @@
 import {
-  type FilterState,
+  type EventsTableFilterCondition,
+  type FilterCondition,
   singleFilter,
   type SingleValueOption,
 } from "@langfuse/shared";
 import { encodeDelimitedArray, decodeDelimitedArray } from "use-query-params";
 import { normalizeLegacySessionPositionInTraceKey } from "@/src/components/session/session-position-in-trace";
+import type { z } from "zod";
+
+type DecodableFilter = FilterCondition | EventsTableFilterCondition;
+type FilterSchema<TFilter extends DecodableFilter = FilterCondition> =
+  z.ZodType<TFilter>;
 
 // Escape pipe characters in values to avoid conflicts with the delimiter
 // Uses backslash escaping: | → \|, and \ → \\
@@ -56,7 +62,11 @@ export function computeSelectedValues(
     | undefined,
 ): string[] {
   if (!filterEntry) return availableValues;
-  const values = (filterEntry.value as string[]) ?? [];
+  const values = Array.isArray(filterEntry.value)
+    ? filterEntry.value.filter(
+        (value): value is string => typeof value === "string",
+      )
+    : [];
   if (filterEntry.type === "arrayOptions") {
     return values;
   }
@@ -73,19 +83,15 @@ export function computeSelectedValues(
  * Multiple filters separated by commas
  * Array values joined with |
  */
-export function encodeFiltersGeneric(filters: FilterState): string {
+export function encodeFiltersGeneric<TFilter extends DecodableFilter>(
+  filters: TFilter[],
+): string {
   return (
     encodeDelimitedArray(
       filters
         .map((f) => {
           // Determine the key field (for categoryOptions, numberObject, stringObject)
-          const key =
-            f.type === "numberObject" ||
-            f.type === "stringObject" ||
-            f.type === "categoryOptions" ||
-            f.type === "positionInTrace"
-              ? (f as any).key || ""
-              : "";
+          const key = "key" in f && typeof f.key === "string" ? f.key : "";
 
           // Encode the value
           let encodedValue: string;
@@ -97,7 +103,11 @@ export function encodeFiltersGeneric(filters: FilterState): string {
             f.type === "categoryOptions"
           ) {
             // Escape pipe characters in individual values before joining with pipe delimiter
-            const escapedValues = (f.value as string[]).map(escapePipeInValue);
+            const escapedValues = Array.isArray(f.value)
+              ? f.value
+                  .filter((value): value is string => typeof value === "string")
+                  .map(escapePipeInValue)
+              : [];
             encodedValue = encodeURIComponent(escapedValues.join("|"));
           } else if (f.type === "positionInTrace") {
             encodedValue =
@@ -120,13 +130,22 @@ export function encodeFiltersGeneric(filters: FilterState): string {
  * Decodes the legacy semicolon-delimited format to FilterState
  * Format: column;type;key;operator;value
  */
-export function decodeFiltersGeneric(query: string): FilterState {
+export function decodeFiltersGeneric(query: string): FilterCondition[];
+export function decodeFiltersGeneric<TFilter extends DecodableFilter>(
+  query: string,
+  filterSchema: FilterSchema<TFilter>,
+): TFilter[];
+export function decodeFiltersGeneric<TFilter extends DecodableFilter>(
+  query: string,
+  filterSchema?: FilterSchema<TFilter>,
+): DecodableFilter[] {
   if (!query.trim()) return [];
 
   const decoded = decodeDelimitedArray(query, ",");
   if (!decoded) return [];
 
-  const filters: FilterState = [];
+  const filters: DecodableFilter[] = [];
+  const schema = filterSchema ?? singleFilter;
 
   for (const filterString of decoded) {
     if (!filterString) continue;
@@ -146,7 +165,7 @@ export function decodeFiltersGeneric(query: string): FilterState {
     const decodedValue = decodeURIComponent(encodedValue);
 
     // Parse value based on type
-    let parsedValue: any;
+    let parsedValue: unknown;
     if (type === "datetime") {
       parsedValue = new Date(decodedValue);
     } else if (type === "number" || type === "numberObject") {
@@ -173,7 +192,7 @@ export function decodeFiltersGeneric(query: string): FilterState {
     }
 
     // Build filter object
-    const filter: any = {
+    const filter: Record<string, unknown> = {
       column,
       type,
       operator: decodedOperator,
@@ -193,7 +212,7 @@ export function decodeFiltersGeneric(query: string): FilterState {
     }
 
     // Validate with zod
-    const parsed = singleFilter.safeParse(filter);
+    const parsed = schema.safeParse(filter);
     if (parsed.success) {
       filters.push(parsed.data);
     } else {

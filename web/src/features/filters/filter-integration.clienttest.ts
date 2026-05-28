@@ -9,6 +9,7 @@ import {
   type ColumnDefinition,
   tracesTableCols,
   observationsTableCols,
+  eventsTableSingleFilter,
 } from "@langfuse/shared";
 import {
   encodeFiltersGeneric,
@@ -156,6 +157,26 @@ describe("Filter Query Encoding Integration (Full URL Lifecycle)", () => {
         value: true,
       },
     ]);
+  });
+
+  it("should use a supplied schema while decoding filters", () => {
+    const query = "metadata;stringObject;topic;matches;needle";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      expect(decodeFiltersGeneric(query)).toEqual([]);
+      expect(decodeFiltersGeneric(query, eventsTableSingleFilter)).toEqual([
+        {
+          column: "metadata",
+          type: "stringObject",
+          key: "topic",
+          operator: "matches",
+          value: "needle",
+        },
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("should handle URL-unsafe characters and edge cases", () => {

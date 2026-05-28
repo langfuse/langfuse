@@ -58,4 +58,20 @@ describe("KeyValueFilterBuilder", () => {
 
     expect(screen.getByDisplayValue("draft-value")).toBeInTheDocument();
   });
+
+  it("uses the supplied string operator default for new filters", () => {
+    render(
+      <KeyValueFilterBuilder
+        mode="string"
+        operators={["matches", "="]}
+        defaultOperator="matches"
+        activeFilters={[]}
+        onChange={noop}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Add filter"));
+
+    expect(screen.getByText("matches")).toBeInTheDocument();
+  });
 });
