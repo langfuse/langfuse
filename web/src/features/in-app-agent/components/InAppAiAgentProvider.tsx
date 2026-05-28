@@ -477,13 +477,17 @@ function InAppAiAgentProviderInner({
           }
 
           setIsRunning(false);
-          syncMessages(conversationId, agent.messages, {
-            runId,
-            runMessageIds: getRunGeneratedMessageIds(
-              agent.messages,
-              runStartMessageIds,
-            ),
-          });
+          const runGeneratedMessageIds = getRunGeneratedMessageIds(
+            agent.messages,
+            runStartMessageIds,
+          );
+          syncMessages(
+            conversationId,
+            agent.messages,
+            runGeneratedMessageIds.size > 0
+              ? { runId, runMessageIds: runGeneratedMessageIds }
+              : undefined,
+          );
           releaseSubmitLock();
         });
     },
