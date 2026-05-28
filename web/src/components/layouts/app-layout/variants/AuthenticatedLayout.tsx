@@ -4,7 +4,7 @@
  * Used for all main application pages when user is authenticated
  */
 
-import type { PropsWithChildren } from "react";
+import { useMemo, type PropsWithChildren } from "react";
 import Head from "next/head";
 import { SidebarProvider, SidebarInset } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
@@ -22,6 +22,8 @@ import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
+import { useCloudRegionsSignInState } from "@/src/components/layouts/app-layout/hooks/useCloudRegionsSignInState";
+import React from "react";
 
 const CommandMenu = dynamic(
   () =>
@@ -70,8 +72,8 @@ type GroupedNavigation = {
   flattened: NavigationItem[];
 };
 
-type AuthenticatedLayoutProps = PropsWithChildren<{
-  session: Session;
+type AuthenticatedLayoutInnerProps = PropsWithChildren<{
+  user: NonNullable<Session["user"]>;
   navigation: {
     mainNavigation: GroupedNavigation;
     secondaryNavigation: GroupedNavigation;
@@ -96,40 +98,28 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
  * - Toast notifications
  * - Dynamic page metadata
  */
-export function AuthenticatedLayout({
+export function AuthenticatedLayoutInner({
   children,
-  session,
+  user,
   navigation,
   metadata,
   aiFeaturesEnabled,
   onSignOut,
-}: AuthenticatedLayoutProps) {
+}: AuthenticatedLayoutInnerProps) {
   const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
+
+  const availableRegions = useMemo(
+    () => getAvailableCloudRegionOptions(currentRegion),
+    [currentRegion],
+  );
+
+  const regionSignInState = useCloudRegionsSignInState(
+    availableRegions,
+    isLangfuseCloud && process.env.NODE_ENV === "production",
+  );
+
   const assistantEnabled =
     useIsFeatureEnabled("inAppAgent") && aiFeaturesEnabled;
-
-  // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
-  // in AppLayout, which guarantees session.user exists at this point
-  const user = session.user;
-  if (!user) {
-    // This should never happen due to guards in AppLayout, but TypeScript needs this
-    return null;
-  }
-
-  const regionMenuItems = getAvailableCloudRegionOptions(currentRegion).map(
-    (region) => ({
-      name: region.name,
-      content: `${region.flag} ${region.name}`,
-      onClick: () => {
-        if (!region.rootUrl) return;
-        window.open(
-          getCloudRegionAuthUrl(region.rootUrl, user.email),
-          "_blank",
-          "noopener,noreferrer",
-        );
-      },
-    }),
-  );
 
   // User navigation items for sidebar dropdown
   const userNavProps = {
@@ -145,11 +135,36 @@ export function AuthenticatedLayout({
         ? [
             {
               name: "Regions",
-              subItems: regionMenuItems,
+              subItems: availableRegions.map((region) => ({
+                name: region.name,
+                onClick: () => {
+                  if (!region.rootUrl) return;
+                  window.open(
+                    getCloudRegionAuthUrl(region.rootUrl, user.email),
+                    "_blank",
+                    "noopener,noreferrer",
+                  );
+                },
+                content: (
+                  <>
+                    {region.flag}
+                    {region.name}
+                    <>
+                      {(currentRegion === region.name ||
+                        regionSignInState[region.name] === "signedIn") && (
+                        <div className="ml-2 inline-flex items-center gap-1 rounded border border-green-100 bg-green-50 px-2 py-1 text-xs dark:border-green-900 dark:bg-green-900/20">
+                          <div className="size-2 rounded-full bg-green-300 dark:bg-green-700"></div>
+                          Signed in
+                        </div>
+                      )}
+                    </>
+                  </>
+                ),
+              })),
               content: (
                 <>
                   Regions
-                  <div className="ml-2 inline-flex rounded bg-black/5 p-1 text-xs dark:bg-white/10">
+                  <div className="ml-2 inline-flex rounded border px-2 py-1 text-xs">
                     Current: {currentRegion}
                   </div>
                 </>
@@ -199,5 +214,29 @@ export function AuthenticatedLayout({
         </SidebarProvider>
       </TopBannerProvider>
     </>
+  );
+}
+
+type AuthenticatedLayoutProps = Omit<AuthenticatedLayoutInnerProps, "user"> & {
+  session: Session;
+};
+
+export function AuthenticatedLayout({
+  children,
+  session,
+  ...props
+}: AuthenticatedLayoutProps) {
+  // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
+  // in AppLayout, which guarantees session.user exists at this point
+  const user = session.user;
+  if (!user) {
+    // This should never happen due to guards in AppLayout, but TypeScript needs this
+    return null;
+  }
+
+  return (
+    <AuthenticatedLayoutInner {...props} user={user}>
+      {children}
+    </AuthenticatedLayoutInner>
   );
 }

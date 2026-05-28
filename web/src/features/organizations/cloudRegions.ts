@@ -43,6 +43,8 @@ const cloudRegions = [
   },
 ] as const;
 
+export type RegionKey = (typeof cloudRegions)[number]["name"];
+
 const availableRegionsByCurrentRegion = {
   STAGING: ["STAGING"],
   DEV: ["DEV"],
