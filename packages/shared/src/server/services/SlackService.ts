@@ -54,6 +54,7 @@ export interface SlackMessageParams {
   channelId: string;
   blocks: any[];
   text?: string;
+  attachments?: unknown[];
 }
 
 export interface SlackMessageResponse {
@@ -463,6 +464,7 @@ export class SlackService {
       const result = await params.client.chat.postMessage({
         channel: params.channelId,
         blocks: params.blocks,
+        attachments: params.attachments as any,
         text: params.text || "Langfuse Notification",
         unfurl_links: false,
         unfurl_media: false,
