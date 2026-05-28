@@ -170,6 +170,17 @@ export default function AutomationsPage() {
     });
   };
 
+  /** dismissSecretDialog clears the dialog + secret state and fires any pending same-origin redirect; shared by the X / Escape close path and the explicit "I've saved the secret" button. */
+  const dismissSecretDialog = () => {
+    setShowSecretDialog(false);
+    setWebhookSecret(null);
+    if (pendingRedirectUrl) {
+      const target = pendingRedirectUrl;
+      setPendingRedirectUrl(null);
+      void router.push(target);
+    }
+  };
+
   const handleReturnToList = () => {
     // Use router.replace to avoid creating history entry when canceling
     navigateWithoutHistory({
@@ -388,7 +399,16 @@ export default function AutomationsPage() {
         </div>
       </div>
       {/* Webhook Secret Dialog */}
-      <Dialog open={showSecretDialog} onOpenChange={setShowSecretDialog}>
+      <Dialog
+        open={showSecretDialog}
+        onOpenChange={(open) => {
+          if (open) {
+            setShowSecretDialog(true);
+          } else {
+            dismissSecretDialog();
+          }
+        }}
+      >
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Webhook Secret Created</DialogTitle>
@@ -403,17 +423,7 @@ export default function AutomationsPage() {
             )}
           </DialogBody>
           <DialogFooter>
-            <Button
-              onClick={() => {
-                setShowSecretDialog(false);
-                setWebhookSecret(null);
-                if (pendingRedirectUrl) {
-                  const target = pendingRedirectUrl;
-                  setPendingRedirectUrl(null);
-                  void router.push(target);
-                }
-              }}
-            >
+            <Button onClick={dismissSecretDialog}>
               {"I've saved the secret"}
             </Button>
           </DialogFooter>
