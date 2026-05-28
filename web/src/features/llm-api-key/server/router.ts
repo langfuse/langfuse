@@ -26,6 +26,7 @@ import {
   EvaluatorBlockReason,
   getEvaluatorBlockMetadata,
 } from "@langfuse/shared";
+import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/defaultModelEvalTemplateRepository";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
   ChatMessageType,
@@ -351,15 +352,9 @@ export const llmApiKeyRouter = createTRPCRouter({
         }
 
         if (!!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id) {
-          const evalTemplates = await tx.evalTemplate.findMany({
-            where: {
-              OR: [{ projectId: input.projectId }, { projectId: null }],
-              provider: null,
-              model: null,
-            },
-            select: {
-              id: true,
-            },
+          const evalTemplateIds = await findDefaultModelEvalTemplateIds({
+            tx,
+            projectId: input.projectId,
           });
 
           const defaultModelBlockResult = await blockEvaluatorConfigsInTx({
@@ -367,7 +362,7 @@ export const llmApiKeyRouter = createTRPCRouter({
             projectId: input.projectId,
             where: {
               evalTemplateId: {
-                in: evalTemplates.map((template) => template.id),
+                in: evalTemplateIds,
               },
             },
             blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,

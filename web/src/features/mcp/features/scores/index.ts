@@ -14,7 +14,6 @@ import {
   handleCreateScoreConfig,
 } from "./tools/createScoreConfig";
 import { createScoreTool, handleCreateScore } from "./tools/createScore";
-import { deleteScoreTool, handleDeleteScore } from "./tools/deleteScore";
 import {
   deleteScoreConfigTool,
   handleDeleteScoreConfig,
@@ -42,10 +41,6 @@ export const scoresFeature: McpFeatureModule = {
     {
       definition: createScoreTool,
       handler: handleCreateScore,
-    },
-    {
-      definition: deleteScoreTool,
-      handler: handleDeleteScore,
     },
     {
       definition: listScoreConfigsTool,

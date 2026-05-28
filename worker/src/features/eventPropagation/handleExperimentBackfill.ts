@@ -527,6 +527,7 @@ export function writeEnrichedSpans(spans: EnrichedSpan[]): void {
       tags: span.tags || [],
       bookmarked: span.bookmarked || false,
       public: span.public || false,
+      is_app_root: false,
 
       trace_name: span.trace_name || undefined,
       user_id: span.user_id || undefined,

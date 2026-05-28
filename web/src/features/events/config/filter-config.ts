@@ -1,4 +1,4 @@
-import { eventsTableCols } from "@langfuse/shared";
+import { eventsTableCols, type FilterState } from "@langfuse/shared";
 import {
   omitFilterFacets,
   type FilterConfig,
@@ -23,6 +23,58 @@ export const OBSERVATION_EVENTS_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
   // No mapping needed currently - events table column names align with UI
 };
 
+const isBooleanEqualityOperator = (operator: string): operator is "=" | "<>" =>
+  operator === "=" || operator === "<>";
+
+export const migrateLegacyRootObservationFilters = (
+  filters: FilterState,
+): FilterState => {
+  const hasRootObservationFilter = filters.some(
+    (filter) =>
+      filter.column === "isRootObservation" &&
+      filter.type === "boolean" &&
+      isBooleanEqualityOperator(filter.operator),
+  );
+
+  return filters.flatMap((filter) => {
+    if (
+      filter.column === "isRootObservation" &&
+      filter.type === "boolean" &&
+      isBooleanEqualityOperator(filter.operator)
+    ) {
+      return [
+        {
+          ...filter,
+          operator: "=" as const,
+          value: filter.operator === "<>" ? !filter.value : filter.value,
+        },
+      ];
+    }
+
+    if (
+      (filter.column === "hasParentObservation" ||
+        filter.column === "Has Parent Observation") &&
+      filter.type === "boolean" &&
+      isBooleanEqualityOperator(filter.operator)
+    ) {
+      if (hasRootObservationFilter) {
+        return [];
+      }
+
+      return [
+        {
+          ...filter,
+          column: "isRootObservation",
+          operator: "=" as const,
+          value: filter.operator === "=" ? !filter.value : filter.value,
+        },
+      ];
+    }
+
+    return [filter];
+  });
+};
+
 export type ObservationEventsOmittableFilterColumn = "sessionId" | "userId";
 
 export const observationEventsFilterConfig: FilterConfig = {
@@ -30,7 +82,9 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   columnDefinitions: eventsTableCols,
 
-  defaultExpanded: ["environment", "name", "hasParentObservation", "type"],
+  defaultExpanded: ["environment", "name", "isRootObservation", "type"],
+
+  migrateFilterState: migrateLegacyRootObservationFilters,
 
   facets: [
     {
@@ -46,11 +100,10 @@ export const observationEventsFilterConfig: FilterConfig = {
     },
     {
       type: "boolean" as const,
-      column: "hasParentObservation",
+      column: "isRootObservation",
       label: "Is Root Observation",
       tooltip:
-        "A root observation is the top-level observation in a trace. It has no parent observation ID. Filter to 'True' to see only root-level observations.",
-      invertValue: true, // "True" = hasParentObservation=false (is root)
+        "A root observation is top-level in a trace or marked as an app root by the SDK. Filter to 'True' to see root-level observations.",
     },
     {
       type: "categorical" as const,
