@@ -1,6 +1,22 @@
 import { logger } from "@langfuse/shared/src/server";
 import type { WebhookInput } from "@langfuse/shared/src/server";
+import type { MonitorSeverity } from "@langfuse/shared";
+import type { MonitorWebhookQueueEvent } from "@langfuse/shared/monitors/server";
+import { slackifyMarkdown } from "slackify-markdown";
 import { env } from "../../env";
+
+/** severityVisual maps MonitorSeverity to its Slack emoji + attachment color per RFC §895-900. */
+const severityVisual: Record<
+  MonitorSeverity,
+  { emoji: string; color: string }
+> = {
+  ALERT: { emoji: "🚨", color: "#dc3545" },
+  WARNING: { emoji: "⚠️", color: "#ffc107" },
+  OK: { emoji: "✅", color: "#28a745" },
+  NO_DATA: { emoji: "❓", color: "#6c757d" },
+  UNKNOWN: { emoji: "❓", color: "#6c757d" },
+  PAUSED: { emoji: "⏸️", color: "#6c757d" },
+};
 
 /** Escape Slack mrkdwn special characters to prevent injection (e.g. <!channel>)
  * @see https://docs.slack.dev/messaging/formatting-message-text/#escaping */
@@ -11,6 +27,18 @@ function escapeSlackMrkdwn(text: string): string {
     .replace(/>/g, "&gt;");
 }
 
+type WebhookInputPayload = WebhookInput["payload"];
+type PromptVersionPayload = Extract<
+  WebhookInputPayload,
+  { type: "prompt-version" }
+>;
+
+/** SlackMessage is the shape returned by buildMessage: blocks for Block Kit, optional attachments for the legacy color bar (used by monitor-alert). */
+export interface SlackMessage {
+  blocks: any[];
+  attachments?: { color: string }[];
+}
+
 /**
  * Builds Slack Block Kit messages for different Langfuse event types
  */
@@ -18,7 +46,7 @@ export class SlackMessageBuilder {
   /**
    * Build Block Kit message for prompt version events
    */
-  static buildPromptVersionMessage(payload: WebhookInput["payload"]): any[] {
+  static buildPromptVersionMessage(payload: PromptVersionPayload): any[] {
     const { action, prompt } = payload;
 
     // Determine action emoji and color
@@ -109,16 +137,61 @@ export class SlackMessageBuilder {
   /**
    * Build a simple fallback message for unsupported event types
    */
-  static buildFallbackMessage(payload: WebhookInput["payload"]): any[] {
+  static buildFallbackMessage(payload: WebhookInputPayload): any[] {
+    // Fallback handles malformed and not-yet-known payloads — narrow off the
+    // discriminated union and read `.action` opportunistically.
+    const action =
+      (payload as { action?: string }).action ?? payload.type ?? "event";
     return [
       {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*Langfuse Notification*\n${payload.type} event: *${payload.action}*`,
+          text: `*Langfuse Notification*\n${payload.type} event: *${action}*`,
         },
       },
     ];
+  }
+
+  /** buildMonitorMessage renders a MonitorWebhookQueueEvent into Slack Block Kit per RFC §855-902. The processor emits standard markdown; we convert the body to Slack mrkdwn via slackify-markdown. */
+  static buildMonitorMessage(envelope: MonitorWebhookQueueEvent): SlackMessage {
+    const alert = envelope.payload;
+    const { emoji, color } = severityVisual[alert.severity];
+    const blocks: any[] = [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: `${emoji} ${alert.message.title}`,
+          emoji: true,
+        },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: slackifyMarkdown(alert.message.body) },
+      },
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: { type: "plain_text", text: "View in Langfuse", emoji: true },
+            url: alert.permalink,
+            style: "primary",
+          },
+        ],
+      },
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: `⏱ ${alert.timestamp.toISOString()}`,
+          },
+        ],
+      },
+    ];
+    return { blocks, attachments: [{ color }] };
   }
 
   /**
@@ -143,18 +216,22 @@ export class SlackMessageBuilder {
   /**
    * Main entry point - builds appropriate message for event type
    */
-  static buildMessage(payload: WebhookInput["payload"]): any[] {
+  static buildMessage(payload: WebhookInputPayload): SlackMessage {
     try {
       switch (payload.type) {
         case "prompt-version":
-          return this.buildPromptVersionMessage(payload);
-        default:
-          logger.warn(`Unsupported Slack message type: ${payload.type}`);
-          return this.buildFallbackMessage(payload);
+          return { blocks: this.buildPromptVersionMessage(payload) };
+        case "monitor-alert":
+          return this.buildMonitorMessage(payload);
+        default: {
+          const unknownType = (payload as { type: string }).type;
+          logger.warn(`Unsupported Slack message type: ${unknownType}`);
+          return { blocks: this.buildFallbackMessage(payload) };
+        }
       }
     } catch (error) {
       logger.error("Error building Slack message", { error, payload });
-      return this.buildFallbackMessage(payload);
+      return { blocks: this.buildFallbackMessage(payload) };
     }
   }
 }
