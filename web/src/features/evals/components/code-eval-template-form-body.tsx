@@ -2,9 +2,8 @@ import CodeMirror, {
   EditorView,
   ExternalChange,
   hoverTooltip,
-  keymap,
 } from "@uiw/react-codemirror";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Prec } from "@codemirror/state";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { StreamLanguage, type StringStream } from "@codemirror/language";
 import { python } from "@codemirror/lang-python";
@@ -54,7 +53,6 @@ type ContractRanges = {
 
 const PYTHON_EVALUATE_SIGNATURE_PATTERN =
   /(?:^|\n)def evaluate\s*\(\s*ctx\s*:\s*EvaluationContext\s*\)\s*->\s*EvaluationResult\s*:/;
-const FORMAT_SHORTCUT_KEY = "Shift-Alt-f";
 const FORMAT_SHORTCUT_ARIA = "Alt+Shift+F";
 const TYPESCRIPT_KEYWORDS = new Set([
   "async",
@@ -338,15 +336,27 @@ export function CodeEvalTemplateFormBody({
   );
   const formatShortcutExtension = useMemo(
     () =>
-      keymap.of([
-        {
-          key: FORMAT_SHORTCUT_KEY,
-          run: () => {
-            void formatSource();
-            return true;
+      Prec.highest(
+        EditorView.domEventHandlers({
+          keydown: (event) => {
+            // CodeMirror keymaps intentionally don't bind macOS Option combos
+            // that type special characters, so match the physical F key here.
+            if (
+              event.code === "KeyF" &&
+              event.shiftKey &&
+              event.altKey &&
+              !event.ctrlKey &&
+              !event.metaKey
+            ) {
+              event.preventDefault();
+              void formatSource();
+              return true;
+            }
+
+            return false;
           },
-        },
-      ]),
+        }),
+      ),
     [formatSource],
   );
   const languageExtension = useMemo(
