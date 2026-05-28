@@ -96,12 +96,18 @@ export const IOTableCell = ({
   singleLine?: boolean;
   enableExpandOnHover?: boolean;
 }) => {
+  const paddingClassName = ioTableCellPaddingClassNames[padding];
+
   if (isLoading) {
     return (
       <JsonSkeleton
         borderless
         numRows={singleLine ? 1 : undefined}
-        className="h-full w-full overflow-hidden px-2 py-1"
+        className={cn(
+          "h-full w-full overflow-hidden",
+          paddingClassName,
+          className,
+        )}
       />
     );
   }

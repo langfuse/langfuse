@@ -126,6 +126,14 @@ export default function EvalLogTable({
       id: "scoreComment",
       enableHiding: true,
       cellPadding: "none",
+      loadingCell: () => (
+        <IOTableCell
+          isLoading
+          data={undefined}
+          padding="compact"
+          singleLine={rowHeight === "s"}
+        />
+      ),
       cell: (row) => {
         const value = row.getValue();
         return (
@@ -144,6 +152,14 @@ export default function EvalLogTable({
       header: "Error",
       enableHiding: true,
       cellPadding: "none",
+      loadingCell: () => (
+        <IOTableCell
+          isLoading
+          data={undefined}
+          padding="compact"
+          singleLine={rowHeight === "s"}
+        />
+      ),
       cell: (row) => {
         const value = row.getValue();
         return (
