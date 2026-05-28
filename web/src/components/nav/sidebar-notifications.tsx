@@ -26,7 +26,7 @@ type SidebarNotification = {
   ttlMs?: number;
 };
 
-const notifications: SidebarNotification[] = [
+export const notifications: SidebarNotification[] = [
   {
     id: "lw5-1",
     title: "Launch Week: Day 1",
@@ -48,10 +48,19 @@ const notifications: SidebarNotification[] = [
   {
     id: "lw5-3",
     title: "Launch Week: Day 3",
-    description: "Fast full-text search on observation i/o via the UI and API",
+    description: "Fast full-text search on observation I/O via the UI and API",
     link: "https://langfuse.com/changelog/2026-05-27-clickhouse-full-text-search-fast-mode",
     linkTitle: "Learn more",
     createdAt: "2026-05-27",
+  },
+  {
+    id: "lw5-4",
+    title: "Launch Week: Day 4",
+    description:
+      "Code evaluators let you score observations and experiments with Python/TypeScript checks.",
+    link: "https://langfuse.com/changelog/2026-05-28-code-evaluators",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-28",
   },
   {
     id: "github-star",

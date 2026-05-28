@@ -1,13 +1,10 @@
-import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
 import {
   GetAnnotationQueueItemByIdQuery,
   GetAnnotationQueueItemByIdResponse,
 } from "@/src/features/public-api/types/annotation-queues";
+import { getAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { annotationQueueItemToApi } from "../schema";
-import { verifyAnnotationQueue } from "../utils";
 
 export const [getAnnotationQueueItemTool, handleGetAnnotationQueueItem] =
   defineTool({
@@ -25,26 +22,13 @@ export const [getAnnotationQueueItemTool, handleGetAnnotationQueueItem] =
           "mcp.annotation_queue_item_id": input.itemId,
         },
         fn: async () => {
-          await verifyAnnotationQueue({
+          const result = await getAnnotationQueueItemForApi({
             projectId: context.projectId,
             queueId: input.queueId,
+            itemId: input.itemId,
           });
 
-          const item = await prisma.annotationQueueItem.findUnique({
-            where: {
-              id: input.itemId,
-              queueId: input.queueId,
-              projectId: context.projectId,
-            },
-          });
-
-          if (!item) {
-            throw new LangfuseNotFoundError("Annotation queue item not found");
-          }
-
-          return GetAnnotationQueueItemByIdResponse.parse(
-            annotationQueueItemToApi(item),
-          );
+          return GetAnnotationQueueItemByIdResponse.parse(result);
         },
       }),
     readOnlyHint: true,
