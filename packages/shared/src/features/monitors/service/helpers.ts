@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import {
   type Monitor as PrismaMonitor,
   MonitorView as PrismaMonitorView,
+  MonitorSeverity as PrismaMonitorSeverity,
   Prisma,
 } from "@prisma/client";
 
@@ -20,6 +21,7 @@ import {
   type MonitorView,
   type MonitorWindow,
   MonitorSchema,
+  MonitorStatusSchema,
 } from "../types";
 
 import {
@@ -270,15 +272,25 @@ export const decimalToPrisma = (n: number | null): Prisma.Decimal | null =>
 
 /** updateSeverityForStatus returns the severity transition payload when status flips between ACTIVE and non-ACTIVE; otherwise an empty object. */
 export const updateSeverityForStatus = (
-  current: MonitorStatus | undefined,
+  current: MonitorStatus | undefined | null,
   next: MonitorStatus,
 ): { severity?: MonitorSeverity; severityChangedAt?: Date } => {
   if (!current) return {};
-  const goingPaused = current === "ACTIVE" && next !== "ACTIVE";
-  const goingActive = current !== "ACTIVE" && next === "ACTIVE";
-  if (goingPaused) return { severity: "PAUSED", severityChangedAt: new Date() };
-  if (goingActive)
-    return { severity: "UNKNOWN", severityChangedAt: new Date() };
+  const fromActive = current === MonitorStatusSchema.enum.ACTIVE;
+  const toActve = next === MonitorStatusSchema.enum.ACTIVE;
+  const toPaused = fromActive && !toActve;
+  const toActive = !fromActive && toActve;
+  if (toPaused)
+    return {
+      severity: PrismaMonitorSeverity.PAUSED,
+      severityChangedAt: new Date(),
+    };
+  if (toActive)
+    return {
+      severity: PrismaMonitorSeverity.UNKNOWN,
+      severityChangedAt: new Date(),
+    };
+  // No Severity Change (eg ACTIVE -> ACTIVE, ERROR_* -> PAUSED)
   return {};
 };
 

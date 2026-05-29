@@ -77,7 +77,7 @@ export class MonitorService {
         noData: input.noData,
         renotify: input.renotify,
         status: input.status,
-        ...(input.status !== "ACTIVE" ? { severity: "PAUSED" as const } : {}),
+        ...updateSeverityForStatus(null, input.status),
         schedulerBatchId,
         nextRunAt,
         name: input.name,
