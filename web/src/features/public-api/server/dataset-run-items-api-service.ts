@@ -2,6 +2,7 @@ import { v4 } from "uuid";
 import type { NextApiResponse } from "next";
 import type { z } from "zod";
 
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
 import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";
 import {
@@ -41,10 +42,12 @@ const resolveMetadata = (metadata: JSONValue): Record<string, unknown> => {
 export const createDatasetRunItemForApi = async ({
   body,
   auth,
+  auditScope,
   res,
 }: {
   body: z.infer<typeof PostDatasetRunItemsV1Body>;
   auth: AuthHeaderValidVerificationResultIngestion;
+  auditScope?: { orgId: string; apiKeyId: string };
   res?: NextApiResponse;
 }) => {
   /**************
@@ -153,17 +156,6 @@ export const createDatasetRunItemForApi = async ({
     throw new Error("Failed to create dataset run item");
   }
 
-  /***********************
-   * ASYNC RUN ITEM EVAL *
-   ***********************/
-  await addDatasetRunItemsToEvalQueue({
-    projectId,
-    datasetItemId: datasetItem.id,
-    datasetItemValidFrom: datasetItem.validFrom,
-    traceId: finalTraceId,
-    observationId: observationId ?? undefined,
-  });
-
   const datasetRunItem: APIDatasetRunItem = {
     id: event.body.id,
     datasetRunId: run.id,
@@ -174,6 +166,29 @@ export const createDatasetRunItemForApi = async ({
     createdAt,
     updatedAt: createdAt,
   };
+
+  if (auditScope) {
+    await auditLog({
+      action: "create",
+      resourceType: "datasetRunItem",
+      resourceId: datasetRunItem.id,
+      projectId,
+      orgId: auditScope.orgId,
+      apiKeyId: auditScope.apiKeyId,
+      after: datasetRunItem,
+    });
+  }
+
+  /***********************
+   * ASYNC RUN ITEM EVAL *
+   ***********************/
+  await addDatasetRunItemsToEvalQueue({
+    projectId,
+    datasetItemId: datasetItem.id,
+    datasetItemValidFrom: datasetItem.validFrom,
+    traceId: finalTraceId,
+    observationId: observationId ?? undefined,
+  });
 
   return PostDatasetRunItemsV1Response.parse(datasetRunItem);
 };

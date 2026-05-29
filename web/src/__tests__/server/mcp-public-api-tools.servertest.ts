@@ -41,6 +41,7 @@ import {
   createMcpTestSetup,
   createPromptInDb,
   mockServerContext,
+  verifyAuditLog,
   waitFor,
 } from "./mcp-helpers";
 import "@/src/features/mcp/server/bootstrap";
@@ -452,7 +453,7 @@ describe("MCP public API tools", () => {
   });
 
   it("covers dataset, dataset item, run item, and run public API routes", async () => {
-    const { context, projectId } = await createMcpTestSetup();
+    const { context, projectId, apiKeyId } = await createMcpTestSetup();
     const datasetName = `mcp-dataset-100% accuracy %20 ${uuidv4()}`;
     const traceId = uuidv4();
     const observationId = uuidv4();
@@ -530,6 +531,19 @@ describe("MCP public API tools", () => {
       context,
     )) as { id: string; datasetRunId: string; datasetItemId: string };
     expect(runItem.datasetItemId).toBe(datasetItem.id);
+    await expect(
+      verifyAuditLog({
+        projectId,
+        apiKeyId,
+        resourceType: "datasetRunItem",
+        resourceId: runItem.id,
+        action: "create",
+      }),
+    ).resolves.toMatchObject({
+      resourceType: "datasetRunItem",
+      resourceId: runItem.id,
+      action: "create",
+    });
 
     await createDatasetRunItemsCh([
       createDatasetRunItem({
