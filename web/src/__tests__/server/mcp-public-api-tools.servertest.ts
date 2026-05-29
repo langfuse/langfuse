@@ -59,6 +59,7 @@ import {
   handleListAnnotationQueues,
   handleUpdateAnnotationQueueItem,
 } from "@/src/features/mcp/features/annotationQueues/tools";
+import { handleListUsers } from "@/src/features/mcp/features/users/tools";
 import {
   handleCreateComment,
   handleGetComment,
@@ -136,6 +137,41 @@ const createProjectUser = async ({
   return user;
 };
 
+const createOrgUserWithProjectMembership = async ({
+  orgId,
+  projectId,
+}: {
+  orgId: string;
+  projectId: string;
+}) => {
+  const user = await prisma.user.create({
+    data: {
+      id: uuidv4(),
+      email: `mcp-org-user-${uuidv4()}@example.com`,
+      name: "MCP Org User",
+    },
+  });
+
+  const orgMembership = await prisma.organizationMembership.create({
+    data: {
+      orgId,
+      userId: user.id,
+      role: "MEMBER",
+    },
+  });
+
+  await prisma.projectMembership.create({
+    data: {
+      projectId,
+      userId: user.id,
+      role: "MEMBER",
+      orgMembershipId: orgMembership.id,
+    },
+  });
+
+  return user;
+};
+
 describe("MCP public API tools", () => {
   const getToolNames = async (context = mockServerContext()) =>
     (await toolRegistry.getToolDefinitions(context)).map((tool) => tool.name);
@@ -154,6 +190,7 @@ describe("MCP public API tools", () => {
         "listEvaluationRules",
         "getEvaluationRule",
         "createEvaluationRule",
+        "listUsers",
         "listDatasets",
         "getHealth",
         "listScores",
@@ -256,6 +293,44 @@ describe("MCP public API tools", () => {
     const { context, projectId, orgId } = await createMcpTestSetup();
     const scoreConfig = await createScoreConfig(projectId);
     const user = await createProjectUser({ orgId, projectId });
+    const otherProject = await prisma.project.create({
+      data: {
+        id: uuidv4(),
+        orgId,
+        name: `mcp-other-project-${uuidv4()}`,
+      },
+    });
+    const inheritedOrgUserWithOtherProjectMembership =
+      await createOrgUserWithProjectMembership({
+        orgId,
+        projectId: otherProject.id,
+      });
+
+    await expect(handleListUsers({}, context)).resolves.toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          id: user.id,
+          name: user.name,
+        }),
+        expect.objectContaining({
+          id: inheritedOrgUserWithOtherProjectMembership.id,
+          name: inheritedOrgUserWithOtherProjectMembership.name,
+        }),
+      ]),
+      meta: expect.objectContaining({
+        page: 1,
+        limit: 50,
+        totalItems: expect.any(Number),
+        totalPages: expect.any(Number),
+      }),
+    });
+
+    await expect(
+      handleListUsers({ searchQuery: user.email.slice(0, 12) }, context),
+    ).resolves.toMatchObject({
+      data: expect.arrayContaining([expect.objectContaining({ id: user.id })]),
+      meta: expect.objectContaining({ page: 1, limit: 50 }),
+    });
 
     const queue = (await handleCreateAnnotationQueue(
       {

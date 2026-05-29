@@ -29,25 +29,10 @@ import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import {
+  buildUserSearchFilter,
   getUserProjectRoles,
   getUserProjectRolesCount,
 } from "@langfuse/shared/src/server";
-
-function buildUserSearchFilter(searchQuery: string | undefined | null) {
-  if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
-    return Prisma.empty;
-  }
-
-  const q = searchQuery;
-  const searchConditions: Prisma.Sql[] = [];
-
-  searchConditions.push(Prisma.sql`u.name ILIKE ${`%${q}%`}`);
-  searchConditions.push(Prisma.sql`u.email ILIKE ${`%${q}%`}`);
-
-  return searchConditions.length > 0
-    ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
-    : Prisma.empty;
-}
 
 // Record as it allows to type check that all roles are included
 function throwIfHigherRole({ ownRole, role }: { ownRole: Role; role: Role }) {
