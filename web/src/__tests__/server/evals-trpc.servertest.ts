@@ -18,7 +18,6 @@ import { beforeEach, vi } from "vitest";
 
 const { runCodeEvalTestForJobConfigMock } = vi.hoisted(() => {
   process.env.NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED = "true";
-  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_UI = "true";
 
   return {
     runCodeEvalTestForJobConfigMock: vi.fn(),

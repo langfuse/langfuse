@@ -6,6 +6,8 @@ export type TableRowOptions = {
   options: { label: string; value: number; icon?: LucideIcon }[];
 };
 
+export type DataTableCellPadding = "compact" | "comfortable" | "none";
+
 declare module "@tanstack/react-table" {
   // extends tanstack ColumnDef to include additional properties
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -18,6 +20,7 @@ declare module "@tanstack/react-table" {
     isFixedPosition?: boolean; // if true, column cannot be reordered
     isPinnedLeft?: boolean; // if true, column will be pinned to left side
     loadingCell?: React.ReactNode | (() => React.ReactNode);
+    cellPadding?: DataTableCellPadding;
   }
 }
 

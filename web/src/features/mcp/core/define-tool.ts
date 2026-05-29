@@ -27,8 +27,8 @@ export interface DefineToolOptions<TInput> {
   /** Description for LLM to understand when to use this tool */
   description: string;
 
-  /** Base Zod schema (without refinements) - used for JSON Schema generation */
-  baseSchema: z.ZodType<TInput>;
+  /** Base Zod schema (without refinements) - used only for JSON Schema generation */
+  baseSchema: z.ZodType<unknown>;
 
   /** Full Zod schema with refinements - used for runtime validation */
   inputSchema: z.ZodType<TInput>;
@@ -62,26 +62,28 @@ export interface ToolDefinition {
 
 type JsonSchemaObject = Record<string, unknown>;
 
-function isObjectLikeJsonSchema(schema: JsonSchemaObject): boolean {
-  if (schema.type === "object") return true;
+function isObjectJsonSchema(schema: JsonSchemaObject): boolean {
+  return schema.type === "object";
+}
 
-  const subSchemas = (() => {
-    if ("oneOf" in schema && Array.isArray(schema.oneOf)) return schema.oneOf;
-    if ("anyOf" in schema && Array.isArray(schema.anyOf)) return schema.anyOf;
-    if ("allOf" in schema && Array.isArray(schema.allOf)) return schema.allOf;
-    return [];
-  })();
+function hasJsonSchemaUnion(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
 
-  if (subSchemas.length > 0) {
-    return subSchemas.every(
-      (subSchema) =>
-        typeof subSchema === "object" &&
-        subSchema !== null &&
-        isObjectLikeJsonSchema(subSchema),
-    );
+  if (Array.isArray(value)) {
+    return value.some(hasJsonSchemaUnion);
   }
 
-  return false;
+  const schema = value as Record<string, unknown>;
+
+  if (
+    Array.isArray(schema.oneOf) ||
+    Array.isArray(schema.anyOf) ||
+    Array.isArray(schema.allOf)
+  ) {
+    return true;
+  }
+
+  return Object.values(schema).some(hasJsonSchemaUnion);
 }
 
 /**
@@ -133,29 +135,26 @@ export function defineTool<TInput>(
     );
   }
 
-  // Validate that we got a usable schema. Intersections of object schemas are
-  // emitted as top-level allOf by Zod's JSON Schema converter.
-  if (!isObjectLikeJsonSchema(jsonSchema)) {
+  if (hasJsonSchemaUnion(jsonSchema)) {
     throw new Error(
-      `Failed to convert Zod schema to JSON Schema for tool: ${name}. Expected object or union schema, got: ${JSON.stringify(jsonSchema).slice(0, 100)}`,
+      `Failed to convert Zod schema to JSON Schema for tool: ${name}. Union and intersection schemas are not supported for MCP tool inputs; use a plain object schema instead.`,
     );
   }
 
-  // The MCP TypeScript SDK validates Tool.inputSchema.type as `z.literal("object")`,
-  // so clients reject any tool whose root schema lacks `type: "object"`. Zod's
-  // JSON Schema converter omits the root `type` for intersection/union schemas
-  // (emitting allOf/oneOf/anyOf instead), so we inject it here. JSON Schema
-  // draft-7 allows `type` alongside these keywords — all constraints must hold.
-  const normalizedJsonSchema: JsonSchemaObject =
-    (jsonSchema as JsonSchemaObject).type === "object"
-      ? (jsonSchema as JsonSchemaObject)
-      : { ...(jsonSchema as JsonSchemaObject), type: "object" };
+  const jsonSchemaObject = jsonSchema as JsonSchemaObject;
+
+  // Validate that we got a usable plain object schema.
+  if (!isObjectJsonSchema(jsonSchemaObject)) {
+    throw new Error(
+      `Failed to convert Zod schema to JSON Schema for tool: ${name}. Expected object schema, got: ${JSON.stringify(jsonSchema).slice(0, 100)}`,
+    );
+  }
 
   // Build tool definition
   const toolDefinition: ToolDefinition = {
     name,
     description,
-    inputSchema: normalizedJsonSchema,
+    inputSchema: jsonSchemaObject,
   };
 
   // Add annotations if provided

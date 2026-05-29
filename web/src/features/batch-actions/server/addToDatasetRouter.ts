@@ -20,6 +20,7 @@ import {
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { CreateObservationAddToDatasetActionSchema } from "../validation";
+import { assertLegacyTracingIoSearchEnabled } from "@/src/features/traces/server/legacyIoSearch";
 
 const MAX_BATCH_ADD_TO_DATASET_ITEMS = 1000;
 
@@ -42,6 +43,12 @@ export const addToDatasetRouter = createTRPCRouter({
         const tableName = useEventsTable
           ? BatchTableNames.Events
           : BatchTableNames.Observations;
+
+        assertLegacyTracingIoSearchEnabled({
+          searchQuery: query.searchQuery,
+          searchType: query.searchType,
+          tableName,
+        });
 
         // Check observation count doesn't exceed maximum
         const queryOpts = {

@@ -1,20 +1,30 @@
-import { v4 } from "uuid";
-import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
+import { CommentObjectType } from "@langfuse/shared";
+import { z } from "zod";
+import { createCommentForApi } from "@/src/features/comments/server/publicCommentService";
 import {
   PostCommentsV1Body,
   PostCommentsV1Response,
 } from "@/src/features/public-api/types/comments";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { CreateCommentToolSchema } from "../schema";
+
+const CreateCommentToolBaseSchema = z
+  .object({
+    content: z.string().trim().min(1).max(5000),
+    objectId: z.string(),
+    objectType: z.enum(CommentObjectType),
+    authorUserId: z.string().optional(),
+  })
+  .strict();
+
+const CreateCommentToolSchema = PostCommentsV1Body.omit({
+  projectId: true,
+});
 
 export const [createCommentTool, handleCreateComment] = defineTool({
   name: "createComment",
   description: "Create a comment on a trace, observation, session, or prompt.",
-  baseSchema: CreateCommentToolSchema,
+  baseSchema: CreateCommentToolBaseSchema,
   inputSchema: CreateCommentToolSchema,
   handler: async (input, context) =>
     runMcpTool({
@@ -30,40 +40,12 @@ export const [createCommentTool, handleCreateComment] = defineTool({
           projectId: context.projectId,
         });
 
-        const result = await validateCommentReferenceObject({
-          ctx: {
-            prisma,
-            auth: { scope: { projectId: context.projectId } },
-          },
+        const result = await createCommentForApi({
           input: body,
+          auditScope: context,
         });
 
-        if (result.errorMessage) {
-          throw new LangfuseNotFoundError(result.errorMessage);
-        }
-
-        const comment = await prisma.comment.create({
-          data: {
-            content: body.content,
-            objectId: body.objectId,
-            objectType: body.objectType,
-            authorUserId: body.authorUserId,
-            id: v4(),
-            projectId: context.projectId,
-          },
-        });
-
-        await auditLog({
-          action: "create",
-          resourceType: "comment",
-          resourceId: comment.id,
-          projectId: context.projectId,
-          orgId: context.orgId,
-          apiKeyId: context.apiKeyId,
-          after: comment,
-        });
-
-        return PostCommentsV1Response.parse({ id: comment.id });
+        return PostCommentsV1Response.parse(result);
       },
     }),
 });

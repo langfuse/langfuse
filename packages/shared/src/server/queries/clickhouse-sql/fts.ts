@@ -76,17 +76,23 @@ export const hasFtsSearchToken = (value: string): boolean =>
 const normalizeFtsTextExpr = (expr: string): string =>
   `${FTS_TEXT_NORMALIZER}(${expr})`;
 
-export const ftsTextTokenConjunct = (
-  fieldExpr: string,
-  valueParam: string,
-): string =>
-  `(empty(tokens(${normalizeFtsTextExpr(valueParam)})) OR hasAllTokens(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)}))`;
-
-export const ftsTextMatchesCondition = (
+export const ftsTextTokenPredicate = (
   fieldExpr: string,
   valueParam: string,
 ): string =>
   `hasAllTokens(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)})`;
+
+export const ftsTextTokenConjunct = (
+  fieldExpr: string,
+  valueParam: string,
+): string =>
+  `(empty(tokens(${normalizeFtsTextExpr(valueParam)})) OR ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
+
+export const ftsTextIndexedSubstringCondition = (
+  fieldExpr: string,
+  valueParam: string,
+): string =>
+  `(position(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)}) > 0 AND ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
 
 export const ftsMetadataArrayHas = (
   arrayExpr: string,
@@ -114,6 +120,14 @@ type FtsOperatorDescriptor = {
   metadataArrayCondition: (ctx: FtsMetadataArrayConditionContext) => string;
 };
 
+export const ftsMetadataArrayIndexedSubstringCondition = ({
+  hasKey,
+  valuesColumn,
+  valueAccessor,
+  valueParam,
+}: FtsMetadataArrayConditionContext): string =>
+  `${hasKey} AND ${ftsMetadataArrayTokenConjunct(valuesColumn, valueParam)} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
+
 type FtsOperatorDescriptors = {
   [operator in FtsAcceleratedStringOperator]: FtsOperatorDescriptor;
 };
@@ -132,20 +146,15 @@ export const FTS_OPERATOR_DESCRIPTORS = {
   },
   [FTS_MATCH_OPERATOR]: {
     textCondition: (fieldExpr, valueParam, _exactCondition) =>
-      ftsTextMatchesCondition(fieldExpr, valueParam),
-    metadataArrayCondition: ({
-      hasKey,
-      valuesColumn,
-      valueAccessor,
-      valueParam,
-    }) =>
-      `${hasKey} AND ${ftsMetadataArrayTokenConjunct(valuesColumn, valueParam)} AND ${ftsMetadataArrayTokenConjunct(valueAccessor, valueParam)}`,
+      ftsTextIndexedSubstringCondition(fieldExpr, valueParam),
+    metadataArrayCondition: ftsMetadataArrayIndexedSubstringCondition,
   },
 } satisfies FtsOperatorDescriptors;
 
 // StringFilter rewrites must preserve filter API semantics. Limit transparent
 // text-index rewrites to equality because substring filters are expected to
-// match inside larger tokens. `matches` is an explicit token-search operator.
+// match inside larger tokens. `matches` is an explicit indexed literal-search
+// operator.
 export const FTS_TEXT_OPERATORS: ReadonlySet<FtsStringOperator> = new Set(
   Object.keys(FTS_OPERATOR_DESCRIPTORS) as FtsAcceleratedStringOperator[],
 );

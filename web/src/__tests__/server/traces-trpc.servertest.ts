@@ -21,6 +21,11 @@ import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateSco
 
 describe("traces trpc", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  const mutableEnv = env as unknown as {
+    LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH: "true" | "false";
+  };
+  const originalLegacyIoSearchDisabled =
+    mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH;
 
   const session: Session = {
     expires: "1",
@@ -58,7 +63,31 @@ describe("traces trpc", () => {
   const ctx = createInnerTRPCContext({ session });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
+  afterEach(() => {
+    mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH =
+      originalLegacyIoSearchDisabled;
+  });
+
   describe("traces.all", () => {
+    it("rejects legacy full-text search when legacy IO search is disabled", async () => {
+      mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH = "true";
+
+      await expect(
+        caller.traces.all({
+          projectId,
+          filter: [],
+          searchQuery: "expensive search",
+          searchType: ["id", "content"],
+          page: 0,
+          limit: 50,
+          orderBy: {
+            column: "timestamp",
+            order: "DESC",
+          },
+        }),
+      ).rejects.toThrow("Input/output search is disabled");
+    });
+
     it("list traces for default view", async () => {
       const trace = createTrace({
         project_id: projectId,
