@@ -14,78 +14,99 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 
-/** monitorsPageHelp is the docs-link header help shown on both the splash and table renders. */
-const monitorsPageHelp = {
-  description:
-    "Monitors evaluate a metric on a rolling window and emit alerts when a threshold is crossed.",
-  href: "https://langfuse.com/docs/monitors",
+/** headerProps are shared by all of the ListMonitorPage headers */
+const headerProps = {
+  title: "Monitors",
+  help: {
+    description:
+      "Monitors evaluate a metric on a rolling window and emit alerts when a threshold is crossed.",
+    href: "https://langfuse.com/docs/monitors",
+  },
 };
 
 /** ListMonitorsPage displays the list of monitors for a project, or an onboarding splash when the project has none. */
 export default function ListMonitorsPage() {
   const projectId = useProjectIdFromURL();
-  /** hasCUDAccess gates the "New monitor" action button behind the monitors:CUD RBAC scope. */
-  const hasCUDAccess = useHasProjectAccess({
-    projectId,
-    scope: "monitors:CUD",
-  });
-  const monitorLimit = useEntitlementLimit("monitor-count");
-  const monitorCountQuery = api.monitors.count.useQuery(
-    { projectId: projectId ?? "" },
-    { enabled: !!projectId && hasCUDAccess },
-  );
-  /** monitorsHasAnyQuery drives the splash-vs-table render; project-scoped so the splash appears on fresh projects regardless of sibling-project monitors. */
-  const monitorsHasAnyQuery = api.monitors.hasAny.useQuery(
+
+  const {
+    isLoading,
+    isSuccess,
+    data: hasMonitors,
+  } = api.monitors.hasAny.useQuery(
     { projectId: projectId ?? "" },
     { enabled: !!projectId },
   );
-  const showOnboarding =
-    monitorsHasAnyQuery.isSuccess && monitorsHasAnyQuery.data === false;
 
   return (
     <MonitorPagePermissions scope="monitors:read">
-      {!monitorsHasAnyQuery.isSuccess ? (
-        // Hold both branches off the screen until hasAny resolves so the
-        // empty-project flow doesn't flash the table loading skeleton before
-        // swapping to the onboarding splash.
-        <Page headerProps={{ title: "Monitors", help: monitorsPageHelp }}>
-          {null}
-        </Page>
-      ) : showOnboarding && projectId ? (
-        <Page headerProps={{ title: "Monitors", help: monitorsPageHelp }}>
-          <MonitorsOnboarding projectId={projectId} />
-        </Page>
+      {!projectId || isLoading ? (
+        <EmptyPage />
+      ) : isSuccess && hasMonitors ? (
+        <MainPage projectId={projectId} />
       ) : (
-        <DataTableControlsProvider
-          tableName={monitorFilterConfig.tableName}
-          defaultSidebarCollapsed={monitorFilterConfig.defaultSidebarCollapsed}
-        >
-          <Page
-            headerProps={{
-              title: "Monitors",
-              help: monitorsPageHelp,
-              actionButtonsRight: projectId ? (
-                <>
-                  <FilterToggleButton />
-                  <AutomationButton projectId={projectId} />
-                  <ActionButton
-                    icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
-                    hasAccess={hasCUDAccess}
-                    limit={monitorLimit}
-                    limitValue={monitorCountQuery.data?.count}
-                    href={`/project/${projectId}/monitors/new`}
-                    variant="default"
-                  >
-                    New monitor
-                  </ActionButton>
-                </>
-              ) : null,
-            }}
-          >
-            <MonitorsTable />
-          </Page>
-        </DataTableControlsProvider>
+        <OnboardingPage projectId={projectId} />
       )}
     </MonitorPagePermissions>
   );
 }
+
+/** EmptyPage is an empty monitor page */
+const EmptyPage = () => <Page headerProps={headerProps}>{null}</Page>;
+
+/** OnboardingPage shows the onboarding message */
+const OnboardingPage = ({ projectId }: { projectId: string }) => {
+  return (
+    <Page headerProps={headerProps}>
+      <MonitorsOnboarding projectId={projectId} />
+    </Page>
+  );
+};
+
+/** MainPage loads and displays the list of monitors  */
+const MainPage = ({ projectId }: { projectId: string }) => {
+  /** hasCUDAccess is true if the user has permission to create monitors */
+  const hasCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "monitors:CUD",
+  });
+
+  /** monitorEntitlementLimit is the limit of the number of monitors that can be created for this org  */
+  const monitorEntitlementLimit = useEntitlementLimit("monitor-count");
+
+  /** monitorCountQuery returns the total number of monitors created for this org */
+  const monitorCountQuery = api.monitors.count.useQuery(
+    { projectId: projectId },
+    { enabled: hasCUDAccess },
+  );
+
+  return (
+    <DataTableControlsProvider
+      tableName={monitorFilterConfig.tableName}
+      defaultSidebarCollapsed={monitorFilterConfig.defaultSidebarCollapsed}
+    >
+      <Page
+        headerProps={{
+          ...headerProps,
+          actionButtonsRight: (
+            <>
+              <FilterToggleButton />
+              <AutomationButton projectId={projectId} />
+              <ActionButton
+                icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+                hasAccess={hasCUDAccess}
+                limit={monitorEntitlementLimit}
+                limitValue={monitorCountQuery.data?.count}
+                href={`/project/${projectId}/monitors/new`}
+                variant="default"
+              >
+                New Monitor
+              </ActionButton>
+            </>
+          ),
+        }}
+      >
+        <MonitorsTable />
+      </Page>
+    </DataTableControlsProvider>
+  );
+};
