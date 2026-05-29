@@ -210,6 +210,17 @@ export const createDatasetForApi = async ({
   projectId,
   auditScope,
 }: CreateDatasetInput) => {
+  const existingDataset = auditScope
+    ? await prisma.dataset.findUnique({
+        where: {
+          projectId_name: {
+            projectId,
+            name: input.name,
+          },
+        },
+      })
+    : null;
+
   const dataset = await upsertDataset({
     input: {
       name: input.name,
@@ -223,15 +234,13 @@ export const createDatasetForApi = async ({
 
   if (auditScope) {
     await auditLog({
-      action:
-        dataset.createdAt.getTime() === dataset.updatedAt.getTime()
-          ? "create"
-          : "update",
+      action: existingDataset ? "update" : "create",
       resourceType: "dataset",
       resourceId: dataset.id,
       projectId,
       orgId: auditScope.orgId,
       apiKeyId: auditScope.apiKeyId,
+      before: existingDataset ?? undefined,
       after: dataset,
     });
   }
