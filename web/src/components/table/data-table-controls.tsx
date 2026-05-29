@@ -603,6 +603,8 @@ export function CategoricalFacet({
     [textFilters, onTextFilterRemove, onChange],
   );
 
+  const { tableName = "data" } = useContext(ControlsContext) ?? {};
+
   const MAX_VISIBLE_OPTIONS = 12;
   const visibleOptionValues = Array.from(
     new Set([...options, ...value.filter((option) => option.length > 0)]),
@@ -664,6 +666,7 @@ export function CategoricalFacet({
                 - Traces: tags
                 - Sessions: userIds, tags
                 - Prompts: labels, tags
+                - Monitors: tags
             */}
             {onOperatorChange && (
               <div className="mb-1.5 flex items-center gap-1.5 px-2">
@@ -729,8 +732,8 @@ export function CategoricalFacet({
               <div className="text-muted-foreground py-1 text-xs">
                 {filterKey === "sessionId" ? (
                   <span>
-                    Sessions group traces together, which is useful for tracing
-                    multi-step workflows.{" "}
+                    Sessions group {tableName} together, which is useful for
+                    tracing multi-step workflows.{" "}
                     <a
                       href="https://langfuse.com/docs/observability/features/sessions"
                       target="_blank"
@@ -739,14 +742,16 @@ export function CategoricalFacet({
                     >
                       See docs
                     </a>{" "}
-                    to learn how to add sessions to your traces.
+                    to learn how to add sessions to your {tableName}.
                   </span>
                 ) : filterKey === "name" ? (
-                  <span>No trace names found in the given time range.</span>
+                  <span>
+                    No {tableName} names found in the given time range.
+                  </span>
                 ) : filterKey === "tags" ? (
                   <span>
-                    Tags let you filter traces according to custom categories
-                    (e.g. feature flags).{" "}
+                    Tags let you filter {tableName} according to custom
+                    categories (e.g. feature flags).{" "}
                     <a
                       href="https://langfuse.com/docs/observability/features/tags"
                       target="_blank"
@@ -755,7 +760,7 @@ export function CategoricalFacet({
                     >
                       See docs
                     </a>{" "}
-                    to learn how to add tags to your traces.
+                    to learn how to add tags to your {tableName}.
                   </span>
                 ) : (
                   "No options found"
@@ -837,7 +842,7 @@ export function CategoricalFacet({
                     >
                       See docs
                     </a>{" "}
-                    on how to add environments to your traces.
+                    on how to add environments to your {tableName}.
                   </div>
                 ) : null}
               </>
