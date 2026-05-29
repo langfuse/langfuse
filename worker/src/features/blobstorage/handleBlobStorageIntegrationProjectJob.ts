@@ -588,11 +588,18 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     notifyBlobStorageExportFailedInBackground(projectId);
 
+    const chain = formatErrorChain(error);
     logger.error(
-      `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}`,
-      error,
+      `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}: ${chain}`,
+      error instanceof Error ? { stack: error.stack } : {},
     );
-    throw error; // Rethrow to trigger retries
+    const rethrown = new Error(chain, { cause: error });
+    // Copy the original stack so BullMQ and the queue processor see the real
+    // failure site rather than this rethrow line. rethrown.stack starts with
+    // the original error's message, which won't match rethrown.message (the
+    // full chain), but structured loggers record them as separate fields.
+    if (error instanceof Error) rethrown.stack = error.stack;
+    throw rethrown;
   }
 };
 
@@ -687,4 +694,15 @@ function extractStorageErrorMessage(error: unknown): string {
 
   // Fallback: ClickHouse errors or other non-wrapped errors
   return error.message.slice(0, 1000);
+}
+
+function formatErrorChain(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const parts: string[] = [];
+  let current: unknown = error;
+  while (current instanceof Error) {
+    parts.push(current.message);
+    current = current.cause;
+  }
+  return parts.join(" caused by ");
 }

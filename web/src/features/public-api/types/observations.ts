@@ -2,6 +2,7 @@ import {
   type Observation,
   type EventsObservation,
   ObservationLevel,
+  eventsTableSingleFilter,
   paginationMetaResponseZod,
   publicApiPaginationZod,
   singleFilter,
@@ -379,7 +380,7 @@ export const GetObservationsV2Query = z.object({
         throw new InvalidRequestError("Invalid JSON in filter parameter");
       }
     })
-    .pipe(z.array(singleFilter).optional()),
+    .pipe(z.array(eventsTableSingleFilter).optional()),
 });
 
 /**

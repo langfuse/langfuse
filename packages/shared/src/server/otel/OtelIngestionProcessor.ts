@@ -458,6 +458,7 @@ export class OtelIngestionProcessor {
                   // Properties
                   tags: this.extractTags(spanAttributes),
                   public: this.extractPublic(spanAttributes),
+                  isAppRoot: this.extractIsAppRoot(spanAttributes),
                   traceName:
                     spanAttributes?.[LangfuseOtelSpanAttributes.TRACE_NAME] ??
                     null,
@@ -940,6 +941,12 @@ export class OtelIngestionProcessor {
       attributes?.["langfuse.public"];
 
     if (value == null) return;
+    return value === true || value === "true";
+  }
+
+  private extractIsAppRoot(attributes?: Record<string, unknown>): boolean {
+    const value = attributes?.[LangfuseOtelSpanAttributes.IS_APP_ROOT];
+
     return value === true || value === "true";
   }
 

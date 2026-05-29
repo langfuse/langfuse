@@ -159,7 +159,7 @@ export const ROUTES: Route[] = [
     icon: SquarePercent,
   },
   {
-    title: "LLM-as-a-Judge",
+    title: "Evaluators",
     icon: Lightbulb,
     productModule: "evaluation",
     projectRbacScopes: ["evalJob:read"],

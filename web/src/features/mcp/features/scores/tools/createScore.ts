@@ -64,6 +64,7 @@ export const [createScoreTool, handleCreateScore] = defineTool({
               isIngestionSuspended: false,
             },
           },
+          auditScope: context,
         });
         span.setAttribute("mcp.score_id", scoreId);
 

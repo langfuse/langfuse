@@ -5,13 +5,13 @@ import { type FilterState, type TimeFilter } from "@langfuse/shared";
 type UseEventsFilterOptionsParams = {
   projectId: string;
   oldFilterState: FilterState;
-  hasParentObservation?: boolean;
+  isRootObservation?: boolean;
 };
 
 export function useEventsFilterOptions({
   projectId,
   oldFilterState,
-  hasParentObservation,
+  isRootObservation,
 }: UseEventsFilterOptionsParams) {
   // Extract start time filters for filter options query
   const startTimeFilters = useMemo(() => {
@@ -28,7 +28,7 @@ export function useEventsFilterOptions({
       projectId,
       startTimeFilter:
         startTimeFilters.length > 0 ? startTimeFilters : undefined,
-      hasParentObservation,
+      isRootObservation,
     },
     {
       trpc: {
@@ -85,8 +85,7 @@ export function useEventsFilterOptions({
       experimentDatasetId: filterOptions.data?.experimentDatasetId ?? undefined,
       experimentId: filterOptions.data?.experimentId ?? undefined,
       experimentName: filterOptions.data?.experimentName ?? undefined,
-      hasParentObservation:
-        filterOptions.data?.hasParentObservation ?? undefined,
+      isRootObservation: filterOptions.data?.isRootObservation ?? undefined,
       toolNames: filterOptions.data?.toolNames ?? undefined,
       calledToolNames: filterOptions.data?.calledToolNames ?? undefined,
       toolDefinitions: [],

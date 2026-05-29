@@ -190,7 +190,7 @@ const generateDatasetQuery = ({
         d.expected_output_schema,
         2 as sort_priority, -- Individual datasets second
         'dataset'::text as row_type  -- Mark as individual dataset
-      FROM filtered_datasets d 
+      FROM filtered_datasets d
       WHERE SUBSTRING(d.name, CHAR_LENGTH(${pathPrefix}) + 2) NOT LIKE '%/%'
         AND SUBSTRING(d.name, CHAR_LENGTH(${pathPrefix}) + 2) != ''  -- Exclude datasets that match prefix exactly
         AND d.name != ${pathPrefix}  -- Additional safety check
@@ -2004,7 +2004,6 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
-      // Audit log
       await auditLog({
         session: ctx.session,
         resourceType: "dataset",

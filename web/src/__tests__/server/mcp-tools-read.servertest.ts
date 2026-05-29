@@ -10,12 +10,6 @@ vi.mock("@langfuse/shared/src/server", async () => {
         disconnect: vi.fn(),
       }),
     },
-    ScoreDeleteQueue: {
-      getInstance: () => ({
-        add: vi.fn().mockResolvedValue(undefined),
-        disconnect: vi.fn(),
-      }),
-    },
   };
 });
 
@@ -27,6 +21,7 @@ vi.mock("@/src/features/media/server/getMediaStorageClient", () => ({
 
 import { nanoid } from "nanoid";
 import { createHash, randomUUID } from "crypto";
+import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createEvent,
@@ -96,10 +91,6 @@ import {
   handleCreateScore,
 } from "@/src/features/mcp/features/scores/tools/createScore";
 import {
-  deleteScoreTool,
-  handleDeleteScore,
-} from "@/src/features/mcp/features/scores/tools/deleteScore";
-import {
   deleteScoreConfigTool,
   handleDeleteScoreConfig,
 } from "@/src/features/mcp/features/scores/tools/deleteScoreConfig";
@@ -127,6 +118,13 @@ import {
   getMediaTool,
   handleGetMedia,
 } from "@/src/features/mcp/features/media/tools/getMedia";
+import {
+  GetDatasetItemsMcpInput,
+  GetDatasetMcpInput,
+  GetDatasetRunMcpInput,
+  GetDatasetRunsMcpInput,
+  GetDatasetsMcpInput,
+} from "@/src/features/mcp/features/datasets/schema";
 
 const maybeEventsTable =
   env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
@@ -219,6 +217,34 @@ const containsPropertyName = (value: unknown, expected: string): boolean => {
 };
 
 describe("MCP Read Tools", () => {
+  describe("dataset tool schemas", () => {
+    it("uses dataset IDs for existing dataset read addressing", () => {
+      for (const schema of [
+        GetDatasetMcpInput,
+        GetDatasetItemsMcpInput,
+        GetDatasetRunsMcpInput,
+        GetDatasetRunMcpInput,
+      ]) {
+        const jsonSchema = z.toJSONSchema(schema, { unrepresentable: "any" });
+        const properties = jsonSchema.properties as Record<string, unknown>;
+
+        expect(properties).toHaveProperty("datasetId");
+        expect(properties).not.toHaveProperty("datasetName");
+        expect(properties).not.toHaveProperty("name");
+      }
+    });
+
+    it("keeps dataset names only as a listDatasets discovery filter", () => {
+      const jsonSchema = z.toJSONSchema(GetDatasetsMcpInput, {
+        unrepresentable: "any",
+      });
+      const properties = jsonSchema.properties as Record<string, unknown>;
+
+      expect(properties).toHaveProperty("name");
+      expect(properties).not.toHaveProperty("datasetId");
+    });
+  });
+
   describe("getMedia tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getMediaTool, { readOnlyHint: true });
@@ -1573,7 +1599,7 @@ describe("MCP Read Tools", () => {
     });
 
     it("should create a score using v1 route semantics", async () => {
-      const { context } = await createMcpTestSetup();
+      const { context, projectId, apiKeyId } = await createMcpTestSetup();
       const scoreId = randomUUID();
 
       const result = await handleCreateScore(
@@ -1590,32 +1616,19 @@ describe("MCP Read Tools", () => {
       );
 
       expect(result).toEqual({ id: scoreId });
-    });
-  });
-
-  describe("deleteScore tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(deleteScoreTool, { destructiveHint: true });
-    });
-
-    it("should queue score deletion using v1 route semantics", async () => {
-      const { context, projectId, apiKeyId } = await createMcpTestSetup();
-      const scoreId = randomUUID();
-
-      const result = await handleDeleteScore({ scoreId }, context);
-
-      expect(result).toEqual({
-        message: "Score deletion queued successfully",
-      });
       await expect(
         verifyAuditLog({
           projectId,
+          apiKeyId,
           resourceType: "score",
           resourceId: scoreId,
-          action: "delete",
-          apiKeyId,
+          action: "create",
         }),
-      ).resolves.toMatchObject({ action: "delete" });
+      ).resolves.toMatchObject({
+        resourceType: "score",
+        resourceId: scoreId,
+        action: "create",
+      });
     });
   });
 
@@ -1674,6 +1687,41 @@ describe("MCP Read Tools", () => {
           expect.objectContaining({ projectId: otherProjectId, name }),
         ]),
       );
+    });
+
+    it("should paginate score configs deterministically when createdAt timestamps tie", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const sharedCreatedAt = new Date("2100-05-12T00:00:00.000Z");
+      const configIDs = [randomUUID(), randomUUID(), randomUUID()];
+
+      await prisma.scoreConfig.createMany({
+        data: configIDs.map((id, index) => ({
+          id,
+          projectId,
+          name: `mcp-tie-score-config-${index}-${id.slice(0, 8)}`,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: index,
+          maxValue: index + 1,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        })),
+      });
+
+      const firstPage = (await handleListScoreConfigs(
+        { limit: 2, page: 1 },
+        context,
+      )) as any;
+      const secondPage = (await handleListScoreConfigs(
+        { limit: 2, page: 2 },
+        context,
+      )) as any;
+
+      const tiedIDs = [...firstPage.data, ...secondPage.data]
+        .filter((config) => config.id && configIDs.includes(config.id))
+        .map((config) => config.id);
+
+      expect(tiedIDs).toEqual(configIDs.slice().sort());
+      expect(new Set(tiedIDs).size).toBe(configIDs.length);
     });
   });
 
