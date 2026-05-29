@@ -418,15 +418,13 @@ function selectThreshold(
   return alertThreshold;
 }
 
-/** toFilterData projects the row + alert into the flat record shape `matchesTriggerFilter` evaluates against trigger filters (severity, tags, monitorId, monitorName). */
+/** toFilterData provides tirgger filter information */
 function toFilterData(
   row: PrismaMonitor,
   alert: MonitorAlert,
 ): Record<string, unknown> {
   return {
     severity: alert.severity,
-    tags: row.tags,
-    monitorId: row.id,
-    monitorName: row.name,
+    triggerIds: row.triggerIds,
   };
 }
