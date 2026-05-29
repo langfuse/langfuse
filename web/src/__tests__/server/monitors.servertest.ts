@@ -153,7 +153,7 @@ describe("monitors trpc", () => {
       const list = await caller.monitors.all({
         projectId: project.id,
         orderBy: null,
-        page: 0,
+        page: 1,
         limit: 50,
       });
       expect(list.totalCount).toBe(1);
@@ -206,7 +206,7 @@ describe("monitors trpc", () => {
       const list = await caller.monitors.all({
         projectId: project.id,
         orderBy: null,
-        page: 0,
+        page: 1,
         limit: 50,
       });
       expect(list.totalCount).toBe(0);
@@ -275,7 +275,7 @@ describe("monitors trpc", () => {
         caller.monitors.all({
           projectId: project.id,
           orderBy: null,
-          page: 0,
+          page: 1,
           limit: 50,
         }),
       ).rejects.toThrow(/monitors/i);
@@ -337,7 +337,7 @@ describe("monitors trpc", () => {
       const result = await caller.monitors.all({
         projectId: project.id,
         orderBy: null,
-        page: 0,
+        page: 1,
         limit: 50,
         filter: [
           {
@@ -373,7 +373,7 @@ describe("monitors trpc", () => {
       const result = await caller.monitors.all({
         projectId: project.id,
         orderBy: null,
-        page: 0,
+        page: 1,
         limit: 50,
         filter: [
           {
@@ -436,7 +436,7 @@ describe("monitors trpc", () => {
       const result = await caller.monitors.all({
         projectId: project.id,
         orderBy: null,
-        page: 0,
+        page: 1,
         limit: 50,
         filter: [
           {
