@@ -1,8 +1,16 @@
+import { z } from "zod";
 import { deleteDatasetRunForApi } from "@/src/features/datasets/server/publicDatasetService";
-import { DeleteDatasetRunV1Response } from "@/src/features/public-api/types/datasets";
+import {
+  DeleteDatasetRunV1Query,
+  DeleteDatasetRunV1Response,
+} from "@/src/features/public-api/types/datasets";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { DeleteDatasetRunMcpInput } from "../schema";
+
+const DeleteDatasetRunMcpInput = DeleteDatasetRunV1Query.extend({
+  name: z.string(),
+  runName: z.string(),
+});
 
 export const [deleteDatasetRunTool, handleDeleteDatasetRun] = defineTool({
   name: "deleteDatasetRun",

@@ -1,8 +1,15 @@
-import { GetDatasetRunsV1Response } from "@/src/features/public-api/types/datasets";
+import { z } from "zod";
+import {
+  GetDatasetRunsV1Query,
+  GetDatasetRunsV1Response,
+} from "@/src/features/public-api/types/datasets";
 import { listDatasetRunsForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { GetDatasetRunsMcpInput } from "../schema";
+
+const GetDatasetRunsMcpInput = GetDatasetRunsV1Query.extend({
+  name: z.string(),
+});
 
 export const [listDatasetRunsTool, handleListDatasetRuns] = defineTool({
   name: "listDatasetRuns",

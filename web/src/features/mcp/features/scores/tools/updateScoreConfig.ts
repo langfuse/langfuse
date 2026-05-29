@@ -6,23 +6,39 @@ import {
   PutScoreConfigQuery,
 } from "@/src/features/public-api/types/score-configs";
 import { z } from "zod";
-import { McpScoreConfigNameSchema } from "../schema";
+import {
+  McpScoreConfigCategoricalCategoriesSchema,
+  McpScoreConfigNameSchema,
+  McpScoreConfigNumericMaxValueSchema,
+  McpScoreConfigNumericMinValueSchema,
+  normalizeMcpScoreConfigInput,
+} from "../schema";
+
+const McpUpdateScoreConfigBaseSchema = z.object({
+  configId: z.string(),
+  name: McpScoreConfigNameSchema.optional(),
+  numericMinValue: McpScoreConfigNumericMinValueSchema,
+  numericMaxValue: McpScoreConfigNumericMaxValueSchema,
+  categoricalCategories: McpScoreConfigCategoricalCategoriesSchema,
+  description: z.string().optional(),
+});
 
 const UpdateScoreConfigInputSchema = PutScoreConfigQuery.and(
   PutScoreConfigBodyWithoutArchived,
 );
 
-const McpUpdateScoreConfigInputSchema = z
-  .object({
-    name: McpScoreConfigNameSchema.optional(),
-  })
-  .and(UpdateScoreConfigInputSchema);
+const McpUpdateScoreConfigInputSchema = z.preprocess((input) => {
+  const parsed = McpUpdateScoreConfigBaseSchema.safeParse(input);
+  if (!parsed.success) return input;
+
+  return normalizeMcpScoreConfigInput(parsed.data);
+}, UpdateScoreConfigInputSchema);
 
 export const [updateScoreConfigTool, handleUpdateScoreConfig] = defineTool({
   name: "updateScoreConfig",
   description:
     "Update a score configuration. Use this to rename, describe, or adjust allowed numeric/category fields.",
-  baseSchema: McpUpdateScoreConfigInputSchema,
+  baseSchema: McpUpdateScoreConfigBaseSchema,
   inputSchema: McpUpdateScoreConfigInputSchema,
   handler: async (input, context) => {
     return await runMcpTool({

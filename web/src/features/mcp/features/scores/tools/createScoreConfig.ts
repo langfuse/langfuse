@@ -3,19 +3,39 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 import { createScoreConfig } from "@/src/features/public-api/server/score-configs-api-service";
 import { PostScoreConfigBody } from "@/src/features/public-api/types/score-configs";
 import { z } from "zod";
-import { McpScoreConfigNameSchema } from "../schema";
+import {
+  McpScoreConfigCategoricalCategoriesSchema,
+  McpScoreConfigNameSchema,
+  McpScoreConfigNumericMaxValueSchema,
+  McpScoreConfigNumericMinValueSchema,
+  normalizeMcpScoreConfigInput,
+} from "../schema";
 
-const CreateScoreConfigInputSchema = z
-  .object({
-    name: McpScoreConfigNameSchema,
-  })
-  .and(PostScoreConfigBody);
+const CreateScoreConfigBaseSchema = z.object({
+  name: McpScoreConfigNameSchema,
+  description: z.string().optional(),
+  dataType: z
+    .enum(["NUMERIC", "CATEGORICAL", "BOOLEAN", "TEXT"])
+    .describe(
+      "Score config type. Numeric range fields only apply to NUMERIC configs; categorical categories only apply to CATEGORICAL configs.",
+    ),
+  numericMinValue: McpScoreConfigNumericMinValueSchema,
+  numericMaxValue: McpScoreConfigNumericMaxValueSchema,
+  categoricalCategories: McpScoreConfigCategoricalCategoriesSchema,
+});
+
+const CreateScoreConfigInputSchema = z.preprocess((input) => {
+  const parsed = CreateScoreConfigBaseSchema.safeParse(input);
+  if (!parsed.success) return input;
+
+  return normalizeMcpScoreConfigInput(parsed.data);
+}, PostScoreConfigBody);
 
 export const [createScoreConfigTool, handleCreateScoreConfig] = defineTool({
   name: "createScoreConfig",
   description:
     "Create a score configuration. Supports numeric, categorical, boolean, and text configs. Boolean configs automatically receive True and False categories.",
-  baseSchema: CreateScoreConfigInputSchema,
+  baseSchema: CreateScoreConfigBaseSchema,
   inputSchema: CreateScoreConfigInputSchema,
   destructiveHint: true,
   handler: async (input, context) => {

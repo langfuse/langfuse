@@ -446,33 +446,21 @@ describe("MCP Read Tools", () => {
         | undefined;
 
       expect(filterSchema?.type).toBe("array");
-      const filterVariants =
-        filterSchema?.items?.anyOf ?? filterSchema?.items?.oneOf;
-      const totalCostSchemas =
-        filterVariants?.filter(
-          (schema) =>
-            schema.properties?.column?.const === "totalCost" ||
-            schema.properties?.column?.enum?.includes("totalCost"),
-        ) ?? [];
-      const totalCostSchema = totalCostSchemas[0];
-
-      expect(totalCostSchemas).not.toHaveLength(0);
-      expect(
-        totalCostSchemas.every(
-          (schema) => schema.properties?.type?.const === "number",
-        ),
-      ).toBe(true);
-
-      expect(totalCostSchema?.type).toBe("object");
-      expect(totalCostSchema?.required).toEqual(
+      expect(filterSchema?.items?.anyOf).toBeUndefined();
+      expect(filterSchema?.items?.oneOf).toBeUndefined();
+      expect(filterSchema?.items?.type).toBe("object");
+      expect(filterSchema?.items?.required).toEqual(
         expect.arrayContaining(["column", "operator", "value"]),
       );
-      expect(totalCostSchema?.required).not.toContain("type");
-      expect(totalCostSchema?.properties?.type?.const).toBe("number");
-      expect(totalCostSchema?.properties?.operator?.enum).toEqual(
-        expect.arrayContaining([">", "<", ">=", "<="]),
+      expect(filterSchema?.items?.required).not.toContain("type");
+      expect(filterSchema?.items?.properties).toEqual(
+        expect.objectContaining({
+          column: expect.objectContaining({ type: "string" }),
+          operator: expect.objectContaining({ type: "string" }),
+          value: expect.any(Object),
+          type: expect.objectContaining({ type: "string" }),
+        }),
       );
-      expect(totalCostSchema?.properties?.value?.type).toBe("number");
     });
 
     it("should list observations with compact default projection", async () => {
@@ -1714,8 +1702,8 @@ describe("MCP Read Tools", () => {
         {
           name: `mcp-num-${nanoid(8)}`,
           dataType: "NUMERIC" as const,
-          minValue: 0,
-          maxValue: 1,
+          numericMinValue: 0,
+          numericMaxValue: 1,
         },
       ],
       [
@@ -1723,7 +1711,7 @@ describe("MCP Read Tools", () => {
         {
           name: `mcp-cat-${nanoid(8)}`,
           dataType: "CATEGORICAL" as const,
-          categories: [
+          categoricalCategories: [
             { label: "High", value: 1 },
             { label: "Low", value: 0 },
           ],
@@ -1734,7 +1722,6 @@ describe("MCP Read Tools", () => {
         {
           name: `mcp-text-${nanoid(8)}`,
           dataType: "TEXT" as const,
-          categories: undefined,
         },
       ],
     ])("should create %s score configs", async (_type, input) => {
@@ -1766,7 +1753,6 @@ describe("MCP Read Tools", () => {
         {
           name: `mcp-bool-${nanoid(8)}`,
           dataType: "BOOLEAN",
-          categories: undefined,
         },
         context,
       );
@@ -1788,7 +1774,7 @@ describe("MCP Read Tools", () => {
           {
             name: `mcp-invalid-${nanoid(8)}`,
             dataType: "CATEGORICAL",
-            categories: [
+            categoricalCategories: [
               { label: "Duplicate", value: 1 },
               { label: "Duplicate", value: 2 },
             ],
@@ -1837,7 +1823,7 @@ describe("MCP Read Tools", () => {
           configId: config.id,
           name: "mcp-updated",
           description: "Updated through MCP",
-          minValue: -1,
+          numericMinValue: -1,
         },
         context,
       );

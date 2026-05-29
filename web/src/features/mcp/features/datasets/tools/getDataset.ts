@@ -1,8 +1,15 @@
-import { GetDatasetV2Response } from "@/src/features/public-api/types/datasets";
+import { z } from "zod";
+import {
+  GetDatasetV2Query,
+  GetDatasetV2Response,
+} from "@/src/features/public-api/types/datasets";
 import { getDatasetForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { GetDatasetMcpInput } from "../schema";
+
+const GetDatasetMcpInput = GetDatasetV2Query.extend({
+  datasetName: z.string(),
+});
 
 export const [getDatasetTool, handleGetDataset] = defineTool({
   name: "getDataset",

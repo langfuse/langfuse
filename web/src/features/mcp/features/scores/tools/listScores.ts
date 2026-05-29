@@ -19,6 +19,42 @@ const ScoreFieldsSchema = z
     "Response field groups to include. 'score' is always required. Include 'trace' when filtering by userId or traceTags.",
   );
 
+const ScoreFilterBaseSchema = z.object({
+  column: z.string(),
+  operator: z.string(),
+  value: z.any(),
+  type: z.string(),
+  key: z.string().optional(),
+});
+
+const ListScoresBaseSchema = z.object({
+  ...publicApiPaginationZod,
+  fields: ScoreFieldsSchema,
+  userId: z.string().optional(),
+  dataType: ScoreDataTypeDomain.optional(),
+  configId: z.string().optional(),
+  queueId: z.string().optional(),
+  traceTags: z.array(z.string()).optional(),
+  environment: z.array(z.string()).optional(),
+  name: z.string().optional(),
+  fromTimestamp: z.iso.datetime({ offset: true }).optional(),
+  toTimestamp: z.iso.datetime({ offset: true }).optional(),
+  source: ScoreSourceDomain.optional(),
+  value: z.number().optional(),
+  operator: z.enum(["<", ">", "<=", ">=", "!=", "="]).optional(),
+  scoreIds: z.array(z.string()).optional(),
+  sessionId: z.string().optional(),
+  traceId: z.string().optional(),
+  datasetRunId: z.string().optional(),
+  observationId: z.array(z.string()).optional(),
+  filter: z
+    .array(ScoreFilterBaseSchema)
+    .optional()
+    .describe(
+      "Advanced score filters as JSON objects with column, operator, value, and type.",
+    ),
+});
+
 const ListScoresInputSchema = z.object({
   ...publicApiPaginationZod,
   fields: ScoreFieldsSchema,
@@ -26,14 +62,8 @@ const ListScoresInputSchema = z.object({
   dataType: ScoreDataTypeDomain.optional(),
   configId: z.string().optional(),
   queueId: z.string().optional(),
-  traceTags: z
-    .array(z.string())
-    .optional()
-    .describe("Trace tags to filter by."),
-  environment: z
-    .array(z.string())
-    .optional()
-    .describe("Score environments to filter by."),
+  traceTags: z.array(z.string()).optional(),
+  environment: z.array(z.string()).optional(),
   name: z.string().optional(),
   fromTimestamp: z.iso.datetime({ offset: true }).optional(),
   toTimestamp: z.iso.datetime({ offset: true }).optional(),
@@ -76,7 +106,7 @@ export const [listScoresTool, handleListScores] = defineTool({
     "Use this to review quality, evaluation, or feedback scores for traces, observations, sessions, and dataset runs.",
     "Filter by score details, time range, environment, source, trace information, or dataset run context to narrow the results.",
   ].join("\n"),
-  baseSchema: ListScoresInputSchema,
+  baseSchema: ListScoresBaseSchema,
   inputSchema: ListScoresInputSchema,
   handler: async (input, context) => {
     return await runMcpTool({

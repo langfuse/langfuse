@@ -160,6 +160,17 @@ const OBSERVATION_MCP_EXPLICIT_FILTER_SCHEMAS =
       : [],
   );
 
+const ObservationMcpFilterBaseSchema = z
+  .object({
+    column: z.string(),
+    operator: z.string(),
+    value: z.any(),
+    type: z.string().optional(),
+  })
+  .describe(
+    `Advanced observation filter object. Example: ${OBSERVATION_MCP_FILTER_EXAMPLE_JSON}. The explicit form ${OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE_JSON} is also accepted.`,
+  );
+
 const ObservationMcpFilterShapeSchema = z
   .union([
     ...OBSERVATION_MCP_FILTER_SCHEMAS,
@@ -224,7 +235,7 @@ const ListObservationsBaseSchema = z.object({
   fromStartTime: z.iso.datetime({ offset: true }).optional(),
   toStartTime: z.iso.datetime({ offset: true }).optional(),
   filter: z
-    .array(ObservationMcpFilterShapeSchema)
+    .array(ObservationMcpFilterBaseSchema)
     .optional()
     .describe(
       "Advanced filters. Each item must be an object with column, operator, value, and optional type. Type is inferred from getObservationFilterSchema columns when omitted.",
@@ -306,7 +317,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
     "Requests that project or filter input, output, or metadata must include traceId, an id filter, or both fromStartTime and toStartTime.",
   ].join("\n"),
-  baseSchema: ListObservationsBaseSchema as z.ZodType<ListObservationsInput>,
+  baseSchema: ListObservationsBaseSchema,
   inputSchema: ListObservationsInputSchema,
   handler: async (input, context) => {
     return await runMcpTool({
