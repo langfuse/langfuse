@@ -165,13 +165,13 @@ describe("UpdateMonitorSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects an unknown filter column (validateQuery is wired)", () => {
+  it("rejects a disallowed filter column (validateQuery is wired)", () => {
     const result = UpdateMonitorSchema.safeParse({
       ...validUpdateInput,
       filters: [
         {
           type: "string",
-          column: "not_a_dimension",
+          column: "metadata",
           operator: "=",
           value: "x",
         },

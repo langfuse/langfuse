@@ -10,8 +10,8 @@ import {
   decimalToPrisma,
   errorFromPrisma,
   monitorFromPrisma,
-  nullableOrderColumns,
   sortFiltersCanonically,
+  toPrismaOrderBy,
   toPrismaWhere,
   updateSeverityForStatus,
   viewToPrisma,
@@ -159,22 +159,14 @@ export class MonitorService {
     _session: SessionContext,
     input: ListMonitors,
   ): Promise<{ monitors: Monitor[]; totalCount: number }> {
-    const skip = input.limit ? input.page * input.limit : undefined;
-
-    const sortOrder = input.orderBy?.order.toLowerCase();
-    const orderByValue =
-      input.orderBy && nullableOrderColumns.has(input.orderBy.column)
-        ? { sort: sortOrder, nulls: "last" as const }
-        : sortOrder;
-
+    const skip =
+      input.page && input.limit ? (input.page - 1) * input.limit : undefined;
     const where = toPrismaWhere(input.projectId, input.filter);
 
     const [monitors, totalCount] = await Promise.all([
       prisma.monitor.findMany({
         where,
-        orderBy: input.orderBy
-          ? [{ [input.orderBy.column]: orderByValue }, { id: "asc" }]
-          : [{ severity: "desc" }, { id: "asc" }],
+        orderBy: toPrismaOrderBy(input.orderBy),
         skip,
         take: input.limit,
       }),

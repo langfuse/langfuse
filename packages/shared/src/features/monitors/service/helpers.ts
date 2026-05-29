@@ -25,14 +25,30 @@ import {
 import {
   MonitorNotFoundError,
   type ListMonitorFilter,
+  type ListMonitors,
   type MonitorListOrderBy,
 } from "./types";
 
 /** nullableOrderColumns is the list of sortable columns that are nullable. */
-export const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
+const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
   "severityChangedAt",
   "alertedAt",
 ]);
+
+/** toPrismaOrderBy builds the Prisma orderBy clause for MonitorService.list. */
+export const toPrismaOrderBy = (
+  orderBy: ListMonitors["orderBy"],
+): Prisma.MonitorOrderByWithRelationInput[] => {
+  if (!orderBy) return [{ severity: "desc" }, { id: "asc" }];
+  const sort = orderBy.order.toLowerCase() as Prisma.SortOrder;
+  const isNullable = nullableOrderColumns.has(orderBy.column);
+  return [
+    {
+      [orderBy.column]: isNullable ? { sort, nulls: "last" } : sort,
+    },
+    { id: "asc" },
+  ];
+};
 
 /** toPrismaWhere builds the Prisma where clause for a project-scoped ListMonitorFilter. */
 export const toPrismaWhere = (
