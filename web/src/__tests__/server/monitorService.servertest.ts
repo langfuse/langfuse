@@ -208,6 +208,46 @@ describe("MonitorService (integration)", () => {
       expect(updated.severityChangedAt).not.toBeNull();
     });
 
+    it("leaves status and worker-owned severity untouched when status is omitted", async () => {
+      const created = await MonitorService.create(
+        creator,
+        baseMonitorInput(projectId),
+      );
+      await prisma.monitor.update({
+        where: { id: created.id },
+        data: { severity: "ALERT", severityChangedAt: new Date() },
+      });
+
+      const { status, ...withoutStatus } = baseMonitorInput(projectId);
+      const updated = await MonitorService.update(editor, {
+        ...withoutStatus,
+        id: created.id,
+        name: "Renamed",
+      });
+
+      expect(updated.name).toBe("Renamed");
+      expect(updated.status).toBe("ACTIVE");
+      expect(updated.severity).toBe("ALERT");
+    });
+
+    it("does not resurrect a paused monitor when status is omitted", async () => {
+      const created = await MonitorService.create(creator, {
+        ...baseMonitorInput(projectId),
+        status: "PAUSED",
+      });
+      expect(created.severity).toBe("PAUSED");
+
+      const { status, ...withoutStatus } = baseMonitorInput(projectId);
+      const updated = await MonitorService.update(editor, {
+        ...withoutStatus,
+        id: created.id,
+        name: "Renamed",
+      });
+
+      expect(updated.status).toBe("PAUSED");
+      expect(updated.severity).toBe("PAUSED");
+    });
+
     it("preserves worker-owned severity when status does not change", async () => {
       const created = await MonitorService.create(
         creator,

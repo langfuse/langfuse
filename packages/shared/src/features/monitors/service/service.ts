@@ -13,7 +13,7 @@ import {
   sortFiltersCanonically,
   toPrismaOrderBy,
   toPrismaWhere,
-  updateSeverityForStatus,
+  updateStatusAndSeverity,
   initSeverity,
   viewToPrisma,
   windowToMs,
@@ -109,12 +109,20 @@ export class MonitorService {
     );
 
     try {
-      const current = await prisma.monitor.findFirst({
-        where: { id: input.id, projectId: input.projectId },
-        select: { status: true },
-      });
-      if (!current) {
-        throw new MonitorNotFoundError(input.id, input.projectId);
+      // status and its derived severity are written only when supplied.
+      let statusAndSeverity: Prisma.MonitorUncheckedUpdateInput = {};
+      if (input.status !== undefined) {
+        const current = await prisma.monitor.findFirst({
+          where: { id: input.id, projectId: input.projectId },
+          select: { status: true },
+        });
+        if (!current) {
+          throw new MonitorNotFoundError(input.id, input.projectId);
+        }
+        statusAndSeverity = updateStatusAndSeverity(
+          current.status,
+          input.status,
+        );
       }
 
       const updated = await prisma.monitor.update({
@@ -131,8 +139,7 @@ export class MonitorService {
           warningThreshold: decimalToPrisma(input.warningThreshold),
           noData: input.noData,
           renotify: input.renotify,
-          status: input.status,
-          ...updateSeverityForStatus(current.status, input.status),
+          ...statusAndSeverity,
           schedulerBatchId,
           nextRunAt,
           name: input.name,

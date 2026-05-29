@@ -67,7 +67,6 @@ import {
   MonitorViewSchema,
   type MonitorWindow,
   MonitorWindowSchema,
-  type MonitorWriteStatus,
   UpdateMonitorSchema,
   type UpdateMonitor,
 } from "@langfuse/shared/monitors";
@@ -166,12 +165,7 @@ const monitorToDefaults = (monitor: Monitor): UpdateMonitor => ({
   name: monitor.name,
   tags: monitor.tags,
   triggerIds: monitor.triggerIds,
-  // Persisted ERROR_BAD_QUERY status is scheduler-owned and not a valid
-  // write value, so coerce it back to ACTIVE for the form's default.
-  status:
-    monitor.status === "ERROR_BAD_QUERY"
-      ? "ACTIVE"
-      : (monitor.status as MonitorWriteStatus),
+  // status omitted: the pause/resume toolbar owns it.
 });
 
 /** nameOrPlaceholder falls back to the placeholder when the name is blank. */
@@ -272,14 +266,10 @@ export const MonitorForm = ({
     } as typeof values;
 
     if (isEdit && monitor) {
+      // status omitted: the pause/resume toolbar owns it.
       updateMutation.mutate({
         ...(normalizedValues as UpdateMonitor),
         id: monitor.id,
-        // Pause/resume toolbar owns status; never submit the form's snapshot.
-        status:
-          monitor.status === "ERROR_BAD_QUERY"
-            ? "ACTIVE"
-            : (monitor.status as MonitorWriteStatus),
       });
     } else {
       createMutation.mutate(normalizedValues as CreateMonitor);
