@@ -28,6 +28,7 @@ export default withMiddlewares({
     fn: async ({ body, auth }) =>
       await createDatasetItemForApi({
         input: body,
+        projectId: auth.scope.projectId,
         auditScope: auth.scope,
       }),
   }),

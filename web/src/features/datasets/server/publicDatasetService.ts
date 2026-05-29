@@ -10,6 +10,8 @@ import type {
   GetDatasetRunsV1Query,
   GetDatasetsV2Query,
   GetDatasetV2Query,
+  PostDatasetsV1Body,
+  PostDatasetsV2Body,
   PostDatasetItemsV1Body,
 } from "@/src/features/public-api/types/datasets";
 import {
@@ -24,6 +26,7 @@ import {
   Prisma,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { upsertDataset } from "./actions/createDataset";
 import {
   addToDeleteDatasetQueue,
   createDatasetItemFilterState,
@@ -59,6 +62,14 @@ type GetDatasetV1Input = z.infer<typeof GetDatasetV1Query> & {
   projectId: string;
 };
 
+type CreateDatasetInput = {
+  input:
+    | z.infer<typeof PostDatasetsV1Body>
+    | z.infer<typeof PostDatasetsV2Body>;
+  projectId: string;
+  auditScope?: DatasetAuditScope;
+};
+
 type ListDatasetItemsInput = z.infer<typeof GetDatasetItemsV1Query> & {
   projectId: string;
   datasetId?: string;
@@ -74,7 +85,8 @@ type CreateDatasetItemInput = {
     | (Omit<z.infer<typeof PostDatasetItemsV1Body>, "datasetName"> & {
         datasetId: string;
       });
-  auditScope: DatasetAuditScope;
+  projectId: string;
+  auditScope?: DatasetAuditScope;
 };
 
 type ListDatasetRunsInput = z.infer<typeof GetDatasetRunsV1Query> & {
@@ -191,6 +203,49 @@ const getDatasetRunRecordOrThrow = async ({
   }
 
   return datasetRuns[0];
+};
+
+export const createDatasetForApi = async ({
+  input,
+  projectId,
+  auditScope,
+}: CreateDatasetInput) => {
+  const existingDataset = auditScope
+    ? await prisma.dataset.findUnique({
+        where: {
+          projectId_name: {
+            projectId,
+            name: input.name,
+          },
+        },
+      })
+    : null;
+
+  const dataset = await upsertDataset({
+    input: {
+      name: input.name,
+      description: input.description ?? undefined,
+      metadata: input.metadata ?? undefined,
+      inputSchema: input.inputSchema,
+      expectedOutputSchema: input.expectedOutputSchema,
+    },
+    projectId,
+  });
+
+  if (auditScope) {
+    await auditLog({
+      action: existingDataset ? "update" : "create",
+      resourceType: "dataset",
+      resourceId: dataset.id,
+      projectId,
+      orgId: auditScope.orgId,
+      apiKeyId: auditScope.apiKeyId,
+      before: existingDataset ?? undefined,
+      after: dataset,
+    });
+  }
+
+  return transformDbDatasetToAPIDataset(dataset);
 };
 
 const getDatasetRunRecordByIdOrThrow = async ({
@@ -480,18 +535,27 @@ export const getDatasetItemForApi = async ({
 
 export const createDatasetItemForApi = async ({
   input,
+  projectId,
   auditScope,
 }: CreateDatasetItemInput) => {
   const datasetIdentifierForLog =
     "datasetId" in input ? input.datasetId : input.datasetName;
 
   try {
+    const existingDatasetItem = input.id
+      ? await getDatasetItemById({
+          projectId,
+          datasetItemId: input.id,
+        })
+      : null;
+
     const datasetIdentifier =
       "datasetId" in input
         ? { datasetId: input.datasetId }
         : { datasetName: input.datasetName };
+
     const datasetItem = await upsertDatasetItem({
-      projectId: auditScope.projectId,
+      projectId,
       ...datasetIdentifier,
       datasetItemId: input.id ?? undefined,
       input: input.input ?? undefined,
@@ -504,15 +568,18 @@ export const createDatasetItemForApi = async ({
       validateOpts: { normalizeUndefinedToNull: !!input.id ? false : true },
     });
 
-    await auditLog({
-      action: "create",
-      resourceType: "datasetItem",
-      resourceId: datasetItem.id,
-      projectId: auditScope.projectId,
-      orgId: auditScope.orgId,
-      apiKeyId: auditScope.apiKeyId,
-      after: datasetItem,
-    });
+    if (auditScope) {
+      await auditLog({
+        action: existingDatasetItem ? "update" : "create",
+        resourceType: "datasetItem",
+        resourceId: datasetItem.id,
+        projectId,
+        orgId: auditScope.orgId,
+        apiKeyId: auditScope.apiKeyId,
+        before: existingDatasetItem ?? undefined,
+        after: datasetItem,
+      });
+    }
 
     return transformDbDatasetItemDomainToAPIDatasetItem({
       ...datasetItem,

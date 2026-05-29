@@ -1599,7 +1599,7 @@ describe("MCP Read Tools", () => {
     });
 
     it("should create a score using v1 route semantics", async () => {
-      const { context } = await createMcpTestSetup();
+      const { context, projectId, apiKeyId } = await createMcpTestSetup();
       const scoreId = randomUUID();
 
       const result = await handleCreateScore(
@@ -1616,6 +1616,19 @@ describe("MCP Read Tools", () => {
       );
 
       expect(result).toEqual({ id: scoreId });
+      await expect(
+        verifyAuditLog({
+          projectId,
+          apiKeyId,
+          resourceType: "score",
+          resourceId: scoreId,
+          action: "create",
+        }),
+      ).resolves.toMatchObject({
+        resourceType: "score",
+        resourceId: scoreId,
+        action: "create",
+      });
     });
   });
 
