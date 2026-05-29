@@ -48,9 +48,8 @@ export default withMiddlewares(
 
         // Use events table if query parameter is explicitly set, otherwise use environment variable
         const useEventsTable =
-          query.useEventsTable !== undefined && query.useEventsTable !== null
-            ? query.useEventsTable === true
-            : env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS;
+          query.useEventsTable ??
+          (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true");
 
         if (useEventsTable) {
           const [items, count] = await Promise.all([

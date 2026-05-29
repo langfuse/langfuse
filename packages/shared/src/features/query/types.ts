@@ -195,4 +195,7 @@ export const query = z
 export const useEventsTableSchema = z
   .union([z.literal("true"), z.literal("false"), z.boolean()])
   .optional()
-  .transform((val) => val === "true" || val === true);
+  .transform((val) => {
+    if (val === undefined) return undefined;
+    return val === "true" || val === true;
+  });
