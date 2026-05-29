@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import { type LucideIcon, Plus } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
@@ -174,6 +174,12 @@ const monitorToDefaults = (monitor: Monitor): UpdateMonitor => ({
       : (monitor.status as MonitorWriteStatus),
 });
 
+/** nameOrPlaceholder falls back to the placeholder when the name is blank. */
+const nameOrPlaceholder = (
+  name: string | undefined,
+  placeholder: string,
+): string => name || placeholder;
+
 /** MonitorForm renders the create/edit form for a Monitor. */
 export const MonitorForm = ({
   projectId,
@@ -201,13 +207,21 @@ export const MonitorForm = ({
     ? monitorToDefaults(monitor as Monitor)
     : createDefaults(projectId);
 
-  /** resolver wraps zodResolver so filter columns are mapped from UI-table-space ("Environment") into view-space ("environment") before validation runs — matches the same mapping the submit handler applies. */
+  /** namePlaceholderRef holds the latest computed name placeholder for the resolver. */
+  const namePlaceholderRef = useRef("");
+
+  /** resolver wraps zodResolver, mapping filter columns into view-space and filling a blank name with the computed placeholder before validation. */
   const resolver = useMemo(() => {
     const base = zodResolver(schema as any);
     return ((values, context, options) => {
-      const v = values as { view: MonitorView; filters?: FilterState };
+      const v = values as {
+        view: MonitorView;
+        filters?: FilterState;
+        name?: string;
+      };
       const mapped = {
         ...values,
+        name: nameOrPlaceholder(v.name, namePlaceholderRef.current),
         filters: mapWidgetUiTableFilterToView(v.view, v.filters ?? []),
       };
       return base(mapped as any, context, options);
@@ -389,6 +403,8 @@ export const MonitorForm = ({
     watched.thresholdOperator,
     watched.alertThreshold,
   ]);
+
+  namePlaceholderRef.current = namePlaceholder;
 
   /** previewFilters translates the UI-table column filters into the view's dimension space for the preview query. */
   const previewFilters = useMemo<FilterState>(
@@ -1053,4 +1069,5 @@ const RenotifyField = ({
 export const __test = {
   createDefaults,
   monitorToDefaults,
+  nameOrPlaceholder,
 };
