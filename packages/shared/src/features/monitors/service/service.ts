@@ -1,6 +1,5 @@
 /** service.ts contains the MonitorService. */
 import { Prisma, prisma } from "../../../db";
-import { LangfuseNotFoundError } from "../../../errors";
 
 import { type Monitor } from "../types";
 
@@ -115,7 +114,7 @@ export class MonitorService {
         select: { status: true },
       });
       if (!current) {
-        throw new LangfuseNotFoundError();
+        throw new MonitorNotFoundError(input.id, input.projectId);
       }
 
       const updated = await prisma.monitor.update({
