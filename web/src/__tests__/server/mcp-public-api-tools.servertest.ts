@@ -64,8 +64,6 @@ import {
   handleListComments,
 } from "@/src/features/mcp/features/comments/tools";
 import {
-  handleCreateDataset,
-  handleCreateDatasetItem,
   handleCreateDatasetRunItem,
   handleDeleteDatasetItem,
   handleDeleteDatasetRun,
@@ -76,6 +74,8 @@ import {
   handleListDatasetRunItems,
   handleListDatasetRuns,
   handleListDatasets,
+  handleUpsertDataset,
+  handleUpsertDatasetItem,
 } from "@/src/features/mcp/features/datasets/tools";
 import { handleGetHealth } from "@/src/features/mcp/features/health/tools";
 import {
@@ -188,7 +188,7 @@ describe("MCP public API tools", () => {
       mockServerContext({ isInAppAgentKey: true }),
     );
 
-    expect(inAppToolNames).not.toContain("createDataset");
+    expect(inAppToolNames).not.toContain("upsertDataset");
     expect(inAppToolNames).not.toContain("createModel");
 
     const writableToolNames = toolNames.filter(
@@ -213,8 +213,6 @@ describe("MCP public API tools", () => {
     expect(destructiveToolNames).toEqual(
       [
         "createChatPrompt",
-        "createDataset",
-        "createDatasetItem",
         "createScore",
         "createScoreConfig",
         "createTextPrompt",
@@ -227,6 +225,8 @@ describe("MCP public API tools", () => {
         "updateAnnotationQueueItem",
         "updatePromptLabels",
         "updateScoreConfig",
+        "upsertDataset",
+        "upsertDatasetItem",
       ].sort(),
     );
   });
@@ -330,6 +330,8 @@ describe("MCP public API tools", () => {
       projectId,
     });
 
+    // Assignment creation uses an upsert for public API parity, so duplicate
+    // calls are audited even when the assignment already exists.
     await expect(
       prisma.auditLog.count({
         where: {
@@ -338,7 +340,7 @@ describe("MCP public API tools", () => {
           action: "create",
         },
       }),
-    ).resolves.toBe(assignmentAuditLogCount);
+    ).resolves.toBe(assignmentAuditLogCount + 1);
 
     const auditLogCreateSpy = vi
       .spyOn(prisma.auditLog, "create")
@@ -366,6 +368,13 @@ describe("MCP public API tools", () => {
         context,
       ),
     ).resolves.toEqual({ success: true });
+
+    await expect(
+      handleDeleteAnnotationQueueAssignment(
+        { queueId: queue.id, userId: user.id },
+        context,
+      ),
+    ).rejects.toThrow("Annotation queue assignment not found");
 
     await expect(
       handleDeleteAnnotationQueueItem(
@@ -468,7 +477,7 @@ describe("MCP public API tools", () => {
       }),
     ]);
 
-    const dataset = (await handleCreateDataset(
+    const dataset = (await handleUpsertDataset(
       {
         name: datasetName,
         description: "MCP dataset",
@@ -488,7 +497,7 @@ describe("MCP public API tools", () => {
       handleGetDataset({ datasetName }, context),
     ).resolves.toMatchObject({ id: dataset.id, name: datasetName });
 
-    const datasetItem = (await handleCreateDatasetItem(
+    const datasetItem = (await handleUpsertDatasetItem(
       {
         datasetName,
         input: { question: "ping" },
@@ -625,7 +634,7 @@ describe("MCP public API tools", () => {
     ).rejects.toThrow("Annotation queue not found");
 
     const datasetName = `mcp-dataset-isolation-${uuidv4()}`;
-    const dataset = (await handleCreateDataset(
+    const dataset = (await handleUpsertDataset(
       { name: datasetName },
       sourceContext,
     )) as { id: string };
