@@ -5,7 +5,7 @@ import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
 import { getObservationsTableCount } from "@langfuse/shared/src/server";
 import { applyCommentFilters } from "@langfuse/shared/src/server";
-import { assertLegacyTracingIoSearchEnabled } from "@/src/features/traces/server/legacyIoSearch";
+import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
 
 const GetAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
@@ -17,7 +17,7 @@ export const getAllQueries = {
   all: protectedProjectProcedure
     .input(GetAllGenerationsInput)
     .query(async ({ input, ctx }) => {
-      assertLegacyTracingIoSearchEnabled({
+      const search = sanitizeLegacyTracingSearch({
         searchQuery: input.searchQuery,
         searchType: input.searchType,
         tableName: BatchTableNames.Observations,
@@ -38,6 +38,8 @@ export const getAllQueries = {
         input: {
           ...input,
           filter: filterState,
+          searchQuery: search.searchQuery ?? null,
+          searchType: search.searchType ?? ["id"],
         },
         selectIOAndMetadata: false,
       });
@@ -46,7 +48,7 @@ export const getAllQueries = {
   countAll: protectedProjectProcedure
     .input(GenerationTableOptions)
     .query(async ({ input, ctx }) => {
-      assertLegacyTracingIoSearchEnabled({
+      const search = sanitizeLegacyTracingSearch({
         searchQuery: input.searchQuery,
         searchType: input.searchType,
         tableName: BatchTableNames.Observations,
@@ -66,6 +68,8 @@ export const getAllQueries = {
       const queryOpts = {
         projectId: ctx.session.projectId,
         filter: filterState,
+        searchQuery: search.searchQuery,
+        searchType: search.searchType ?? ["id"],
         limit: 1,
         offset: 0,
       };
