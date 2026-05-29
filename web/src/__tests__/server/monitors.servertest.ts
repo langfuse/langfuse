@@ -581,12 +581,12 @@ describe("monitors trpc", () => {
       // Re-issue the session with projectB added so the caller has RBAC
       // access to read it; the procedure itself enforces project-scoped
       // RBAC, not org-scoped.
-      const userA = sessionA.user!;
-      const orgA = userA.organizations[0];
+      const sessionUser = sessionA.user!;
+      const orgA = sessionUser.organizations[0];
       const sessionAB = {
         ...sessionA,
         user: {
-          ...userA,
+          ...sessionUser,
           organizations: [
             {
               ...orgA,
