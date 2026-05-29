@@ -610,17 +610,22 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(matchedObs?.name).toBe("nested-metadata-obs-1");
     });
 
-    it("supports token-based matches filters for IO and metadata", async () => {
+    it("supports indexed literal matches filters for IO and metadata", async () => {
       const traceId = randomUUID();
       const timestamp = new Date();
       const timeValue = timestamp.getTime() * 1000;
       const tokenMatchId = randomUUID();
       const punctuationMatchId = randomUUID();
       const embeddedOnlyId = randomUUID();
+      const ioPhraseMatchId = randomUUID();
+      const ioPhraseReverseId = randomUUID();
+      const ioPhraseGapId = randomUUID();
       const metadataCaseMatchId = randomUUID();
       const metadataCaseMismatchId = randomUUID();
       const metadataWrongKeyId = randomUUID();
       const metadataMultiTokenMatchId = randomUUID();
+      const metadataMultiTokenReverseId = randomUUID();
+      const metadataMultiTokenGapId = randomUUID();
       const metadataSplitAcrossValuesId = randomUUID();
       const metadataMultiTokenWrongKeyId = randomUUID();
 
@@ -659,6 +664,39 @@ describe("/api/public/v2/observations API Endpoint", () => {
           output: "foobarneedle cadabra",
         }),
         createEvent({
+          id: ioPhraseMatchId,
+          span_id: ioPhraseMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-phrase-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 3000,
+          output: "prefix alpha beta suffix",
+        }),
+        createEvent({
+          id: ioPhraseReverseId,
+          span_id: ioPhraseReverseId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-phrase-reverse",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 4000,
+          output: "prefix beta alpha suffix",
+        }),
+        createEvent({
+          id: ioPhraseGapId,
+          span_id: ioPhraseGapId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-phrase-gap",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 5000,
+          output: "prefix alpha gap beta suffix",
+        }),
+        createEvent({
           id: metadataCaseMatchId,
           span_id: metadataCaseMatchId,
           trace_id: traceId,
@@ -666,7 +704,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
           name: "metadata-case-match",
           type: "GENERATION",
           level: "DEFAULT",
-          start_time: timeValue + 3000,
+          start_time: timeValue + 6000,
           metadata: { source: "needle API" },
           metadata_names: ["source"],
           metadata_values: ["needle API"],
@@ -679,7 +717,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
           name: "metadata-case-mismatch",
           type: "GENERATION",
           level: "DEFAULT",
-          start_time: timeValue + 4000,
+          start_time: timeValue + 7000,
           metadata: { source: "Needle API" },
           metadata_names: ["source"],
           metadata_values: ["Needle API"],
@@ -692,7 +730,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
           name: "metadata-wrong-key",
           type: "GENERATION",
           level: "DEFAULT",
-          start_time: timeValue + 5000,
+          start_time: timeValue + 8000,
           metadata: { other: "needle API" },
           metadata_names: ["other"],
           metadata_values: ["needle API"],
@@ -705,10 +743,36 @@ describe("/api/public/v2/observations API Endpoint", () => {
           name: "metadata-multi-token-match",
           type: "GENERATION",
           level: "DEFAULT",
-          start_time: timeValue + 6000,
+          start_time: timeValue + 9000,
           metadata: { source: "alpha beta" },
           metadata_names: ["source"],
           metadata_values: ["alpha beta"],
+        }),
+        createEvent({
+          id: metadataMultiTokenReverseId,
+          span_id: metadataMultiTokenReverseId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-multi-token-reverse",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 10000,
+          metadata: { source: "beta alpha" },
+          metadata_names: ["source"],
+          metadata_values: ["beta alpha"],
+        }),
+        createEvent({
+          id: metadataMultiTokenGapId,
+          span_id: metadataMultiTokenGapId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-multi-token-gap",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 11000,
+          metadata: { source: "alpha gap beta" },
+          metadata_names: ["source"],
+          metadata_values: ["alpha gap beta"],
         }),
         createEvent({
           id: metadataSplitAcrossValuesId,
@@ -718,7 +782,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
           name: "metadata-split-across-values",
           type: "GENERATION",
           level: "DEFAULT",
-          start_time: timeValue + 7000,
+          start_time: timeValue + 12000,
           metadata: { source: "alpha", other: "beta" },
           metadata_names: ["source", "other"],
           metadata_values: ["alpha", "beta"],
@@ -731,7 +795,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
           name: "metadata-multi-token-wrong-key",
           type: "GENERATION",
           level: "DEFAULT",
-          start_time: timeValue + 8000,
+          start_time: timeValue + 13000,
           metadata: { source: "unrelated", other: "alpha beta" },
           metadata_names: ["source", "other"],
           metadata_values: ["unrelated", "alpha beta"],
@@ -744,7 +808,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
             query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
             params: { projectId, traceId },
           });
-          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(9);
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(14);
         },
         5000,
         10,
@@ -768,6 +832,24 @@ describe("/api/public/v2/observations API Endpoint", () => {
         expect.arrayContaining([tokenMatchId, punctuationMatchId]),
       );
       expect(ioIds).not.toContain(embeddedOnlyId);
+
+      const ioPhraseFilterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "matches",
+          value: "alpha beta",
+        },
+      ]);
+      const ioPhraseResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,io&filter=${encodeURIComponent(ioPhraseFilterParam)}`,
+      );
+      const ioPhraseIds = ioPhraseResponse.body.data.map((obs: any) => obs.id);
+
+      expect(ioPhraseResponse.status).toBe(200);
+      expect(ioPhraseIds).toContain(ioPhraseMatchId);
+      expect(ioPhraseIds).not.toContain(ioPhraseReverseId);
+      expect(ioPhraseIds).not.toContain(ioPhraseGapId);
 
       const metadataFilterParam = JSON.stringify([
         {
@@ -806,6 +888,8 @@ describe("/api/public/v2/observations API Endpoint", () => {
 
       expect(multiTokenMetadataResponse.status).toBe(200);
       expect(multiTokenMetadataIds).toContain(metadataMultiTokenMatchId);
+      expect(multiTokenMetadataIds).not.toContain(metadataMultiTokenReverseId);
+      expect(multiTokenMetadataIds).not.toContain(metadataMultiTokenGapId);
       expect(multiTokenMetadataIds).not.toContain(metadataSplitAcrossValuesId);
       expect(multiTokenMetadataIds).not.toContain(metadataMultiTokenWrongKeyId);
     });

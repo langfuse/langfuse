@@ -12,6 +12,7 @@ import {
   SystemMessage,
   ToolMessage,
 } from "@langchain/core/messages";
+import { ContextOverflowError } from "@langchain/core/errors";
 import {
   BytesOutputParser,
   StringOutputParser,
@@ -74,6 +75,7 @@ const NON_RETRYABLE_LLM_ERROR_PATTERNS = [
   "Unterminated string in JSON at position",
   "TypeError",
   "reached the end of its life",
+  "prompt is too long",
   // secureLlmFetch validation failures: synchronous, status-less errors that
   // would otherwise default to 500 + retryable and burn the eval-retry budget
   // on permanent config or redirect-target failures.
@@ -345,7 +347,10 @@ export async function fetchLLMCompletion(
 
   let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse | ChatGoogle;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
-    const isClaude45Family =
+    const shouldNormalizeAnthropicSamplingParams =
+      modelParams.model?.includes("claude-opus-4-8") ||
+      modelParams.model?.includes("claude-opus-4-7") ||
+      modelParams.model?.includes("claude-sonnet-4-6") ||
       modelParams.model?.includes("claude-sonnet-4-5") ||
       modelParams.model?.includes("claude-opus-4-1") ||
       modelParams.model?.includes("claude-opus-4-5") ||
@@ -373,7 +378,7 @@ export async function fetchLLMCompletion(
 
     chatModel = new ChatAnthropic(chatOptions);
 
-    if (isClaude45Family) {
+    if (shouldNormalizeAnthropicSamplingParams) {
       if (chatModel.topP === -1) {
         chatModel.topP = undefined;
       }
@@ -666,12 +671,7 @@ export async function fetchLLMCompletion(
 
     return completion;
   } catch (e) {
-    const responseStatusCode =
-      (e as any)?.response?.status ??
-      (e as any)?.status ??
-      // Bedrock errors have status code in $metadata.httpStatusCode
-      (e as any)?.$metadata?.httpStatusCode ??
-      500;
+    const responseStatusCode = getErrorResponseStatusCode(e) ?? 500;
     const rawMessage = e instanceof Error ? e.message : String(e);
     // Anthropic/OpenAI/Azure SDKs wrap synchronous fetch errors as
     // `APIConnectionError { message: "Connection error.", cause: original }`,
@@ -692,7 +692,9 @@ export async function fetchLLMCompletion(
     // - Non-retryable patterns: not retryable
     let isRetryable = false;
 
-    if (
+    if (ContextOverflowError.isInstance(e)) {
+      isRetryable = false;
+    } else if (
       e instanceof Error &&
       (e.name === "InsufficientQuotaError" || e.name === "ThrottlingException")
     ) {
@@ -813,26 +815,55 @@ function processOpenAIBaseURL(params: {
   return url.replace("{model}", modelName);
 }
 
-function findNonRetryableCauseMessage(error: unknown): string | undefined {
+// Walks an error and its `.cause` chain (cycle-safe), yielding each link.
+function* walkCauseChain(error: unknown): Generator<unknown> {
   const visited = new Set<unknown>();
   for (
     let current: unknown = error;
-    current;
+    current && !visited.has(current);
     current = (current as any).cause
   ) {
-    if (visited.has(current)) break;
     visited.add(current);
+    yield current;
+  }
+}
+
+function findNonRetryableCauseMessage(error: unknown): string | undefined {
+  for (const current of walkCauseChain(error)) {
     if (!(current instanceof Error)) continue;
     const message = extractCleanErrorMessage(current.message);
-    if (
-      NON_RETRYABLE_LLM_ERROR_PATTERNS.some((pattern) =>
-        message.includes(pattern),
-      )
-    ) {
+    if (NON_RETRYABLE_LLM_ERROR_PATTERNS.some((p) => message.includes(p))) {
       return message;
     }
   }
   return undefined;
+}
+
+function getErrorResponseStatusCode(error: unknown): number | undefined {
+  for (const current of walkCauseChain(error)) {
+    if (!current || typeof current !== "object") continue;
+    const errorLike = current as any;
+    const statusCode = [
+      errorLike.response?.status,
+      errorLike.status,
+      errorLike.statusCode,
+      // Bedrock errors have status code in $metadata.httpStatusCode.
+      errorLike.$metadata?.httpStatusCode,
+    ]
+      .map(toHttpStatusCode)
+      .find((code) => code !== undefined);
+    if (statusCode !== undefined) return statusCode;
+  }
+  return undefined;
+}
+
+function toHttpStatusCode(value: unknown): number | undefined {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 100 &&
+    value <= 599
+    ? value
+    : undefined;
 }
 
 function extractCleanErrorMessage(rawMessage: string): string {
