@@ -27,7 +27,7 @@ const ScoreFilterBaseSchema = z.object({
   key: z.string().optional(),
 });
 
-const ListScoresBaseSchema = z.object({
+const ListScoresSharedSchemaFields = {
   ...publicApiPaginationZod,
   fields: ScoreFieldsSchema,
   userId: z.string().optional(),
@@ -47,6 +47,10 @@ const ListScoresBaseSchema = z.object({
   traceId: z.string().optional(),
   datasetRunId: z.string().optional(),
   observationId: z.array(z.string()).optional(),
+};
+
+const ListScoresBaseSchema = z.object({
+  ...ListScoresSharedSchemaFields,
   filter: z
     .array(ScoreFilterBaseSchema)
     .optional()
@@ -56,25 +60,7 @@ const ListScoresBaseSchema = z.object({
 });
 
 const ListScoresInputSchema = z.object({
-  ...publicApiPaginationZod,
-  fields: ScoreFieldsSchema,
-  userId: z.string().optional(),
-  dataType: ScoreDataTypeDomain.optional(),
-  configId: z.string().optional(),
-  queueId: z.string().optional(),
-  traceTags: z.array(z.string()).optional(),
-  environment: z.array(z.string()).optional(),
-  name: z.string().optional(),
-  fromTimestamp: z.iso.datetime({ offset: true }).optional(),
-  toTimestamp: z.iso.datetime({ offset: true }).optional(),
-  source: ScoreSourceDomain.optional(),
-  value: z.number().optional(),
-  operator: z.enum(["<", ">", "<=", ">=", "!=", "="]).optional(),
-  scoreIds: z.array(z.string()).optional(),
-  sessionId: z.string().optional(),
-  traceId: z.string().optional(),
-  datasetRunId: z.string().optional(),
-  observationId: z.array(z.string()).optional(),
+  ...ListScoresSharedSchemaFields,
   filter: z
     .array(singleFilter)
     .optional()

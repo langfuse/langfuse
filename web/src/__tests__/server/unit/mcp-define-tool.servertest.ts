@@ -19,7 +19,7 @@ describe("defineTool", () => {
         inputSchema: schema,
         handler: async (input) => input,
       }),
-    ).toThrow("Expected object schema");
+    ).toThrow("Union and intersection schemas are not supported");
   });
 
   it("preserves root type: 'object' for plain object schemas", () => {
@@ -47,7 +47,7 @@ describe("defineTool", () => {
         inputSchema: schema,
         handler: async (input) => input,
       }),
-    ).toThrow("Union schemas are not supported");
+    ).toThrow("Union and intersection schemas are not supported");
   });
 
   it("rejects nested union schemas", () => {
@@ -63,6 +63,22 @@ describe("defineTool", () => {
         inputSchema: schema,
         handler: async (input) => input,
       }),
-    ).toThrow("Union schemas are not supported");
+    ).toThrow("Union and intersection schemas are not supported");
+  });
+
+  it("rejects nested intersection schemas", () => {
+    const schema = z.object({
+      filter: z.object({ id: z.string() }).and(z.object({ name: z.string() })),
+    });
+
+    expect(() =>
+      defineTool({
+        name: "nestedIntersectionTool",
+        description: "",
+        baseSchema: schema,
+        inputSchema: schema,
+        handler: async (input) => input,
+      }),
+    ).toThrow("Union and intersection schemas are not supported");
   });
 });

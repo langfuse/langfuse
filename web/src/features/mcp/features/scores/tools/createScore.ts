@@ -1,6 +1,7 @@
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
+  PublicApiCreateScoreSourceDomain,
   PostScoresBodyV1,
   PostScoresResponseV1,
   UnauthorizedError,
@@ -46,7 +47,7 @@ const CreateScoreBaseSchema = z.object({
   metadata: z.any().optional(),
   environment: z.string().optional(),
   queueId: z.string().optional(),
-  source: z.string().optional(),
+  source: PublicApiCreateScoreSourceDomain.optional(),
   value: z
     .any()
     .describe(

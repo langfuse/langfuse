@@ -23,7 +23,7 @@ const CreateDatasetRunItemBaseSchema = z.object({
       "Trace ID linked to this run item. Provide this or observationId.",
     ),
   datasetVersion: z.string().optional(),
-  createdAt: z.iso.datetime(),
+  createdAt: z.iso.datetime({ offset: true }).optional(),
 });
 
 export const [createDatasetRunItemTool, handleCreateDatasetRunItem] =

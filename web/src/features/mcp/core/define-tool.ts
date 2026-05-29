@@ -73,7 +73,7 @@ function hasJsonSchemaUnion(value: unknown): boolean {
     return value.some(hasJsonSchemaUnion);
   }
 
-  if ("oneOf" in value || "anyOf" in value) {
+  if ("oneOf" in value || "anyOf" in value || "allOf" in value) {
     return true;
   }
 
@@ -131,7 +131,7 @@ export function defineTool<TInput>(
 
   if (hasJsonSchemaUnion(jsonSchema)) {
     throw new Error(
-      `Failed to convert Zod schema to JSON Schema for tool: ${name}. Union schemas are not supported for MCP tool inputs; use a plain object schema instead.`,
+      `Failed to convert Zod schema to JSON Schema for tool: ${name}. Union and intersection schemas are not supported for MCP tool inputs; use a plain object schema instead.`,
     );
   }
 
