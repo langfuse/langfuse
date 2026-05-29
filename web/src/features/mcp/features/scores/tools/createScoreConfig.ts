@@ -8,7 +8,7 @@ import {
   McpScoreConfigNameSchema,
   McpScoreConfigNumericMaxValueSchema,
   McpScoreConfigNumericMinValueSchema,
-  normalizeMcpScoreConfigInput,
+  preprocessMcpScoreConfigInput,
 } from "../schema";
 
 const CreateScoreConfigBaseSchema = z.object({
@@ -24,12 +24,10 @@ const CreateScoreConfigBaseSchema = z.object({
   categoricalCategories: McpScoreConfigCategoricalCategoriesSchema,
 });
 
-const CreateScoreConfigInputSchema = z.preprocess((input) => {
-  const parsed = CreateScoreConfigBaseSchema.safeParse(input);
-  if (!parsed.success) return input;
-
-  return normalizeMcpScoreConfigInput(parsed.data);
-}, PostScoreConfigBody);
+const CreateScoreConfigInputSchema = z.preprocess(
+  preprocessMcpScoreConfigInput,
+  PostScoreConfigBody,
+);
 
 export const [createScoreConfigTool, handleCreateScoreConfig] = defineTool({
   name: "createScoreConfig",

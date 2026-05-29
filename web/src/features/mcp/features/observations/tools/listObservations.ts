@@ -178,7 +178,13 @@ const ObservationMcpFilterSchema = z
     ).safeParse(filter);
 
     if (!filterParseResult.success) {
-      ctx.addIssue({ code: "custom", message: "Invalid input" });
+      for (const issue of filterParseResult.error.issues) {
+        ctx.addIssue({
+          code: "custom",
+          path: issue.path,
+          message: issue.message,
+        });
+      }
     }
   })
   .transform((filter) => {

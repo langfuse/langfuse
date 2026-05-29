@@ -73,11 +73,17 @@ function hasJsonSchemaUnion(value: unknown): boolean {
     return value.some(hasJsonSchemaUnion);
   }
 
-  if ("oneOf" in value || "anyOf" in value || "allOf" in value) {
+  const schema = value as Record<string, unknown>;
+
+  if (
+    Array.isArray(schema.oneOf) ||
+    Array.isArray(schema.anyOf) ||
+    Array.isArray(schema.allOf)
+  ) {
     return true;
   }
 
-  return Object.values(value).some(hasJsonSchemaUnion);
+  return Object.values(schema).some(hasJsonSchemaUnion);
 }
 
 /**

@@ -24,8 +24,8 @@ const McpScoreConfigCategoricalCategoriesSchema = z
 
 const normalizeMcpScoreConfigInput = <
   TInput extends {
-    numericMinValue?: number;
-    numericMaxValue?: number;
+    numericMinValue?: unknown;
+    numericMaxValue?: unknown;
     categoricalCategories?: unknown;
   },
 >(
@@ -48,10 +48,19 @@ const normalizeMcpScoreConfigInput = <
   );
 };
 
+const preprocessMcpScoreConfigInput = (input: unknown) => {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return input;
+  }
+
+  return normalizeMcpScoreConfigInput(input);
+};
+
 export {
   McpScoreConfigCategoricalCategoriesSchema,
   McpScoreConfigNameSchema,
   McpScoreConfigNumericMaxValueSchema,
   McpScoreConfigNumericMinValueSchema,
   normalizeMcpScoreConfigInput,
+  preprocessMcpScoreConfigInput,
 };

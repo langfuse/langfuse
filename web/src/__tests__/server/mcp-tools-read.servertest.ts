@@ -809,7 +809,7 @@ describe("MCP Read Tools", () => {
           },
           context,
         ),
-      ).rejects.toThrow(/Validation failed: filter\.0: Invalid input/i);
+      ).rejects.toThrow(/Validation failed: .*filter\.0\.type: .*number/i);
     });
 
     it("should reject hidden/internal advanced filter columns", async () => {
@@ -1867,6 +1867,21 @@ describe("MCP Read Tools", () => {
         ),
       ).rejects.toThrow(/Category labels must be unique/i);
     });
+
+    it("should validate normalized numeric range fields even when another field is invalid", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleCreateScoreConfig(
+          {
+            name: "invalid/name",
+            dataType: "NUMERIC",
+            numericMinValue: "not-a-number",
+          } as any,
+          context,
+        ),
+      ).rejects.toThrow(/minValue/i);
+    });
   });
 
   describe("updateScoreConfig tool", () => {
@@ -1936,6 +1951,21 @@ describe("MCP Read Tools", () => {
       await expect(
         handleUpdateScoreConfig({ configId: randomUUID() }, context),
       ).rejects.toThrow(/Request body cannot be empty/i);
+    });
+
+    it("should validate normalized update fields even when another field is invalid", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleUpdateScoreConfig(
+          {
+            configId: randomUUID(),
+            name: "invalid/name",
+            numericMinValue: "not-a-number",
+          } as any,
+          context,
+        ),
+      ).rejects.toThrow(/minValue/i);
     });
 
     it("should not archive score configs through update", async () => {

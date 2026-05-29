@@ -36,6 +36,30 @@ describe("defineTool", () => {
     expect(tool.inputSchema.type).toBe("object");
   });
 
+  it("allows plain object fields named like JSON Schema combinators", () => {
+    const schema = z.object({
+      anyOf: z.string(),
+      oneOf: z.string(),
+      allOf: z.string(),
+    });
+
+    const [tool] = defineTool({
+      name: "combinatorNamedFieldsTool",
+      description: "",
+      baseSchema: schema,
+      inputSchema: schema,
+      handler: async (input) => input,
+    });
+
+    expect(tool.inputSchema.properties).toEqual(
+      expect.objectContaining({
+        anyOf: expect.objectContaining({ type: "string" }),
+        oneOf: expect.objectContaining({ type: "string" }),
+        allOf: expect.objectContaining({ type: "string" }),
+      }),
+    );
+  });
+
   it("rejects union schemas", () => {
     const schema = z.union([z.string(), z.object({ id: z.string() })]);
 
