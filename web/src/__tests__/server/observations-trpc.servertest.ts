@@ -30,6 +30,7 @@ describe("traces trpc", () => {
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
           projects: [
             {
               id: projectId,

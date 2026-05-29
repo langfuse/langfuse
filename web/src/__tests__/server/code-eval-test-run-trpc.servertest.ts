@@ -49,6 +49,7 @@ async function prepare() {
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: true,
+          aiTelemetryEnabled: true,
           projects: [
             {
               id: project.id,

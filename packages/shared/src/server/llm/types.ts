@@ -528,6 +528,7 @@ export enum LangfuseInternalTraceEnvironment {
   PromptExperiments = "langfuse-prompt-experiment",
   LLMJudge = "langfuse-llm-as-a-judge",
   CodeEval = "langfuse-code-eval",
+  NaturalLanguageFilter = "langfuse-natural-language-filter",
 }
 
 export type ProcessedTraceEvent = {
