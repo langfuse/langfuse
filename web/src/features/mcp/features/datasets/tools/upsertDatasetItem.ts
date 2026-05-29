@@ -6,15 +6,15 @@ import {
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
-export const [createDatasetItemTool, handleCreateDatasetItem] = defineTool({
-  name: "createDatasetItem",
+export const [upsertDatasetItemTool, handleUpsertDatasetItem] = defineTool({
+  name: "upsertDatasetItem",
   description:
-    "Create or upsert a dataset item, one example in a dataset with input and optional expected output.",
+    "Upsert a dataset item, one example in a dataset with input and optional expected output.",
   baseSchema: PostDatasetItemsV1Body,
   inputSchema: PostDatasetItemsV1Body,
   handler: async (input, context) =>
     runMcpTool({
-      spanName: "mcp.dataset_items.create",
+      spanName: "mcp.dataset_items.upsert",
       context,
       attributes: { "mcp.dataset_name": input.datasetName },
       fn: async () => {
