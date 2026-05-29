@@ -262,3 +262,72 @@ export const listDatasetRunItemsForApi = async ({
     },
   };
 };
+
+export const listDatasetRunItemsByRunIdForApi = async ({
+  datasetId,
+  datasetRunId,
+  projectId,
+  limit,
+  page,
+}: {
+  datasetId: string;
+  datasetRunId: string;
+  projectId: string;
+  limit: number;
+  page: number;
+}) => {
+  /**************
+   * VALIDATION *
+   **************/
+  const datasetRun = await prisma.datasetRuns.findUnique({
+    where: {
+      id_projectId: {
+        id: datasetRunId,
+        projectId,
+      },
+    },
+    select: { id: true, datasetId: true },
+  });
+
+  if (!datasetRun || datasetRun.datasetId !== datasetId) {
+    throw new LangfuseNotFoundError(
+      "Dataset run not found for the given project and dataset id",
+    );
+  }
+
+  /************
+   * RESPONSE *
+   ************/
+  const [items, count] = await Promise.all([
+    generateDatasetRunItemsForPublicApi({
+      props: {
+        datasetId,
+        runId: datasetRun.id,
+        projectId,
+        limit,
+        page,
+      },
+    }),
+    getDatasetRunItemsCountForPublicApi({
+      props: {
+        datasetId,
+        runId: datasetRun.id,
+        projectId,
+        limit,
+        page,
+      },
+    }),
+  ]);
+
+  const totalItems = count || 0;
+
+  return {
+    data: items,
+    meta: {
+      page,
+      limit,
+      totalItems,
+      totalPages: Math.ceil(totalItems / limit),
+    },
+  };
+};

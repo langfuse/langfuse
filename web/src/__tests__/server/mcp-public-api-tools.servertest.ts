@@ -495,12 +495,12 @@ describe("MCP public API tools", () => {
     expect(datasets.data.map((item) => item.id)).toContain(dataset.id);
 
     await expect(
-      handleGetDataset({ datasetName }, context),
+      handleGetDataset({ datasetId: dataset.id }, context),
     ).resolves.toMatchObject({ id: dataset.id, name: datasetName });
 
     const datasetItem = (await handleUpsertDatasetItem(
       {
-        datasetName,
+        datasetId: dataset.id,
         input: { question: "ping" },
         expectedOutput: { answer: "pong" },
       },
@@ -509,7 +509,7 @@ describe("MCP public API tools", () => {
     expect(datasetItem.datasetName).toBe(datasetName);
 
     const datasetItems = (await handleListDatasetItems(
-      { datasetName, page: 1, limit: 10 },
+      { datasetId: dataset.id, page: 1, limit: 10 },
       context,
     )) as { data: Array<{ id: string }> };
     expect(datasetItems.data.map((item) => item.id)).toContain(datasetItem.id);
@@ -560,7 +560,12 @@ describe("MCP public API tools", () => {
 
     await waitFor(async () => {
       const runItems = (await handleListDatasetRunItems(
-        { datasetId: dataset.id, runName, page: 1, limit: 10 },
+        {
+          datasetId: dataset.id,
+          datasetRunId: runItem.datasetRunId,
+          page: 1,
+          limit: 10,
+        },
         context,
       )) as { data: Array<{ id: string }> };
 
@@ -568,7 +573,7 @@ describe("MCP public API tools", () => {
     });
 
     const datasetRuns = (await handleListDatasetRuns(
-      { name: datasetName, page: 1, limit: 10 },
+      { datasetId: dataset.id, page: 1, limit: 10 },
       context,
     )) as { data: Array<{ id: string; name: string }> };
     expect(datasetRuns.data).toEqual(
@@ -578,7 +583,10 @@ describe("MCP public API tools", () => {
     );
 
     await expect(
-      handleGetDatasetRun({ name: datasetName, runName }, context),
+      handleGetDatasetRun(
+        { datasetId: dataset.id, datasetRunId: runItem.datasetRunId },
+        context,
+      ),
     ).resolves.toMatchObject({
       id: runItem.datasetRunId,
       name: runName,
@@ -588,7 +596,10 @@ describe("MCP public API tools", () => {
     });
 
     await expect(
-      handleDeleteDatasetRun({ name: datasetName, runName }, context),
+      handleDeleteDatasetRun(
+        { datasetId: dataset.id, datasetRunId: runItem.datasetRunId },
+        context,
+      ),
     ).resolves.toEqual({ message: "Dataset run successfully deleted" });
 
     await expect(
@@ -654,11 +665,17 @@ describe("MCP public API tools", () => {
     )) as { id: string };
 
     await expect(
-      handleGetDataset({ datasetName }, targetContext),
+      handleGetDataset({ datasetId: dataset.id }, targetContext),
+    ).rejects.toThrow("Dataset not found");
+    await expect(
+      handleListDatasetItems(
+        { datasetId: dataset.id, page: 1, limit: 10 },
+        targetContext,
+      ),
     ).rejects.toThrow("Dataset not found");
     await expect(
       handleListDatasetRunItems(
-        { datasetId: dataset.id, runName: "missing", page: 1, limit: 10 },
+        { datasetId: dataset.id, datasetRunId: uuidv4(), page: 1, limit: 10 },
         targetContext,
       ),
     ).rejects.toThrow("Dataset run not found");

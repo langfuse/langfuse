@@ -21,6 +21,7 @@ vi.mock("@/src/features/media/server/getMediaStorageClient", () => ({
 
 import { nanoid } from "nanoid";
 import { createHash, randomUUID } from "crypto";
+import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createEvent,
@@ -117,6 +118,13 @@ import {
   getMediaTool,
   handleGetMedia,
 } from "@/src/features/mcp/features/media/tools/getMedia";
+import {
+  GetDatasetItemsMcpInput,
+  GetDatasetMcpInput,
+  GetDatasetRunMcpInput,
+  GetDatasetRunsMcpInput,
+  GetDatasetsMcpInput,
+} from "@/src/features/mcp/features/datasets/schema";
 
 const maybeEventsTable =
   env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
@@ -209,6 +217,34 @@ const containsPropertyName = (value: unknown, expected: string): boolean => {
 };
 
 describe("MCP Read Tools", () => {
+  describe("dataset tool schemas", () => {
+    it("uses dataset IDs for existing dataset read addressing", () => {
+      for (const schema of [
+        GetDatasetMcpInput,
+        GetDatasetItemsMcpInput,
+        GetDatasetRunsMcpInput,
+        GetDatasetRunMcpInput,
+      ]) {
+        const jsonSchema = z.toJSONSchema(schema, { unrepresentable: "any" });
+        const properties = jsonSchema.properties as Record<string, unknown>;
+
+        expect(properties).toHaveProperty("datasetId");
+        expect(properties).not.toHaveProperty("datasetName");
+        expect(properties).not.toHaveProperty("name");
+      }
+    });
+
+    it("keeps dataset names only as a listDatasets discovery filter", () => {
+      const jsonSchema = z.toJSONSchema(GetDatasetsMcpInput, {
+        unrepresentable: "any",
+      });
+      const properties = jsonSchema.properties as Record<string, unknown>;
+
+      expect(properties).toHaveProperty("name");
+      expect(properties).not.toHaveProperty("datasetId");
+    });
+  });
+
   describe("getMedia tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getMediaTool, { readOnlyHint: true });
