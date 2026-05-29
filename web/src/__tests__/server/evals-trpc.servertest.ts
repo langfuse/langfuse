@@ -18,6 +18,7 @@ import { beforeEach, vi } from "vitest";
 
 const { runCodeEvalTestForJobConfigMock } = vi.hoisted(() => {
   process.env.NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED = "true";
+  process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
 
   return {
     runCodeEvalTestForJobConfigMock: vi.fn(),
