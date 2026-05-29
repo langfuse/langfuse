@@ -581,19 +581,9 @@ export const createDatasetItemForApi = async ({
       });
     }
 
-    const datasetName =
-      "datasetId" in input
-        ? (
-            await getDatasetByIdOrThrow({
-              projectId: projectId,
-              datasetId: input.datasetId,
-            })
-          ).name
-        : input.datasetName;
-
     return transformDbDatasetItemDomainToAPIDatasetItem({
       ...datasetItem,
-      datasetName,
+      datasetName: datasetItem.datasetName,
       status: datasetItem.status ?? "ACTIVE",
     });
   } catch (error) {
