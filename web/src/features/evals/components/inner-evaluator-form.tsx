@@ -65,7 +65,10 @@ import {
 } from "@/src/utils/date-range-utils";
 import { type PartialConfig } from "@/src/features/evals/types";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import { EvalVersionCallout } from "@/src/features/evals/components/eval-version-callout";
+import {
+  EvalVersionCallout,
+  shouldHideEvalVersionCalloutForPreviewBanner,
+} from "@/src/features/evals/components/eval-version-callout";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Dialog,
@@ -586,6 +589,14 @@ export const InnerEvaluatorForm = (props: {
     isExperimentTarget(watchedTarget) && isBetaEnabled;
   const shouldShowEventsPreview =
     isEventTarget(watchedTarget) || shouldShowExperimentEventsPreview;
+  const previewTableVisible = !props.disabled && !props.hidePreviewTable;
+  const shouldShowPreviewSdkVersionBanner =
+    shouldShowEventsPreview &&
+    shouldHideEvalVersionCalloutForPreviewBanner({
+      targetObject: watchedTarget,
+      evalCapabilities: props.evalCapabilities,
+      previewTableVisible,
+    });
   const eventsPreviewFilterState = useMemo(
     () =>
       shouldShowExperimentEventsPreview
@@ -1006,9 +1017,10 @@ export const InnerEvaluatorForm = (props: {
 
             {!props.hideTargetSelection &&
               props.mode !== "edit" &&
-              !props.disabled && (
+              !props.disabled &&
+              !shouldShowPreviewSdkVersionBanner && (
                 <EvalVersionCallout
-                  targetObject={form.watch("target")}
+                  targetObject={watchedTarget}
                   evalCapabilities={props.evalCapabilities}
                 />
               )}
@@ -1265,7 +1277,7 @@ export const InnerEvaluatorForm = (props: {
                 />
 
                 {/* Preview based on target type */}
-                {!props.disabled && !props.hidePreviewTable && (
+                {previewTableVisible && (
                   <>
                     {isTraceTarget(form.watch("target")) && (
                       <TracesPreview

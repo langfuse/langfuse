@@ -19,6 +19,23 @@ interface CalloutContent {
   description: React.ReactNode;
 }
 
+export const shouldHideEvalVersionCalloutForPreviewBanner = ({
+  targetObject,
+  evalCapabilities,
+  previewTableVisible,
+}: {
+  targetObject: string;
+  evalCapabilities: Pick<
+    EvalCapabilities,
+    "compatibilityCheckWasPerformed" | "isNewCompatible"
+  >;
+  previewTableVisible: boolean;
+}) =>
+  previewTableVisible &&
+  isEventTarget(targetObject) &&
+  evalCapabilities.compatibilityCheckWasPerformed &&
+  !evalCapabilities.isNewCompatible;
+
 const getCalloutContent = (
   targetObject: string,
   evalCapabilities: EvalCapabilities,
