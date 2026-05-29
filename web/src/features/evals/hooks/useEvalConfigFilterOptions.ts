@@ -4,6 +4,7 @@ import {
   type ObservationEvalOptions,
 } from "@langfuse/shared";
 import { useMemo } from "react";
+import { filterSelectableEvalEnvironmentOptions } from "@/src/features/evals/utils/evaluator-constants";
 
 export function useEvalConfigFilterOptions({
   projectId,
@@ -59,9 +60,11 @@ export function useEvalConfigFilterOptions({
 
     return {
       ...normalized,
-      environment: environmentFilterOptionsResponse.data?.map((e) => ({
-        value: e.environment,
-      })),
+      environment: filterSelectableEvalEnvironmentOptions(
+        environmentFilterOptionsResponse.data?.map((e) => ({
+          value: e.environment,
+        })),
+      ),
     };
   }, [traceFilterOptionsResponse.data, environmentFilterOptionsResponse.data]);
 
@@ -94,9 +97,11 @@ export function useEvalConfigFilterOptions({
 
   const observationEvalFilterOptions: ObservationEvalOptions = useMemo(() => {
     return {
-      environment: environmentFilterOptionsResponse.data?.map((e) => ({
-        value: e.environment,
-      })),
+      environment: filterSelectableEvalEnvironmentOptions(
+        environmentFilterOptionsResponse.data?.map((e) => ({
+          value: e.environment,
+        })),
+      ),
       tags: traceFilterOptionsResponse.data?.tags?.map((t) => ({
         value: t.value,
       })),
