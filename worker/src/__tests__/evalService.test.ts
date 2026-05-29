@@ -5,6 +5,7 @@ import {
   variableMappingList,
   EvalTargetObject,
 } from "@langfuse/shared";
+import { JobExecutionStatus } from "@prisma/client";
 import { encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -1358,6 +1359,250 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].status.toString()).toBe("CANCELLED");
       expect(jobs[0].startTime).not.toBeNull();
       expect(jobs[0].endTime).not.toBeNull();
+    }, 10_000);
+
+    // @ana A001, A002, A003
+    test("creates a new eval job after a cancelled job when trace re-matches", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        user_id: "a",
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await prisma.llmApiKeys.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          secretKey: encrypt(String(OPENAI_API_KEY)),
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          customModels: [],
+          displaySecretKey: "123456",
+        },
+      });
+
+      const templateId = randomUUID();
+      await prisma.evalTemplate.create({
+        data: {
+          id: templateId,
+          projectId,
+          name: "test-template",
+          version: 1,
+          prompt: "Please evaluate toxicity {{input}} {{output}}",
+          model: "gpt-3.5-turbo",
+          provider: "openai",
+          modelParams: {},
+          outputDefinition: {
+            reasoning: "Please explain your reasoning",
+            score: "Please provide a score between 0 and 1",
+          },
+        },
+      });
+
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: [
+            {
+              type: "string",
+              value: "a",
+              column: "User ID",
+              operator: "contains",
+            },
+          ],
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: EvalTargetObject.TRACE,
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+          evalTemplateId: templateId,
+        },
+      });
+
+      const payload = {
+        projectId,
+        traceId: traceId,
+      };
+
+      // First call: creates a PENDING job
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Deselect the trace by changing user_id
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        user_id: "b",
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      // Second call: cancels the existing job
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Re-select the trace by restoring user_id
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        user_id: "a",
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      // Third call: should create a new job since the old one is CANCELLED
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      const jobs = await prisma.jobExecution.findMany({
+        where: { projectId },
+      });
+
+      expect(jobs.length).toBe(2);
+
+      const cancelledJob = jobs.find(
+        (j) => j.status.toString() === "CANCELLED",
+      );
+      const pendingJob = jobs.find((j) => j.status.toString() === "PENDING");
+
+      expect(cancelledJob).toBeDefined();
+      expect(cancelledJob!.status.toString()).toBe("CANCELLED");
+      expect(pendingJob).toBeDefined();
+      expect(pendingJob!.status.toString()).toBe("PENDING");
+    }, 10_000);
+
+    // @ana A004, A005, A006
+    test("creates a new eval job after an errored job when trace event arrives", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        user_id: "a",
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await prisma.llmApiKeys.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          secretKey: encrypt(String(OPENAI_API_KEY)),
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          customModels: [],
+          displaySecretKey: "123456",
+        },
+      });
+
+      const templateId = randomUUID();
+      await prisma.evalTemplate.create({
+        data: {
+          id: templateId,
+          projectId,
+          name: "test-template",
+          version: 1,
+          prompt: "Please evaluate toxicity {{input}} {{output}}",
+          model: "gpt-3.5-turbo",
+          provider: "openai",
+          modelParams: {},
+          outputDefinition: {
+            reasoning: "Please explain your reasoning",
+            score: "Please provide a score between 0 and 1",
+          },
+        },
+      });
+
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: [
+            {
+              type: "string",
+              value: "a",
+              column: "User ID",
+              operator: "contains",
+            },
+          ],
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: EvalTargetObject.TRACE,
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+          evalTemplateId: templateId,
+        },
+      });
+
+      const payload = {
+        projectId,
+        traceId: traceId,
+      };
+
+      // First call: creates a PENDING job
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      // Manually set the job to ERROR status
+      await prisma.jobExecution.updateMany({
+        where: { projectId },
+        data: {
+          status: JobExecutionStatus.ERROR,
+          endTime: new Date(),
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Second call: should create a new job since the old one is ERROR
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      const jobs = await prisma.jobExecution.findMany({
+        where: { projectId },
+      });
+
+      expect(jobs.length).toBe(2);
+
+      const errorJob = jobs.find((j) => j.status.toString() === "ERROR");
+      const pendingJob = jobs.find((j) => j.status.toString() === "PENDING");
+
+      expect(errorJob).toBeDefined();
+      expect(errorJob!.status.toString()).toBe("ERROR");
+      expect(pendingJob).toBeDefined();
+      expect(pendingJob!.status.toString()).toBe("PENDING");
     }, 10_000);
 
     test("does not create eval job for existing traces if time scope is EXISTING but handler enforces NEW only", async () => {
