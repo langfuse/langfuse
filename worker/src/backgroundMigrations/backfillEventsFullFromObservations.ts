@@ -292,7 +292,7 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
       LEFT ANY JOIN (
         SELECT project_id, id, version, release, tags, public, bookmarked, name, user_id, session_id
         FROM traces t
-        WHERE t.partition_id = {partition: String}
+        WHERE t._partition_id = {partition: String}
       ) t
       ON o.project_id = t.project_id AND o.trace_id = t.id
       WHERE o._partition_id = {partition: String}
