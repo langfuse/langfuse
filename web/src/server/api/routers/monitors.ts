@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -5,6 +7,7 @@ import {
   requireLangfuseCloud,
 } from "@/src/server/api/trpc";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfExceedsLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import {
   CreateMonitorSchema,
   DeleteMonitorSchema,
@@ -35,6 +38,17 @@ export const monitorsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "monitors:CUD",
       });
+
+      const currentCount = await ctx.prisma.monitor.count({
+        where: { project: { orgId: ctx.session.orgId, deletedAt: null } },
+      });
+      throwIfExceedsLimit({
+        entitlementLimit: "monitor-count",
+        sessionUser: ctx.session.user,
+        orgId: ctx.session.orgId,
+        currentUsage: currentCount,
+      });
+
       return MonitorService.create(sessionContextFromCtx(ctx), input);
     }),
 
@@ -81,6 +95,36 @@ export const monitorsRouter = createTRPCRouter({
         scope: "monitors:read",
       });
       return MonitorService.list(sessionContextFromCtx(ctx), input);
+    }),
+
+  count: monitorsProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "monitors:read",
+      });
+      const count = await ctx.prisma.monitor.count({
+        where: { project: { orgId: ctx.session.orgId, deletedAt: null } },
+      });
+      return { count };
+    }),
+
+  /** hasAny reports whether the project owns at least one monitor; drives the list-page onboarding splash. */
+  hasAny: monitorsProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "monitors:read",
+      });
+      const monitor = await ctx.prisma.monitor.findFirst({
+        where: { projectId: input.projectId },
+        select: { id: true },
+      });
+      return monitor !== null;
     }),
 
   getFilterOptions: monitorsProcedure

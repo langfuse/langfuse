@@ -113,6 +113,19 @@ const validMonitorInput = (projectId: string) => ({
   tags: [],
 });
 
+const seedMonitors = async (
+  caller: ReturnType<typeof appRouter.createCaller>,
+  projectId: string,
+  count: number,
+) => {
+  for (let i = 0; i < count; i++) {
+    await caller.monitors.create({
+      ...validMonitorInput(projectId),
+      name: `Seeded monitor ${i + 1}`,
+    });
+  }
+};
+
 describe("monitors trpc", () => {
   afterAll(async () => {
     if (orgIds.length > 0) {
@@ -455,6 +468,159 @@ describe("monitors trpc", () => {
         projectId: project.id,
       });
       expect(opts.tags.map((t) => t.value).sort()).toEqual(["latency", "prod"]);
+    });
+  });
+
+  describe("entitlement limit", () => {
+    it("rejects monitors.create when org is at the monitor-count limit", async () => {
+      const { project, caller } = await prepare();
+      await seedMonitors(caller, project.id, 10);
+
+      await expect(
+        caller.monitors.create({
+          ...validMonitorInput(project.id),
+          name: "Eleventh monitor",
+        }),
+      ).rejects.toThrow(/monitor-count/i);
+    });
+
+    it("counts monitors with non-ACTIVE status toward the limit", async () => {
+      const { project, caller } = await prepare();
+      await seedMonitors(caller, project.id, 10);
+
+      const seeded = await prisma.monitor.findMany({
+        where: { projectId: project.id },
+        take: 2,
+      });
+      await prisma.monitor.update({
+        where: { id: seeded[0].id },
+        data: { status: "PAUSED" },
+      });
+      await prisma.monitor.update({
+        where: { id: seeded[1].id },
+        data: { status: "ERROR_BAD_QUERY" },
+      });
+
+      await expect(
+        caller.monitors.create({
+          ...validMonitorInput(project.id),
+          name: "Eleventh monitor",
+        }),
+      ).rejects.toThrow(/monitor-count/i);
+    });
+
+    it("allows monitors.update when at the limit", async () => {
+      const { project, caller } = await prepare();
+      await seedMonitors(caller, project.id, 10);
+
+      const [first] = await prisma.monitor.findMany({
+        where: { projectId: project.id },
+        take: 1,
+      });
+
+      const updated = await caller.monitors.update({
+        ...validMonitorInput(project.id),
+        id: first.id,
+        name: "Renamed at limit",
+      });
+      expect(updated.name).toBe("Renamed at limit");
+    });
+
+    it("monitors.count is scoped to the caller's org", async () => {
+      // Two independent orgs prove the count is org-scoped, not global.
+      const orgA = await prepare();
+      const orgB = await prepare();
+
+      await seedMonitors(orgA.caller, orgA.project.id, 3);
+      await seedMonitors(orgB.caller, orgB.project.id, 2);
+
+      const resultA = await orgA.caller.monitors.count({
+        projectId: orgA.project.id,
+      });
+      const resultB = await orgB.caller.monitors.count({
+        projectId: orgB.project.id,
+      });
+
+      expect(resultA.count).toBe(3);
+      expect(resultB.count).toBe(2);
+    });
+  });
+
+  describe("hasAny", () => {
+    it("returns false on an empty project", async () => {
+      const { project, caller } = await prepare();
+      const result = await caller.monitors.hasAny({ projectId: project.id });
+      expect(result).toBe(false);
+    });
+
+    it("returns true once a monitor has been created", async () => {
+      const { project, caller } = await prepare();
+      await caller.monitors.create(validMonitorInput(project.id));
+      const result = await caller.monitors.hasAny({ projectId: project.id });
+      expect(result).toBe(true);
+    });
+
+    it("is project-scoped, not org-scoped", async () => {
+      // Two projects in the same org: a monitor in project A must not flip
+      // hasAny for project B, which is the read on which the empty-state
+      // splash is gated.
+      const {
+        org,
+        project: projectA,
+        session: sessionA,
+        caller: callerA,
+      } = await prepare();
+
+      const projectB = await prisma.project.create({
+        data: {
+          name: `sibling-${v4().substring(0, 8)}`,
+          orgId: org.id,
+        },
+      });
+
+      // Re-issue the session with projectB added so the caller has RBAC
+      // access to read it; the procedure itself enforces project-scoped
+      // RBAC, not org-scoped.
+      const userA = sessionA.user!;
+      const orgA = userA.organizations[0];
+      const sessionAB = {
+        ...sessionA,
+        user: {
+          ...userA,
+          organizations: [
+            {
+              ...orgA,
+              projects: [
+                ...orgA.projects,
+                {
+                  id: projectB.id,
+                  role: "ADMIN",
+                  retentionDays: 30,
+                  deletedAt: null,
+                  name: projectB.name,
+                  metadata: {},
+                  hasTraces: false,
+                  createdAt: new Date().toISOString(),
+                },
+              ],
+            },
+          ],
+        },
+      } as Session;
+      const ctxAB = createInnerTRPCContext({ session: sessionAB, headers: {} });
+      const callerAB = appRouter.createCaller({ ...ctxAB, prisma });
+
+      await callerA.monitors.create(validMonitorInput(projectA.id));
+
+      const hasAnyA = await callerAB.monitors.hasAny({
+        projectId: projectA.id,
+      });
+      const hasAnyB = await callerAB.monitors.hasAny({
+        projectId: projectB.id,
+      });
+
+      expect(hasAnyA).toBe(true);
+      expect(hasAnyB).toBe(false);
     });
   });
 });

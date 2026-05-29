@@ -22,6 +22,7 @@ import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { ScoreConfigDataType } from "@langfuse/shared";
 import {
   createObservation,
   createObservationsCh,
@@ -255,6 +256,45 @@ describe("scores trpc", () => {
       expect(
         traceLevelColumns.scoreColumns.map((column) => column.name),
       ).toEqual(["trace_level_score"]);
+    });
+  });
+
+  describe("scoreConfigs.all", () => {
+    it("should paginate score configs deterministically when createdAt timestamps tie", async () => {
+      const sharedCreatedAt = new Date("2100-05-12T00:00:00.000Z");
+      const configIds = [randomUUID(), randomUUID(), randomUUID()];
+
+      await prisma.scoreConfig.createMany({
+        data: configIds.map((id, index) => ({
+          id,
+          projectId,
+          name: `trpc-tie-config-${index}-${id.slice(0, 8)}`,
+          description: `trpc tie config ${index}`,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: index,
+          maxValue: index + 1,
+          createdAt: sharedCreatedAt,
+          updatedAt: sharedCreatedAt,
+        })),
+      });
+
+      const firstPage = await caller.scoreConfigs.all({
+        projectId,
+        page: 0,
+        limit: 2,
+      });
+      const secondPage = await caller.scoreConfigs.all({
+        projectId,
+        page: 1,
+        limit: 2,
+      });
+
+      const tiedIds = [...firstPage.configs, ...secondPage.configs]
+        .filter((config) => configIds.includes(config.id))
+        .map((config) => config.id);
+
+      expect(tiedIds).toEqual(configIds.slice().sort());
+      expect(new Set(tiedIds).size).toBe(configIds.length);
     });
   });
 });

@@ -103,7 +103,7 @@ export function MonitorsTable() {
       projectId,
       orderBy: orderByState as MonitorsOrderBy,
       filter: monitorFilter,
-      page: paginationState.pageIndex,
+      page: paginationState.pageIndex + 1,
       limit: paginationState.pageSize,
     },
     {

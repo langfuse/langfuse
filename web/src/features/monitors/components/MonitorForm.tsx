@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
-import { type LucideIcon } from "lucide-react";
+import { type LucideIcon, Plus } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { startCase } from "lodash";
@@ -58,6 +58,7 @@ import {
   CreateMonitorSchema,
   type CreateMonitor,
   getValidMonitorAggregationsForMeasure,
+  getValidMonitorFilterColumns,
   type Monitor,
   type MonitorNoData,
   type MonitorRenotify,
@@ -71,6 +72,8 @@ import {
   type UpdateMonitor,
 } from "@langfuse/shared/monitors";
 import { viewDeclarations, type FilterState } from "@langfuse/shared";
+
+import TagManager from "@/src/features/tag/components/TagManager";
 
 import { MonitorChartPreview } from "./MonitorChartPreview";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
@@ -139,6 +142,7 @@ const createDefaults = (projectId: string): Partial<CreateMonitor> => ({
   noData: { mode: "SILENT" },
   renotify: { mode: "OFF" },
   tags: [],
+  triggerIds: [],
   status: "ACTIVE",
 });
 
@@ -161,6 +165,7 @@ const monitorToDefaults = (monitor: Monitor): UpdateMonitor => ({
   renotify: monitor.renotify,
   name: monitor.name,
   tags: monitor.tags,
+  triggerIds: monitor.triggerIds,
   // Persisted ERROR_BAD_QUERY status is scheduler-owned and not a valid
   // write value, so coerce it back to ACTIVE for the form's default.
   status:
@@ -196,9 +201,22 @@ export const MonitorForm = ({
     ? monitorToDefaults(monitor as Monitor)
     : createDefaults(projectId);
 
+  /** resolver wraps zodResolver so filter columns are mapped from UI-table-space ("Environment") into view-space ("environment") before validation runs — matches the same mapping the submit handler applies. */
+  const resolver = useMemo(() => {
+    const base = zodResolver(schema as any);
+    return ((values, context, options) => {
+      const v = values as { view: MonitorView; filters?: FilterState };
+      const mapped = {
+        ...values,
+        filters: mapWidgetUiTableFilterToView(v.view, v.filters ?? []),
+      };
+      return base(mapped as any, context, options);
+    }) as typeof base;
+  }, [schema]);
+
   /** form is the react-hook-form instance bound to schema and defaultValues. */
   const form = useForm<CreateMonitor | UpdateMonitor>({
-    resolver: zodResolver(schema as any),
+    resolver,
     defaultValues: defaultValues as CreateMonitor,
     mode: "onChange",
   });
@@ -277,6 +295,12 @@ export const MonitorForm = ({
   /** datasets loads dataset metadata for the project; used to label experiment-dataset filter options. */
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
 
+  /** monitorFilterOptions loads the project's existing monitor tags for the tag picker's available-options list. */
+  const monitorFilterOptions = api.monitors.getFilterOptions.useQuery(
+    { projectId },
+    { staleTime: Infinity, refetchOnWindowFocus: false },
+  );
+
   /** filterColumnsParams collects the filter-column descriptor for InlineFilterBuilder, derived from the picked view and live option dictionaries. */
   const filterColumnsParams = useMemo(() => {
     const data = eventsFilterOptions.data;
@@ -314,7 +338,8 @@ export const MonitorForm = ({
 
   /** filterColumns is the InlineFilterBuilder column schema for the picked view. */
   const filterColumns = useMemo(
-    () => getWidgetFilterColumns(filterColumnsParams),
+    () =>
+      getValidMonitorFilterColumns(getWidgetFilterColumns(filterColumnsParams)),
     [filterColumnsParams],
   );
 
@@ -783,19 +808,51 @@ export const MonitorForm = ({
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="tags"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <TagManager
+                          itemName="monitor"
+                          tags={(field.value ?? []) as string[]}
+                          allTags={
+                            monitorFilterOptions.data?.tags.map(
+                              (t) => t.value,
+                            ) ?? []
+                          }
+                          hasAccess={hasAccess}
+                          isLoading={monitorFilterOptions.isPending}
+                          mutateTags={field.onChange}
+                          triggerButton={
+                            <Button
+                              type="button"
+                              variant="default"
+                              size="sm"
+                              className="gap-1"
+                            >
+                              <Plus className="h-3 w-3" />
+                              Add tag
+                            </Button>
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <div className="space-y-2">
                   <Label>Automations</Label>
-                  <p className="text-muted-foreground text-sm">
-                    Connect your monitors to Slack, Webhook, and GitHub Action
-                    Automations with tags.
+                  <p className="text-muted-foreground text-xs">
+                    Send Alerts to Slack, Webhooks, and GitHub Actions.
                   </p>
                   <MonitorAutomationsPanel
                     projectId={projectId}
-                    tags={(watched.tags ?? []) as string[]}
-                    onTagsChange={(next) =>
-                      form.setValue("tags", next, {
+                    triggerIds={(watched.triggerIds ?? []) as string[]}
+                    onTriggerIdsChange={(next) =>
+                      form.setValue("triggerIds", next, {
                         shouldDirty: true,
-                        shouldValidate: true,
                       })
                     }
                   />
@@ -995,4 +1052,5 @@ const RenotifyField = ({
 /** __test exposes private helpers to co-located tests without widening the module API. */
 export const __test = {
   createDefaults,
+  monitorToDefaults,
 };

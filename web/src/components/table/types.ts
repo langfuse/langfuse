@@ -6,6 +6,8 @@ export type TableRowOptions = {
   options: { label: string; value: number; icon?: LucideIcon }[];
 };
 
+export type DataTableCellPadding = "compact" | "comfortable" | "none";
+
 declare module "@tanstack/react-table" {
   // extends tanstack ColumnDef to include additional properties
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -20,6 +22,7 @@ declare module "@tanstack/react-table" {
     isPinnedRight?: boolean; // if true, column will be pinned to right side
     isFlexWidth?: boolean; // if true, column absorbs leftover space (one per table)
     loadingCell?: React.ReactNode | (() => React.ReactNode);
+    cellPadding?: DataTableCellPadding;
   }
 }
 

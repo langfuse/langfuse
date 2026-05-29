@@ -1,5 +1,6 @@
 /** service.ts contains the MonitorService. */
 import { Prisma, prisma } from "../../../db";
+import { LangfuseNotFoundError } from "../../../errors";
 
 import { type Monitor } from "../types";
 
@@ -9,10 +10,12 @@ import {
   decimalToPrisma,
   errorFromPrisma,
   monitorFromPrisma,
-  nullableOrderColumns,
   sortFiltersCanonically,
+  toPrismaOrderBy,
   toPrismaWhere,
+  updateSchedulerProperties,
   updateSeverityForStatus,
+  initSeverity,
   viewToPrisma,
   windowToMs,
 } from "./helpers";
@@ -71,11 +74,12 @@ export class MonitorService {
         noData: input.noData,
         renotify: input.renotify,
         status: input.status,
-        ...(input.status !== "ACTIVE" ? { severity: "PAUSED" as const } : {}),
+        severity: initSeverity(input.status),
         schedulerBatchId,
         nextRunAt: null,
         name: input.name,
         tags: input.tags,
+        triggerIds: input.triggerIds,
       },
     });
     return monitorFromPrisma(created);
@@ -95,18 +99,15 @@ export class MonitorService {
       windowMs,
     });
 
-    const current = await prisma.monitor.findFirst({
-      where: { id: input.id, projectId: input.projectId },
-      select: { status: true, schedulerBatchId: true },
-    });
-
-    // When the query shape changes (new schedulerBatchId), prior publish
-    // lifecycle stamps refer to the OLD batch and would otherwise suppress
-    // the next publish via runIsPending for up to monitorProcessorTtl.
-    const schedulerBatchIdChanged =
-      current != null && current.schedulerBatchId !== schedulerBatchId;
-
     try {
+      const current = await prisma.monitor.findFirst({
+        where: { id: input.id, projectId: input.projectId },
+        select: { status: true, schedulerBatchId: true },
+      });
+      if (!current) {
+        throw new LangfuseNotFoundError();
+      }
+
       const updated = await prisma.monitor.update({
         where: { id: input.id, projectId: input.projectId },
         data: {
@@ -122,14 +123,14 @@ export class MonitorService {
           noData: input.noData,
           renotify: input.renotify,
           status: input.status,
-          ...updateSeverityForStatus(current?.status, input.status),
-          schedulerBatchId,
-          nextRunAt: null,
-          ...(schedulerBatchIdChanged
-            ? { lastPublishedAt: null, lastCompletedAt: null }
-            : {}),
+          ...updateSeverityForStatus(current.status, input.status),
+          ...updateSchedulerProperties(
+            current.schedulerBatchId,
+            schedulerBatchId,
+          ),
           name: input.name,
           tags: input.tags,
+          triggerIds: input.triggerIds,
         },
       });
       return monitorFromPrisma(updated);
@@ -157,21 +158,12 @@ export class MonitorService {
   ): Promise<{ monitors: Monitor[]; totalCount: number }> {
     const skip =
       input.page && input.limit ? (input.page - 1) * input.limit : undefined;
-
-    const sortOrder = input.orderBy?.order.toLowerCase();
-    const orderByValue =
-      input.orderBy && nullableOrderColumns.has(input.orderBy.column)
-        ? { sort: sortOrder, nulls: "last" as const }
-        : sortOrder;
-
     const where = toPrismaWhere(input.projectId, input.filter);
 
     const [monitors, totalCount] = await Promise.all([
       prisma.monitor.findMany({
         where,
-        orderBy: input.orderBy
-          ? [{ [input.orderBy.column]: orderByValue }, { id: "asc" }]
-          : [{ severity: "desc" }, { id: "asc" }],
+        orderBy: toPrismaOrderBy(input.orderBy),
         skip,
         take: input.limit,
       }),

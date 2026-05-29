@@ -154,6 +154,24 @@ describe("MonitorSchema", () => {
   });
 });
 
+describe("MonitorSchema.triggerIds", () => {
+  it("defaults to [] when omitted", () => {
+    const result = MonitorSchema.safeParse(validMonitorBase);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.triggerIds).toEqual([]);
+  });
+
+  it("accepts a list of trigger IDs", () => {
+    const result = MonitorSchema.safeParse({
+      ...validMonitorBase,
+      triggerIds: ["trig-a", "trig-b"],
+    });
+    expect(result.success).toBe(true);
+    if (result.success)
+      expect(result.data.triggerIds).toEqual(["trig-a", "trig-b"]);
+  });
+});
+
 describe("MonitorAlertSchema", () => {
   const validAlert = {
     monitorId: "mon_01",

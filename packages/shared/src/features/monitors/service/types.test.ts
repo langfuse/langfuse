@@ -127,6 +127,27 @@ describe("CreateMonitorSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  describe("triggerIds", () => {
+    it("defaults to []", () => {
+      const result = CreateMonitorSchema.safeParse(validCreateInput);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.triggerIds).toEqual([]);
+      }
+    });
+
+    it("accepts a list of ids", () => {
+      const result = CreateMonitorSchema.safeParse({
+        ...validCreateInput,
+        triggerIds: ["trig_01", "trig_02"],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.triggerIds).toEqual(["trig_01", "trig_02"]);
+      }
+    });
+  });
 });
 
 describe("UpdateMonitorSchema", () => {
@@ -144,13 +165,13 @@ describe("UpdateMonitorSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects an unknown filter column (validateQuery is wired)", () => {
+  it("rejects a disallowed filter column (validateQuery is wired)", () => {
     const result = UpdateMonitorSchema.safeParse({
       ...validUpdateInput,
       filters: [
         {
           type: "string",
-          column: "not_a_dimension",
+          column: "metadata",
           operator: "=",
           value: "x",
         },
@@ -168,6 +189,27 @@ describe("UpdateMonitorSchema", () => {
       status: "ERROR_BAD_QUERY",
     });
     expect(result.success).toBe(false);
+  });
+
+  describe("triggerIds", () => {
+    it("defaults to []", () => {
+      const result = UpdateMonitorSchema.safeParse(validUpdateInput);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.triggerIds).toEqual([]);
+      }
+    });
+
+    it("accepts a list of ids", () => {
+      const result = UpdateMonitorSchema.safeParse({
+        ...validUpdateInput,
+        triggerIds: ["trig_01", "trig_02"],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.triggerIds).toEqual(["trig_01", "trig_02"]);
+      }
+    });
   });
 });
 

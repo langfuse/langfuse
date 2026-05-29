@@ -14,6 +14,7 @@ import {
   monitorFromPrisma,
   sortFiltersCanonically,
   toPrismaWhere,
+  updateSchedulerProperties,
   updateSeverityForStatus,
   viewFromPrisma,
   viewToPrisma,
@@ -487,6 +488,7 @@ describe("monitorFromPrisma", () => {
     lastCompletedAt: null,
     name: "High error rate",
     tags: [] as string[],
+    triggerIds: [] as string[],
   };
 
   it("translates a representative row to the domain shape", () => {
@@ -549,9 +551,19 @@ describe("updateSeverityForStatus", () => {
     expect(updateSeverityForStatus("PAUSED", "ERROR_BAD_QUERY")).toEqual({});
     expect(updateSeverityForStatus("ERROR_BAD_QUERY", "PAUSED")).toEqual({});
   });
+});
 
-  it("is a no-op when current is undefined", () => {
-    expect(updateSeverityForStatus(undefined, "ACTIVE")).toEqual({});
-    expect(updateSeverityForStatus(undefined, "PAUSED")).toEqual({});
+describe("updateSchedulerProperties", () => {
+  it("resets the publish lifecycle stamps when the batch id changes", () => {
+    expect(updateSchedulerProperties(1n, 2n)).toEqual({
+      schedulerBatchId: 2n,
+      nextRunAt: null,
+      lastPublishedAt: null,
+      lastCompletedAt: null,
+    });
+  });
+
+  it("is a no-op when the batch id is unchanged", () => {
+    expect(updateSchedulerProperties(42n, 42n)).toEqual({});
   });
 });

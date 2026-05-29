@@ -1,7 +1,10 @@
 import { useRouter } from "next/router";
 import { AutomationSidebar } from "@/src/features/automations/components/AutomationSidebar";
 import { AutomationDetails } from "@/src/features/automations/components/AutomationDetails";
-import { AutomationForm } from "@/src/features/automations/components/automationForm";
+import {
+  AutomationForm,
+  parseCreateAutomationPrefill,
+} from "@/src/features/automations/components/automationForm";
 import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
@@ -28,6 +31,10 @@ export default function AutomationsPage() {
   const projectId = router.query.projectId as string;
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
   const [showSecretDialog, setShowSecretDialog] = useState(false);
+  /** pendingAutomationId is the id to select once the webhook-secret dialog dismisses, when no prefill.redirectUrl is set. */
+  const [pendingAutomationId, setPendingAutomationId] = useState<string | null>(
+    null,
+  );
 
   const [urlParams, setUrlParams] = useQueryParams({
     view: withDefault(StringParam, "list"),
@@ -37,6 +44,12 @@ export default function AutomationsPage() {
   });
 
   const { view, automationId } = urlParams;
+
+  /** parsedPrefill decodes the deep-link blob once; the form receives the parsed object and the create-success path reads its redirectUrl. */
+  const parsedPrefill = useMemo(
+    () => parseCreateAutomationPrefill(urlParams.prefill),
+    [urlParams.prefill],
+  );
 
   const selectedAutomation = useMemo(
     () => (automationId ? { automationId } : undefined),
@@ -157,11 +170,40 @@ export default function AutomationsPage() {
     });
   };
 
-  const handleReturnToList = () => {
-    // Use router.replace to avoid creating history entry when canceling
+  /** finishFlow returns the user to parsedPrefill.redirectUrl when present; otherwise invokes the caller-supplied fallback, defaulting to the automations list view with no selection. */
+  const finishFlow = useCallback(
+    (fallback?: () => void) => {
+      if (parsedPrefill.redirectUrl) {
+        void router.push(parsedPrefill.redirectUrl);
+        return;
+      }
+      if (fallback) {
+        fallback();
+      } else {
+        navigateWithoutHistory({ view: "list" });
+      }
+    },
+    [parsedPrefill.redirectUrl, router, navigateWithoutHistory],
+  );
+
+  /** selectAutomationFallback navigates back to the automations list with the given id selected; used as the fallback after a successful create when no redirectUrl is set. */
+  const selectAutomationFallback = (id: string) => () =>
     navigateWithoutHistory({
       view: "list",
+      automationId: id,
+      tab: urlParams.tab,
     });
+
+  const dismissSecretDialog = () => {
+    setShowSecretDialog(false);
+    setWebhookSecret(null);
+    const id = pendingAutomationId;
+    setPendingAutomationId(null);
+    finishFlow(id ? selectAutomationFallback(id) : undefined);
+  };
+
+  const handleReturnToList = () => {
+    finishFlow();
   };
 
   const handleCreateSuccess = (
@@ -172,20 +214,13 @@ export default function AutomationsPage() {
     if (webhookSecret && actionType === "WEBHOOK") {
       setWebhookSecret(webhookSecret);
       setShowSecretDialog(true);
+      setPendingAutomationId(automationId ?? null);
+      return;
     }
 
-    // Navigate to the newly created automation detail page without history entry
-    if (automationId) {
-      navigateWithoutHistory({
-        view: "list",
-        automationId,
-        tab: urlParams.tab,
-      });
-    } else {
-      navigateWithoutHistory({
-        view: "list",
-      });
-    }
+    finishFlow(
+      automationId ? selectAutomationFallback(automationId) : undefined,
+    );
   };
 
   const handleEditSuccess = () => {
@@ -286,7 +321,7 @@ export default function AutomationsPage() {
             onSuccess={handleCreateSuccess}
             onCancel={handleReturnToList}
             isEditing={true}
-            prefill={urlParams.prefill}
+            prefill={parsedPrefill}
           />
         </div>
       );
@@ -365,7 +400,16 @@ export default function AutomationsPage() {
         </div>
       </div>
       {/* Webhook Secret Dialog */}
-      <Dialog open={showSecretDialog} onOpenChange={setShowSecretDialog}>
+      <Dialog
+        open={showSecretDialog}
+        onOpenChange={(open) => {
+          if (open) {
+            setShowSecretDialog(true);
+          } else {
+            dismissSecretDialog();
+          }
+        }}
+      >
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Webhook Secret Created</DialogTitle>
@@ -380,12 +424,7 @@ export default function AutomationsPage() {
             )}
           </DialogBody>
           <DialogFooter>
-            <Button
-              onClick={() => {
-                setShowSecretDialog(false);
-                setWebhookSecret(null);
-              }}
-            >
+            <Button onClick={dismissSecretDialog}>
               {"I've saved the secret"}
             </Button>
           </DialogFooter>

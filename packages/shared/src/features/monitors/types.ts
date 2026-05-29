@@ -188,6 +188,7 @@ export const MonitorSchema = z.object({
     .min(1, ErrorNameRequired)
     .max(200),
   tags: z.array(z.string().max(60)).max(20).default([]),
+  triggerIds: z.array(z.string()).default([]),
 
   // Monitor State
   severity: MonitorSeveritySchema.default("UNKNOWN"),

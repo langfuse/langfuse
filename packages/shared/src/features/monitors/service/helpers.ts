@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import {
   type Monitor as PrismaMonitor,
   MonitorView as PrismaMonitorView,
+  MonitorSeverity as PrismaMonitorSeverity,
   Prisma,
 } from "@prisma/client";
 
@@ -20,19 +21,36 @@ import {
   type MonitorView,
   type MonitorWindow,
   MonitorSchema,
+  MonitorStatusSchema,
 } from "../types";
 
 import {
   MonitorNotFoundError,
   type ListMonitorFilter,
+  type ListMonitors,
   type MonitorListOrderBy,
 } from "./types";
 
 /** nullableOrderColumns is the list of sortable columns that are nullable. */
-export const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
+const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
   "severityChangedAt",
   "alertedAt",
 ]);
+
+/** toPrismaOrderBy builds the Prisma orderBy clause for MonitorService.list. */
+export const toPrismaOrderBy = (
+  orderBy: ListMonitors["orderBy"],
+): Prisma.MonitorOrderByWithRelationInput[] => {
+  if (!orderBy) return [{ severity: "desc" }, { id: "asc" }];
+  const sort = orderBy.order.toLowerCase() as Prisma.SortOrder;
+  const isNullable = nullableOrderColumns.has(orderBy.column);
+  return [
+    {
+      [orderBy.column]: isNullable ? { sort, nulls: "last" } : sort,
+    },
+    { id: "asc" },
+  ];
+};
 
 /** toPrismaWhere builds the Prisma where clause for a project-scoped ListMonitorFilter. */
 export const toPrismaWhere = (
@@ -236,16 +254,52 @@ export const decimalToPrisma = (n: number | null): Prisma.Decimal | null =>
 
 /** updateSeverityForStatus returns the severity transition payload when status flips between ACTIVE and non-ACTIVE; otherwise an empty object. */
 export const updateSeverityForStatus = (
-  current: MonitorStatus | undefined,
+  current: MonitorStatus,
   next: MonitorStatus,
 ): { severity?: MonitorSeverity; severityChangedAt?: Date } => {
-  if (!current) return {};
-  const goingPaused = current === "ACTIVE" && next !== "ACTIVE";
-  const goingActive = current !== "ACTIVE" && next === "ACTIVE";
-  if (goingPaused) return { severity: "PAUSED", severityChangedAt: new Date() };
-  if (goingActive)
-    return { severity: "UNKNOWN", severityChangedAt: new Date() };
+  const fromActive = current === MonitorStatusSchema.enum.ACTIVE;
+  const toActve = next === MonitorStatusSchema.enum.ACTIVE;
+  const toPaused = fromActive && !toActve;
+  const toActive = !fromActive && toActve;
+  if (toPaused)
+    return {
+      severity: PrismaMonitorSeverity.PAUSED,
+      severityChangedAt: new Date(),
+    };
+  if (toActive)
+    return {
+      severity: PrismaMonitorSeverity.UNKNOWN,
+      severityChangedAt: new Date(),
+    };
+  // No Severity Change (eg ACTIVE -> ACTIVE, ERROR_* -> PAUSED)
   return {};
+};
+
+/** updateSchedulerProperties returns the new schedulerBatchId and reset publish lifecycle stamps when the query-shape fingerprint changes; otherwise an empty object. */
+export const updateSchedulerProperties = (
+  current: bigint,
+  next: bigint,
+): {
+  schedulerBatchId?: bigint;
+  nextRunAt?: null;
+  lastPublishedAt?: null;
+  lastCompletedAt?: null;
+} => {
+  if (current === next) return {};
+  return {
+    schedulerBatchId: next,
+    nextRunAt: null,
+    lastPublishedAt: null,
+    lastCompletedAt: null,
+  };
+};
+
+/** initSeverity maps a MonitorStatus its initial severity value */
+export const initSeverity = (status: MonitorStatus) => {
+  if (status === MonitorStatusSchema.enum.ACTIVE) {
+    return PrismaMonitorSeverity.UNKNOWN;
+  }
+  return PrismaMonitorSeverity.PAUSED;
 };
 
 /** errorFromPrisma converts a Prisma row-not-found error to MonitorNotFoundError. */

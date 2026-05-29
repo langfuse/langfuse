@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import {
   Card,
   CardContent,
@@ -50,8 +50,9 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
-import TagManager from "@/src/features/tag/components/TagManager";
-import { Plus } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import Link from "next/link";
+import { Info } from "lucide-react";
 
 // Define Slack action schema
 const slackSchema = z.object({
@@ -76,13 +77,36 @@ export type CreateAutomationPrefill = {
   eventSource?: TriggerEventSource;
   filter?: FilterState;
   actionType?: ActionTypes;
+  /** redirectUrl is a same-origin path the caller wants to return to after the automation is saved. */
+  redirectUrl?: string;
 };
+
+/** isSameOriginRedirect resolves a candidate URL against the current Next-rendered origin and accepts it only if the resulting origin still matches; falls back to path-only validation during SSR where `window` is absent. */
+const isSameOriginRedirect = (url: string): boolean => {
+  if (url.startsWith("//")) return false;
+  if (typeof window === "undefined") {
+    // Without window we cannot resolve absolute URLs; trust relative paths only.
+    return url.startsWith("/") && !url.includes("\\");
+  }
+  try {
+    const resolved = new URL(url, window.location.origin);
+    return resolved.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+};
+
+/** safeRedirectPath defends against open-redirect by requiring the URL to resolve back to the current origin. */
+const safeRedirectPath = z.string().refine(isSameOriginRedirect, {
+  message: "redirectUrl must resolve to the same origin",
+});
 
 /** createAutomationPrefillSchema validates a decoded prefill payload. */
 const createAutomationPrefillSchema = z.object({
   eventSource: TriggerEventSourceSchema.optional(),
   filter: z.array(z.any()).optional(),
   actionType: ActionTypeSchema.optional(),
+  redirectUrl: safeRedirectPath.optional(),
 });
 
 /** parseCreateAutomationPrefill decodes a base64url JSON blob into a typed prefill; returns {} when absent or malformed. */
@@ -104,7 +128,7 @@ export const parseCreateAutomationPrefill = (
 };
 
 /** serializeCreateAutomationPrefill encodes a typed prefill as a base64url JSON blob for a single URL query param, UTF-8-safe so non-ASCII tags don't throw at btoa. */
-export const serializeCreateAutomationPrefill = (
+const serializeCreateAutomationPrefill = (
   prefill: CreateAutomationPrefill,
 ): string => {
   const bytes = new TextEncoder().encode(JSON.stringify(prefill));
@@ -115,6 +139,21 @@ export const serializeCreateAutomationPrefill = (
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
+};
+
+/** automationCreateHref builds the deep-link to the automations create form, prefilling eventSource as Monitor and (optionally) the chosen actionType + a same-origin redirectUrl to return to after save. */
+export const automationCreateHref = (
+  projectId: string,
+  actionType?: ActionTypes,
+  redirectUrl?: string,
+): string => {
+  const prefill = serializeCreateAutomationPrefill({
+    eventSource: TriggerEventSource.Monitor,
+    ...(actionType ? { actionType } : {}),
+    ...(redirectUrl ? { redirectUrl } : {}),
+  });
+  const params = new URLSearchParams({ view: "create", prefill });
+  return `/project/${projectId}/automations?${params.toString()}`;
 };
 
 // Define schemas for form validation
@@ -282,100 +321,23 @@ const PromptTriggerFields = ({
   </>
 );
 
-/** filterToTags extracts the tag list from a monitor-source trigger filter, if a tags clause is present. */
-const filterToTags = (filter: FilterState): string[] => {
-  for (const cond of filter) {
-    if (
-      cond.column === "tags" &&
-      cond.type === "arrayOptions" &&
-      cond.operator === "all of"
-    ) {
-      return cond.value as string[];
-    }
-  }
-  return [];
-};
-
-/** tagsToFilter encodes a tag list as the FilterState a monitor-source trigger expects. */
-const tagsToFilter = (tags: string[]): FilterState =>
-  tags.length === 0
-    ? []
-    : [
-        {
-          column: "tags",
-          type: "arrayOptions",
-          operator: "all of",
-          value: tags,
-        },
-      ];
-
-/** MonitorTriggerFields renders the tag picker for monitor-source automations, loading suggestions from the project's existing monitor tags. */
-const MonitorTriggerFields = ({
-  control,
-  projectId,
-  disabled,
-}: {
-  control: Control<FormValues>;
-  projectId: string;
-  disabled: boolean;
-}) => {
-  /** monitorTagsQuery loads existing monitor tags for TagManager autocomplete. */
-  const monitorTagsQuery = api.monitors.getFilterOptions.useQuery(
-    { projectId },
-    {
-      trpc: { context: { skipBatch: true } },
-      staleTime: Infinity,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    },
-  );
-
-  /** availableTags is the flat list of tag values pulled from monitorTagsQuery for TagManager. */
-  const availableTags = useMemo(
-    () => monitorTagsQuery.data?.tags.map((t) => t.value) ?? [],
-    [monitorTagsQuery.data],
-  );
-
-  return (
-    <FormField
-      control={control}
-      name="filter"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>Monitor Tags</FormLabel>
-          <FormControl>
-            <TagManager
-              itemName="monitor"
-              tags={filterToTags((field.value ?? []) as FilterState)}
-              allTags={availableTags}
-              hasAccess={!disabled}
-              isLoading={false}
-              mutateTags={(next) => field.onChange(tagsToFilter(next))}
-              alignPopover="start"
-              triggerButton={
-                <Button
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  className="mr-2 ml-0.5 gap-1"
-                  disabled={disabled}
-                >
-                  <Plus className="h-3 w-3" />
-                  Add Tags
-                </Button>
-              }
-            />
-          </FormControl>
-          <FormDescription>
-            Fire on monitors carrying all of the selected tags. Leave empty to
-            fire on every monitor in the project.
-          </FormDescription>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  );
-};
+/** MonitorTriggerFields renders an info card explaining that monitors connect to this automation via the create-monitor page. */
+const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
+  <Alert>
+    <Info className="h-4 w-4" />
+    <AlertTitle>How Monitors Connect</AlertTitle>
+    <AlertDescription>
+      Add this automation to a monitor from the{" "}
+      <Link
+        href={`/project/${projectId}/monitors/new`}
+        className="text-primary underline underline-offset-2"
+      >
+        create monitors page
+      </Link>
+      .
+    </AlertDescription>
+  </Alert>
+);
 
 interface AutomationFormProps {
   projectId: string;
@@ -388,8 +350,8 @@ interface AutomationFormProps {
   /** automation is the existing record being edited. Mutually exclusive with prefill in practice. */
   automation?: AutomationDomain;
   isEditing?: boolean;
-  /** prefill is a raw base64url JSON deep-link blob; the form decodes it. Ignored when automation is set. */
-  prefill?: string | null;
+  /** prefill is the pre-parsed deep-link payload (decoded by the caller). Ignored when automation is set. */
+  prefill?: CreateAutomationPrefill | null;
 }
 
 export const AutomationForm = ({
@@ -426,10 +388,10 @@ export const AutomationForm = ({
     },
   );
 
-  // Decoded prefill values; empty when editing an existing automation or when the blob is absent/malformed.
+  // Prefill is empty when editing an existing automation; otherwise the caller-decoded payload is used directly.
   const parsedPrefill: CreateAutomationPrefill = automation
     ? {}
-    : parseCreateAutomationPrefill(prefill);
+    : (prefill ?? {});
 
   // Get the action type for the form when editing
   const getActionType = (): ActionTypes =>
@@ -440,7 +402,6 @@ export const AutomationForm = ({
   // Get default values based on action type
   const getDefaultValues = (): FormValues => {
     const actionType = getActionType();
-    const today = new Date().toLocaleString("sv").split("T")[0]; // YYYY-MM-DD
 
     const resolvedEventSource: TriggerEventSource =
       automation?.trigger.eventSource ??
@@ -457,8 +418,7 @@ export const AutomationForm = ({
       automation?.trigger.filter ?? parsedPrefill.filter ?? [];
 
     const baseValues = {
-      name:
-        isEditing && automation ? automation.name : `${actionType} ${today}`,
+      name: isEditing && automation ? automation.name : "",
       eventSource: resolvedEventSource,
       eventAction: resolvedEventAction,
       status: (isEditing && automation
@@ -612,12 +572,6 @@ export const AutomationForm = ({
       const defaultValues = handler.getDefaultValues();
       form.setValue("githubDispatch", defaultValues.githubDispatch);
     }
-
-    // If we are creating a new automation, update the default name
-    if (!automation) {
-      const today = new Date().toLocaleString("sv").split("T")[0];
-      form.setValue("name", `${value} ${today}`);
-    }
   };
 
   // Handle cancel button click
@@ -672,6 +626,7 @@ export const AutomationForm = ({
                       <Input
                         placeholder="Automation name"
                         {...field}
+                        autoFocus={!automation}
                         disabled={!hasAccess || !isEditing}
                         className="border-border rounded-none border-0 border-b bg-transparent px-0 text-2xl font-semibold focus-visible:ring-0 focus-visible:ring-offset-0"
                       />
@@ -717,11 +672,7 @@ export const AutomationForm = ({
               disabled={!hasAccess || !isEditing}
             />
             {watchedEventSource === TriggerEventSource.Monitor ? (
-              <MonitorTriggerFields
-                control={form.control}
-                projectId={projectId}
-                disabled={!hasAccess || !isEditing}
-              />
+              <MonitorTriggerFields projectId={projectId} />
             ) : (
               <PromptTriggerFields
                 control={form.control}

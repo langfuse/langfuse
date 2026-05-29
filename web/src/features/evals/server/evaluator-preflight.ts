@@ -1,5 +1,6 @@
 import {
   compilePersistedEvalOutputDefinition,
+  EvalTemplateType,
   PersistedEvalOutputDefinitionSchema,
 } from "@langfuse/shared";
 import {
@@ -9,6 +10,7 @@ import {
 
 export type EvaluatorPreflightDefinition = {
   name: string;
+  type?: EvalTemplateType | null;
   provider?: string | null;
   model?: string | null;
   modelParams?: unknown;
@@ -19,6 +21,10 @@ export async function getEvaluatorDefinitionPreflightError(params: {
   projectId: string;
   template: EvaluatorPreflightDefinition;
 }): Promise<string | null> {
+  if (params.template.type === EvalTemplateType.CODE) {
+    return null;
+  }
+
   const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
     params.projectId,
     params.template.provider ?? undefined,

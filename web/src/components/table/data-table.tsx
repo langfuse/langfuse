@@ -14,7 +14,10 @@ import {
   getRowHeightTailwindClass,
 } from "@/src/components/table/data-table-row-height-switch";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+import {
+  type DataTableCellPadding,
+  type LangfuseColumnDef,
+} from "@/src/components/table/types";
 import { type ModelTableRow } from "@/src/components/table/use-cases/models";
 import {
   Table,
@@ -79,7 +82,7 @@ interface DataTableProps<TData, TValue> {
   getRowClassName?: (row: TData) => string;
   highlightAllRows?: boolean;
   topAlignCells?: boolean;
-  cellPadding?: "compact" | "comfortable";
+  cellPadding?: DataTableCellPadding;
 }
 
 export interface AsyncTableData<T> {
@@ -153,6 +156,17 @@ const getPinningClasses = <TData,>(column: Column<TData>): string => {
   );
 };
 
+const getCellPaddingClassName = (padding: DataTableCellPadding) => {
+  switch (padding) {
+    case "comfortable":
+      return "p-1";
+    case "none":
+      return "p-0 first:pl-0";
+    case "compact":
+      return "px-1";
+  }
+};
+
 export function DataTable<TData extends object, TValue>({
   columns,
   data,
@@ -203,9 +217,7 @@ export function DataTable<TData extends object, TValue>({
       left: columns
         .filter((col) => col.isPinnedLeft)
         .map((col) => col.id || col.accessorKey),
-      right: columns
-        .filter((col) => col.isPinnedRight)
-        .map((col) => col.id || col.accessorKey),
+      right: [],
     }),
     [columns],
   );
@@ -322,11 +334,7 @@ export function DataTable<TData extends object, TValue>({
                     const sortingEnabled = columnDef.enableSorting;
                     // if the header id does not translate to a valid css variable name, default to 150px as width
                     // may only happen for dynamic columns, as column names are user defined
-                    const isFlexWidth = (
-                      header.column
-                        .columnDef as LangfuseColumnDef<ModelTableRow>
-                    ).isFlexWidth;
-                    const width = isFlexWidth
+                    const width = columnDef.isFlexWidth
                       ? "auto"
                       : isValidCssVariableName({
                             name: header.id,
@@ -507,7 +515,7 @@ interface TableBodyComponentProps<TData> {
   getRowClassName?: (row: TData) => string;
   highlightAllRows?: boolean;
   topAlignCells?: boolean;
-  cellPadding?: "compact" | "comfortable";
+  cellPadding?: DataTableCellPadding;
   /** Used for React.memo comparison only */
   tableSnapshot?: {
     columnVisibility?: VisibilityState;
@@ -587,61 +595,64 @@ function TableBodyComponent<TData>({
       {data.isLoading || !data.data ? (
         Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
           <TableRow key={`loading-row-${rowIndex}`} aria-hidden="true">
-            {visibleColumns.map((column, columnIndex) => (
-              <TableCell
-                key={`${column.id}-loading-cell-${rowIndex}`}
-                className={cn(
-                  "overflow-hidden border-b text-xs first:pl-2",
-                  cellPadding === "comfortable" ? "p-1" : "px-1",
-                  (rowHeight ?? "s") === "s" && "whitespace-nowrap",
-                  getPinningClasses(column),
-                )}
-                style={{
-                  ...getCommonPinningStyles(column),
-                  width: (column.columnDef as LangfuseColumnDef<TData>)
-                    .isFlexWidth
-                    ? "auto"
-                    : `calc(var(--col-${column.id}-size) * 1px)`,
-                }}
-              >
-                <div
+            {visibleColumns.map((column, columnIndex) => {
+              const columnDef = column.columnDef as LangfuseColumnDef<TData>;
+
+              return (
+                <TableCell
+                  key={`${column.id}-loading-cell-${rowIndex}`}
                   className={cn(
-                    "flex",
-                    (rowHeight ?? "s") === "s" && !topAlignCells
-                      ? "items-center"
-                      : "items-start",
-                    (rowHeight ?? "s") !== "s" && "py-1",
-                    rowheighttw,
+                    "overflow-hidden border-b text-xs first:pl-2",
+                    getCellPaddingClassName(
+                      columnDef.cellPadding ?? cellPadding,
+                    ),
+                    (rowHeight ?? "s") === "s" && "whitespace-nowrap",
+                    getPinningClasses(column),
                   )}
+                  style={{
+                    ...getCommonPinningStyles(column),
+                    width: columnDef.isFlexWidth
+                      ? "auto"
+                      : `calc(var(--col-${column.id}-size) * 1px)`,
+                  }}
                 >
-                  {(() => {
-                    const columnDef =
-                      column.columnDef as LangfuseColumnDef<TData>;
-                    const loadingCell = columnDef.loadingCell;
+                  <div
+                    className={cn(
+                      "flex",
+                      (rowHeight ?? "s") === "s" && !topAlignCells
+                        ? "items-center"
+                        : "items-start",
+                      (rowHeight ?? "s") !== "s" && "py-1",
+                      rowheighttw,
+                    )}
+                  >
+                    {(() => {
+                      const loadingCell = columnDef.loadingCell;
 
-                    if (typeof loadingCell === "function") {
-                      return loadingCell();
-                    }
+                      if (typeof loadingCell === "function") {
+                        return loadingCell();
+                      }
 
-                    if (loadingCell !== undefined) {
-                      return loadingCell;
-                    }
+                      if (loadingCell !== undefined) {
+                        return loadingCell;
+                      }
 
-                    return (
-                      <TableTextLoadingCell
-                        className={cn(
-                          "min-w-[3rem]",
-                          (rowIndex + columnIndex) % 4 === 0 && "w-3/4",
-                          (rowIndex + columnIndex) % 4 === 1 && "w-1/2",
-                          (rowIndex + columnIndex) % 4 === 2 && "w-2/3",
-                          (rowIndex + columnIndex) % 4 === 3 && "w-5/6",
-                        )}
-                      />
-                    );
-                  })()}
-                </div>
-              </TableCell>
-            ))}
+                      return (
+                        <TableTextLoadingCell
+                          className={cn(
+                            "min-w-[3rem]",
+                            (rowIndex + columnIndex) % 4 === 0 && "w-3/4",
+                            (rowIndex + columnIndex) % 4 === 1 && "w-1/2",
+                            (rowIndex + columnIndex) % 4 === 2 && "w-2/3",
+                            (rowIndex + columnIndex) % 4 === 3 && "w-5/6",
+                          )}
+                        />
+                      );
+                    })()}
+                  </div>
+                </TableCell>
+              );
+            })}
           </TableRow>
         ))
       ) : table.getRowModel().rows.length ? (
@@ -657,20 +668,23 @@ function TableBodyComponent<TData>({
               const cellValue = cell.getValue();
               const isStringCell = typeof cellValue === "string";
               const isSmallRowHeight = (rowHeight ?? "s") === "s";
+              const columnDef = cell.column
+                .columnDef as LangfuseColumnDef<TData>;
 
               return (
                 <TableCell
                   key={cell.id}
                   className={cn(
                     "overflow-hidden border-b text-xs first:pl-2",
-                    cellPadding === "comfortable" ? "p-1" : "px-1",
+                    getCellPaddingClassName(
+                      columnDef.cellPadding ?? cellPadding,
+                    ),
                     isSmallRowHeight && "whitespace-nowrap",
                     getPinningClasses(cell.column),
                   )}
                   style={{
                     ...getCommonPinningStyles(cell.column),
-                    width: (cell.column.columnDef as LangfuseColumnDef<TData>)
-                      .isFlexWidth
+                    width: columnDef.isFlexWidth
                       ? "auto"
                       : `calc(var(--col-${cell.column.id}-size) * 1px)`,
                   }}
