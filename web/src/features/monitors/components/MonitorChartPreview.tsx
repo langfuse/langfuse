@@ -11,9 +11,14 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { getWidgetMetricPresentation } from "@/src/features/widgets/utils";
-import { type FilterState, type metricAggregations } from "@langfuse/shared";
+import {
+  type FilterState,
+  type metricAggregations,
+  RESOURCE_LIMIT_ERROR_MESSAGE,
+} from "@langfuse/shared";
 import {
   type MonitorThresholdOperator,
   type MonitorView,
@@ -161,13 +166,22 @@ export const MonitorChartPreview = ({
             </SelectContent>
           </Select>
         </div>
-        <div className="h-full pb-8">
+        <div className="relative h-full pb-8">
           <Chart
             chartType="LINE_TIME_SERIES"
             data={data}
             rowLimit={1000}
             thresholds={thresholds}
             metricFormatter={metricFormatter}
+          />
+          <ChartLoadingState
+            isLoading={queryResult.isError}
+            showSpinner={false}
+            showHintImmediately
+            hintText={
+              queryResult.error?.message ?? RESOURCE_LIMIT_ERROR_MESSAGE
+            }
+            className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
           />
         </div>
       </CardContent>
