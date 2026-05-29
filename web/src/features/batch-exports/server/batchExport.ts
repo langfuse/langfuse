@@ -16,7 +16,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { assertLegacyTracingIoSearchEnabled } from "@/src/features/traces/server/legacyIoSearch";
+import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
 
 export const batchExportRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -31,7 +31,7 @@ export const batchExportRouter = createTRPCRouter({
         });
 
         const { projectId, query, format, name } = input;
-        assertLegacyTracingIoSearchEnabled({
+        assertLegacyTracingIoSearchCanCreateBatchJob({
           searchQuery: query.searchQuery,
           searchType: query.searchType,
           tableName: query.tableName,

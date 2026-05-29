@@ -92,10 +92,6 @@ import {
   type RefreshInterval,
   REFRESH_INTERVALS,
 } from "@/src/components/table/data-table-refresh-button";
-import {
-  hasLegacyIoSearchType,
-  isLegacyIoSearchDisabledError,
-} from "@/src/features/traces/lib/legacyIoSearch";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -549,24 +545,6 @@ export default function ObservationsTable({
   const totalCountQuery = api.generations.countAll.useQuery(getCountPayload, {
     refetchOnWindowFocus: true,
   });
-  const shouldClearLegacyIoSearch =
-    isLegacyIoSearchDisabledError(totalCountQuery.error) ||
-    isLegacyIoSearchDisabledError(generations.error);
-
-  useEffect(() => {
-    if (!shouldClearLegacyIoSearch) return;
-    if (!searchQuery && !hasLegacyIoSearchType(searchType)) return;
-
-    setSearchQuery(null);
-    setSearchType(["id"]);
-  }, [
-    searchQuery,
-    searchType,
-    setSearchQuery,
-    setSearchType,
-    shouldClearLegacyIoSearch,
-  ]);
-
   const totalCount = totalCountQuery.data?.totalCount ?? null;
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
@@ -1423,12 +1401,8 @@ export default function ObservationsTable({
               updateQuery: setSearchQuery,
               currentQuery: searchQuery ?? undefined,
               tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
-              ...(legacyTracingIoSearchEnabled
-                ? {
-                    searchType,
-                    setSearchType,
-                  }
-                : {}),
+              searchType,
+              setSearchType,
             }}
             viewConfig={{
               tableName: TableViewPresetTableName.Observations,
