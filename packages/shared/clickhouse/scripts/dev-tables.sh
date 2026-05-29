@@ -84,6 +84,24 @@ clickhouse client \
 --   packages/shared/clickhouse/migrations/{clustered,unclustered}/0037_add_events_core_mv.up.sql
 -- Do not duplicate the DDL here.
 
+-- Full-text indexes on events_full / events_core.
+-- These are kept out of the production migrations because they use the `text`
+-- index type and require `enable_full_text_index = 1`, both of which need
+-- ClickHouse >= 25.x. Self-hosters on older versions would be blocked from
+-- adopting v4 if we shipped these inline. Once enough time has passed for
+-- self-hosters to upgrade, a follow-up migration will add them via
+-- ALTER TABLE ... ADD INDEX (assuming the tables are still mostly empty;
+-- otherwise we accept the index build cost at query time).
+ALTER TABLE events_full MODIFY SETTING enable_full_text_index = 1;
+ALTER TABLE events_full ADD INDEX IF NOT EXISTS idx_fts_input_low lower(input) TYPE text(tokenizer = splitByNonAlpha);
+ALTER TABLE events_full ADD INDEX IF NOT EXISTS idx_fts_output_low lower(output) TYPE text(tokenizer = splitByNonAlpha);
+ALTER TABLE events_full ADD INDEX IF NOT EXISTS idx_fts_metadata_values metadata_values TYPE text(tokenizer = splitByNonAlpha);
+ALTER TABLE events_full ADD INDEX IF NOT EXISTS idx_fts_metadata_names metadata_names TYPE text(tokenizer = splitByNonAlpha);
+
+ALTER TABLE events_core MODIFY SETTING enable_full_text_index = 1;
+ALTER TABLE events_core ADD INDEX IF NOT EXISTS idx_fts_metadata_values metadata_values TYPE text(tokenizer = splitByNonAlpha);
+ALTER TABLE events_core ADD INDEX IF NOT EXISTS idx_fts_metadata_names metadata_names TYPE text(tokenizer = splitByNonAlpha);
+
 -- Diagnostic table to track event size distributions across projects.
 -- Every insert (including updates) produces a row — no deduplication.
 -- See LFE-9402 for context.
