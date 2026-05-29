@@ -17,14 +17,16 @@
 # definitions below are intentionally NOT promoted to production CH migrations
 # yet. They depend on ClickHouse features that are only available on recent
 # versions:
-#   * `enable_block_number_column` / `enable_block_offset_column` table
-#     SETTINGS require ClickHouse >= 24.5.
+#   * `enable_block_number_column` / `enable_block_offset_column` table SETTINGS require ClickHouse >= 24.5.
 #   * `text` indexes and `enable_full_text_index` require ClickHouse >= 25.x.
 # Self-hosters on older versions would be blocked from adopting v4 if we
 # shipped these inline as migrations. Once v4 becomes the mainline and we can
 # assume a 25.12+ minimum, these definitions will be promoted to proper
 # migrations. Until then, this script is the documented way to roll out the
 # v4 events pipeline tables.
+
+# When making changes below, threat them like migrations, i.e. DO NOT modify the column inline.
+# Instead add a table mutation adding a net new column.
 
 # Load environment variables
 [ -f ../../.env ] && source ../../.env
