@@ -272,10 +272,9 @@ export const decimalToPrisma = (n: number | null): Prisma.Decimal | null =>
 
 /** updateSeverityForStatus returns the severity transition payload when status flips between ACTIVE and non-ACTIVE; otherwise an empty object. */
 export const updateSeverityForStatus = (
-  current: MonitorStatus | undefined | null,
+  current: MonitorStatus,
   next: MonitorStatus,
 ): { severity?: MonitorSeverity; severityChangedAt?: Date } => {
-  if (!current) return {};
   const fromActive = current === MonitorStatusSchema.enum.ACTIVE;
   const toActve = next === MonitorStatusSchema.enum.ACTIVE;
   const toPaused = fromActive && !toActve;
@@ -292,6 +291,14 @@ export const updateSeverityForStatus = (
     };
   // No Severity Change (eg ACTIVE -> ACTIVE, ERROR_* -> PAUSED)
   return {};
+};
+
+/** initSeverity maps a MonitorStatus its initial severity value */
+export const initSeverity = (status: MonitorStatus) => {
+  if (status === MonitorStatusSchema.enum.ACTIVE) {
+    return PrismaMonitorSeverity.UNKNOWN;
+  }
+  return PrismaMonitorSeverity.PAUSED;
 };
 
 /** errorFromPrisma converts a Prisma row-not-found error to MonitorNotFoundError. */

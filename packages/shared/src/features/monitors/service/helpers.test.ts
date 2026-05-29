@@ -638,9 +638,4 @@ describe("updateSeverityForStatus", () => {
     expect(updateSeverityForStatus("PAUSED", "ERROR_BAD_QUERY")).toEqual({});
     expect(updateSeverityForStatus("ERROR_BAD_QUERY", "PAUSED")).toEqual({});
   });
-
-  it("is a no-op when current is undefined", () => {
-    expect(updateSeverityForStatus(undefined, "ACTIVE")).toEqual({});
-    expect(updateSeverityForStatus(undefined, "PAUSED")).toEqual({});
-  });
 });
