@@ -110,6 +110,7 @@ export default function NewEvaluatorPage() {
   return (
     <Page
       withPadding
+      scrollable
       headerProps={{
         title: "Set up evaluator",
         breadcrumb: [

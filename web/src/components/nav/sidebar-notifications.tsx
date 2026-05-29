@@ -67,7 +67,7 @@ export const notifications: SidebarNotification[] = [
     title: "Launch Week: Day 5",
     description:
       "Langfuse MCP now covers observations, metrics, scores, datasets, comments, and more.",
-    link: "https://langfuse.com/launch-week-5",
+    link: "https://langfuse.com/changelog/2026-05-29-mcp-update",
     linkTitle: "Learn more",
     createdAt: "2026-05-29",
   },

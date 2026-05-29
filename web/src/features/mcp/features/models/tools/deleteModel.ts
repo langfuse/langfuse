@@ -1,11 +1,8 @@
-import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import { clearModelCacheForProject } from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DeleteModelV1Query,
   DeleteModelV1Response,
 } from "@/src/features/public-api/types/models";
+import { deleteModelForApi } from "@/src/features/models/server/publicApiModelService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
@@ -21,41 +18,14 @@ export const [deleteModelTool, handleDeleteModel] = defineTool({
       context,
       attributes: { "mcp.model_id": input.modelId },
       fn: async () => {
-        const model = await prisma.model.findFirst({
-          where: {
-            id: input.modelId,
-            projectId: context.projectId,
-          },
-        });
-
-        if (!model) {
-          throw new LangfuseNotFoundError(
-            "No model with this id found. Note: You cannot delete built-in models, override them with a model with the same name.",
-          );
-        }
-
-        await prisma.model.delete({
-          where: {
-            id: input.modelId,
-            projectId: context.projectId,
-          },
-        });
-
-        await auditLog({
-          action: "delete",
-          resourceType: "model",
-          resourceId: input.modelId,
+        const result = await deleteModelForApi({
           projectId: context.projectId,
           orgId: context.orgId,
           apiKeyId: context.apiKeyId,
-          before: model,
+          modelId: input.modelId,
         });
 
-        await clearModelCacheForProject(context.projectId);
-
-        return DeleteModelV1Response.parse({
-          message: "Model successfully deleted",
-        });
+        return DeleteModelV1Response.parse(result);
       },
     }),
   destructiveHint: true,

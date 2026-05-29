@@ -145,13 +145,21 @@ export const PromptDetail = ({
     projectId,
     scope: "promptExperiments:CUD",
   });
-  const promptHistory = api.prompts.allVersions.useQuery(
-    {
+  const hasCommentReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "comments:read",
+  });
+  const promptHistoryInput = useMemo(
+    () => ({
       name: promptName,
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-    },
-    { enabled: Boolean(projectId) },
+      includeCommentCounts: hasCommentReadAccess,
+    }),
+    [hasCommentReadAccess, projectId, promptName],
   );
+  const promptHistory = api.prompts.allVersions.useQuery(promptHistoryInput, {
+    enabled: Boolean(projectId),
+  });
   const prompt = currentPromptVersion
     ? promptHistory.data?.promptVersions.find(
         (prompt) => prompt.version === currentPromptVersion,
@@ -230,27 +238,7 @@ export const PromptDetail = ({
     ).data?.tags ?? []
   ).map((t) => t.value);
 
-  const promptIds = useMemo(
-    () => promptHistory.data?.promptVersions.map((p) => p.id) ?? [],
-    [promptHistory.data?.promptVersions],
-  );
-
-  const commentCounts = api.comments.getCountByObjectIds.useQuery(
-    {
-      projectId: projectId as string,
-      objectType: "PROMPT",
-      objectIds: promptIds,
-    },
-    {
-      enabled: Boolean(projectId) && promptIds.length > 0,
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false, // prevents refetching loops
-    },
-  );
+  const commentCounts = promptHistory.data?.commentCounts;
 
   const { pythonCode, jsCode } = useMemo(() => {
     if (!prompt?.id) return { pythonCode: null, jsCode: null };
@@ -315,6 +303,7 @@ export const PromptDetail = ({
             availableTags={allTags}
             projectId={projectId as string}
             promptName={prompt.name}
+            includeCommentCounts={promptHistoryInput.includeCommentCounts}
           />
         ),
         actionButtonsRight: (
@@ -371,7 +360,7 @@ export const PromptDetail = ({
                 setCurrentPromptVersion(version);
                 setCurrentPromptLabel(null);
               }}
-              commentCounts={commentCounts.data}
+              commentCounts={commentCounts}
             />
           </div>
         </Command>
@@ -454,8 +443,11 @@ export const PromptDetail = ({
                   projectId={projectId as string}
                   objectId={prompt.id}
                   objectType="PROMPT"
-                  count={getNumberFromMap(commentCounts?.data, prompt.id)}
+                  count={getNumberFromMap(commentCounts, prompt.id)}
                   variant="outline"
+                  onCommentChange={() =>
+                    utils.prompts.allVersions.invalidate(promptHistoryInput)
+                  }
                 />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

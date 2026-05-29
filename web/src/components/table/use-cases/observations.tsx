@@ -92,6 +92,10 @@ import {
   type RefreshInterval,
   REFRESH_INTERVALS,
 } from "@/src/components/table/data-table-refresh-button";
+import {
+  hasLegacyIoSearchType,
+  isLegacyIoSearchDisabledError,
+} from "@/src/features/traces/lib/legacyIoSearch";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -219,6 +223,17 @@ export default function ObservationsTable({
   }, [utils]);
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
+  const legacyTracingSearchConfig = api.public.tracingSearchConfig.useQuery(
+    { projectId },
+    {
+      enabled: !hideControls,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  );
+  const legacyTracingIoSearchEnabled =
+    legacyTracingSearchConfig.data?.legacyTracingIoSearchEnabled ?? true;
 
   const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
   const [showAddToDatasetDialog, setShowAddToDatasetDialog] = useState(false);
@@ -534,6 +549,23 @@ export default function ObservationsTable({
   const totalCountQuery = api.generations.countAll.useQuery(getCountPayload, {
     refetchOnWindowFocus: true,
   });
+  const shouldClearLegacyIoSearch =
+    isLegacyIoSearchDisabledError(totalCountQuery.error) ||
+    isLegacyIoSearchDisabledError(generations.error);
+
+  useEffect(() => {
+    if (!shouldClearLegacyIoSearch) return;
+    if (!searchQuery && !hasLegacyIoSearchType(searchType)) return;
+
+    setSearchQuery(null);
+    setSearchType(["id"]);
+  }, [
+    searchQuery,
+    searchType,
+    setSearchQuery,
+    setSearchType,
+    shouldClearLegacyIoSearch,
+  ]);
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;
 
@@ -1390,9 +1422,13 @@ export default function ObservationsTable({
               metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
               updateQuery: setSearchQuery,
               currentQuery: searchQuery ?? undefined,
-              searchType,
-              setSearchType,
-              tableAllowsFullTextSearch: true,
+              tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
+              ...(legacyTracingIoSearchEnabled
+                ? {
+                    searchType,
+                    setSearchType,
+                  }
+                : {}),
             }}
             viewConfig={{
               tableName: TableViewPresetTableName.Observations,
