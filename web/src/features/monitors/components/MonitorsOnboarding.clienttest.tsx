@@ -20,7 +20,7 @@ const parsePrefill = (
 
 describe("MonitorsOnboarding", () => {
   it("renders the splash header, step titles, and four CTAs", () => {
-    render(<MonitorsOnboarding projectId={PROJECT_ID} />);
+    render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
     expect(
       screen.getByText("Catch issues before they impact your users"),
@@ -45,7 +45,7 @@ describe("MonitorsOnboarding", () => {
   });
 
   it("links each channel button to /automations?view=create with the matching prefill actionType", () => {
-    render(<MonitorsOnboarding projectId={PROJECT_ID} />);
+    render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
     const cases: Array<{ label: RegExp; expected: string }> = [
       { label: /Connect Slack/i, expected: "SLACK" },
@@ -67,7 +67,7 @@ describe("MonitorsOnboarding", () => {
   });
 
   it("links the Create Monitor CTA to the project's new-monitor route", () => {
-    render(<MonitorsOnboarding projectId={PROJECT_ID} />);
+    render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
     const link = screen.getByRole("link", { name: /Create Monitor/i });
     expect(link.getAttribute("href")).toBe(
