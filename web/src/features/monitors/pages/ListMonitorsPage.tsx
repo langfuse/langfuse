@@ -19,8 +19,7 @@ const headerProps = {
   title: "Monitors",
   help: {
     description:
-      "Monitors evaluate a metric on a rolling window and emit alerts when a threshold is crossed.",
-    href: "https://langfuse.com/docs/monitors",
+      "Monitors notify your team and automated workflows of sudden cost spikes, quality drops, latency changes, and other important changes on the system.",
   },
 };
 
