@@ -370,6 +370,13 @@ describe("MCP public API tools", () => {
     ).resolves.toEqual({ success: true });
 
     await expect(
+      handleDeleteAnnotationQueueAssignment(
+        { queueId: queue.id, userId: user.id },
+        context,
+      ),
+    ).rejects.toThrow("Annotation queue assignment not found");
+
+    await expect(
       handleDeleteAnnotationQueueItem(
         { queueId: queue.id, itemId: queueItem.id },
         context,
