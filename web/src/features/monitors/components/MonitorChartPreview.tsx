@@ -145,7 +145,7 @@ export const MonitorChartPreview = ({
 
   return (
     <Card className="h-full">
-      <CardContent className="h-full pt-4">
+      <CardContent className="flex h-full flex-col pt-4">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-bold tracking-tight">Live Preview</h3>
           <Select
@@ -166,7 +166,7 @@ export const MonitorChartPreview = ({
             </SelectContent>
           </Select>
         </div>
-        <div className="relative h-full pb-8">
+        <div className="relative min-h-0 flex-1">
           <Chart
             chartType="LINE_TIME_SERIES"
             data={data}
@@ -178,6 +178,7 @@ export const MonitorChartPreview = ({
             isLoading={queryResult.isError}
             showSpinner={false}
             showHintImmediately
+            layout="compact"
             hintText={
               queryResult.error?.message ?? RESOURCE_LIMIT_ERROR_MESSAGE
             }
