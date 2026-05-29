@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createDatasetForApi } from "@/src/features/datasets/server/publicDatasetService";
 import {
   PostDatasetsV2Body,
@@ -6,11 +7,19 @@ import {
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
+const UpsertDatasetBaseSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  metadata: z.any().optional(),
+  inputSchema: z.any().optional(),
+  expectedOutputSchema: z.any().optional(),
+});
+
 export const [upsertDatasetTool, handleUpsertDataset] = defineTool({
   name: "upsertDataset",
   description:
     "Upsert a dataset, a named collection of input and optional expected-output examples for experiments and evaluations.",
-  baseSchema: PostDatasetsV2Body,
+  baseSchema: UpsertDatasetBaseSchema,
   inputSchema: PostDatasetsV2Body,
   handler: async (input, context) =>
     runMcpTool({
