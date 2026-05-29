@@ -1,21 +1,13 @@
-import { z } from "zod";
-import {
-  GetDatasetRunV1Query,
-  GetDatasetRunV1Response,
-} from "@/src/features/public-api/types/datasets";
-import { getDatasetRunForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { GetDatasetRunV1Response } from "@/src/features/public-api/types/datasets";
+import { getDatasetRunByIdForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-
-const GetDatasetRunMcpInput = GetDatasetRunV1Query.extend({
-  name: z.string(),
-  runName: z.string(),
-});
+import { GetDatasetRunMcpInput } from "../schema";
 
 export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
   name: "getDatasetRun",
   description:
-    "Get a dataset run, one experiment or evaluation execution over a dataset, and its run items by dataset and run name.",
+    "Get a dataset run, one experiment or evaluation execution over a dataset, and its run items by dataset ID and run ID.",
   baseSchema: GetDatasetRunMcpInput,
   inputSchema: GetDatasetRunMcpInput,
   handler: async (input, context) =>
@@ -23,14 +15,14 @@ export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
       spanName: "mcp.dataset_runs.get",
       context,
       attributes: {
-        "mcp.dataset_name": input.name,
-        "mcp.dataset_run_name": input.runName,
+        "mcp.dataset_id": input.datasetId,
+        "mcp.dataset_run_id": input.datasetRunId,
       },
       fn: async () => {
-        const result = await getDatasetRunForApi({
+        const result = await getDatasetRunByIdForApi({
           projectId: context.projectId,
-          name: input.name,
-          runName: input.runName,
+          datasetId: input.datasetId,
+          datasetRunId: input.datasetRunId,
         });
 
         return GetDatasetRunV1Response.parse(result);

@@ -55,15 +55,6 @@ const OBSERVATION_MCP_FILTER_COLUMN_TYPES = new Map(
     ]),
 );
 
-const OBSERVATION_MCP_FILTER_COLUMN_DEFINITIONS = eventsTableCols
-  .filter((column) =>
-    OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS.has(column.id),
-  )
-  .map((column) => ({
-    column: column.id === "traceTags" ? "tags" : column.id,
-    type: column.type,
-  }));
-
 const OBSERVATION_MCP_FILTER_EXAMPLE = {
   column: "totalCost",
   operator: ">",
@@ -146,20 +137,6 @@ const isObservationMcpFilterType = (
 ): type is ObservationMcpFilterType =>
   type in OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE;
 
-const OBSERVATION_MCP_FILTER_SCHEMAS =
-  OBSERVATION_MCP_FILTER_COLUMN_DEFINITIONS.flatMap(({ column, type }) =>
-    isObservationMcpFilterType(type)
-      ? [OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](column)]
-      : [],
-  );
-
-const OBSERVATION_MCP_EXPLICIT_FILTER_SCHEMAS =
-  OBSERVATION_MCP_FILTER_COLUMN_DEFINITIONS.flatMap(({ column, type }) =>
-    isObservationMcpFilterType(type)
-      ? [OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](column, true)]
-      : [],
-  );
-
 const ObservationMcpFilterBaseSchema = z
   .object({
     column: z.string(),
@@ -167,22 +144,6 @@ const ObservationMcpFilterBaseSchema = z
     value: z.any(),
     type: z.string().optional(),
   })
-  .describe(
-    `Advanced observation filter object. Example: ${OBSERVATION_MCP_FILTER_EXAMPLE_JSON}. The explicit form ${OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE_JSON} is also accepted.`,
-  );
-
-const ObservationMcpFilterShapeSchema = z
-  .union([
-    ...OBSERVATION_MCP_FILTER_SCHEMAS,
-    ...OBSERVATION_MCP_EXPLICIT_FILTER_SCHEMAS,
-  ] as [
-    (typeof OBSERVATION_MCP_FILTER_SCHEMAS)[number],
-    (typeof OBSERVATION_MCP_FILTER_SCHEMAS)[number],
-    ...(
-      | (typeof OBSERVATION_MCP_FILTER_SCHEMAS)[number]
-      | (typeof OBSERVATION_MCP_EXPLICIT_FILTER_SCHEMAS)[number]
-    )[],
-  ])
   .describe(
     `Advanced observation filter object. Example: ${OBSERVATION_MCP_FILTER_EXAMPLE_JSON}. The explicit form ${OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE_JSON} is also accepted.`,
   );
@@ -197,9 +158,29 @@ const ObservationMcpFilterSchema = z
         path: ["column"],
         message: `Invalid observation filter column "${filter.column}". Call getObservationFilterSchema for accepted columns.`,
       });
+      return;
+    }
+
+    const type = OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
+
+    if (!type || !isObservationMcpFilterType(type)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["type"],
+        message: `Invalid observation filter type "${String(type)}" for column "${filter.column}".`,
+      });
+      return;
+    }
+
+    const filterParseResult = OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](
+      filter.column,
+      Boolean(filter.type),
+    ).safeParse(filter);
+
+    if (!filterParseResult.success) {
+      ctx.addIssue({ code: "custom", message: "Invalid input" });
     }
   })
-  .pipe(ObservationMcpFilterShapeSchema)
   .transform((filter) => {
     const type =
       filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);

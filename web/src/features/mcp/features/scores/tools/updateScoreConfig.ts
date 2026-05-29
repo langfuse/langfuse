@@ -1,10 +1,7 @@
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { updateScoreConfig } from "@/src/features/public-api/server/score-configs-api-service";
-import {
-  PutScoreConfigBodyWithoutArchived,
-  PutScoreConfigQuery,
-} from "@/src/features/public-api/types/score-configs";
+import { PutScoreConfigBodyWithoutArchived } from "@/src/features/public-api/types/score-configs";
 import { z } from "zod";
 import {
   McpScoreConfigCategoricalCategoriesSchema,
@@ -23,9 +20,29 @@ const McpUpdateScoreConfigBaseSchema = z.object({
   description: z.string().optional(),
 });
 
-const UpdateScoreConfigInputSchema = PutScoreConfigQuery.and(
-  PutScoreConfigBodyWithoutArchived,
-);
+const UpdateScoreConfigInputSchema = z
+  .object({
+    configId: z.string(),
+    name: McpScoreConfigNameSchema.optional(),
+    minValue: McpScoreConfigNumericMinValueSchema,
+    maxValue: McpScoreConfigNumericMaxValueSchema,
+    categories: McpScoreConfigCategoricalCategoriesSchema,
+    description: z.string().optional(),
+  })
+  .superRefine((input, ctx) => {
+    const { configId: _configId, ...body } = input;
+    const bodyParseResult = PutScoreConfigBodyWithoutArchived.safeParse(body);
+
+    if (!bodyParseResult.success) {
+      for (const issue of bodyParseResult.error.issues) {
+        ctx.addIssue({
+          code: "custom",
+          path: issue.path,
+          message: issue.message,
+        });
+      }
+    }
+  });
 
 const McpUpdateScoreConfigInputSchema = z.preprocess((input) => {
   const parsed = McpUpdateScoreConfigBaseSchema.safeParse(input);
