@@ -10,6 +10,7 @@ import {
 } from "@/src/server/api/trpc";
 import {
   BatchActionQuerySchema,
+  BatchTableNames,
   BatchExportTableName,
   BatchActionType,
   ActionId,
@@ -54,6 +55,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { assertLegacyTracingIoSearchEnabled } from "@/src/features/traces/server/legacyIoSearch";
 import {
   type AgentGraphDataResponse,
   AgentGraphDataSchema,
@@ -127,6 +129,12 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
+      assertLegacyTracingIoSearchEnabled({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tableName: BatchTableNames.Traces,
+      });
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -155,6 +163,12 @@ export const traceRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(TraceCountOptions)
     .query(async ({ input, ctx }) => {
+      assertLegacyTracingIoSearchEnabled({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tableName: BatchTableNames.Traces,
+      });
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,

@@ -13,6 +13,7 @@ import {
   QueueJobs,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
+import { assertLegacyTracingIoSearchEnabled } from "@/src/features/traces/server/legacyIoSearch";
 
 type CreateBatchActionJob = {
   projectId: string;
@@ -49,6 +50,12 @@ export const createBatchActionJob = async ({
   query,
   targetId,
 }: CreateBatchActionJob) => {
+  assertLegacyTracingIoSearchEnabled({
+    searchQuery: query.searchQuery,
+    searchType: query.searchType,
+    tableName,
+  });
+
   const batchActionId = generateBatchActionId(projectId, actionId, tableName);
 
   const batchActionQueue = BatchActionQueue.getInstance();

@@ -1,10 +1,11 @@
 import { type z } from "zod";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { paginationZod } from "@langfuse/shared";
+import { BatchTableNames, paginationZod } from "@langfuse/shared";
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
 import { getObservationsTableCount } from "@langfuse/shared/src/server";
 import { applyCommentFilters } from "@langfuse/shared/src/server";
+import { assertLegacyTracingIoSearchEnabled } from "@/src/features/traces/server/legacyIoSearch";
 
 const GetAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
@@ -16,6 +17,12 @@ export const getAllQueries = {
   all: protectedProjectProcedure
     .input(GetAllGenerationsInput)
     .query(async ({ input, ctx }) => {
+      assertLegacyTracingIoSearchEnabled({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tableName: BatchTableNames.Observations,
+      });
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -39,6 +46,12 @@ export const getAllQueries = {
   countAll: protectedProjectProcedure
     .input(GenerationTableOptions)
     .query(async ({ input, ctx }) => {
+      assertLegacyTracingIoSearchEnabled({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tableName: BatchTableNames.Observations,
+      });
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
