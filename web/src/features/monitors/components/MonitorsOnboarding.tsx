@@ -36,7 +36,13 @@ const channels: OnboardingChannel[] = [
 ];
 
 /** MonitorsOnboarding renders the splash shown on /monitors when the project has no monitors yet. */
-export function MonitorsOnboarding({ projectId }: { projectId: string }) {
+export function MonitorsOnboarding({
+  projectId,
+  hasCUDAccess,
+}: {
+  projectId: string;
+  hasCUDAccess: boolean;
+}) {
   return (
     <div className="mx-auto w-full max-w-xl pt-12">
       <SplashScreen
@@ -81,6 +87,7 @@ export function MonitorsOnboarding({ projectId }: { projectId: string }) {
               "Create monitors for sudden cost spikes, quality drops, latency changes, or other important changes.",
             content: (
               <ActionButton
+                hasAccess={hasCUDAccess}
                 icon={<Plus className="h-4 w-4" aria-hidden="true" />}
                 href={`/project/${projectId}/monitors/new`}
                 variant="default"

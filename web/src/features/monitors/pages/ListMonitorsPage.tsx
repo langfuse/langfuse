@@ -55,9 +55,15 @@ const EmptyPage = () => <Page headerProps={headerProps}>{null}</Page>;
 
 /** OnboardingPage shows the onboarding message */
 const OnboardingPage = ({ projectId }: { projectId: string }) => {
+  /** hasCUDAccess is true if the user has permission to create monitors */
+  const hasCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "monitors:CUD",
+  });
+
   return (
     <Page headerProps={headerProps}>
-      <MonitorsOnboarding projectId={projectId} />
+      <MonitorsOnboarding projectId={projectId} hasCUDAccess={hasCUDAccess} />
     </Page>
   );
 };
