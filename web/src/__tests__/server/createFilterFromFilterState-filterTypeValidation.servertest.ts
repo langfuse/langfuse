@@ -311,7 +311,7 @@ describe("createFilterFromFilterState filter type validation", () => {
     const paramName = Object.keys(params)[0];
 
     expect(query).toBe(
-      `hasAllTokens(lower(e.output), lower({${paramName}: String}))`,
+      `(position(lower(e.output), lower({${paramName}: String})) > 0 AND hasAllTokens(lower(e.output), lower({${paramName}: String})))`,
     );
     expect(params).toEqual({ [paramName]: "needle" });
   });
@@ -358,8 +358,9 @@ describe("createFilterFromFilterState filter type validation", () => {
     expect(query).toContain("has(e.metadata_names,");
     expect(query).toContain("hasAllTokens(e.metadata_values,");
     expect(query).toContain(
-      "hasAllTokens(e.metadata_values[indexOf(e.metadata_names,",
+      "position(e.metadata_values[indexOf(e.metadata_names,",
     );
+    expect(query).not.toContain("hasAllTokens(e.metadata_values[indexOf");
     expect(query).not.toContain("lower(");
     expect(Object.values(params)).toEqual(["source", "needle"]);
   });
