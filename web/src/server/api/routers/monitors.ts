@@ -40,7 +40,7 @@ export const monitorsRouter = createTRPCRouter({
       });
 
       const currentCount = await ctx.prisma.monitor.count({
-        where: { project: { orgId: ctx.session.orgId } },
+        where: { project: { orgId: ctx.session.orgId, deletedAt: null } },
       });
       throwIfExceedsLimit({
         entitlementLimit: "monitor-count",
@@ -106,7 +106,7 @@ export const monitorsRouter = createTRPCRouter({
         scope: "monitors:read",
       });
       const count = await ctx.prisma.monitor.count({
-        where: { project: { orgId: ctx.session.orgId } },
+        where: { project: { orgId: ctx.session.orgId, deletedAt: null } },
       });
       return { count };
     }),
