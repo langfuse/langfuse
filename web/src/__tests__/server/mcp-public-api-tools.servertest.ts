@@ -733,8 +733,8 @@ describe("MCP public API tools", () => {
       {
         name: scoreConfigName,
         dataType: "NUMERIC",
-        minValue: 0,
-        maxValue: 1,
+        numericMinValue: 0,
+        numericMaxValue: 1,
       },
       context,
     )) as { id: string; name: string };
