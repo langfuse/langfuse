@@ -3,15 +3,13 @@ import {
   DeleteDatasetRunV2ByIdResponse,
   GetDatasetRunV2ByIdQuery,
   GetDatasetRunV2ByIdResponse,
-  transformDbDatasetRunToAPIDatasetRun,
 } from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   deleteDatasetRunByIdForApi,
   getDatasetRunByIdForApi,
-} from "@/src/features/public-api/server/dataset-runs";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+} from "@/src/features/datasets/server/publicDatasetService";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -19,44 +17,25 @@ export default withMiddlewares({
     querySchema: GetDatasetRunV2ByIdQuery,
     responseSchema: GetDatasetRunV2ByIdResponse,
     rateLimitResource: "datasets",
-    fn: async ({ query, auth }) => {
-      const result = await getDatasetRunByIdForApi({
+    fn: async ({ query, auth }) =>
+      await getDatasetRunByIdForApi({
         projectId: auth.scope.projectId,
         datasetId: query.datasetId,
-        runId: query.runId,
-      });
-
-      if (!result) {
-        throw new LangfuseNotFoundError("Dataset run not found");
-      }
-
-      return {
-        ...transformDbDatasetRunToAPIDatasetRun(result.run),
-        datasetRunItems: result.datasetRunItems,
-      };
-    },
+        datasetRunId: query.runId,
+      }),
   }),
   DELETE: createAuthedProjectAPIRoute({
     name: "delete-dataset-run-by-id",
     querySchema: DeleteDatasetRunV2ByIdQuery,
     responseSchema: DeleteDatasetRunV2ByIdResponse,
     rateLimitResource: "datasets",
-    fn: async ({ query, auth }) => {
-      const deleted = await deleteDatasetRunByIdForApi({
+    fn: async ({ query, auth }) =>
+      await deleteDatasetRunByIdForApi({
         projectId: auth.scope.projectId,
         datasetId: query.datasetId,
-        runId: query.runId,
+        datasetRunId: query.runId,
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
-      });
-
-      if (!deleted) {
-        throw new LangfuseNotFoundError("Dataset run not found");
-      }
-
-      return {
-        message: "Dataset run successfully deleted" as const,
-      };
-    },
+      }),
   }),
 });
