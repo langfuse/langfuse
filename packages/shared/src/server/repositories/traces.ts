@@ -382,7 +382,9 @@ export const hasAnyTrace = async (projectId: string) => {
     },
   });
 
-  if (result) {
+  const persistHasTracesFlag = async () => {
+    // Persist positive result in PostgreSQL — once a project has traces, it stays true
+    // Only update if not already set to avoid unnecessary writes
     try {
       await prisma.project.updateMany({
         where: { id: projectId, hasTraces: false },
@@ -395,7 +397,10 @@ export const hasAnyTrace = async (projectId: string) => {
         error,
       });
     }
+  };
 
+  if (result) {
+    await persistHasTracesFlag();
     return true;
   }
 
@@ -405,20 +410,7 @@ export const hasAnyTrace = async (projectId: string) => {
     return false;
   }
 
-  // Persist positive result in PostgreSQL — once a project has traces, it stays true
-  // Only update if not already set to avoid unnecessary writes
-  try {
-    await prisma.project.updateMany({
-      where: { id: projectId, hasTraces: false },
-      data: { hasTraces: true },
-    });
-  } catch (error) {
-    traceException(error);
-    logger.error("Failed to persist hasTraces flag to PostgreSQL", {
-      projectId,
-      error,
-    });
-  }
+  await persistHasTracesFlag();
 
   return true;
 };

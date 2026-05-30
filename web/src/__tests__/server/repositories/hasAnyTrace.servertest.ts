@@ -70,10 +70,15 @@ describe("hasAnyTrace", () => {
 
     await createEventsCh([event]);
 
-    await waitForExpect(async () => {
-      const result = await hasAnyTrace(eventsOnlyProjectId);
-      expect(result).toBe(true);
-    });
+    // events_core can lag events_full briefly in CI, so use an explicit polling window.
+    await waitForExpect(
+      async () => {
+        const result = await hasAnyTrace(eventsOnlyProjectId);
+        expect(result).toBe(true);
+      },
+      10_000,
+      500,
+    );
 
     const projectAfter = await prisma.project.findUniqueOrThrow({
       where: { id: eventsOnlyProjectId },
