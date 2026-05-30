@@ -1,20 +1,13 @@
 import { prisma } from "@langfuse/shared/src/db";
-import { hasAnyTrace, createTracesCh } from "@langfuse/shared/src/server";
-import { createTrace } from "@langfuse/shared/src/server";
+import { hasAnyTrace, createTracesCh, createEventsCh } from "@langfuse/shared/src/server";
+import { createTrace, createEvent, createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
-
-const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+import waitForExpect from "wait-for-expect";
 
 describe("hasAnyTrace", () => {
-  afterEach(async () => {
-    // Reset the hasTraces flag to false after each test
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { hasTraces: false },
-    });
-  });
-
   it("should return true immediately when PG hasTraces flag is set", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
     // Set the PG flag directly — no ClickHouse data needed
     await prisma.project.update({
       where: { id: projectId },
@@ -26,6 +19,8 @@ describe("hasAnyTrace", () => {
   });
 
   it("should return true and persist PG flag when ClickHouse has traces", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
     // Ensure PG flag is false
     const projectBefore = await prisma.project.findUniqueOrThrow({
       where: { id: projectId },
@@ -52,6 +47,36 @@ describe("hasAnyTrace", () => {
     // Verify PG flag was persisted
     const projectAfter = await prisma.project.findUniqueOrThrow({
       where: { id: projectId },
+      select: { hasTraces: true },
+    });
+    expect(projectAfter.hasTraces).toBe(true);
+  });
+
+  it("should return true and persist PG flag when only events exist", async () => {
+    const { projectId: eventsOnlyProjectId } = await createOrgProjectAndApiKey();
+
+    const eventTraceId = v4();
+    const eventSpanId = v4();
+    const event = createEvent({
+      id: eventSpanId,
+      span_id: eventSpanId,
+      project_id: eventsOnlyProjectId,
+      trace_id: eventTraceId,
+      parent_span_id: null,
+      created_at: Date.now() * 1000,
+      updated_at: Date.now() * 1000,
+      event_ts: Date.now() * 1000,
+    });
+
+    await createEventsCh([event]);
+
+    await waitForExpect(async () => {
+      const result = await hasAnyTrace(eventsOnlyProjectId);
+      expect(result).toBe(true);
+    });
+
+    const projectAfter = await prisma.project.findUniqueOrThrow({
+      where: { id: eventsOnlyProjectId },
       select: { hasTraces: true },
     });
     expect(projectAfter.hasTraces).toBe(true);
