@@ -30,7 +30,7 @@ service:
     get-runs-by-id:
       method: GET
       docs: Get dataset runs by dataset ID. Use this v2 route when dataset names may contain `/`.
-      path: /v2/datasets/by-id/{datasetId}/runs
+      path: /v2/dataset-runs/by-dataset-id/{datasetId}
       path-parameters:
         datasetId: string
       request:
@@ -46,7 +46,7 @@ service:
     get-run-by-id:
       method: GET
       docs: Get a dataset run and its items by dataset ID and run ID. Use this v2 route when dataset names may contain `/`.
-      path: /v2/datasets/by-id/{datasetId}/runs/{runId}
+      path: /v2/dataset-runs/by-dataset-id/{datasetId}/{runId}
       path-parameters:
         datasetId: string
         runId: string
@@ -54,7 +54,7 @@ service:
     delete-run-by-id:
       method: DELETE
       docs: Delete a dataset run and all its run items by dataset ID and run ID. Use this v2 route when dataset names may contain `/`.
-      path: /v2/datasets/by-id/{datasetId}/runs/{runId}
+      path: /v2/dataset-runs/by-dataset-id/{datasetId}/{runId}
       path-parameters:
         datasetId: string
         runId: string
@@ -118,14 +118,6 @@ types:
     properties:
       data: list<commons.DatasetRun>
       meta: pagination.MetaResponse
-  GetDatasetRunsByIdRequest:
-    properties:
-      page:
-        type: optional<integer>
-        docs: page number, starts at 1
-      limit:
-        type: optional<integer>
-        docs: limit of items per page
   DeleteDatasetRunResponse:
     properties:
       message: string

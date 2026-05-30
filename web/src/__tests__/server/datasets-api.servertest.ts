@@ -1848,7 +1848,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const listRuns = await makeZodVerifiedAPICall(
       GetDatasetRunsV2ByIdResponse,
       "GET",
-      `/api/public/v2/datasets/by-id/${dataset.body.id}/runs?page=1&limit=10`,
+      `/api/public/v2/dataset-runs/by-dataset-id/${dataset.body.id}?page=1&limit=10`,
       undefined,
       auth,
     );
@@ -1872,7 +1872,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const getRun = await makeZodVerifiedAPICall(
       GetDatasetRunV2ByIdResponse,
       "GET",
-      `/api/public/v2/datasets/by-id/${dataset.body.id}/runs/${dbRun!.id}`,
+      `/api/public/v2/dataset-runs/by-dataset-id/${dataset.body.id}/${dbRun!.id}`,
       undefined,
       auth,
     );
@@ -1888,7 +1888,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const deleteRun = await makeZodVerifiedAPICall(
       DeleteDatasetRunV2ByIdResponse,
       "DELETE",
-      `/api/public/v2/datasets/by-id/${dataset.body.id}/runs/${dbRun!.id}`,
+      `/api/public/v2/dataset-runs/by-dataset-id/${dataset.body.id}/${dbRun!.id}`,
       undefined,
       auth,
     );
@@ -1900,7 +1900,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     const getDeletedRun = await makeAPICall(
       "GET",
-      `/api/public/v2/datasets/by-id/${dataset.body.id}/runs/${dbRun!.id}`,
+      `/api/public/v2/dataset-runs/by-dataset-id/${dataset.body.id}/${dbRun!.id}`,
       undefined,
       auth,
     );
@@ -1967,7 +1967,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     const crossProjectGet = await makeAPICall(
       "GET",
-      `/api/public/v2/datasets/by-id/${dataset.body.id}/runs/${dbRun!.id}`,
+      `/api/public/v2/dataset-runs/by-dataset-id/${dataset.body.id}/${dbRun!.id}`,
       undefined,
       otherAuth,
     );
@@ -1975,7 +1975,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     const crossProjectList = await makeAPICall(
       "GET",
-      `/api/public/v2/datasets/by-id/${dataset.body.id}/runs`,
+      `/api/public/v2/dataset-runs/by-dataset-id/${dataset.body.id}`,
       undefined,
       otherAuth,
     );
@@ -1983,7 +1983,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     const mismatchedDataset = await makeAPICall(
       "GET",
-      `/api/public/v2/datasets/by-id/${otherDataset.body.id}/runs/${dbRun!.id}`,
+      `/api/public/v2/dataset-runs/by-dataset-id/${otherDataset.body.id}/${dbRun!.id}`,
       undefined,
       auth,
     );
@@ -1991,7 +1991,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     const mismatchedDelete = await makeAPICall(
       "DELETE",
-      `/api/public/v2/datasets/by-id/${otherDataset.body.id}/runs/${dbRun!.id}`,
+      `/api/public/v2/dataset-runs/by-dataset-id/${otherDataset.body.id}/${dbRun!.id}`,
       undefined,
       auth,
     );

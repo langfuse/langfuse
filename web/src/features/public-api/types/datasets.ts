@@ -149,7 +149,7 @@ export const GetDatasetV2Query = z.object({
 });
 export const GetDatasetV2Response = APIDataset.strict();
 
-// GET /v2/datasets/by-id/{datasetId}/runs
+// GET /v2/dataset-runs/by-dataset-id/{datasetId}
 export const GetDatasetRunsV2ByIdQuery = z.object({
   datasetId: z.string(),
   ...publicApiPaginationZod,
@@ -161,7 +161,7 @@ export const GetDatasetRunsV2ByIdResponse = z
   })
   .strict();
 
-// GET /v2/datasets/by-id/{datasetId}/runs/{runId}
+// GET /v2/dataset-runs/by-dataset-id/{datasetId}/{runId}
 export const GetDatasetRunV2ByIdQuery = z.object({
   datasetId: z.string(),
   runId: z.string(),
@@ -170,7 +170,7 @@ export const GetDatasetRunV2ByIdResponse = APIDatasetRun.extend({
   datasetRunItems: z.array(APIDatasetRunItem),
 }).strict();
 
-// DELETE /v2/datasets/by-id/{datasetId}/runs/{runId}
+// DELETE /v2/dataset-runs/by-dataset-id/{datasetId}/{runId}
 export const DeleteDatasetRunV2ByIdQuery = z.object({
   datasetId: z.string(),
   runId: z.string(),
