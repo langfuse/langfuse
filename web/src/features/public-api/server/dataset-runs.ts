@@ -1,5 +1,8 @@
-import { type jsonSchema } from "@langfuse/shared";
+import { LangfuseNotFoundError, type jsonSchema } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { addToDeleteDatasetQueue } from "@langfuse/shared/src/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { generateDatasetRunItemsForPublicApi } from "@/src/features/public-api/server/dataset-run-items";
 import { v4 } from "uuid";
 import type z from "zod";
 
@@ -94,4 +97,153 @@ export const createOrFetchDatasetRun = async ({
   }
 
   throw new Error("Failed to create or fetch dataset run");
+};
+
+export const listDatasetRunsByDatasetIdForApi = async ({
+  datasetId,
+  projectId,
+  page,
+  limit,
+}: {
+  datasetId: string;
+  projectId: string;
+  page: number;
+  limit: number;
+}) => {
+  const dataset = await prisma.dataset.findUnique({
+    where: {
+      id_projectId: {
+        id: datasetId,
+        projectId,
+      },
+    },
+    include: {
+      datasetRuns: {
+        where: { projectId },
+        take: limit,
+        skip: (page - 1) * limit,
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      },
+    },
+  });
+
+  if (!dataset) {
+    throw new LangfuseNotFoundError("Dataset not found");
+  }
+
+  const totalItems = await prisma.datasetRuns.count({
+    where: {
+      datasetId,
+      projectId,
+    },
+  });
+
+  return {
+    datasetName: dataset.name,
+    runs: dataset.datasetRuns,
+    totalItems,
+  };
+};
+
+export const getDatasetRunByIdForApi = async ({
+  datasetId,
+  runId,
+  projectId,
+}: {
+  datasetId: string;
+  runId: string;
+  projectId: string;
+}) => {
+  const datasetRun = await prisma.datasetRuns.findUnique({
+    where: {
+      id_projectId: {
+        id: runId,
+        projectId,
+      },
+    },
+    include: {
+      dataset: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  if (!datasetRun || datasetRun.dataset.id !== datasetId) {
+    throw new LangfuseNotFoundError("Dataset run not found");
+  }
+
+  const { dataset, ...run } = datasetRun;
+  const datasetRunItems = await generateDatasetRunItemsForPublicApi({
+    props: {
+      datasetId,
+      runId: run.id,
+      projectId,
+    },
+  });
+
+  return {
+    run: {
+      ...run,
+      datasetName: dataset.name,
+    },
+    datasetRunItems,
+  };
+};
+
+export const deleteDatasetRunByIdForApi = async ({
+  datasetId,
+  runId,
+  projectId,
+  orgId,
+  apiKeyId,
+}: {
+  datasetId: string;
+  runId: string;
+  projectId: string;
+  orgId: string;
+  apiKeyId?: string;
+}) => {
+  const datasetRun = await prisma.datasetRuns.findUnique({
+    where: {
+      id_projectId: {
+        id: runId,
+        projectId,
+      },
+    },
+  });
+
+  if (!datasetRun || datasetRun.datasetId !== datasetId) {
+    throw new LangfuseNotFoundError("Dataset run not found");
+  }
+
+  await prisma.datasetRuns.delete({
+    where: {
+      id_projectId: {
+        projectId,
+        id: runId,
+      },
+    },
+  });
+
+  await auditLog({
+    action: "delete",
+    resourceType: "datasetRun",
+    resourceId: datasetRun.id,
+    projectId,
+    orgId,
+    apiKeyId,
+    before: datasetRun,
+  });
+
+  await addToDeleteDatasetQueue({
+    deletionType: "dataset-runs",
+    projectId,
+    datasetRunIds: [datasetRun.id],
+    datasetId: datasetRun.datasetId,
+  });
+
+  return datasetRun;
 };
