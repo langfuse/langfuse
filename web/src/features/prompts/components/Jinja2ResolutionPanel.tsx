@@ -58,18 +58,8 @@ export const Jinja2ResolutionPanel = ({ template, variables }: Props) => {
       }
       const result = env.renderString(template, parsed);
 
-      // If the entered values had no effect on the output (e.g. a nested
-      // variable was filled in but its controlling {% if %} condition hasn't
-      // been triggered yet), fall back to the raw template so users can still
-      // see the full {% if %} / {% for %} structure.
-      const emptyRender = env.renderString(template, {});
-      if (result === emptyRender) {
-        setErrors([]);
-        return template;
-      }
-
       setErrors([]);
-      return result;
+      return result.trim() === "" ? template : result;
     } catch (e) {
       setErrors([String(e)]);
       return template;
