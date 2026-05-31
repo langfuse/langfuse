@@ -40,7 +40,20 @@ export class LocalCodeEvalDispatcher implements CodeEvalDispatcher {
       );
     }
 
-    const context = vm.createContext({ payload: input.payload });
+    const context = vm.createContext({
+      payload: input.payload,
+      console,
+      setTimeout,
+      clearTimeout,
+      setInterval,
+      clearInterval,
+      queueMicrotask,
+      structuredClone,
+      TextEncoder,
+      TextDecoder,
+      URL,
+      URLSearchParams,
+    });
     try {
       vm.runInContext(
         `${source}

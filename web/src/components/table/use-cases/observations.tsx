@@ -219,6 +219,17 @@ export default function ObservationsTable({
   }, [utils]);
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
+  const legacyTracingSearchConfig = api.public.tracingSearchConfig.useQuery(
+    { projectId },
+    {
+      enabled: !hideControls,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  );
+  const legacyTracingIoSearchEnabled =
+    legacyTracingSearchConfig.data?.legacyTracingIoSearchEnabled ?? true;
 
   const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
   const [showAddToDatasetDialog, setShowAddToDatasetDialog] = useState(false);
@@ -534,7 +545,6 @@ export default function ObservationsTable({
   const totalCountQuery = api.generations.countAll.useQuery(getCountPayload, {
     refetchOnWindowFocus: true,
   });
-
   const totalCount = totalCountQuery.data?.totalCount ?? null;
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
@@ -1390,9 +1400,9 @@ export default function ObservationsTable({
               metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
               updateQuery: setSearchQuery,
               currentQuery: searchQuery ?? undefined,
+              tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
               searchType,
               setSearchType,
-              tableAllowsFullTextSearch: true,
             }}
             viewConfig={{
               tableName: TableViewPresetTableName.Observations,

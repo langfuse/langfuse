@@ -1,4 +1,33 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  AIMessage,
+  AIMessageChunk,
+} from "../../../packages/shared/node_modules/@langchain/core/messages";
+
+// Real AIMessage(Chunk) instances are required because the production code
+// reads `message.contentBlocks`, which is a class getter that dispatches to
+// `@langchain/core`'s registered translator based on `response_metadata.model_provider`.
+// Plain object mocks bypass the translator and would leave raw
+// `reasoning_content` blocks unstripped.
+function bedrockAIMessage(params: {
+  content: AIMessage["content"];
+  tool_calls?: AIMessage["tool_calls"];
+}): AIMessage {
+  return new AIMessage({
+    content: params.content,
+    tool_calls: params.tool_calls,
+    response_metadata: { model_provider: "bedrock-converse" },
+  });
+}
+
+function bedrockAIMessageChunk(params: {
+  content: AIMessage["content"];
+}): AIMessageChunk {
+  return new AIMessageChunk({
+    content: params.content,
+    response_metadata: { model_provider: "bedrock-converse" },
+  });
+}
 
 const invokeMock = vi.fn();
 const streamMock = vi.fn();
@@ -89,9 +118,7 @@ describe("fetchLLMCompletion Bedrock reasoning blocks", () => {
   });
 
   it("preserves plain string completions when Bedrock returns no reasoning", async () => {
-    invokeMock.mockResolvedValue({
-      content: "4",
-    });
+    invokeMock.mockResolvedValue(bedrockAIMessage({ content: "4" }));
 
     const completion = await fetchLLMCompletion({
       streaming: false,
@@ -121,15 +148,17 @@ describe("fetchLLMCompletion Bedrock reasoning blocks", () => {
   });
 
   it("returns Bedrock GPT OSS reasoning separately from text", async () => {
-    invokeMock.mockResolvedValue({
-      content: [
-        {
-          type: "reasoning_content",
-          reasoningText: { text: "Compute the arithmetic." },
-        },
-        { type: "text", text: "4" },
-      ],
-    });
+    invokeMock.mockResolvedValue(
+      bedrockAIMessage({
+        content: [
+          {
+            type: "reasoning_content",
+            reasoningText: "Compute the arithmetic.",
+          },
+          { type: "text", text: "4" },
+        ],
+      }),
+    );
 
     const completion = await fetchLLMCompletion({
       streaming: false,
@@ -162,22 +191,24 @@ describe("fetchLLMCompletion Bedrock reasoning blocks", () => {
   });
 
   it("strips Bedrock reasoning blocks before parsing tool calls", async () => {
-    bindToolsInvokeMock.mockResolvedValue({
-      content: [
-        {
-          type: "reasoning_content",
-          reasoningText: { text: "Need the weather tool." },
-        },
-        { type: "text", text: "" },
-      ],
-      tool_calls: [
-        {
-          id: "tool-use-1",
-          name: "get_weather",
-          args: { location: "Paris" },
-        },
-      ],
-    });
+    bindToolsInvokeMock.mockResolvedValue(
+      bedrockAIMessage({
+        content: [
+          {
+            type: "reasoning_content",
+            reasoningText: "Need the weather tool.",
+          },
+          { type: "text", text: "" },
+        ],
+        tool_calls: [
+          {
+            id: "tool-use-1",
+            name: "get_weather",
+            args: { location: "Paris" },
+          },
+        ],
+      }),
+    );
 
     const completion = await fetchLLMCompletion({
       streaming: false,
@@ -231,17 +262,17 @@ describe("fetchLLMCompletion Bedrock reasoning blocks", () => {
 
   it("filters Bedrock reasoning blocks out of streaming output", async () => {
     streamMock.mockImplementation(async function* () {
-      yield {
+      yield bedrockAIMessageChunk({
         content: [
           {
             type: "reasoning_content",
-            reasoningText: { text: "Do not show this in the playground." },
+            reasoningText: "Do not show this in the playground.",
           },
         ],
-      };
-      yield {
+      });
+      yield bedrockAIMessageChunk({
         content: [{ type: "text", text: "Hello!" }],
-      };
+      });
     } as any);
 
     const stream = await fetchLLMCompletion({

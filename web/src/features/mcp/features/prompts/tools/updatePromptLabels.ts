@@ -9,10 +9,7 @@
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { ParamPromptName, ParamNewLabels } from "../validation";
-import { updatePrompt } from "@/src/features/prompts/server/actions/updatePrompts";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { prisma } from "@langfuse/shared/src/db";
-import { UserInputError } from "../../../core/errors";
+import { updatePromptLabelsForApi } from "@/src/features/prompts/server/prompt-api-service";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 import { PROMPT_NAME_MAX_LENGTH } from "@langfuse/shared";
@@ -84,41 +81,11 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
       fn: async () => {
         const { name, version, newLabels } = input;
 
-        // Fetch existing prompt to capture "before" state for audit log
-        const existingPrompt = await prisma.prompt.findUnique({
-          where: {
-            projectId_name_version: {
-              projectId: context.projectId,
-              name,
-              version,
-            },
-          },
-        });
-
-        if (!existingPrompt) {
-          throw new UserInputError(
-            `Prompt '${name}' version ${version} not found in project`,
-          );
-        }
-
-        // Update prompt labels using existing action
-        const updatedPrompt = await updatePrompt({
+        const { updatedPrompt } = await updatePromptLabelsForApi({
+          context,
           promptName: name,
-          projectId: context.projectId, // Auto-injected from authenticated API key
           promptVersion: version,
           newLabels,
-        });
-
-        // Audit log the update with both before and after states
-        await auditLog({
-          action: "update",
-          resourceType: "prompt",
-          resourceId: updatedPrompt.id,
-          projectId: context.projectId,
-          orgId: context.orgId,
-          apiKeyId: context.apiKeyId,
-          before: existingPrompt,
-          after: updatedPrompt,
         });
 
         // Return formatted response

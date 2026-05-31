@@ -1,5 +1,4 @@
-import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { getAnnotationQueueRecordOrThrow } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 
 export const verifyAnnotationQueue = async ({
   projectId,
@@ -8,16 +7,5 @@ export const verifyAnnotationQueue = async ({
   projectId: string;
   queueId: string;
 }) => {
-  const queue = await prisma.annotationQueue.findUnique({
-    where: {
-      id: queueId,
-      projectId,
-    },
-  });
-
-  if (!queue) {
-    throw new LangfuseNotFoundError("Annotation queue not found");
-  }
-
-  return queue;
+  return await getAnnotationQueueRecordOrThrow({ projectId, queueId });
 };

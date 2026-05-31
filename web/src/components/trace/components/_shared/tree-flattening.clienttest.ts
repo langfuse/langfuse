@@ -4,7 +4,7 @@
  * Tests the flattenTree function which converts hierarchical tree structures
  * into flat lists for virtualized rendering.
  *
- * Run with: pnpm test-client --testPathPattern="tree-flattening"
+ * Run with: pnpm test-client "tree-flattening"
  */
 
 import { flattenTree } from "./tree-flattening";

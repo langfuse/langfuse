@@ -44,7 +44,41 @@ describe("/api/public/v2/observations API Endpoint", () => {
     // redis connection when everything else is skipped.
   });
 
+  it("rejects matches filters on v1 observations", async () => {
+    const filterParam = JSON.stringify([
+      {
+        type: "string",
+        column: "output",
+        operator: "matches",
+        value: "needle",
+      },
+    ]);
+
+    const response = await getRaw(
+      `/api/public/observations?useEventsTable=true&filter=${encodeURIComponent(filterParam)}`,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
   maybe("GET /api/public/v2/observations", () => {
+    it("allows legacy v1 contains filters on IO", async () => {
+      const filterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "contains",
+          value: "needle",
+        },
+      ]);
+
+      const response = await getRaw(
+        `/api/public/observations?useEventsTable=true&filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(response.status).toBe(200);
+    });
+
     it("should fetch observations with only requested field groups", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();
@@ -574,6 +608,422 @@ describe("/api/public/v2/observations API Endpoint", () => {
       );
       expect(matchedObs).toBeDefined();
       expect(matchedObs?.name).toBe("nested-metadata-obs-1");
+    });
+
+    it("supports indexed literal matches filters for IO and metadata", async () => {
+      const traceId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+      const tokenMatchId = randomUUID();
+      const punctuationMatchId = randomUUID();
+      const embeddedOnlyId = randomUUID();
+      const ioPhraseMatchId = randomUUID();
+      const ioPhraseReverseId = randomUUID();
+      const ioPhraseGapId = randomUUID();
+      const metadataCaseMatchId = randomUUID();
+      const metadataCaseMismatchId = randomUUID();
+      const metadataWrongKeyId = randomUUID();
+      const metadataMultiTokenMatchId = randomUUID();
+      const metadataMultiTokenReverseId = randomUUID();
+      const metadataMultiTokenGapId = randomUUID();
+      const metadataSplitAcrossValuesId = randomUUID();
+      const metadataMultiTokenWrongKeyId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: tokenMatchId,
+          span_id: tokenMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-token-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue,
+          output: "Needle in mixed case",
+        }),
+        createEvent({
+          id: punctuationMatchId,
+          span_id: punctuationMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-punctuation-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 1000,
+          output: "needle@gmail.com",
+        }),
+        createEvent({
+          id: embeddedOnlyId,
+          span_id: embeddedOnlyId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-embedded-only",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 2000,
+          output: "foobarneedle cadabra",
+        }),
+        createEvent({
+          id: ioPhraseMatchId,
+          span_id: ioPhraseMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-phrase-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 3000,
+          output: "prefix alpha beta suffix",
+        }),
+        createEvent({
+          id: ioPhraseReverseId,
+          span_id: ioPhraseReverseId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-phrase-reverse",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 4000,
+          output: "prefix beta alpha suffix",
+        }),
+        createEvent({
+          id: ioPhraseGapId,
+          span_id: ioPhraseGapId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-phrase-gap",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 5000,
+          output: "prefix alpha gap beta suffix",
+        }),
+        createEvent({
+          id: metadataCaseMatchId,
+          span_id: metadataCaseMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-case-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 6000,
+          metadata: { source: "needle API" },
+          metadata_names: ["source"],
+          metadata_values: ["needle API"],
+        }),
+        createEvent({
+          id: metadataCaseMismatchId,
+          span_id: metadataCaseMismatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-case-mismatch",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 7000,
+          metadata: { source: "Needle API" },
+          metadata_names: ["source"],
+          metadata_values: ["Needle API"],
+        }),
+        createEvent({
+          id: metadataWrongKeyId,
+          span_id: metadataWrongKeyId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-wrong-key",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 8000,
+          metadata: { other: "needle API" },
+          metadata_names: ["other"],
+          metadata_values: ["needle API"],
+        }),
+        createEvent({
+          id: metadataMultiTokenMatchId,
+          span_id: metadataMultiTokenMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-multi-token-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 9000,
+          metadata: { source: "alpha beta" },
+          metadata_names: ["source"],
+          metadata_values: ["alpha beta"],
+        }),
+        createEvent({
+          id: metadataMultiTokenReverseId,
+          span_id: metadataMultiTokenReverseId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-multi-token-reverse",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 10000,
+          metadata: { source: "beta alpha" },
+          metadata_names: ["source"],
+          metadata_values: ["beta alpha"],
+        }),
+        createEvent({
+          id: metadataMultiTokenGapId,
+          span_id: metadataMultiTokenGapId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-multi-token-gap",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 11000,
+          metadata: { source: "alpha gap beta" },
+          metadata_names: ["source"],
+          metadata_values: ["alpha gap beta"],
+        }),
+        createEvent({
+          id: metadataSplitAcrossValuesId,
+          span_id: metadataSplitAcrossValuesId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-split-across-values",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 12000,
+          metadata: { source: "alpha", other: "beta" },
+          metadata_names: ["source", "other"],
+          metadata_values: ["alpha", "beta"],
+        }),
+        createEvent({
+          id: metadataMultiTokenWrongKeyId,
+          span_id: metadataMultiTokenWrongKeyId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-multi-token-wrong-key",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 13000,
+          metadata: { source: "unrelated", other: "alpha beta" },
+          metadata_names: ["source", "other"],
+          metadata_values: ["unrelated", "alpha beta"],
+        }),
+      ]);
+
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
+            params: { projectId, traceId },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(14);
+        },
+        5000,
+        10,
+      );
+
+      const ioFilterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "matches",
+          value: "needle",
+        },
+      ]);
+      const ioResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,io&filter=${encodeURIComponent(ioFilterParam)}`,
+      );
+      const ioIds = ioResponse.body.data.map((obs: any) => obs.id);
+
+      expect(ioResponse.status).toBe(200);
+      expect(ioIds).toEqual(
+        expect.arrayContaining([tokenMatchId, punctuationMatchId]),
+      );
+      expect(ioIds).not.toContain(embeddedOnlyId);
+
+      const ioPhraseFilterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "matches",
+          value: "alpha beta",
+        },
+      ]);
+      const ioPhraseResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,io&filter=${encodeURIComponent(ioPhraseFilterParam)}`,
+      );
+      const ioPhraseIds = ioPhraseResponse.body.data.map((obs: any) => obs.id);
+
+      expect(ioPhraseResponse.status).toBe(200);
+      expect(ioPhraseIds).toContain(ioPhraseMatchId);
+      expect(ioPhraseIds).not.toContain(ioPhraseReverseId);
+      expect(ioPhraseIds).not.toContain(ioPhraseGapId);
+
+      const metadataFilterParam = JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          operator: "matches",
+          key: "source",
+          value: "needle",
+        },
+      ]);
+      const metadataResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,metadata&filter=${encodeURIComponent(metadataFilterParam)}`,
+      );
+      const metadataIds = metadataResponse.body.data.map((obs: any) => obs.id);
+
+      expect(metadataResponse.status).toBe(200);
+      expect(metadataIds).toContain(metadataCaseMatchId);
+      expect(metadataIds).not.toContain(metadataCaseMismatchId);
+      expect(metadataIds).not.toContain(metadataWrongKeyId);
+
+      const multiTokenMetadataFilterParam = JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          operator: "matches",
+          key: "source",
+          value: "alpha beta",
+        },
+      ]);
+      const multiTokenMetadataResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,metadata&filter=${encodeURIComponent(multiTokenMetadataFilterParam)}`,
+      );
+      const multiTokenMetadataIds = multiTokenMetadataResponse.body.data.map(
+        (obs: any) => obs.id,
+      );
+
+      expect(multiTokenMetadataResponse.status).toBe(200);
+      expect(multiTokenMetadataIds).toContain(metadataMultiTokenMatchId);
+      expect(multiTokenMetadataIds).not.toContain(metadataMultiTokenReverseId);
+      expect(multiTokenMetadataIds).not.toContain(metadataMultiTokenGapId);
+      expect(multiTokenMetadataIds).not.toContain(metadataSplitAcrossValuesId);
+      expect(multiTokenMetadataIds).not.toContain(metadataMultiTokenWrongKeyId);
+    });
+
+    it("rejects public v2 IO filters that are guaranteed to be slow", async () => {
+      const containsOnlyFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "contains",
+          value: "needle",
+        },
+      ]);
+      const containsOnlyResponse = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(containsOnlyFilter)}`,
+      );
+      expect(containsOnlyResponse.status).toBe(400);
+
+      const matchesAndContainsFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "matches",
+          value: "needle",
+        },
+        {
+          type: "string",
+          column: "output",
+          operator: "contains",
+          value: "needle",
+        },
+      ]);
+      const matchesAndContainsResponse = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(matchesAndContainsFilter)}`,
+      );
+      expect(matchesAndContainsResponse.status).toBe(200);
+
+      const metadataMatchesAndIoContainsFilter = JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          operator: "matches",
+          key: "source",
+          value: "needle",
+        },
+        {
+          type: "string",
+          column: "output",
+          operator: "contains",
+          value: "needle",
+        },
+      ]);
+      const metadataMatchesAndIoContainsResponse = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(metadataMatchesAndIoContainsFilter)}`,
+      );
+      expect(metadataMatchesAndIoContainsResponse.status).toBe(400);
+    });
+
+    it.each([
+      {
+        description: "null",
+        filter: {
+          type: "null",
+          column: "output",
+          operator: "is null",
+          value: "",
+        },
+      },
+      {
+        description: "stringOptions",
+        filter: {
+          type: "stringOptions",
+          column: "output",
+          operator: "any of",
+          value: ["needle"],
+        },
+      },
+    ])(
+      "rejects non-string public v2 IO $description filters",
+      async ({ filter }) => {
+        const filterParam = JSON.stringify([filter]);
+
+        const response = await getRaw(
+          `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(filterParam)}`,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "Input/output filters only support filter type `string`.",
+        );
+      },
+    );
+
+    it.each([
+      {
+        description: "non-indexed event column",
+        filter: [
+          {
+            type: "string",
+            column: "name",
+            operator: "matches",
+            value: "needle",
+          },
+        ],
+      },
+      {
+        description: "empty value",
+        filter: [
+          {
+            type: "string",
+            column: "output",
+            operator: "matches",
+            value: "",
+          },
+        ],
+      },
+      {
+        description: "tokenless value",
+        filter: [
+          {
+            type: "stringObject",
+            column: "metadata",
+            operator: "matches",
+            key: "source",
+            value: "!!!",
+          },
+        ],
+      },
+    ])("rejects matches filters with $description", async ({ filter }) => {
+      const response = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(JSON.stringify(filter))}`,
+      );
+
+      expect(response.status).toBe(400);
     });
   });
 
