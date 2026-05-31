@@ -28,8 +28,14 @@ const sleep = (ms: number) =>
 // Throttle exports after each flush so a single project sync cannot burst the
 // target Mixpanel instance with an unbounded event rate (issue #12786).
 const flushWithDelay = async (mixpanel: MixpanelClient) => {
+  // flush() is a no-op on an empty batch, so only throttle when we actually
+  // sent something. Avoids a wasted delay when the terminal flush has nothing
+  // left to send (e.g. event count is an exact multiple of the flush size).
+  const hadEvents = mixpanel.getBatchSize() > 0;
   await mixpanel.flush();
-  await sleep(env.LANGFUSE_MIXPANEL_FLUSH_DELAY_MS);
+  if (hadEvents) {
+    await sleep(env.LANGFUSE_MIXPANEL_FLUSH_DELAY_MS);
+  }
 };
 
 type MixpanelExecutionConfig = {
