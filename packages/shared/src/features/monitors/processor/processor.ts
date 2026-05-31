@@ -29,12 +29,6 @@ import { computeSeverity } from "./computeSeverity";
 /** monitorEvaluationOffsetMs shifts the CH query window back so the planner reads data old enough to be settled past the events-table write lag. Anchored to `event.runAt` so retries scan an identical window. */
 export const monitorEvaluationOffsetMs = 30 * 1000;
 
-/** MonitorClaim is one row returned by claim — the worker's stash for the matching complete CAS. */
-export type MonitorClaim = {
-  id: string;
-  lastClaimedAt: Date;
-};
-
 /** MonitorCompletion is one row of the bulk-update emitted by the state machine — what to write back to a single monitor after evaluation. lastClaimedAt is the worker's claim stash, used as the complete-side CAS owner key. */
 export type MonitorCompletion = {
   monitorId: string;
@@ -92,21 +86,22 @@ export class MonitorProcessor {
     this.getTriggers = deps.getTriggers ?? defaultMonitorTriggerLoader;
   }
 
-  /** claim attempts to lock the monitors in the event for this worker. Returns each claimed row's id and the lastClaimedAt the worker stashes for the matching complete CAS. */
-  async claim(event: MonitorQueueEvent, now: Date): Promise<MonitorClaim[]> {
+  /** claim takes ownership of the event's monitors for this worker via a conditional update that rejects superseded or already-completed publishes, returning the full claimed rows. Each row's lastClaimedAt is the `now` this statement stamped — the complete-side CAS owner key. */
+  async claim(event: MonitorQueueEvent, now: Date): Promise<PrismaMonitor[]> {
     if (event.monitors.length === 0) return [];
-    const monitorIds = event.monitors.map((m) => m.monitorId);
-    const rows = await this.db.$queryRaw<
-      { id: string; last_claimed_at: Date }[]
-    >(
-      buildClaimQuery({
+    return this.db.monitor.updateManyAndReturn({
+      where: {
+        id: { in: event.monitors.map((m) => m.monitorId) },
         projectId: event.projectId,
-        publishedAt: event.publishedAt,
-        monitorIds,
-        now,
-      }),
-    );
-    return rows.map((r) => ({ id: r.id, lastClaimedAt: r.last_claimed_at }));
+        lastPublishedAt: { lte: event.publishedAt }, // newest event
+        // not completed yet
+        OR: [
+          { lastCompletedAt: null },
+          { lastCompletedAt: { lt: event.publishedAt } },
+        ],
+      },
+      data: { lastClaimedAt: now },
+    });
   }
 
   /** complete writes the post-evaluation lifecycle stamps for every monitor in the batch in one statement. */
@@ -125,18 +120,12 @@ export class MonitorProcessor {
 
   /** process orchestrates one MonitorQueueEvent: claim, query CH, load triggers, apply the state machine per monitor, publish surviving alerts (before commit per RFC step 9), and complete. */
   async process(event: MonitorQueueEvent, now: Date): Promise<void> {
-    const claims = await this.claim(event, now);
-    if (claims.length === 0) return;
+    const claimed = await this.claim(event, now);
+    if (claimed.length === 0) return;
 
-    const claimedIds = claims.map((c) => c.id);
-    const claimedAtById = new Map(claims.map((c) => [c.id, c.lastClaimedAt]));
-
-    const [chRows, triggers, rows] = await Promise.all([
+    const [chRows, triggers] = await Promise.all([
       this.executeQuery(event.projectId, buildMonitorQuery(event)),
       this.getTriggers(event.projectId),
-      this.db.monitor.findMany({
-        where: { id: { in: claimedIds }, projectId: event.projectId },
-      }),
     ]);
 
     const chRow = (chRows[0] ?? {}) as Record<string, unknown>;
@@ -146,10 +135,9 @@ export class MonitorProcessor {
 
     const completions: MonitorCompletion[] = [];
     const publishInputs: WebhookInput[] = [];
-    for (const row of rows) {
+    for (const row of claimed) {
       const eventMonitor = metricByMonitor.get(row.id);
-      const lastClaimedAt = claimedAtById.get(row.id);
-      if (!eventMonitor || !lastClaimedAt) continue;
+      if (!eventMonitor) continue;
       const computed = computeSeverity({
         value: parseNumericValue(chRow[eventMonitor.metricName]),
         operator: row.thresholdOperator,
@@ -167,7 +155,7 @@ export class MonitorProcessor {
       });
       completions.push({
         monitorId: row.id,
-        lastClaimedAt,
+        lastClaimedAt: now,
         lastCompletedAt: now,
         severity: decision.nextSeverity,
         severityChangedAt: decision.nextSeverityChangedAt,
@@ -182,6 +170,7 @@ export class MonitorProcessor {
         event,
       });
       const filterData = toFilterData(row, alert);
+
       // Fan out: one publish per (matched trigger × automation under it). The
       // 1:1 trigger:automation invariant means automations[] is length 1 in
       // practice, but iterating respects the data model.
@@ -212,28 +201,6 @@ export class MonitorProcessor {
     }
     await this.complete({ projectId: event.projectId, completions });
   }
-}
-
-/** buildClaimQuery returns the conditional UPDATE that takes ownership of a published run and rejects superseded or already-completed publishes. */
-function buildClaimQuery(args: {
-  projectId: string;
-  publishedAt: Date;
-  monitorIds: string[];
-  now: Date;
-}): Prisma.Sql {
-  return Prisma.sql`
-    UPDATE monitors
-    SET last_claimed_at = ${args.now}::timestamptz
-    WHERE id = ANY(${args.monitorIds})
-      AND project_id = ${args.projectId}
-      AND last_published_at <= ${args.publishedAt}::timestamptz -- newest event
-      -- not completed yet
-      AND (
-        last_completed_at IS NULL
-        OR last_completed_at < ${args.publishedAt}::timestamptz
-      )
-    RETURNING id, last_claimed_at
-  `;
 }
 
 /** buildCompleteQuery returns the bulk UPDATE that lands every monitor's post-evaluation stamps via a VALUES-join. The last_claimed_at match acts as the CAS owner key — a preempted worker no-ops. */
