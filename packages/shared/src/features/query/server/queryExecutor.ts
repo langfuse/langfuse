@@ -6,7 +6,6 @@ import { measureAndReturn } from "../../../server/clickhouse/measureAndReturn";
 import { type PreferredClickhouseService } from "../../../server/clickhouse/client";
 import { QueryBuilder } from "./queryBuilder";
 import { type QueryType, type ViewVersion } from "../types";
-import { getViewDeclaration } from "../dataModel";
 import { env } from "../../../env";
 
 export type PreparedQuery = {
@@ -44,8 +43,13 @@ export async function prepareExecuteQuery(opts: {
       env.LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION === "true",
   );
 
-  const view = getViewDeclaration(query.view, version);
-  const preferredClickhouseService = view.baseCte.includes("events_")
+  // v2 score views are score-based, but can add events_core joins for
+  // trace/observation dimensions. Route based on the compiled query so only
+  // generated queries that actually touch events use the events readonly pool.
+  const usesEventsTable =
+    compiledQuery.includes("events_core") ||
+    compiledQuery.includes("events_full");
+  const preferredClickhouseService = usesEventsTable
     ? ("EventsReadOnly" as const)
     : undefined;
 

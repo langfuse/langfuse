@@ -1,4 +1,8 @@
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import {
+  getScoreConfig,
+  updateScoreConfig,
+} from "@/src/features/public-api/server/score-configs-api-service";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   GetScoreConfigQuery,
@@ -7,14 +11,6 @@ import {
   PutScoreConfigQuery as PatchScoreConfigQuery,
   PutScoreConfigResponse as PatchScoreConfigResponse,
 } from "@/src/features/public-api/types/score-configs";
-import {
-  InternalServerError,
-  InvalidRequestError,
-  LangfuseNotFoundError,
-  validateDbScoreConfigSafe,
-} from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import { traceException } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -22,26 +18,10 @@ export default withMiddlewares({
     querySchema: GetScoreConfigQuery,
     responseSchema: GetScoreConfigResponse,
     fn: async ({ query, auth }) => {
-      const config = await prisma.scoreConfig.findUnique({
-        where: {
-          id: query.configId,
-          projectId: auth.scope.projectId,
-        },
+      return await getScoreConfig({
+        projectId: auth.scope.projectId,
+        configId: query.configId,
       });
-
-      if (!config) {
-        throw new LangfuseNotFoundError(
-          "Score config not found within authorized project",
-        );
-      }
-
-      const parsedConfig = validateDbScoreConfigSafe(config);
-      if (!parsedConfig.success) {
-        traceException(parsedConfig.error);
-        throw new InternalServerError("Requested score config is corrupted");
-      }
-
-      return parsedConfig.data;
     },
   }),
   PATCH: createAuthedProjectAPIRoute({
@@ -50,39 +30,11 @@ export default withMiddlewares({
     bodySchema: PatchScoreConfigBody,
     responseSchema: PatchScoreConfigResponse,
     fn: async ({ query, body, auth }) => {
-      const existingConfig = await prisma.scoreConfig.findUnique({
-        where: {
-          id: query.configId,
-          projectId: auth.scope.projectId,
-        },
+      return await updateScoreConfig({
+        context: auth.scope,
+        configId: query.configId,
+        body,
       });
-
-      if (!existingConfig) {
-        throw new LangfuseNotFoundError(
-          "Score config not found within authorized project",
-        );
-      }
-
-      // Merge the body with the existing config and verify schema compliance
-      const result = validateDbScoreConfigSafe({ ...existingConfig, ...body });
-
-      if (!result.success) {
-        throw new InvalidRequestError(
-          result.error.issues.map((issue) => issue.message).join(", "),
-        );
-      }
-
-      await prisma.scoreConfig.update({
-        where: {
-          id: query.configId,
-          projectId: auth.scope.projectId,
-        },
-        data: {
-          ...body,
-        },
-      });
-
-      return result.data;
     },
   }),
 });

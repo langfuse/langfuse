@@ -60,7 +60,10 @@ import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import {
+  detailPageListKeys,
+  useDetailPageLists,
+} from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useRouter } from "next/router";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
@@ -252,12 +255,12 @@ export default function ObservationsEventsTable({
   // RE-ENABLING THE VIEW MODE TOGGLE:
   // To re-enable, uncomment the code below AND the viewModeFilter, viewModeToggle,
   // auto-switch logic, and imports further down. However, note that the sidebar now
-  // has an "Is Root Observation" boolean facet that also controls `hasParentObservation`.
+  // has an "Is Root Observation" boolean facet for `isRootObservation`.
   // Having BOTH active would create duplicate/conflicting filters. Pick one:
   //   - Sidebar facet only (current): remove this commented code entirely
   //   - Toolbar toggle only: uncomment this code, remove the boolean facet from
-  //     web/src/features/events/config/filter-config.ts, and re-add
-  //     `hasParentObservation` param to the useEventsFilterOptions call below
+  //     web/src/features/events/config/filter-config.ts, and scope filter options
+  //     by the active view mode
   //   - Both: would need deduplication logic to prevent conflicting filters
   //
   // View mode toggle (Trace vs Observation)
@@ -274,7 +277,7 @@ export default function ObservationsEventsTable({
   //   string | null
   // >(`eventsAutoSwitchRange-${projectId}`, null);
   //
-  // const hasParentObservation = viewMode === "observation" ? undefined : false;
+  // const isRootObservation = viewMode === "trace" ? true : undefined;
   //
   // const setViewMode = useCallback(
   //   (mode: EventsViewMode) => {
@@ -414,10 +417,10 @@ export default function ObservationsEventsTable({
   //   viewMode === "trace"
   //     ? [
   //         {
-  //           column: "hasParentObservation",
+  //           column: "isRootObservation",
   //           type: "boolean",
   //           operator: "=",
-  //           value: false,
+  //           value: true,
   //         },
   //       ]
   //     : [];
@@ -482,7 +485,7 @@ export default function ObservationsEventsTable({
   useEffect(() => {
     if (observations.status === "success") {
       setDetailPageList(
-        "observations",
+        detailPageListKeys.events,
         observations?.rows?.map((o) => ({
           id: o?.id,
           params: {
@@ -1231,6 +1234,7 @@ export default function ObservationsEventsTable({
       expandableFilterColumns: eventsFilterConfig.facets.map(
         (facet) => facet.column,
       ),
+      migrateFilterState: eventsFilterConfig.migrateFilterState,
     },
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
@@ -1242,7 +1246,7 @@ export default function ObservationsEventsTable({
     if (hideControls) return undefined;
     return {
       itemType: "TRACE",
-      detailNavigationKey: "observations",
+      detailNavigationKey: detailPageListKeys.events,
       ...peekNavigationProps,
     };
   }, [peekNavigationProps, hideControls]);

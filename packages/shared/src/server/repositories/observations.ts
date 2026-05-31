@@ -748,11 +748,11 @@ const getObservationsTableInternal = async <T>(
   const appliedScoresFilter = scoresFilter.apply();
   const appliedObservationsFilter = observationsFilter.apply();
 
-  const search = clickhouseSearchCondition(
-    opts.searchQuery,
-    opts.searchType,
-    "o",
-  );
+  const search = clickhouseSearchCondition({
+    query: opts.searchQuery,
+    searchType: opts.searchType,
+    tablePrefix: "o",
+  });
 
   const scoresCte = `WITH scores_agg AS (
     SELECT
@@ -1843,10 +1843,12 @@ export const getObservationsForBlobStorageExport = function (
       tool_call_names,
       tool_definitions,
       usage_pricing_tier_name
-    FROM observations FINAL
+    FROM observations
     WHERE project_id = {projectId: String}
     AND start_time >= {minTimestamp: DateTime64(3)}
     AND start_time <= {maxTimestamp: DateTime64(3)}
+    ORDER BY event_ts DESC
+    LIMIT 1 BY id, project_id, type
   `;
 
   const records = queryClickhouseStream<Record<string, unknown>>({
@@ -1865,6 +1867,7 @@ export const getObservationsForBlobStorageExport = function (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return records;
