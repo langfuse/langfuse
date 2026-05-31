@@ -1,4 +1,4 @@
-/** monitor-alert-e2e.test.ts drives the full scheduler → processor → dispatcher
+/** monitors-e2e.test.ts drives the full scheduler → processor → dispatcher
  * chain in-process: real Postgres + Redis, MSW captures the webhook URL, fake
  * ClickHouse executor returns the metric value. Matches the convention in
  * webhooks.test.ts (no BullMQ roundtrip — call dispatcher functions directly).
@@ -15,9 +15,9 @@ import {
 import { v4 } from "uuid";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
+import { Prisma } from "@prisma/client";
 
 import { JobConfigState } from "@langfuse/shared";
-import { Prisma } from "@prisma/client";
 import {
   createOrgProjectAndApiKey,
   type WebhookInput,
@@ -32,6 +32,7 @@ import { encrypt, generateWebhookSecret } from "@langfuse/shared/encryption";
 
 import { executeWebhook } from "../queues/webhooks";
 
+/** WebhookTestServer records webhook POSTs via MSW so tests can assert on them. */
 class WebhookTestServer {
   private server;
   private receivedRequests: Array<{
@@ -68,11 +69,10 @@ class WebhookTestServer {
   }
 }
 
+/** webhookServer is the suite-wide MSW capture server. */
 const webhookServer = new WebhookTestServer();
 
-/** seedWebhookAutomation creates a project + monitor-source trigger + automation
- * pointing to a WEBHOOK action whose URL is captured by MSW. Returns ids for
- * downstream assertions. */
+/** seedWebhookAutomation creates a monitor-source trigger and webhook automation whose URL MSW captures, returning the created ids for assertions. */
 async function seedWebhookAutomation(args: {
   projectId: string;
   url: string;
@@ -126,10 +126,11 @@ async function seedWebhookAutomation(args: {
   return { triggerId, actionId, automationId };
 }
 
-/** seedMonitor inserts a due Monitor row that the scheduler will pick up. */
+/** seedMonitor inserts a due monitor row; triggerIds gates which monitor-source triggers the processor routes its alerts to. */
 async function seedMonitor(args: {
   projectId: string;
   alertThreshold: number;
+  triggerIds?: string[];
 }) {
   const id = `mon_${v4()}`;
   await prisma.monitor.create({
@@ -156,6 +157,7 @@ async function seedMonitor(args: {
       severityChangedAt: null,
       alertedAt: null,
       tags: [],
+      triggerIds: args.triggerIds ?? [],
       name: "e2e monitor",
     },
   });
@@ -185,8 +187,7 @@ describe("monitor-alert e2e (scheduler → processor → dispatcher → webhook 
   });
 
   it("posts a monitor-alert envelope to the webhook URL", async () => {
-    const monitorId = await seedMonitor({ projectId, alertThreshold: 100 });
-    await seedWebhookAutomation({
+    const { triggerId } = await seedWebhookAutomation({
       projectId,
       url: "https://webhook.example.com/monitor-e2e",
       triggerFilter: [
@@ -197,6 +198,11 @@ describe("monitor-alert e2e (scheduler → processor → dispatcher → webhook 
           type: "stringOptions",
         },
       ],
+    });
+    const monitorId = await seedMonitor({
+      projectId,
+      alertThreshold: 100,
+      triggerIds: [triggerId],
     });
 
     // 1. Scheduler claims the due monitor + builds a MonitorQueueEvent
