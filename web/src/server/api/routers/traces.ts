@@ -55,7 +55,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { assertLegacyTracingIoSearchEnabled } from "@/src/features/traces/server/legacyIoSearch";
+import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
 import {
   type AgentGraphDataResponse,
   AgentGraphDataSchema,
@@ -129,7 +129,7 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      assertLegacyTracingIoSearchEnabled({
+      const search = sanitizeLegacyTracingSearch({
         searchQuery: input.searchQuery,
         searchType: input.searchType,
         tableName: BatchTableNames.Traces,
@@ -149,8 +149,8 @@ export const traceRouter = createTRPCRouter({
       const traces = await getTracesTable({
         projectId: ctx.session.projectId,
         filter: filterState,
-        searchQuery: input.searchQuery ?? undefined,
-        searchType: input.searchType ?? ["id"],
+        searchQuery: search.searchQuery,
+        searchType: search.searchType ?? ["id"],
         orderBy: normalizeOrderByForTable({
           orderBy: input.orderBy,
           expectedTimeColumn: "timestamp",
@@ -163,7 +163,7 @@ export const traceRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(TraceCountOptions)
     .query(async ({ input, ctx }) => {
-      assertLegacyTracingIoSearchEnabled({
+      const search = sanitizeLegacyTracingSearch({
         searchQuery: input.searchQuery,
         searchType: input.searchType,
         tableName: BatchTableNames.Traces,
@@ -183,8 +183,8 @@ export const traceRouter = createTRPCRouter({
       const count = await getTracesTableCount({
         projectId: ctx.session.projectId,
         filter: filterState,
-        searchType: input.searchType,
-        searchQuery: input.searchQuery ?? undefined,
+        searchType: search.searchType ?? ["id"],
+        searchQuery: search.searchQuery,
         limit: 1,
         page: 0,
       });
