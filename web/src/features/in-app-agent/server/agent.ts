@@ -23,9 +23,15 @@ type CreateAgUiStreamOptions = {
   onComplete?: () => void;
   onAbort?: () => void;
   onError?: (error: unknown) => void;
+  onFinish?: () => void | Promise<void>;
   awsBedrock: {
     region?: string;
     profile?: string;
+  };
+  langfuseMcp: {
+    url: string;
+    publicKey: string;
+    secretKey: string;
   };
 };
 
@@ -40,11 +46,24 @@ export function createAgUiStream(params: {
   const awsSdkLoadConfig =
     process.env.AWS_SDK_LOAD_CONFIG ?? (awsProfile ? "1" : undefined);
 
+  const langfuseMcpAuthHeader = `Basic ${Buffer.from(
+    `${params.options.langfuseMcp.publicKey}:${params.options.langfuseMcp.secretKey}`,
+  ).toString("base64")}`;
+
   const adapter = new ClaudeAgentAdapter({
     permissionMode: "dontAsk",
     title: ASSISTANT_TITLE,
     systemPrompt: ASSISTANT_SYSTEM_PROMPT,
-    allowedTools: [],
+    allowedTools: ["mcp__langfuse__*"],
+    mcpServers: {
+      langfuse: {
+        type: "http",
+        url: params.options.langfuseMcp.url,
+        headers: {
+          Authorization: langfuseMcpAuthHeader,
+        },
+      },
+    },
     settingSources: [],
     additionalDirectories: [],
     maxBudgetUsd: MAX_AGENT_BUDGET_USD,
@@ -76,16 +95,48 @@ export function createAgUiStream(params: {
       }
     : params.input;
 
+  let subscription: { unsubscribe: () => void } | undefined;
+  let closed = false;
+  let finished = false;
+  let abortHandler: (() => void) | undefined;
+
+  const removeAbortHandler = () => {
+    if (!abortHandler) {
+      return;
+    }
+
+    params.signal.removeEventListener("abort", abortHandler);
+    abortHandler = undefined;
+  };
+
+  const finish = () => {
+    if (finished) {
+      return;
+    }
+
+    finished = true;
+    try {
+      void Promise.resolve(params.options.onFinish?.()).catch((error) => {
+        console.error("Error in agent stream cleanup:", error);
+      });
+    } catch (error) {
+      console.error("Error in agent stream cleanup:", error);
+    }
+  };
+
   return new ReadableStream<Uint8Array>({
     start(controller) {
-      let closed = false;
+      let streamedRunError: string | null = null;
+
       const closeController = () => {
         if (closed) {
           return;
         }
 
         closed = true;
+        removeAbortHandler();
         controller.close();
+        finish();
       };
 
       const abort = () => {
@@ -98,10 +149,7 @@ export function createAgUiStream(params: {
         closeController();
       };
 
-      let subscription: { unsubscribe: () => void } | undefined;
-      let streamedRunError: string | null = null;
-
-      const handleAbort = () => {
+      abortHandler = () => {
         subscription?.unsubscribe();
         abort();
       };
@@ -111,11 +159,15 @@ export function createAgUiStream(params: {
         return;
       }
 
-      params.signal.addEventListener("abort", handleAbort, { once: true });
+      params.signal.addEventListener("abort", abortHandler, { once: true });
 
       subscription = adapter.run(adapterInput).subscribe({
         next(event) {
-          if (closed || params.signal.aborted) {
+          if (closed) {
+            return;
+          }
+
+          if (params.signal.aborted) {
             abort();
             return;
           }
@@ -138,8 +190,12 @@ export function createAgUiStream(params: {
           }
         },
         error(error) {
-          if (closed || params.signal.aborted) {
-            closeController();
+          if (closed) {
+            return;
+          }
+
+          if (params.signal.aborted) {
+            abort();
             return;
           }
 
@@ -165,7 +221,11 @@ export function createAgUiStream(params: {
           closeController();
         },
         complete() {
-          if (closed || params.signal.aborted) {
+          if (closed) {
+            return;
+          }
+
+          if (params.signal.aborted) {
             abort();
             return;
           }
@@ -176,6 +236,18 @@ export function createAgUiStream(params: {
           closeController();
         },
       });
+    },
+    cancel() {
+      if (closed) {
+        return;
+      }
+
+      closed = true;
+      params.options.onAbort?.();
+      removeAbortHandler();
+      subscription?.unsubscribe();
+      adapter.interrupt().catch(() => undefined);
+      finish();
     },
   });
 }

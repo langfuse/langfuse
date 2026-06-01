@@ -14,6 +14,49 @@ import { z } from "zod";
 
 const DEFAULT_ROW_LIMIT = 100;
 
+const normalizeMetricOrderByFields = (
+  input: z.infer<typeof MetricsQueryObjectV2>,
+) => {
+  if (!input.orderBy) {
+    return input;
+  }
+
+  const metricAliases = input.metrics.map(
+    (metric) => `${metric.aggregation}_${metric.measure}`,
+  );
+  const allowedOrderByFields = new Set([
+    ...input.dimensions.map((dimension) => dimension.field),
+    ...metricAliases,
+    ...(input.timeDimension ? ["time_dimension"] : []),
+  ]);
+
+  return {
+    ...input,
+    orderBy: input.orderBy.map((orderBy) => {
+      const matchingMetrics = input.dimensions.some(
+        (dimension) => dimension.field === orderBy.field,
+      )
+        ? []
+        : input.metrics.filter((metric) => metric.measure === orderBy.field);
+      const normalizedField =
+        matchingMetrics.length === 1
+          ? `${matchingMetrics[0].aggregation}_${matchingMetrics[0].measure}`
+          : orderBy.field;
+
+      if (!allowedOrderByFields.has(normalizedField)) {
+        throw new InvalidRequestError(
+          `Invalid orderBy field: ${orderBy.field}. Use returned metric aliases like 'sum_totalCost' or fields returned by getMetricsSchema.`,
+        );
+      }
+
+      return {
+        ...orderBy,
+        field: normalizedField,
+      };
+    }),
+  };
+};
+
 const MetricsFilterBaseSchema = z.object({
   column: z.string(),
   operator: z.string(),
@@ -64,13 +107,14 @@ export const [queryMetricsTool, handleQueryMetrics] = defineTool({
         "mcp.metrics_view": input.view,
       },
       fn: async () => {
-        const validation = validateQuery(input, "v2");
+        const normalizedInput = normalizeMetricOrderByFields(input);
+        const validation = validateQuery(normalizedInput, "v2");
 
         if (!validation.valid) {
           throw new InvalidRequestError(validation.reason);
         }
 
-        const { config, ...query } = input;
+        const { config, ...query } = normalizedInput;
         const queryParams = {
           ...query,
           chartConfig: {

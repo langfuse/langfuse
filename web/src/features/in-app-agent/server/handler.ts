@@ -1,4 +1,5 @@
 import { getServerSession } from "next-auth";
+import { TRPCError } from "@trpc/server";
 
 import { env } from "@/src/env.mjs";
 import {
@@ -17,6 +18,7 @@ import {
 } from "@/src/features/in-app-agent/server/persistence";
 import { getAuthOptions } from "@/src/server/auth";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
+import { assertUnreachable } from "@/src/utils/types";
 import {
   BaseError,
   ForbiddenError,
@@ -24,9 +26,13 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { assertUnreachable } from "@/src/utils/types";
-import { TRPCError } from "@trpc/server";
+import { logger } from "@langfuse/shared/src/server";
+import {
+  createAndAddApiKeysToDb,
+  deleteApiKeyFromDb,
+} from "@langfuse/shared/src/server/auth/apiKeys";
 
+const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
 const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
 
 export default async function handler(request: Request) {
@@ -152,101 +158,118 @@ export default async function handler(request: Request) {
       userId: auth.userId,
     });
 
-    await createRun({
-      prisma,
-      runId: sanitizedInput.runId,
+    return await withInAppAgentMcpApiKeyCleanup(
       projectId,
-      conversationId: conversation.id,
-      userId: auth.userId,
-      model: "haiku",
-    });
+      async (mcpApiKey, cleanupMcpApiKey) => {
+        let runCreated = false;
 
-    let stream: ReadableStream<Uint8Array>;
+        try {
+          await createRun({
+            prisma,
+            runId: sanitizedInput.runId,
+            projectId,
+            conversationId: conversation.id,
+            userId: auth.userId,
+            model: "haiku",
+            mcpApiKeyId: mcpApiKey.id,
+          });
+          runCreated = true;
 
-    try {
-      await appendConversationMessage({
-        prisma,
-        projectId,
-        conversationId: conversation.id,
-        userId: auth.userId,
-        message: sanitizedInput.messages[0]!,
-        runId: sanitizedInput.runId,
-      });
+          await appendConversationMessage({
+            prisma,
+            projectId,
+            conversationId: conversation.id,
+            userId: auth.userId,
+            message: sanitizedInput.messages[0]!,
+            runId: sanitizedInput.runId,
+          });
 
-      const finishCurrentRun = (error?: {
-        errorCode: string;
-        errorMessage: string;
-      }) =>
-        finishRun({
-          prisma,
-          runId: sanitizedInput.runId,
-          projectId,
-          ...error,
-        });
-
-      stream = createAgUiStream({
-        input: sanitizedInput,
-        signal: request.signal,
-        options: {
-          resumeSessionId: conversation.providerSessionId ?? undefined,
-          onResumeSessionId: (claudeSessionId) => {
-            updateProviderSessionId({
+          const finishCurrentRun = (error?: {
+            errorCode: string;
+            errorMessage: string;
+          }) =>
+            finishRun({
               prisma,
+              runId: sanitizedInput.runId,
               projectId,
-              conversationId: conversation.id,
-              providerSessionId: claudeSessionId,
-            }).catch((error) =>
-              console.error("Failed to persist agent session id", error),
-            );
+              ...error,
+            });
 
-            return {
-              type: "existingConversation",
+          const stream = createAgUiStream({
+            input: sanitizedInput,
+            signal: request.signal,
+            options: {
+              resumeSessionId: conversation.providerSessionId ?? undefined,
+              onResumeSessionId: (claudeSessionId) => {
+                updateProviderSessionId({
+                  prisma,
+                  projectId,
+                  conversationId: conversation.id,
+                  providerSessionId: claudeSessionId,
+                }).catch((error) =>
+                  console.error("Failed to persist agent session id", error),
+                );
+
+                return {
+                  type: "existingConversation",
+                  projectId,
+                  conversationId: conversation.id,
+                };
+              },
+              onComplete: () => finishCurrentRun(),
+              onAbort: () =>
+                finishCurrentRun({
+                  errorCode: "cancelled",
+                  errorMessage: "Client aborted request",
+                }),
+              onError: (error) =>
+                finishCurrentRun({
+                  errorCode: "agent_error",
+                  errorMessage:
+                    error instanceof Error
+                      ? error.message
+                      : "Unknown agent error",
+                }),
+              onFinish: cleanupMcpApiKey,
+              awsBedrock: {
+                region: env.LANGFUSE_AWS_BEDROCK_REGION,
+                ...(awsProfile ? { profile: awsProfile } : {}),
+              },
+              langfuseMcp: {
+                url: getLangfuseMcpUrl(),
+                publicKey: mcpApiKey.publicKey,
+                secretKey: mcpApiKey.secretKey,
+              },
+            },
+          });
+
+          return new Response(stream, {
+            headers: {
+              "Content-Type": "text/event-stream; charset=utf-8",
+              "Content-Encoding": "none",
+              "Cache-Control": "no-cache, no-transform",
+              Connection: "keep-alive",
+              "X-Accel-Buffering": "no",
+            },
+          });
+        } catch (error) {
+          if (runCreated) {
+            await finishRun({
+              prisma,
+              runId: sanitizedInput.runId,
               projectId,
-              conversationId: conversation.id,
-            };
-          },
-          onComplete: () => finishCurrentRun(),
-          onAbort: () =>
-            finishCurrentRun({
-              errorCode: "cancelled",
-              errorMessage: "Client aborted request",
-            }),
-          onError: (error) =>
-            finishCurrentRun({
-              errorCode: "agent_error",
+              errorCode: "init_failed",
               errorMessage:
-                error instanceof Error ? error.message : "Unknown agent error",
-            }),
-          awsBedrock: {
-            region: env.LANGFUSE_AWS_BEDROCK_REGION,
-            ...(awsProfile ? { profile: awsProfile } : {}),
-          },
-        },
-      });
-    } catch (error) {
-      await finishRun({
-        prisma,
-        runId: sanitizedInput.runId,
-        projectId,
-        errorCode: "init_failed",
-        errorMessage:
-          error instanceof Error
-            ? error.message
-            : "Agent initialization failed",
-      });
+                error instanceof Error
+                  ? error.message
+                  : "Agent initialization failed",
+            });
+          }
 
-      throw error;
-    }
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Content-Encoding": "none",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-        "X-Accel-Buffering": "no",
+          throw error;
+        }
       },
-    });
+    );
   } catch (err) {
     if (err instanceof BaseError) {
       return Response.json({ error: err.message }, { status: err.httpCode });
@@ -261,6 +284,73 @@ export default async function handler(request: Request) {
 
     throw err;
   }
+}
+
+function getLangfuseMcpUrl(): string {
+  const rawUrl = env.NEXTAUTH_URL.replace(/\/api\/auth\/?$/, "");
+  const baseUrl = new URL(rawUrl);
+
+  baseUrl.pathname = `${baseUrl.pathname.replace(/\/$/, "")}/api/public/mcp`;
+  baseUrl.search = "";
+  baseUrl.hash = "";
+
+  return baseUrl.toString();
+}
+
+async function createInAppAgentMcpApiKey(projectId: string) {
+  return createAndAddApiKeysToDb({
+    prisma,
+    entityId: projectId,
+    scope: "PROJECT",
+    note: IN_APP_AGENT_API_KEY_NOTE,
+    isInAppAgentKey: true,
+  });
+}
+
+async function withInAppAgentMcpApiKeyCleanup<T>(
+  projectId: string,
+  createResponse: (
+    mcpApiKey: Awaited<ReturnType<typeof createInAppAgentMcpApiKey>>,
+    cleanupMcpApiKey: () => Promise<void>,
+  ) => T | Promise<T>,
+): Promise<T> {
+  const mcpApiKey = await createInAppAgentMcpApiKey(projectId);
+  let cleanupPromise: Promise<void> | undefined;
+
+  const cleanupMcpApiKey = () => {
+    if (!cleanupPromise) {
+      cleanupPromise = cleanupInAppAgentMcpApiKey({
+        apiKeyId: mcpApiKey.id,
+        projectId,
+      }).catch((cleanupErr) => {
+        cleanupPromise = undefined;
+        throw cleanupErr;
+      });
+    }
+
+    return cleanupPromise;
+  };
+
+  try {
+    return await createResponse(mcpApiKey, cleanupMcpApiKey);
+  } catch (err) {
+    await cleanupMcpApiKey().catch((cleanupErr) => {
+      logger.error("Failed to clean up in-app agent MCP API key", cleanupErr);
+    });
+    throw err;
+  }
+}
+
+async function cleanupInAppAgentMcpApiKey(params: {
+  apiKeyId: string;
+  projectId: string;
+}) {
+  await deleteApiKeyFromDb({
+    prisma,
+    id: params.apiKeyId,
+    entityId: params.projectId,
+    scope: "PROJECT",
+  });
 }
 
 function sanitizeAgentInput(input: AgUiRunAgentInput): AgUiRunAgentInput {

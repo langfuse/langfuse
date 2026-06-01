@@ -4,6 +4,7 @@ import {
   PostDatasetsV2Body,
   PostDatasetsV2Response,
 } from "@/src/features/public-api/types/datasets";
+import { DatasetJSONSchema } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
@@ -15,12 +16,36 @@ const UpsertDatasetBaseSchema = z.object({
   expectedOutputSchema: z.any().optional(),
 });
 
+const StringifiedDatasetJSONSchema = z
+  .string()
+  .transform((schema, ctx) => {
+    try {
+      return JSON.parse(schema) as unknown;
+    } catch {
+      ctx.addIssue({
+        code: "custom",
+        message: "Must be a valid JSON string containing a JSON Schema",
+      });
+      return z.NEVER;
+    }
+  })
+  .pipe(DatasetJSONSchema);
+
+const DatasetJSONSchemaInput = z
+  .union([DatasetJSONSchema, StringifiedDatasetJSONSchema])
+  .nullish();
+
+const UpsertDatasetInputSchema = PostDatasetsV2Body.extend({
+  inputSchema: DatasetJSONSchemaInput,
+  expectedOutputSchema: DatasetJSONSchemaInput,
+});
+
 export const [upsertDatasetTool, handleUpsertDataset] = defineTool({
   name: "upsertDataset",
   description:
     "Upsert a dataset, a named collection of input and optional expected-output examples for experiments and evaluations.",
   baseSchema: UpsertDatasetBaseSchema,
-  inputSchema: PostDatasetsV2Body,
+  inputSchema: UpsertDatasetInputSchema,
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.datasets.upsert",
