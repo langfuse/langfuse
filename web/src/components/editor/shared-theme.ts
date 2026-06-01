@@ -27,7 +27,7 @@ export const bothThemeStyles: CreateThemeOptions["styles"] = [
       t.labelName,
       t.definition(t.name),
     ],
-    color: "hsl(var(--foreground))",
+    color: "hsl(var(--primary-accent))",
   },
   { tag: t.strong, fontWeight: "bold" },
   { tag: t.emphasis, fontStyle: "italic" },

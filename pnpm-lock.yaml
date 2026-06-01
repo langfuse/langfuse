@@ -381,6 +381,9 @@ importers:
       '@baselime/trpc-opentelemetry-middleware':
         specifier: ^0.1.2
         version: 0.1.2(@opentelemetry/api@1.9.0)(@trpc/server@11.13.4(typescript@5.9.2))
+      '@codemirror/lang-javascript':
+        specifier: ^6.2.5
+        version: 6.2.5
       '@codemirror/lang-json':
         specifier: ^6.0.2
         version: 6.0.2
@@ -778,9 +781,6 @@ importers:
         specifier: 4.3.6
         version: 4.3.6
     devDependencies:
-      '@codemirror/lang-javascript':
-        specifier: ^6.2.5
-        version: 6.2.5
       '@jedmao/location':
         specifier: ^3.0.0
         version: 3.0.0
