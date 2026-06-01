@@ -1,14 +1,17 @@
 import { api } from "@/src/utils/api";
 import { type EvalTemplate } from "@langfuse/shared";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
-import { isCodeEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
+import {
+  isCodeEvalTemplate,
+  shouldShowEvalTemplate,
+} from "@/src/features/evals/utils/code-eval-template-utils";
 
 export function useSingleTemplateValidation({
   projectId,
 }: {
   projectId: string;
 }) {
-  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
   const { data: defaultModel } = api.defaultLlmModel.fetchDefaultModel.useQuery(
     { projectId },
   );
@@ -22,9 +25,13 @@ export function useSingleTemplateValidation({
   };
 
   const isTemplateInvalid = (
-    template: Partial<Pick<EvalTemplate, "provider" | "model" | "type">>,
+    template: Partial<
+      Pick<EvalTemplate, "provider" | "model" | "type" | "sourceCodeLanguage">
+    >,
   ): boolean => {
-    if (isCodeEvalTemplate(template)) return !isCodeEvalEnabled;
+    if (isCodeEvalTemplate(template)) {
+      return !shouldShowEvalTemplate(template, codeEvalCapabilities);
+    }
 
     return templateRequiresDefaultModel(template) && !defaultModel;
   };

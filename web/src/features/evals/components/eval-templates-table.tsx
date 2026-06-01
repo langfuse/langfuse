@@ -119,7 +119,8 @@ export default function EvalsTemplateTable({
   projectId: string;
 }) {
   const router = useRouter();
-  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
+  const { enabled: isCodeEvalEnabled } = codeEvalCapabilities;
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
@@ -216,7 +217,7 @@ export default function EvalsTemplateTable({
         "eval-templates",
         templateList
           .filter((template) =>
-            shouldShowEvalTemplate(template, isCodeEvalEnabled),
+            shouldShowEvalTemplate(template, codeEvalCapabilities),
           )
           .map((template) => ({ id: template.latestId })),
       );
@@ -471,7 +472,10 @@ export default function EvalsTemplateTable({
                       isError: false,
                       data: safeExtract(templates.data, "templates", [])
                         .filter((template) =>
-                          shouldShowEvalTemplate(template, isCodeEvalEnabled),
+                          shouldShowEvalTemplate(
+                            template,
+                            codeEvalCapabilities,
+                          ),
                         )
                         .map((t) => convertToTableRow(t)),
                     }
