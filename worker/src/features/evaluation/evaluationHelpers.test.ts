@@ -423,10 +423,7 @@ describe("evaluation helpers", () => {
           "scores_avg",
         ],
         "eval.job_configuration.filter.dimension_count": 3,
-        "eval.variable.source_fields": [
-          "trace.input",
-          "generation:answer-generator.output",
-        ],
+        "eval.variable.source_fields": ["trace.input", "generation.output"],
         "eval.variable.source_field_count": 2,
       });
     });

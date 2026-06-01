@@ -51,11 +51,7 @@ const getVariableSourceFields = (
         return `${mapping.langfuseObject}.${field}`;
       }
 
-      const objectIdentifier = mapping.objectName
-        ? `${mapping.langfuseObject}:${mapping.objectName}`
-        : mapping.langfuseObject;
-
-      return `${objectIdentifier}.${field}`;
+      return `${mapping.langfuseObject}.${field}`;
     }),
   );
 };
