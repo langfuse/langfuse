@@ -36,6 +36,7 @@
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@astral-sh/ruff-wasm-web": "0.15.13",
     "@baselime/trpc-opentelemetry-middleware": "^0.1.2",
+    "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-json": "^6.0.2",
     "@codemirror/lang-python": "^6.2.1",
     "@codemirror/language": "^6.12.3",
