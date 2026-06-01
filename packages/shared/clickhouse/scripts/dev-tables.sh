@@ -157,6 +157,7 @@ CREATE TABLE IF NOT EXISTS events_full
       level LowCardinality(String),
       status_message String, -- Threat '' and null the same for search
       completion_start_time Nullable(DateTime64(6)),
+      is_app_root Bool DEFAULT false,
 
       -- Updateable properties
       bookmarked Bool DEFAULT false,
@@ -304,6 +305,7 @@ CREATE TABLE IF NOT EXISTS events_core
     level LowCardinality(String),
     status_message String,
     completion_start_time Nullable(DateTime64(6)),
+    is_app_root Bool DEFAULT false,
 
     -- Updateable properties
     bookmarked Bool DEFAULT false,
@@ -429,6 +431,7 @@ SELECT
     level,
     status_message,
     completion_start_time,
+    is_app_root,
     bookmarked,
     public,
     prompt_id,

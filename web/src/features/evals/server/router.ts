@@ -305,6 +305,18 @@ const assertCodeEvalJobConfigTestSucceeds = async ({
       filter,
     });
 
+    if (!result) {
+      if (target !== EvalTargetObject.EXPERIMENT) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "No matching observation found to test this code evaluator. Adjust the filters and try again.",
+        });
+      }
+
+      return;
+    }
+
     if (!result.success) {
       throw new TRPCError({
         code: "PRECONDITION_FAILED",

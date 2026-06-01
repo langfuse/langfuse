@@ -397,14 +397,23 @@ export default function TracesTable({
 
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
+  const legacyTracingSearchConfig = api.public.tracingSearchConfig.useQuery(
+    { projectId },
+    {
+      enabled: !hideControls,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  );
+  const legacyTracingIoSearchEnabled =
+    legacyTracingSearchConfig.data?.legacyTracingIoSearchEnabled ?? true;
 
   const tracesAllCountFilter = {
     projectId,
     filter: filterState,
     searchQuery: searchQuery,
     searchType: searchType,
-    page: 0,
-    limit: 0,
     orderBy: null,
   };
 
@@ -426,7 +435,6 @@ export default function TracesTable({
     refetchOnMount: false,
     refetchOnWindowFocus: true,
   });
-
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
@@ -1411,7 +1419,7 @@ export default function TracesTable({
               metadataSearchFields: ["ID", "Trace Name", "User ID"],
               updateQuery: setSearchQuery,
               currentQuery: searchQuery ?? undefined,
-              tableAllowsFullTextSearch: true,
+              tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
               setSearchType,
               searchType,
             }}

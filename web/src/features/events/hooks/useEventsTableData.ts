@@ -52,8 +52,6 @@ export function useEventsTableData({
       filter: filterState,
       searchQuery: searchQuery ?? null,
       searchType: searchType ?? ["id", "content"],
-      page: 1,
-      limit: 1,
       orderBy: null,
     }),
     [projectId, filterState, searchQuery, searchType],

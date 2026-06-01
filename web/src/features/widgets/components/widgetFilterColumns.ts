@@ -61,22 +61,11 @@ const getWidgetFilterColumnSpecs = ({
       },
       customSelect: true,
     },
-    {
-      column: {
-        name: "Observation Name",
-        id: "observationName",
-        type: "string",
-        internal: "internalValue",
-      },
-    },
-    {
-      column: {
-        name: "Score Name",
-        id: "scoreName",
-        type: "string",
-        internal: "internalValue",
-      },
-    },
+    // "Observation Name" and "Score Name" are intentionally NOT in the base
+    // list because they are not valid filter columns on the traces view
+    // (traces:observations and traces:scores are both 1:n -- see LFE-9773).
+    // They are added below per-view where the dashboardUiTableToViewMapping
+    // actually resolves them to a real dimension.
     {
       column: {
         name: "Tags",
@@ -130,6 +119,44 @@ const getWidgetFilterColumnSpecs = ({
         internal: "internalValue",
       },
     });
+  }
+
+  if (selectedView === "observations") {
+    // "Observation Name" on the observations view filters observations.name
+    // (mapped through dashboardUiTableToViewMapping). "Score Name" is omitted
+    // here because observations:scores is 1:n -- see LFE-9773.
+    filterColumns.push({
+      column: {
+        name: "Observation Name",
+        id: "observationName",
+        type: "string",
+        internal: "internalValue",
+      },
+    });
+  }
+
+  if (
+    selectedView === "scores-numeric" ||
+    selectedView === "scores-categorical"
+  ) {
+    filterColumns.push(
+      {
+        column: {
+          name: "Score Name",
+          id: "scoreName",
+          type: "string",
+          internal: "internalValue",
+        },
+      },
+      {
+        column: {
+          name: "Observation Name",
+          id: "observationName",
+          type: "string",
+          internal: "internalValue",
+        },
+      },
+    );
   }
 
   if (selectedView === "observations") {
