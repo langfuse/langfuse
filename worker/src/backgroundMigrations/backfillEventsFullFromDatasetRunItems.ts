@@ -37,7 +37,6 @@ interface DriCursor {
 }
 
 interface MigrationArgs {
-  concurrency?: number;
   pollIntervalMs?: number;
   maxRetries?: number;
   envGate?: string;
@@ -56,7 +55,6 @@ interface MigrationState {
 }
 
 const DEFAULT_CONFIG: ResolvedConfig = {
-  concurrency: 1,
   pollIntervalMs: 30_000,
   maxRetries: 3,
   batchSize: 200,
@@ -538,7 +536,6 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     const migrationArgs = args as MigrationArgs;
 
     const config: ResolvedConfig = {
-      concurrency: migrationArgs.concurrency ?? DEFAULT_CONFIG.concurrency,
       pollIntervalMs:
         migrationArgs.pollIntervalMs ?? DEFAULT_CONFIG.pollIntervalMs,
       maxRetries: migrationArgs.maxRetries ?? DEFAULT_CONFIG.maxRetries,
@@ -720,7 +717,6 @@ async function main() {
 
   const args = parseArgs({
     options: {
-      concurrency: { type: "string", short: "c", default: "1" },
       pollIntervalMs: { type: "string", short: "p", default: "30000" },
       maxRetries: { type: "string", short: "r", default: "3" },
       batchSize: { type: "string", short: "b", default: "200" },
@@ -736,7 +732,6 @@ async function main() {
   const migration = new BackfillEventsFullFromDatasetRunItems();
 
   const parsedArgs = {
-    concurrency: parseInt(args.values.concurrency as string, 10),
     pollIntervalMs: parseInt(args.values.pollIntervalMs as string, 10),
     maxRetries: parseInt(args.values.maxRetries as string, 10),
     batchSize: parseInt(args.values.batchSize as string, 10),
