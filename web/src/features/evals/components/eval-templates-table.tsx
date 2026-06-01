@@ -11,9 +11,8 @@ import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import TableIdOrName from "@/src/components/table/table-id";
-import { PeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
+import { TablePeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekView } from "@/src/components/table/peek";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useRouter } from "next/router";
@@ -487,9 +486,10 @@ export default function EvalsTemplateTable({
           />
         </div>
       </div>
-      <TablePeekView {...peekConfig}>
-        <PeekViewEvaluatorTemplateDetail projectId={projectId} />
-      </TablePeekView>
+      <TablePeekViewEvaluatorTemplateDetail
+        {...peekConfig}
+        projectId={projectId}
+      />
       <Dialog
         open={!!editTemplateId && template.isSuccess}
         onOpenChange={(open) => {
