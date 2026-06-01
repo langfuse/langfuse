@@ -44,13 +44,6 @@ const getVariableSourceFields = (
     parsedTraceMapping.data.map((mapping) => {
       const field = mapping.selectedColumnId;
 
-      if (
-        mapping.langfuseObject === "trace" ||
-        mapping.langfuseObject === "dataset_item"
-      ) {
-        return `${mapping.langfuseObject}.${field}`;
-      }
-
       return `${mapping.langfuseObject}.${field}`;
     }),
   );
