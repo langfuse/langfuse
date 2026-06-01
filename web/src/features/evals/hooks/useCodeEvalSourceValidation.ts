@@ -106,7 +106,7 @@ export function useCodeEvalSourceValidation({
         .finally(() => {
           if (isActive) setIsPending(false);
         });
-    }, 250);
+    }, 300);
 
     return () => {
       isActive = false;
@@ -115,8 +115,7 @@ export function useCodeEvalSourceValidation({
   }, [enabled, reset, sourceCode, sourceCodeLanguage]);
 
   return {
-    isValid:
-      Boolean(validationResult) && !isPending && !validationResult?.hasErrors,
+    isValid: Boolean(validationResult) && !validationResult?.hasErrors,
     isPending,
     validationResult,
     validate,
