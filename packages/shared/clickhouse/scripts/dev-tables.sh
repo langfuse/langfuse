@@ -25,7 +25,7 @@
 # migrations. Until then, this script is the documented way to roll out the
 # v4 events pipeline tables.
 
-# When making changes below, threat them like migrations, i.e. DO NOT modify the column inline.
+# When making changes below, treat them like migrations, i.e. DO NOT modify the column inline.
 # Instead add a table mutation adding a net new column.
 
 # Load environment variables

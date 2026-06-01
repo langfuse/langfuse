@@ -642,17 +642,8 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
       return;
     }
 
-    // Best-effort flush of pending writes before we exit. If the writer is
-    // not initialised in this process (e.g. CLI invocation that exits
-    // immediately), this is a no-op.
-    try {
-      await ClickhouseWriter.getInstance().shutdown();
-    } catch (err) {
-      logger.warn(
-        "[Backfill Events DRIs] ClickhouseWriter shutdown failed; pending writes may be re-emitted on next run",
-        err,
-      );
-    }
+    // Drain pending writes before we return. Inner function catches all errors, i.e. no try/catch wrap.
+    await ClickhouseWriter.getInstance().flushAll(true);
 
     logger.info(
       `[Backfill Events DRIs] Finished events_full backfill in ${(
