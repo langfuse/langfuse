@@ -10,6 +10,7 @@ type TagPromptDetailsPopoverProps = {
   availableTags: string[];
   projectId: string;
   promptName: string;
+  includeCommentCounts: boolean;
   className?: string;
 };
 
@@ -18,49 +19,53 @@ export function TagPromptDetailsPopover({
   availableTags,
   projectId,
   promptName,
+  includeCommentCounts,
   className,
 }: TagPromptDetailsPopoverProps) {
   const [isLoading, setIsLoading] = useState(false);
   const hasAccess = useHasProjectAccess({ projectId, scope: "objects:tag" });
+  const allVersionsInput = {
+    projectId,
+    name: promptName,
+    includeCommentCounts,
+  };
 
   const utils = api.useUtils();
   const mutTags = api.prompts.updateTags.useMutation({
     onMutate: async () => {
-      await utils.prompts.byId.cancel();
+      await Promise.all([
+        utils.prompts.byId.cancel(),
+        utils.prompts.allVersions.cancel(allVersionsInput),
+      ]);
       setIsLoading(true);
       // Snapshot the previous value
-      const prev = utils.prompts.allVersions.getData({
-        projectId: projectId,
-        name: promptName,
-      });
+      const prev = utils.prompts.allVersions.getData(allVersionsInput);
       return { prev };
     },
     onError: (err, _newTags, context) => {
-      setIsLoading(false);
       trpcErrorToast(err);
       // Rollback to the previous value if mutation fails
-      utils.prompts.allVersions.setData(
-        { projectId: projectId, name: promptName },
-        context?.prev,
-      );
+      utils.prompts.allVersions.setData(allVersionsInput, context?.prev);
     },
-    onSettled: (data, error, { projectId: projectId, tags }) => {
-      setIsLoading(false);
+    onSuccess: (_data, { tags }) => {
       utils.prompts.allVersions.setData(
-        { projectId: projectId, name: promptName },
+        allVersionsInput,
         (oldQueryData: RouterOutput["prompts"]["allVersions"] | undefined) => {
           return oldQueryData
             ? {
+                ...oldQueryData,
                 promptVersions: oldQueryData.promptVersions.map((prompt) => {
                   return prompt.name === promptName
                     ? { ...prompt, tags }
                     : prompt;
                 }),
-                totalCount: oldQueryData.totalCount,
               }
             : undefined;
         },
       );
+    },
+    onSettled: () => {
+      setIsLoading(false);
       void utils.prompts.all.invalidate();
       void utils.prompts.allVersions.invalidate();
       void utils.prompts.filterOptions.invalidate();

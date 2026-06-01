@@ -1,0 +1,29 @@
+import { getCommentForApi } from "@/src/features/comments/server/publicCommentService";
+import {
+  GetCommentV1Query,
+  GetCommentV1Response,
+} from "@/src/features/public-api/types/comments";
+import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
+
+export const [getCommentTool, handleGetComment] = defineTool({
+  name: "getComment",
+  description: "Get a comment by ID from the current Langfuse project.",
+  baseSchema: GetCommentV1Query,
+  inputSchema: GetCommentV1Query,
+  handler: async (input, context) =>
+    runMcpTool({
+      spanName: "mcp.comments.get",
+      context,
+      attributes: { "mcp.comment_id": input.commentId },
+      fn: async () => {
+        const result = await getCommentForApi({
+          commentId: input.commentId,
+          projectId: context.projectId,
+        });
+
+        return GetCommentV1Response.parse(result);
+      },
+    }),
+  readOnlyHint: true,
+});

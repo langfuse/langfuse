@@ -42,6 +42,9 @@ import { prisma } from "../../db";
 /**
  * Checks if trace exists in clickhouse.
  * Additionally, give back the timestamp of the trace as metadata.
+ * Right now, this is only used for the evalService to decide whether a trace needs evaluation.
+ * As LLMaaJ allows a reduced set of filters on observations, we exclude some expensive to compute
+ * properties from the check. If those become used, we expect their absence to be caught by unit tests.
  *
  * @param {string} projectId - Project ID for the trace
  * @param {string} traceId - ID of the trace to check
@@ -112,12 +115,13 @@ export const checkTraceExistsAndGetTimestamp = async ({
         countIf(level = 'WARNING') as warning_count,
         countIf(level = 'DEFAULT') as default_count,
         countIf(level = 'DEBUG') as debug_count,
-        date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
-        sumMap(usage_details) as usage_details,
-        sumMap(cost_details) as cost_details,
+        -- Remove those columns as this should only be used within the evalService and doesn't use them
+        -- date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
+        -- sumMap(usage_details) as usage_details,
+        -- sumMap(cost_details) as cost_details,
         trace_id,
         project_id
-      FROM observations o FINAL
+      FROM observations o
       WHERE o.project_id = {projectId: String}
         ${timeStampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
         AND o.start_time >= {timestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}
@@ -159,7 +163,10 @@ export const checkTraceExistsAndGetTimestamp = async ({
           t.id as id,
           t.project_id as project_id,
           t.timestamp as timestamp
-        FROM traces t FINAL
+        -- We skip FINAL here. If one trace exists that matches the conditions, we consider this truthy
+        -- even if the trace got updated in the meantime to a non-matching state.
+        -- As updates are usually addittive, this is deemed acceptable given the performance benefits.
+        FROM traces t
         ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
         WHERE ${tracesFilterRes.query}
         AND t.project_id = {projectId: String}
@@ -690,7 +697,10 @@ export const getTracesGroupedBySessionId = async (
   );
 
   const tracesFilterRes = tracesFilter.apply();
-  const search = clickhouseSearchCondition(searchQuery, undefined, "t");
+  const search = clickhouseSearchCondition({
+    query: searchQuery,
+    tablePrefix: "t",
+  });
 
   return measureAndReturn({
     operationName: "getTracesGroupedBySessionId",
@@ -764,7 +774,10 @@ export const getTracesGroupedByUsers = async (
   );
 
   const tracesFilterRes = tracesFilter.apply();
-  const search = clickhouseSearchCondition(searchQuery, undefined, "t");
+  const search = clickhouseSearchCondition({
+    query: searchQuery,
+    tablePrefix: "t",
+  });
 
   return measureAndReturn({
     operationName: "getTracesGroupedByUsers",
@@ -1168,7 +1181,10 @@ export const getTotalUserCount = async (
   );
 
   const tracesFilterRes = tracesFilter.apply();
-  const search = clickhouseSearchCondition(searchQuery, undefined, "t");
+  const search = clickhouseSearchCondition({
+    query: searchQuery,
+    tablePrefix: "t",
+  });
 
   return measureAndReturn({
     operationName: "getTotalUserCount",

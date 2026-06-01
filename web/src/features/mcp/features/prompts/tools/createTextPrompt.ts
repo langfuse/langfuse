@@ -2,23 +2,20 @@
  * MCP Tool: createTextPrompt
  *
  * Creates a new text prompt version in Langfuse.
- * Write operation with destructive hint.
  */
 
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import {
+  CreatePromptSchema,
   PromptType,
   PromptLabelSchema,
   PromptNameSchema,
   COMMIT_MESSAGE_MAX_LENGTH,
   PROMPT_NAME_MAX_LENGTH,
 } from "@langfuse/shared";
-import { createPrompt as createPromptAction } from "@/src/features/prompts/server/actions/createPrompt";
-import { prisma } from "@langfuse/shared/src/db";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { instrumentAsync } from "@langfuse/shared/src/server";
-import { SpanKind } from "@opentelemetry/api";
+import { createPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 
 /**
  * Base schema for JSON Schema generation (MCP client display)
@@ -86,43 +83,29 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
   baseSchema: CreateTextPromptBaseSchema,
   inputSchema: CreateTextPromptInputSchema,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.prompts.create_text", spanKind: SpanKind.INTERNAL },
-      async (span) => {
-        // Set span attributes for observability
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.prompt_name": input.name,
-          "mcp.prompt_type": "text",
-        });
-
-        const createdPrompt = await createPromptAction({
-          projectId: context.projectId,
-          name: input.name,
-          type: PromptType.Text,
-          prompt: input.prompt,
-          labels: input.labels ?? [],
-          config: input.config ?? {},
-          tags: input.tags,
-          commitMessage: input.commitMessage,
-          createdBy: "API",
-          prisma,
+    return await runMcpTool({
+      spanName: "mcp.prompts.create_text",
+      context,
+      attributes: {
+        "mcp.prompt_name": input.name,
+        "mcp.prompt_type": "text",
+      },
+      fn: async (span) => {
+        const createdPrompt = await createPromptForApi({
+          context,
+          input: CreatePromptSchema.parse({
+            name: input.name,
+            type: PromptType.Text,
+            prompt: input.prompt,
+            labels: input.labels ?? [],
+            config: input.config ?? {},
+            tags: input.tags,
+            commitMessage: input.commitMessage,
+          }),
         });
 
         // Set created version for observability
         span.setAttribute("mcp.created_version", createdPrompt.version);
-
-        await auditLog({
-          action: "create",
-          resourceType: "prompt",
-          resourceId: createdPrompt.id,
-          projectId: context.projectId,
-          orgId: context.orgId,
-          apiKeyId: context.apiKeyId,
-          after: createdPrompt,
-        });
 
         return {
           id: createdPrompt.id,
@@ -137,6 +120,7 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
           message: `Successfully created text prompt '${createdPrompt.name}' version ${createdPrompt.version}${createdPrompt.labels.length > 0 ? ` with labels: ${createdPrompt.labels.join(", ")}` : ""}`,
         };
       },
-    );
+    });
   },
+  destructiveHint: true,
 });
