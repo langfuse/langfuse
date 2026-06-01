@@ -15,6 +15,8 @@ export function useTemplatesValidation({
 }) {
   const [isSelectionValid, setIsSelectionValid] = useState(true);
   const codeEvalCapabilities = useIsCodeEvalEnabled();
+  const { enabled: isCodeEvalEnabled, supportedSourceCodeLanguages } =
+    codeEvalCapabilities;
 
   // Fetch default model
   const { data: defaultModel, isLoading: isLoadingDefaultModel } =
@@ -39,7 +41,11 @@ export function useTemplatesValidation({
 
     if (
       selectedTemplates.some(
-        (template) => !shouldShowEvalTemplate(template, codeEvalCapabilities),
+        (template) =>
+          !shouldShowEvalTemplate(template, {
+            enabled: isCodeEvalEnabled,
+            supportedSourceCodeLanguages,
+          }),
       )
     ) {
       setIsSelectionValid(false);
@@ -62,7 +68,8 @@ export function useTemplatesValidation({
   }, [
     defaultModel,
     isLoadingDefaultModel,
-    codeEvalCapabilities,
+    isCodeEvalEnabled,
+    supportedSourceCodeLanguages,
     selectedTemplateIds,
     templatesData?.templates,
   ]);
