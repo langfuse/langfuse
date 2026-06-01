@@ -312,6 +312,8 @@ export const handleEventPropagationJob = async (
         parallel_view_processing: 1,
         max_insert_threads: "8",
         type_json_skip_duplicated_paths: true,
+        write_through_distributed_cache: 0,
+        read_from_distributed_cache_if_exists_otherwise_bypass_cache: 1,
       },
     });
 
