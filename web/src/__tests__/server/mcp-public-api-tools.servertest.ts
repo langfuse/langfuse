@@ -77,6 +77,7 @@ import {
   handleListDatasets,
   handleUpsertDataset,
   handleUpsertDatasetItem,
+  upsertDatasetTool,
 } from "@/src/features/mcp/features/datasets/tools";
 import { handleGetHealth } from "@/src/features/mcp/features/health/tools";
 import {
@@ -478,15 +479,57 @@ describe("MCP public API tools", () => {
       }),
     ]);
 
-    const dataset = (await handleUpsertDataset(
+    const datasetInputSchema = {
+      type: "object",
+      properties: { question: { type: "string" } },
+      required: ["question"],
+      additionalProperties: false,
+    };
+    const datasetExpectedOutputSchema = {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    };
+    const upsertDataset = await toolRegistry.getEnabledTool(
+      upsertDatasetTool.name,
+      context,
+    );
+    expect(upsertDataset).toBeDefined();
+
+    const dataset = (await upsertDataset?.handler(
       {
         name: datasetName,
         description: "MCP dataset",
         metadata: { source: "mcp" },
+        inputSchema: datasetInputSchema,
+        expectedOutputSchema: datasetExpectedOutputSchema,
       },
       context,
-    )) as { id: string; name: string };
+    )) as {
+      id: string;
+      name: string;
+      inputSchema: unknown;
+      expectedOutputSchema: unknown;
+    };
     expect(dataset.name).toBe(datasetName);
+    expect(dataset.inputSchema).toEqual(datasetInputSchema);
+    expect(dataset.expectedOutputSchema).toEqual(datasetExpectedOutputSchema);
+
+    await expect(
+      upsertDataset?.handler(
+        {
+          name: datasetName,
+          inputSchema: JSON.stringify(datasetInputSchema),
+          expectedOutputSchema: JSON.stringify(datasetExpectedOutputSchema),
+        },
+        context,
+      ),
+    ).resolves.toMatchObject({
+      id: dataset.id,
+      inputSchema: datasetInputSchema,
+      expectedOutputSchema: datasetExpectedOutputSchema,
+    });
 
     const datasets = (await handleListDatasets(
       { page: 1, limit: 10 },

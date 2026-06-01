@@ -586,6 +586,9 @@ export const InnerEvaluatorForm = (props: {
     isExperimentTarget(watchedTarget) && isBetaEnabled;
   const shouldShowEventsPreview =
     isEventTarget(watchedTarget) || shouldShowExperimentEventsPreview;
+  const previewTableVisible = !props.disabled && !props.hidePreviewTable;
+  const previewAlreadyShowsSdkWarning =
+    previewTableVisible && shouldShowEventsPreview;
   const eventsPreviewFilterState = useMemo(
     () =>
       shouldShowExperimentEventsPreview
@@ -1006,9 +1009,10 @@ export const InnerEvaluatorForm = (props: {
 
             {!props.hideTargetSelection &&
               props.mode !== "edit" &&
-              !props.disabled && (
+              !props.disabled &&
+              !previewAlreadyShowsSdkWarning && (
                 <EvalVersionCallout
-                  targetObject={form.watch("target")}
+                  targetObject={watchedTarget}
                   evalCapabilities={props.evalCapabilities}
                 />
               )}
@@ -1265,7 +1269,7 @@ export const InnerEvaluatorForm = (props: {
                 />
 
                 {/* Preview based on target type */}
-                {!props.disabled && !props.hidePreviewTable && (
+                {previewTableVisible && (
                   <>
                     {isTraceTarget(form.watch("target")) && (
                       <TracesPreview

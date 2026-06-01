@@ -7,8 +7,8 @@ import {
   type ChatMessage,
   ChatMessageType,
   fetchLLMCompletion,
+  LangfuseInternalTraceEnvironment,
   logger,
-  type TraceSinkParams,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
@@ -41,6 +41,36 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           });
         }
 
+        const project = await ctx.prisma.project.findUnique({
+          where: { id: input.projectId },
+          select: {
+            organization: {
+              select: {
+                aiFeaturesEnabled: true,
+                aiTelemetryEnabled: true,
+              },
+            },
+          },
+        });
+
+        if (!project) {
+          logger.warn("Project not found when resolving AI telemetry setting", {
+            projectId: input.projectId,
+          });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Project not found.",
+          });
+        }
+
+        if (!project.organization.aiFeaturesEnabled) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              "Natural language filtering is not enabled for this organization.",
+          });
+        }
+
         if (!env.LANGFUSE_AWS_BEDROCK_MODEL) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
@@ -60,23 +90,9 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           });
         }
 
-        const getEnvironment = (): string => {
-          switch (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-            case "US":
-            case "EU":
-            case "HIPAA":
-            case "JP":
-              return "prod";
-            case "STAGING":
-              return "staging";
-            default:
-              return "dev";
-          }
-        };
-
         const client = getLangfuseClient(
-          env.LANGFUSE_AI_FEATURES_PUBLIC_KEY as string,
-          env.LANGFUSE_AI_FEATURES_SECRET_KEY as string,
+          env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+          env.LANGFUSE_AI_FEATURES_SECRET_KEY,
           env.LANGFUSE_AI_FEATURES_HOST,
           false,
         );
@@ -87,25 +103,34 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           { type: "chat" },
         );
 
-        if (!env.LANGFUSE_AI_FEATURES_PROJECT_ID) {
+        const aiTelemetryEnabled = project.organization.aiTelemetryEnabled;
+        const targetProjectId = aiTelemetryEnabled
+          ? env.LANGFUSE_AI_FEATURES_PROJECT_ID
+          : undefined;
+
+        if (aiTelemetryEnabled && !targetProjectId) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Langfuse AI Features not configured.",
           });
         }
 
-        const traceSinkParams: TraceSinkParams = {
-          environment: getEnvironment(),
-          traceName: "natural-language-filter",
-          traceId: randomBytes(16).toString("hex"),
-          targetProjectId: env.LANGFUSE_AI_FEATURES_PROJECT_ID,
-          userId: ctx.session.user.id,
-          metadata: {
-            langfuse_user_id: ctx.session.user.id,
-            langfuse_project_id: ctx.session.projectId,
-          },
-          prompt: promptResponse,
-        };
+        const traceSinkParams = targetProjectId
+          ? {
+              environment:
+                LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
+              traceName: "natural-language-filter",
+              traceId: randomBytes(16).toString("hex"),
+              targetProjectId,
+              userId: ctx.session.user.id,
+              metadata: {
+                langfuse_ai_feature: "natural-language-filter",
+                langfuse_user_id: ctx.session.user.id,
+                langfuse_project_id: ctx.session.projectId,
+              },
+              prompt: promptResponse,
+            }
+          : undefined;
 
         // Get current datetime in ISO format with day of week for AI context
         const now = new Date();
@@ -136,9 +161,11 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           `LLM completion received: ${JSON.stringify(llmCompletion, null, 2)}`,
         );
 
-        const parsedFilters = parseFiltersFromCompletion(
-          llmCompletion as string,
-        );
+        if (typeof llmCompletion !== "string") {
+          throw new Error("Expected LLM completion to be a string");
+        }
+
+        const parsedFilters = parseFiltersFromCompletion(llmCompletion);
 
         return {
           filters: parsedFilters,
