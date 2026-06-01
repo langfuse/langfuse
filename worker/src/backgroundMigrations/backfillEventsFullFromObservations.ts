@@ -11,6 +11,7 @@ import {
   BaseChunkTodo,
   ConcurrentQueryManager,
   assertSafePartition,
+  checkPredecessorMigrationFinalized,
   fireQuery,
   generateQueryId,
   recoverInProgressTodos,
@@ -215,10 +216,9 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
   /**
    * Builds the per-part INSERT into events_full.
    *
-   * The traces side is read directly from the live `traces` table — there is
-   * no `traces_pid_tid_sorting` rewrite for OSS. To keep the join scan small
-   * we bound `traces` by a `created_at` window aligned with the observation
-   * partition's month (±1 month). Light trace property propagation only —
+   * To keep the join scan small, we bound `traces` by a `timestamp` window aligned with the observation
+   * partition's month. This may produce some observation on the month bounday that do not have full
+   * propagation. Light trace property propagation only —
    * `trace.metadata` is intentionally excluded; the observation's metadata is
    * used as-is.
    */
@@ -319,6 +319,14 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
     args: Record<string, unknown>,
     attempts = 5,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
+    const predecessor = await checkPredecessorMigrationFinalized(
+      "9c2d5a4f-7b8e-4f6a-a91c-3e5d7f8a2b1c",
+      "20260521_v4_step_2_rewrite_observations_to_pid_tid_sorting",
+    );
+    if (!predecessor.valid) {
+      return predecessor;
+    }
+
     const tables = await clickhouseClient().query({ query: "SHOW TABLES" });
     const tableNames = (await tables.json()).data as { name: string }[];
 

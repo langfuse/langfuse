@@ -583,6 +583,11 @@ export default class RewriteObservationsToPidTidSorting implements IBackgroundMi
       logger.error(
         `[Backfill PidTid Sorting] Migration completed with ${failed.length} failed chunks; leaving merges enabled on observations_pid_tid_sorting for --retry-failed`,
       );
+      // Throw so BackgroundMigrationManager records `failedAt` rather than
+      // `finishedAt`.
+      throw new Error(
+        `[Backfill PidTid Sorting] Rewrite finished with ${failed.length} failed chunk(s); clear failedAt and re-run with --retry-failed before downstream steps can proceed.`,
+      );
     } else {
       // Stop merges now that the backfill is done. The subsequent migration
       // step depends on the post-backfill part layout staying frozen and owns

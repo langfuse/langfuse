@@ -2,6 +2,7 @@ import { IBackgroundMigration } from "./IBackgroundMigration";
 import { commandClickhouse, logger } from "@langfuse/shared/src/server";
 import { env } from "../env";
 import { parseArgs } from "node:util";
+import { checkPredecessorMigrationFinalized } from "./utils/backfillBase";
 
 // Hard-coded UUID identifying the row in background_migrations. Must match the
 // Prisma migration that registers this row.
@@ -48,7 +49,10 @@ export default class DropPidTidSortingTables implements IBackgroundMigration {
   async validate(
     _args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
-    return { valid: true, invalidReason: undefined };
+    return checkPredecessorMigrationFinalized(
+      "9d4f8a12-7b35-4e6c-9f48-a2b3c4d5e6f7",
+      "20260521_v4_step_4_backfill_events_full_from_dataset_run_items",
+    );
   }
 
   // ============================================================================

@@ -7,6 +7,7 @@ import {
   queryClickhouse,
   sleep,
 } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 
 // ============================================================================
 // Shared types
@@ -131,6 +132,53 @@ export function assertSafePartition(partition: string): void {
   if (!PARTITION_RE.test(partition)) {
     throw new Error(`Invalid partition_id: ${partition}`);
   }
+}
+
+// ============================================================================
+// Migration chain dependency guard
+// ============================================================================
+
+/**
+ * Returns a validation failure unless the prerequisite background-migration row
+ * has finished cleanly (`finishedAt` set, `failedAt` null).
+ *
+ * The `BackgroundMigrationManager` has no dependency model — it runs every eligible
+ * row in name order and marks each finished/failed independently, so a failed
+ * upstream step does NOT by itself stop a downstream step from running on
+ * partial data. Each downstream step calls this from its `validate()`, which
+ * routes through the manager's validation-failure path and records `failedAt`.
+ * Because the next step in turn guards on its own predecessor, a single failure
+ * transitively halts the rest of the chain.
+ */
+export async function checkPredecessorMigrationFinalized(
+  predecessorId: string,
+  predecessorName: string,
+): Promise<{ valid: boolean; invalidReason: string | undefined }> {
+  const predecessor = await prisma.backgroundMigration.findUnique({
+    where: { id: predecessorId },
+    select: { finishedAt: true, failedAt: true },
+  });
+
+  if (!predecessor) {
+    return {
+      valid: false,
+      invalidReason: `Prerequisite migration ${predecessorName} (${predecessorId}) is not registered`,
+    };
+  }
+  if (predecessor.failedAt) {
+    return {
+      valid: false,
+      invalidReason: `Prerequisite migration ${predecessorName} failed at ${predecessor.failedAt.toISOString()}; resolve it and clear failedAt before this step can run`,
+    };
+  }
+  if (!predecessor.finishedAt) {
+    return {
+      valid: false,
+      invalidReason: `Prerequisite migration ${predecessorName} has not finished yet`,
+    };
+  }
+
+  return { valid: true, invalidReason: undefined };
 }
 
 // ============================================================================

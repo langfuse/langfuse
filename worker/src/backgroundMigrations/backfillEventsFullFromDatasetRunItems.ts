@@ -19,6 +19,7 @@ import {
   type TraceProperties,
 } from "../features/eventPropagation/handleExperimentBackfill";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import { checkPredecessorMigrationFinalized } from "./utils/backfillBase";
 
 // Hard-coded UUID identifying the row in background_migrations. Must match
 // the Prisma migration that registers this row.
@@ -478,6 +479,14 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     args: Record<string, unknown>,
     attempts = 5,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
+    const predecessor = await checkPredecessorMigrationFinalized(
+      "7a3f8d6e-2c91-4b5e-8d72-f4a5b6c7d8e9",
+      "20260521_v4_step_3_backfill_events_full_from_observations",
+    );
+    if (!predecessor.valid) {
+      return predecessor;
+    }
+
     const tables = await clickhouseClient().query({ query: "SHOW TABLES" });
     const tableNames = (await tables.json()).data as { name: string }[];
 
