@@ -511,13 +511,12 @@ const validateV4Flags = (parsed: ParsedEnv): void => {
         "(would dual-write to legacy tables the deployment otherwise skips).",
     );
   }
-
-  // Soft warnings: surface likely misconfigurations without aborting boot.
-  if (mode === "events_only" && v4AllowPreviewOptIn(parsed)) {
-    console.warn(
-      "[V4 flags] LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN=true has no " +
-        "effect when LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only — reads " +
-        "are forced to events_full regardless.",
+  if (mode === "events_only" && !v4AllowPreviewOptIn(parsed)) {
+    throw new Error(
+      "Invalid V4 config: LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only requires " +
+        "LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN=true. Web reads are gated " +
+        "solely on the opt-in flag; without it they target the legacy " +
+        "traces/observations tables that events_only mode no longer writes to.",
     );
   }
 };
