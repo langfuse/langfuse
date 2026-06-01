@@ -866,6 +866,8 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                             >) ?? {},
                           aiFeaturesEnabled:
                             orgMembership.organization.aiFeaturesEnabled,
+                          aiTelemetryEnabled:
+                            orgMembership.organization.aiTelemetryEnabled,
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
                             .map((project) => {
