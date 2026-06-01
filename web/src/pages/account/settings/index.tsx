@@ -288,7 +288,7 @@ const getAccountSettingsPages = (userEmail: string): AccountSettingsPage[] => [
             </p>
             <Button asChild variant="secondary">
               <Link
-                href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`}
+                href="/auth/reset-password"
               >
                 Change Password
               </Link>
