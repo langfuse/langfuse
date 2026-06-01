@@ -64,8 +64,10 @@ const CreateScoreBaseSchema = z.object({
 
 export const [createScoreTool, handleCreateScore] = defineTool({
   name: "createScore",
-  description:
-    "Create one score in the current Langfuse project using the v1 /api/public/scores route semantics. This is the v1 fallback because score creation has no v2 public route.",
+  description: [
+    "Create one score in the current Langfuse project.",
+    "Score reads are eventually consistent: after creation, getScore and listScores may not return the new score immediately. Wait briefly and retry reads when confirming creation.",
+  ].join("\n"),
   baseSchema: CreateScoreBaseSchema,
   inputSchema: PostScoresBodyV1,
   destructiveHint: true,
