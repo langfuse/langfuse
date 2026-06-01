@@ -1,9 +1,9 @@
 import type { McpFeatureModule } from "../../server/registry";
-import { createDatasetTool, handleCreateDataset } from "./tools/createDataset";
+import { upsertDatasetTool, handleUpsertDataset } from "./tools/upsertDataset";
 import {
-  createDatasetItemTool,
-  handleCreateDatasetItem,
-} from "./tools/createDatasetItem";
+  upsertDatasetItemTool,
+  handleUpsertDatasetItem,
+} from "./tools/upsertDatasetItem";
 import {
   createDatasetRunItemTool,
   handleCreateDatasetRunItem,
@@ -41,7 +41,7 @@ export const datasetsFeature: McpFeatureModule = {
   description:
     "Manage datasets, named collections of dataset items for experiments and evaluations, plus runs and run items",
   tools: [
-    { definition: createDatasetTool, handler: handleCreateDataset },
+    { definition: upsertDatasetTool, handler: handleUpsertDataset },
     {
       definition: listDatasetsTool,
       handler: handleListDatasets,
@@ -52,7 +52,7 @@ export const datasetsFeature: McpFeatureModule = {
       handler: handleGetDataset,
       allowInAppAgentKey: true,
     },
-    { definition: createDatasetItemTool, handler: handleCreateDatasetItem },
+    { definition: upsertDatasetItemTool, handler: handleUpsertDatasetItem },
     {
       definition: listDatasetItemsTool,
       handler: handleListDatasetItems,

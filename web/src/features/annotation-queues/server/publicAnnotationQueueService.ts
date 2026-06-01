@@ -563,7 +563,7 @@ export const createAnnotationQueueAssignmentForApi = async ({
   };
 };
 
-export const deleteAnnotationQueueAssignmentForApi = async ({
+export const deleteAnnotationQueueAssignment = async ({
   projectId,
   queueId,
   input,
@@ -576,37 +576,17 @@ export const deleteAnnotationQueueAssignmentForApi = async ({
   // Verify the annotation queue exists and belongs to the project
   await getAnnotationQueueRecordOrThrow({ projectId, queueId });
 
-  let assignment;
-  try {
-    // Delete the assignment if it exists
-    assignment = await prisma.annotationQueueAssignment.delete({
-      where: {
-        projectId_queueId_userId: {
-          projectId,
-          queueId,
-          userId: input.userId,
-        },
+  // Delete the assignment if it exists. Missing assignments throw P2025 so
+  // callers can decide whether to treat that as success or not found.
+  const assignment = await prisma.annotationQueueAssignment.delete({
+    where: {
+      projectId_queueId_userId: {
+        projectId,
+        queueId,
+        userId: input.userId,
       },
-    });
-  } catch (error) {
-    // If the record doesn't exist, that's fine - we still return success.
-    // Only catch NotFound errors, re-throw other errors.
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code !== "P2025"
-    ) {
-      throw error;
-    }
-
-    return {
-      deleted: false,
-      response: {
-        success: true,
-      },
-    };
-  }
+    },
+  });
 
   if (auditScope) {
     await auditLog({
@@ -621,9 +601,43 @@ export const deleteAnnotationQueueAssignmentForApi = async ({
   }
 
   return {
-    deleted: true,
     response: {
       success: true,
     },
   };
+};
+
+export const deleteAnnotationQueueAssignmentForApi = async ({
+  projectId,
+  queueId,
+  input,
+  auditScope,
+}: {
+  projectId: string;
+  queueId: string;
+  input: DeleteAnnotationQueueAssignmentInput;
+} & OptionalAuditScope) => {
+  try {
+    return await deleteAnnotationQueueAssignment({
+      projectId,
+      queueId,
+      input,
+      auditScope,
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      // Public API semantics are idempotent: deleting an already-absent
+      // assignment still succeeds.
+      return {
+        response: {
+          success: true,
+        },
+      };
+    }
+
+    throw error;
+  }
 };

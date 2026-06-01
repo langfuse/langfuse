@@ -41,6 +41,7 @@ import {
   createMcpTestSetup,
   createPromptInDb,
   mockServerContext,
+  verifyAuditLog,
   waitFor,
 } from "./mcp-helpers";
 import "@/src/features/mcp/server/bootstrap";
@@ -64,8 +65,6 @@ import {
   handleListComments,
 } from "@/src/features/mcp/features/comments/tools";
 import {
-  handleCreateDataset,
-  handleCreateDatasetItem,
   handleCreateDatasetRunItem,
   handleDeleteDatasetItem,
   handleDeleteDatasetRun,
@@ -76,6 +75,8 @@ import {
   handleListDatasetRunItems,
   handleListDatasetRuns,
   handleListDatasets,
+  handleUpsertDataset,
+  handleUpsertDatasetItem,
 } from "@/src/features/mcp/features/datasets/tools";
 import { handleGetHealth } from "@/src/features/mcp/features/health/tools";
 import {
@@ -188,7 +189,7 @@ describe("MCP public API tools", () => {
       mockServerContext({ isInAppAgentKey: true }),
     );
 
-    expect(inAppToolNames).not.toContain("createDataset");
+    expect(inAppToolNames).not.toContain("upsertDataset");
     expect(inAppToolNames).not.toContain("createModel");
 
     const writableToolNames = toolNames.filter(
@@ -213,8 +214,6 @@ describe("MCP public API tools", () => {
     expect(destructiveToolNames).toEqual(
       [
         "createChatPrompt",
-        "createDataset",
-        "createDatasetItem",
         "createScore",
         "createScoreConfig",
         "createTextPrompt",
@@ -227,6 +226,8 @@ describe("MCP public API tools", () => {
         "updateAnnotationQueueItem",
         "updatePromptLabels",
         "updateScoreConfig",
+        "upsertDataset",
+        "upsertDatasetItem",
       ].sort(),
     );
   });
@@ -370,6 +371,13 @@ describe("MCP public API tools", () => {
     ).resolves.toEqual({ success: true });
 
     await expect(
+      handleDeleteAnnotationQueueAssignment(
+        { queueId: queue.id, userId: user.id },
+        context,
+      ),
+    ).rejects.toThrow("Annotation queue assignment not found");
+
+    await expect(
       handleDeleteAnnotationQueueItem(
         { queueId: queue.id, itemId: queueItem.id },
         context,
@@ -445,7 +453,7 @@ describe("MCP public API tools", () => {
   });
 
   it("covers dataset, dataset item, run item, and run public API routes", async () => {
-    const { context, projectId } = await createMcpTestSetup();
+    const { context, projectId, apiKeyId } = await createMcpTestSetup();
     const datasetName = `mcp-dataset-100% accuracy %20 ${uuidv4()}`;
     const traceId = uuidv4();
     const observationId = uuidv4();
@@ -470,7 +478,7 @@ describe("MCP public API tools", () => {
       }),
     ]);
 
-    const dataset = (await handleCreateDataset(
+    const dataset = (await handleUpsertDataset(
       {
         name: datasetName,
         description: "MCP dataset",
@@ -487,12 +495,12 @@ describe("MCP public API tools", () => {
     expect(datasets.data.map((item) => item.id)).toContain(dataset.id);
 
     await expect(
-      handleGetDataset({ datasetName }, context),
+      handleGetDataset({ datasetId: dataset.id }, context),
     ).resolves.toMatchObject({ id: dataset.id, name: datasetName });
 
-    const datasetItem = (await handleCreateDatasetItem(
+    const datasetItem = (await handleUpsertDatasetItem(
       {
-        datasetName,
+        datasetId: dataset.id,
         input: { question: "ping" },
         expectedOutput: { answer: "pong" },
       },
@@ -501,7 +509,7 @@ describe("MCP public API tools", () => {
     expect(datasetItem.datasetName).toBe(datasetName);
 
     const datasetItems = (await handleListDatasetItems(
-      { datasetName, page: 1, limit: 10 },
+      { datasetId: dataset.id, page: 1, limit: 10 },
       context,
     )) as { data: Array<{ id: string }> };
     expect(datasetItems.data.map((item) => item.id)).toContain(datasetItem.id);
@@ -523,6 +531,19 @@ describe("MCP public API tools", () => {
       context,
     )) as { id: string; datasetRunId: string; datasetItemId: string };
     expect(runItem.datasetItemId).toBe(datasetItem.id);
+    await expect(
+      verifyAuditLog({
+        projectId,
+        apiKeyId,
+        resourceType: "datasetRunItem",
+        resourceId: runItem.id,
+        action: "create",
+      }),
+    ).resolves.toMatchObject({
+      resourceType: "datasetRunItem",
+      resourceId: runItem.id,
+      action: "create",
+    });
 
     await createDatasetRunItemsCh([
       createDatasetRunItem({
@@ -539,7 +560,12 @@ describe("MCP public API tools", () => {
 
     await waitFor(async () => {
       const runItems = (await handleListDatasetRunItems(
-        { datasetId: dataset.id, runName, page: 1, limit: 10 },
+        {
+          datasetId: dataset.id,
+          datasetRunId: runItem.datasetRunId,
+          page: 1,
+          limit: 10,
+        },
         context,
       )) as { data: Array<{ id: string }> };
 
@@ -547,7 +573,7 @@ describe("MCP public API tools", () => {
     });
 
     const datasetRuns = (await handleListDatasetRuns(
-      { name: datasetName, page: 1, limit: 10 },
+      { datasetId: dataset.id, page: 1, limit: 10 },
       context,
     )) as { data: Array<{ id: string; name: string }> };
     expect(datasetRuns.data).toEqual(
@@ -557,7 +583,10 @@ describe("MCP public API tools", () => {
     );
 
     await expect(
-      handleGetDatasetRun({ name: datasetName, runName }, context),
+      handleGetDatasetRun(
+        { datasetId: dataset.id, datasetRunId: runItem.datasetRunId },
+        context,
+      ),
     ).resolves.toMatchObject({
       id: runItem.datasetRunId,
       name: runName,
@@ -567,7 +596,10 @@ describe("MCP public API tools", () => {
     });
 
     await expect(
-      handleDeleteDatasetRun({ name: datasetName, runName }, context),
+      handleDeleteDatasetRun(
+        { datasetId: dataset.id, datasetRunId: runItem.datasetRunId },
+        context,
+      ),
     ).resolves.toEqual({ message: "Dataset run successfully deleted" });
 
     await expect(
@@ -627,17 +659,23 @@ describe("MCP public API tools", () => {
     ).rejects.toThrow("Annotation queue not found");
 
     const datasetName = `mcp-dataset-isolation-${uuidv4()}`;
-    const dataset = (await handleCreateDataset(
+    const dataset = (await handleUpsertDataset(
       { name: datasetName },
       sourceContext,
     )) as { id: string };
 
     await expect(
-      handleGetDataset({ datasetName }, targetContext),
+      handleGetDataset({ datasetId: dataset.id }, targetContext),
+    ).rejects.toThrow("Dataset not found");
+    await expect(
+      handleListDatasetItems(
+        { datasetId: dataset.id, page: 1, limit: 10 },
+        targetContext,
+      ),
     ).rejects.toThrow("Dataset not found");
     await expect(
       handleListDatasetRunItems(
-        { datasetId: dataset.id, runName: "missing", page: 1, limit: 10 },
+        { datasetId: dataset.id, datasetRunId: uuidv4(), page: 1, limit: 10 },
         targetContext,
       ),
     ).rejects.toThrow("Dataset run not found");
@@ -695,8 +733,8 @@ describe("MCP public API tools", () => {
       {
         name: scoreConfigName,
         dataType: "NUMERIC",
-        minValue: 0,
-        maxValue: 1,
+        numericMinValue: 0,
+        numericMaxValue: 1,
       },
       context,
     )) as { id: string; name: string };
