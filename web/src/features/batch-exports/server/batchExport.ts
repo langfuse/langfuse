@@ -34,11 +34,6 @@ export const batchExportRouter = createTRPCRouter({
 
         const { projectId, query, format, name } = input;
 
-        // Audit log exports require additional permissions beyond batch export access.
-        // This check is intentionally at job-creation time only; the worker processes
-        // stored jobs without re-authorizing, so a job queued before this guard was
-        // deployed would still execute. That window is accepted as it requires an
-        // already-privileged actor and is bounded by the 30-day auto-fail cutoff.
         if (query.tableName === BatchExportTableName.AuditLogs) {
           throwIfNoEntitlement({
             entitlement: "audit-logs",
