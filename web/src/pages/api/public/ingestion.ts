@@ -236,7 +236,7 @@ function filterBatchForEventsOnly(
         id,
         status: 400,
         message: "Event type not accepted",
-        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. Send trace and observation data via the OTel endpoint instead; this endpoint only accepts score-create events.`,
+        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score, log, and dataset-run-item events.`,
       });
     }
   }
