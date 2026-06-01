@@ -7,9 +7,9 @@
  * Langfuse Python SDK v3 uses, and what the bug reporter used), its `input` / `output`
  * payload is stored in ClickHouse **verbatim as the JSON string the SDK produced**. Python's
  * `json.dumps(...)` defaults to `ensure_ascii=True`, so a value like `你好` is persisted on
- * disk as the literal 12-byte ASCII string `你好`. The UI's display layer parses that
+ * disk as the literal 12-byte ASCII string `\u4f60\u597d`. The UI's display layer parses that
  * JSON back, so the user *sees* `你好` — but full-text search (`clickhouseSearchCondition`)
- * runs a literal `input ILIKE '%你好%'`, which can never match the stored bytes `你好`.
+ * runs a literal `input ILIKE '%你好%'`, which can never match the stored bytes `\u4f60\u597d`.
  * ASCII text (`Hello`) is not escaped, so it matches.
  *
  * These tests reproduce that: they store trace/observation I/O in the exact escaped form the
@@ -336,7 +336,7 @@ describe("multilingual full-text search (issue #11538)", () => {
         name: `ml-emoji-${randomUUID()}`,
         input: { status: "Deployment 🚀 succeeded" },
       });
-      // 🚀 (U+1F680) is persisted as the literal sequence 🚀; a correct fix encodes the
+      // 🚀 (U+1F680) is persisted as the literal sequence \ud83d\ude80; a correct fix encodes the
       // query the same way.
       expect(await searchTraceIds("🚀", ["id", "content"])).toContain(trace.id);
     });
@@ -344,7 +344,7 @@ describe("multilingual full-text search (issue #11538)", () => {
     it("finds a trace by a supplementary-plane CJK ideograph (CJK Ext. B)", async () => {
       const trace = await insertEscapedTrace({
         name: `ml-cjk-ext-b-${randomUUID()}`,
-        // 𠀀 = U+20000, 𠀁 = U+20001 — both stored as surrogate pairs (𠀀, 𠀁).
+        // 𠀀 = U+20000, 𠀁 = U+20001 — both stored as surrogate pairs (\ud840\udc00, \ud840\udc01).
         input: { rareChars: "古文字 𠀀𠀁 测试" },
       });
       expect(await searchTraceIds("𠀀𠀁", ["id", "content"])).toContain(
