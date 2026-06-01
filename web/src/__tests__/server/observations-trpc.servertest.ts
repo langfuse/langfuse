@@ -200,4 +200,41 @@ describe("traces trpc", () => {
       expect(outputSearchResults.generations).toBeDefined();
     });
   });
+
+  describe("generations.countAll", () => {
+    it("counts only matching full-text search results", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+      const searchKeyword = `generation-count-search-${randomUUID()}`;
+
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+          name: "generation-count-search-trace",
+        }),
+      ]);
+
+      await createObservationsCh([
+        createObservation({
+          id: generationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "generation-count-search-observation",
+          input: searchKeyword,
+        }),
+      ]);
+
+      const count = await caller.generations.countAll({
+        projectId,
+        searchQuery: searchKeyword,
+        searchType: ["content"],
+        filter: [],
+        orderBy: null,
+      });
+
+      expect(count.totalCount).toBe(1);
+    });
+  });
 });

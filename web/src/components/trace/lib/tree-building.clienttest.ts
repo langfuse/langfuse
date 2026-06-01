@@ -1,7 +1,7 @@
 /**
  * Tests for tree-building utilities.
  *
- * Run with: pnpm test-client --testPathPattern="tree-building"
+ * Run with: pnpm test-client "tree-building"
  */
 
 import {

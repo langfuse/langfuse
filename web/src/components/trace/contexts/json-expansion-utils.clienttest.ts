@@ -4,7 +4,7 @@
  * These functions handle translation between actual observation keys and
  * normalized keys for persistent storage across different traces.
  *
- * Run with: pnpm test-client --testPathPattern="json-expansion-utils"
+ * Run with: pnpm test-client "json-expansion-utils"
  */
 
 import {

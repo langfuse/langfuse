@@ -924,21 +924,34 @@ model EvalTemplate {
 
   name    String
   version Int
-  prompt  String
+  prompt  String?
+  type    EvalTemplateType @default(LLM_AS_JUDGE)
 
   partner String? // e.g. "ragas", describes the partner that created the template
 
-  model            String?
-  provider         String?
-  modelParams      Json?              @map("model_params")
-  vars             String[]           @default([])
-  outputDefinition Json               @map("output_schema")
-  JobConfiguration JobConfiguration[]
-  JobExecution     JobExecution[]
+  model              String?
+  provider           String?
+  modelParams        Json?                           @map("model_params")
+  vars               String[]                        @default([])
+  outputDefinition   Json?                           @map("output_schema")
+  sourceCode         String?                         @map("source_code") @db.VarChar(262144)
+  sourceCodeLanguage EvalTemplateSourceCodeLanguage? @map("source_code_language")
+  JobConfiguration   JobConfiguration[]
+  JobExecution       JobExecution[]
 
   @@unique([projectId, name, version])
   @@index([projectId, id])
   @@map("eval_templates")
+}
+
+enum EvalTemplateType {
+  LLM_AS_JUDGE
+  CODE
+}
+
+enum EvalTemplateSourceCodeLanguage {
+  PYTHON
+  TYPESCRIPT
 }
 
 // We currently assume in evaluator execution-count queries that _all_ job_executions are for EVAL job_configs.

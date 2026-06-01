@@ -1,37 +1,47 @@
 import type { McpFeatureModule } from "../../server/registry";
+import { upsertDatasetTool, handleUpsertDataset } from "./tools/upsertDataset";
 import {
-  createDatasetItemTool,
+  upsertDatasetItemTool,
+  handleUpsertDatasetItem,
+} from "./tools/upsertDatasetItem";
+import {
   createDatasetRunItemTool,
-  createDatasetTool,
-  deleteDatasetItemTool,
-  deleteDatasetRunTool,
-  getDatasetItemTool,
-  getDatasetRunTool,
-  getDatasetTool,
-  handleCreateDataset,
-  handleCreateDatasetItem,
   handleCreateDatasetRunItem,
+} from "./tools/createDatasetRunItem";
+import {
+  deleteDatasetItemTool,
   handleDeleteDatasetItem,
+} from "./tools/deleteDatasetItem";
+import {
+  deleteDatasetRunTool,
   handleDeleteDatasetRun,
-  handleGetDataset,
+} from "./tools/deleteDatasetRun";
+import { getDatasetTool, handleGetDataset } from "./tools/getDataset";
+import {
+  getDatasetItemTool,
   handleGetDatasetItem,
-  handleGetDatasetRun,
+} from "./tools/getDatasetItem";
+import { getDatasetRunTool, handleGetDatasetRun } from "./tools/getDatasetRun";
+import {
   handleListDatasetItems,
-  handleListDatasetRunItems,
-  handleListDatasetRuns,
-  handleListDatasets,
   listDatasetItemsTool,
+} from "./tools/listDatasetItems";
+import {
+  handleListDatasetRunItems,
   listDatasetRunItemsTool,
+} from "./tools/listDatasetRunItems";
+import {
+  handleListDatasetRuns,
   listDatasetRunsTool,
-  listDatasetsTool,
-} from "./tools";
+} from "./tools/listDatasetRuns";
+import { handleListDatasets, listDatasetsTool } from "./tools/listDatasets";
 
 export const datasetsFeature: McpFeatureModule = {
   name: "datasets",
   description:
     "Manage datasets, named collections of dataset items for experiments and evaluations, plus runs and run items",
   tools: [
-    { definition: createDatasetTool, handler: handleCreateDataset },
+    { definition: upsertDatasetTool, handler: handleUpsertDataset },
     {
       definition: listDatasetsTool,
       handler: handleListDatasets,
@@ -42,7 +52,7 @@ export const datasetsFeature: McpFeatureModule = {
       handler: handleGetDataset,
       allowInAppAgentKey: true,
     },
-    { definition: createDatasetItemTool, handler: handleCreateDatasetItem },
+    { definition: upsertDatasetItemTool, handler: handleUpsertDatasetItem },
     {
       definition: listDatasetItemsTool,
       handler: handleListDatasetItems,

@@ -1,4 +1,3 @@
-import { SpanKind } from "@opentelemetry/api";
 import {
   InvalidRequestError,
   OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS,
@@ -15,10 +14,7 @@ import {
   timeFilter,
   type ColumnDefinition,
 } from "@langfuse/shared";
-import {
-  getObservationsV2FromEventsTableForPublicApi,
-  instrumentAsync,
-} from "@langfuse/shared/src/server";
+import { getObservationsV2FromEventsTableForPublicApi } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import {
   EncodedObservationsCursorV2,
@@ -26,6 +22,7 @@ import {
   encodeCursor,
 } from "@/src/features/public-api/types/observations";
 import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   ExpandMetadataKeysSchema,
   getMetadataExpansionForProjection,
@@ -57,15 +54,6 @@ const OBSERVATION_MCP_FILTER_COLUMN_TYPES = new Map(
       column.type,
     ]),
 );
-
-const OBSERVATION_MCP_FILTER_COLUMN_DEFINITIONS = eventsTableCols
-  .filter((column) =>
-    OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS.has(column.id),
-  )
-  .map((column) => ({
-    column: column.id === "traceTags" ? "tags" : column.id,
-    type: column.type,
-  }));
 
 const OBSERVATION_MCP_FILTER_EXAMPLE = {
   column: "totalCost",
@@ -149,32 +137,13 @@ const isObservationMcpFilterType = (
 ): type is ObservationMcpFilterType =>
   type in OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE;
 
-const OBSERVATION_MCP_FILTER_SCHEMAS =
-  OBSERVATION_MCP_FILTER_COLUMN_DEFINITIONS.flatMap(({ column, type }) =>
-    isObservationMcpFilterType(type)
-      ? [OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](column)]
-      : [],
-  );
-
-const OBSERVATION_MCP_EXPLICIT_FILTER_SCHEMAS =
-  OBSERVATION_MCP_FILTER_COLUMN_DEFINITIONS.flatMap(({ column, type }) =>
-    isObservationMcpFilterType(type)
-      ? [OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](column, true)]
-      : [],
-  );
-
-const ObservationMcpFilterShapeSchema = z
-  .union([
-    ...OBSERVATION_MCP_FILTER_SCHEMAS,
-    ...OBSERVATION_MCP_EXPLICIT_FILTER_SCHEMAS,
-  ] as [
-    (typeof OBSERVATION_MCP_FILTER_SCHEMAS)[number],
-    (typeof OBSERVATION_MCP_FILTER_SCHEMAS)[number],
-    ...(
-      | (typeof OBSERVATION_MCP_FILTER_SCHEMAS)[number]
-      | (typeof OBSERVATION_MCP_EXPLICIT_FILTER_SCHEMAS)[number]
-    )[],
-  ])
+const ObservationMcpFilterBaseSchema = z
+  .object({
+    column: z.string(),
+    operator: z.string(),
+    value: z.any(),
+    type: z.string().optional(),
+  })
   .describe(
     `Advanced observation filter object. Example: ${OBSERVATION_MCP_FILTER_EXAMPLE_JSON}. The explicit form ${OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE_JSON} is also accepted.`,
   );
@@ -189,9 +158,35 @@ const ObservationMcpFilterSchema = z
         path: ["column"],
         message: `Invalid observation filter column "${filter.column}". Call getObservationFilterSchema for accepted columns.`,
       });
+      return;
+    }
+
+    const type = OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
+
+    if (!type || !isObservationMcpFilterType(type)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["type"],
+        message: `Invalid observation filter type "${String(type)}" for column "${filter.column}".`,
+      });
+      return;
+    }
+
+    const filterParseResult = OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](
+      filter.column,
+      Boolean(filter.type),
+    ).safeParse(filter);
+
+    if (!filterParseResult.success) {
+      for (const issue of filterParseResult.error.issues) {
+        ctx.addIssue({
+          code: "custom",
+          path: issue.path,
+          message: issue.message,
+        });
+      }
     }
   })
-  .pipe(ObservationMcpFilterShapeSchema)
   .transform((filter) => {
     const type =
       filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
@@ -227,7 +222,7 @@ const ListObservationsBaseSchema = z.object({
   fromStartTime: z.iso.datetime({ offset: true }).optional(),
   toStartTime: z.iso.datetime({ offset: true }).optional(),
   filter: z
-    .array(ObservationMcpFilterShapeSchema)
+    .array(ObservationMcpFilterBaseSchema)
     .optional()
     .describe(
       "Advanced filters. Each item must be an object with column, operator, value, and optional type. Type is inferred from getObservationFilterSchema columns when omitted.",
@@ -309,49 +304,54 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
     "Requests that project or filter input, output, or metadata must include traceId, an id filter, or both fromStartTime and toStartTime.",
   ].join("\n"),
-  baseSchema: ListObservationsBaseSchema as z.ZodType<ListObservationsInput>,
+  baseSchema: ListObservationsBaseSchema,
   inputSchema: ListObservationsInputSchema,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.observations.list", spanKind: SpanKind.INTERNAL },
-      async (span) => {
+    return await runMcpTool({
+      spanName: "mcp.observations.list",
+      context,
+      attributes: {
+        "mcp.pagination_limit": input.limit,
+      },
+      fn: async (span) => {
         const projectionFields = getProjectionFields(input.fields);
         const fieldGroups = getProjectionFieldGroups(projectionFields);
         assertAllowedExpensiveObservationAccess(input, projectionFields);
 
         span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.pagination_limit": input.limit,
           "mcp.projection_fields": projectionFields.join(","),
           "mcp.field_groups": fieldGroups.join(","),
         });
 
-        const items = await getObservationsV2FromEventsTableForPublicApi({
-          projectId: context.projectId,
-          page: 0,
-          limit: input.limit,
-          traceId: input.traceId,
-          userId: input.userId,
-          level: input.level,
-          name: input.name,
-          type: input.type,
-          environment: input.environment,
-          parentObservationId: input.parentObservationId,
-          fromStartTime: input.fromStartTime,
-          toStartTime: input.toStartTime,
-          version: input.version,
-          advancedFilters: input.filter,
-          cursor: input.cursor
-            ? EncodedObservationsCursorV2.parse(input.cursor)
-            : undefined,
-          fields: fieldGroups,
-          expandMetadataKeys: getMetadataExpansionForProjection(
-            projectionFields,
-            input.expandMetadataKeys,
-          ),
-        });
+        const items = await getObservationsV2FromEventsTableForPublicApi(
+          {
+            projectId: context.projectId,
+            page: 0,
+            limit: input.limit,
+            traceId: input.traceId,
+            userId: input.userId,
+            level: input.level,
+            name: input.name,
+            type: input.type,
+            environment: input.environment,
+            parentObservationId: input.parentObservationId,
+            fromStartTime: input.fromStartTime,
+            toStartTime: input.toStartTime,
+            version: input.version,
+            advancedFilters: input.filter,
+            cursor: input.cursor
+              ? EncodedObservationsCursorV2.parse(input.cursor)
+              : undefined,
+            fields: fieldGroups,
+            expandMetadataKeys: getMetadataExpansionForProjection(
+              projectionFields,
+              input.expandMetadataKeys,
+            ),
+          },
+          // MCP keeps the legacy observation filter contract. Its separate
+          // selective-scope guard above limits expensive input/output filters.
+          { allowUnindexedIoFilters: true },
+        );
 
         const hasMore = items.length > input.limit;
         const dataToReturn = hasMore ? items.slice(0, input.limit) : items;
@@ -385,7 +385,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
               : {},
         };
       },
-    );
+    });
   },
   readOnlyHint: true,
 });

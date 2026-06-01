@@ -1,12 +1,7 @@
 import type { McpFeatureModule } from "../../server/registry";
-import {
-  createCommentTool,
-  getCommentTool,
-  handleCreateComment,
-  handleGetComment,
-  handleListComments,
-  listCommentsTool,
-} from "./tools";
+import { createCommentTool, handleCreateComment } from "./tools/createComment";
+import { getCommentTool, handleGetComment } from "./tools/getComment";
+import { handleListComments, listCommentsTool } from "./tools/listComments";
 
 export const commentsFeature: McpFeatureModule = {
   name: "comments",
