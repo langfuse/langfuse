@@ -258,7 +258,7 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
         coalesce(t.release, '') as release,
         t.tags as tags,
         t.public as public,
-        t.bookmarked as bookmarked,
+        t.bookmarked AND (o.parent_observation_id IS NULL OR o.parent_observation_id = '') AS bookmarked,
         coalesce(t.name, '') AS trace_name,
         coalesce(t.user_id, '') AS user_id,
         coalesce(t.session_id, '') AS session_id,
