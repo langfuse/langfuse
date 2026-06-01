@@ -170,6 +170,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@codemirror/lang-javascript": "^6.2.5",
     "@jedmao/location": "^3.0.0",
     "@playwright/test": "^1.57.0",
     "@repo/eslint-config": "workspace:*",
