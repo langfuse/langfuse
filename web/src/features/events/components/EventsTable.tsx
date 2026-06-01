@@ -41,10 +41,8 @@ import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import {
-  toAbsoluteTimeRange,
-  type TableDateRange,
-} from "@/src/utils/date-range-utils";
+import { type TableDateRange } from "@/src/utils/date-range-utils";
+import { useAbsoluteTimeRange } from "@/src/hooks/useAbsoluteTimeRange";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
@@ -330,13 +328,7 @@ export default function ObservationsEventsTable({
     ]);
   }, [utils]);
 
-  // Convert timeRange to absolute date range for compatibility
-  // Include refreshTick to force recalculation on refresh
-  const tableDateRange = useMemo(() => {
-    // refreshTick forces recalculation but isn't used in computation
-    void refreshTick;
-    return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange, refreshTick]);
+  const tableDateRange = useAbsoluteTimeRange(timeRange, refreshTick);
 
   const dateRange = externalDateRange ?? tableDateRange;
 

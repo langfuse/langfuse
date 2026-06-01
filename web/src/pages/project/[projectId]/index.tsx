@@ -17,9 +17,9 @@ import { useMemo } from "react";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
   findClosestDashboardInterval,
-  toAbsoluteTimeRange,
   type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
+import { useAbsoluteTimeRange } from "@/src/hooks/useAbsoluteTimeRange";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
@@ -61,10 +61,7 @@ export default function Dashboard() {
   const { isBetaEnabled } = useV4Beta();
   const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
 
-  const absoluteTimeRange = useMemo(
-    () => toAbsoluteTimeRange(timeRange),
-    [timeRange],
-  );
+  const absoluteTimeRange = useAbsoluteTimeRange(timeRange) ?? null;
 
   const lookbackLimit = useEntitlementLimit("data-access-days");
 

@@ -1,10 +1,8 @@
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
 import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
-import {
-  toAbsoluteTimeRange,
-  type TimeRange,
-} from "@/src/utils/date-range-utils";
+import { type TimeRange } from "@/src/utils/date-range-utils";
+import { useAbsoluteTimeRange } from "@/src/hooks/useAbsoluteTimeRange";
 
 type UseDashboardFilterOptionsParams = {
   projectId: string;
@@ -25,10 +23,7 @@ export function useDashboardFilterOptions({
     staleTime: Infinity,
   } as const;
 
-  const absoluteTimeRange = useMemo(
-    () => toAbsoluteTimeRange(timeRange) ?? undefined,
-    [timeRange],
-  );
+  const absoluteTimeRange = useAbsoluteTimeRange(timeRange);
 
   const traceTimestampFilter = useMemo(
     () =>

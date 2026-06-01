@@ -45,7 +45,7 @@ import type Decimal from "decimal.js";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import { useAbsoluteTimeRange } from "@/src/hooks/useAbsoluteTimeRange";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import TagList from "@/src/features/tag/components/TagList";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -103,10 +103,7 @@ export default function SessionsTable({
   const { setDetailPageList } = useDetailPageLists();
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
-  // Convert timeRange to absolute date range for compatibility
-  const dateRange = useMemo(() => {
-    return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange]);
+  const dateRange = useAbsoluteTimeRange(timeRange);
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
   const userIdFilter: FilterState = userId

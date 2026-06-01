@@ -49,10 +49,8 @@ import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
-import {
-  toAbsoluteTimeRange,
-  type DashboardDateRangeOptions,
-} from "@/src/utils/date-range-utils";
+import { type DashboardDateRangeOptions } from "@/src/utils/date-range-utils";
+import { useAbsoluteTimeRange } from "@/src/hooks/useAbsoluteTimeRange";
 import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
@@ -432,10 +430,7 @@ export function WidgetForm({
     defaultRelativeAggregation: "last7Days",
   });
 
-  // Convert timeRange to absolute date range for compatibility
-  const dateRange = useMemo(() => {
-    return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange]);
+  const dateRange = useAbsoluteTimeRange(timeRange);
 
   // Convert timeRange to legacy format for DatePickerWithRange compatibility
   const selectedOption = useMemo(() => {

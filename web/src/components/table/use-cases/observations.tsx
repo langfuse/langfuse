@@ -48,10 +48,8 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
-import {
-  toAbsoluteTimeRange,
-  type TableDateRange,
-} from "@/src/utils/date-range-utils";
+import { type TableDateRange } from "@/src/utils/date-range-utils";
+import { useAbsoluteTimeRange } from "@/src/hooks/useAbsoluteTimeRange";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -277,12 +275,7 @@ export default function ObservationsTable({
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
-  // Convert timeRange to absolute date range for compatibility
-  // refreshTick forces recalculation on each refresh cycle
-  const tableDateRange = useMemo(() => {
-    return toAbsoluteTimeRange(timeRange) ?? undefined;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange, refreshTick]);
+  const tableDateRange = useAbsoluteTimeRange(timeRange, refreshTick);
 
   const dateRange = externalDateRange ?? tableDateRange;
 
