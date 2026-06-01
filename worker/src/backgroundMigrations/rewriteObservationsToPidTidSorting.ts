@@ -574,18 +574,22 @@ export default class RewriteObservationsToPidTidSorting implements IBackgroundMi
       return;
     }
 
-    // Stop merges now that the backfill is done. The subsequent migration
-    // step depends on the post-backfill part layout staying frozen and owns
-    // re-enabling (or replacing the table entirely).
-    await this.stopMergesOnScratchTable();
-    logger.info(
-      `[Backfill PidTid Sorting] Stopped merges on observations_pid_tid_sorting for downstream processing`,
-    );
-
     const failed = state.todos.filter((t) => t.status === "failed");
     if (failed.length > 0) {
+      // Backfill is incomplete. Leave merges running so a later re-run with
+      // --retry-failed can insert into a table whose parts still merge;
+      // freezing a partially populated table would let retried inserts pile
+      // up as unmerged parts (part explosion) until M5 drops it.
       logger.error(
-        `[Backfill PidTid Sorting] Migration completed with ${failed.length} failed chunks`,
+        `[Backfill PidTid Sorting] Migration completed with ${failed.length} failed chunks; leaving merges enabled on observations_pid_tid_sorting for --retry-failed`,
+      );
+    } else {
+      // Stop merges now that the backfill is done. The subsequent migration
+      // step depends on the post-backfill part layout staying frozen and owns
+      // re-enabling (or replacing the table entirely).
+      await this.stopMergesOnScratchTable();
+      logger.info(
+        `[Backfill PidTid Sorting] Stopped merges on observations_pid_tid_sorting for downstream processing`,
       );
     }
 
