@@ -3,6 +3,7 @@ import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended"
 import turboConfig from "eslint-config-turbo/flat";
 import "eslint-plugin-only-warn";
 import langfusePlugin from "@repo/eslint-plugin";
+import reactYouMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-effect";
 
 export default [
   // Global ignores - include config files
@@ -53,6 +54,9 @@ export default [
       "turbo/no-undeclared-env-vars": "off",
     },
   },
+
+  // React - You Might Not Need An Effect
+  reactYouMightNotNeedAnEffect.configs.recommended,
 
   // Prettier (last)
   eslintPluginPrettierRecommended,
