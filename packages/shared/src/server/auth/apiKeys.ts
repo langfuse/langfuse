@@ -2,7 +2,9 @@ import { PrismaClient, ApiKeyScope } from "@prisma/client";
 import { compare, hash } from "bcryptjs";
 import { randomUUID } from "crypto";
 import * as crypto from "crypto";
+import type { Cluster, Redis } from "ioredis";
 import { env } from "../../env";
+import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 
 export function getDisplaySecretKey(secretKey: string) {
   return secretKey.slice(0, 6) + "..." + secretKey.slice(-4);
@@ -85,4 +87,33 @@ export async function createAndAddApiKeysToDb(p: {
     secretKey: sk,
     displaySecretKey: displaySk,
   };
+}
+
+export async function deleteApiKeyFromDb(p: {
+  prisma: PrismaClient;
+  id: string;
+  entityId: string;
+  scope: ApiKeyScope;
+  redis?: Redis | Cluster | null;
+}) {
+  const entity =
+    p.scope === "PROJECT" ? { projectId: p.entityId } : { orgId: p.entityId };
+
+  const apiKey = await p.prisma.apiKey.findFirstOrThrow({
+    where: {
+      ...entity,
+      id: p.id,
+      scope: p.scope,
+    },
+  });
+
+  await invalidateCachedApiKeys([apiKey], `key ${p.id}`, p.redis);
+
+  await p.prisma.apiKey.delete({
+    where: {
+      id: apiKey.id,
+    },
+  });
+
+  return true;
 }

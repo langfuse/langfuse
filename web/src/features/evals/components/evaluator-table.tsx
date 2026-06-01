@@ -26,8 +26,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
 import { MoreVertical, ExternalLinkIcon, Edit, Info } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
-import { TablePeekView } from "@/src/components/table/peek";
+import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { evalConfigTargetValues } from "@/src/server/api/definitions/evalConfigsTable";
 import {
   DropdownMenu,
@@ -528,9 +527,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             />
           </div>
         </ResizableFilterLayout>
-        <TablePeekView {...peekConfig}>
-          <PeekViewEvaluatorConfigDetail projectId={projectId} />
-        </TablePeekView>
+        <TablePeekViewEvaluatorConfigDetail
+          {...peekConfig}
+          projectId={projectId}
+        />
       </div>
       <Dialog
         open={!!editConfigId && existingEvaluator.isSuccess}

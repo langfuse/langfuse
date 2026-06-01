@@ -1,6 +1,7 @@
 import { env } from "@/src/env.mjs";
 import {
   createShaHash,
+  deleteApiKeyFromDb,
   recordIncrement,
   verifySecretKey,
   type AuthHeaderVerificationResult,
@@ -61,30 +62,13 @@ export class ApiAuthService {
    * @param scope - The scope of the API key (either "PROJECT" or "ORGANIZATION").
    */
   async deleteApiKey(id: string, entityId: string, scope: ApiKeyScope) {
-    const entity =
-      scope === "PROJECT" ? { projectId: entityId } : { orgId: entityId };
-    // Make sure the API key exists and belongs to the project the user has access to
-    const apiKey = await this.prisma.apiKey.findFirstOrThrow({
-      where: {
-        ...entity,
-        id: id,
-        scope,
-      },
+    return deleteApiKeyFromDb({
+      prisma: this.prisma,
+      id,
+      entityId,
+      scope,
+      redis: this.redis,
     });
-    if (!apiKey) {
-      return false;
-    }
-
-    // if redis is available, delete the key from there as well
-    // delete from redis even if caching is disabled via env for consistency
-    await this.invalidateCachedApiKeys([apiKey], `key ${id}`);
-
-    await this.prisma.apiKey.delete({
-      where: {
-        id: apiKey.id,
-      },
-    });
-    return true;
   }
 
   async verifyAuthHeaderAndReturnScope(
