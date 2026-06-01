@@ -89,6 +89,7 @@ export const handleEventPropagationJob = async (
         SELECT DISTINCT partition
         FROM system.parts
         WHERE table = 'observations_batch_staging'
+          AND database = currentDatabase()
           AND active = 1
           AND toDateTime(partition) < now() - INTERVAL ${env.LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES} MINUTE
           ${lastProcessedPartition ? `AND partition > {lastProcessedPartition: String}` : ""}

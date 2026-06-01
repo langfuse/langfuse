@@ -130,6 +130,7 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
         SELECT partition_id, name
         FROM system.parts
         WHERE table = 'observations_pid_tid_sorting'
+          AND database = currentDatabase()
           AND active = 1
           AND partition_id NOT LIKE 'patch-%'
           AND partition_id != 'all'
@@ -166,6 +167,7 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
         SELECT count() AS count
         FROM system.parts
         WHERE table = 'observations_pid_tid_sorting'
+          AND database = currentDatabase()
           AND name = {partId: String}
           AND active = 1
       `,
@@ -184,6 +186,7 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
         SELECT name
         FROM system.parts
         WHERE table = 'observations_pid_tid_sorting'
+          AND database = currentDatabase()
           AND active = 1
       `,
       tags: {

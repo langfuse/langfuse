@@ -206,6 +206,7 @@ export async function loadPartitionsFromClickhouse(
       SELECT DISTINCT partition_id
       FROM system.parts
       WHERE table = {table: String}
+        AND database = currentDatabase()
         AND active = 1
         AND partition_id NOT LIKE 'patch-%'
         AND partition_id != 'all'
