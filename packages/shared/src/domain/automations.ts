@@ -4,13 +4,17 @@ import { z } from "zod";
 
 export enum TriggerEventSource {
   Prompt = "prompt",
+  Monitor = "monitor",
 }
 
 export const EventActionSchema = z.enum(["created", "updated", "deleted"]);
 
 export type TriggerEventAction = z.infer<typeof EventActionSchema>;
 
-export const TriggerEventSourceSchema = z.enum([TriggerEventSource.Prompt]);
+export const TriggerEventSourceSchema = z.enum([
+  TriggerEventSource.Prompt,
+  TriggerEventSource.Monitor,
+]);
 
 export type TriggerDomain = Omit<
   Trigger,

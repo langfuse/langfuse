@@ -3,6 +3,7 @@ import {
   JobConfigState,
   JobExecutionStatus,
 } from "@prisma/client";
+import { z } from "zod";
 
 export const PausedEvaluatorDisplayState = "PAUSED" as const;
 export type PausedEvaluatorDisplayState = typeof PausedEvaluatorDisplayState;
@@ -27,12 +28,27 @@ type BlockStateLike = {
   blockedAt?: Date | null;
 };
 
+export const JobConfigExecutionMode = z.enum(["LIVE", "MANUAL"]);
+export type JobConfigExecutionMode = z.infer<typeof JobConfigExecutionMode>;
+
 export function isJobConfigBlocked(config: Pick<BlockStateLike, "blockedAt">) {
   return config.blockedAt != null;
 }
 
 export function isJobConfigExecutable(config: BlockStateLike) {
   return config.status === JobConfigState.ACTIVE && !isJobConfigBlocked(config);
+}
+
+export function isJobConfigExecutableForExecutionMode(
+  config: BlockStateLike,
+  executionMode?: JobConfigExecutionMode,
+) {
+  if (executionMode === "MANUAL") {
+    // Manual batch runs bypass only the live-traffic toggle, not blocked configs.
+    return !isJobConfigBlocked(config);
+  }
+
+  return isJobConfigExecutable(config);
 }
 
 type EvaluatorBlockMetadata = {

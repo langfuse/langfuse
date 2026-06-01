@@ -2,6 +2,7 @@ import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 
 export interface EvalCapabilities {
   isNewCompatible: boolean;
@@ -15,12 +16,22 @@ export interface EvalCapabilities {
 /**
  * Hook to determine which eval configuration features are available
  * @param projectId - The project ID to check
+ * @param options - Optional configuration
+ * @param options.isCodeEvalTemplate - When true and code evals are enabled, disables legacy eval options
  * @returns Capabilities object indicating which eval features are allowed
  */
-export function useEvalCapabilities(projectId: string): EvalCapabilities {
+export function useEvalCapabilities(
+  projectId: string,
+  options?: {
+    isCodeEvalTemplate?: boolean;
+  },
+): EvalCapabilities {
   const { data: session, status: sessionStatus } = useSession();
   const isSessionLoading = sessionStatus === "loading";
   const { isBetaEnabled } = useV4Beta();
+  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const isCodeEvalConfig =
+    isCodeEvalEnabled && (options?.isCodeEvalTemplate ?? false);
 
   // Query SDK version info from events table (only when v4 beta is enabled)
   const sdkVersionInfo = api.events.getSdkVersionInfo.useQuery(
@@ -48,8 +59,9 @@ export function useEvalCapabilities(projectId: string): EvalCapabilities {
     isNewCompatible: isOtel,
     // True when v4 beta is enabled (SDK check query was run)
     compatibilityCheckWasPerformed: isBetaEnabled,
-    // Allow legacy if: not cloud OR user has legacy evals OR user can toggle v4 (existing user)
-    allowLegacy: !isLangfuseCloud || hasLegacyEvals || canToggleV4,
+    // Allow legacy if: not code eval AND (not cloud OR user has legacy evals OR user can toggle v4)
+    allowLegacy:
+      !isCodeEvalConfig && (!isLangfuseCloud || hasLegacyEvals || canToggleV4),
     // Allow propagation filters only when using OTEL and spans are propagating
     allowPropagationFilters: isOtel && isPropagating,
     isLoading:

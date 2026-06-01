@@ -12,6 +12,9 @@ const EnvSchema = z.object({
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
   EMAIL_FROM_ADDRESS: z.string().optional(),
+  // Standard SMTP URL (`smtp://`, `smtps://`) or `ses://<region>` to send via
+  // AWS SES using the default AWS credential chain (IAM role, SSO, env vars).
+  // Example: `ses://us-east-1`.
   SMTP_CONNECTION_URL: z.string().optional(),
   CLOUD_CRM_EMAIL: z.string().optional(),
   REDIS_HOST: z.string().nullish(),
@@ -149,6 +152,25 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_CODE_EVAL_EXECUTION_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_CODE_EVAL_DISPATCHER: z
+    .enum(["insecure-local", "aws-lambda"])
+    .optional(),
+  LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: z.string().optional(),
+  LANGFUSE_CODE_EVAL_AWS_LAMBDA_NODE_FUNCTION_NAME: z
+    .string()
+    .default("code-based-eval-executor-node"),
+  LANGFUSE_CODE_EVAL_AWS_LAMBDA_PYTHON_FUNCTION_NAME: z
+    .string()
+    .default("code-based-eval-executor-python"),
+  LANGFUSE_CODE_EVAL_LOCAL_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2_000),
   LANGFUSE_TRACE_UPSERT_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()
@@ -396,6 +418,7 @@ const EnvSchema = z.object({
     .default(120_000), // 2 minutes
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.

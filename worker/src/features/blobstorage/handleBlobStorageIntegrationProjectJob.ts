@@ -46,29 +46,18 @@ export async function* enrichObservationStream(
 ): AsyncGenerator<Record<string, unknown>> {
   const { getModel } = createModelCache(projectId);
 
-  const includePricing = !fieldGroups || fieldGroups.includes("usage");
   const includeModelId = !fieldGroups || fieldGroups.includes("model");
 
   for await (const row of stream) {
     const enriched: Record<string, unknown> = { ...row };
 
-    if (includePricing) {
+    if (includeModelId) {
       const modelId = row[modelIdField] as string | null | undefined;
       const model = await getModel(modelId);
       const pricing = enrichObservationWithModelData(model);
       enriched.input_price = pricing.inputPrice;
       enriched.output_price = pricing.outputPrice;
       enriched.total_price = pricing.totalPrice;
-    }
-
-    // model_export (provided_model_name, model_id, model_parameters) is fetched
-    // whenever usage OR model is requested — usage needs model_id for the
-    // pricing lookup. Drop all three when the model group was not requested so
-    // they don't leak into a usage-only export.
-    if (!includeModelId) {
-      delete enriched[modelIdField];
-      delete enriched.provided_model_name;
-      delete enriched.model_parameters;
     }
 
     // ClickHouse returns {} for Map columns even when not SELECTed — drop it
@@ -599,11 +588,18 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     notifyBlobStorageExportFailedInBackground(projectId);
 
+    const chain = formatErrorChain(error);
     logger.error(
-      `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}`,
-      error,
+      `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}: ${chain}`,
+      error instanceof Error ? { stack: error.stack } : {},
     );
-    throw error; // Rethrow to trigger retries
+    const rethrown = new Error(chain, { cause: error });
+    // Copy the original stack so BullMQ and the queue processor see the real
+    // failure site rather than this rethrow line. rethrown.stack starts with
+    // the original error's message, which won't match rethrown.message (the
+    // full chain), but structured loggers record them as separate fields.
+    if (error instanceof Error) rethrown.stack = error.stack;
+    throw rethrown;
   }
 };
 
@@ -698,4 +694,15 @@ function extractStorageErrorMessage(error: unknown): string {
 
   // Fallback: ClickHouse errors or other non-wrapped errors
   return error.message.slice(0, 1000);
+}
+
+function formatErrorChain(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const parts: string[] = [];
+  let current: unknown = error;
+  while (current instanceof Error) {
+    parts.push(current.message);
+    current = current.cause;
+  }
+  return parts.join(" caused by ");
 }

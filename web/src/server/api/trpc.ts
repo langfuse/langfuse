@@ -94,6 +94,7 @@ import {
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
 import { BaseError, parseIO } from "@langfuse/shared";
+import { type Flag } from "@/src/features/feature-flags/types";
 
 setUpSuperjson();
 
@@ -367,6 +368,23 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
 export const protectedProjectProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthedAndProjectMember);
+
+/** requireFeatureFlag gates a procedure behind a server-side feature flag. */
+export const requireFeatureFlag = (flag: Flag) =>
+  t.middleware(({ ctx, next }) => {
+    const session = ctx.session;
+    const enabled =
+      (session?.user?.featureFlags?.[flag] ?? false) ||
+      (session?.user?.admin ?? false) ||
+      (session?.environment?.enableExperimentalFeatures ?? false);
+    if (!enabled) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `Feature "${flag}" is not enabled for this user`,
+      });
+    }
+    return next();
+  });
 
 export const protectedProjectProcedureWithoutTracing = t.procedure
   .use(withErrorHandling)
