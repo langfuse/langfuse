@@ -15,9 +15,7 @@ const getFilterDimensions = (filter: JobConfiguration["filter"]): string[] => {
   const parsedFilter = z.array(singleFilter).safeParse(filter);
   if (!parsedFilter.success) return [];
 
-  return dedupeStrings(
-    parsedFilter.data.map((filterCondition) => filterCondition.column),
-  );
+  return dedupeStrings(parsedFilter.data.map(({ column }) => column));
 };
 
 const getVariableSourceFields = (
@@ -33,7 +31,9 @@ const getVariableSourceFields = (
     if (!parsedObservationMapping.success) return [];
 
     return dedupeStrings(
-      parsedObservationMapping.data.map((mapping) => mapping.selectedColumnId),
+      parsedObservationMapping.data.map(
+        ({ selectedColumnId }) => selectedColumnId,
+      ),
     );
   }
 
@@ -41,11 +41,10 @@ const getVariableSourceFields = (
   if (!parsedTraceMapping.success) return [];
 
   return dedupeStrings(
-    parsedTraceMapping.data.map((mapping) => {
-      const field = mapping.selectedColumnId;
-
-      return `${mapping.langfuseObject}.${field}`;
-    }),
+    parsedTraceMapping.data.map(
+      ({ langfuseObject, selectedColumnId }) =>
+        `${langfuseObject}.${selectedColumnId}`,
+    ),
   );
 };
 
