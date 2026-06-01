@@ -57,6 +57,7 @@ const DEFAULT_CONFIG: MigrationState["config"] = {
 
 export default class BackfillEventsFullFromObservations implements IBackgroundMigration {
   private isAborted = false;
+  private dataIntegrityViolation = false;
 
   // ============================================================================
   // State Management
@@ -518,7 +519,11 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
           state.todos[todoIndex].error =
             "Part no longer active after processing — re-run with state.chunksLoaded=false";
           await this.updateState(state);
+          // Stop scheduling/polling fast, and flag the integrity violation so
+          // run() throws after the loop. Throwing here would be swallowed by the
+          // ConcurrentQueryManager polling loop and never reach the manager.
           this.isAborted = true;
+          this.dataIntegrityViolation = true;
           return;
         }
 
@@ -580,6 +585,17 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
 
     manager.stopPolling();
 
+    // A data-integrity violation (a processed part merged into a successor not in
+    // our todo list) must halt the chain.
+    if (this.dataIntegrityViolation) {
+      const message =
+        `[Backfill Events Observations] Aborting: a processed part is no longer active — ` +
+        `its rows are in a merged successor not in this run's todo list. ` +
+        `Clear failedAt and re-run with state.chunksLoaded=false to enumerate the merged successor.`;
+      logger.error(message);
+      throw new Error(message);
+    }
+
     if (this.isAborted) {
       logger.info(
         "[Backfill Events Observations] Migration aborted. Can be resumed from current state.",
@@ -589,9 +605,11 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
 
     const failed = state.todos.filter((t) => t.status === "failed");
     if (failed.length > 0) {
-      logger.error(
-        `[Backfill Events Observations] Migration completed with ${failed.length} failed parts`,
-      );
+      const message =
+        `[Backfill Events Observations] Migration completed with ${failed.length} failed part(s); ` +
+        `clear failedAt and re-run with --retry-failed before downstream steps can proceed.`;
+      logger.error(message);
+      throw new Error(message);
     }
 
     // Final verification: confirm every completed part is still active. If a

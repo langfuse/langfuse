@@ -448,9 +448,11 @@ export default class CreateRootSpansFromTraces implements IBackgroundMigration {
 
     const failed = state.todos.filter((t) => t.status === "failed");
     if (failed.length > 0) {
-      logger.error(
-        `[Backfill Root Spans] Migration completed with ${failed.length} failed chunks`,
-      );
+      const message =
+        `[Backfill Root Spans] Migration completed with ${failed.length} failed chunk(s); ` +
+        `clear failedAt and re-run with --retry-failed before downstream steps can proceed.`;
+      logger.error(message);
+      throw new Error(message);
     }
 
     logger.info(
