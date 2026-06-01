@@ -180,11 +180,6 @@ export const BillingSwitchPlanDialog = ({
                               scheduledPlanSwitch && (
                                 <StripeKeepPlanButton
                                   orgId={organization?.id}
-                                  stripeProductId={product.stripeProductId}
-                                  onProcessing={setProcessingPlanId}
-                                  processing={
-                                    processingPlanId === product.stripeProductId
-                                  }
                                 />
                               )}
                             {!cancellation?.isCancelled &&
@@ -220,10 +215,6 @@ export const BillingSwitchPlanDialog = ({
                               isLegacySubscription={isLegacySubscription}
                               isUpgrade={isThisUpgrade}
                               stripeProductId={product.stripeProductId}
-                              onProcessing={setProcessingPlanId}
-                              processing={
-                                processingPlanId === product.stripeProductId
-                              }
                             />
                           ) : (
                             <Button className="w-full" disabled>
@@ -242,10 +233,6 @@ export const BillingSwitchPlanDialog = ({
                               isLegacySubscription={isLegacySubscription}
                               isUpgrade={isThisUpgrade}
                               stripeProductId={product.stripeProductId}
-                              onProcessing={setProcessingPlanId}
-                              processing={
-                                processingPlanId === product.stripeProductId
-                              }
                             />
                           ) : (
                             <Button className="w-full" disabled>

@@ -7,6 +7,7 @@ import { type RouterInput } from "@/src/utils/types";
 import { useEffect, useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 export function StarToggle({
   value,
@@ -63,12 +64,10 @@ export function StarTraceToggle({
     scope: "objects:bookmark",
   });
   const capture = usePostHogClientCapture();
-  const [isLoading, setIsLoading] = useState(false);
 
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
     onMutate: async (newBookmarkState) => {
       await utils.traces.all.cancel();
-      setIsLoading(true);
 
       const previousData = utils.traces.all.getData(tracesFilter);
 
@@ -76,7 +75,7 @@ export function StarTraceToggle({
         if (!old) return old;
         return {
           ...old,
-          traces: old.traces.map((trace) =>
+          traces: old.traces.map((trace: (typeof old.traces)[number]) =>
             trace.id === traceId
               ? { ...trace, bookmarked: newBookmarkState.bookmarked }
               : trace,
@@ -87,16 +86,28 @@ export function StarTraceToggle({
       return { previousData };
     },
     onError: (err, newBookmarkState, context) => {
-      setIsLoading(false);
       trpcErrorToast(err);
       if (context?.previousData) {
         utils.traces.all.setData(tracesFilter, context.previousData);
       }
     },
-    onSettled: () => {
-      setIsLoading(false);
-    },
   });
+
+  const [handleBookmarkTrace, isLoading] = useWatchedPromiseCallback(
+    async (newValue: boolean) => {
+      capture("table:bookmark_button_click", {
+        table: "traces",
+        id: traceId,
+        value: newValue,
+      });
+      await mutBookmarkTrace.mutateAsync({
+        projectId,
+        traceId,
+        bookmarked: newValue,
+      });
+    },
+    [capture, mutBookmarkTrace, projectId, traceId],
+  );
 
   return (
     <StarToggle
@@ -104,18 +115,7 @@ export function StarTraceToggle({
       size={size}
       disabled={!hasAccess}
       isLoading={isLoading}
-      onClick={(newValue) => {
-        capture("table:bookmark_button_click", {
-          table: "traces",
-          id: traceId,
-          value: newValue,
-        });
-        return mutBookmarkTrace.mutateAsync({
-          projectId,
-          traceId,
-          bookmarked: newValue,
-        });
-      }}
+      onClick={handleBookmarkTrace}
     />
   );
 }
@@ -138,7 +138,6 @@ export function StarTraceDetailsToggle({
     scope: "objects:bookmark",
   });
   const capture = usePostHogClientCapture();
-  const [isLoading, setIsLoading] = useState(false);
   const [optimisticValue, setOptimisticValue] = useState(value);
 
   useEffect(() => {
@@ -147,11 +146,9 @@ export function StarTraceDetailsToggle({
 
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
     onError: (err) => {
-      setIsLoading(false);
       trpcErrorToast(err);
     },
     onSettled: () => {
-      setIsLoading(false);
       // Refetch to ensure we have the latest data from the server
       void utils.traces.byIdWithObservationsAndScores.invalidate();
       void utils.traces.all.invalidate();
@@ -159,31 +156,35 @@ export function StarTraceDetailsToggle({
     },
   });
 
+  const [handleBookmarkTrace, isLoading] = useWatchedPromiseCallback(
+    async (nextValue: boolean) => {
+      const previousValue = optimisticValue;
+      setOptimisticValue(nextValue);
+      capture("trace_detail:bookmark_button_click", {
+        id: traceId,
+        value: nextValue,
+      });
+      try {
+        await mutBookmarkTrace.mutateAsync({
+          projectId,
+          traceId,
+          bookmarked: nextValue,
+        });
+      } catch (error) {
+        setOptimisticValue(previousValue);
+        throw error;
+      }
+    },
+    [capture, mutBookmarkTrace, optimisticValue, projectId, traceId],
+  );
+
   return (
     <StarToggle
       value={optimisticValue}
       size={size}
       disabled={!hasAccess}
       isLoading={isLoading}
-      onClick={(nextValue) => {
-        const previousValue = optimisticValue;
-        setIsLoading(true);
-        setOptimisticValue(nextValue);
-        capture("trace_detail:bookmark_button_click", {
-          id: traceId,
-          value: nextValue,
-        });
-        return mutBookmarkTrace
-          .mutateAsync({
-            projectId,
-            traceId,
-            bookmarked: nextValue,
-          })
-          .catch((error) => {
-            setOptimisticValue(previousValue);
-            throw error;
-          });
-      }}
+      onClick={handleBookmarkTrace}
     />
   );
 }

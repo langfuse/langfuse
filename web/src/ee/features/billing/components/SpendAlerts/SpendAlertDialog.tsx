@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -22,6 +21,7 @@ import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { toast } from "sonner";
 import { Info } from "lucide-react";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 const spendAlertSchema = z.object({
   title: z
@@ -56,7 +56,6 @@ export function SpendAlertDialog({
   onOpenChange,
   onSuccess,
 }: SpendAlertDialogProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const capture = usePostHogClientCapture();
 
   const form = useForm<SpendAlertFormInput, undefined, SpendAlertFormOutput>({
@@ -70,46 +69,46 @@ export function SpendAlertDialog({
   const createMutation = api.spendAlerts.createSpendAlert.useMutation();
   const updateMutation = api.spendAlerts.updateSpendAlert.useMutation();
 
-  const onSubmit = async (data: SpendAlertFormOutput) => {
-    setIsSubmitting(true);
-    try {
-      if (alert) {
-        // Update existing alert
-        await updateMutation.mutateAsync({
-          orgId,
-          id: alert.id,
-          title: data.title,
-          threshold: data.limit,
-        });
-        capture("spend_alert:updated", {
-          orgId,
-          alertId: alert.id,
-          limit: data.limit,
-        });
-        toast.success("Spend alert updated successfully");
-      } else {
-        // Create new alert
-        await createMutation.mutateAsync({
-          orgId,
-          title: data.title,
-          threshold: data.limit,
-        });
-        capture("spend_alert:created", {
-          orgId,
-          limit: data.limit,
-        });
-        toast.success("Spend alert created successfully");
+  const [onSubmit, isSubmitting] = useWatchedPromiseCallback(
+    async (data: SpendAlertFormOutput) => {
+      try {
+        if (alert) {
+          // Update existing alert
+          await updateMutation.mutateAsync({
+            orgId,
+            id: alert.id,
+            title: data.title,
+            threshold: data.limit,
+          });
+          capture("spend_alert:updated", {
+            orgId,
+            alertId: alert.id,
+            limit: data.limit,
+          });
+          toast.success("Spend alert updated successfully");
+        } else {
+          // Create new alert
+          await createMutation.mutateAsync({
+            orgId,
+            title: data.title,
+            threshold: data.limit,
+          });
+          capture("spend_alert:created", {
+            orgId,
+            limit: data.limit,
+          });
+          toast.success("Spend alert created successfully");
+        }
+        onSuccess();
+      } catch (error) {
+        console.error("Failed to save spend alert:", error);
+        toast.error(
+          `Failed to ${alert ? "update" : "create"} spend alert. Please try again.`,
+        );
       }
-      onSuccess();
-    } catch (error) {
-      console.error("Failed to save spend alert:", error);
-      toast.error(
-        `Failed to ${alert ? "update" : "create"} spend alert. Please try again.`,
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    },
+    [alert, capture, createMutation, onSuccess, orgId, updateMutation],
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

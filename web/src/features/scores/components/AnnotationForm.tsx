@@ -259,19 +259,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     remove,
   });
 
-  const [showSaving, setShowSaving] = useState(false);
-
-  useEffect(() => {
-    const isPending =
-      createMutation.isPending ||
-      updateMutation.isPending ||
-      deleteMutation.isPending;
-    setShowSaving(isPending);
-  }, [
-    createMutation.isPending,
-    updateMutation.isPending,
-    deleteMutation.isPending,
-  ]);
+  const showSaving =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    deleteMutation.isPending;
 
   const rollbackDeleteError = (
     index: number,

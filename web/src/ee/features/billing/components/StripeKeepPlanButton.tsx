@@ -13,33 +13,37 @@ import {
 import { api } from "@/src/utils/api";
 import { toast } from "sonner";
 import { nanoid } from "nanoid";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 export const StripeKeepPlanButton = ({
   orgId,
-  stripeProductId,
-  onProcessing,
-  processing,
 }: {
   orgId: string | undefined;
-  stripeProductId: string;
-  onProcessing: (id: string | null) => void;
-  processing: boolean;
 }) => {
   const [_opId, setOpId] = useState<string | null>(null);
 
   const clearSchedule = api.cloudBilling.clearPlanSwitchSchedule.useMutation({
     onSuccess: () => {
       toast.success("Kept current plan");
-      onProcessing(null);
       setOpId(null);
       setTimeout(() => window.location.reload(), 500);
     },
     onError: () => {
-      onProcessing(null);
       setOpId(null);
       toast.error("Failed to keep current plan");
     },
   });
+
+  const [handleKeepPlan, processing] = useWatchedPromiseCallback(async () => {
+    if (!orgId) return;
+    // idempotency key for mutation operations with the stripe api
+    let opId = _opId;
+    if (!opId) {
+      opId = nanoid();
+      setOpId(opId);
+    }
+    await clearSchedule.mutateAsync({ orgId, opId });
+  }, [_opId, clearSchedule, orgId]);
 
   if (!orgId) return null;
 
@@ -74,16 +78,7 @@ export const StripeKeepPlanButton = ({
           </DialogClose>
           <Button
             variant="default"
-            onClick={() => {
-              onProcessing(stripeProductId);
-              // idempotency key for mutation operations with the stripe api
-              let opId = _opId;
-              if (!opId) {
-                opId = nanoid();
-                setOpId(opId);
-              }
-              clearSchedule.mutate({ orgId, opId });
-            }}
+            onClick={() => void handleKeepPlan()}
             disabled={processing}
           >
             {processing ? "Keeping…" : "Confirm Keep Plan"}

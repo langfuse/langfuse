@@ -10,6 +10,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 export function RetryBackgroundMigration({
   backgroundMigrationName,
@@ -21,7 +22,6 @@ export function RetryBackgroundMigration({
   const utils = api.useUtils();
   const [isOpen, setIsOpen] = useState(false);
   const [adminApiKey, setAdminApiKey] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
 
   const mutRetryBackgroundMigration =
     api.backgroundMigrations.retry.useMutation({
@@ -34,17 +34,13 @@ export function RetryBackgroundMigration({
       onError: (error) => {
         toast.error(error?.message || "Failed to retry migration");
       },
-      onSettled: () => {
-        setIsLoading(false);
-      },
     });
 
-  const handleRetry = async () => {
+  const [handleRetry, isLoading] = useWatchedPromiseCallback(async () => {
     if (!adminApiKey.trim()) {
       toast.error("Admin API key is required");
       return;
     }
-    setIsLoading(true);
     try {
       await mutRetryBackgroundMigration.mutateAsync({
         name: backgroundMigrationName,
@@ -53,7 +49,7 @@ export function RetryBackgroundMigration({
     } catch (_e) {
       // Error handled in onError
     }
-  };
+  }, [adminApiKey, backgroundMigrationName, mutRetryBackgroundMigration]);
 
   return (
     <Popover open={isOpen} onOpenChange={() => setIsOpen((prev) => !prev)}>

@@ -45,6 +45,7 @@ import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderB
 import { cn } from "@/src/utils/tailwind";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 const credentialAuthForm = z.object({
   email: z.email(),
@@ -575,7 +576,6 @@ export default function SignIn({
   const [showPasswordStep, setShowPasswordStep] = useState<boolean>(
     !authProviders.sso,
   );
-  const [continueLoading, setContinueLoading] = useState<boolean>(false);
   const [lastUsedAuthMethod, setLastUsedAuthMethod] =
     useLocalStorage<NextAuthProvider | null>(
       "langfuse_last_used_auth_method",
@@ -654,70 +654,67 @@ export default function SignIn({
    *    ‑ Otherwise: reveals password input so the user can finish with credentials.
    * 3. Gracefully handles network errors and edge cases.
    */
-  async function handleContinue() {
-    setContinueLoading(true);
-    setCredentialsFormError(null);
-    credentialsForm.clearErrors();
+  const [handleContinue, continueLoading] =
+    useWatchedPromiseCallback(async () => {
+      setCredentialsFormError(null);
+      credentialsForm.clearErrors();
 
-    // Ensure email is valid before hitting the API
-    const emailSchema = z.email();
-    const email = emailSchema.safeParse(credentialsForm.getValues("email"));
-    if (!email.success) {
-      credentialsForm.setError("email", {
-        message: "Invalid email address",
-      });
-      setContinueLoading(false);
-      return;
-    }
-
-    // Extract domain and check whether SSO is configured for it
-    const domain = email.data.split("@")[1]?.toLowerCase();
-
-    try {
-      const res = await fetch(
-        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/check-sso`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ domain }),
-        },
-      );
-
-      if (res.ok) {
-        // Enterprise SSO found – redirect straight away
-        const { providerId } = await res.json();
-        capture("sign_in:button_click", { provider: "sso_auto" });
-
-        // Store the SSO provider as the last used auth method
-        setLastUsedAuthMethod(providerId as NextAuthProvider);
-
-        void signIn(providerId);
-        return; // stop further execution – page redirect expected
+      // Ensure email is valid before hitting the API
+      const emailSchema = z.email();
+      const email = emailSchema.safeParse(credentialsForm.getValues("email"));
+      if (!email.success) {
+        credentialsForm.setError("email", {
+          message: "Invalid email address",
+        });
+        return;
       }
 
-      // No SSO – fall back to password step
-      setShowPasswordStep(true);
+      // Extract domain and check whether SSO is configured for it
+      const domain = email.data.split("@")[1]?.toLowerCase();
 
-      // Auto-focus password input when password step becomes visible
-      setTimeout(() => {
-        // Find and focus the password input
-        // Ref did not work, so we use a more specific selector
-        const passwordInput = document.querySelector(
-          'input[name="password"]',
-        ) as HTMLInputElement;
-        if (passwordInput) {
-          passwordInput.focus();
+      try {
+        const res = await fetch(
+          `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/check-sso`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ domain }),
+          },
+        );
+
+        if (res.ok) {
+          // Enterprise SSO found – redirect straight away
+          const { providerId } = await res.json();
+          capture("sign_in:button_click", { provider: "sso_auto" });
+
+          // Store the SSO provider as the last used auth method
+          setLastUsedAuthMethod(providerId as NextAuthProvider);
+
+          void signIn(providerId);
+          return; // stop further execution – page redirect expected
         }
-      }, 100);
-    } catch (error) {
-      console.error(error);
-      setCredentialsFormError(
-        "Unable to check SSO configuration. Please try again.",
-      );
-    } finally {
-      setContinueLoading(false);
-    }
-  }
+
+        // No SSO – fall back to password step
+        setShowPasswordStep(true);
+
+        // Auto-focus password input when password step becomes visible
+        setTimeout(() => {
+          // Find and focus the password input
+          // Ref did not work, so we use a more specific selector
+          const passwordInput = document.querySelector(
+            'input[name="password"]',
+          ) as HTMLInputElement;
+          if (passwordInput) {
+            passwordInput.focus();
+          }
+        }, 100);
+      } catch (error) {
+        console.error(error);
+        setCredentialsFormError(
+          "Unable to check SSO configuration. Please try again.",
+        );
+      }
+    }, [capture, credentialsForm, setLastUsedAuthMethod]);
 
   return (
     <>

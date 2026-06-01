@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +10,7 @@ import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { toast } from "sonner";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 interface DeleteSpendAlertDialogProps {
   orgId: string;
@@ -27,13 +27,11 @@ export function DeleteSpendAlertDialog({
   onOpenChange,
   onSuccess,
 }: DeleteSpendAlertDialogProps) {
-  const [isDeleting, setIsDeleting] = useState(false);
   const capture = usePostHogClientCapture();
 
   const deleteMutation = api.spendAlerts.deleteSpendAlert.useMutation();
 
-  const handleDelete = async () => {
-    setIsDeleting(true);
+  const [handleDelete, isDeleting] = useWatchedPromiseCallback(async () => {
     try {
       await deleteMutation.mutateAsync({
         orgId,
@@ -48,10 +46,8 @@ export function DeleteSpendAlertDialog({
     } catch (error) {
       console.error("Failed to delete spend alert:", error);
       toast.error("Failed to delete spend alert. Please try again.");
-    } finally {
-      setIsDeleting(false);
     }
-  };
+  }, [alertId, capture, deleteMutation, onSuccess, orgId]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

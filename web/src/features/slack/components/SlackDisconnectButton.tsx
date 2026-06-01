@@ -14,6 +14,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 /**
  * Props for the SlackDisconnectButton component
@@ -81,13 +82,11 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
   showConfirmation = true,
   showText = true,
 }) => {
-  const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // Disconnect mutation
   const disconnectMutation = api.slack.disconnect.useMutation({
     onSuccess: () => {
-      setIsDisconnecting(false);
       setIsDialogOpen(false);
 
       showSuccessToast({
@@ -98,8 +97,6 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
       onSuccess?.();
     },
     onError: (error: any) => {
-      setIsDisconnecting(false);
-
       const errorMessage = error.message || "Failed to disconnect from Slack";
 
       showErrorToast("Disconnection Failed", errorMessage);
@@ -109,18 +106,15 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
   });
 
   // Handle disconnect action
-  const handleDisconnect = async () => {
-    if (isDisconnecting) return;
-
-    setIsDisconnecting(true);
-
-    try {
-      await disconnectMutation.mutateAsync({ projectId });
-    } catch (error) {
-      // Error handling is done in the mutation callbacks
-      console.error("Disconnect error:", error);
-    }
-  };
+  const [handleDisconnect, isDisconnecting] =
+    useWatchedPromiseCallback(async () => {
+      try {
+        await disconnectMutation.mutateAsync({ projectId });
+      } catch (error) {
+        // Error handling is done in the mutation callbacks
+        console.error("Disconnect error:", error);
+      }
+    }, [disconnectMutation, projectId]);
 
   // Handle button click
   const handleClick = () => {

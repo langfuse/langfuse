@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import Header from "@/src/components/layouts/header";
@@ -6,11 +5,11 @@ import { Card, CardContent } from "@/src/components/ui/card";
 import { Label } from "@/src/components/ui/label";
 import { Switch } from "@/src/components/ui/switch";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 export function NotificationSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const [isSaving, setIsSaving] = useState(false);
 
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -32,16 +31,17 @@ export function NotificationSettings() {
     },
   });
 
-  const handleToggle = async (enabled: boolean) => {
-    setIsSaving(true);
-    await updatePreference.mutateAsync({
-      projectId,
-      channel: "EMAIL",
-      type: "COMMENT_MENTION",
-      enabled,
-    });
-    setIsSaving(false);
-  };
+  const [handleToggle, isSaving] = useWatchedPromiseCallback(
+    async (enabled: boolean) => {
+      await updatePreference.mutateAsync({
+        projectId,
+        channel: "EMAIL",
+        type: "COMMENT_MENTION",
+        enabled,
+      });
+    },
+    [projectId, updatePreference],
+  );
 
   if (isLoading || !preferences) {
     return (
