@@ -262,6 +262,14 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
 
+  // V4 write mode. Mirrors worker/src/env.ts so the web package can gate
+  // public API routes that rely on the legacy traces/observations tables.
+  // The worker owns the writes; the web only needs to know whether legacy
+  // tables are still being populated to decide whether to serve reads.
+  LANGFUSE_MIGRATION_V4_WRITE_MODE: z
+    .enum(["legacy", "dual", "events_only"])
+    .default("legacy"),
+
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
   LANGFUSE_S3_RATE_ERROR_SLOWDOWN_ENABLED: z
     .enum(["true", "false"])

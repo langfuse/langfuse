@@ -498,13 +498,15 @@ export const getTraceCountOfProjectsSinceCreationDate = async ({
 };
 
 /**
- * Retrieves a trace record by its ID and associated project ID, with optional filtering by timestamp range.
- * If no timestamp filters are provided, runs two queries in parallel:
- * 1. One with a 7-day fromTimestamp filter (typically faster)
- * 2. One without any timestamp filters (complete but slower)
- * Returns the first non-empty result.
+ * Retrieves a trace record by its ID and associated project ID from the legacy
+ * `traces` table.
+ *
+ * Prefer the routing wrapper `getTraceById` (in repositories/events.ts) for
+ * application reads: it dispatches between this legacy reader and the events
+ * table based on the V4 migration flags. Call this directly only when you
+ * specifically need the legacy table (e.g. backfills, migration tooling).
  */
-export const getTraceById = async ({
+export const getTraceByIdFromTracesTable = async ({
   traceId,
   projectId,
   timestamp,

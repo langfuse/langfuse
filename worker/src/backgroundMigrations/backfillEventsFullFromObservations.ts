@@ -221,7 +221,7 @@ export default class BackfillEventsFullFromObservations implements IBackgroundMi
    * Builds the per-part INSERT into events_full.
    *
    * To keep the join scan small, we bound `traces` by a `timestamp` window aligned with the observation
-   * partition's month. This may produce some observation on the month bounday that do not have full
+   * partition's month. This may produce some observation on the month boundary that do not have full
    * propagation. Light trace property propagation only —
    * `trace.metadata` is intentionally excluded; the observation's metadata is
    * used as-is.

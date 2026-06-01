@@ -22,6 +22,7 @@ import {
   convertClickhouseToDomain,
   convertClickhouseTracesListToDomain,
 } from "./traces_converters";
+import { getTraceByIdFromTracesTable } from "./traces";
 import {
   DateTimeFilter,
   type Filter,
@@ -951,6 +952,8 @@ export const getTraceByIdFromEventsTable = async ({
   renderingProps = DEFAULT_RENDERING_PROPS,
   clickhouseFeatureTag = "tracing",
   preferredClickhouseService,
+  excludeInputOutput = false,
+  excludeMetadata = false,
 }: {
   traceId: string;
   projectId: string;
@@ -959,6 +962,10 @@ export const getTraceByIdFromEventsTable = async ({
   renderingProps?: RenderingProps;
   clickhouseFeatureTag?: string;
   preferredClickhouseService?: PreferredClickhouseService;
+  /** When true, sets input/output columns to empty in the query to reduce database load */
+  excludeInputOutput?: boolean;
+  /** When true, sets metadata column to empty in the query to reduce database load */
+  excludeMetadata?: boolean;
 }) => {
   // Build traces CTE using eventsTracesAggregation
   // Pass truncated flag to select events_core (truncated) or events_full (full I/O)
@@ -979,7 +986,6 @@ export const getTraceByIdFromEventsTable = async ({
       "t.id",
       "t.name",
       "t.user_id",
-      "t.metadata",
       "t.release",
       "t.version",
       "t.project_id",
@@ -992,6 +998,7 @@ export const getTraceByIdFromEventsTable = async ({
       "t.created_at",
       "t.updated_at",
     )
+    .select(excludeMetadata ? "'{}' as metadata" : "t.metadata")
     .select("0 as is_deleted");
 
   if (timestamp) {
@@ -1005,7 +1012,9 @@ export const getTraceByIdFromEventsTable = async ({
 
   // Handle input/output with truncation
   // Note: eventsTracesAggregation above is responsible for choosing events_core/events_full
-  if (renderingProps.truncated) {
+  if (excludeInputOutput) {
+    queryBuilder.select("'' as input").select("'' as output");
+  } else if (renderingProps.truncated) {
     queryBuilder
       .select(
         `leftUTF8(t.input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input`,
@@ -1060,6 +1069,21 @@ export const getTraceByIdFromEventsTable = async ({
   });
 
   return res.shift();
+};
+
+/**
+ * Routing wrapper for "trace by id" reads.
+ *
+ * If data is only written into the events tables, we look there and go to
+ * traces otherwise.
+ */
+export const getTraceById = async (
+  params: Parameters<typeof getTraceByIdFromTracesTable>[0],
+) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only") {
+    return getTraceByIdFromTracesTable(params);
+  }
+  return getTraceByIdFromEventsTable(params);
 };
 
 type PublicApiObservationsQuery = {
