@@ -358,6 +358,28 @@ const query = `
 `;
 ```
 
+**`is_deleted` on ReplacingMergeTree tables is a dormant artifact — do not filter on it.**
+
+The `traces`, `observations`, and `scores` tables are declared
+as `ReplacingMergeTree(event_ts, is_deleted)`, which gives the
+engine an `is_deleted` deletion column. However, **no
+production code writes `is_deleted = 1`**. A full repo search
+for `is_deleted: 1` returns zero hits. All actual deletes use
+ClickHouse's lightweight `DELETE FROM` mutation (e.g.
+`deleteObservationsByTraceIds`,
+`deleteObservationsByProjectId`,
+`deleteObservationsOlderThanDays`), which marks rows via the
+engine-managed `_row_exists` column. `_row_exists` is handled
+transparently by the read path; it does **not** require any
+special query handling.
+
+What this means for query authors:
+
+- **Do not add `WHERE is_deleted = 0` filters** to reads. The
+  column is always `0` in practice, so the filter is dead
+  weight that obscures intent. Reviewers should reject this
+  unless soft-delete writes have actually been introduced.
+
 **3. Use time-based filtering for performance:**
 
 ```typescript
