@@ -29,12 +29,25 @@ export class ScoresApiService {
   async createScore({
     body,
     auth,
+    auditScope,
     scoreId = body.id ?? randomUUID(),
   }: {
     body: z.infer<typeof PostScoresBodyV1>;
     auth: AuthHeaderValidVerificationResultIngestion;
+    auditScope?: { projectId: string; orgId: string; apiKeyId: string };
     scoreId?: string;
   }) {
+    const existingScore = auditScope
+      ? await _handleGetScoreById({
+          projectId: auditScope.projectId,
+          scoreId,
+          scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
+          scoreDataTypes:
+            this.apiVersion === "v1" ? LISTABLE_SCORE_TYPES : undefined,
+          preferredClickhouseService: "ReadOnly",
+        })
+      : undefined;
+
     const result = await processEventBatch(
       [
         {
@@ -46,6 +59,25 @@ export class ScoresApiService {
       ],
       auth,
     );
+
+    if (
+      auditScope &&
+      result.errors.length === 0 &&
+      result.successes.length === 1
+    ) {
+      await auditLog({
+        action: existingScore ? "update" : "create",
+        resourceType: "score",
+        resourceId: scoreId,
+        projectId: auditScope.projectId,
+        orgId: auditScope.orgId,
+        apiKeyId: auditScope.apiKeyId,
+        before: existingScore
+          ? convertScoreToPublicApi(existingScore)
+          : undefined,
+        after: { ...body, id: scoreId },
+      });
+    }
 
     return { id: scoreId, result };
   }

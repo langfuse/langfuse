@@ -56,6 +56,7 @@ describe("dashboard widget minVersion", () => {
             cloudConfig: undefined,
             metadata: {},
             aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: projectId,

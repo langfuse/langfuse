@@ -383,8 +383,6 @@ export default function ScoresTable({
   const getCountPayload = {
     projectId,
     filter: backendFilterState,
-    page: 0,
-    limit: 1,
     orderBy: null,
   };
 

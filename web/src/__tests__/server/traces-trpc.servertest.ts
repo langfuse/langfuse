@@ -18,9 +18,15 @@ import waitForExpect from "wait-for-expect";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { BatchExportFileFormat, BatchTableNames } from "@langfuse/shared";
 
 describe("traces trpc", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  const mutableEnv = env as unknown as {
+    LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH: "true" | "false";
+  };
+  const originalLegacyIoSearchDisabled =
+    mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH;
 
   const session: Session = {
     expires: "1",
@@ -58,7 +64,63 @@ describe("traces trpc", () => {
   const ctx = createInnerTRPCContext({ session });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
+  afterEach(() => {
+    mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH =
+      originalLegacyIoSearchDisabled;
+  });
+
   describe("traces.all", () => {
+    it("ignores legacy full-text-only search when legacy IO search is disabled", async () => {
+      mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH = "true";
+      const tag = `legacy-io-search-disabled-${randomUUID()}`;
+      const matchingName = `legacy-io-search-disabled-name-${randomUUID()}`;
+
+      const traces = [
+        createTrace({
+          project_id: projectId,
+          name: matchingName,
+          tags: [tag],
+        }),
+        createTrace({
+          project_id: projectId,
+          name: "legacy-io-search-disabled-other-trace",
+          tags: [tag],
+        }),
+      ];
+
+      await createTracesCh(traces);
+
+      const result = await caller.traces.all({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(new Date().getTime() - 1000).toISOString(),
+          },
+          {
+            column: "tags",
+            operator: "any of",
+            value: [tag],
+            type: "arrayOptions",
+          },
+        ],
+        searchQuery: matchingName,
+        searchType: ["content"],
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(result.traces.map((t) => t.id).sort()).toEqual(
+        traces.map((t) => t.id).sort(),
+      );
+    });
+
     it("list traces for default view", async () => {
       const trace = createTrace({
         project_id: projectId,
@@ -551,6 +613,30 @@ describe("traces trpc", () => {
       expect(metrics[0]?.scores[aggregateKey]?.values).toEqual(
         expect.arrayContaining([0.4, 0.8]),
       );
+    });
+  });
+
+  describe("batchExport.create", () => {
+    it("rejects new legacy full-text batch exports when legacy IO search is disabled", async () => {
+      mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH = "true";
+
+      await expect(
+        caller.batchExport.create({
+          projectId,
+          name: "Legacy IO search export",
+          format: BatchExportFileFormat.CSV,
+          query: {
+            tableName: BatchTableNames.Traces,
+            filter: [],
+            searchQuery: "expensive search",
+            searchType: ["content"],
+            orderBy: {
+              column: "timestamp",
+              order: "DESC",
+            },
+          },
+        }),
+      ).rejects.toThrow("Input/output search is disabled");
     });
   });
 

@@ -510,8 +510,8 @@ Use the nearest package `AGENTS.md` as the source of truth for current test
 commands.
 
 Common targeted forms:
-- Web server tests: `pnpm --filter web run test -- <pattern>`
-- Web client tests: `pnpm --filter web run test-client -- <pattern>`
+- Web server tests: `pnpm --filter web run test <file-or-pattern>`
+- Web client tests: `pnpm --filter web run test-client <file-or-pattern>`
 - Worker tests: `pnpm --filter worker run test <file-or-pattern>`
 
 ---

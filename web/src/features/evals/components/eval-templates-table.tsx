@@ -11,9 +11,8 @@ import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import TableIdOrName from "@/src/components/table/table-id";
-import { PeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
+import { TablePeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekView } from "@/src/components/table/peek";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useRouter } from "next/router";
@@ -38,7 +37,17 @@ import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Badge } from "@/src/components/ui/badge";
 import { getTemplateResultType } from "@/src/features/evals/utils/template-output";
-import { type EvalTemplate } from "@langfuse/shared";
+import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
+  type EvalTemplate,
+} from "@langfuse/shared";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import {
+  CODE_EVAL_ESCAPE_CONFIRM_MESSAGE,
+  shouldShowEvalTemplate,
+} from "@/src/features/evals/utils/code-eval-template-utils";
+import { SiPython, SiTypescript } from "react-icons/si";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -51,10 +60,52 @@ export type EvalsTemplateRow = {
   actions?: string;
   provider?: string;
   model?: string;
+  type?: EvalTemplateType;
+  sourceCodeLanguage?: EvalTemplate["sourceCodeLanguage"];
 };
 
 const getMaintainerLabel = (maintainer: string) =>
   maintainer.replace(/ maintained$/, "");
+
+const getCodeEvalLanguageLabel = (
+  sourceCodeLanguage?: EvalTemplate["sourceCodeLanguage"],
+) =>
+  sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+    ? "Python"
+    : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
+      ? "TypeScript"
+      : "Code";
+
+const TemplateTypeBadge = ({
+  type,
+  sourceCodeLanguage,
+}: {
+  type?: EvalTemplateType;
+  sourceCodeLanguage?: EvalTemplate["sourceCodeLanguage"];
+}) => {
+  if (type === EvalTemplateType.CODE) {
+    const label = getCodeEvalLanguageLabel(sourceCodeLanguage);
+    const Icon =
+      sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+        ? SiPython
+        : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
+          ? SiTypescript
+          : null;
+
+    return (
+      <Badge className="w-fit gap-1.5" variant="outline-solid">
+        {Icon ? <Icon className="h-3 w-3" aria-hidden="true" /> : null}
+        {label}
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge className="w-fit gap-1.5" variant="outline-solid">
+      LLM-as-judge
+    </Badge>
+  );
+};
 
 const templateTableRowHeights: CustomHeights = {
   s: "h-8",
@@ -68,6 +119,7 @@ export default function EvalsTemplateTable({
   projectId: string;
 }) {
   const router = useRouter();
+  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
@@ -162,11 +214,15 @@ export default function EvalsTemplateTable({
       const { templates: templateList = [] } = templates.data ?? {};
       setDetailPageList(
         "eval-templates",
-        templateList.map((template) => ({ id: template.latestId })),
+        templateList
+          .filter((template) =>
+            shouldShowEvalTemplate(template, isCodeEvalEnabled),
+          )
+          .map((template) => ({ id: template.latestId })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [templates.isSuccess, templates.data]);
+  }, [templates.isSuccess, templates.data, isCodeEvalEnabled]);
 
   const columnHelper = createColumnHelper<EvalsTemplateRow>();
 
@@ -178,6 +234,17 @@ export default function EvalsTemplateTable({
         const name = row.getValue();
         return name ? <TableIdOrName value={name} /> : undefined;
       },
+    }),
+    columnHelper.accessor("type", {
+      id: "type",
+      header: "Type",
+      size: 120,
+      cell: ({ row }) => (
+        <TemplateTypeBadge
+          type={row.original.type}
+          sourceCodeLanguage={row.original.sourceCodeLanguage}
+        />
+      ),
     }),
     columnHelper.accessor("resultType", {
       id: "resultType",
@@ -253,7 +320,10 @@ export default function EvalsTemplateTable({
         const id = row.original.id;
         const provider = row.original.provider ?? null;
         const model = row.original.model ?? null;
-        const isInvalid = isTemplateInvalid({ provider, model });
+        const type = row.original.type;
+        const isInvalid = isTemplateInvalid({ provider, model, type });
+        const isCodeTemplate = type === EvalTemplateType.CODE;
+        const isUserMaintained = row.original.maintainer.includes("User");
 
         return (
           <div className="flex flex-row gap-2">
@@ -281,7 +351,7 @@ export default function EvalsTemplateTable({
             >
               Use Evaluator
             </ActionButton>
-            {!row.original.maintainer.includes("User") ? (
+            {!isUserMaintained && !isCodeTemplate ? (
               <Button
                 aria-label="clone"
                 variant="outline"
@@ -295,7 +365,8 @@ export default function EvalsTemplateTable({
               >
                 <Copy className="h-3 w-3" />
               </Button>
-            ) : (
+            ) : null}
+            {isUserMaintained ? (
               <Button
                 aria-label="edit"
                 variant="outline"
@@ -309,7 +380,7 @@ export default function EvalsTemplateTable({
               >
                 <Pen className="h-3 w-3" />
               </Button>
-            )}
+            ) : null}
           </div>
         );
       },
@@ -347,7 +418,10 @@ export default function EvalsTemplateTable({
   ): EvalsTemplateRow => {
     return {
       name: template.name,
-      resultType: getTemplateResultType(template.outputDefinition),
+      resultType:
+        template.type === EvalTemplateType.CODE
+          ? "Code-defined"
+          : getTemplateResultType(template.outputDefinition),
       maintainer: getMaintainer(template),
       latestCreatedAt: template.latestCreatedAt,
       latestVersion: template.version,
@@ -355,6 +429,8 @@ export default function EvalsTemplateTable({
       usageCount: template.usageCount,
       provider: template.provider,
       model: template.model,
+      type: template.type,
+      sourceCodeLanguage: template.sourceCodeLanguage,
     };
   };
 
@@ -393,9 +469,11 @@ export default function EvalsTemplateTable({
                   : {
                       isLoading: false,
                       isError: false,
-                      data: safeExtract(templates.data, "templates", []).map(
-                        (t) => convertToTableRow(t),
-                      ),
+                      data: safeExtract(templates.data, "templates", [])
+                        .filter((template) =>
+                          shouldShowEvalTemplate(template, isCodeEvalEnabled),
+                        )
+                        .map((t) => convertToTableRow(t)),
                     }
             }
             pagination={{
@@ -408,16 +486,24 @@ export default function EvalsTemplateTable({
           />
         </div>
       </div>
-      <TablePeekView {...peekConfig}>
-        <PeekViewEvaluatorTemplateDetail projectId={projectId} />
-      </TablePeekView>
+      <TablePeekViewEvaluatorTemplateDetail
+        {...peekConfig}
+        projectId={projectId}
+      />
       <Dialog
         open={!!editTemplateId && template.isSuccess}
         onOpenChange={(open) => {
           if (!open) setEditTemplateId(null);
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
+        <DialogContent
+          className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto"
+          confirmCloseOnEscape={
+            template.data?.type === EvalTemplateType.CODE
+              ? CODE_EVAL_ESCAPE_CONFIRM_MESSAGE
+              : undefined
+          }
+        >
           <DialogHeader>
             <DialogTitle>Edit evaluator</DialogTitle>
           </DialogHeader>
@@ -447,7 +533,14 @@ export default function EvalsTemplateTable({
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
+        <DialogContent
+          className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto"
+          confirmCloseOnEscape={
+            cloneTemplate.data?.type === EvalTemplateType.CODE
+              ? CODE_EVAL_ESCAPE_CONFIRM_MESSAGE
+              : undefined
+          }
+        >
           <DialogHeader>
             <DialogTitle>Clone evaluator</DialogTitle>
           </DialogHeader>
@@ -464,6 +557,7 @@ export default function EvalsTemplateTable({
                     vars: cloneTemplate.data.vars,
                     outputDefinition: cloneTemplate.data
                       .outputDefinition as EvalTemplate["outputDefinition"],
+                    type: cloneTemplate.data.type,
                     provider: cloneTemplate.data.provider,
                     model: cloneTemplate.data.model,
                     modelParams: cloneTemplate.data.modelParams as any,

@@ -21,11 +21,16 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 import { prisma } from "@langfuse/shared/src/db";
 import { nanoid } from "nanoid";
+import { z } from "zod";
 import {
   createMcpTestSetup,
   createPromptInDb,
   verifyAuditLog,
 } from "./mcp-helpers";
+import {
+  DeleteDatasetRunMcpInput,
+  PostDatasetItemMcpInput,
+} from "@/src/features/mcp/features/datasets/schema";
 
 // Import MCP tool handlers directly
 import { handleCreateTextPrompt } from "@/src/features/mcp/features/prompts/tools/createTextPrompt";
@@ -33,6 +38,22 @@ import { handleCreateChatPrompt } from "@/src/features/mcp/features/prompts/tool
 import { handleUpdatePromptLabels } from "@/src/features/mcp/features/prompts/tools/updatePromptLabels";
 
 describe("MCP Write Tools", () => {
+  describe("dataset tool schemas", () => {
+    it("uses dataset IDs for existing dataset write addressing", () => {
+      for (const schema of [
+        PostDatasetItemMcpInput,
+        DeleteDatasetRunMcpInput,
+      ]) {
+        const jsonSchema = z.toJSONSchema(schema, { unrepresentable: "any" });
+        const properties = jsonSchema.properties as Record<string, unknown>;
+
+        expect(properties).toHaveProperty("datasetId");
+        expect(properties).not.toHaveProperty("datasetName");
+        expect(properties).not.toHaveProperty("name");
+      }
+    });
+  });
+
   describe("createTextPrompt tool", () => {
     it("should create a simple text prompt", async () => {
       const { context } = await createMcpTestSetup();

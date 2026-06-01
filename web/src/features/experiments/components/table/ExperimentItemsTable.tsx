@@ -50,10 +50,7 @@ import {
   getExperimentColorStyles,
 } from "./types";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
-import {
-  type DataTablePeekViewProps,
-  TablePeekView,
-} from "@/src/components/table/peek";
+import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
 import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
@@ -66,8 +63,7 @@ import {
 } from "@/src/features/experiments/hooks/useExperimentItemsFilterOptions";
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
-import { useRouter } from "next/router";
-import { PeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
+import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
 
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
@@ -253,7 +249,6 @@ export default function ExperimentItemsTable({
   projectId,
   hideControls = false,
 }: ExperimentItemsTableProps) {
-  const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
@@ -953,9 +948,6 @@ export default function ExperimentItemsTable({
     };
   }, [peekNavigationProps, canUsePeek]);
 
-  const peekId =
-    typeof router.query.peek === "string" ? router.query.peek : undefined;
-
   const rows: ExperimentItemsTableRow[] = useMemo(() => {
     if (items.status === "success" && items.rows) {
       // Add 'id' field for DataTable row identification (peek view requires it)
@@ -1200,12 +1192,10 @@ export default function ExperimentItemsTable({
 
         {/* Peek view panel */}
         {peekConfig && (
-          <TablePeekView
+          <TablePeekViewExperimentItemDetail
             {...peekConfig}
-            title={peekId ? `Experiment Item: ${peekId}` : undefined}
-          >
-            <PeekViewExperimentItemDetail projectId={projectId} />
-          </TablePeekView>
+            projectId={projectId}
+          />
         )}
 
         {/* Run Evaluation Dialog */}

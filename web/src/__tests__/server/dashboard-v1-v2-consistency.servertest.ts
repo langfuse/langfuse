@@ -477,6 +477,7 @@ describe("dashboard v1 vs v2 consistency", () => {
             cloudConfig: undefined,
             metadata: {},
             aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: projectId,

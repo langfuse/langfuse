@@ -48,14 +48,17 @@ export const promptsFeature: McpFeatureModule = {
     {
       definition: getPromptTool,
       handler: handleGetPrompt,
+      allowInAppAgentKey: true,
     },
     {
       definition: getPromptUnresolvedTool,
       handler: handleGetPromptUnresolved,
+      allowInAppAgentKey: true,
     },
     {
       definition: listPromptsTool,
       handler: handleListPrompts,
+      allowInAppAgentKey: true,
     },
     {
       definition: createTextPromptTool,

@@ -1,35 +1,28 @@
-import { SpanKind } from "@opentelemetry/api";
 import {
   GetScoreQueryV2,
   GetScoreResponseV2,
   InternalServerError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import {
-  instrumentAsync,
-  logger,
-  traceException,
-} from "@langfuse/shared/src/server";
+import { logger, traceException } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 
 export const [getScoreTool, handleGetScore] = defineTool({
   name: "getScore",
-  description:
-    "Fetch one score by ID from the current Langfuse project using the v2 /api/public/v2/scores/{scoreId} semantics. Returns the public score object directly.",
+  description: [
+    "Fetch one score by ID from the current Langfuse project.",
+    "Score reads are eventually consistent: a score created with createScore may not be returned by getScore immediately. If a newly created score is not found, wait briefly and retry.",
+  ].join("\n"),
   baseSchema: GetScoreQueryV2,
   inputSchema: GetScoreQueryV2,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.scores.get", spanKind: SpanKind.INTERNAL },
-      async (span) => {
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.score_id": input.scoreId,
-        });
-
+    return await runMcpTool({
+      spanName: "mcp.scores.get",
+      context,
+      attributes: { "mcp.score_id": input.scoreId },
+      fn: async () => {
         const scoresApiService = new ScoresApiService("v2");
         const score = await scoresApiService.getScoreById({
           projectId: context.projectId,
@@ -49,7 +42,7 @@ export const [getScoreTool, handleGetScore] = defineTool({
 
         return parsedScore.data;
       },
-    );
+    });
   },
   readOnlyHint: true,
 });

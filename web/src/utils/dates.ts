@@ -60,7 +60,7 @@ export const getTimezoneDetails = () => {
 };
 
 export const getRelativeTimestampFromNow = (timestamp: Date): string => {
-  const diffInMs = new Date().getTime() - timestamp.getTime();
+  const diffInMs = Math.max(0, new Date().getTime() - timestamp.getTime());
   const diffInMinutes = diffInMs / (1000 * 60);
   const diffInHours = diffInMinutes / 60;
   const diffInDays = diffInHours / 24;
