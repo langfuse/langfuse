@@ -166,8 +166,7 @@ export const handleEventPropagationJob = async (
             t.release,
             t.tags,
             t.bookmarked,
-            t.public,
-            t.metadata
+            t.public
           from traces t
           where t.project_id in (select arrayJoin(project_ids) from batch_stats)
             and t.id in (select arrayJoin(trace_ids) from batch_stats)
@@ -276,9 +275,9 @@ export const handleEventPropagationJob = async (
 
           coalesce(obs.input, '') AS input,
           coalesce(obs.output, '') AS output,
-          -- Merge trace and observation metadata, with observation taking precedence (first map wins)
-          mapKeys(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_names,
-          mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_values,
+          -- Propagate observation metadata only; trace metadata is intentionally not merged
+          mapKeys(obs.metadata) AS metadata_names,
+          mapValues(obs.metadata) AS metadata_values,
           multiIf(mapContains(obs.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
           '' AS blob_storage_file_path,
           byteSize(*) AS event_bytes,
