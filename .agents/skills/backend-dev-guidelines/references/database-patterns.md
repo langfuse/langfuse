@@ -358,27 +358,33 @@ const query = `
 `;
 ```
 
-**`is_deleted` on ReplacingMergeTree tables is a dormant artifact — do not filter on it.**
+**`is_deleted` on `traces`, `observations`, and `scores` is dormant — avoid new filters.**
 
-The `traces`, `observations`, and `scores` tables are declared
-as `ReplacingMergeTree(event_ts, is_deleted)`, which gives the
-engine an `is_deleted` deletion column. However, **no
-production code writes `is_deleted = 1`**. A full repo search
-for `is_deleted: 1` returns zero hits. All actual deletes use
+These three tables are declared as
+`ReplacingMergeTree(event_ts, is_deleted)`, but no production
+code writes `is_deleted = 1` for them — all deletes use
 ClickHouse's lightweight `DELETE FROM` mutation (e.g.
 `deleteObservationsByTraceIds`,
 `deleteObservationsByProjectId`,
 `deleteObservationsOlderThanDays`), which marks rows via the
 engine-managed `_row_exists` column. `_row_exists` is handled
-transparently by the read path; it does **not** require any
-special query handling.
+transparently by the read path; no special query handling is
+needed.
 
 What this means for query authors:
 
-- **Do not add `WHERE is_deleted = 0` filters** to reads. The
-  column is always `0` in practice, so the filter is dead
-  weight that obscures intent. Reviewers should reject this
-  unless soft-delete writes have actually been introduced.
+- **`WHERE is_deleted = 0` filters on these three tables are
+  dead weight in practice.** A few legacy reads still carry
+  them (e.g. `web/src/features/score-analytics/server/`); new
+  code should not add them unless soft-delete writes have
+  actually been introduced.
+
+**Separate case: `blob_storage_file_log`.** This table is also
+a `ReplacingMergeTree` but **does** use soft-delete
+intentionally — `ingestionFileDeletion.ts` writes
+`is_deleted: "1"`, `batch-project-blob-cleaner` reads with
+`countIf(is_deleted = 1)`. The guidance above does not apply
+to it.
 
 **3. Use time-based filtering for performance:**
 
