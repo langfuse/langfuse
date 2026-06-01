@@ -27,7 +27,7 @@ export const ParamPromptName = z
 
 /**
  * Prompt label parameter (optional)
- * Defaults to "production" if not specified
+ * Defaults to "latest" if not specified
  */
 export const ParamPromptLabel = z
   .string()
@@ -36,7 +36,7 @@ export const ParamPromptLabel = z
   .regex(PROMPT_LABEL_REGEX, PROMPT_LABEL_REGEX_ERROR)
   .optional()
   .describe(
-    'Label to retrieve (e.g., "production", "staging"). Defaults to "production".',
+    'Label to retrieve (e.g., "production", "staging"). Defaults to "latest".',
   );
 
 /**

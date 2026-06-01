@@ -2051,27 +2051,70 @@ describe("MCP Read Tools", () => {
       ).resolves.toBeDefined();
     });
 
-    it("should fetch prompt by name only (defaults to production label)", async () => {
+    it("should fetch prompt by name only (defaults to latest label)", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const promptName = `test-prompt-${nanoid()}`;
 
-      // Create a prompt with production label
       await createPromptInDb({
         name: promptName,
-        prompt: "You are a helpful assistant.",
+        prompt: "Production prompt",
         projectId,
         labels: ["production"],
         version: 1,
       });
 
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Latest prompt",
+        projectId,
+        labels: ["latest"],
+        version: 2,
+      });
+
       const result = (await handleGetPrompt({ name: promptName }, context)) as {
         name: string;
         version: number;
+        prompt: string;
         labels: string[];
       };
 
       expect(result.name).toBe(promptName);
+      expect(result.version).toBe(2);
+      expect(result.prompt).toBe("Latest prompt");
+      expect(result.labels).toContain("latest");
+    });
+
+    it("should fetch production prompt when production label is explicit", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const promptName = `test-prompt-${nanoid()}`;
+
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Production prompt",
+        projectId,
+        labels: ["production"],
+        version: 1,
+      });
+
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Latest prompt",
+        projectId,
+        labels: ["latest"],
+        version: 2,
+      });
+
+      const result = (await handleGetPrompt(
+        { name: promptName, label: "production" },
+        context,
+      )) as {
+        version: number;
+        prompt: string;
+        labels: string[];
+      };
+
       expect(result.version).toBe(1);
+      expect(result.prompt).toBe("Production prompt");
       expect(result.labels).toContain("production");
     });
 
@@ -2205,14 +2248,14 @@ describe("MCP Read Tools", () => {
         name: promptName,
         prompt: "Project 1 content",
         projectId: projectId1,
-        labels: ["production"],
+        labels: ["production", "latest"],
       });
 
       await createPromptInDb({
         name: promptName,
         prompt: "Project 2 content",
         projectId: projectId2,
-        labels: ["production"],
+        labels: ["production", "latest"],
       });
 
       // Each context should only see its own project's prompt
@@ -2237,7 +2280,7 @@ describe("MCP Read Tools", () => {
         name: promptName,
         prompt: "Special chars test",
         projectId,
-        labels: ["production"],
+        labels: ["production", "latest"],
       });
 
       const result = (await handleGetPrompt({ name: promptName }, context)) as {
@@ -2254,7 +2297,7 @@ describe("MCP Read Tools", () => {
         name: promptName,
         prompt: "Test",
         projectId,
-        labels: ["production"],
+        labels: ["production", "latest"],
         config: { model: "gpt-4", temperature: 0.7 },
       });
 
@@ -2273,7 +2316,7 @@ describe("MCP Read Tools", () => {
         name: promptName,
         prompt: "Test",
         projectId,
-        labels: ["production"],
+        labels: ["production", "latest"],
         tags: ["experimental", "v2"],
       });
 
@@ -2678,20 +2721,27 @@ describe("MCP Read Tools", () => {
       ).resolves.toBeDefined();
     });
 
-    it("should fetch prompt without resolving dependencies (by name only)", async () => {
+    it("should fetch latest prompt without resolving dependencies by default", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const promptName = `test-prompt-unresolved-${nanoid()}`;
 
-      // Create a prompt with dependency tags (unresolved)
       const rawPromptContent =
         "You are a helpful assistant. @@@langfusePrompt:name=base-instructions|label=production@@@";
 
       await createPromptInDb({
         name: promptName,
-        prompt: rawPromptContent,
+        prompt: "Production prompt",
         projectId,
         labels: ["production"],
         version: 1,
+      });
+
+      await createPromptInDb({
+        name: promptName,
+        prompt: rawPromptContent,
+        projectId,
+        labels: ["latest"],
+        version: 2,
       });
 
       const result = (await handleGetPromptUnresolved(
@@ -2705,8 +2755,8 @@ describe("MCP Read Tools", () => {
       };
 
       expect(result.name).toBe(promptName);
-      expect(result.version).toBe(1);
-      expect(result.labels).toContain("production");
+      expect(result.version).toBe(2);
+      expect(result.labels).toContain("latest");
       // Verify dependency tags are NOT resolved
       expect(result.prompt).toBe(rawPromptContent);
       expect(result.prompt).toContain(
@@ -2822,7 +2872,7 @@ describe("MCP Read Tools", () => {
         name: promptName,
         prompt: chatMessages,
         projectId,
-        labels: ["production"],
+        labels: ["production", "latest"],
         version: 1,
         type: "chat",
       });
