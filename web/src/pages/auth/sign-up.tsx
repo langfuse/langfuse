@@ -85,6 +85,10 @@ function StandardSignupFlow({
   const queryTargetPath = router.query.targetPath as string | undefined;
   const emailParam = router.query.email as string | undefined;
 
+  const hasSsoProviders = Object.entries(authProviders).some(
+    ([name, enabled]) => enabled && name !== "credentials" && name !== "sso",
+  );
+
   // Validate targetPath to prevent open redirect attacks
   const targetPath = queryTargetPath
     ? getSafeRedirectPath(queryTargetPath)
@@ -302,7 +306,7 @@ function StandardSignupFlow({
             ) : null}
           </form>
         </Form>
-      ) : (
+      ) : hasSsoProviders ? (
         emailParam && (
           <div className="text-muted-foreground mb-6 text-center text-sm">
             You have been invited as{" "}
@@ -310,6 +314,48 @@ function StandardSignupFlow({
             Please sign up with an SSO provider to accept the invitation.
           </div>
         )
+      ) : authProviders.sso ? (
+        <div className="text-muted-foreground mb-6 text-center text-sm">
+          {emailParam ? (
+            <>
+              You have been invited as{" "}
+              <span className="text-primary font-semibold">{emailParam}</span>.
+              Please{" "}
+              <Link
+                href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
+                className="text-primary-accent hover:text-hover-primary-accent font-semibold"
+              >
+                sign in
+              </Link>{" "}
+              to accept the invitation using your organization's SSO.
+            </>
+          ) : (
+            <>
+              Sign-up is disabled, but you can{" "}
+              <Link
+                href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
+                className="text-primary-accent hover:text-hover-primary-accent font-semibold"
+              >
+                sign in
+              </Link>{" "}
+              using your organization's SSO.
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="text-muted-foreground mb-6 text-center text-sm">
+          {emailParam ? (
+            <>
+              You have been invited as{" "}
+              <span className="text-primary font-semibold">{emailParam}</span>,
+              but sign-up is disabled because password authentication is
+              disabled and no SSO providers are configured. Please contact your
+              administrator.
+            </>
+          ) : (
+            "Sign-up is disabled because no authentication methods are enabled. Please contact your administrator."
+          )}
+        </div>
       )}
       <SSOButtons
         authProviders={authProviders}
@@ -328,6 +374,10 @@ function VerifiedSignupFlow({
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const emailParam = router.query.email as string | undefined;
+
+  const hasSsoProviders = Object.entries(authProviders).some(
+    ([name, enabled]) => enabled && name !== "credentials" && name !== "sso",
+  );
 
   const [formError, setFormError] = useState<string | null>(null);
   const [phase, setPhase] = useState<SignupPhase>("form");
@@ -537,7 +587,7 @@ function VerifiedSignupFlow({
             ) : null}
           </form>
         </Form>
-      ) : (
+      ) : hasSsoProviders ? (
         emailParam && (
           <div className="text-muted-foreground mb-6 text-center text-sm">
             You have been invited as{" "}
@@ -545,6 +595,48 @@ function VerifiedSignupFlow({
             Please sign up with an SSO provider to accept the invitation.
           </div>
         )
+      ) : authProviders.sso ? (
+        <div className="text-muted-foreground mb-6 text-center text-sm">
+          {emailParam ? (
+            <>
+              You have been invited as{" "}
+              <span className="text-primary font-semibold">{emailParam}</span>.
+              Please{" "}
+              <Link
+                href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
+                className="text-primary-accent hover:text-hover-primary-accent font-semibold"
+              >
+                sign in
+              </Link>{" "}
+              to accept the invitation using your organization's SSO.
+            </>
+          ) : (
+            <>
+              Sign-up is disabled, but you can{" "}
+              <Link
+                href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
+                className="text-primary-accent hover:text-hover-primary-accent font-semibold"
+              >
+                sign in
+              </Link>{" "}
+              using your organization's SSO.
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="text-muted-foreground mb-6 text-center text-sm">
+          {emailParam ? (
+            <>
+              You have been invited as{" "}
+              <span className="text-primary font-semibold">{emailParam}</span>,
+              but sign-up is disabled because password authentication is
+              disabled and no SSO providers are configured. Please contact your
+              administrator.
+            </>
+          ) : (
+            "Sign-up is disabled because no authentication methods are enabled. Please contact your administrator."
+          )}
+        </div>
       )}
       <SSOButtons
         authProviders={authProviders}

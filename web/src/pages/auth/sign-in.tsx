@@ -231,7 +231,7 @@ export function SSOButtons({
   return (
     // any authprovider from props is enabled
     Object.entries(authProviders).some(
-      ([name, enabled]) => enabled && name !== "credentials",
+      ([name, enabled]) => enabled && name !== "credentials" && name !== "sso",
     ) ? (
       <div>
         {showSeparator ? (
@@ -591,6 +591,12 @@ export default function SignIn({
   );
   const hasMultipleAuthMethods = availableProviders.length > 1;
 
+  // True when at least one static OAuth provider (Google, GitHub, etc.) is configured.
+  // Used to show the "all auth disabled" fallback message when neither credentials nor SSO are enabled.
+  const hasSsoProviders = Object.entries(authProviders).some(
+    ([name, enabled]) => enabled && name !== "credentials" && name !== "sso",
+  );
+
   // Read query params for targetPath and email pre-population
   const queryTargetPath = router.query.targetPath as string | undefined;
   const emailParam = router.query.email as string | undefined;
@@ -695,6 +701,14 @@ export default function SignIn({
         return; // stop further execution – page redirect expected
       }
 
+      // No SSO found
+      if (!authProviders.credentials) {
+        setCredentialsFormError(
+          "Password sign-in is disabled, and no SSO provider is configured for this domain."
+        );
+        return;
+      }
+
       // No SSO – fall back to password step
       setShowPasswordStep(true);
 
@@ -749,14 +763,14 @@ export default function SignIn({
 
         <div className="bg-background mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <div className="space-y-6">
-            {/* Email / (optional) password form – only when credentials auth is enabled */}
-            {authProviders.credentials && (
+            {/* Email / (optional) password form – when credentials auth is enabled OR dynamic SSO is configured */}
+            {authProviders.credentials || authProviders.sso ? (
               <div>
                 <Form {...credentialsForm}>
                   <form
                     className="space-y-6"
                     onSubmit={
-                      showPasswordStep
+                      showPasswordStep && authProviders.credentials
                         ? credentialsForm.handleSubmit(onCredentialsSubmit)
                         : (e) => {
                             e.preventDefault();
@@ -784,8 +798,8 @@ export default function SignIn({
                       )}
                     />
 
-                    {/* Password only shown once we know SSO is not configured */}
-                    {showPasswordStep && (
+                    {/* Password only shown once we know SSO is not configured AND credentials are enabled */}
+                    {showPasswordStep && authProviders.credentials && (
                       <FormField
                         control={credentialsForm.control}
                         name="password"
@@ -816,34 +830,41 @@ export default function SignIn({
                       type="submit"
                       className="w-full"
                       loading={
-                        showPasswordStep
+                        showPasswordStep && authProviders.credentials
                           ? credentialsForm.formState.isSubmitting
                           : continueLoading
                       }
                       disabled={
                         credentialsForm.watch("email") === "" ||
                         (showPasswordStep &&
+                          authProviders.credentials &&
                           credentialsForm.watch("password") === "")
                       }
                       data-testid="submit-email-password-sign-in-form"
                     >
-                      {showPasswordStep ? "Sign in" : "Continue"}
+                      {showPasswordStep && authProviders.credentials ? "Sign in" : "Continue"}
                     </Button>
                   </form>
                 </Form>
-                <div
-                  className={cn(
-                    "text-muted-foreground mt-1 text-center text-xs",
-                    hasMultipleAuthMethods &&
-                      lastUsedAuthMethod === "credentials"
-                      ? "block"
-                      : "hidden",
-                  )}
-                >
-                  Last used
-                </div>
+                {authProviders.credentials && (
+                  <div
+                    className={cn(
+                      "text-muted-foreground mt-1 text-center text-xs",
+                      hasMultipleAuthMethods &&
+                        lastUsedAuthMethod === "credentials"
+                        ? "block"
+                        : "hidden",
+                    )}
+                  >
+                    Last used
+                  </div>
+                )}
               </div>
-            )}
+            ) : !hasSsoProviders ? (
+              <div className="text-muted-foreground text-center text-sm">
+                Sign-in is disabled because no authentication methods are enabled. Please contact your administrator.
+              </div>
+            ) : null}
             {credentialsFormError ? (
               <div className="text-destructive text-center text-sm font-medium">
                 {credentialsFormError}
