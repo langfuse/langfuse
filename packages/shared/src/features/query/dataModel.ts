@@ -943,8 +943,8 @@ function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
         aggs: { agg: "min" },
         alias: "timestamp",
         type: "datetime",
-        uiHidden: true,
-        description: "Earliest score timestamp in the group.",
+        description:
+          "Score timestamp. Use min/max to return the earliest/latest matching score timestamp.",
       },
     },
     tableRelations: createScoreTableRelations(version),
@@ -993,8 +993,8 @@ function scoresCategoricalViewBase(version: "v1" | "v2"): ViewDeclarationType {
         aggs: { agg: "min" },
         alias: "timestamp",
         type: "datetime",
-        uiHidden: true,
-        description: "Earliest score timestamp in the group.",
+        description:
+          "Score timestamp. Use min/max to return the earliest/latest matching score timestamp.",
       },
     },
     tableRelations: createScoreTableRelations(version),
@@ -1392,8 +1392,8 @@ export const eventsObservationsView: ViewDeclarationType = {
       aggs: { agg: "min" },
       alias: "startTime",
       type: "datetime",
-      uiHidden: true,
-      description: "Earliest start time of the observations.",
+      description:
+        "Observation start time. Use min/max to return the earliest/latest matching observation start time.",
     },
   },
   tableRelations: {

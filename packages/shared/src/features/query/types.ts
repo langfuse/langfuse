@@ -50,7 +50,6 @@ export const viewDeclaration = z.object({
       type: z.string().optional(),
       unit: z.string().optional(),
       aggs: z.record(z.string(), z.string()).optional(),
-      uiHidden: z.boolean().optional(),
       // When set, the query builder will auto-include this dimension if it is absent.
       // Used for pairExpand value-alias measures (e.g. costByType requires costType so
       // the ARRAY JOIN is emitted and "cost_value" is in scope).

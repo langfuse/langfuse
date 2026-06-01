@@ -882,11 +882,7 @@ export function WidgetForm({
     // For pivot tables, only show measures that still have available aggregations
     if (selectedChartType === "PIVOT_TABLE") {
       return Object.entries(viewDeclaration.measures)
-        .filter(([measureKey, measure]) => {
-          if (measure.uiHidden) {
-            return false;
-          }
-
+        .filter(([measureKey]) => {
           // For count, there's only one aggregation option
           if (measureKey === "count") {
             return !selectedMetrics.some((m) => m.measure === "count");
@@ -918,7 +914,6 @@ export function WidgetForm({
 
     // For regular charts, show all metrics
     return Object.entries(viewDeclaration.measures)
-      .filter(([_, measure]) => !measure.uiHidden)
       .map(([key]) => ({
         value: key,
         label: startCase(key),
@@ -955,11 +950,7 @@ export function WidgetForm({
     if (selectedChartType === "PIVOT_TABLE") {
       const viewDeclaration = viewDeclarations[viewVersion][selectedView];
       return Object.entries(viewDeclaration.measures)
-        .filter(([measureKey, measure]) => {
-          if (measure.uiHidden) {
-            return false;
-          }
-
+        .filter(([measureKey]) => {
           // For count, there's only one aggregation option
           if (measureKey === "count") {
             return !selectedMetrics.some(

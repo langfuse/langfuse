@@ -4460,6 +4460,13 @@ describe("getValidAggregationsForMeasureType", () => {
   it("restricted set contains only count and uniq", () => {
     expect(getValidAggregationsForMeasureType("string")).toEqual(restricted);
   });
+
+  it("datetime set contains only min and max", () => {
+    expect(getValidAggregationsForMeasureType("datetime")).toEqual([
+      "min",
+      "max",
+    ]);
+  });
 });
 
 describe("query builder measure-aggregation validation", () => {
@@ -4505,6 +4512,31 @@ describe("query builder measure-aggregation validation", () => {
     expect(result.query).toContain("entity_dimension");
     expect(result.query).not.toContain("JOIN events_core");
   });
+
+  it.each([
+    ["scores-numeric", "timestamp"],
+    ["scores-categorical", "timestamp"],
+    ["observations", "startTime"],
+  ] as const)(
+    "should accept max aggregation for %s.%s",
+    async (view, measure) => {
+      const query: QueryType = {
+        view,
+        dimensions: [],
+        metrics: [{ measure, aggregation: "max" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: "2025-01-01T00:00:00.000Z",
+        toTimestamp: "2025-03-01T00:00:00.000Z",
+        orderBy: null,
+      };
+
+      const queryBuilder = new QueryBuilder(undefined, "v2");
+      const result = await queryBuilder.build(query, randomUUID());
+
+      expect(result.query).toContain(`max_${measure}`);
+    },
+  );
 
   it("should reject invalid aggregation for string measure", async () => {
     const query: QueryType = {
