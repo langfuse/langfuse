@@ -447,6 +447,11 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
 
       const childSpans = findAllChildren(rootSpanId, childMap);
       if (childSpans.length > config.maxDescendantsPerDri) {
+        // Persist the DRIs enriched so far before halting.
+        if (allEnrichedSpans.length > 0) {
+          writeEnrichedSpans(allEnrichedSpans);
+        }
+
         throw new DescendantCapExceededError(
           dri,
           childSpans.length,
