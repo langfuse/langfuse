@@ -12,6 +12,11 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { heatMapTextColor } from "@/src/components/trace/lib/helpers";
 import { isPresent } from "@langfuse/shared";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 export function TimelineBar({
   node,
@@ -29,7 +34,13 @@ export function TimelineBar({
   commentCount,
   scores,
 }: TimelineBarProps) {
-  const { startOffset, itemWidth, firstTokenTimeOffset, latency } = metrics;
+  const {
+    startOffset,
+    itemWidth,
+    firstTokenTimeOffset,
+    timeToFirstToken,
+    latency,
+  } = metrics;
   const duration = latency ? latency * 1000 : undefined;
   const hasChildren = node.children.length > 0;
 
@@ -46,7 +57,7 @@ export function TimelineBar({
       >
         <div
           className={cn(
-            "border-border flex rounded-sm border",
+            "border-border relative flex rounded-sm border",
             isSelected
               ? "ring-primary-accent ring-3"
               : "group-hover:ring-tertiary group-hover:ring-3",
@@ -62,6 +73,21 @@ export function TimelineBar({
             style={{ width: `${firstTokenWidth}px` }}
           />
 
+          {/* Diamond marker at the first-token split point with TTFT tooltip */}
+          {isPresent(timeToFirstToken) && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  className="bg-primary-accent hover:bg-hover-primary-accent absolute top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 cursor-default"
+                  style={{ left: `${firstTokenWidth}px` }}
+                />
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                Time to first token: {formatIntervalSeconds(timeToFirstToken)}
+              </TooltipContent>
+            </Tooltip>
+          )}
+
           {/* Completion time bar */}
           <div
             className={cn(
@@ -71,7 +97,7 @@ export function TimelineBar({
             style={{ width: `${completionWidth}px` }}
           >
             <div className="text-muted-foreground -ml-8 flex flex-row items-center justify-start gap-2 text-xs">
-              <span className="text-xxs text-primary">First token</span>
+              <span className="text-primary text-xs">First token</span>
               <ItemBadge type={node.type} isSmall />
               <span className="text-primary text-sm font-medium whitespace-nowrap">
                 {node.name}
