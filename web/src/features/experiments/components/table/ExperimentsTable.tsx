@@ -549,7 +549,7 @@ export default function ExperimentsTable({
       params.append("c", id);
     });
 
-    void router.push(
+    router.push(
       `/project/${projectId}/experiments/results?${params.toString()}`,
     );
   }, [selectedExperimentIds, projectId, router]);
@@ -713,7 +713,7 @@ export default function ExperimentsTable({
                   }
                   // For normal clicks, navigate to experiment detail page
                   else {
-                    void router.push(
+                    router.push(
                       `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(row.id)}`,
                     );
                   }

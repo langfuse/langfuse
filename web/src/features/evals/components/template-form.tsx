@@ -416,9 +416,7 @@ export const InnerEvalTemplateForm = (props: {
         if (props.preventRedirect) {
           return;
         }
-        void router.push(
-          `/project/${props.projectId}/evals/templates/${res.id}`,
-        );
+        router.push(`/project/${props.projectId}/evals/templates/${res.id}`);
       })
       .catch((error) => {
         if ("message" in error && typeof error.message === "string") {

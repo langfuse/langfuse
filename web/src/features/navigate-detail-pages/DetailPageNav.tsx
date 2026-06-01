@@ -39,7 +39,7 @@ export const DetailPageNav = (props: {
         return;
       }
 
-      void router.push(
+      router.push(
         path({
           id: encodeURIComponent(entry.id),
           params: entry.params,

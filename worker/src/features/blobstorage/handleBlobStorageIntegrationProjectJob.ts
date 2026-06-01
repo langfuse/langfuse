@@ -604,7 +604,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
 };
 
 function notifyBlobStorageExportFailedInBackground(projectId: string): void {
-  void (async () => {
+  (async () => {
     try {
       const cooldownMs =
         env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *

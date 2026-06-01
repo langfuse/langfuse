@@ -210,7 +210,7 @@ export default function ObservationsTable({
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
     setManualRefreshTrigger((t) => t + 1);
-    void Promise.all([
+    Promise.all([
       utils.generations.all.invalidate(),
       utils.generations.countAll.invalidate(),
       utils.generations.filterOptions.invalidate(),
