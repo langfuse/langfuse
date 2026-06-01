@@ -20,6 +20,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import {
@@ -36,6 +37,17 @@ import {
 import { handleCreateTextPrompt } from "@/src/features/mcp/features/prompts/tools/createTextPrompt";
 import { handleCreateChatPrompt } from "@/src/features/mcp/features/prompts/tools/createChatPrompt";
 import { handleUpdatePromptLabels } from "@/src/features/mcp/features/prompts/tools/updatePromptLabels";
+import { handleCreateAnnotationQueue } from "@/src/features/mcp/features/annotationQueues/tools";
+
+const createScoreConfig = async (projectId: string) =>
+  prisma.scoreConfig.create({
+    data: {
+      id: nanoid(),
+      projectId,
+      name: `mcp-score-${nanoid()}`,
+      dataType: "NUMERIC",
+    },
+  });
 
 describe("MCP Write Tools", () => {
   describe("dataset tool schemas", () => {
@@ -51,6 +63,143 @@ describe("MCP Write Tools", () => {
         expect(properties).not.toHaveProperty("datasetName");
         expect(properties).not.toHaveProperty("name");
       }
+    });
+  });
+
+  describe("createAnnotationQueue tool", () => {
+    it("should create a basic annotation queue", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const scoreConfig = await createScoreConfig(projectId);
+      const queueName = `mcp-queue-${nanoid()}`;
+
+      const result = (await handleCreateAnnotationQueue(
+        {
+          name: queueName,
+          description: "MCP queue",
+          scoreConfigIds: [scoreConfig.id],
+        },
+        context,
+      )) as {
+        id: string;
+        name: string;
+        description: string;
+        scoreConfigIds: string[];
+      };
+
+      expect(result.id).toBeDefined();
+      expect(result.name).toBe(queueName);
+      expect(result.description).toBe("MCP queue");
+      expect(result.scoreConfigIds).toEqual([scoreConfig.id]);
+
+      await expect(
+        prisma.annotationQueue.findUniqueOrThrow({
+          where: { id: result.id, projectId },
+        }),
+      ).resolves.toMatchObject({
+        name: queueName,
+        scoreConfigIds: [scoreConfig.id],
+      });
+    });
+
+    it("returns a friendly error for duplicate annotation queue names", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const scoreConfig = await createScoreConfig(projectId);
+      const queueName = `mcp-queue-${nanoid()}`;
+
+      await handleCreateAnnotationQueue(
+        {
+          name: queueName,
+          description: "MCP queue",
+          scoreConfigIds: [scoreConfig.id],
+        },
+        context,
+      );
+
+      await expect(
+        handleCreateAnnotationQueue(
+          {
+            name: queueName,
+            description: "Duplicate MCP queue",
+            scoreConfigIds: [scoreConfig.id],
+          },
+          context,
+        ),
+      ).rejects.toThrow("A queue with this name already exists.");
+    });
+
+    it("enforces the hobby plan annotation queue limit", async () => {
+      const previousCloudRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+
+      try {
+        const { context, projectId, orgId } = await createMcpTestSetup();
+        const scoreConfig = await createScoreConfig(projectId);
+
+        await prisma.organization.update({
+          where: { id: orgId },
+          data: { cloudConfig: { plan: "Hobby" } },
+        });
+
+        await handleCreateAnnotationQueue(
+          {
+            name: `mcp-queue-${nanoid()}`,
+            description: "First MCP queue",
+            scoreConfigIds: [scoreConfig.id],
+          },
+          context,
+        );
+
+        await expect(
+          handleCreateAnnotationQueue(
+            {
+              name: `mcp-queue-${nanoid()}`,
+              description: "Second MCP queue",
+              scoreConfigIds: [scoreConfig.id],
+            },
+            context,
+          ),
+        ).rejects.toThrow(
+          "Maximum number of annotation queues reached on Hobby plan.",
+        );
+      } finally {
+        if (previousCloudRegion === undefined) {
+          delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+        } else {
+          process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = previousCloudRegion;
+        }
+      }
+    });
+
+    it("returns a friendly error when P2034 follows score config deletion", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const scoreConfig = await createScoreConfig(projectId);
+      const transactionSpy = vi
+        .spyOn(prisma, "$transaction")
+        .mockImplementationOnce(async () => {
+          await prisma.scoreConfig.delete({ where: { id: scoreConfig.id } });
+          throw new Prisma.PrismaClientKnownRequestError(
+            "Transaction failed due to a write conflict or a deadlock.",
+            {
+              code: "P2034",
+              clientVersion: "test",
+            },
+          );
+        });
+
+      await expect(
+        handleCreateAnnotationQueue(
+          {
+            name: `mcp-queue-${nanoid()}`,
+            description: "MCP queue",
+            scoreConfigIds: [scoreConfig.id],
+          },
+          context,
+        ),
+      ).rejects.toThrow(
+        "At least one of the score config IDs cannot be found for the given project.",
+      );
+
+      transactionSpy.mockRestore();
     });
   });
 
