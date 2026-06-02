@@ -242,6 +242,31 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(score!.value).toBe("excellent");
     });
 
+    it("CORRECTION score has string value from longStringValue", async () => {
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          value: 0,
+          long_string_value: "This is the corrected output",
+          data_type: "CORRECTION",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores",
+        undefined,
+        auth,
+      );
+
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score!.value).toBe("This is the corrected output");
+    });
+
     it("TEXT score has string value", async () => {
       const scoreId = v4();
       await createScoresCh([
