@@ -572,6 +572,7 @@ describe("updateSchedulerProperties", () => {
       nextRunAt: null,
       lastPublishedAt: null,
       lastCompletedAt: null,
+      lastClaimedAt: null,
     });
   });
 

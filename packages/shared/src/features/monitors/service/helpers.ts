@@ -291,6 +291,7 @@ export const updateSchedulerProperties = (
   nextRunAt?: null;
   lastPublishedAt?: null;
   lastCompletedAt?: null;
+  lastClaimedAt?: null;
 } => {
   if (current === next) return {};
   return {
@@ -298,6 +299,7 @@ export const updateSchedulerProperties = (
     nextRunAt: null,
     lastPublishedAt: null,
     lastCompletedAt: null,
+    lastClaimedAt: null, // void the complete() CAS guard for an in-flight worker on the old query shape
   };
 };
 
