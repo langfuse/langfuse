@@ -93,7 +93,9 @@ export function ServerList({
         {servers?.map((server) => (
           <button
             key={server.id}
-            onClick={() => onSelectServer(server as AgentStudioServerRecord)}
+            onClick={() =>
+              onSelectServer(server as unknown as AgentStudioServerRecord)
+            }
             className={cn(
               "group hover:bg-accent flex w-full items-start gap-2 px-3 py-2 text-left text-sm",
               selectedServerId === server.id && "bg-accent",
@@ -118,12 +120,12 @@ export function ServerList({
                 tabIndex={0}
                 className="hover:bg-background cursor-pointer rounded p-0.5"
                 onClick={(e) =>
-                  handleEdit(server as AgentStudioServerRecord, e)
+                  handleEdit(server as unknown as AgentStudioServerRecord, e)
                 }
                 onKeyDown={(e) =>
                   e.key === "Enter" &&
                   handleEdit(
-                    server as AgentStudioServerRecord,
+                    server as unknown as AgentStudioServerRecord,
                     e as unknown as React.MouseEvent,
                   )
                 }
@@ -135,12 +137,12 @@ export function ServerList({
                 tabIndex={0}
                 className="hover:bg-background cursor-pointer rounded p-0.5"
                 onClick={(e) =>
-                  handleDelete(server as AgentStudioServerRecord, e)
+                  handleDelete(server as unknown as AgentStudioServerRecord, e)
                 }
                 onKeyDown={(e) =>
                   e.key === "Enter" &&
                   handleDelete(
-                    server as AgentStudioServerRecord,
+                    server as unknown as AgentStudioServerRecord,
                     e as unknown as React.MouseEvent,
                   )
                 }

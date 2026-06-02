@@ -252,7 +252,7 @@ export default function AgentStudioPage() {
 
   useEffect(() => {
     if (!selectedServer && servers && servers.length > 0) {
-      setSelectedServer(servers[0] as AgentStudioServerRecord);
+      setSelectedServer(servers[0] as unknown as AgentStudioServerRecord);
     }
   }, [servers, selectedServer]);
 
