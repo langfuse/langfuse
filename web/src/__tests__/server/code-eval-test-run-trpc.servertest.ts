@@ -1,5 +1,24 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, afterAll, vi } from "vitest";
+import type * as SharedEnvModule from "@langfuse/shared/src/env";
+
+vi.hoisted(() => {
+  process.env.LANGFUSE_CODE_EVAL_DISPATCHER = "insecure-local";
+});
+
+vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof SharedEnvModule>();
+
+  return {
+    ...actual,
+    env: {
+      ...actual.env,
+      LANGFUSE_CODE_EVAL_DISPATCHER: "insecure-local",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    },
+  };
+});
+
 import type { Session } from "next-auth";
 import {
   EvalTemplateSourceCodeLanguage,
@@ -20,10 +39,6 @@ import {
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { EvalTargetObject } from "@langfuse/shared";
-
-vi.hoisted(() => {
-  process.env.LANGFUSE_CODE_EVAL_DISPATCHER = "insecure-local";
-});
 
 const orgIds: string[] = [];
 
