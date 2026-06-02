@@ -449,6 +449,17 @@ export const datasetRouter = createTRPCRouter({
             projectId: input.projectId,
           },
         },
+        select: {
+          id: true,
+          projectId: true,
+          name: true,
+          description: true,
+          metadata: true,
+          inputSchema: true,
+          expectedOutputSchema: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       });
     }),
   runById: protectedProjectProcedure
@@ -1704,6 +1715,12 @@ export const datasetRouter = createTRPCRouter({
   getRemoteExperiment: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
       const dataset = await ctx.prisma.dataset.findUnique({
         where: {
           id_projectId: { id: input.datasetId, projectId: input.projectId },
