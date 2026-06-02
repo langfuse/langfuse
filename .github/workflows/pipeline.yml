@@ -36,6 +36,20 @@ env:
   CI_CACHE_ALLOWED: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
 jobs:
+  test-slack-workflow-webhook:
+    if: github.event_name == 'pull_request' && github.event.action == 'synchronize' && github.head_ref == 'slack-workflow-webhooks'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          title: "Slack Workflow Webhook PR Synchronize Test"
+          message: "Temporary test notification from PR #${{ github.event.pull_request.number }}."
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
+
   pre-job:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
