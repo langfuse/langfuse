@@ -25,7 +25,7 @@ export const DeleteModelButton = ({
   const capture = usePostHogClientCapture();
   const mut = api.models.delete.useMutation({
     onSuccess: () => {
-      void utils.models.invalidate();
+      utils.models.invalidate();
       onSuccess?.();
     },
   });

@@ -1,3 +1,33 @@
+import { beforeEach, vi } from "vitest";
+import type * as SharedEnvModule from "@langfuse/shared/src/env";
+
+const { runCodeEvalTestForJobConfigMock } = vi.hoisted(() => {
+  process.env.LANGFUSE_CODE_EVAL_DISPATCHER = "insecure-local";
+  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_UI = "true";
+
+  return {
+    runCodeEvalTestForJobConfigMock: vi.fn(),
+  };
+});
+
+vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof SharedEnvModule>();
+
+  return {
+    ...actual,
+    env: {
+      ...actual.env,
+      LANGFUSE_CODE_EVAL_DISPATCHER: "insecure-local",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    },
+  };
+});
+
+vi.mock("@/src/features/evals/server/codeEvalTestRun", () => ({
+  runCodeEvalTest: vi.fn(),
+  runCodeEvalTestForJobConfig: runCodeEvalTestForJobConfigMock,
+}));
+
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
@@ -14,21 +44,6 @@ import {
   EvaluatorBlockReason,
 } from "@langfuse/shared";
 import type { Session } from "next-auth";
-import { beforeEach, vi } from "vitest";
-
-const { runCodeEvalTestForJobConfigMock } = vi.hoisted(() => {
-  process.env.NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED = "true";
-  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_UI = "true";
-
-  return {
-    runCodeEvalTestForJobConfigMock: vi.fn(),
-  };
-});
-
-vi.mock("@/src/features/evals/server/codeEvalTestRun", () => ({
-  runCodeEvalTest: vi.fn(),
-  runCodeEvalTestForJobConfig: runCodeEvalTestForJobConfigMock,
-}));
 
 beforeEach(() => {
   runCodeEvalTestForJobConfigMock.mockReset();
@@ -427,6 +442,25 @@ describe("evals trpc", () => {
         ]),
         [evalJobConfig2.id]: [],
       });
+    });
+  });
+
+  describe("evals.createTemplate", () => {
+    it("rejects Python code evaluators for the insecure-local dispatcher", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.evals.createTemplate({
+          projectId: project.id,
+          name: `python-code-template-${project.id}`,
+          type: EvalTemplateType.CODE,
+          sourceCode:
+            'def evaluate(ctx):\n    return { "scores": [{ "name": "python-score", "value": 1 }] }',
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.PYTHON,
+        }),
+      ).rejects.toThrow(
+        "This code evaluator language is not supported by the configured dispatcher.",
+      );
     });
   });
 

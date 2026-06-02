@@ -14,7 +14,10 @@ import {
 import { TRPCError } from "@trpc/server";
 import { assertUnreachable } from "@/src/utils/types";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
-import { isCodeEvalEnabled } from "@/src/features/evals/server/isCodeEvalEnabled";
+import {
+  isCodeEvalEnabled,
+  isCodeEvalSourceCodeLanguageSupported,
+} from "@/src/features/evals/server/isCodeEvalEnabled";
 
 export const CODE_EVAL_TEMPLATE_VARIABLES = [
   "input",
@@ -141,6 +144,13 @@ export async function validateEvalTemplateCreation(
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Code evals are not enabled",
+        });
+      }
+      if (!isCodeEvalSourceCodeLanguageSupported(input.sourceCodeLanguage)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "This code evaluator language is not supported by the configured dispatcher.",
         });
       }
       return;

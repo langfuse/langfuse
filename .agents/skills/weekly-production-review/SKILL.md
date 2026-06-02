@@ -48,7 +48,11 @@ output.
    follow-ups; use the status page as the customer-facing source of truth.
 3. Gather Datadog alert/page signals for the window. Use incident.io alerts or
    escalations when they represent pages; use Datadog monitor/event data when
-   available. Group repeated firings of the same monitor instead of counting
+   available. First build the exhaustive alert universe by paginating through
+   Datadog events until no more results remain for the window; do not rely on a
+   truncated first page, sampled titles, or a few spot checks. Cover all prod
+   envs in scope even when one site is noisy or one env looks quiet. After the
+   full pass, group repeated firings of the same monitor instead of counting
    every notification as a separate event.
 4. Gather Linear bugs from the `bug` label first. Include all `bug`-labeled
    tickets created, updated, completed, or still-open with production evidence
@@ -167,6 +171,16 @@ the primary narrative. Use these verdicts:
 Group repeated pages by monitor name or ID, environment, service/team, and
 trigger reason. Exclude or clearly mark SLO/burn-rate monitors, test monitors,
 and maintenance-window noise when the review is about actionable breakage.
+The table must still account for every production Datadog alert cluster found
+in the full event pass, including clusters later classified as `expected/test`,
+`monitor noise`, or `unknown/no measurements`.
+
+Before finalizing the review, perform a completeness check:
+
+1. Compare the final Datadog table against the full paginated event sweep.
+2. Confirm every production monitor title seen during the window appears in the
+   table or is explicitly excluded as non-prod.
+3. If a known title is missing, add it before writing the narrative summary.
 
 `Linked Event` should be the canonical incident.io reference, Linear issue key,
 or explicit disposition. Do not leave a real page as `none` unless the next

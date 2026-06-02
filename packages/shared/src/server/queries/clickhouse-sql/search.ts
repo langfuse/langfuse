@@ -10,7 +10,7 @@ const regexIndefiniteCharacters = "%";
  * UTF-16 surrogate pair). ASCII is left untouched.
  *
  * Trace / observation `input` and `output` ingested through that path is persisted in ClickHouse
- * verbatim in this escaped form (e.g. `你好` is stored as the literal `你好`), so a
+ * verbatim in this escaped form (e.g. `你好` is stored as the literal `\u4f60\u597d`), so a
  * substring search for the raw, human-readable text would never match it. By also searching for
  * this escaped form we recover full-text search for non-English content. See issue #11538.
  */

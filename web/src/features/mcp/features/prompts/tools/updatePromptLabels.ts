@@ -32,7 +32,7 @@ const UpdatePromptLabelsBaseSchema = z.object({
   newLabels: z
     .array(z.string())
     .describe(
-      "Array of new labels to assign to the prompt version (can be empty to remove all labels)",
+      "Array of new labels to assign to the prompt version (can be empty to remove all labels). The 'latest' label is auto-managed and cannot be supplied.",
     ),
 });
 

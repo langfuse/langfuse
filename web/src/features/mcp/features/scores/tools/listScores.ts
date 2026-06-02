@@ -91,6 +91,7 @@ export const [listScoresTool, handleListScores] = defineTool({
     "Find scores in Langfuse.",
     "Use this to review quality, evaluation, or feedback scores for traces, observations, sessions, and dataset runs.",
     "Filter by score details, time range, environment, source, trace information, or dataset run context to narrow the results.",
+    "Score reads are eventually consistent: a score created with createScore may not appear in listScores immediately. If a newly created score is missing, wait briefly and retry.",
   ].join("\n"),
   baseSchema: ListScoresBaseSchema,
   inputSchema: ListScoresInputSchema,
