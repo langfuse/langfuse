@@ -13,11 +13,21 @@
  */
 import { vi } from "vitest";
 
-vi.hoisted(() => {
+// The events_full table is created only by the ClickHouse dev-tables setup
+// (CI's "Setup Dev Tables" step), which runs in the default deploy-mode where
+// .env.dev.example enables the v4 preview opt-in. The -azure and -redis-cluster
+// CI runs skip that setup, so the events table is absent and the reads below
+// would error. Capture the ORIGINAL opt-in flag here, BEFORE the override forces
+// it on — once forced, the parsed shared env always reports "true" and we could
+// never detect the events-table-less environments.
+const eventsTableAvailable = vi.hoisted(() => {
+  const enabled =
+    process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
   process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
   // events_only requires the preview opt-in (web read paths gate on it, and
   // worker/web env validation enforces the pairing).
   process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+  return enabled;
 });
 
 import type { Session } from "next-auth";
@@ -34,7 +44,18 @@ import { env } from "@langfuse/shared/src/env";
 import waitForExpect from "wait-for-expect";
 import { randomUUID } from "crypto";
 
-describe("traces trpc (events_only write mode)", () => {
+// Skip on environments without the events_full dev table (azure / redis-cluster
+// CI). Mirrors the gating used across the other events-table server tests.
+const maybe = eventsTableAvailable ? describe : describe.skip;
+
+// At least one always-running test so the file does not hang on the redis
+// connections opened by the tRPC caller imports when the events-table tests
+// below are skipped via `maybe`.
+describe("traces trpc (events_only write mode) liveness", () => {
+  it("should not hang redis when the events table is unavailable", () => {});
+});
+
+maybe("traces trpc (events_only write mode)", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
   const session: Session = {
