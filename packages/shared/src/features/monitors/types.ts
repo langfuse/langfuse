@@ -212,7 +212,7 @@ export type Monitor = z.infer<typeof MonitorSchema>;
 export const MonitorAlertSchema = z.object({
   monitorId: z.string(),
   projectId: z.string(),
-  permalink: z.string(),
+  permalink: z.url().optional(),
   message: z.object({ title: z.string(), body: z.string() }),
   severity: MonitorSeveritySchema,
   timestamp: z.coerce.date(),

@@ -370,6 +370,15 @@ describe("SlackMessageBuilder", () => {
       },
     );
 
+    it("omits the actions block when permalink is absent", () => {
+      const { blocks } = SlackMessageBuilder.buildMonitorMessage({
+        ...mockMonitorEnvelope,
+        payload: { ...mockMonitorEnvelope.payload, permalink: undefined },
+      });
+      expect(blocks.every((b) => b.type !== "actions")).toBe(true);
+      expect(blocks.some((b) => b.type === "context")).toBe(true);
+    });
+
     it("buildMessage routes monitor-alert envelopes", () => {
       const result = SlackMessageBuilder.buildMessage(mockMonitorEnvelope);
       expect(result.attachments).toEqual([{ color: "#dc3545" }]);

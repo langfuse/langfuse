@@ -191,13 +191,18 @@ describe("MonitorAlertSchema", () => {
     expect(MonitorAlertSchema.safeParse(validAlert).success).toBe(true);
   });
 
-  it("accepts a path-only permalink (self-hosted without NEXTAUTH_URL)", () => {
+  it("accepts an omitted permalink (self-hosted without NEXTAUTH_URL)", () => {
+    const { permalink: _permalink, ...withoutPermalink } = validAlert;
+    expect(MonitorAlertSchema.safeParse(withoutPermalink).success).toBe(true);
+  });
+
+  it("rejects a relative (path-only) permalink", () => {
     expect(
       MonitorAlertSchema.safeParse({
         ...validAlert,
         permalink: "/project/proj_01/monitors/mon_01",
       }).success,
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("rejects an unknown severity", () => {

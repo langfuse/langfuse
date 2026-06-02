@@ -301,9 +301,13 @@ function buildAlert(args: {
   };
 }
 
-/** buildPermalink composes the Langfuse Cloud URL for a monitor. */
-function buildPermalink(projectId: string, monitorId: string): string {
-  const base = (env.NEXTAUTH_URL ?? "").replace(/\/$/, "");
+/** buildPermalink composes the absolute Langfuse URL for a monitor, or undefined when NEXTAUTH_URL is unset. */
+export function buildPermalink(
+  projectId: string,
+  monitorId: string,
+): string | undefined {
+  if (!env.NEXTAUTH_URL) return undefined;
+  const base = env.NEXTAUTH_URL.replace(/\/$/, "");
   return `${base}/project/${projectId}/monitors/${monitorId}`;
 }
 

@@ -170,17 +170,25 @@ export class SlackMessageBuilder {
         type: "section",
         text: { type: "mrkdwn", text: slackifyMarkdown(alert.message.body) },
       },
-      {
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: { type: "plain_text", text: "View in Langfuse", emoji: true },
-            url: alert.permalink,
-            style: "primary",
-          },
-        ],
-      },
+      ...(alert.permalink
+        ? [
+            {
+              type: "actions",
+              elements: [
+                {
+                  type: "button",
+                  text: {
+                    type: "plain_text",
+                    text: "View in Langfuse",
+                    emoji: true,
+                  },
+                  url: alert.permalink,
+                  style: "primary",
+                },
+              ],
+            },
+          ]
+        : []),
       {
         type: "context",
         elements: [
