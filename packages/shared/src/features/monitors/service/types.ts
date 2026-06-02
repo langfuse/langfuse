@@ -52,7 +52,8 @@ export type CreateMonitor = z.infer<typeof CreateMonitorSchema>;
 
 /** UpdateMonitorSchema is the input for MonitorService.update. */
 export const UpdateMonitorSchema = MonitorSchema.omit(omitOnWrite)
-  .extend({ status: MonitorWriteStatusSchema.default("ACTIVE") })
+  // status has no default: a default would un-pause a monitor on a form save.
+  .extend({ status: MonitorWriteStatusSchema.optional() })
   .superRefine(validateMonitorQuery)
   .superRefine(validateThresholdOrder);
 export type UpdateMonitor = z.infer<typeof UpdateMonitorSchema>;

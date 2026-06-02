@@ -1,6 +1,5 @@
 /** service.ts contains the MonitorService. */
 import { Prisma, prisma } from "../../../db";
-import { LangfuseNotFoundError } from "../../../errors";
 
 import { type Monitor } from "../types";
 
@@ -14,7 +13,7 @@ import {
   toPrismaOrderBy,
   toPrismaWhere,
   updateSchedulerProperties,
-  updateSeverityForStatus,
+  updateStatusAndSeverity,
   initSeverity,
   viewToPrisma,
   windowToMs,
@@ -101,11 +100,10 @@ export class MonitorService {
 
     try {
       const current = await prisma.monitor.findFirst({
-        where: { id: input.id, projectId: input.projectId },
-        select: { status: true, schedulerBatchId: true },
+        where: { id: input.id },
       });
       if (!current) {
-        throw new LangfuseNotFoundError();
+        throw new MonitorNotFoundError(input.id, input.projectId);
       }
 
       const updated = await prisma.monitor.update({
@@ -122,8 +120,7 @@ export class MonitorService {
           warningThreshold: decimalToPrisma(input.warningThreshold),
           noData: input.noData,
           renotify: input.renotify,
-          status: input.status,
-          ...updateSeverityForStatus(current.status, input.status),
+          ...updateStatusAndSeverity(current.status, input.status),
           ...updateSchedulerProperties(
             current.schedulerBatchId,
             schedulerBatchId,

@@ -11,9 +11,14 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { getWidgetMetricPresentation } from "@/src/features/widgets/utils";
-import { type FilterState, type metricAggregations } from "@langfuse/shared";
+import {
+  type FilterState,
+  type metricAggregations,
+  RESOURCE_LIMIT_ERROR_MESSAGE,
+} from "@langfuse/shared";
 import {
   type MonitorThresholdOperator,
   type MonitorView,
@@ -140,7 +145,7 @@ export const MonitorChartPreview = ({
 
   return (
     <Card className="h-full">
-      <CardContent className="h-full pt-4">
+      <CardContent className="flex h-full flex-col pt-4">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-bold tracking-tight">Live Preview</h3>
           <Select
@@ -161,13 +166,23 @@ export const MonitorChartPreview = ({
             </SelectContent>
           </Select>
         </div>
-        <div className="h-full pb-8">
+        <div className="relative min-h-0 flex-1">
           <Chart
             chartType="LINE_TIME_SERIES"
             data={data}
             rowLimit={1000}
             thresholds={thresholds}
             metricFormatter={metricFormatter}
+          />
+          <ChartLoadingState
+            isLoading={queryResult.isError}
+            showSpinner={false}
+            showHintImmediately
+            layout="compact"
+            hintText={
+              queryResult.error?.message ?? RESOURCE_LIMIT_ERROR_MESSAGE
+            }
+            className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
           />
         </div>
       </CardContent>

@@ -191,6 +191,15 @@ describe("UpdateMonitorSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("leaves status undefined when omitted so a save can't change it", () => {
+    const { status, ...withoutStatus } = validUpdateInput;
+    const result = UpdateMonitorSchema.safeParse(withoutStatus);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.status).toBeUndefined();
+    }
+  });
+
   describe("triggerIds", () => {
     it("defaults to []", () => {
       const result = UpdateMonitorSchema.safeParse(validUpdateInput);

@@ -4,7 +4,7 @@ import { CreateMonitorSchema, type Monitor } from "@langfuse/shared/monitors";
 
 import { __test } from "./MonitorForm";
 
-const { createDefaults, monitorToDefaults } = __test;
+const { createDefaults, monitorToDefaults, nameOrPlaceholder } = __test;
 
 describe("createDefaults", () => {
   it("only forces the user to enter name + alertThreshold (no hidden missing fields)", () => {
@@ -42,6 +42,26 @@ describe("createDefaults", () => {
   it("triggerIds defaults to empty array", () => {
     const defaults = createDefaults("project-1");
     expect(defaults.triggerIds).toEqual([]);
+  });
+});
+
+describe("nameOrPlaceholder", () => {
+  const placeholder = "Count of Observations > 0";
+
+  it("empty string: falls back to the placeholder", () => {
+    expect(nameOrPlaceholder("", placeholder)).toBe(placeholder);
+  });
+
+  it("undefined: falls back to the placeholder", () => {
+    expect(nameOrPlaceholder(undefined, placeholder)).toBe(placeholder);
+  });
+
+  it("whitespace-only: preserved as typed, not the placeholder", () => {
+    expect(nameOrPlaceholder("  ", placeholder)).toBe("  ");
+  });
+
+  it("non-blank name: wins over the placeholder", () => {
+    expect(nameOrPlaceholder("My Monitor", placeholder)).toBe("My Monitor");
   });
 });
 

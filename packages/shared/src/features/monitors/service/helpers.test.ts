@@ -15,7 +15,7 @@ import {
   sortFiltersCanonically,
   toPrismaWhere,
   updateSchedulerProperties,
-  updateSeverityForStatus,
+  updateStatusAndSeverity,
   viewFromPrisma,
   viewToPrisma,
   windowFromMs,
@@ -517,39 +517,51 @@ describe("monitorFromPrisma", () => {
   });
 });
 
-describe("updateSeverityForStatus", () => {
+describe("updateStatusAndSeverity", () => {
   it("emits PAUSED with a timestamp when status leaves ACTIVE", () => {
-    const result = updateSeverityForStatus("ACTIVE", "PAUSED");
+    const result = updateStatusAndSeverity("ACTIVE", "PAUSED");
+    expect(result.status).toBe("PAUSED");
     expect(result.severity).toBe("PAUSED");
     expect(result.severityChangedAt).toBeInstanceOf(Date);
   });
 
   it("emits UNKNOWN with a timestamp when status returns to ACTIVE", () => {
-    const result = updateSeverityForStatus("PAUSED", "ACTIVE");
+    const result = updateStatusAndSeverity("PAUSED", "ACTIVE");
+    expect(result.status).toBe("ACTIVE");
     expect(result.severity).toBe("UNKNOWN");
     expect(result.severityChangedAt).toBeInstanceOf(Date);
   });
 
   it("emits UNKNOWN when recovering from ERROR_BAD_QUERY to ACTIVE", () => {
-    const result = updateSeverityForStatus("ERROR_BAD_QUERY", "ACTIVE");
+    const result = updateStatusAndSeverity("ERROR_BAD_QUERY", "ACTIVE");
+    expect(result.status).toBe("ACTIVE");
     expect(result.severity).toBe("UNKNOWN");
     expect(result.severityChangedAt).toBeInstanceOf(Date);
   });
 
   it("emits PAUSED when going from ACTIVE to ERROR_BAD_QUERY", () => {
-    const result = updateSeverityForStatus("ACTIVE", "ERROR_BAD_QUERY");
+    const result = updateStatusAndSeverity("ACTIVE", "ERROR_BAD_QUERY");
+    expect(result.status).toBe("ERROR_BAD_QUERY");
     expect(result.severity).toBe("PAUSED");
     expect(result.severityChangedAt).toBeInstanceOf(Date);
   });
 
-  it("is a no-op when status does not change", () => {
-    expect(updateSeverityForStatus("ACTIVE", "ACTIVE")).toEqual({});
-    expect(updateSeverityForStatus("PAUSED", "PAUSED")).toEqual({});
+  it("writes only status when it does not change", () => {
+    expect(updateStatusAndSeverity("ACTIVE", "ACTIVE")).toEqual({
+      status: "ACTIVE",
+    });
+    expect(updateStatusAndSeverity("PAUSED", "PAUSED")).toEqual({
+      status: "PAUSED",
+    });
   });
 
-  it("is a no-op when transitioning between two non-ACTIVE states", () => {
-    expect(updateSeverityForStatus("PAUSED", "ERROR_BAD_QUERY")).toEqual({});
-    expect(updateSeverityForStatus("ERROR_BAD_QUERY", "PAUSED")).toEqual({});
+  it("writes only status when transitioning between two non-ACTIVE states", () => {
+    expect(updateStatusAndSeverity("PAUSED", "ERROR_BAD_QUERY")).toEqual({
+      status: "ERROR_BAD_QUERY",
+    });
+    expect(updateStatusAndSeverity("ERROR_BAD_QUERY", "PAUSED")).toEqual({
+      status: "PAUSED",
+    });
   });
 });
 

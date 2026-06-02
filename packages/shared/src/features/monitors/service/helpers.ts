@@ -252,27 +252,34 @@ export const monitorFromPrisma = (monitor: PrismaMonitor): Monitor =>
 export const decimalToPrisma = (n: number | null): Prisma.Decimal | null =>
   n == null ? null : new Prisma.Decimal(n);
 
-/** updateSeverityForStatus returns the severity transition payload when status flips between ACTIVE and non-ACTIVE; otherwise an empty object. */
-export const updateSeverityForStatus = (
+/** updateStatusAndSeverity returns the status write and its derived severity transition. */
+export const updateStatusAndSeverity = (
   current: MonitorStatus,
-  next: MonitorStatus,
-): { severity?: MonitorSeverity; severityChangedAt?: Date } => {
+  next: MonitorStatus | undefined,
+): {
+  status?: MonitorStatus;
+  severity?: MonitorSeverity;
+  severityChangedAt?: Date;
+} => {
+  if (!next) return {};
   const fromActive = current === MonitorStatusSchema.enum.ACTIVE;
   const toActve = next === MonitorStatusSchema.enum.ACTIVE;
   const toPaused = fromActive && !toActve;
   const toActive = !fromActive && toActve;
   if (toPaused)
     return {
+      status: next,
       severity: PrismaMonitorSeverity.PAUSED,
       severityChangedAt: new Date(),
     };
   if (toActive)
     return {
+      status: next,
       severity: PrismaMonitorSeverity.UNKNOWN,
       severityChangedAt: new Date(),
     };
   // No Severity Change (eg ACTIVE -> ACTIVE, ERROR_* -> PAUSED)
-  return {};
+  return { status: next };
 };
 
 /** updateSchedulerProperties returns the new schedulerBatchId and reset publish lifecycle stamps when the query-shape fingerprint changes; otherwise an empty object. */

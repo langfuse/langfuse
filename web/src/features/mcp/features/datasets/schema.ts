@@ -1,18 +1,10 @@
 import { z } from "zod";
-import {
-  publicApiPaginationZod,
-  versionZod,
-  type JSONValue,
-} from "@langfuse/shared";
-import {
-  DeleteDatasetRunV1Query,
-  GetDatasetRunItemsV1Query,
-  GetDatasetRunV1Query,
-  GetDatasetRunsV1Query,
-  GetDatasetsV2Query,
-  GetDatasetV2Query,
-  PostDatasetItemsV1Body,
-} from "@/src/features/public-api/types/datasets";
+import { type JSONValue } from "@langfuse/shared";
+
+const paginationSchema = {
+  page: z.number().int().positive().default(1),
+  limit: z.number().int().positive().max(100).default(50),
+};
 
 export const resolveMetadata = (
   metadata: JSONValue,
@@ -26,65 +18,68 @@ export const resolveMetadata = (
   return { metadata };
 };
 
-export const GetDatasetsMcpInput = GetDatasetsV2Query.extend({
+export const GetDatasetsMcpInput = z.object({
   name: z.string().optional(),
+  ...paginationSchema,
 });
 
-export const GetDatasetMcpInput = GetDatasetV2Query.omit({
-  datasetName: true,
-}).extend({
+export const GetDatasetMcpInput = z.object({
   datasetId: z.string(),
 });
 
-export const GetDatasetRunsMcpInput = GetDatasetRunsV1Query.omit({
-  name: true,
-}).extend({
+export const GetDatasetRunsMcpInput = z.object({
   datasetId: z.string(),
+  ...paginationSchema,
 });
 
-export const GetDatasetRunMcpInput = GetDatasetRunV1Query.omit({
-  name: true,
-  runName: true,
-}).extend({
+export const GetDatasetRunMcpInput = z.object({
   datasetId: z.string(),
   datasetRunId: z.string(),
 });
 
-export const DeleteDatasetRunMcpInput = DeleteDatasetRunV1Query.omit({
-  name: true,
-  runName: true,
-}).extend({
+export const DeleteDatasetRunMcpInput = z.object({
   datasetId: z.string(),
   datasetRunId: z.string(),
 });
 
-export const GetDatasetRunItemsMcpInput = GetDatasetRunItemsV1Query.omit({
-  runName: true,
-}).extend({
-  datasetRunId: z.string(),
-});
-
-export const GetDatasetItemsMcpInput = z
-  .object({
-    datasetId: z.string().optional(),
-    sourceTraceId: z.string().nullish(),
-    sourceObservationId: z.string().nullish(),
-    version: versionZod.nullish(),
-    ...publicApiPaginationZod,
-  })
-  .refine(
-    (data) => {
-      if (data.version && !data.datasetId) return false;
-      return true;
-    },
-    {
-      message: "datasetId is required when version parameter is provided",
-      path: ["datasetId"],
-    },
-  );
-
-export const PostDatasetItemMcpInput = PostDatasetItemsV1Body.omit({
-  datasetName: true,
-}).extend({
+export const GetDatasetRunItemsMcpInput = z.object({
   datasetId: z.string(),
+  datasetRunId: z.string(),
+  ...paginationSchema,
 });
+
+const GetDatasetItemsMcpBaseInput = z.object({
+  datasetId: z.string().optional(),
+  sourceTraceId: z.string().optional(),
+  sourceObservationId: z.string().optional(),
+  version: z.string().optional(),
+  ...paginationSchema,
+});
+
+const GetDatasetItemsMcpRuntimeInput = GetDatasetItemsMcpBaseInput.extend({
+  version: z.coerce.date().optional(),
+});
+
+export const GetDatasetItemsMcpInput = GetDatasetItemsMcpRuntimeInput.refine(
+  (data) => {
+    if (data.version && !data.datasetId) return false;
+    return true;
+  },
+  {
+    message: "datasetId is required when version parameter is provided",
+    path: ["datasetId"],
+  },
+);
+
+export const PostDatasetItemMcpInput = z.object({
+  datasetId: z.string(),
+  input: z.any().optional(),
+  expectedOutput: z.any().optional(),
+  metadata: z.any().optional(),
+  id: z.string().optional(),
+  sourceTraceId: z.string().optional(),
+  sourceObservationId: z.string().optional(),
+  status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
+});
+
+export const GetDatasetItemsMcpBaseSchema = GetDatasetItemsMcpBaseInput;

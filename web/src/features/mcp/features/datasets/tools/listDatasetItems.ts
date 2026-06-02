@@ -2,13 +2,16 @@ import { GetDatasetItemsV1Response } from "@/src/features/public-api/types/datas
 import { listDatasetItemsForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { GetDatasetItemsMcpInput } from "../schema";
+import {
+  GetDatasetItemsMcpBaseSchema,
+  GetDatasetItemsMcpInput,
+} from "../schema";
 
 export const [listDatasetItemsTool, handleListDatasetItems] = defineTool({
   name: "listDatasetItems",
   description:
     "List dataset items, individual examples with input and optional expected output, optionally filtered by dataset ID, source trace, source observation, or version.",
-  baseSchema: GetDatasetItemsMcpInput,
+  baseSchema: GetDatasetItemsMcpBaseSchema,
   inputSchema: GetDatasetItemsMcpInput,
   handler: async (input, context) =>
     runMcpTool({

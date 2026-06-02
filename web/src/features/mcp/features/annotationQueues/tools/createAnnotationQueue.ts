@@ -6,13 +6,22 @@ import {
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { getMcpPublicApiAuth } from "../../publicApi";
+import { z } from "zod";
+
+const CreateAnnotationQueueBaseSchema = z
+  .object({
+    name: z.string(),
+    description: z.string().optional(),
+    scoreConfigIds: z.array(z.string()).min(1),
+  })
+  .strict();
 
 export const [createAnnotationQueueTool, handleCreateAnnotationQueue] =
   defineTool({
     name: "createAnnotationQueue",
     description:
       "Create an annotation queue, a worklist that collects trace or observation items for human review and scoring.",
-    baseSchema: CreateAnnotationQueueBody,
+    baseSchema: CreateAnnotationQueueBaseSchema,
     inputSchema: CreateAnnotationQueueBody,
     handler: async (input, context) =>
       runMcpTool({
