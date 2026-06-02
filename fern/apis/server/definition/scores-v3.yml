@@ -88,7 +88,11 @@ service:
             docs: Comma-separated list of dataset run IDs (experiment IDs) to filter by. Mutually exclusive with traceId, sessionId, observationId.
           fromTimestamp:
             type: optional<datetime>
-            docs: Inclusive lower bound on the score timestamp.
+            docs: >
+              Inclusive lower bound on the score timestamp.
+              Required unless at least one entity-bounded filter is present
+              (id, traceId, sessionId, observationId, or experimentId).
+              Omitting fromTimestamp without an entity filter returns HTTP 400.
           toTimestamp:
             type: optional<datetime>
             docs: Exclusive upper bound on the score timestamp.

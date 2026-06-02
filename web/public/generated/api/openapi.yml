@@ -5476,7 +5476,11 @@ paths:
             nullable: true
         - name: fromTimestamp
           in: query
-          description: Inclusive lower bound on the score timestamp.
+          description: >-
+            Inclusive lower bound on the score timestamp. Required unless at
+            least one entity-bounded filter is present (id, traceId, sessionId,
+            observationId, or experimentId). Omitting fromTimestamp without an
+            entity filter returns HTTP 400.
           required: false
           schema:
             type: string

@@ -73,7 +73,14 @@ const csvEnumParam = <T extends readonly string[]>(
     )
     .optional();
 
-// GET /v3/scores — all filter params optional; superRefine validation lives in the handler.
+/**
+ * Query schema for GET /v3/scores.
+ *
+ * `fromTimestamp` is required unless at least one entity-bounded filter
+ * (`id`, `traceId`, `sessionId`, `observationId`, `experimentId`) is provided.
+ * That constraint is enforced by a `.superRefine()` in the handler so it can
+ * produce a descriptive 400 message.
+ */
 export const GetScoresV3 = z.object({
   limit: z.coerce.number().int().positive().max(100).default(50),
   cursor: z.string().optional(),

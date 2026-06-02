@@ -18,6 +18,9 @@ import { polymorphicValue } from "@/src/features/public-api/server/scores-api-v3
 const maybe =
   env.LANGFUSE_ENABLE_SCORES_V3_API === "true" ? describe : describe.skip;
 
+// Convenience: bypass fromTimestamp guard without constraining test results
+const FROM_BEGINNING = "fromTimestamp=2020-01-01";
+
 describe("/api/public/v3/scores API Endpoint", () => {
   it.skipIf(env.LANGFUSE_ENABLE_SCORES_V3_API === "true")(
     "should return 404 when feature flag is off",
@@ -134,7 +137,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores",
+        `/api/public/v3/scores?${FROM_BEGINNING}`,
         undefined,
         auth,
       );
@@ -154,7 +157,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?limit=2",
+        `/api/public/v3/scores?limit=2&${FROM_BEGINNING}`,
         undefined,
         auth,
       );
@@ -188,7 +191,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores",
+        `/api/public/v3/scores?id=${scoreId}`,
         undefined,
         auth,
       );
@@ -214,7 +217,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores",
+        `/api/public/v3/scores?id=${scoreId}`,
         undefined,
         auth,
       );
@@ -240,7 +243,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores",
+        `/api/public/v3/scores?id=${scoreId}`,
         undefined,
         auth,
       );
@@ -265,7 +268,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores",
+        `/api/public/v3/scores?id=${scoreId}`,
         undefined,
         auth,
       );
@@ -290,7 +293,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores",
+        `/api/public/v3/scores?id=${scoreId}`,
         undefined,
         auth,
       );
@@ -310,7 +313,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores",
+        `/api/public/v3/scores?${FROM_BEGINNING}`,
         undefined,
         auth,
       );
@@ -340,7 +343,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const page1 = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?limit=2",
+        `/api/public/v3/scores?limit=2&${FROM_BEGINNING}`,
         undefined,
         auth,
       );
@@ -353,7 +356,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const page2 = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        `/api/public/v3/scores?limit=2&cursor=${page1.body.meta.cursor}`,
+        `/api/public/v3/scores?limit=2&cursor=${page1.body.meta.cursor}&${FROM_BEGINNING}`,
         undefined,
         auth,
       );
@@ -376,8 +379,8 @@ describe("/api/public/v3/scores API Endpoint", () => {
 
       do {
         const url = cursor
-          ? `/api/public/v3/scores?limit=3&cursor=${cursor}`
-          : "/api/public/v3/scores?limit=3";
+          ? `/api/public/v3/scores?limit=3&cursor=${cursor}&${FROM_BEGINNING}`
+          : `/api/public/v3/scores?limit=3&${FROM_BEGINNING}`;
         const res = await makeZodVerifiedAPICall(
           GetScoresResponseV3,
           "GET",
@@ -433,7 +436,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        `/api/public/v3/scores?cursor=${staleCursor}`,
+        `/api/public/v3/scores?cursor=${staleCursor}&${FROM_BEGINNING}`,
         undefined,
         auth,
       );
@@ -452,7 +455,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const page1A = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?limit=2",
+        `/api/public/v3/scores?limit=2&${FROM_BEGINNING}`,
         undefined,
         projectA.auth,
       );
@@ -468,7 +471,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const replayRes = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        `/api/public/v3/scores?limit=2&cursor=${cursorFromA}`,
+        `/api/public/v3/scores?limit=2&cursor=${cursorFromA}&${FROM_BEGINNING}`,
         undefined,
         projectB.auth,
       );
@@ -490,7 +493,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        `/api/public/v3/scores?limit=${n}`,
+        `/api/public/v3/scores?limit=${n}&${FROM_BEGINNING}`,
         undefined,
         project.auth,
       );
@@ -512,8 +515,8 @@ describe("/api/public/v3/scores API Endpoint", () => {
 
       do {
         const url = cursor
-          ? `/api/public/v3/scores?limit=1&cursor=${cursor}`
-          : "/api/public/v3/scores?limit=1";
+          ? `/api/public/v3/scores?limit=1&cursor=${cursor}&${FROM_BEGINNING}`
+          : `/api/public/v3/scores?limit=1&${FROM_BEGINNING}`;
         const res = await makeZodVerifiedAPICall(
           GetScoresResponseV3,
           "GET",
@@ -559,7 +562,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores",
+        `/api/public/v3/scores?id=${scoreId}`,
         undefined,
         auth,
       );
@@ -586,7 +589,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?fields=core,details",
+        `/api/public/v3/scores?id=${scoreId}&fields=core,details`,
         undefined,
         auth,
       );
@@ -614,7 +617,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?fields=core,annotation",
+        `/api/public/v3/scores?id=${scoreId}&fields=core,annotation`,
         undefined,
         auth,
       );
@@ -642,7 +645,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?fields=core,subject",
+        `/api/public/v3/scores?id=${scoreId}&fields=core,subject`,
         undefined,
         auth,
       );
@@ -669,7 +672,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?fields=core,subject",
+        `/api/public/v3/scores?id=${scoreId}&fields=core,subject`,
         undefined,
         auth,
       );
@@ -694,7 +697,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?fields=core,subject",
+        `/api/public/v3/scores?id=${scoreId}&fields=core,subject`,
         undefined,
         auth,
       );
@@ -721,7 +724,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?fields=core,subject",
+        `/api/public/v3/scores?id=${scoreId}&fields=core,subject`,
         undefined,
         auth,
       );
@@ -927,7 +930,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        `/api/public/v3/scores?name=${encodeURIComponent(scoreName)}`,
+        `/api/public/v3/scores?name=${encodeURIComponent(scoreName)}&${FROM_BEGINNING}`,
         undefined,
         auth,
       );
@@ -951,7 +954,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?source=ANNOTATION",
+        `/api/public/v3/scores?source=ANNOTATION&${FROM_BEGINNING}`,
         undefined,
         auth,
       );
@@ -981,7 +984,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?dataType=NUMERIC",
+        `/api/public/v3/scores?dataType=NUMERIC&${FROM_BEGINNING}`,
         undefined,
         auth,
       );
@@ -1107,7 +1110,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?value=0.85&dataType=NUMERIC",
+        `/api/public/v3/scores?value=0.85&dataType=NUMERIC&${FROM_BEGINNING}`,
         undefined,
         auth,
       );
@@ -1148,7 +1151,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?value=good,bad&dataType=CATEGORICAL",
+        `/api/public/v3/scores?value=good,bad&dataType=CATEGORICAL&${FROM_BEGINNING}`,
         undefined,
         auth,
       );
@@ -1183,7 +1186,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?value=true&dataType=BOOLEAN",
+        `/api/public/v3/scores?value=true&dataType=BOOLEAN&${FROM_BEGINNING}`,
         undefined,
         auth,
       );
@@ -1217,7 +1220,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?value=true,false&dataType=BOOLEAN",
+        `/api/public/v3/scores?value=true,false&dataType=BOOLEAN&${FROM_BEGINNING}`,
         undefined,
         auth,
       );
@@ -1249,7 +1252,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?valueMin=0.5&valueMax=1.0&dataType=NUMERIC",
+        `/api/public/v3/scores?valueMin=0.5&valueMax=1.0&dataType=NUMERIC&${FROM_BEGINNING}`,
         undefined,
         auth,
       );
@@ -1260,10 +1263,98 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(ids).not.toContain(outOfRangeId);
     });
 
-    it("fromTimestamp omitted with no entity filter → 200", async () => {
+    // --- Phase 5: fromTimestamp guard ---
+
+    it("fromTimestamp omitted, no entity filter → 400", async () => {
       const res = await makeAPICall(
         "GET",
         "/api/public/v3/scores",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("fromTimestamp present, no entity filter → 200", async () => {
+      const res = await makeAPICall(
+        "GET",
+        `/api/public/v3/scores?${FROM_BEGINNING}`,
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("fromTimestamp omitted, id present → 200", async () => {
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({ id: scoreId, project_id: projectId }),
+      ]);
+      const res = await makeAPICall(
+        "GET",
+        `/api/public/v3/scores?id=${scoreId}`,
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("fromTimestamp omitted, traceId present → 200", async () => {
+      const traceId = v4();
+      await createScoresCh([
+        createTraceScore({ project_id: projectId, trace_id: traceId }),
+      ]);
+      const res = await makeAPICall(
+        "GET",
+        `/api/public/v3/scores?traceId=${traceId}`,
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("fromTimestamp omitted, sessionId present → 200", async () => {
+      const sessionId = v4();
+      await createScoresCh([
+        createSessionScore({ project_id: projectId, session_id: sessionId }),
+      ]);
+      const res = await makeAPICall(
+        "GET",
+        `/api/public/v3/scores?sessionId=${sessionId}`,
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("fromTimestamp omitted, observationId present → 200", async () => {
+      const observationId = v4();
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          observation_id: observationId,
+        }),
+      ]);
+      const res = await makeAPICall(
+        "GET",
+        `/api/public/v3/scores?observationId=${observationId}`,
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("fromTimestamp omitted, experimentId present → 200", async () => {
+      const datasetRunId = v4();
+      await createScoresCh([
+        createDatasetRunScore({
+          project_id: projectId,
+          dataset_run_id: datasetRunId,
+        }),
+      ]);
+      const res = await makeAPICall(
+        "GET",
+        `/api/public/v3/scores?experimentId=${datasetRunId}`,
         undefined,
         auth,
       );
@@ -1283,7 +1374,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        "/api/public/v3/scores?limit=10&fields=core,details",
+        `/api/public/v3/scores?limit=10&fields=core,details&${FROM_BEGINNING}`,
         undefined,
         auth,
       );

@@ -442,7 +442,7 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
 
-    LANGFUSE_ENABLE_SCORES_V3_API: z.enum(["true", "false"]).default("false"),
+    LANGFUSE_ENABLE_SCORES_V3_API: z.enum(["true", "false"]).default("true"),
 
     // Blocked users for chat completion API (userId:reason format)
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
