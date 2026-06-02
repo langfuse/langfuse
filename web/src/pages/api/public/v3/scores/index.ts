@@ -29,6 +29,7 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         limit: query.limit,
         cursor: query.cursor,
+        fields: query.fields,
       });
 
       return {

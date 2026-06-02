@@ -57,7 +57,28 @@ export function polymorphicValue(score: {
   }
 }
 
-function domainToV3(score: ScoreDomain): APIScoreV3 {
+function deriveSubject(score: ScoreDomain): {
+  kind: "trace" | "observation" | "session" | "experiment";
+  id: string;
+  traceId?: string;
+} {
+  if (score.datasetRunId) {
+    return { kind: "experiment", id: score.datasetRunId };
+  }
+  if (score.observationId) {
+    return {
+      kind: "observation",
+      id: score.observationId,
+      ...(score.traceId ? { traceId: score.traceId } : {}),
+    };
+  }
+  if (score.sessionId) {
+    return { kind: "session", id: score.sessionId };
+  }
+  return { kind: "trace", id: score.traceId ?? score.id };
+}
+
+function domainToV3(score: ScoreDomain, fields: string[]): APIScoreV3 {
   // ScoreDomain is a flat type so TypeScript cannot verify that dataType and
   // value are a valid discriminated pair; polymorphicValue guarantees it at runtime.
   return {
@@ -76,6 +97,24 @@ function domainToV3(score: ScoreDomain): APIScoreV3 {
     environment: score.environment,
     createdAt: score.createdAt,
     updatedAt: score.updatedAt,
+    ...(fields.includes("details")
+      ? {
+          details: {
+            comment: score.comment,
+            configId: score.configId,
+            metadata: score.metadata,
+          },
+        }
+      : {}),
+    ...(fields.includes("subject") ? { subject: deriveSubject(score) } : {}),
+    ...(fields.includes("annotation")
+      ? {
+          annotation: {
+            authorUserId: score.authorUserId,
+            queueId: score.queueId,
+          },
+        }
+      : {}),
   } as APIScoreV3;
 }
 
@@ -119,6 +158,7 @@ export async function listScoresV3ForPublicApi(params: {
   projectId: string;
   limit: number;
   cursor?: ScoresCursorV3Type;
+  fields: string[];
 }): Promise<{ data: APIScoreV3[]; cursor?: string }> {
   return measureAndReturn({
     operationName: "listScoresV3ForPublicApi",
@@ -165,12 +205,15 @@ export async function listScoresV3ForPublicApi(params: {
 
       // Log+drop bad rows rather than 500ing the whole page — domainToV3 can
       // throw (e.g. polymorphicValue's stringValue / longStringValue guards
-      // for malformed CATEGORICAL / TEXT / CORRECTION rows). Mirrors the
-      // row-level graceful-drop semantics of filterAndValidateV3GetScoreList.
+      // for malformed CATEGORICAL / TEXT / CORRECTION rows, or deriveSubject
+      // for a malformed subject record). Mirrors the row-level graceful-drop
+      // semantics of filterAndValidateV3GetScoreList.
       const items: ReturnType<typeof domainToV3>[] = [];
       for (const row of pageRecords) {
         try {
-          items.push(domainToV3(convertClickhouseScoreToDomain(row)));
+          items.push(
+            domainToV3(convertClickhouseScoreToDomain(row), params.fields),
+          );
         } catch (error) {
           logger.error("v3 score row dropped from response", {
             error,

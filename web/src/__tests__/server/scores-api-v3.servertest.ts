@@ -364,4 +364,223 @@ describe("/api/public/v3/scores API Endpoint", () => {
       }
     });
   });
+
+  maybe("GET /api/public/v3/scores — field groups", () => {
+    let auth: string;
+    let projectId: string;
+
+    beforeAll(async () => {
+      const project = await createOrgProjectAndApiKey();
+      auth = project.auth;
+      projectId = project.projectId;
+    });
+
+    it("fields omitted → only core keys present", async () => {
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          comment: "some comment",
+          config_id: "cfg-1",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores",
+        undefined,
+        auth,
+      );
+
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score).not.toHaveProperty("details");
+      expect(score).not.toHaveProperty("subject");
+      expect(score).not.toHaveProperty("annotation");
+    });
+
+    it("fields=core,details → details present", async () => {
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          comment: "test comment",
+          config_id: "cfg-abc",
+          metadata: { key: "val" },
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?fields=core,details",
+        undefined,
+        auth,
+      );
+
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score!.details).toBeDefined();
+      expect(score!.details!.comment).toBe("test comment");
+      expect(score!.details!.configId).toBe("cfg-abc");
+      expect(score).not.toHaveProperty("subject");
+      expect(score).not.toHaveProperty("annotation");
+    });
+
+    it("fields=core,annotation → annotation present", async () => {
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          author_user_id: "user-xyz",
+          queue_id: "queue-abc",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?fields=core,annotation",
+        undefined,
+        auth,
+      );
+
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score!.annotation).toBeDefined();
+      expect(score!.annotation!.authorUserId).toBe("user-xyz");
+      expect(score!.annotation!.queueId).toBe("queue-abc");
+      expect(score).not.toHaveProperty("details");
+      expect(score).not.toHaveProperty("subject");
+    });
+
+    it("fields=core,subject → trace score has kind=trace", async () => {
+      const scoreId = v4();
+      const traceId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          trace_id: traceId,
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?fields=core,subject",
+        undefined,
+        auth,
+      );
+
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score!.subject).toBeDefined();
+      expect(score!.subject!.kind).toBe("trace");
+      expect(score!.subject!.id).toBe(traceId);
+      expect(score!.subject).not.toHaveProperty("traceId");
+    });
+
+    it("fields=core,subject → session score has kind=session", async () => {
+      const scoreId = v4();
+      const sessionId = v4();
+      await createScoresCh([
+        createSessionScore({
+          id: scoreId,
+          project_id: projectId,
+          session_id: sessionId,
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?fields=core,subject",
+        undefined,
+        auth,
+      );
+
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score!.subject!.kind).toBe("session");
+      expect(score!.subject!.id).toBe(sessionId);
+    });
+
+    it("fields=core,subject → dataset run score has kind=experiment", async () => {
+      const scoreId = v4();
+      const datasetRunId = v4();
+      await createScoresCh([
+        createDatasetRunScore({
+          id: scoreId,
+          project_id: projectId,
+          dataset_run_id: datasetRunId,
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?fields=core,subject",
+        undefined,
+        auth,
+      );
+
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score!.subject!.kind).toBe("experiment");
+      expect(score!.subject!.id).toBe(datasetRunId);
+    });
+
+    it("fields=core,subject → observation score has kind=observation with traceId", async () => {
+      const scoreId = v4();
+      const observationId = v4();
+      const traceId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          observation_id: observationId,
+          trace_id: traceId,
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?fields=core,subject",
+        undefined,
+        auth,
+      );
+
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score!.subject!.kind).toBe("observation");
+      expect(score!.subject!.id).toBe(observationId);
+      expect(score!.subject!.traceId).toBe(traceId);
+    });
+
+    it("fields=core,unknown → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?fields=core,unknown",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("fields=trace → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?fields=trace",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+  });
 });

@@ -1,6 +1,24 @@
 import { z } from "zod";
 import { ScoreSourceDomain } from "../../../../../domain/scores";
 
+// Optional group schemas
+export const ScoreDetailsV3 = z.object({
+  comment: z.string().nullable(),
+  configId: z.string().nullable(),
+  metadata: z.unknown(),
+});
+
+export const ScoreSubjectV3 = z.object({
+  kind: z.enum(["trace", "observation", "session", "experiment"]),
+  id: z.string(),
+  traceId: z.string().optional(),
+});
+
+export const ScoreAnnotationV3 = z.object({
+  authorUserId: z.string().nullable(),
+  queueId: z.string().nullable(),
+});
+
 /**
  * Foundation schema for scores API v3.
  *
@@ -19,6 +37,10 @@ const ScoreFoundationSchemaV3 = z.object({
   environment: z.string(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  // optional groups
+  details: ScoreDetailsV3.optional(),
+  subject: ScoreSubjectV3.optional(),
+  annotation: ScoreAnnotationV3.optional(),
 });
 
 export const APIScoreSchemaV3 = z.discriminatedUnion("dataType", [
