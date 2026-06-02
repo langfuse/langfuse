@@ -354,6 +354,10 @@ async function executeHttpAction({
           where: { id: automation.trigger.id, projectId },
           data: { status: JobConfigState.INACTIVE },
         });
+        await resetAutomationFailures({
+          projectId,
+          automationId: automation.id,
+        });
         logger.warn(
           `Automation ${automation.trigger.id} disabled after ${count} consecutive failures in project ${projectId} (monitor-alert)`,
         );
@@ -798,6 +802,10 @@ async function executeSlackAction({
         await prisma.trigger.update({
           where: { id: automation.trigger.id, projectId },
           data: { status: JobConfigState.INACTIVE },
+        });
+        await resetAutomationFailures({
+          projectId,
+          automationId: automation.id,
         });
         logger.warn(
           `Automation ${automation.trigger.id} disabled after ${count} consecutive failures in project ${projectId} (monitor-alert/slack)`,
