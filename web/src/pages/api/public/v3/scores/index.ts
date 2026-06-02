@@ -11,6 +11,73 @@ import { env } from "@/src/env.mjs";
 
 const GetScoresV3Query = GetScoresV3.extend({
   cursor: EncodedScoresCursorV3.optional(),
+}).superRefine((data, ctx) => {
+  if (data.userId !== undefined) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "userId filter requires a trace JOIN and is not supported in v3 — use v2 or omit this filter",
+    });
+  }
+  if (data.traceTags !== undefined) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "traceTags filter requires a trace JOIN and is not supported in v3 — use v2 or omit this filter",
+    });
+  }
+  if (data.value !== undefined) {
+    if (!data.dataType || data.dataType.length !== 1) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "value filter requires a single dataType from: NUMERIC, BOOLEAN, CATEGORICAL",
+      });
+    } else {
+      const dt = data.dataType[0];
+      if (!["NUMERIC", "BOOLEAN", "CATEGORICAL"].includes(dt)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `value filter requires dataType to be NUMERIC, BOOLEAN, or CATEGORICAL (got "${dt}")`,
+        });
+      } else if (dt === "BOOLEAN") {
+        for (const v of data.value) {
+          if (v !== "true" && v !== "false") {
+            ctx.addIssue({
+              code: "custom",
+              message: `value filter with dataType=BOOLEAN requires each value to be "true" or "false" (got "${v}")`,
+            });
+          }
+        }
+      }
+    }
+  }
+  if (data.valueMin !== undefined || data.valueMax !== undefined) {
+    if (
+      !data.dataType ||
+      data.dataType.length !== 1 ||
+      data.dataType[0] !== "NUMERIC"
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "valueMin and valueMax require dataType=NUMERIC as a single value",
+      });
+    }
+  }
+  const entityFilters = [
+    data.traceId,
+    data.sessionId,
+    data.observationId,
+    data.experimentId,
+  ].filter(Boolean);
+  if (entityFilters.length > 1) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "At most one of traceId, sessionId, observationId, experimentId may be specified",
+    });
+  }
 });
 
 export default withMiddlewares({
@@ -30,6 +97,23 @@ export default withMiddlewares({
         limit: query.limit,
         cursor: query.cursor,
         fields: query.fields,
+        id: query.id,
+        name: query.name,
+        source: query.source,
+        dataType: query.dataType,
+        environment: query.environment,
+        configId: query.configId,
+        queueId: query.queueId,
+        authorUserId: query.authorUserId,
+        value: query.value,
+        valueMin: query.valueMin,
+        valueMax: query.valueMax,
+        traceId: query.traceId,
+        sessionId: query.sessionId,
+        observationId: query.observationId,
+        experimentId: query.experimentId,
+        fromTimestamp: query.fromTimestamp,
+        toTimestamp: query.toTimestamp,
       });
 
       return {

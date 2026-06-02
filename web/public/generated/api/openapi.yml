@@ -5343,6 +5343,156 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: id
+          in: query
+          description: >-
+            Comma-separated list of score IDs to filter by (OR within, AND
+            across filters).
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: name
+          in: query
+          description: Comma-separated list of score names to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: source
+          in: query
+          description: >-
+            Comma-separated list of score sources to filter by (e.g. API,
+            ANNOTATION, EVAL).
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: dataType
+          in: query
+          description: >-
+            Comma-separated list of data types to filter by (NUMERIC, BOOLEAN,
+            CATEGORICAL, TEXT, CORRECTION). Must be a single value when used
+            with value, valueMin, or valueMax.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: environment
+          in: query
+          description: Comma-separated list of environments to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: configId
+          in: query
+          description: Comma-separated list of score config IDs to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: queueId
+          in: query
+          description: Comma-separated list of annotation queue IDs to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: authorUserId
+          in: query
+          description: Comma-separated list of author user IDs to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: value
+          in: query
+          description: >-
+            Comma-separated list of exact values to filter by. Requires a single
+            dataType from NUMERIC, BOOLEAN, or CATEGORICAL. For BOOLEAN, each
+            value must be "true" or "false". For NUMERIC, values are matched
+            against the Float64 column. For CATEGORICAL, values are matched
+            against string_value.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: valueMin
+          in: query
+          description: >-
+            Inclusive lower bound on the numeric value. Requires
+            dataType=NUMERIC as a single value.
+          required: false
+          schema:
+            type: number
+            format: double
+            nullable: true
+        - name: valueMax
+          in: query
+          description: >-
+            Inclusive upper bound on the numeric value. Requires
+            dataType=NUMERIC as a single value.
+          required: false
+          schema:
+            type: number
+            format: double
+            nullable: true
+        - name: traceId
+          in: query
+          description: >-
+            Comma-separated list of trace IDs to filter by. Mutually exclusive
+            with sessionId, observationId, experimentId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: sessionId
+          in: query
+          description: >-
+            Comma-separated list of session IDs to filter by. Mutually exclusive
+            with traceId, observationId, experimentId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: observationId
+          in: query
+          description: >-
+            Comma-separated list of observation IDs to filter by. Mutually
+            exclusive with traceId, sessionId, experimentId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: experimentId
+          in: query
+          description: >-
+            Comma-separated list of dataset run IDs (experiment IDs) to filter
+            by. Mutually exclusive with traceId, sessionId, observationId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: fromTimestamp
+          in: query
+          description: >-
+            Inclusive lower bound on the score timestamp. Optional in Phase 4;
+            will be required in Phase 5 unless an entity-bounded filter is
+            present.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toTimestamp
+          in: query
+          description: Exclusive upper bound on the score timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''
