@@ -138,16 +138,23 @@ export function validateQuery(
   query: QueryType,
   version: ViewVersion,
 ): QueryValidationResult {
-  // Only enforce validation for v2 queries
-  if (version !== "v2") {
-    return { valid: true };
-  }
-
   if (query.timeDimension && query.entityDimension) {
     return {
       valid: false,
       reason: "timeDimension and entityDimension are mutually exclusive",
     };
+  }
+
+  if (query.entityDimension && version !== "v2") {
+    return {
+      valid: false,
+      reason: "entityDimension is only supported for v2 queries",
+    };
+  }
+
+  // Only enforce remaining high-cardinality validation for v2 queries.
+  if (version !== "v2") {
+    return { valid: true };
   }
 
   if (query.entityDimension) {

@@ -155,6 +155,12 @@ export class QueryBuilder {
     }
 
     if (query.entityDimension) {
+      if (this.version !== "v2") {
+        throw new InvalidRequestError(
+          "entityDimension is only supported for v2 queries",
+        );
+      }
+
       const field = query.entityDimension.field;
       const dimension = this.getEntityDimensionDefinition(view, field);
 

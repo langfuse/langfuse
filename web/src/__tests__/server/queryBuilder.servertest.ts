@@ -4312,6 +4312,20 @@ describe("validateQuery", () => {
     );
   });
 
+  it("should return invalid when entityDimension is used with v1", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      entityDimension: { field: "name" },
+    };
+
+    const result = validateQuery(query, "v1");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "entityDimension is only supported for v2 queries",
+    );
+  });
+
   it("should return invalid when high cardinality regular dimension is used with entityDimension", () => {
     const query: QueryType = {
       ...baseQuery,
@@ -4637,6 +4651,25 @@ describe("query builder measure-aggregation validation", () => {
     const queryBuilder = new QueryBuilder(undefined, "v2");
     await expect(queryBuilder.build(query, randomUUID())).rejects.toThrow(
       "timeDimension and entityDimension are mutually exclusive",
+    );
+  });
+
+  it("should reject v1 entityDimension queries at query-builder runtime", async () => {
+    const query: QueryType = {
+      view: "observations",
+      dimensions: [],
+      metrics: [{ measure: "totalCost", aggregation: "sum" }],
+      filters: [],
+      timeDimension: null,
+      entityDimension: { field: "name" },
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: null,
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v1");
+    await expect(queryBuilder.build(query, randomUUID())).rejects.toThrow(
+      "entityDimension is only supported for v2 queries",
     );
   });
 

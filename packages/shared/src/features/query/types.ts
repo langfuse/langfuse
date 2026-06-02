@@ -173,8 +173,8 @@ export const query = z
       .nullable(),
     // Entity dimension for bucketing by a categorical field (e.g., experimentName).
     // IMPORTANT: Unlike timeDimension which has implicit bucket limits (24 hours/day),
-    // entityDimension has NO cardinality guarantee. Callers MUST filter the dataset
-    // in WHERE before GROUP BY runs (e.g., filter by experimentId list of max ~50 items).
+    // entityDimension has NO cardinality guarantee. Callers MUST filter the same
+    // entity field in WHERE before GROUP BY runs (max ~50 values).
     // Without this pre-filtering, GROUP BY on high-cardinality columns will be slow/OOM.
     entityDimension: z
       .object({
