@@ -25,7 +25,7 @@ type ExperimentChartSlotProps = {
   canDelete: boolean;
   availableMetricOptions: MetricOption[];
   projectId: string;
-  experimentIds: string[];
+  experiments: Array<{ id: string; name: string }>;
   fromTimestamp: Date;
   toTimestamp: Date;
   isExternalLoading?: boolean;
@@ -42,7 +42,7 @@ export function ExperimentChartSlot({
   canDelete,
   availableMetricOptions,
   projectId,
-  experimentIds,
+  experiments,
   fromTimestamp,
   toTimestamp,
   isExternalLoading = false,
@@ -61,8 +61,15 @@ export function ExperimentChartSlot({
   const query: QueryType | null = useMemo(() => {
     if (!widgetConfig) return null;
 
-    const isExperimentScoreMetric =
-      selectedMetricId.startsWith("experiment-score-");
+    const experimentIds = experiments.map((experiment) => experiment.id);
+    const experimentNames = Array.from(
+      new Set(
+        experiments
+          .map((experiment) => experiment.name)
+          .filter((name) => name.length > 0),
+      ),
+    );
+    const entityDimensionField = widgetConfig.entityDimension?.field;
 
     return {
       view: widgetConfig.view,
@@ -76,8 +83,15 @@ export function ExperimentChartSlot({
       })),
       filters: [
         ...(widgetConfig.filters ?? []),
-        ...(!isExperimentScoreMetric
+        ...(entityDimensionField === "experimentName" &&
+        experimentNames.length > 0
           ? [
+              {
+                column: "experimentName" as const,
+                operator: "any of" as const,
+                value: experimentNames,
+                type: "stringOptions" as const,
+              },
               {
                 column: "experimentId" as const,
                 operator: "any of" as const,
@@ -86,7 +100,7 @@ export function ExperimentChartSlot({
               },
             ]
           : []),
-        ...(isExperimentScoreMetric
+        ...(entityDimensionField === "datasetRunId"
           ? [
               {
                 column: "datasetRunId" as const,
@@ -100,13 +114,7 @@ export function ExperimentChartSlot({
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
     };
-  }, [
-    widgetConfig,
-    experimentIds,
-    fromTimestamp,
-    toTimestamp,
-    selectedMetricId,
-  ]);
+  }, [widgetConfig, experiments, fromTimestamp, toTimestamp]);
 
   // Group options by their group for the dropdown
   const groupedOptions = useMemo(() => {
@@ -139,7 +147,7 @@ export function ExperimentChartSlot({
   // Check if metric is available for current experiments
   const isMetricAvailable = Boolean(selectedMetricOption);
 
-  const isEnabled = experimentIds.length > 0;
+  const isEnabled = experiments.length > 0;
 
   return (
     <div className="group relative">

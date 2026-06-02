@@ -509,9 +509,9 @@ export default function ExperimentsTable({
       : [];
   }, [experiments]);
 
-  // Get all experiment IDs from the current query result (for charts)
-  const allExperimentIds = useMemo(() => {
-    return rows.map((row) => row.id);
+  // Get experiments from the current query result (for charts)
+  const chartExperiments = useMemo(() => {
+    return rows.map((row) => ({ id: row.id, name: row.name }));
   }, [rows]);
 
   // Charts accordion collapsed state (persisted in session storage)
@@ -679,7 +679,7 @@ export default function ExperimentsTable({
                 <AccordionContent className="max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1">
                   <ExperimentChartsGrid
                     projectId={projectId}
-                    experimentIds={allExperimentIds}
+                    experiments={chartExperiments}
                     fromTimestamp={tableDateRange.from}
                     toTimestamp={tableDateRange.to}
                     isExternalLoading={experiments.status === "loading"}

@@ -1,10 +1,11 @@
 import { Plus } from "lucide-react";
+import { useMemo } from "react";
 import { ExperimentChartSlot } from "./ExperimentChartSlot";
 import { useExperimentChartsGridSelection } from "../hooks/useExperimentChartsGridSelection";
 
 type ExperimentChartsGridProps = {
   projectId: string;
-  experimentIds: string[];
+  experiments: Array<{ id: string; name: string }>;
   fromTimestamp: Date;
   toTimestamp: Date;
   isExternalLoading?: boolean;
@@ -59,11 +60,15 @@ function getGridClass(chartCount: number): string {
  */
 export function ExperimentChartsGrid({
   projectId,
-  experimentIds,
+  experiments,
   fromTimestamp,
   toTimestamp,
   isExternalLoading = false,
 }: ExperimentChartsGridProps) {
+  const experimentIds = useMemo(
+    () => experiments.map((experiment) => experiment.id),
+    [experiments],
+  );
   const {
     charts,
     updateChart,
@@ -93,7 +98,7 @@ export function ExperimentChartsGrid({
           canDelete={canDeleteChart}
           availableMetricOptions={availableMetricOptions}
           projectId={projectId}
-          experimentIds={experimentIds}
+          experiments={experiments}
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
           isExternalLoading={isExternalLoading || isLoading}

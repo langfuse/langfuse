@@ -174,11 +174,11 @@ export function validateQuery(
     };
   }
 
-  // An entity dimension with high cardinality dimensions produces unbounded result sets and cannot be meaningfully limited with row_limit.
+  // An entity-dimension query with additional high cardinality dimensions produces unbounded result sets and cannot be meaningfully limited with row_limit.
   if (query.entityDimension) {
     return {
       valid: false,
-      reason: `High cardinality dimension(s) '${highCardDims.join(", ")}' cannot be used with entityDimension. Entity dimensions with high cardinality dimensions produce unbounded result sets.`,
+      reason: `High cardinality dimension(s) '${highCardDims.join(", ")}' cannot be used with entityDimension. Entity-dimension queries with additional high cardinality dimensions produce unbounded result sets.`,
     };
   }
 
