@@ -70,9 +70,9 @@ export const TemplateSelector = ({
 }: TemplateSelectorProps) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
   const visibleEvalTemplates = evalTemplates.filter((template) =>
-    shouldShowEvalTemplate(template, isCodeEvalEnabled),
+    shouldShowEvalTemplate(template, codeEvalCapabilities),
   );
   const {
     activeTemplates,

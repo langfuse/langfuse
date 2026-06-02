@@ -1,5 +1,6 @@
 import {
   EvalTargetObject,
+  type EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
   type EvalTemplate,
   type ObservationVariableMapping,
@@ -9,10 +10,27 @@ export const isCodeEvalTemplate = (
   template: Partial<Pick<EvalTemplate, "type">> | null | undefined,
 ) => template?.type === EvalTemplateType.CODE;
 
+type CodeEvalCapabilities = {
+  enabled: boolean;
+  supportedSourceCodeLanguages: EvalTemplateSourceCodeLanguage[];
+};
+
 export const shouldShowEvalTemplate = (
-  template: Pick<EvalTemplate, "type">,
-  codeEvalEnabled: boolean,
-) => !isCodeEvalTemplate(template) || codeEvalEnabled;
+  template: Partial<Pick<EvalTemplate, "type" | "sourceCodeLanguage">>,
+  codeEvalCapabilities: CodeEvalCapabilities,
+) => {
+  if (!isCodeEvalTemplate(template)) return true;
+
+  return (
+    codeEvalCapabilities.enabled &&
+    Boolean(
+      template.sourceCodeLanguage &&
+      codeEvalCapabilities.supportedSourceCodeLanguages.includes(
+        template.sourceCodeLanguage,
+      ),
+    )
+  );
+};
 
 export const CODE_EVAL_ESCAPE_CONFIRM_MESSAGE =
   "Close code editor? Unsaved changes will be lost.";

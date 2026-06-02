@@ -120,7 +120,7 @@ export function createAgUiStream(params: {
 
     finished = true;
     try {
-      void eventQueue
+      eventQueue
         .then(() => params.options.onFinish?.())
         .catch((error) => {
           logger.error("Error in agent stream cleanup", {
@@ -176,7 +176,7 @@ export function createAgUiStream(params: {
           eventType,
         });
 
-        void runTerminalCallback(
+        runTerminalCallback(
           () => params.options.onError?.(error),
           "Error while marking agent stream as failed",
         ).finally(finish);
@@ -226,7 +226,7 @@ export function createAgUiStream(params: {
 
         ending = true;
         removeAbortHandler();
-        void eventQueue
+        eventQueue
           .then(async () => {
             if (closed) {
               return;
@@ -253,7 +253,7 @@ export function createAgUiStream(params: {
         ending = true;
         closed = true;
         removeAbortHandler();
-        void runTerminalCallback(
+        runTerminalCallback(
           () => params.options.onAbort?.(),
           "Error while marking agent stream as aborted",
         ).finally(finish);
@@ -365,7 +365,7 @@ export function createAgUiStream(params: {
       removeAbortHandler();
       subscription?.unsubscribe();
       adapter.interrupt().catch(() => undefined);
-      void Promise.resolve(params.options.onAbort?.())
+      Promise.resolve(params.options.onAbort?.())
         .catch((error) => {
           logger.error("Error while marking agent stream as aborted", {
             error,

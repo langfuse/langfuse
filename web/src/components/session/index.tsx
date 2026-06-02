@@ -343,7 +343,7 @@ export const SessionPage: React.FC<{
         message="The session is either still being processed or has been deleted."
         additionalButton={{
           label: "Retry",
-          onClick: () => void window.location.reload(),
+          onClick: () => window.location.reload(),
         }}
       />
     );
@@ -851,7 +851,7 @@ export const SessionEventsPage: React.FC<{
         message="The session is either still being processed or has been deleted."
         additionalButton={{
           label: "Retry",
-          onClick: () => void window.location.reload(),
+          onClick: () => window.location.reload(),
         }}
       />
     );

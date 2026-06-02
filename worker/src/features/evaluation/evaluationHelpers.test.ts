@@ -7,6 +7,7 @@ import {
   createBooleanEvalOutputDefinition,
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
+  EvalTargetObject,
   PersistedEvalOutputDefinitionSchema,
   ScoreDataTypeEnum,
   validateEvalOutputResult,
@@ -21,6 +22,7 @@ import {
   getEnvironmentFromVariables,
 } from "./evalRuntime";
 import { buildEvalScoreWritePayloads } from "./evalScoreEvent";
+import { buildEvalExecutionSpanAttributes } from "./evalSpanAttributes";
 
 describe("evaluation helpers", () => {
   describe("compileEvalPrompt", () => {
@@ -356,6 +358,112 @@ describe("evaluation helpers", () => {
       expect(Object.keys(result)).not.toContain("target_trace_id");
       expect(Object.keys(result)).not.toContain("target_observation_id");
       expect(Object.keys(result)).not.toContain("target_dataset_item_id");
+    });
+  });
+
+  describe("buildEvalExecutionSpanAttributes", () => {
+    it("should include target object, filter dimensions, and trace variable source fields", () => {
+      const attributes = buildEvalExecutionSpanAttributes({
+        config: {
+          id: "config-123",
+          targetObject: EvalTargetObject.TRACE,
+          filter: [
+            {
+              type: "string",
+              column: "name",
+              operator: "=",
+              value: "checkout",
+            },
+            {
+              type: "stringObject",
+              column: "metadata",
+              key: "tenant",
+              operator: "=",
+              value: "langfuse",
+            },
+            {
+              type: "numberObject",
+              column: "scores_avg",
+              key: "quality",
+              operator: ">",
+              value: 0.8,
+            },
+            {
+              type: "stringObject",
+              column: "metadata",
+              key: "tenant",
+              operator: "contains",
+              value: "lang",
+            },
+          ],
+          variableMapping: [
+            {
+              templateVariable: "traceInput",
+              langfuseObject: "trace",
+              selectedColumnId: "input",
+              jsonSelector: "messages.0.content",
+            },
+            {
+              templateVariable: "answer",
+              langfuseObject: "generation",
+              objectName: "answer-generator",
+              selectedColumnId: "output",
+              jsonSelector: null,
+            },
+          ],
+        },
+      });
+
+      expect(attributes).toMatchObject({
+        "eval.job_configuration.id": "config-123",
+        "eval.job_configuration.target_object": EvalTargetObject.TRACE,
+        "eval.job_configuration.filter.dimensions": [
+          "name",
+          "metadata",
+          "scores_avg",
+        ],
+        "eval.job_configuration.filter.dimension_count": 3,
+        "eval.variable.source_fields": ["trace.input", "generation.output"],
+        "eval.variable.source_field_count": 2,
+      });
+    });
+
+    it("should use observation variable mappings for event and experiment targets", () => {
+      const attributes = buildEvalExecutionSpanAttributes({
+        config: {
+          id: "config-456",
+          targetObject: EvalTargetObject.EVENT,
+          filter: [
+            {
+              type: "positionInTrace",
+              column: "position",
+              operator: "=",
+              key: "root",
+            },
+          ],
+          variableMapping: [
+            {
+              templateVariable: "input",
+              selectedColumnId: "input",
+              jsonSelector: "question",
+            },
+            {
+              templateVariable: "output",
+              selectedColumnId: "output",
+              jsonSelector: null,
+            },
+          ],
+        },
+      });
+
+      expect(attributes).toMatchObject({
+        "eval.job_configuration.id": "config-456",
+        "eval.job_configuration.target_object": EvalTargetObject.EVENT,
+        "eval.job_configuration.filter.dimensions": ["position"],
+        "eval.job_configuration.filter.dimension_count": 1,
+        "eval.variable.source_fields": ["input", "output"],
+        "eval.variable.source_field_count": 2,
+      });
     });
   });
 

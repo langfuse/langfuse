@@ -19,7 +19,7 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
 
   const mutDeletePrompt = api.prompts.delete.useMutation({
     onSuccess: () => {
-      void utils.prompts.invalidate();
+      utils.prompts.invalidate();
       setError(null);
       setIsOpen(false);
     },
@@ -63,7 +63,7 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
               }
               setError(null);
 
-              void mutDeletePrompt.mutate({
+              mutDeletePrompt.mutate({
                 projectId,
                 promptName,
               });

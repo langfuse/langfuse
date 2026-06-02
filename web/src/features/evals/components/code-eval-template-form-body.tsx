@@ -352,7 +352,7 @@ export function CodeEvalTemplateFormBody({
               !event.metaKey
             ) {
               event.preventDefault();
-              void formatSource();
+              formatSource();
               return true;
             }
 
@@ -393,7 +393,7 @@ export function CodeEvalTemplateFormBody({
             size="sm"
             disabled={isFormatting}
             aria-keyshortcuts={FORMAT_SHORTCUT_ARIA}
-            onClick={() => void formatSource()}
+            onClick={() => formatSource()}
           >
             {isFormatting && (
               <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
