@@ -1,27 +1,19 @@
 import {
   convertClickhouseScoreToDomain,
-  logger,
+  getScoreById,
   measureAndReturn,
   queryClickhouse,
   type ScoreRecordReadType,
 } from "@langfuse/shared/src/server";
-import type {
-  APIScoreV3,
-  ScoreDataTypeType,
-  ScoreDomain,
-} from "@langfuse/shared";
-import {
-  filterAndValidateV3GetScoreList,
-  InternalServerError,
-  ScoreDataTypeEnum,
-} from "@langfuse/shared";
+import type { APIScoreV3, ScoreDomain } from "@langfuse/shared";
+import { ScoreDataTypeEnum } from "@langfuse/shared";
 
 export function polymorphicValue(score: {
-  dataType: ScoreDataTypeType;
+  dataType: string;
   value: number;
   stringValue?: string | null;
   longStringValue?: string | null;
-}): number | boolean | string {
+}): number | boolean | string | null {
   switch (score.dataType) {
     case ScoreDataTypeEnum.NUMERIC:
       return score.value;
@@ -29,31 +21,15 @@ export function polymorphicValue(score: {
       return score.value === 1;
     case ScoreDataTypeEnum.CATEGORICAL:
     case ScoreDataTypeEnum.TEXT:
-      if (score.stringValue == null) {
-        throw new InternalServerError(
-          `Score with dataType ${score.dataType} is missing its stringValue`,
-        );
-      }
-      return score.stringValue;
+      return score.stringValue ?? null;
     case ScoreDataTypeEnum.CORRECTION:
-      if (score.longStringValue == null) {
-        throw new InternalServerError(
-          "Score with dataType CORRECTION is missing its longStringValue",
-        );
-      }
-      return score.longStringValue;
-    default: {
-      const _exhaustiveCheck: never = score.dataType;
-      throw new InternalServerError(
-        `Score has unknown dataType: ${_exhaustiveCheck as string}`,
-      );
-    }
+      return score.longStringValue || null;
+    default:
+      return null;
   }
 }
 
 function domainToV3(score: ScoreDomain): APIScoreV3 {
-  // ScoreDomain is a flat type so TypeScript cannot verify that dataType and
-  // value are a valid discriminated pair; polymorphicValue guarantees it at runtime.
   return {
     id: score.id,
     projectId: score.projectId,
@@ -62,15 +38,18 @@ function domainToV3(score: ScoreDomain): APIScoreV3 {
     value: polymorphicValue({
       dataType: score.dataType,
       value: score.value,
-      stringValue: score.stringValue as string | null | undefined,
-      longStringValue: score.longStringValue as string | null | undefined,
+      stringValue:
+        "stringValue" in score
+          ? (score.stringValue as string | null | undefined)
+          : null,
+      longStringValue: score.longStringValue,
     }),
     source: score.source,
     timestamp: score.timestamp,
     environment: score.environment,
     createdAt: score.createdAt,
     updatedAt: score.updatedAt,
-  } as APIScoreV3;
+  };
 }
 
 const v3ListQuery = `
@@ -99,7 +78,7 @@ const v3ListQuery = `
     s.dataset_run_id as dataset_run_id
   FROM scores s
   WHERE s.project_id = {projectId: String}
-  ORDER BY s.timestamp DESC, s.id DESC, s.event_ts DESC
+  ORDER BY s.timestamp DESC, s.event_ts DESC, s.id DESC
   LIMIT 1 BY s.id, s.project_id
   LIMIT {limit: Int32}
 `;
@@ -127,28 +106,21 @@ export async function listScoresV3ForPublicApi(params: {
         tags: input.tags,
         preferredClickhouseService: "ReadOnly",
       });
-      // Log+drop bad rows rather than 500ing the whole page — domainToV3 can
-      // throw (e.g. polymorphicValue's stringValue / longStringValue guards
-      // for malformed CATEGORICAL / TEXT / CORRECTION rows). Mirrors the
-      // row-level graceful-drop semantics of filterAndValidateV3GetScoreList.
-      const items: ReturnType<typeof domainToV3>[] = [];
-      for (const row of records) {
-        try {
-          items.push(domainToV3(convertClickhouseScoreToDomain(row)));
-        } catch (error) {
-          logger.error("v3 score row dropped from response", {
-            error,
-            scoreId: row.id,
-            projectId: params.projectId,
-          });
-        }
-      }
-      return filterAndValidateV3GetScoreList(items, (error) => {
-        logger.error("v3 score row dropped from response", {
-          issues: error.issues,
-          projectId: params.projectId,
-        });
-      });
+      return records.map((row) =>
+        domainToV3(convertClickhouseScoreToDomain(row)),
+      );
     },
   });
+}
+
+export async function getScoreV3ForPublicApi(params: {
+  projectId: string;
+  scoreId: string;
+}): Promise<APIScoreV3 | undefined> {
+  const score = await getScoreById({
+    projectId: params.projectId,
+    scoreId: params.scoreId,
+  });
+  if (!score) return undefined;
+  return domainToV3(score);
 }

@@ -437,6 +437,7 @@ export const env = createEnv({
       .enum(["legacy", "dual", "events_only"])
       .default("legacy"),
 
+    // v3 Scores API - disabled by default for self-hosters
     LANGFUSE_ENABLE_SCORES_V3_API: z.enum(["true", "false"]).default("false"),
 
     // Blocked users for chat completion API (userId:reason format)
@@ -812,7 +813,7 @@ export const env = createEnv({
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
     SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
 
-    // AWS Bedrock for Langfuse native AI features
+    // AWS Bedrock for langfuse native AI feature such as natural language filters
     LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
 
     // Langfuse Tracing AI Features
