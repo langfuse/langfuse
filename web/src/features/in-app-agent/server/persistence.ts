@@ -14,6 +14,13 @@ import {
   type AgUiMessage,
 } from "@/src/features/in-app-agent/schema";
 
+const ACTIVE_RUN_STALE_AFTER_MS = 10 * 60 * 1000;
+const ACTIVE_RUN_CONFLICT_MESSAGE =
+  "Assistant is already responding in this conversation";
+const STALE_RUN_ERROR_CODE = "stale";
+const STALE_RUN_ERROR_MESSAGE =
+  "Run was marked stale before starting a new run";
+
 export type SerializedInAppAgentConversation = {
   id: string;
   title: string | null;
@@ -106,47 +113,59 @@ export async function createRun(params: {
   modelParams?: Prisma.InputJsonValue;
   mcpApiKeyId?: string;
 }) {
-  const existing = await params.prisma.inAppAgentRun.findUnique({
-    where: { id: params.runId },
-  });
+  const now = new Date();
+  const staleBefore = new Date(now.getTime() - ACTIVE_RUN_STALE_AFTER_MS);
 
-  if (existing) {
-    if (
-      existing.projectId !== params.projectId ||
-      existing.conversationId !== params.conversationId
-    ) {
+  return params.prisma.$transaction(async (tx) => {
+    await lockConversation(tx, params.projectId, params.conversationId);
+
+    // The v1 agent is foreground-only. If a stream dies before finishRun runs,
+    // lazily mark the old run stale so it does not block the conversation forever.
+    await tx.inAppAgentRun.updateMany({
+      where: {
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        finishedAt: null,
+        OR: [
+          { startedAt: { lt: staleBefore } },
+          { startedAt: null, createdAt: { lt: staleBefore } },
+        ],
+      },
+      data: {
+        finishedAt: now,
+        errorCode: STALE_RUN_ERROR_CODE,
+        errorMessage: STALE_RUN_ERROR_MESSAGE,
+      },
+    });
+
+    const activeRun = await tx.inAppAgentRun.findFirst({
+      where: {
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        finishedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (activeRun) {
       throw new TRPCError({
         code: "CONFLICT",
-        message: "Agent run id is already used",
+        message: ACTIVE_RUN_CONFLICT_MESSAGE,
       });
     }
 
-    return params.prisma.inAppAgentRun.update({
-      where: { id: params.runId },
+    return tx.inAppAgentRun.create({
       data: {
-        startedAt: existing.startedAt ?? new Date(),
-        finishedAt: null,
-        errorCode: null,
-        errorMessage: null,
-        ...(params.modelParams !== undefined
-          ? { modelParams: params.modelParams }
-          : {}),
-        mcpApiKeyId: params.mcpApiKeyId ?? existing.mcpApiKeyId,
+        id: params.runId,
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        createdByUserId: params.userId,
+        startedAt: now,
+        model: params.model,
+        modelParams: params.modelParams,
+        mcpApiKeyId: params.mcpApiKeyId,
       },
     });
-  }
-
-  return params.prisma.inAppAgentRun.create({
-    data: {
-      id: params.runId,
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-      createdByUserId: params.userId,
-      startedAt: new Date(),
-      model: params.model,
-      modelParams: params.modelParams,
-      mcpApiKeyId: params.mcpApiKeyId,
-    },
   });
 }
 
@@ -430,26 +449,27 @@ type PersistedEventFields = {
   optional?: readonly string[];
 };
 
-const PERSISTED_EVENT_FIELDS = {
-  [EventType.TEXT_MESSAGE_START]: { required: ["messageId", "role"] },
-  [EventType.TEXT_MESSAGE_CONTENT]: { required: ["messageId", "delta"] },
-  [EventType.TEXT_MESSAGE_END]: { required: ["messageId"] },
-  [EventType.TOOL_CALL_START]: {
-    required: ["toolCallId", "toolCallName", "parentMessageId"],
-  },
-  [EventType.TOOL_CALL_ARGS]: { required: ["toolCallId", "delta"] },
-  [EventType.TOOL_CALL_END]: { required: ["toolCallId"] },
-  [EventType.TOOL_CALL_RESULT]: {
-    required: ["messageId", "toolCallId", "content"],
-    optional: ["error"],
-  },
-  [EventType.RUN_FINISHED]: { optional: ["threadId", "runId"] },
-  [EventType.RUN_ERROR]: {
-    optional: ["threadId", "runId", "message", "code"],
-  },
-  [EventType.STEP_STARTED]: { required: ["stepName"] },
-  [EventType.STEP_FINISHED]: { required: ["stepName"] },
-} satisfies Partial<Record<EventType, PersistedEventFields>>;
+const PERSISTED_EVENT_FIELDS: Partial<Record<EventType, PersistedEventFields>> =
+  {
+    [EventType.TEXT_MESSAGE_START]: { required: ["messageId", "role"] },
+    [EventType.TEXT_MESSAGE_CONTENT]: { required: ["messageId", "delta"] },
+    [EventType.TEXT_MESSAGE_END]: { required: ["messageId"] },
+    [EventType.TOOL_CALL_START]: {
+      required: ["toolCallId", "toolCallName", "parentMessageId"],
+    },
+    [EventType.TOOL_CALL_ARGS]: { required: ["toolCallId", "delta"] },
+    [EventType.TOOL_CALL_END]: { required: ["toolCallId"] },
+    [EventType.TOOL_CALL_RESULT]: {
+      required: ["messageId", "toolCallId", "content"],
+      optional: ["error"],
+    },
+    [EventType.RUN_FINISHED]: { optional: ["threadId", "runId"] },
+    [EventType.RUN_ERROR]: {
+      optional: ["threadId", "runId", "message", "code"],
+    },
+    [EventType.STEP_STARTED]: { required: ["stepName"] },
+    [EventType.STEP_FINISHED]: { required: ["stepName"] },
+  };
 
 function sanitizePersistedEvent(event: AgUiEvent): AgUiEvent | null {
   if (event.type === EventType.RUN_STARTED) {

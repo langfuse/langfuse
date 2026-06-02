@@ -203,6 +203,11 @@ describe("in-app agent persistence", () => {
       messageId: "assistant-message-1",
       chunks: ["I will inspect recent traces", " and look for outliers."],
     });
+    await finishRun({
+      prisma,
+      runId: run1.id,
+      projectId,
+    });
 
     const run2 = await createConversationRun({
       projectId,
@@ -796,6 +801,54 @@ describe("in-app agent persistence", () => {
       errorCode: "agent_error",
       errorMessage: "Original agent error",
     });
+  });
+
+  it("blocks a second active run in the same conversation", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await caller.create({ projectId });
+
+    await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    await expect(
+      createConversationRun({
+        projectId,
+        conversationId: conversation.id,
+        userId,
+      }),
+    ).rejects.toThrow("Assistant is already responding in this conversation");
+  });
+
+  it("marks old unfinished runs stale before starting a new run", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await caller.create({ projectId });
+    const staleRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    await prisma.inAppAgentRun.update({
+      where: { id: staleRun.id },
+      data: { startedAt: new Date("2026-05-20T10:00:00.000Z") },
+    });
+
+    const newRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    await expect(
+      prisma.inAppAgentRun.findUniqueOrThrow({ where: { id: staleRun.id } }),
+    ).resolves.toMatchObject({
+      errorCode: "stale",
+      errorMessage: "Run was marked stale before starting a new run",
+    });
+    expect(newRun.finishedAt).toBeNull();
   });
 
   it("paginates conversation list with a stable cursor", async () => {
