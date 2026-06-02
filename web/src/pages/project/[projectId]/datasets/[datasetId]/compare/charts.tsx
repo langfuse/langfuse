@@ -45,6 +45,7 @@ import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperim
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -131,7 +132,7 @@ export default function DatasetCompare() {
             },
             {
               name: dataset.data?.name ?? datasetId,
-              href: `/project/${projectId}/datasets/${datasetId}`,
+              href: `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}`,
             },
           ],
           actionButtonsLeft: betaSwitch,
@@ -159,7 +160,7 @@ export default function DatasetCompare() {
           },
           {
             name: dataset.data?.name ?? datasetId,
-            href: `/project/${projectId}/datasets/${datasetId}`,
+            href: `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}`,
           },
         ],
         help: {

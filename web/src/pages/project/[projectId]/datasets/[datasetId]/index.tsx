@@ -42,6 +42,7 @@ import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 export default function Dataset() {
   const router = useRouter();
@@ -106,7 +107,7 @@ export default function Dataset() {
       description: "Waiting for experiment to complete...",
       link: {
         text: "View experiment",
-        href: `/project/${projectId}/datasets/${data.datasetId}/compare?runs=${data.runId}`,
+        href: `/project/${projectId}/datasets/${encodeDatasetPathSegment(data.datasetId)}/compare?runs=${data.runId}`,
       },
     });
   };
@@ -310,7 +311,9 @@ export default function Dataset() {
 
             <DetailPageNav
               currentId={datasetId}
-              path={(entry) => `/project/${projectId}/datasets/${entry.id}`}
+              path={(entry) =>
+                `/project/${projectId}/datasets/${encodeDatasetPathSegment(entry.id)}`
+              }
               listKey="datasets"
             />
             <DropdownMenu>

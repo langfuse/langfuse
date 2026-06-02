@@ -9,6 +9,7 @@ import {
   ExperimentOverviewField,
   ExperimentOverviewSectionHeading,
 } from "./ExperimentOverviewField";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 const isSafeHttpUrl = (value: string | undefined) => {
   if (!value) return false;
@@ -149,7 +150,7 @@ export function ExperimentOverviewPanel({
 
               <ExperimentOverviewField label="Dataset">
                 <Link
-                  href={`/project/${projectId}/datasets/${encodeURIComponent(experiment.datasetId)}`}
+                  href={`/project/${projectId}/datasets/${encodeDatasetPathSegment(experiment.datasetId)}`}
                   className="text-primary hover:underline"
                 >
                   {experiment.datasetName || experiment.datasetId}

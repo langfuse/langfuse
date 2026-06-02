@@ -66,6 +66,7 @@ import {
 } from "@/src/features/scores/lib/scoreColumns";
 import { getScoreLabelFromKey } from "@/src/features/scores/lib/aggregateScores";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 export type DatasetRunRowData = {
   id: string;
@@ -119,7 +120,7 @@ const DatasetRunTableMultiSelectAction = ({
           <Link
             key="compare"
             href={{
-              pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
+              pathname: `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}/compare`,
               query: { runs: selectedRunIds },
             }}
           >
@@ -392,7 +393,7 @@ export function DatasetRunsTable(props: {
         const id: DatasetRunRowData["id"] = row.getValue("id");
         return (
           <TableLink
-            path={`/project/${props.projectId}/datasets/${props.datasetId}/runs/${id}`}
+            path={`/project/${props.projectId}/datasets/${encodeDatasetPathSegment(props.datasetId)}/runs/${id}`}
             value={name}
           />
         );
@@ -409,7 +410,7 @@ export function DatasetRunsTable(props: {
         const id: DatasetRunRowData["id"] = row.getValue("id");
         return (
           <TableLink
-            path={`/project/${props.projectId}/datasets/${props.datasetId}/runs/${id}`}
+            path={`/project/${props.projectId}/datasets/${encodeDatasetPathSegment(props.datasetId)}/runs/${id}`}
             value={id}
           />
         );

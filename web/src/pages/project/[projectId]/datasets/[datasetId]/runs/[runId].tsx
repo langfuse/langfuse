@@ -27,6 +27,7 @@ import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperim
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 export default function Dataset() {
   const router = useRouter();
@@ -82,11 +83,11 @@ export default function Dataset() {
             { name: "Datasets", href: `/project/${projectId}/datasets` },
             {
               name: dataset.data?.name ?? datasetId,
-              href: `/project/${projectId}/datasets/${datasetId}`,
+              href: `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}`,
             },
             {
               name: "Experiments",
-              href: `/project/${projectId}/datasets/${datasetId}`,
+              href: `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}`,
             },
           ],
           actionButtonsLeft: betaSwitch,
@@ -108,11 +109,11 @@ export default function Dataset() {
           { name: "Datasets", href: `/project/${projectId}/datasets` },
           {
             name: dataset.data?.name ?? datasetId,
-            href: `/project/${projectId}/datasets/${datasetId}`,
+            href: `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}`,
           },
           {
             name: "Experiments",
-            href: `/project/${projectId}/datasets/${datasetId}`,
+            href: `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}`,
           },
         ],
         actionButtonsLeft: betaSwitch,
@@ -120,7 +121,7 @@ export default function Dataset() {
           <>
             <Link
               href={{
-                pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
+                pathname: `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}/compare`,
                 query: { runs: [runId] },
               }}
             >
@@ -132,7 +133,7 @@ export default function Dataset() {
             <DetailPageNav
               currentId={runId}
               path={(entry) =>
-                `/project/${projectId}/datasets/${datasetId}/runs/${entry.id}`
+                `/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}/runs/${entry.id}`
               }
               listKey="datasetRuns"
             />
@@ -148,7 +149,7 @@ export default function Dataset() {
                     projectId={projectId}
                     datasetRunId={runId}
                     datasetId={datasetId}
-                    redirectUrl={`/project/${projectId}/datasets/${datasetId}`}
+                    redirectUrl={`/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}`}
                   />
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -182,7 +183,7 @@ export default function Dataset() {
                   <div className="flex flex-col gap-2 p-1">
                     <span className="text-sm font-medium">Dataset Version</span>
                     <Link
-                      href={`/project/${projectId}/datasets/${datasetId}/items?version=${run.data.datasetVersion.toISOString()}`}
+                      href={`/project/${projectId}/datasets/${encodeDatasetPathSegment(datasetId)}/items?version=${run.data.datasetVersion.toISOString()}`}
                       className="text-accent-dark-blue hover:text-primary-accent/60 text-sm"
                     >
                       <LocalIsoDate date={run.data.datasetVersion} />

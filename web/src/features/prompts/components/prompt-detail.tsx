@@ -46,6 +46,7 @@ import {
 import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
 import { useMemo, useState } from "react";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
 import Page from "@/src/components/layouts/page";
 import {
@@ -213,7 +214,7 @@ export const PromptDetail = ({
       description: "Waiting for experiment to complete...",
       link: {
         text: "View experiment",
-        href: `/project/${projectId}/datasets/${data.datasetId}/compare?runs=${data.runId}`,
+        href: `/project/${projectId}/datasets/${encodeDatasetPathSegment(data.datasetId)}/compare?runs=${data.runId}`,
       },
     });
   };

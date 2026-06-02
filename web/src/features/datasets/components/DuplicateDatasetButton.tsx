@@ -3,6 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { Copy } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { encodeDatasetPathSegment } from "@/src/features/datasets/utils/encodeDatasetPathSegment";
 
 export const DuplicateDatasetButton: React.FC<{
   projectId: string;
@@ -15,7 +16,7 @@ export const DuplicateDatasetButton: React.FC<{
   });
   const duplicateDataset = api.datasets.duplicateDataset.useMutation({
     onSuccess: ({ id }) => {
-      router.push(`/project/${projectId}/datasets/${id}`);
+      router.push(`/project/${projectId}/datasets/${encodeDatasetPathSegment(id)}`);
     },
   });
 
