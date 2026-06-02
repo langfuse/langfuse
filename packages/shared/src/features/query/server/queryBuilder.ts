@@ -158,8 +158,9 @@ export class QueryBuilder {
       const field = query.entityDimension.field;
       const dimension = this.getEntityDimensionDefinition(view, field);
 
-      // Entity dimensions may use relation-backed view dimensions, but only through
-      // relations declared by the current view. Do not infer broader join paths here.
+      // Entity buckets reuse view dimensions for SQL/relation metadata, but they are
+      // not regular dimensions. Only declared relations are allowed; do not infer
+      // broader join paths or propagation behavior here.
       if (
         dimension.relationTable &&
         !(dimension.relationTable in view.tableRelations)
@@ -617,6 +618,9 @@ export class QueryBuilder {
     const relationTables = new Set<string>();
     const actualTableName = this.actualTableName(view);
 
+    // The bucket dimension is a separate first-class grouping axis. If an entity
+    // bucket is relation-backed, include its declared relation without adding it to
+    // appliedDimensions and inheriting regular-dimension behavior.
     if (
       appliedBucketDimension.type === "entity" &&
       appliedBucketDimension.dimension.relationTable
