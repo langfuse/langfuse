@@ -286,9 +286,7 @@ const getAccountSettingsPages = (userEmail: string): AccountSettingsPage[] => [
               process.
             </p>
             <Button asChild variant="secondary">
-              <Link href="/auth/reset-password">
-                Change Password
-              </Link>
+              <Link href="/auth/reset-password">Change Password</Link>
             </Button>
           </Card>
         </div>
