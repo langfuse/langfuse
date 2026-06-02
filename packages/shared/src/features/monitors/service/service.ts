@@ -100,7 +100,7 @@ export class MonitorService {
 
     try {
       const current = await prisma.monitor.findFirst({
-        where: { id: input.id },
+        where: { id: input.id, projectId: input.projectId },
       });
       if (!current) {
         throw new MonitorNotFoundError(input.id, input.projectId);
