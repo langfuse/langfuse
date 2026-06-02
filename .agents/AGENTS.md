@@ -67,15 +67,15 @@ langfuse/
 
 ## Verification
 
-- `web/**`: `pnpm --filter web run lint` plus targeted web tests.
-- `worker/**`: `pnpm --filter worker run lint` plus targeted worker tests.
+- `web/**`: `pnpm run lint` plus targeted web tests.
+- `worker/**`: `pnpm run lint` plus targeted worker tests.
 - `packages/shared/**` non-schema changes:
-  `pnpm --filter @langfuse/shared run lint` plus one targeted web check and
-  one targeted worker check.
+  `pnpm run lint` plus one targeted web check and one targeted worker check.
 - `packages/shared/prisma/**` or `packages/shared/clickhouse/**`:
-  shared lint, `pnpm run db:generate`, and targeted web/worker regressions.
+  `pnpm run lint`, `pnpm run db:generate`, and targeted web/worker
+  regressions.
 - Public API contracts in `web/src/pages/api/public/**`,
-  `web/src/features/public-api/types/**`, or `fern/apis/**`: web lint,
+  `web/src/features/public-api/types/**`, or `fern/apis/**`: `pnpm run lint`,
   targeted server API tests, and Fern update/regeneration.
 - Cross-package refactors: `pnpm run lint`, `pnpm run typecheck`, and targeted
   tests for impacted packages.
