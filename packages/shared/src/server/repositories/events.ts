@@ -999,7 +999,7 @@ export const getTraceByIdFromEventsTable = async ({
       "t.created_at",
       "t.updated_at",
     )
-    .select(excludeMetadata ? "'{}' as metadata" : "t.metadata")
+    .select(excludeMetadata ? "map() as metadata" : "t.metadata")
     .select("0 as is_deleted");
 
   if (timestamp) {
