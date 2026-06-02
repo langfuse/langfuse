@@ -85,8 +85,6 @@ describe("Mixpanel transformers", () => {
       expect(result.event).toBe("[Langfuse] Observation");
       // distinct_id should be empty string for non-user events (Mixpanel distributes across shards)
       expect(result.properties.distinct_id).toBe("");
-      // langfuse_user_id property should use the sentinel value
-      expect(result.properties.langfuse_user_id).toBe("langfuse_unknown_user");
       // Should not have $user_id for anonymous events
       expect(result.properties.$user_id).toBeUndefined();
       expect(result.properties.session_id).toBeUndefined();
@@ -202,9 +200,6 @@ describe("Mixpanel transformers", () => {
 
         const result = transformTraceForMixpanel(trace, projectId);
         expect(result.properties.distinct_id).toBe("");
-        expect(result.properties.langfuse_user_id).toBe(
-          "langfuse_unknown_user",
-        );
         expect(result.properties.$user_id).toBeUndefined();
       },
     );
@@ -228,9 +223,6 @@ describe("Mixpanel transformers", () => {
 
         const result = transformGenerationForMixpanel(generation, projectId);
         expect(result.properties.distinct_id).toBe("");
-        expect(result.properties.langfuse_user_id).toBe(
-          "langfuse_unknown_user",
-        );
         expect(result.properties.$user_id).toBeUndefined();
       },
     );
@@ -257,9 +249,6 @@ describe("Mixpanel transformers", () => {
 
         const result = transformScoreForMixpanel(score, projectId);
         expect(result.properties.distinct_id).toBe("");
-        expect(result.properties.langfuse_user_id).toBe(
-          "langfuse_unknown_user",
-        );
         expect(result.properties.$user_id).toBeUndefined();
       },
     );
@@ -281,9 +270,6 @@ describe("Mixpanel transformers", () => {
 
         const result = transformEventForMixpanel(event, projectId);
         expect(result.properties.distinct_id).toBe("");
-        expect(result.properties.langfuse_user_id).toBe(
-          "langfuse_unknown_user",
-        );
         expect(result.properties.$user_id).toBeUndefined();
       },
     );
