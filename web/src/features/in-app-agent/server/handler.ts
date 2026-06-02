@@ -50,15 +50,6 @@ export default async function handler(request: Request) {
       );
     }
 
-    if (!env.LANGFUSE_AWS_BEDROCK_REGION) {
-      throw new BaseError(
-        "PreconditionFailedError",
-        412,
-        "Assistant is not configured",
-        true,
-      );
-    }
-
     const bodyResult = await readBoundedJsonBody(
       request,
       MAX_IN_APP_AGENT_INPUT_BYTES,
