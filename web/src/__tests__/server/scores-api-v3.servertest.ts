@@ -978,7 +978,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
     });
 
     it("name filter returns only scores with matching name", async () => {
-      const scoreName = `phase4-name-${v4()}`;
+      const scoreName = `filter-test-name-${v4()}`;
       const scoreId = v4();
       await createScoresCh([
         createTraceScore({
