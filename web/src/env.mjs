@@ -442,6 +442,9 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
 
+    // v3 Scores API - disabled by default for self-hosters
+    LANGFUSE_ENABLE_SCORES_V3_API: z.enum(["true", "false"]).default("false"),
+
     // Blocked users for chat completion API (userId:reason format)
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
       .string()
@@ -855,6 +858,7 @@ export const env = createEnv({
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
     LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS,
+    LANGFUSE_ENABLE_SCORES_V3_API: process.env.LANGFUSE_ENABLE_SCORES_V3_API,
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
       process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },

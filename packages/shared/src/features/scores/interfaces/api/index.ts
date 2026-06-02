@@ -3,3 +3,4 @@ export * from "./v1/validation";
 export * from "./v1/endpoints";
 export * from "./v2/validation";
 export * from "./v2/endpoints";
+export * from "./scores-v3";
