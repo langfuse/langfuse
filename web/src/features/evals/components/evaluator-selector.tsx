@@ -1,4 +1,8 @@
-import { type EvalTemplate } from "@langfuse/shared";
+import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
+  type EvalTemplate,
+} from "@langfuse/shared";
 import {
   AlertCircle,
   CheckIcon,
@@ -25,6 +29,73 @@ import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingl
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import Link from "next/link";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
+import { SiPython, SiTypescript } from "react-icons/si";
+
+const CodeTemplateLanguageIcon = ({
+  sourceCodeLanguage,
+}: {
+  sourceCodeLanguage: EvalTemplate["sourceCodeLanguage"];
+}) => {
+  const language =
+    sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
+      ? { Icon: SiTypescript, title: "TypeScript" }
+      : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+        ? { Icon: SiPython, title: "Python" }
+        : null;
+
+  if (!language) return null;
+
+  const { Icon } = language;
+
+  return (
+    <span
+      title={language.title}
+      aria-label={language.title}
+      className="text-muted-foreground ml-1 inline-flex shrink-0"
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+    </span>
+  );
+};
+
+const getCodeTemplateLanguageTitle = (
+  sourceCodeLanguage: EvalTemplate["sourceCodeLanguage"],
+) =>
+  sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+    ? "Python"
+    : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
+      ? "TypeScript"
+      : "Code";
+
+const TemplatePreviewTooltipContent = ({
+  template,
+}: {
+  template: EvalTemplate;
+}) => {
+  if (template.type === EvalTemplateType.CODE) {
+    return (
+      <>
+        <p className="mb-1 font-medium">
+          {getCodeTemplateLanguageTitle(template.sourceCodeLanguage)} source
+        </p>
+        <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
+          {template.sourceCode}
+        </pre>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <p className="mb-1 font-medium">Evaluation prompt</p>
+      <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
+        {template.prompt}
+      </pre>
+    </>
+  );
+};
 
 interface EvaluatorSelectorProps {
   projectId: string;
@@ -35,7 +106,6 @@ interface EvaluatorSelectorProps {
     name: string,
     version?: number,
   ) => void;
-  onCreateNew?: () => void;
 }
 
 export function EvaluatorSelector({
@@ -43,12 +113,15 @@ export function EvaluatorSelector({
   evalTemplates,
   selectedTemplateId,
   onTemplateSelect,
-  onCreateNew,
 }: EvaluatorSelectorProps) {
   const [search, setSearch] = useState("");
+  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const visibleEvalTemplates = evalTemplates.filter((template) =>
+    shouldShowEvalTemplate(template, isCodeEvalEnabled),
+  );
 
   // Group templates by name and whether they are managed by Langfuse
-  const groupedTemplates = evalTemplates.reduce(
+  const groupedTemplates = visibleEvalTemplates.reduce(
     (acc, template) => {
       const group = template.projectId ? "custom" : "langfuse";
       if (!acc[group][template.name]) {
@@ -139,16 +212,24 @@ export function EvaluatorSelector({
                   >
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span>{name}</span>
+                        <div className="flex min-w-0 items-center">
+                          <span className="truncate">{name}</span>
+                          {latestVersion.type === EvalTemplateType.CODE ? (
+                            <CodeTemplateLanguageIcon
+                              sourceCodeLanguage={
+                                latestVersion.sourceCodeLanguage
+                              }
+                            />
+                          ) : null}
+                        </div>
                       </TooltipTrigger>
                       <TooltipContent
                         side="right"
                         className="max-h-[300px] max-w-[400px] overflow-y-auto"
                       >
-                        <p className="mb-1 font-medium">Evaluation prompt</p>
-                        <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
-                          {latestVersion.prompt}
-                        </pre>
+                        <TemplatePreviewTooltipContent
+                          template={latestVersion}
+                        />
                       </TooltipContent>
                     </Tooltip>
                     {isInvalid && (
@@ -230,16 +311,24 @@ export function EvaluatorSelector({
                   >
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="mr-1">{name}</div>
+                        <div className="mr-1 flex min-w-0 items-center">
+                          <span className="truncate">{name}</span>
+                          {latestVersion.type === EvalTemplateType.CODE ? (
+                            <CodeTemplateLanguageIcon
+                              sourceCodeLanguage={
+                                latestVersion.sourceCodeLanguage
+                              }
+                            />
+                          ) : null}
+                        </div>
                       </TooltipTrigger>
                       <TooltipContent
                         side="right"
                         className="max-h-[300px] max-w-[400px] overflow-y-auto"
                       >
-                        <p className="mb-1 font-medium">Evaluation prompt</p>
-                        <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
-                          {latestVersion.prompt}
-                        </pre>
+                        <TemplatePreviewTooltipContent
+                          template={latestVersion}
+                        />
                       </TooltipContent>
                     </Tooltip>
                     <MaintainerTooltip
@@ -293,18 +382,6 @@ export function EvaluatorSelector({
                   </InputCommandItem>
                 );
               })}
-            </InputCommandGroup>
-          </>
-        )}
-
-        {onCreateNew && (
-          <>
-            <InputCommandSeparator alwaysRender />
-            <InputCommandGroup forceMount>
-              <InputCommandItem onSelect={onCreateNew}>
-                Create custom evaluator
-                <ExternalLink className="ml-auto h-4 w-4" />
-              </InputCommandItem>
             </InputCommandGroup>
           </>
         )}

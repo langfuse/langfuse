@@ -58,6 +58,57 @@ describe("prompts trpc", () => {
   afterAll(async () => {
     await disconnectQueues();
   });
+  describe("prompts.allVersions", () => {
+    it("returns comment counts for the requested prompt version page only", async () => {
+      const { project, caller } = await prepare();
+      const promptName = `test-prompt-comments-${v4()}`;
+      const promptVersions = Array.from({ length: 350 }, (_, index) => ({
+        id: v4(),
+        projectId: project.id,
+        name: promptName,
+        version: index + 1,
+        type: "text" as const,
+        prompt: { text: `Hello world v${index + 1}` },
+        createdBy: "API",
+      }));
+
+      await prisma.prompt.createMany({
+        data: promptVersions,
+      });
+
+      await prisma.comment.createMany({
+        data: [
+          {
+            projectId: project.id,
+            content: "old version comment",
+            objectId: promptVersions[0].id,
+            objectType: "PROMPT",
+          },
+          {
+            projectId: project.id,
+            content: "latest version comment",
+            objectId: promptVersions[349].id,
+            objectType: "PROMPT",
+          },
+        ],
+      });
+
+      const result = await caller.prompts.allVersions({
+        projectId: project.id,
+        name: promptName,
+        page: 0,
+        limit: 10,
+        includeCommentCounts: true,
+      });
+
+      expect(result.promptVersions).toHaveLength(10);
+      expect(result.promptVersions[0]?.version).toBe(350);
+      expect(result.commentCounts).toEqual(
+        new Map([[promptVersions[349].id, 1]]),
+      );
+    });
+  });
+
   describe("prompts.setLabels", () => {
     it("should set labels on a prompt and remove them from other versions", async () => {
       const { project, caller } = await prepare();

@@ -122,14 +122,18 @@ Use for:
 
 Open: [code-review/SKILL.md](code-review/SKILL.md)
 
-### detect-prod-regressions
+### weekly-production-review
 
 Use for:
-- proactive Datadog sweeps across `prod-us`, `prod-eu`, `prod-hipaa`, and `prod-jp`
-- comparing recent production errors, logs, spans, and API latency to baselines
-- handing measured regressions to `linear-bug-triage` for Linear issues or comments
+- weekly engineering reviews of what broke in production
+- combining Linear `bug`-labeled tickets, Datadog alert/page signals, and
+  status-page or incident.io incidents
+- fixed/open production bug summaries with title, summary, owner, evidence, and
+  classification
+- event-centric reporting that separates source evidence from the engineering
+  narrative
 
-Open: [detect-prod-regressions/SKILL.md](detect-prod-regressions/SKILL.md)
+Open: [weekly-production-review/SKILL.md](weekly-production-review/SKILL.md)
 
 ### linear-bug-triage
 
@@ -172,6 +176,8 @@ Open: [debug-issue-with-datadog/SKILL.md](debug-issue-with-datadog/SKILL.md)
 Use for:
 - pnpm dependency bumps that need a specific target version
 - interactive upgrades where the package name or version may be missing
+- transitive lockfile bumps that may need temporary overrides, then a
+  remove/install/dedupe check before deciding whether the override should stay
 - checking whether `pnpm-workspace.yaml` `minimumReleaseAgeExclude` must change
 - comparing registry latest with the latest version installable under the
   current release-age gate

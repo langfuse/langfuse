@@ -46,7 +46,7 @@ export const paginationZod = {
   ),
   limit: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().nonnegative().lte(100).default(50),
+    z.coerce.number().gte(1).lte(100).default(50),
   ),
 };
 
@@ -57,7 +57,7 @@ export const publicApiPaginationZod = {
   ),
   limit: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().lte(100).default(50),
+    z.coerce.number().gte(1).lte(100).default(50),
   ),
 };
 

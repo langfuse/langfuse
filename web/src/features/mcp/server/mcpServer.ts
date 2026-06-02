@@ -22,7 +22,11 @@ import { toolRegistry } from "./registry";
 import { logger } from "@langfuse/shared/src/server";
 
 const MCP_SERVER_NAME = "langfuse";
-const MCP_SERVER_VERSION = "0.2.0";
+
+// This MCP server is self-describing. Clients should dynamically inspect available tools and schemas.
+// Tool availability and schemas may evolve over time, including the addition, removal, or modification of tools and fields.
+// Clients are expected to tolerate schema changes and refresh capabilities dynamically.
+const MCP_SERVER_VERSION = "0.3.0-unstable";
 
 /**
  * Create and configure the MCP server instance.

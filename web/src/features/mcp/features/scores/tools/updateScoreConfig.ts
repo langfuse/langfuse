@@ -1,41 +1,67 @@
-import { SpanKind } from "@opentelemetry/api";
-import { instrumentAsync } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 import { updateScoreConfig } from "@/src/features/public-api/server/score-configs-api-service";
-import {
-  PutScoreConfigBodyWithoutArchived,
-  PutScoreConfigQuery,
-} from "@/src/features/public-api/types/score-configs";
+import { PutScoreConfigBodyWithoutArchived } from "@/src/features/public-api/types/score-configs";
 import { z } from "zod";
-import { McpScoreConfigNameSchema } from "../schema";
+import {
+  McpScoreConfigCategoricalCategoriesSchema,
+  McpScoreConfigNameSchema,
+  McpScoreConfigNumericMaxValueSchema,
+  McpScoreConfigNumericMinValueSchema,
+  preprocessMcpScoreConfigInput,
+} from "../schema";
 
-const UpdateScoreConfigInputSchema = PutScoreConfigQuery.and(
-  PutScoreConfigBodyWithoutArchived,
-);
+const McpUpdateScoreConfigBaseSchema = z.object({
+  configId: z.string(),
+  name: McpScoreConfigNameSchema.optional(),
+  numericMinValue: McpScoreConfigNumericMinValueSchema,
+  numericMaxValue: McpScoreConfigNumericMaxValueSchema,
+  categoricalCategories: McpScoreConfigCategoricalCategoriesSchema,
+  description: z.string().optional(),
+});
 
-const McpUpdateScoreConfigInputSchema = z
+const UpdateScoreConfigInputSchema = z
   .object({
+    configId: z.string(),
     name: McpScoreConfigNameSchema.optional(),
+    minValue: McpScoreConfigNumericMinValueSchema,
+    maxValue: McpScoreConfigNumericMaxValueSchema,
+    categories: McpScoreConfigCategoricalCategoriesSchema,
+    description: z.string().optional(),
   })
-  .and(UpdateScoreConfigInputSchema);
+  .superRefine((input, ctx) => {
+    const { configId: _configId, ...body } = input;
+    const bodyParseResult = PutScoreConfigBodyWithoutArchived.safeParse(body);
+
+    if (!bodyParseResult.success) {
+      for (const issue of bodyParseResult.error.issues) {
+        ctx.addIssue({
+          code: "custom",
+          path: issue.path,
+          message: issue.message,
+        });
+      }
+    }
+  });
+
+const McpUpdateScoreConfigInputSchema = z.preprocess(
+  preprocessMcpScoreConfigInput,
+  UpdateScoreConfigInputSchema,
+);
 
 export const [updateScoreConfigTool, handleUpdateScoreConfig] = defineTool({
   name: "updateScoreConfig",
   description:
-    "Update a score configuration in the current Langfuse project. Use this to rename, describe, or adjust allowed numeric/category fields.",
-  baseSchema: McpUpdateScoreConfigInputSchema,
+    "Update a score configuration. Use this to rename, describe, or adjust allowed numeric/category fields.",
+  baseSchema: McpUpdateScoreConfigBaseSchema,
   inputSchema: McpUpdateScoreConfigInputSchema,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.score_configs.update", spanKind: SpanKind.INTERNAL },
-      async (span) => {
+    return await runMcpTool({
+      spanName: "mcp.score_configs.update",
+      context,
+      attributes: { "mcp.score_config_id": input.configId },
+      fn: async () => {
         const { configId, ...body } = input;
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.score_config_id": configId,
-        });
 
         return await updateScoreConfig({
           context,
@@ -43,7 +69,7 @@ export const [updateScoreConfigTool, handleUpdateScoreConfig] = defineTool({
           body,
         });
       },
-    );
+    });
   },
   destructiveHint: true,
 });

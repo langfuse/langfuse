@@ -6,7 +6,7 @@ import {
   variableMappingList,
 } from "@langfuse/shared";
 import { invalidateProjectEvalConfigCaches } from "@langfuse/shared/src/server";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { EvalTemplateType, Prisma, prisma } from "@langfuse/shared/src/db";
 import type { PostUnstableEvaluatorBodyType } from "@/src/features/public-api/types/unstable-evaluators";
 import {
   toApiEvaluator,
@@ -130,6 +130,7 @@ export async function createPublicEvaluator(params: {
           where: {
             projectId: params.projectId,
             name: params.input.name,
+            type: EvalTemplateType.LLM_AS_JUDGE,
           },
           orderBy: [
             {
@@ -157,6 +158,11 @@ export async function createPublicEvaluator(params: {
                     in: existingProjectTemplates.map(
                       (existingTemplate) => existingTemplate.id,
                     ),
+                  },
+                  evalTemplate: {
+                    is: {
+                      type: EvalTemplateType.LLM_AS_JUDGE,
+                    },
                   },
                 },
                 select: {
