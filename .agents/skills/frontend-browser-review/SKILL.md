@@ -41,7 +41,7 @@ Use this skill when a change affects what users see or do in the browser.
 6. If the page changed materially, inspect the resulting UI state and compare
    it against the intended behavior from the task or existing patterns.
 7. If the browser session fails, inspect traces and artifacts under
-   `.playwright-mcp/`.
+   `/tmp/playwright-mcp`.
 
 ## Output Expectations
 

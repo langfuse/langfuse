@@ -107,7 +107,7 @@ const PromptHistoryTraceNode = (props: {
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  void props.router.push(
+                  props.router.push(
                     {
                       pathname: props.router.pathname,
                       query: {

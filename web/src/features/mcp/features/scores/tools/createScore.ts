@@ -36,36 +36,45 @@ const throwCreateScoreBatchError = (error: CreateScoreBatchError): never => {
   throw new ApiServerError("Failed to create score");
 };
 
-const CreateScoreBaseSchema = z.object({
-  id: z.string().optional(),
-  name: z.string().min(1),
-  traceId: z.string().optional(),
-  sessionId: z.string().optional(),
-  datasetRunId: z.string().optional(),
-  observationId: z.string().optional(),
-  comment: z.string().optional(),
-  metadata: z.any().optional(),
-  environment: z.string().optional(),
-  queueId: z.string().optional(),
-  source: PublicApiCreateScoreSourceDomain.optional(),
-  value: z
-    .any()
-    .describe(
-      "Score value. Use number for NUMERIC and BOOLEAN scores; use string for CATEGORICAL, TEXT, and CORRECTION scores.",
-    ),
-  dataType: z
-    .enum(["NUMERIC", "CATEGORICAL", "BOOLEAN", "CORRECTION", "TEXT"])
-    .optional()
-    .describe(
-      "Score data type. When omitted, legacy scoring accepts string or number values.",
-    ),
-  configId: z.string().optional(),
-});
+const CreateScoreBaseSchema = z
+  .object({
+    id: z.string().optional(),
+    name: z.string().min(1),
+    traceId: z.string().optional().describe("Target trace ID."),
+    sessionId: z.string().optional().describe("Target session ID."),
+    datasetRunId: z.string().optional().describe("Target dataset run ID."),
+    observationId: z
+      .string()
+      .optional()
+      .describe("Optional observation ID for trace-scoped scores."),
+    comment: z.string().optional(),
+    metadata: z.any().optional(),
+    environment: z.string().optional(),
+    queueId: z.string().optional(),
+    source: PublicApiCreateScoreSourceDomain.optional(),
+    value: z
+      .any()
+      .describe(
+        'Score value. Must be a JSON number for NUMERIC and BOOLEAN scores; numeric strings like "0.92" are invalid. Use a string for CATEGORICAL, TEXT, and CORRECTION scores.',
+      ),
+    dataType: z
+      .enum(["NUMERIC", "CATEGORICAL", "BOOLEAN", "CORRECTION", "TEXT"])
+      .optional()
+      .describe(
+        "Score data type. When omitted, legacy scoring accepts string or number values.",
+      ),
+    configId: z.string().optional(),
+  })
+  .describe(
+    "Create score request. Provide exactly one of traceId, sessionId, or datasetRunId. observationId may only be provided together with traceId.",
+  );
 
 export const [createScoreTool, handleCreateScore] = defineTool({
   name: "createScore",
-  description:
-    "Create one score in the current Langfuse project using the v1 /api/public/scores route semantics. This is the v1 fallback because score creation has no v2 public route.",
+  description: [
+    "Create one score in the current Langfuse project.",
+    "Score reads are eventually consistent: after creation, getScore and listScores may not return the new score immediately. Wait briefly and retry reads when confirming creation.",
+  ].join("\n"),
   baseSchema: CreateScoreBaseSchema,
   inputSchema: PostScoresBodyV1,
   destructiveHint: true,

@@ -3,7 +3,10 @@ import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { type EvalTemplate } from "@langfuse/shared/src/db";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
-import { isCodeEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
+import {
+  isCodeEvalTemplate,
+  shouldShowEvalTemplate,
+} from "@/src/features/evals/utils/code-eval-template-utils";
 
 export function useTemplateValidation({
   projectId,
@@ -12,7 +15,7 @@ export function useTemplateValidation({
   projectId: string;
   onValidSelection?: (template: EvalTemplate) => void;
 }) {
-  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
   const [selectedTemplate, setSelectedTemplate] = useState<EvalTemplate | null>(
     null,
   );
@@ -26,8 +29,12 @@ export function useTemplateValidation({
   useEffect(() => {
     if (selectedTemplate) {
       if (isCodeEvalTemplate(selectedTemplate)) {
-        setIsSelectionValid(isCodeEvalEnabled);
-        if (isCodeEvalEnabled) {
+        const isCodeEvalTemplateAvailable = shouldShowEvalTemplate(
+          selectedTemplate,
+          codeEvalCapabilities,
+        );
+        setIsSelectionValid(isCodeEvalTemplateAvailable);
+        if (isCodeEvalTemplateAvailable) {
           onValidSelection?.(selectedTemplate);
         }
         return;
@@ -48,7 +55,7 @@ export function useTemplateValidation({
       onValidSelection?.(selectedTemplate);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTemplate?.id, onValidSelection, isCodeEvalEnabled]);
+  }, [selectedTemplate?.id, onValidSelection, codeEvalCapabilities.enabled]);
 
   return { isSelectionValid, selectedTemplate, setSelectedTemplate };
 }

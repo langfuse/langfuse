@@ -115,9 +115,9 @@ export function EvaluatorSelector({
   onTemplateSelect,
 }: EvaluatorSelectorProps) {
   const [search, setSearch] = useState("");
-  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
   const visibleEvalTemplates = evalTemplates.filter((template) =>
-    shouldShowEvalTemplate(template, isCodeEvalEnabled),
+    shouldShowEvalTemplate(template, codeEvalCapabilities),
   );
 
   // Group templates by name and whether they are managed by Langfuse
