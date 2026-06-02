@@ -57,7 +57,7 @@ const project = await prisma.project.create({
 
 // ✅ GOOD: Read with projectId filter
 const trace = await prisma.trace.findUnique({
-  where: { id: traceId, projectId },  // ← Always include projectId for tenant isolation
+  where: { id: traceId, projectId }, // ← Always include projectId for tenant isolation
   include: {
     scores: true,
     project: { select: { id: true, name: true } },
@@ -77,12 +77,12 @@ await prisma.user.update({
 
 // ✅ GOOD: Delete with projectId
 await prisma.apiKey.delete({
-  where: { id: apiKeyId, projectId },  // ← Always include projectId
+  where: { id: apiKeyId, projectId }, // ← Always include projectId
 });
 
 // ✅ GOOD: Count with projectId
 const traceCount = await prisma.trace.count({
-  where: { projectId, userId },  // ← Always include projectId
+  where: { projectId, userId }, // ← Always include projectId
 });
 ```
 
@@ -225,7 +225,7 @@ const rows = await queryClickhouse<{ id: string; name: string }>({
     LIMIT {limit: UInt32}
   `,
   params: {
-    projectId,  // ← Required for tenant isolation
+    projectId, // ← Required for tenant isolation
     startTime: convertDateToClickhouseDateTime(startDate),
     limit: 100,
   },
@@ -341,6 +341,7 @@ const query = `
 ```
 
 **Why this is important:**
+
 - Langfuse is multi-tenant - each project's data must be isolated
 - The `project_id` filter ensures queries only access data from the intended tenant
 - All queries on project-scoped tables (traces, observations, scores, sessions, etc.) must filter by `project_id`
@@ -548,6 +549,7 @@ export const getScoresByTraceId = async (
 ### Project-Scoped vs Global Tables
 
 **Project-scoped tables (MUST filter by `project_id`):**
+
 - `traces` - All trace queries require `project_id`
 - `observations` - All observation queries require `project_id`
 - `scores` - All score queries require `project_id`
@@ -555,6 +557,7 @@ export const getScoresByTraceId = async (
 - `dataset_run_items_rmt` - All dataset run queries require `project_id`
 
 **Global tables (no `project_id` filter needed):**
+
 - `users` - User management (use `id` for filtering)
 - `organizations` - Organization data (use `id` for filtering)
 - System configuration tables
@@ -627,12 +630,12 @@ try {
 
 **Common Prisma error codes:**
 
-| Code     | Meaning                      | Typical Cause                         |
-| -------- | ---------------------------- | ------------------------------------- |
-| `P2002`  | Unique constraint violation  | Duplicate email, API key, etc.        |
-| `P2003`  | Foreign key constraint       | Referenced record doesn't exist       |
-| `P2025`  | Record not found             | Update/delete of non-existent record  |
-| `P2018`  | Required relation not found  | Connect to non-existent related record |
+| Code    | Meaning                     | Typical Cause                          |
+| ------- | --------------------------- | -------------------------------------- |
+| `P2002` | Unique constraint violation | Duplicate email, API key, etc.         |
+| `P2003` | Foreign key constraint      | Referenced record doesn't exist        |
+| `P2025` | Record not found            | Update/delete of non-existent record   |
+| `P2018` | Required relation not found | Connect to non-existent related record |
 
 ### ClickHouse Errors
 
@@ -664,11 +667,11 @@ try {
 
 **ClickHouse error types:**
 
-| Error Type      | Discriminator           | Meaning                      | Solution                                           |
-| --------------- | ----------------------- | ---------------------------- | -------------------------------------------------- |
-| `MEMORY_LIMIT`  | "memory limit exceeded" | Query used too much memory   | Use more specific filters or shorter time range    |
-| `OVERCOMMIT`    | "OvercommitTracker"     | Memory overcommit limit hit  | Reduce query complexity or result set size         |
-| `TIMEOUT`       | "Timeout", "timed out"  | Query took too long          | Add filters, reduce time range, or optimize query  |
+| Error Type     | Discriminator           | Meaning                     | Solution                                          |
+| -------------- | ----------------------- | --------------------------- | ------------------------------------------------- |
+| `MEMORY_LIMIT` | "memory limit exceeded" | Query used too much memory  | Use more specific filters or shorter time range   |
+| `OVERCOMMIT`   | "OvercommitTracker"     | Memory overcommit limit hit | Reduce query complexity or result set size        |
+| `TIMEOUT`      | "Timeout", "timed out"  | Query took too long         | Add filters, reduce time range, or optimize query |
 
 **ClickHouse retries:**
 
@@ -676,7 +679,7 @@ ClickHouse queries automatically retry network errors (socket hang up) with expo
 
 ```typescript
 // In packages/shared/src/env.ts
-LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().positive().default(3)
+LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().positive().default(3);
 ```
 
 ---

@@ -24,12 +24,12 @@ updates in `packages/shared/`.
 
 ## Reference Map
 
-| Topic | Read this when | File |
-| --- | --- | --- |
-| Schema and tier rules | You need the entry shape or pricing-tier invariants | [references/schema-and-tiers.md](references/schema-and-tiers.md) |
+| Topic                           | Read this when                                                                        | File                                                                                           |
+| ------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Schema and tier rules           | You need the entry shape or pricing-tier invariants                                   | [references/schema-and-tiers.md](references/schema-and-tiers.md)                               |
 | Provider sources and price keys | You need official pricing URLs, per-token conversion, or provider-specific usage keys | [references/provider-sources-and-price-keys.md](references/provider-sources-and-price-keys.md) |
-| Match patterns | You are editing `matchPattern` regexes or provider coverage | [references/match-patterns.md](references/match-patterns.md) |
-| Workflow and validation | You are applying the end-to-end edit process or checking common mistakes | [references/workflow-and-validation.md](references/workflow-and-validation.md) |
+| Match patterns                  | You are editing `matchPattern` regexes or provider coverage                           | [references/match-patterns.md](references/match-patterns.md)                                   |
+| Workflow and validation         | You are applying the end-to-end edit process or checking common mistakes              | [references/workflow-and-validation.md](references/workflow-and-validation.md)                 |
 
 ## Deterministic Helpers
 

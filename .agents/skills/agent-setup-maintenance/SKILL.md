@@ -69,5 +69,3 @@ Run additional verification when relevant:
 - Only keep provider-specific files in source control when the provider requires
   a fixed discovery path or feature that cannot be expressed through the shared
   setup model.
-- Keep remaining `.cursor/rules/*.mdc` files as thin wrappers around shared
-  docs or skills rather than owning durable repo guidance directly.

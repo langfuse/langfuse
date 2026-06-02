@@ -116,7 +116,9 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
 
   const projectId = parsedInput.data.projectId;
   const sessionProject = ctx.session.user.organizations
-    .flatMap((org) => org.projects.map((project) => ({ ...project, organization: org })))
+    .flatMap((org) =>
+      org.projects.map((project) => ({ ...project, organization: org })),
+    )
     .find((project) => project.id === projectId);
 
   if (!sessionProject) {
@@ -164,7 +166,9 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
   }
 
   const orgId = result.data.orgId;
-  const sessionOrg = ctx.session.user.organizations.find((org) => org.id === orgId);
+  const sessionOrg = ctx.session.user.organizations.find(
+    (org) => org.id === orgId,
+  );
 
   if (!sessionOrg && ctx.session.user.admin !== true) {
     throw new TRPCError({
@@ -179,7 +183,8 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
         ...ctx.session,
         user: ctx.session.user,
         orgId: orgId,
-        orgRole: ctx.session.user.admin === true ? Role.OWNER : sessionOrg!.role,
+        orgRole:
+          ctx.session.user.admin === true ? Role.OWNER : sessionOrg!.role,
       },
     },
   });
@@ -221,7 +226,8 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   if (!trace.public && !sessionProject && ctx.session?.user?.admin !== true) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
-      message: "User is not a member of this project and this trace is not public",
+      message:
+        "User is not a member of this project and this trace is not public",
     });
   }
 
@@ -348,6 +354,7 @@ export default withMiddlewares({
 ### createAuthedProjectAPIRoute Pattern
 
 Factory function for authenticated public API routes with:
+
 - Authentication (Basic auth or Admin API key)
 - Rate limiting
 - Input/output validation (Zod)
@@ -355,17 +362,21 @@ Factory function for authenticated public API routes with:
 
 ```typescript
 export const createAuthedProjectAPIRoute = <TQuery, TBody, TResponse>(
-  routeConfig: RouteConfig<TQuery, TBody, TResponse>
+  routeConfig: RouteConfig<TQuery, TBody, TResponse>,
 ) => {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     // 1. Authentication (verifyAuth)
-    const auth = await verifyAuth(req, routeConfig.isAdminApiKeyAuthAllowed || false);
+    const auth = await verifyAuth(
+      req,
+      routeConfig.isAdminApiKeyAuthAllowed || false,
+    );
 
     // 2. Rate limiting
-    const rateLimitResponse = await RateLimitService.getInstance().rateLimitRequest(
-      auth.scope,
-      routeConfig.rateLimitResource || "public-api"
-    );
+    const rateLimitResponse =
+      await RateLimitService.getInstance().rateLimitRequest(
+        auth.scope,
+        routeConfig.rateLimitResource || "public-api",
+      );
 
     if (rateLimitResponse?.isRateLimited()) {
       return rateLimitResponse.sendRestResponseIfLimited(res);
@@ -474,15 +485,20 @@ Public APIs use **Basic Auth** with API keys:
 
 ```typescript
 async function verifyBasicAuth(authHeader: string | undefined) {
-  const regularAuth = await new ApiAuthService(prisma, redis)
-    .verifyAuthHeaderAndReturnScope(authHeader);
+  const regularAuth = await new ApiAuthService(
+    prisma,
+    redis,
+  ).verifyAuthHeaderAndReturnScope(authHeader);
 
   if (!regularAuth.validKey) {
     throw { status: 401, message: regularAuth.error };
   }
 
   if (regularAuth.scope.accessLevel !== "project") {
-    throw { status: 401, message: "Access denied - need basic auth with secret key" };
+    throw {
+      status: 401,
+      message: "Access denied - need basic auth with secret key",
+    };
   }
 
   return regularAuth;
@@ -499,7 +515,10 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest) {
   // 3. x-langfuse-project-id: <project-id>
 
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-    throw { status: 403, message: "Admin API key auth not available on Langfuse Cloud" };
+    throw {
+      status: 403,
+      message: "Admin API key auth not available on Langfuse Cloud",
+    };
   }
 
   const adminApiKey = env.ADMIN_API_KEY;
@@ -508,8 +527,14 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest) {
 
   // Timing-safe comparison
   const isValid =
-    crypto.timingSafeEqual(Buffer.from(bearerToken), Buffer.from(adminApiKey)) &&
-    crypto.timingSafeEqual(Buffer.from(adminApiKeyHeader), Buffer.from(adminApiKey));
+    crypto.timingSafeEqual(
+      Buffer.from(bearerToken),
+      Buffer.from(adminApiKey),
+    ) &&
+    crypto.timingSafeEqual(
+      Buffer.from(adminApiKeyHeader),
+      Buffer.from(adminApiKey),
+    );
 
   if (!isValid) throw { status: 401, message: "Invalid admin API key" };
 
@@ -635,6 +660,7 @@ return opentelemetry.context.with(ctx, async () => {
 ```
 
 **Baggage includes:**
+
 - `userId` - User ID from session
 - `projectId` - Project ID from input
 - `headers` - Request headers for trace propagation
@@ -676,7 +702,9 @@ const baseProcedure = withOtelTracingProcedure.use(withErrorHandling);
 const authedProcedure = baseProcedure.use(enforceUserIsAuthed);
 
 // Add project scoping
-const projectProcedure = authedProcedure.use(enforceUserIsAuthedAndProjectMember);
+const projectProcedure = authedProcedure.use(
+  enforceUserIsAuthedAndProjectMember,
+);
 ```
 
 ### Using Procedures in Routers
@@ -692,7 +720,7 @@ export const tracesRouter = createTRPCRouter({
         projectId: z.string(),
         page: z.number().optional(),
         limit: z.number().optional(),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       // ctx.session.projectId is guaranteed to exist
@@ -713,7 +741,7 @@ export const tracesRouter = createTRPCRouter({
         traceId: z.string(),
         projectId: z.string(),
         timestamp: z.date().nullish(),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       // ctx.trace is guaranteed to exist (fetched by middleware)
@@ -729,11 +757,12 @@ Middleware executes in the order it's chained:
 
 ```typescript
 protectedProjectProcedure
-  .use(withErrorHandling)              // 1. Wraps entire execution
-  .use(enforceUserIsAuthed)            // 2. Validates session exists
-  .use(enforceUserIsAuthedAndProjectMember)  // 3. Validates project membership
-  .input(schema)                       // 4. Validates input
-  .query(async ({ input, ctx }) => {   // 5. Executes query
+  .use(withErrorHandling) // 1. Wraps entire execution
+  .use(enforceUserIsAuthed) // 2. Validates session exists
+  .use(enforceUserIsAuthedAndProjectMember) // 3. Validates project membership
+  .input(schema) // 4. Validates input
+  .query(async ({ input, ctx }) => {
+    // 5. Executes query
     // ...
   });
 ```
@@ -744,16 +773,16 @@ Each middleware can enrich the context:
 
 ```typescript
 // After enforceUserIsAuthed:
-ctx.session.user // NonNullable<User>
+ctx.session.user; // NonNullable<User>
 
 // After enforceUserIsAuthedAndProjectMember:
-ctx.session.projectId   // string
-ctx.session.projectRole // Role (OWNER | ADMIN | MEMBER | VIEWER)
-ctx.session.orgId       // string
-ctx.session.orgRole     // Role
+ctx.session.projectId; // string
+ctx.session.projectRole; // Role (OWNER | ADMIN | MEMBER | VIEWER)
+ctx.session.orgId; // string
+ctx.session.orgRole; // Role
 
 // After enforceTraceAccess:
-ctx.trace // TraceRecord (pre-fetched)
+ctx.trace; // TraceRecord (pre-fetched)
 ```
 
 ---

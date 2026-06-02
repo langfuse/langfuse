@@ -3,20 +3,10 @@
 Langfuse is an open source LLM engineering platform for developing, monitoring,
 evaluating, and debugging AI applications.
 
-The root `AGENTS.md` and `CLAUDE.md` files are discovery symlinks. Edit this
-canonical file under `.agents/` instead of maintaining tool-specific copies.
-
 ## How To Work
 
 - Read the minimal local context required for the task.
-- More-specific package guides take precedence for scoped work:
-  `web/AGENTS.md`, `worker/AGENTS.md`, `packages/shared/AGENTS.md`, and
-  `ee/AGENTS.md`.
-- Keep detailed recurring workflow guidance outside this file.
 - Keep changes scoped and avoid unrelated refactors.
-- Before adding constants, value lists, or display mappings, search for an
-  existing owner and reuse or extend that source of truth.
-- Keep tests independent and parallel-safe.
 - For bug fixes, write the failing test first, confirm it fails, then fix the
   bug.
 - For user-visible frontend changes in `web/**`, review the affected flow in a
@@ -98,8 +88,6 @@ regenerated outputs. Never hand-edit `generated/**`.
 - `.agents/AGENTS.md` is the canonical root guide.
 - Root `AGENTS.md` is a symlink to `.agents/AGENTS.md`.
 - Root `CLAUDE.md` is a compatibility symlink to `AGENTS.md`.
-- Edit canonical files under `.agents/` instead of generated provider
-  discovery files.
 - After changing shared agent setup, run `pnpm run agents:sync` and
   `pnpm run agents:check`.
 - Generated provider config and shim outputs under `.claude/`, `.cursor/`,
