@@ -135,9 +135,27 @@ export const agentStudioRouter = createTRPCRouter({
       if (!server)
         throw new TRPCError({ code: "NOT_FOUND", message: "Server not found" });
       try {
+        // Use the same headers the proxy injects so the test reflects real connectivity
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (server.headersEncrypted) {
+          try {
+            const stored = JSON.parse(
+              decrypt(server.headersEncrypted),
+            ) as StoredHeader[];
+            for (const h of stored) {
+              if (h.name.trim()) headers[h.name.trim()] = h.value;
+            }
+          } catch (err) {
+            logger.warn("AgentStudio: failed to decrypt headers for test", {
+              err,
+            });
+          }
+        }
         const res = await fetch(`${server.serverUrl}/assistants/search`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ limit: 1 }),
           signal: AbortSignal.timeout(5000),
         });
@@ -187,6 +205,15 @@ export const agentStudioRouter = createTRPCRouter({
       if (!server)
         throw new TRPCError({ code: "NOT_FOUND", message: "Server not found" });
       if (input.id) {
+        // Confirm the chain belongs to the verified server before updating
+        const existingChain = await ctx.prisma.agentStudioChain.findFirst({
+          where: { id: input.id, serverId: input.serverId },
+        });
+        if (!existingChain)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Chain not found",
+          });
         return ctx.prisma.agentStudioChain.update({
           where: { id: input.id },
           data: { name: input.name, steps: input.steps },
@@ -209,6 +236,15 @@ export const agentStudioRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "integrations:CRUD",
       });
+      // Verify the chain belongs to this project before deleting
+      const chain = await ctx.prisma.agentStudioChain.findFirst({
+        where: {
+          id: input.chainId,
+          server: { projectId: input.projectId },
+        },
+      });
+      if (!chain)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Chain not found" });
       await ctx.prisma.agentStudioChain.delete({
         where: { id: input.chainId },
       });

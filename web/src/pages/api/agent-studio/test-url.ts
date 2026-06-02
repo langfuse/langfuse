@@ -2,6 +2,32 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { getAuthOptions } from "@/src/server/auth";
 
+// Reject URLs that resolve to private/internal network ranges to prevent SSRF.
+// Covers RFC-1918, loopback, link-local, and common internal hostnames.
+function isPrivateHostname(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, ""); // strip IPv6 brackets
+  if (
+    h === "localhost" ||
+    h.endsWith(".local") ||
+    h.endsWith(".internal") ||
+    h.endsWith(".intranet")
+  )
+    return true;
+  // IPv4 private/loopback/link-local ranges
+  if (
+    /^127\./.test(h) ||
+    /^10\./.test(h) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
+    /^192\.168\./.test(h) ||
+    /^169\.254\./.test(h)
+  )
+    return true;
+  // IPv6 loopback and link-local
+  if (h === "::1" || /^fe80:/i.test(h) || /^fc[0-9a-f]{2}:/i.test(h))
+    return true;
+  return false;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -20,10 +46,24 @@ export default async function handler(
   if (!url)
     return res.status(400).json({ success: false, error: "url required" });
 
+  let parsed: URL;
   try {
-    new URL(url);
+    parsed = new URL(url);
   } catch {
     return res.json({ success: false, error: "Invalid URL" });
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return res
+      .status(400)
+      .json({ success: false, error: "Only http and https URLs are allowed" });
+  }
+
+  if (isPrivateHostname(parsed.hostname)) {
+    return res.status(400).json({
+      success: false,
+      error: "Private or internal URLs are not allowed",
+    });
   }
 
   try {
@@ -37,10 +77,8 @@ export default async function handler(
       return res.json({ success: false, error: `HTTP ${response.status}` });
     }
     return res.json({ success: true });
-  } catch (err) {
-    return res.json({
-      success: false,
-      error: err instanceof Error ? err.message : "Connection failed",
-    });
+  } catch {
+    // Do not echo the raw error message — it may contain internal host info
+    return res.json({ success: false, error: "Connection failed" });
   }
 }

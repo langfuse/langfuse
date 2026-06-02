@@ -4,6 +4,7 @@ import { getAuthOptions } from "@/src/server/auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { decrypt } from "@langfuse/shared/encryption";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export const config = {
   api: { bodyParser: false },
@@ -31,6 +32,11 @@ export default async function handler(
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user) {
     return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  // Verify the authenticated user is a member of this project
+  if (!hasProjectAccess({ session, projectId, scope: "project:read" })) {
+    return res.status(403).json({ error: "Forbidden" });
   }
 
   const server = await prisma.agentStudioServer.findFirst({

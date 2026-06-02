@@ -56,7 +56,7 @@ export function useAgentStream() {
       const decoder = new TextDecoder();
 
       try {
-        while (true) {
+        outer: while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
@@ -72,7 +72,7 @@ export function useAgentStream() {
               }
               continue;
             }
-            if (event === "end") break;
+            if (event === "end") break outer;
             if (event === "error") {
               const msg = (() => {
                 try {
