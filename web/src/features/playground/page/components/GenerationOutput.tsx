@@ -18,7 +18,7 @@ export const GenerationOutput = () => {
   const handleCopy = () => {
     setIsCopied(true);
     const textToCopy = isJson ? outputJson : output;
-    void copyTextToClipboard(textToCopy);
+    copyTextToClipboard(textToCopy);
     setTimeout(() => setIsCopied(false), 1000);
   };
 

@@ -23,7 +23,7 @@ export function usePrefetchObservation({
     if (isBetaEnabled) {
       // Beta ON: prefetch from events table via batchIO
       if (!startTime) return;
-      void utils.events.batchIO.prefetch(
+      utils.events.batchIO.prefetch(
         {
           projectId,
           observations: [{ id: observationId, traceId }],
@@ -37,7 +37,7 @@ export function usePrefetchObservation({
       );
     } else {
       // Beta OFF: prefetch from observations table
-      void utils.observations.byId.prefetch(
+      utils.observations.byId.prefetch(
         {
           observationId,
           traceId,

@@ -160,7 +160,7 @@ export function useExperimentEvaluatorData({
   const handleEvaluatorSuccess = useCallback(() => {
     setShowEvaluatorForm(false);
     setSelectedEvaluatorData(null);
-    void refetchEvaluators();
+    refetchEvaluators();
   }, [refetchEvaluators]);
 
   // Handle when a user selects an evaluator from the template selector

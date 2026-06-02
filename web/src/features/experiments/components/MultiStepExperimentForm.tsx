@@ -419,7 +419,7 @@ export const MultiStepExperimentForm = ({
     handleCloseEvaluatorForm,
     handleEvaluatorSuccess,
     handleSelectEvaluator,
-    handleEvaluatorToggled: () => void evaluators.refetch(),
+    handleEvaluatorToggled: () => evaluators.refetch(),
     preprocessFormValues,
   };
   const permissions = { hasEvalReadAccess, hasEvalWriteAccess };

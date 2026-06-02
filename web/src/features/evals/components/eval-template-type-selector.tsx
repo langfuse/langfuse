@@ -28,18 +28,22 @@ type EvalTemplateFormReturn = UseFormReturn<
   EvalTemplateFormOutput
 >;
 type CodeEvalSourceDrafts = Partial<Record<CodeEvalSourceCodeLanguage, string>>;
+type CodeEvalCapabilities = {
+  enabled: boolean;
+  supportedSourceCodeLanguages: EvalTemplateSourceCodeLanguage[];
+};
 
 export type EvalTemplateTypeSelectorMode = "all" | "code-only" | "hidden";
 
 export function EvalTemplateTypeSelector({
   form,
-  enabled,
+  codeEvalCapabilities,
   mode,
   hasExistingTemplate,
   onChange,
 }: {
   form: EvalTemplateFormReturn;
-  enabled: boolean;
+  codeEvalCapabilities: CodeEvalCapabilities;
   mode: EvalTemplateTypeSelectorMode;
   hasExistingTemplate: boolean;
   onChange?: () => void;
@@ -49,7 +53,8 @@ export function EvalTemplateTypeSelector({
   const sourceCodeLanguage =
     form.watch("sourceCodeLanguage") ??
     EvalTemplateSourceCodeLanguage.TYPESCRIPT;
-  const shouldShow = enabled && !hasExistingTemplate && mode !== "hidden";
+  const shouldShow =
+    codeEvalCapabilities.enabled && !hasExistingTemplate && mode !== "hidden";
 
   if (!shouldShow) return null;
 
@@ -123,12 +128,16 @@ export function EvalTemplateTypeSelector({
                 >
                   TypeScript
                 </TabsTrigger>
-                <TabsTrigger
-                  value={EvalTemplateSourceCodeLanguage.PYTHON}
-                  className="min-w-[100px]"
-                >
-                  Python
-                </TabsTrigger>
+                {codeEvalCapabilities.supportedSourceCodeLanguages.includes(
+                  EvalTemplateSourceCodeLanguage.PYTHON,
+                ) ? (
+                  <TabsTrigger
+                    value={EvalTemplateSourceCodeLanguage.PYTHON}
+                    className="min-w-[100px]"
+                  >
+                    Python
+                  </TabsTrigger>
+                ) : null}
               </TabsList>
             </Tabs>
           </FormControl>

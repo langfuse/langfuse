@@ -88,14 +88,14 @@ export default function Dataset() {
     setExperimentsBetaEnabled(enabled);
 
     if (enabled) {
-      void router.push(singleRunToExperimentsUrl(projectId, runId));
+      router.push(singleRunToExperimentsUrl(projectId, runId));
     }
   };
 
   // Auto-redirect when beta is ON (via direct URL or back navigation)
   useEffect(() => {
     if (isExperimentsBetaActive && projectId && runId) {
-      void router.push(singleRunToExperimentsUrl(projectId, runId));
+      router.push(singleRunToExperimentsUrl(projectId, runId));
     }
   }, [isExperimentsBetaActive, projectId, runId, router]);
 

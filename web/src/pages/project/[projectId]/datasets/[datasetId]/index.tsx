@@ -94,11 +94,11 @@ export default function Dataset() {
     if (!data) return;
 
     if (isExperimentsBetaActive) {
-      void utils.experiments.all.invalidate();
-      void utils.experiments.countAll.invalidate();
+      utils.experiments.all.invalidate();
+      utils.experiments.countAll.invalidate();
     } else {
-      void utils.datasets.runsByDatasetId.invalidate();
-      void utils.datasets.baseRunDataByDatasetId.invalidate();
+      utils.datasets.runsByDatasetId.invalidate();
+      utils.datasets.baseRunDataByDatasetId.invalidate();
     }
 
     showSuccessToast({
