@@ -29,7 +29,7 @@ export default function ExperimentAnalytics() {
 
   const handleResultsClick = () => {
     const fallbackUrl = `/project/${projectId}/experiments/results`;
-    void router.push(lastResultsUrl ?? fallbackUrl);
+    router.push(lastResultsUrl ?? fallbackUrl);
   };
 
   const betaSwitch = canUseExperimentsBetaToggle ? (
@@ -42,7 +42,7 @@ export default function ExperimentAnalytics() {
   // Auto-redirect when beta is off
   useEffect(() => {
     if (canAccessExperiments && !isExperimentsBetaActive && lastResultsUrl) {
-      void router.push(lastResultsUrl);
+      router.push(lastResultsUrl);
     }
   }, [canAccessExperiments, isExperimentsBetaActive, lastResultsUrl, router]);
 

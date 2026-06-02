@@ -16,6 +16,7 @@ import type {
 import {
   AnnotationQueueStatus,
   InvalidRequestError,
+  LangfuseConflictError,
   LangfuseNotFoundError,
   MethodNotAllowedError,
   Prisma,
@@ -96,31 +97,6 @@ const toAnnotationQueueItemApi = (item: {
   updatedAt: item.updatedAt,
 });
 
-const verifyScoreConfigsExist = async ({
-  projectId,
-  scoreConfigIds,
-}: {
-  projectId: string;
-  scoreConfigIds: string[];
-}) => {
-  const scoreConfigs = await prisma.scoreConfig.findMany({
-    where: {
-      id: { in: scoreConfigIds },
-      projectId,
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  const scoreConfigIdSet = new Set(scoreConfigs.map((config) => config.id));
-  if (scoreConfigIds.some((id) => !scoreConfigIdSet.has(id))) {
-    throw new InvalidRequestError(
-      "At least one of the score config IDs cannot be found for the given project.",
-    );
-  }
-};
-
 export const getAnnotationQueueRecordOrThrow = async ({
   projectId,
   queueId,
@@ -195,42 +171,117 @@ export const createAnnotationQueueForApi = async ({
   plan?: string;
   input: CreateAnnotationQueueInput;
 } & OptionalAuditScope) => {
-  if (plan === "cloud:hobby") {
-    const queueCount = await prisma.annotationQueue.count({
-      where: { projectId },
+  const queue = await prisma
+    .$transaction(
+      async (tx) => {
+        if (plan === "cloud:hobby") {
+          const queueCount = await tx.annotationQueue.count({
+            where: { projectId },
+          });
+
+          if (queueCount >= 1) {
+            throw new MethodNotAllowedError(
+              "Maximum number of annotation queues reached on Hobby plan.",
+            );
+          }
+        }
+
+        const scoreConfigs = await tx.scoreConfig.findMany({
+          where: {
+            id: { in: input.scoreConfigIds },
+            projectId,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        const scoreConfigIdSet = new Set(
+          scoreConfigs.map((config) => config.id),
+        );
+        if (input.scoreConfigIds.some((id) => !scoreConfigIdSet.has(id))) {
+          throw new InvalidRequestError(
+            "At least one of the score config IDs cannot be found for the given project.",
+          );
+        }
+
+        return tx.annotationQueue.create({
+          data: {
+            projectId,
+            name: input.name,
+            description: input.description,
+            scoreConfigIds: input.scoreConfigIds,
+          },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    )
+    .catch(async (error) => {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new InvalidRequestError("A queue with this name already exists.");
+      }
+
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2034"
+      ) {
+        const existingQueue = await prisma.annotationQueue.findFirst({
+          where: {
+            projectId,
+            name: input.name,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (existingQueue) {
+          throw new InvalidRequestError(
+            "A queue with this name already exists.",
+          );
+        }
+
+        if (plan === "cloud:hobby") {
+          const queueCount = await prisma.annotationQueue.count({
+            where: { projectId },
+          });
+
+          if (queueCount >= 1) {
+            throw new MethodNotAllowedError(
+              "Maximum number of annotation queues reached on Hobby plan.",
+            );
+          }
+        }
+
+        const scoreConfigs = await prisma.scoreConfig.findMany({
+          where: {
+            id: { in: input.scoreConfigIds },
+            projectId,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        const scoreConfigIdSet = new Set(
+          scoreConfigs.map((config) => config.id),
+        );
+        if (input.scoreConfigIds.some((id) => !scoreConfigIdSet.has(id))) {
+          throw new InvalidRequestError(
+            "At least one of the score config IDs cannot be found for the given project.",
+          );
+        }
+
+        throw new LangfuseConflictError(
+          "Concurrent annotation queue creation conflict. Please retry.",
+        );
+      }
+
+      throw error;
     });
-
-    if (queueCount >= 1) {
-      throw new MethodNotAllowedError(
-        "Maximum number of annotation queues reached on Hobby plan.",
-      );
-    }
-  }
-
-  const existingQueue = await prisma.annotationQueue.findFirst({
-    where: {
-      projectId,
-      name: input.name,
-    },
-  });
-
-  if (existingQueue) {
-    throw new InvalidRequestError("A queue with this name already exists.");
-  }
-
-  await verifyScoreConfigsExist({
-    projectId,
-    scoreConfigIds: input.scoreConfigIds,
-  });
-
-  const queue = await prisma.annotationQueue.create({
-    data: {
-      projectId,
-      name: input.name,
-      description: input.description,
-      scoreConfigIds: input.scoreConfigIds,
-    },
-  });
 
   if (auditScope) {
     await auditLog({

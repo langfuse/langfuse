@@ -126,10 +126,18 @@ export const organizationsRouter = createTRPCRouter({
         .extend({
           orgId: z.string(),
           aiFeaturesEnabled: z.boolean().optional(),
+          aiTelemetryEnabled: z.boolean().optional(),
         })
-        .refine((data) => data.name || data.aiFeaturesEnabled !== undefined, {
-          message: "At least one of name or aiFeaturesEnabled is required",
-        }),
+        .refine(
+          (data) =>
+            data.name ||
+            data.aiFeaturesEnabled !== undefined ||
+            data.aiTelemetryEnabled !== undefined,
+          {
+            message:
+              "At least one of name, aiFeaturesEnabled or aiTelemetryEnabled is required",
+          },
+        ),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoOrganizationAccess({
@@ -139,13 +147,13 @@ export const organizationsRouter = createTRPCRouter({
       });
 
       if (
-        input.aiFeaturesEnabled !== undefined &&
+        (input.aiFeaturesEnabled !== undefined ||
+          input.aiTelemetryEnabled !== undefined) &&
         !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
       ) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message:
-            "Natural language filtering is not available in self-hosted deployments.",
+          message: "AI features are not available in self-hosted deployments.",
         });
       }
 
@@ -161,6 +169,7 @@ export const organizationsRouter = createTRPCRouter({
         data: {
           name: input.name,
           aiFeaturesEnabled: input.aiFeaturesEnabled,
+          aiTelemetryEnabled: input.aiTelemetryEnabled,
         },
       });
 

@@ -46,7 +46,7 @@ Current shape:
         "--isolated",
         "--save-session",
         "--output-dir",
-        ".playwright-mcp",
+        "/tmp/playwright-mcp",
         "--test-id-attribute",
         "data-testid"
       ]

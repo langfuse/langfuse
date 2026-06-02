@@ -27,12 +27,14 @@ export const EvaluatorForm = (props: {
   hidePreviewTable?: boolean;
   defaultTarget?: EvalTargetObject;
 }) => {
-  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
 
   const currentTemplate =
     props.existingEvaluator?.evalTemplate ??
     props.evalTemplates
-      .filter((template) => shouldShowEvalTemplate(template, isCodeEvalEnabled))
+      .filter((template) =>
+        shouldShowEvalTemplate(template, codeEvalCapabilities),
+      )
       .find((t) => t.id === props.templateId);
 
   const evalCapabilities = useEvalCapabilities(props.projectId, {
@@ -42,7 +44,8 @@ export const EvaluatorForm = (props: {
 
   if (
     !currentTemplate ||
-    (isCodeEvalTemplate(currentTemplate) && !isCodeEvalEnabled)
+    (isCodeEvalTemplate(currentTemplate) &&
+      !shouldShowEvalTemplate(currentTemplate, codeEvalCapabilities))
   ) {
     return null;
   }
