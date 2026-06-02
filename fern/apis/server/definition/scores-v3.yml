@@ -15,6 +15,9 @@ service:
         - `BOOLEAN` → boolean
         - `CATEGORICAL`, `TEXT`, `CORRECTION` → string
 
+        Use the `fields` parameter to include optional field groups beyond the
+        default `core`. Unknown group names return HTTP 400.
+
         This endpoint is behind the `LANGFUSE_ENABLE_SCORES_V3_API` feature flag
         and returns 404 when the flag is disabled.
       method: GET
@@ -28,9 +31,55 @@ service:
           cursor:
             type: optional<string>
             docs: URL-safe base64 (base64url) cursor for pagination. Use the cursor from the previous response to get the next page. Absent on the final page.
+          fields:
+            type: optional<string>
+            docs: >
+              Comma-separated field groups to include. Allowed: core, details,
+              subject, annotation. Defaults to "core". Unknown names return HTTP 400.
       response: GetScoresV3Response
 
 types:
+  ScoreDetailsV3:
+    docs: Returned when fields includes "details".
+    properties:
+      comment:
+        type: nullable<string>
+        docs: Optional comment attached to the score.
+      configId:
+        type: nullable<string>
+        docs: The score config ID, if this score was created from a config.
+      metadata:
+        type: nullable<map<string, unknown>>
+        docs: Arbitrary metadata attached to the score.
+
+  ScoreSubjectKindV3:
+    enum:
+      - trace
+      - observation
+      - session
+      - experiment
+
+  ScoreSubjectV3:
+    docs: Returned when fields includes "subject".
+    properties:
+      kind: ScoreSubjectKindV3
+      id:
+        type: string
+        docs: The entity-specific ID (traceId, observationId, sessionId, or datasetRunId depending on kind).
+      traceId:
+        type: optional<string>
+        docs: The parent trace ID. Present only when kind is "observation".
+
+  ScoreAnnotationV3:
+    docs: Returned when fields includes "annotation".
+    properties:
+      authorUserId:
+        type: nullable<string>
+        docs: The user who created this score. Non-null only for source=ANNOTATION.
+      queueId:
+        type: nullable<string>
+        docs: The annotation queue this score belongs to, if any.
+
   BaseScoreV3:
     properties:
       id: string
@@ -43,6 +92,15 @@ types:
         docs: The environment from which this score originated.
       createdAt: datetime
       updatedAt: datetime
+      details:
+        type: optional<ScoreDetailsV3>
+        docs: Present when "details" is included in the fields parameter.
+      subject:
+        type: optional<ScoreSubjectV3>
+        docs: Present when "subject" is included in the fields parameter.
+      annotation:
+        type: optional<ScoreAnnotationV3>
+        docs: Present when "annotation" is included in the fields parameter.
 
   NumericScoreV3:
     extends: BaseScoreV3

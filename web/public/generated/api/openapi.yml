@@ -5305,6 +5305,9 @@ paths:
         - `BOOLEAN` → boolean
         - `CATEGORICAL`, `TEXT`, `CORRECTION` → string
 
+        Use the `fields` parameter to include optional field groups beyond the
+        default `core`. Unknown group names return HTTP 400.
+
         This endpoint is behind the `LANGFUSE_ENABLE_SCORES_V3_API` feature flag
         and returns 404 when the flag is disabled.
       operationId: scoresV3_getManyV3
@@ -5326,6 +5329,16 @@ paths:
             URL-safe base64 (base64url) cursor for pagination. Use the cursor
             from the previous response to get the next page. Absent on the final
             page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: fields
+          in: query
+          description: >-
+            Comma-separated field groups to include. Allowed: core, details,
+            subject, annotation. Defaults to "core". Unknown names return HTTP
+            400.
           required: false
           schema:
             type: string
@@ -12048,6 +12061,66 @@ components:
             Description is shown across the Langfuse UI and can be used to e.g.
             explain the config categories in detail, why a numeric range was
             set, or provide additional context on config name or usage
+    ScoreDetailsV3:
+      title: ScoreDetailsV3
+      type: object
+      description: Returned when fields includes "details".
+      properties:
+        comment:
+          type: string
+          nullable: true
+          description: Optional comment attached to the score.
+        configId:
+          type: string
+          nullable: true
+          description: The score config ID, if this score was created from a config.
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Arbitrary metadata attached to the score.
+    ScoreSubjectKindV3:
+      title: ScoreSubjectKindV3
+      type: string
+      enum:
+        - trace
+        - observation
+        - session
+        - experiment
+    ScoreSubjectV3:
+      title: ScoreSubjectV3
+      type: object
+      description: Returned when fields includes "subject".
+      properties:
+        kind:
+          $ref: '#/components/schemas/ScoreSubjectKindV3'
+        id:
+          type: string
+          description: >-
+            The entity-specific ID (traceId, observationId, sessionId, or
+            datasetRunId depending on kind).
+        traceId:
+          type: string
+          nullable: true
+          description: The parent trace ID. Present only when kind is "observation".
+      required:
+        - kind
+        - id
+    ScoreAnnotationV3:
+      title: ScoreAnnotationV3
+      type: object
+      description: Returned when fields includes "annotation".
+      properties:
+        authorUserId:
+          type: string
+          nullable: true
+          description: >-
+            The user who created this score. Non-null only for
+            source=ANNOTATION.
+        queueId:
+          type: string
+          nullable: true
+          description: The annotation queue this score belongs to, if any.
     BaseScoreV3:
       title: BaseScoreV3
       type: object
@@ -12072,6 +12145,18 @@ components:
         updatedAt:
           type: string
           format: date-time
+        details:
+          $ref: '#/components/schemas/ScoreDetailsV3'
+          nullable: true
+          description: Present when "details" is included in the fields parameter.
+        subject:
+          $ref: '#/components/schemas/ScoreSubjectV3'
+          nullable: true
+          description: Present when "subject" is included in the fields parameter.
+        annotation:
+          $ref: '#/components/schemas/ScoreAnnotationV3'
+          nullable: true
+          description: Present when "annotation" is included in the fields parameter.
       required:
         - id
         - projectId

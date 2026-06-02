@@ -1,10 +1,61 @@
 import z from "zod";
 import { ScoreSourceDomain } from "../../../../domain/scores";
 
-// GET /v3/scores — limit + optional cursor (cursor decoded in web handler)
+export const SCORE_FIELD_GROUPS_V3 = [
+  "core",
+  "details",
+  "subject",
+  "annotation",
+] as const;
+export type ScoreFieldGroupV3 = (typeof SCORE_FIELD_GROUPS_V3)[number];
+
+const fieldsParam = z
+  .string()
+  .optional()
+  .transform((val) => (val ? val.split(",").map((g) => g.trim()) : ["core"]))
+  .pipe(
+    z.array(z.string()).superRefine((groups, ctx) => {
+      for (const group of groups) {
+        if (group === "trace") {
+          ctx.addIssue({
+            code: "custom",
+            message: "fields=trace is reserved and not yet available",
+          });
+        } else if (
+          !SCORE_FIELD_GROUPS_V3.includes(group as ScoreFieldGroupV3)
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            message: `Unknown field group: "${group}". Allowed: ${SCORE_FIELD_GROUPS_V3.join(", ")}`,
+          });
+        }
+      }
+    }),
+  );
+
+// GET /v3/scores — limit + optional cursor + optional fields
 export const GetScoresV3 = z.object({
   limit: z.coerce.number().int().positive().max(100).default(50),
   cursor: z.string().optional(),
+  fields: fieldsParam,
+});
+
+// Optional group schemas
+export const ScoreDetailsV3 = z.object({
+  comment: z.string().nullable(),
+  configId: z.string().nullable(),
+  metadata: z.unknown().nullable(),
+});
+
+export const ScoreSubjectV3 = z.object({
+  kind: z.enum(["trace", "observation", "session", "experiment"]),
+  id: z.string(),
+  traceId: z.string().optional(),
+});
+
+export const ScoreAnnotationV3 = z.object({
+  authorUserId: z.string().nullable(),
+  queueId: z.string().nullable(),
 });
 
 const ScoreBaseV3 = z.object({
@@ -16,6 +67,10 @@ const ScoreBaseV3 = z.object({
   environment: z.string(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  // optional groups
+  details: ScoreDetailsV3.optional(),
+  subject: ScoreSubjectV3.optional(),
+  annotation: ScoreAnnotationV3.optional(),
 });
 
 export const APIScoreSchemaV3 = z.discriminatedUnion("dataType", [

@@ -46,7 +46,28 @@ export function polymorphicValue(score: {
   }
 }
 
-function domainToV3(score: ScoreDomain): APIScoreV3 {
+function deriveSubject(score: ScoreDomain): {
+  kind: "trace" | "observation" | "session" | "experiment";
+  id: string;
+  traceId?: string;
+} {
+  if (score.datasetRunId) {
+    return { kind: "experiment", id: score.datasetRunId };
+  }
+  if (score.observationId) {
+    return {
+      kind: "observation",
+      id: score.observationId,
+      ...(score.traceId ? { traceId: score.traceId } : {}),
+    };
+  }
+  if (score.sessionId) {
+    return { kind: "session", id: score.sessionId };
+  }
+  return { kind: "trace", id: score.traceId ?? score.id };
+}
+
+function domainToV3(score: ScoreDomain, fields: string[]): APIScoreV3 {
   // ScoreDomain is a flat type so TypeScript cannot verify that dataType and
   // value are a valid discriminated pair; polymorphicValue guarantees it at runtime.
   return {
@@ -65,6 +86,24 @@ function domainToV3(score: ScoreDomain): APIScoreV3 {
     environment: score.environment,
     createdAt: score.createdAt,
     updatedAt: score.updatedAt,
+    ...(fields.includes("details")
+      ? {
+          details: {
+            comment: score.comment,
+            configId: score.configId,
+            metadata: score.metadata,
+          },
+        }
+      : {}),
+    ...(fields.includes("subject") ? { subject: deriveSubject(score) } : {}),
+    ...(fields.includes("annotation")
+      ? {
+          annotation: {
+            authorUserId: score.authorUserId,
+            queueId: score.queueId,
+          },
+        }
+      : {}),
   } as APIScoreV3;
 }
 
@@ -110,6 +149,7 @@ export async function listScoresV3ForPublicApi(params: {
   projectId: string;
   limit: number;
   cursor?: ScoresCursorV3Type;
+  fields: string[];
 }): Promise<{ data: APIScoreV3[]; cursor?: string }> {
   return measureAndReturn({
     operationName: "listScoresV3ForPublicApi",
@@ -156,7 +196,7 @@ export async function listScoresV3ForPublicApi(params: {
 
       return {
         data: pageRecords.map((row) =>
-          domainToV3(convertClickhouseScoreToDomain(row)),
+          domainToV3(convertClickhouseScoreToDomain(row), params.fields),
         ),
         cursor: nextCursor,
       };
