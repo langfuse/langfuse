@@ -83,6 +83,7 @@ import {
 } from "./definitions";
 import type { AnalyticsObservationEvent } from "../analytics-integrations/types";
 import {
+  getObservationByIdFromObservationsTable,
   ObservationsTableQueryResult,
   ObservationTableQuery,
 } from "./observations";
@@ -1084,6 +1085,21 @@ export const getTraceById = async (
     return getTraceByIdFromTracesTable(params);
   }
   return getTraceByIdFromEventsTable(params);
+};
+
+/**
+ * Routing wrapper for "observation by id" reads.
+ *
+ * If data is only written into the events tables, we look there and go to the
+ * legacy observations table otherwise.
+ */
+export const getObservationById = async (
+  params: Parameters<typeof getObservationByIdFromObservationsTable>[0],
+) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only") {
+    return getObservationByIdFromObservationsTable(params);
+  }
+  return getObservationByIdFromEventsTable(params);
 };
 
 type PublicApiObservationsQuery = {
