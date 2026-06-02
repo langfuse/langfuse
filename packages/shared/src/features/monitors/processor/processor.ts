@@ -72,6 +72,7 @@ export class MonitorProcessor {
             triggers,
             now,
             runAt: event.runAt,
+            publishedAt: event.publishedAt,
           }),
       );
       span.setAttribute("monitorWebhookInputs", monitorWebhookInputs.length);
@@ -208,6 +209,7 @@ function processMonitors(args: {
   triggers: TriggerDomainWithActions[];
   now: Date;
   runAt: Date;
+  publishedAt: Date;
 }): [MonitorCompletion[], MonitorWebhookInput[]] {
   const completions: MonitorCompletion[] = [];
   const monitorWebhookInputs: MonitorWebhookInput[] = [];
@@ -218,6 +220,7 @@ function processMonitors(args: {
       triggers: args.triggers,
       now: args.now,
       runAt: args.runAt,
+      publishedAt: args.publishedAt,
     });
     completions.push(completion);
     monitorWebhookInputs.push(...inputs);
@@ -232,8 +235,9 @@ function processMonitor(args: {
   triggers: TriggerDomainWithActions[];
   now: Date;
   runAt: Date;
+  publishedAt: Date;
 }): [MonitorCompletion, MonitorWebhookInput[]] {
-  const { monitor, metrics, triggers, now, runAt } = args;
+  const { monitor, metrics, triggers, now, runAt, publishedAt } = args;
   const severity = computeSeverity({
     value: getValue(metrics, monitor.metric),
     operator: monitor.thresholdOperator,
@@ -245,6 +249,7 @@ function processMonitor(args: {
     prev: monitor,
     next: { severity },
     now,
+    publishedAt,
   });
   if (!emit) return [completion, []];
 
@@ -342,7 +347,7 @@ function buildCompleteQuery(args: {
   const valueRows = Prisma.join(
     args.completions.map(
       (c) =>
-        Prisma.sql`(${c.monitorId}, ${c.lastClaimedAt}::timestamptz, ${c.lastCompletedAt}::timestamptz, ${c.severity}::"MonitorSeverity", ${c.severityChangedAt}::timestamptz, ${c.alertedAt}::timestamptz)`,
+        Prisma.sql`(${c.monitorId}, ${c.lastClaimedAt}::timestamptz, ${c.lastCompletedAt}::timestamptz, ${c.publishedAt}::timestamptz, ${c.severity}::"MonitorSeverity", ${c.severityChangedAt}::timestamptz, ${c.alertedAt}::timestamptz)`,
     ),
     ", ",
   );
@@ -357,6 +362,7 @@ function buildCompleteQuery(args: {
       id,
       last_claimed_at,
       last_completed_at,
+      published_at,
       severity,
       severity_changed_at,
       alerted_at
@@ -365,6 +371,7 @@ function buildCompleteQuery(args: {
       AND m.project_id = ${args.projectId}
       AND m.last_claimed_at = data.last_claimed_at -- no-op if another worker re-claimed since
       AND m.status = 'ACTIVE' -- no-op if the user paused since claim
+      AND m.last_published_at = data.published_at -- no-op if the scheduler rescued/republished since claim
   `;
 }
 

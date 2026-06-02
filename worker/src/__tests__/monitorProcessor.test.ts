@@ -76,6 +76,7 @@ type ProcessCase = {
   injectError?: { stage: InjectErrorStage; message: string };
   preempt?: { newClaimedAt: Date };
   preemptPause?: { at: Date };
+  rescue?: { newPublishedAt: Date };
   expect: {
     throws?: string;
     publishCallCount: number;
@@ -246,6 +247,32 @@ function wrapDbPauseBeforeComplete(
                 severity: "PAUSED",
                 severityChangedAt: at,
               },
+            });
+          }
+          return (target.$executeRaw as (...a: unknown[]) => unknown)(...args);
+        };
+      }
+      return Reflect.get(target, prop, target);
+    },
+  }) as PrismaClient;
+}
+
+/** wrapDbRescueBeforeComplete simulates the scheduler TTL-rescuing this worker's stale run between claim and complete: the first `$executeRaw` (the complete) first advances `lastPublishedAt` on the project's monitors — leaving `lastClaimedAt` and `lastCompletedAt` untouched, exactly as buildScheduleQuery does — so the complete-side CAS owner key still matches on `lastClaimedAt` but the new publish-identity clause no-ops. */
+function wrapDbRescueBeforeComplete(
+  db: PrismaClient,
+  projectId: string,
+  newPublishedAt: Date,
+): PrismaClient {
+  let rescued = false;
+  return new Proxy(db, {
+    get(target, prop, _receiver) {
+      if (prop === "$executeRaw") {
+        return async (...args: unknown[]) => {
+          if (!rescued) {
+            rescued = true;
+            await target.monitor.updateMany({
+              where: { projectId },
+              data: { lastPublishedAt: newPublishedAt },
             });
           }
           return (target.$executeRaw as (...a: unknown[]) => unknown)(...args);
@@ -925,6 +952,34 @@ const cases: ProcessCase[] = [
       ],
     },
   },
+  {
+    name: "scheduler rescues (advances last_published_at) before a stuck worker completes: webhook fired (RFC §9), but stale writeback blocked",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        alertedAt: null,
+        lastPublishedAt: runAt, // worker claims event with publishedAt=runAt, stamps lastClaimedAt=justAfterRunAt
+      },
+    ],
+    ch: [{ count_count: 200 }], // > alertThreshold 100 → computed ALERT
+    triggers: [matchAnyAlertTrigger],
+    rescue: { newPublishedAt: laterPublish }, // scheduler TTL rescue moved last_published_at forward
+    expect: {
+      publishCallCount: 1, // webhook fires pre-complete; separable per RFC §9
+      rows: [
+        {
+          id: monitorAId,
+          severity: "OK", // complete CAS no-ops → prior severity preserved
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedAt: justAfterRunAt, // worker's claim stamp, untouched by rescue
+          lastCompletedAt: null, // CAS no-ops → not advanced → Worker B's claim stays unblocked
+        },
+      ],
+    },
+  },
 ];
 
 describe("MonitorProcessor.process (integration)", () => {
@@ -986,6 +1041,12 @@ describe("MonitorProcessor.process (integration)", () => {
       );
     } else if (c.preemptPause) {
       db = wrapDbPauseBeforeComplete(prisma, projectId, c.preemptPause.at);
+    } else if (c.rescue) {
+      db = wrapDbRescueBeforeComplete(
+        prisma,
+        projectId,
+        c.rescue.newPublishedAt,
+      );
     }
 
     const processor = new MonitorProcessor(

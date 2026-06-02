@@ -11,8 +11,9 @@ export function applyStateMachine(args: {
   prev: Monitor;
   next: { severity: ComputedSeverity };
   now: Date;
+  publishedAt: Date;
 }): StateMachineDecision {
-  const { prev, next, now } = args;
+  const { prev, next, now, publishedAt } = args;
 
   // PAUSED is service-written; no-op so the worker doesn't overwrite user intent.
   if (prev.severity === "PAUSED") {
@@ -22,6 +23,7 @@ export function applyStateMachine(args: {
         monitorId: prev.id,
         lastClaimedAt: now,
         lastCompletedAt: now,
+        publishedAt,
         severity: "PAUSED",
         severityChangedAt: prev.severityChangedAt,
         alertedAt: prev.alertedAt,
@@ -46,6 +48,7 @@ export function applyStateMachine(args: {
       monitorId: prev.id,
       lastClaimedAt: now,
       lastCompletedAt: now,
+      publishedAt,
       severity: next.severity,
       severityChangedAt: severityChanged ? now : prev.severityChangedAt,
       alertedAt: emit ? now : prev.alertedAt,
@@ -126,6 +129,7 @@ export type MonitorCompletion = {
   monitorId: string;
   lastClaimedAt: Date;
   lastCompletedAt: Date;
+  publishedAt: Date;
   severity: MonitorSeverity;
   severityChangedAt: Date | null;
   alertedAt: Date | null;

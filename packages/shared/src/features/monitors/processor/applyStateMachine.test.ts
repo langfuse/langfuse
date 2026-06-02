@@ -678,6 +678,7 @@ describe("applyStateMachine", () => {
       },
       next: { severity: input.computedSeverity },
       now: input.now,
+      publishedAt: input.now,
     });
     expect(result.emit).toBe(expected.emit);
     expect(result.completion.severity).toBe(expected.nextSeverity);
@@ -707,6 +708,7 @@ describe("applyStateMachine", () => {
       prev: monitor,
       next: { severity: "OK" },
       now: tOk,
+      publishedAt: tOk,
     });
     expect(recovery.emit).toBe(true);
     expect(recovery.completion.alertedAt).toEqual(tOk);
@@ -715,6 +717,7 @@ describe("applyStateMachine", () => {
       prev: { ...monitor, ...recovery.completion },
       next: { severity: "NO_DATA" },
       now: tNoData,
+      publishedAt: tNoData,
     });
     expect(enterNoData.emit).toBe(false);
     expect(enterNoData.completion.alertedAt).toEqual(tOk);
@@ -723,6 +726,7 @@ describe("applyStateMachine", () => {
       prev: { ...monitor, ...enterNoData.completion },
       next: { severity: "NO_DATA" },
       now: tLoop,
+      publishedAt: tLoop,
     });
     expect(selfLoop.emit).toBe(false);
   });
