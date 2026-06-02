@@ -1,0 +1,32 @@
+name: Test Slack Workflow Webhook
+
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        description: Slack notification title.
+        required: true
+        type: string
+        default: "Slack Workflow Webhook Test"
+      message:
+        description: Slack notification message.
+        required: true
+        type: string
+        default: "Manual test notification from GitHub Actions."
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          title: ${{ inputs.title }}
+          message: ${{ inputs.message }}
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
