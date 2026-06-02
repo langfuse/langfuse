@@ -406,8 +406,20 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(400);
     });
 
+    it("valid base64 but wrong JSON shape cursor → 400", async () => {
+      const badShapeCursor = Buffer.from(
+        JSON.stringify({ foo: "bar" }),
+      ).toString("base64");
+      const res = await makeAPICall(
+        "GET",
+        `/api/public/v3/scores?cursor=${badShapeCursor}`,
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
     it("stale cursor (no matching rows) returns empty page with no cursor", async () => {
-      // Encode a cursor far in the past so no scores precede it
       const staleCursor = Buffer.from(
         JSON.stringify({
           lastTimestamp: new Date(0).toISOString(),
@@ -426,6 +438,98 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(200);
       expect(res.body.data.length).toBe(0);
       expect(res.body.meta.cursor).toBeUndefined();
+    });
+
+    it("cross-tenant cursor replay returns empty page for project B", async () => {
+      const projectA = await createOrgProjectAndApiKey();
+      const scoresA = Array.from({ length: 3 }, () =>
+        createTraceScore({ project_id: projectA.projectId }),
+      );
+      await createScoresCh(scoresA);
+
+      const page1A = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?limit=2",
+        undefined,
+        projectA.auth,
+      );
+      expect(page1A.body.meta.cursor).toBeDefined();
+      const cursorFromA = page1A.body.meta.cursor!;
+
+      const projectB = await createOrgProjectAndApiKey();
+      const scoresB = Array.from({ length: 3 }, () =>
+        createTraceScore({ project_id: projectB.projectId }),
+      );
+      await createScoresCh(scoresB);
+
+      const replayRes = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?limit=2&cursor=${cursorFromA}`,
+        undefined,
+        projectB.auth,
+      );
+      expect(replayRes.status).toBe(200);
+      const leakedIds = new Set(scoresA.map((s) => s.id));
+      for (const s of replayRes.body.data) {
+        expect(leakedIds.has(s.id)).toBe(false);
+      }
+    });
+
+    it("exact-page-boundary: N rows with limit=N returns no cursor", async () => {
+      const project = await createOrgProjectAndApiKey();
+      const n = 3;
+      const scores = Array.from({ length: n }, () =>
+        createTraceScore({ project_id: project.projectId }),
+      );
+      await createScoresCh(scores);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?limit=${n}`,
+        undefined,
+        project.auth,
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.data.length).toBe(n);
+      expect(res.body.meta.cursor).toBeUndefined();
+    });
+
+    it("limit=1 paginates one score at a time", async () => {
+      const project = await createOrgProjectAndApiKey();
+      const scores = Array.from({ length: 3 }, () =>
+        createTraceScore({ project_id: project.projectId }),
+      );
+      await createScoresCh(scores);
+      const scoreIds = new Set(scores.map((s) => s.id));
+
+      const seenIds = new Set<string>();
+      let cursor: string | undefined;
+
+      do {
+        const url = cursor
+          ? `/api/public/v3/scores?limit=1&cursor=${cursor}`
+          : "/api/public/v3/scores?limit=1";
+        const res = await makeZodVerifiedAPICall(
+          GetScoresResponseV3,
+          "GET",
+          url,
+          undefined,
+          project.auth,
+        );
+        expect(res.status).toBe(200);
+        expect(res.body.data.length).toBe(1);
+        const id = res.body.data[0].id;
+        expect(seenIds.has(id)).toBe(false);
+        seenIds.add(id);
+        cursor = res.body.meta.cursor;
+      } while (cursor);
+
+      for (const id of scoreIds) {
+        expect(seenIds.has(id)).toBe(true);
+      }
     });
   });
 });
