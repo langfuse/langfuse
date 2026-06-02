@@ -1,10 +1,15 @@
 import {
   convertClickhouseScoreToDomain,
   convertDateToClickhouseDateTime,
+  DateTimeFilter,
+  FilterList,
   logger,
   measureAndReturn,
+  NumberFilter,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
+  clickhouseCompliantRandomCharacters,
+  StringOptionsFilter,
   type ScoreRecordReadType,
 } from "@langfuse/shared/src/server";
 import type {
@@ -171,7 +176,242 @@ export const buildSelectColumns = (fields: ScoreFieldGroupV3[]): string => {
   return selected.join(",\n    ");
 };
 
-const buildV3ListQuery = (withCursor: boolean, fields: ScoreFieldGroupV3[]) => `
+export function valueFilterColumn(
+  dataType: string,
+): "value" | "string_value" | null {
+  if (dataType === "NUMERIC" || dataType === "BOOLEAN") return "value";
+  if (dataType === "CATEGORICAL") return "string_value";
+  return null;
+}
+
+export function transformBooleanValueForFilter(v: string): number {
+  return v === "true" ? 1 : 0;
+}
+
+type ListFilterParams = {
+  id?: string[];
+  name?: string[];
+  source?: string[];
+  dataType?: string[];
+  environment?: string[];
+  configId?: string[];
+  queueId?: string[];
+  authorUserId?: string[];
+  value?: string[];
+  valueMin?: number;
+  valueMax?: number;
+  traceId?: string[];
+  sessionId?: string[];
+  observationId?: string[];
+  experimentId?: string[];
+  fromTimestamp?: Date;
+  toTimestamp?: Date;
+};
+
+function buildDynamicFilters(params: ListFilterParams): {
+  query: string;
+  params: Record<string, unknown>;
+} {
+  const filterList = new FilterList();
+
+  if (params.id?.length)
+    filterList.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "id",
+        operator: "any of",
+        values: params.id,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.name?.length)
+    filterList.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "name",
+        operator: "any of",
+        values: params.name,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.source?.length)
+    filterList.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "source",
+        operator: "any of",
+        values: params.source,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.dataType?.length)
+    filterList.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "data_type",
+        operator: "any of",
+        values: params.dataType,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.environment?.length)
+    filterList.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "environment",
+        operator: "any of",
+        values: params.environment,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.configId?.length)
+    filterList.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "config_id",
+        operator: "any of",
+        values: params.configId,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.queueId?.length)
+    filterList.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "queue_id",
+        operator: "any of",
+        values: params.queueId,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.authorUserId?.length)
+    filterList.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "author_user_id",
+        operator: "any of",
+        values: params.authorUserId,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.traceId?.length)
+    filterList.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "trace_id",
+        operator: "any of",
+        values: params.traceId,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.sessionId?.length)
+    filterList.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "session_id",
+        operator: "any of",
+        values: params.sessionId,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.observationId?.length)
+    filterList.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "observation_id",
+        operator: "any of",
+        values: params.observationId,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.experimentId?.length)
+    filterList.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "dataset_run_id",
+        operator: "any of",
+        values: params.experimentId,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.fromTimestamp !== undefined)
+    filterList.push(
+      new DateTimeFilter({
+        clickhouseTable: "scores",
+        field: "timestamp",
+        operator: ">=",
+        value: params.fromTimestamp,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.toTimestamp !== undefined)
+    filterList.push(
+      new DateTimeFilter({
+        clickhouseTable: "scores",
+        field: "timestamp",
+        operator: "<",
+        value: params.toTimestamp,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.valueMin !== undefined)
+    filterList.push(
+      new NumberFilter({
+        clickhouseTable: "scores",
+        field: "value",
+        operator: ">=",
+        value: params.valueMin,
+        tablePrefix: "s",
+        clickhouseTypeOverwrite: "Float64",
+      }),
+    );
+  if (params.valueMax !== undefined)
+    filterList.push(
+      new NumberFilter({
+        clickhouseTable: "scores",
+        field: "value",
+        operator: "<=",
+        value: params.valueMax,
+        tablePrefix: "s",
+        clickhouseTypeOverwrite: "Float64",
+      }),
+    );
+
+  const compiled = filterList.apply();
+
+  // value= routes to different columns depending on dataType
+  const extraClauses: string[] = [];
+  const extraParams: Record<string, unknown> = {};
+
+  if (params.value?.length && params.dataType?.length === 1) {
+    const dt = params.dataType[0];
+    const uid = clickhouseCompliantRandomCharacters();
+    const varName = `valueFilter${uid}`;
+
+    if (dt === "NUMERIC") {
+      extraClauses.push(`s.value IN ({${varName}: Array(Float64)})`);
+      extraParams[varName] = params.value.map(Number);
+    } else if (dt === "BOOLEAN") {
+      extraClauses.push(`s.value IN ({${varName}: Array(Float64)})`);
+      extraParams[varName] = params.value.map(transformBooleanValueForFilter);
+    } else if (dt === "CATEGORICAL") {
+      extraClauses.push(`s.string_value IN ({${varName}: Array(String)})`);
+      extraParams[varName] = params.value;
+    }
+  }
+
+  const allClauses = [compiled.query, ...extraClauses]
+    .filter(Boolean)
+    .join(" AND ");
+
+  return { query: allClauses, params: { ...compiled.params, ...extraParams } };
+}
+
+const buildV3ListQuery = (
+  withCursor: boolean,
+  fields: ScoreFieldGroupV3[],
+  filterClause: string,
+) => `
   SELECT
     ${buildSelectColumns(fields)}
   FROM scores s
@@ -181,17 +421,24 @@ const buildV3ListQuery = (withCursor: boolean, fields: ScoreFieldGroupV3[]) => `
       ? "AND (s.timestamp, s.id) < ({lastTimestamp: DateTime64(3)}, {lastId: String})"
       : ""
   }
+  ${filterClause ? `AND ${filterClause}` : ""}
   ORDER BY s.timestamp DESC, s.id DESC, s.event_ts DESC
   LIMIT 1 BY s.id, s.project_id
   LIMIT {limit: Int32}
 `;
 
-export async function listScoresV3ForPublicApi(params: {
-  projectId: string;
-  limit: number;
-  cursor?: ScoresCursorV3Type;
-  fields: ScoreFieldGroupV3[];
-}): Promise<{ data: APIScoreV3[]; cursor?: string }> {
+export async function listScoresV3ForPublicApi(
+  params: {
+    projectId: string;
+    limit: number;
+    cursor?: ScoresCursorV3Type;
+    fields: ScoreFieldGroupV3[];
+  } & ListFilterParams,
+): Promise<{ data: APIScoreV3[]; cursor?: string }> {
+  const { query: filterClause, params: filterParams } =
+    buildDynamicFilters(params);
+
+
   return measureAndReturn({
     operationName: "listScoresV3ForPublicApi",
     projectId: params.projectId,
@@ -205,6 +452,7 @@ export async function listScoresV3ForPublicApi(params: {
           ),
           lastId: params.cursor.lastId,
         }),
+        ...filterParams,
       },
       tags: {
         feature: "scoring",
@@ -215,7 +463,11 @@ export async function listScoresV3ForPublicApi(params: {
     },
     fn: async (input) => {
       const records = await queryClickhouse<ScoreRecordReadType>({
-        query: buildV3ListQuery(Boolean(params.cursor), params.fields),
+        query: buildV3ListQuery(
+          Boolean(params.cursor),
+          params.fields,
+          filterClause,
+        ),
         params: input.params,
         tags: input.tags,
         preferredClickhouseService: "ReadOnly",

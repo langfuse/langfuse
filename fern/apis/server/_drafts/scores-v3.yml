@@ -36,6 +36,62 @@ service:
             docs: >
               Comma-separated field groups to include. Allowed: core, details,
               subject, annotation. Defaults to "core". Unknown names return HTTP 400.
+          id:
+            type: optional<string>
+            docs: Comma-separated list of score IDs to filter by (OR within, AND across filters).
+          name:
+            type: optional<string>
+            docs: Comma-separated list of score names to filter by.
+          source:
+            type: optional<string>
+            docs: Comma-separated list of score sources to filter by (e.g. API, ANNOTATION, EVAL).
+          dataType:
+            type: optional<string>
+            docs: Comma-separated list of data types to filter by (NUMERIC, BOOLEAN, CATEGORICAL, TEXT, CORRECTION). Must be a single value when used with value, valueMin, or valueMax.
+          environment:
+            type: optional<string>
+            docs: Comma-separated list of environments to filter by.
+          configId:
+            type: optional<string>
+            docs: Comma-separated list of score config IDs to filter by.
+          queueId:
+            type: optional<string>
+            docs: Comma-separated list of annotation queue IDs to filter by.
+          authorUserId:
+            type: optional<string>
+            docs: Comma-separated list of author user IDs to filter by.
+          value:
+            type: optional<string>
+            docs: >
+              Comma-separated list of exact values to filter by. Requires a
+              single dataType from NUMERIC, BOOLEAN, or CATEGORICAL. For
+              BOOLEAN, each value must be "true" or "false". For NUMERIC, values
+              are matched against the Float64 column. For CATEGORICAL, values
+              are matched against string_value.
+          valueMin:
+            type: optional<double>
+            docs: Inclusive lower bound on the numeric value. Requires dataType=NUMERIC as a single value.
+          valueMax:
+            type: optional<double>
+            docs: Inclusive upper bound on the numeric value. Requires dataType=NUMERIC as a single value.
+          traceId:
+            type: optional<string>
+            docs: Comma-separated list of trace IDs to filter by. Mutually exclusive with sessionId, observationId, experimentId.
+          sessionId:
+            type: optional<string>
+            docs: Comma-separated list of session IDs to filter by. Mutually exclusive with traceId, observationId, experimentId.
+          observationId:
+            type: optional<string>
+            docs: Comma-separated list of observation IDs to filter by. Mutually exclusive with traceId, sessionId, experimentId.
+          experimentId:
+            type: optional<string>
+            docs: Comma-separated list of dataset run IDs (experiment IDs) to filter by. Mutually exclusive with traceId, sessionId, observationId.
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Inclusive lower bound on the score timestamp. Optional in Phase 4; will be required in Phase 5 unless an entity-bounded filter is present.
+          toTimestamp:
+            type: optional<datetime>
+            docs: Exclusive upper bound on the score timestamp.
       response: GetScoresV3Response
 
 types:
