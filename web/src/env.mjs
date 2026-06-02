@@ -437,7 +437,6 @@ export const env = createEnv({
       .enum(["legacy", "dual", "events_only"])
       .default("legacy"),
 
-    // v3 Scores API - disabled by default for self-hosters
     LANGFUSE_ENABLE_SCORES_V3_API: z.enum(["true", "false"]).default("false"),
 
     // Blocked users for chat completion API (userId:reason format)
