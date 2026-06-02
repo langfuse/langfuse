@@ -52,7 +52,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   loadMoreConversations: () => undefined,
   selectConversation: () => undefined,
   startNewConversation: () => undefined,
-  submit: () => undefined,
+  submit: async () => false,
 };
 
 type InAppAiAgentMessage = AgUiMessage;
@@ -80,7 +80,7 @@ type InAppAiAgentContextType = {
   loadMoreConversations: () => void;
   selectConversation: (conversationId: string) => void;
   startNewConversation: () => void;
-  submit: (content: string) => void;
+  submit: (content: string) => Promise<boolean>;
 };
 
 const InAppAiAgentContext = createContext<InAppAiAgentContextType | null>(null);
@@ -371,74 +371,74 @@ function InAppAiAgentProviderInner({
   }, [resetAgent, setSelectedConversationId]);
 
   const submit = useCallback(
-    (content: string) => {
+    async (content: string) => {
       if (
         !content ||
         isRunning ||
         isSelectedConversationHydrating ||
         submitInFlightRef.current
       ) {
-        return;
+        return false;
       }
 
       submitInFlightRef.current = true;
       setIsSubmitting(true);
       setError(null);
 
-      (async () => {
-        let startedRun = false;
+      let startedRun = false;
 
-        try {
-          const conversationId =
-            selectedConversationId ??
-            (
-              await createConversationMutation.mutateAsync({
-                projectId,
-              })
-            ).id;
+      try {
+        const conversationId =
+          selectedConversationId ??
+          (
+            await createConversationMutation.mutateAsync({
+              projectId,
+            })
+          ).id;
 
-          if (!selectedConversationId) {
-            setSelectedConversationId(conversationId);
-            utils.inAppAgent.list.invalidate({ projectId });
-          }
-
-          const storedMessages =
-            conversationQuery.data?.conversation.id === conversationId
-              ? conversationQuery.data.messages
-              : undefined;
-          const initialMessages =
-            selectedConversationId === conversationId
-              ? getHydratedMessages(messages, storedMessages)
-              : [];
-          const agent = getOrCreateAgent(conversationId, initialMessages);
-
-          if (agent.isRunning) {
-            return;
-          }
-
-          ensureSubscription(agent);
-
-          const userMessage = {
-            id: crypto.randomUUID(),
-            role: "user",
-            content,
-          } satisfies AgUiMessage;
-
-          agent.addMessage(userMessage);
-          setMessages(agent.messages.filter(isAgentConversationMessage));
-          startedRun = true;
-          runAgent(agent, conversationId);
-        } catch (error) {
-          const errorMessage = getAgentErrorMessage(error);
-          setError(errorMessage);
-          showErrorToast("Assistant failed", errorMessage);
-          console.error("Failed to start in-app agent conversation", error);
-        } finally {
-          if (!startedRun) {
-            releaseSubmitLock();
-          }
+        if (!selectedConversationId) {
+          setSelectedConversationId(conversationId);
+          utils.inAppAgent.list.invalidate({ projectId });
         }
-      })();
+
+        const storedMessages =
+          conversationQuery.data?.conversation.id === conversationId
+            ? conversationQuery.data.messages
+            : undefined;
+        const initialMessages =
+          selectedConversationId === conversationId
+            ? getHydratedMessages(messages, storedMessages)
+            : [];
+        const agent = getOrCreateAgent(conversationId, initialMessages);
+
+        if (agent.isRunning) {
+          return false;
+        }
+
+        ensureSubscription(agent);
+
+        const userMessage = {
+          id: crypto.randomUUID(),
+          role: "user",
+          content,
+        } satisfies AgUiMessage;
+
+        agent.addMessage(userMessage);
+        setMessages(agent.messages.filter(isAgentConversationMessage));
+        startedRun = true;
+        runAgent(agent, conversationId);
+        return true;
+      } catch (error) {
+        const errorMessage = getAgentErrorMessage(error);
+        setError(errorMessage);
+        showErrorToast("Assistant failed", errorMessage);
+        console.error("Failed to start in-app agent conversation", error);
+        return false;
+      } finally {
+        if (!startedRun) {
+          releaseSubmitLock();
+        }
+      }
     },
     [
       createConversationMutation,

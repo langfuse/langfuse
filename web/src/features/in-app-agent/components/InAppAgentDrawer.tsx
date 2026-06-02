@@ -55,7 +55,7 @@ export type InAppAgentDrawerProps = {
   onLoadMoreConversations: () => void;
   onSelectConversation: (conversationId: string) => void;
   onNewConversation: () => void;
-  onSubmit: (input: string) => void;
+  onSubmit: (input: string) => Promise<boolean>;
 } & InAppAgentDrawerCloseButtonProps;
 
 export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
@@ -259,8 +259,17 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
                 return;
               }
 
-              onSubmit(content);
-              setInput("");
+              onSubmit(content)
+                .then((accepted) => {
+                  if (!accepted) {
+                    return;
+                  }
+
+                  setInput((currentInput) =>
+                    currentInput.trim() === content ? "" : currentInput,
+                  );
+                })
+                .catch(() => undefined);
             }}
           >
             <textarea
