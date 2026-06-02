@@ -38,7 +38,7 @@ const csvStringParam = z
   .transform((val) => val.split(",").map((v) => v.trim()))
   .optional();
 
-// GET /v3/scores — limit + optional cursor + optional fields + all filter params
+// GET /v3/scores — all filter params optional; superRefine validation lives in the handler.
 export const GetScoresV3 = z.object({
   limit: z.coerce.number().int().positive().max(100).default(50),
   cursor: z.string().optional(),
