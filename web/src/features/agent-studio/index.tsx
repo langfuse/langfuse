@@ -212,6 +212,16 @@ export default function AgentStudioPage() {
   // "new" = fresh run mode; a thread_id = viewing a past thread
   const [selectedView, setSelectedView] = useState<"new" | string>("new");
 
+  // Fetch decrypted auth headers for the selected server so the browser can
+  // include them in direct (browser→LangGraph) requests.
+  const { data: serverHeaders } = api.agentStudio.getServerHeaders.useQuery(
+    { projectId, serverId: selectedServer?.id ?? "" },
+    {
+      enabled:
+        !!selectedServer?.id && (selectedServer.headerNames?.length ?? 0) > 0,
+    },
+  );
+
   const {
     listAssistants,
     getSchema,
@@ -224,6 +234,7 @@ export default function AgentStudioPage() {
     projectId,
     selectedServer?.id ?? null,
     selectedServer?.serverUrl ?? null,
+    serverHeaders,
   );
   const { state: streamState, run, cancel, reset } = useAgentStream();
 
@@ -639,6 +650,8 @@ export default function AgentStudioPage() {
                       }
                       projectId={projectId}
                       serverId={selectedServer?.id ?? null}
+                      serverUrl={selectedServer?.serverUrl ?? null}
+                      extraHeaders={serverHeaders}
                     />
                   )
                 ) : (
@@ -764,17 +777,26 @@ function PastThreadInteract({
   thread,
   projectId,
   serverId,
+  serverUrl,
+  extraHeaders,
 }: {
   thread: LangGraphThread | null;
   projectId: string;
   serverId: string | null;
+  serverUrl?: string | null;
+  extraHeaders?: Record<string, string>;
 }) {
   const [result, setResult] = useState<{
     events: NodeEvent[];
     inputValues: Record<string, string>;
   } | null>(null);
   const [loading, setLoading] = useState(false);
-  const { proxyFetch } = useLangGraphApi(projectId, serverId);
+  const { proxyFetch } = useLangGraphApi(
+    projectId,
+    serverId,
+    serverUrl,
+    extraHeaders,
+  );
 
   useEffect(() => {
     if (!thread) return;

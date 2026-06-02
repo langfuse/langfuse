@@ -128,28 +128,35 @@ function reconstructSubgraphs(graph: LangGraphGraphDef): LangGraphGraphDef {
   return { nodes: outerNodes, edges: uniqueEdges };
 }
 
-function buildProxyUrl(
-  projectId: string,
-  serverId: string,
-  path: string,
-): string {
-  const sep = path.includes("?") ? "&" : "?";
-  return `/api/project/${projectId}/langgraph/${path}${sep}serverId=${serverId}`;
+// Build a URL directly on the LangGraph server (browser-direct, like LangSmith Studio).
+// This means localhost:2024 resolves on the user's machine regardless of where
+// Langfuse is hosted — no server-side proxy is involved.
+function buildDirectUrl(serverUrl: string, path: string): string {
+  return `${serverUrl.replace(/\/$/, "")}/${path}`;
 }
 
 export function useLangGraphApi(
   projectId: string,
   serverId: string | null,
   serverUrl?: string | null,
+  // Decrypted auth headers fetched from the server for this session.
+  // Passed in by the parent so the browser can include them in direct requests.
+  extraHeaders?: Record<string, string>,
 ) {
   const proxyFetch = useCallback(
     async (path: string, options?: RequestInit): Promise<Response> => {
-      if (!serverId) throw new Error("No server selected");
-
-      // Custom headers are injected server-side by the proxy (decrypted from DB).
-      return fetch(buildProxyUrl(projectId, serverId, path), options ?? {});
+      if (!serverUrl) throw new Error("No server URL");
+      const merged: RequestInit = {
+        ...(options ?? {}),
+        headers: {
+          "Content-Type": "application/json",
+          ...(extraHeaders ?? {}),
+          ...(options?.headers as Record<string, string> | undefined),
+        },
+      };
+      return fetch(buildDirectUrl(serverUrl, path), merged);
     },
-    [projectId, serverId],
+    [serverUrl, extraHeaders],
   );
 
   const listAssistants = useCallback(async (): Promise<
@@ -250,19 +257,18 @@ export function useLangGraphApi(
       assistantId: string,
       input: Record<string, unknown>,
     ): ReadableStream<Uint8Array> | null => {
-      if (!serverId) return null;
-      const url = buildProxyUrl(
-        projectId,
-        serverId,
-        `threads/${threadId}/runs/stream`,
-      );
+      if (!serverUrl) return null;
+      const url = buildDirectUrl(serverUrl, `threads/${threadId}/runs/stream`);
       const controller = new AbortController();
       const stream = new ReadableStream<Uint8Array>({
         async start(streamCtrl) {
           try {
             const res = await fetch(url, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                ...(extraHeaders ?? {}),
+              },
               body: JSON.stringify({
                 assistant_id: assistantId,
                 input,
@@ -310,7 +316,7 @@ export function useLangGraphApi(
       });
       return stream;
     },
-    [projectId, serverId, serverUrl],
+    [serverUrl, extraHeaders],
   );
 
   return {

@@ -121,6 +121,36 @@ export const agentStudioRouter = createTRPCRouter({
       return { success: true };
     }),
 
+  // Returns decrypted header values to the authenticated browser so it can
+  // include them in direct (browser→LangGraph) requests. Only accessible to
+  // project members with project:read scope.
+  getServerHeaders: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), serverId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "project:read",
+      });
+      const server = await ctx.prisma.agentStudioServer.findFirst({
+        where: { id: input.serverId, projectId: input.projectId },
+      });
+      if (!server) return {};
+      if (!server.headersEncrypted) return {};
+      try {
+        const stored = JSON.parse(
+          decrypt(server.headersEncrypted),
+        ) as StoredHeader[];
+        return Object.fromEntries(
+          stored
+            .filter((h) => h.name.trim())
+            .map((h) => [h.name.trim(), h.value]),
+        );
+      } catch {
+        return {};
+      }
+    }),
+
   testConnection: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), serverId: z.string() }))
     .mutation(async ({ input, ctx }) => {
