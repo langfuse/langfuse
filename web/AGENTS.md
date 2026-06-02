@@ -178,7 +178,7 @@ signoff of user-visible changes.
 2. Install Chromium with `pnpm run playwright:install` if Playwright has not been set up on this machine yet.
 3. Use the workspace `playwright` MCP server from `.mcp.json`, `.cursor/mcp.json`, or `.vscode/mcp.json` for browser-driven review of user-visible frontend changes, not just debugging.
 4. Exercise the primary changed flow and check the resulting UI state for obvious visual regressions before signoff.
-5. Inspect traces and other artifacts under `../.playwright-mcp/` when a browser session fails.
+5. Inspect traces and other artifacts under `/tmp/playwright-mcp` when a browser session fails.
 
 ## Package-Specific Rules
 
