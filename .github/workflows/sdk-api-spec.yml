@@ -29,8 +29,8 @@ jobs:
         with:
           version: 11.1.3
 
-      # Keep this secret-bearing job cache-cold to avoid exposing Fern and
-      # GitHub write credentials to potentially poisoned shared package-manager state.
+      # Keep this secret-bearing job cache-cold to avoid exposing Fern
+      # credentials to potentially poisoned shared package-manager state.
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
@@ -50,9 +50,8 @@ jobs:
         with:
           version: "0.11.2"
 
-      - name: Update Python SDK
-        env:
-          GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+      - name: Prepare Python SDK update
+        id: prepare-python-sdk
         run: |
           # Clone langfuse-python repository
           git clone https://github.com/langfuse/langfuse-python.git ../langfuse-python
@@ -60,8 +59,6 @@ jobs:
 
           git config user.name "langfuse-bot"
           git config user.email "langfuse-bot@langfuse.com"
-          echo "$GH_ACCESS_TOKEN" | gh auth login --with-token
-          gh auth setup-git
 
           # Delete existing API contents
           rm -rf langfuse/api/*
@@ -80,30 +77,40 @@ jobs:
           # Check for changes and show diff for debugging
           if git diff --quiet; then
             echo "No changes detected in Python SDK"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Close existing api-spec-bot PRs
-          gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
-
-          # Get the GitHub username of the original commit author
-          cd ../langfuse
-          ORIGINAL_AUTHOR=$(gh api repos/langfuse/langfuse/commits/${GITHUB_SHA} --jq '.author.login')
-          cd ../langfuse-python
-
-          # Create new branch and push changes
+          # Create new branch and commit changes
           BRANCH_NAME="api-spec-bot-${GITHUB_SHA::7}"
           git checkout -b "$BRANCH_NAME"
           git add .
           git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}"
+
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Push Python SDK update
+        if: steps.prepare-python-sdk.outputs.has_changes == 'true'
+        env:
+          BRANCH_NAME: ${{ steps.prepare-python-sdk.outputs.branch_name }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          cd ../langfuse-python
+
+          # Close existing api-spec-bot PRs
+          gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
+
+          # Push new branch and create PR
+          gh auth setup-git
           git push origin "$BRANCH_NAME"
 
           # Create PR with original author as reviewer
+          ORIGINAL_AUTHOR="$(gh api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login')"
           gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" --reviewer "$ORIGINAL_AUTHOR"
 
-      - name: Update TypeScript SDK
-        env:
-          GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+      - name: Prepare TypeScript SDK update
+        id: prepare-typescript-sdk
         run: |
           # Clone langfuse-js repository
           git clone https://github.com/langfuse/langfuse-js.git ../langfuse-js
@@ -112,8 +119,6 @@ jobs:
           # Configure git
           git config user.name "langfuse-bot"
           git config user.email "langfuse-bot@langfuse.com"
-          echo "$GH_ACCESS_TOKEN" | gh auth login --with-token
-          gh auth setup-git
 
           # Delete existing API contents
           rm -rf packages/core/src/api/*
@@ -139,25 +144,36 @@ jobs:
           # Check for changes and show diff for debugging
           if git diff --quiet; then
             echo "No changes detected in TypeScript SDK"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Close existing api-spec-bot PRs
-          gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
-
-          # Get the GitHub username of the original commit author
-          cd ../langfuse
-          ORIGINAL_AUTHOR=$(gh api repos/langfuse/langfuse/commits/${GITHUB_SHA} --jq '.author.login')
-          cd ../langfuse-js
-
-          # Create new branch and push changes
+          # Create new branch and commit changes
           BRANCH_NAME="api-spec-bot-${GITHUB_SHA::7}"
           git checkout -b "$BRANCH_NAME"
           git add .
           git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --no-verify
+
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Push TypeScript SDK update
+        if: steps.prepare-typescript-sdk.outputs.has_changes == 'true'
+        env:
+          BRANCH_NAME: ${{ steps.prepare-typescript-sdk.outputs.branch_name }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          cd ../langfuse-js
+
+          # Close existing api-spec-bot PRs
+          gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
+
+          # Push new branch and create PR
+          gh auth setup-git
           git push origin "$BRANCH_NAME"
 
           # Create PR with original author as reviewer
+          ORIGINAL_AUTHOR="$(gh api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login')"
           gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" --reviewer "$ORIGINAL_AUTHOR"
 
   notify-slack-on-failure:
