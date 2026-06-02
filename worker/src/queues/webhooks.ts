@@ -705,6 +705,20 @@ async function executeSlackAction({
 
     const slackConfig = actionConfig.config;
 
+    // monitor-alert envelopes survive a BullMQ JSON round-trip as plain strings;
+    // parse to recover the Dates buildMonitorMessage formats, matching the
+    // webhook/github dispatchers' buildWebhookOutboundPayload discipline.
+    let payload = input.payload;
+    if (payload.type === "monitor-alert") {
+      const parsed = MonitorWebhookQueueEventSchema.safeParse(payload);
+      if (!parsed.success) {
+        throw new InternalServerError(
+          `Invalid monitor-alert payload: ${parsed.error.message}`,
+        );
+      }
+      payload = parsed.data;
+    }
+
     // Build message blocks using predefined formats or custom template
     let blocks: any[] = [];
     let attachments: { color: string }[] | undefined;
@@ -726,7 +740,7 @@ async function executeSlackAction({
 
     // Use predefined message format if no custom template or template failed
     if (blocks.length === 0) {
-      const message = SlackMessageBuilder.buildMessage(input.payload);
+      const message = SlackMessageBuilder.buildMessage(payload);
       blocks = message.blocks;
       attachments = message.attachments;
       logger.debug(
