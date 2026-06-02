@@ -188,7 +188,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
         auth,
       );
       expect(page2.status).toBe(200);
-      // last page has no cursor
+      expect(page2.body.data.length).toBeGreaterThanOrEqual(1);
       expect(page2.body.meta.cursor).toBeUndefined();
     });
 
