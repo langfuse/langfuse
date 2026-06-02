@@ -43,9 +43,6 @@ describe("MonitorQueueEventSchema", () => {
   });
 
   it("preserves full precision when coercing a large bigint string wire value", () => {
-    // 30-digit value far beyond Number.MAX_SAFE_INTEGER (2^53 - 1). Locks the
-    // schema-as-codec contract: producer emits `schedulerBatchId.toString()`,
-    // consumer parses to bigint with no precision loss.
     const huge = 123456789012345678901234567890n;
     const result = MonitorQueueEventSchema.safeParse({
       ...validQueueEvent,
@@ -68,10 +65,6 @@ describe("MonitorQueueEventSchema", () => {
   });
 
   it("rejects a negative schedulerBatchId", () => {
-    // `calculateSchedulerBatchId` masks the sha256 high 8 bytes with
-    // `& (2^63 - 1)`, so the producer can never emit a negative value. Guard
-    // the wire boundary so anything else looks like an obvious validator
-    // failure rather than corrupted data.
     expect(
       MonitorQueueEventSchema.safeParse({
         ...validQueueEvent,
@@ -81,9 +74,6 @@ describe("MonitorQueueEventSchema", () => {
   });
 
   it("accepts zero as a schedulerBatchId", () => {
-    // Cryptographically improbable but mathematically possible; the
-    // refinement is `.nonnegative()`, not `.positive()`, to match the
-    // producer's contract.
     expect(
       MonitorQueueEventSchema.safeParse({
         ...validQueueEvent,
@@ -93,8 +83,6 @@ describe("MonitorQueueEventSchema", () => {
   });
 
   it("accepts an empty monitors array", () => {
-    // Scheduler may publish with zero monitors if everything in the batch was
-    // filtered out — schema should not block; downstream worker handles it.
     expect(
       MonitorQueueEventSchema.safeParse({ ...validQueueEvent, monitors: [] })
         .success,
@@ -172,11 +160,6 @@ describe("MonitorWebhookQueueEventSchema", () => {
 });
 
 describe("scheduler DTO JSON round-trip (wire contract)", () => {
-  // BigInt and Date can't be JSON-stringified natively; the wire schemas use
-  // `z.coerce.*` to recover them on the consumer side. These tests lock that
-  // contract: produce → JSON.stringify → JSON.parse → schema.parse must
-  // round-trip successfully.
-
   const stringifyWithBigInt = (value: unknown) =>
     JSON.stringify(value, (_key, v) =>
       typeof v === "bigint" ? v.toString() : v,

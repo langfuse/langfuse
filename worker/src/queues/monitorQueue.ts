@@ -25,16 +25,13 @@ export const monitorQueueProcessor: Processor = async (job) => {
           "monitorQueueProcessor: WebhookQueue is unavailable; cannot publish monitor alerts",
         );
       }
-      const processor = new MonitorProcessor({
-        db: prisma,
-        publish: async (input) => {
-          await webhookQueue.add(QueueName.WebhookQueue, {
-            timestamp: new Date(),
-            id: v4(),
-            payload: input,
-            name: QueueJobs.WebhookJob,
-          });
-        },
+      const processor = new MonitorProcessor(prisma, async (input) => {
+        await webhookQueue.add(QueueName.WebhookQueue, {
+          timestamp: new Date(),
+          id: v4(),
+          payload: input,
+          name: QueueJobs.WebhookJob,
+        });
       });
       await processor.process(job.data.payload, new Date());
     },

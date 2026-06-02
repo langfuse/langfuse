@@ -2,8 +2,14 @@ import { describe, it, expect } from "vitest";
 
 import { applyStateMachine } from "./applyStateMachine";
 import type { ComputedSeverity } from "./computeSeverity";
-import type { MonitorNoData, MonitorRenotify, MonitorSeverity } from "../types";
+import type {
+  Monitor,
+  MonitorNoData,
+  MonitorRenotify,
+  MonitorSeverity,
+} from "../types";
 
+/** StateMachineCase is one applyStateMachine transition-table row. */
 type StateMachineCase = {
   name: string;
   input: {
@@ -24,13 +30,44 @@ type StateMachineCase = {
 };
 
 const t0 = new Date("2026-05-27T12:00:00.000Z");
-const tMinus2m = new Date("2026-05-27T11:58:00.000Z"); // 2m before t0
-const tMinus10m = new Date("2026-05-27T11:50:00.000Z"); // 10m before t0
+const tMinus2m = new Date("2026-05-27T11:58:00.000Z");
+const tMinus10m = new Date("2026-05-27T11:50:00.000Z");
 const noDataSilent: MonitorNoData = { mode: "SILENT" };
 const noDataNotify5: MonitorNoData = { mode: "NOTIFY", intervalMinutes: 5 };
 const renotifyOff: MonitorRenotify = { mode: "OFF" };
 const renotifyEvery5: MonitorRenotify = { mode: "EVERY", intervalMinutes: 5 };
 
+/** baseMonitor supplies the Monitor fields applyStateMachine ignores. */
+const baseMonitor: Monitor = {
+  id: "m_test",
+  createdAt: t0,
+  updatedAt: t0,
+  createdBy: null,
+  updatedBy: null,
+  projectId: "p_test",
+  view: "observations",
+  filters: [],
+  metric: { measure: "count", aggregation: "count" },
+  window: "5m",
+  thresholdOperator: "GT",
+  alertThreshold: 100,
+  warningThreshold: null,
+  noData: { mode: "SILENT" },
+  renotify: { mode: "OFF" },
+  name: "Test",
+  tags: [],
+  triggerIds: [],
+  severity: "UNKNOWN",
+  severityChangedAt: null,
+  alertedAt: null,
+  status: "ACTIVE",
+  nextRunAt: null,
+  lastPublishedAt: null,
+  lastClaimedAt: null,
+  lastCompletedAt: null,
+};
+
+/** cases enumerates the applyStateMachine transition table. */
 const cases: StateMachineCase[] = [
   // === Cold-start (prev = UNKNOWN) ===
   {
@@ -52,7 +89,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "UNKNOWN -> WARNING: emit (cold-start unhealthy)",
+    name: "UNKNOWN -> WARNING: emit",
     input: {
       prevSeverity: "UNKNOWN",
       computedSeverity: "WARNING",
@@ -70,7 +107,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "UNKNOWN -> ALERT: emit (cold-start unhealthy)",
+    name: "UNKNOWN -> ALERT: emit",
     input: {
       prevSeverity: "UNKNOWN",
       computedSeverity: "ALERT",
@@ -144,7 +181,7 @@ const cases: StateMachineCase[] = [
     },
   },
 
-  // === NO_DATA -> WARNING / ALERT (always surface non-OK) ===
+  // === NO_DATA -> WARNING / ALERT ===
   {
     name: "NO_DATA -> WARNING with noData SILENT: emit",
     input: {
@@ -182,7 +219,7 @@ const cases: StateMachineCase[] = [
     },
   },
 
-  // === OK / WARN / ALERT -> NO_DATA (escalation to NO_DATA) ===
+  // === OK / WARN / ALERT -> NO_DATA ===
   {
     name: "OK -> NO_DATA with noData SILENT: silent",
     input: {
@@ -207,7 +244,7 @@ const cases: StateMachineCase[] = [
       prevSeverity: "OK",
       computedSeverity: "NO_DATA",
       prevSeverityChangedAt: tMinus10m,
-      prevAlertedAt: tMinus10m, // 10m ago, interval is 5m -> cooldown elapsed
+      prevAlertedAt: tMinus10m, // interval 5m elapsed
       now: t0,
       noData: noDataNotify5,
       renotify: renotifyOff,
@@ -225,7 +262,7 @@ const cases: StateMachineCase[] = [
       prevSeverity: "OK",
       computedSeverity: "NO_DATA",
       prevSeverityChangedAt: tMinus10m,
-      prevAlertedAt: tMinus2m, // 2m ago, interval is 5m -> still cooling down
+      prevAlertedAt: tMinus2m, // interval 5m not elapsed
       now: t0,
       noData: noDataNotify5,
       renotify: renotifyOff,
@@ -238,7 +275,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "OK -> NO_DATA with noData NOTIFY and prevAlertedAt NULL: emit (no prior emit)",
+    name: "OK -> NO_DATA with noData NOTIFY and prevAlertedAt NULL: emit",
     input: {
       prevSeverity: "OK",
       computedSeverity: "NO_DATA",
@@ -292,7 +329,7 @@ const cases: StateMachineCase[] = [
     },
   },
 
-  // === OK -> WARNING / ALERT (always surface non-OK) ===
+  // === OK -> WARNING / ALERT ===
   {
     name: "OK -> WARNING: emit",
     input: {
@@ -330,9 +367,9 @@ const cases: StateMachineCase[] = [
     },
   },
 
-  // === WARNING <-> ALERT (escalation / de-escalation) ===
+  // === WARNING <-> ALERT ===
   {
-    name: "WARNING -> ALERT: emit (escalation)",
+    name: "WARNING -> ALERT: emit",
     input: {
       prevSeverity: "WARNING",
       computedSeverity: "ALERT",
@@ -350,7 +387,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "ALERT -> WARNING: emit (de-escalation)",
+    name: "ALERT -> WARNING: emit",
     input: {
       prevSeverity: "ALERT",
       computedSeverity: "WARNING",
@@ -368,9 +405,9 @@ const cases: StateMachineCase[] = [
     },
   },
 
-  // === WARNING / ALERT -> OK (recovery) ===
+  // === WARNING / ALERT -> OK ===
   {
-    name: "WARNING -> OK: emit (recovery)",
+    name: "WARNING -> OK: emit",
     input: {
       prevSeverity: "WARNING",
       computedSeverity: "OK",
@@ -388,7 +425,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "ALERT -> OK: emit (recovery)",
+    name: "ALERT -> OK: emit",
     input: {
       prevSeverity: "ALERT",
       computedSeverity: "OK",
@@ -406,7 +443,7 @@ const cases: StateMachineCase[] = [
     },
   },
 
-  // === OK -> OK (healthy steady state) ===
+  // === OK -> OK ===
   {
     name: "OK -> OK: silent",
     input: {
@@ -416,7 +453,7 @@ const cases: StateMachineCase[] = [
       prevAlertedAt: tMinus10m,
       now: t0,
       noData: noDataSilent,
-      renotify: renotifyEvery5, // OK self-loops are silent even with renotify
+      renotify: renotifyEvery5,
     },
     expected: {
       emit: false,
@@ -451,7 +488,7 @@ const cases: StateMachineCase[] = [
       prevSeverity: "WARNING",
       computedSeverity: "WARNING",
       prevSeverityChangedAt: tMinus10m,
-      prevAlertedAt: tMinus10m, // 10m ago, interval 5m -> elapsed
+      prevAlertedAt: tMinus10m, // interval 5m elapsed
       now: t0,
       noData: noDataSilent,
       renotify: renotifyEvery5,
@@ -469,7 +506,7 @@ const cases: StateMachineCase[] = [
       prevSeverity: "WARNING",
       computedSeverity: "WARNING",
       prevSeverityChangedAt: tMinus10m,
-      prevAlertedAt: tMinus2m, // 2m ago, interval 5m -> still cooling down
+      prevAlertedAt: tMinus2m, // interval 5m not elapsed
       now: t0,
       noData: noDataSilent,
       renotify: renotifyEvery5,
@@ -536,10 +573,8 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "WARNING -> WARNING with renotify EVERY and prevAlertedAt NULL: silent (no base)",
+    name: "WARNING -> WARNING with renotify EVERY and prevAlertedAt NULL: silent",
     input: {
-      // prev=WARNING with NULL alertedAt shouldn't happen in practice (the
-      // transition into WARNING would have emitted) but guard against it.
       prevSeverity: "WARNING",
       computedSeverity: "WARNING",
       prevSeverityChangedAt: tMinus10m,
@@ -578,13 +613,24 @@ const cases: StateMachineCase[] = [
 
 describe("applyStateMachine", () => {
   it.each(cases)("$name", ({ input, expected }) => {
-    const result = applyStateMachine(input);
+    const result = applyStateMachine({
+      prev: {
+        ...baseMonitor,
+        severity: input.prevSeverity,
+        severityChangedAt: input.prevSeverityChangedAt,
+        alertedAt: input.prevAlertedAt,
+        noData: input.noData,
+        renotify: input.renotify,
+      },
+      next: { severity: input.computedSeverity },
+      now: input.now,
+    });
     expect(result.emit).toBe(expected.emit);
-    expect(result.nextSeverity).toBe(expected.nextSeverity);
-    expect(result.nextSeverityChangedAt?.toISOString() ?? null).toBe(
+    expect(result.completion.severity).toBe(expected.nextSeverity);
+    expect(result.completion.severityChangedAt?.toISOString() ?? null).toBe(
       expected.nextSeverityChangedAt?.toISOString() ?? null,
     );
-    expect(result.nextAlertedAt?.toISOString() ?? null).toBe(
+    expect(result.completion.alertedAt?.toISOString() ?? null).toBe(
       expected.nextAlertedAt?.toISOString() ?? null,
     );
   });

@@ -1,8 +1,5 @@
 import type { MonitorThresholdOperator } from "../types";
 
-/** ComputedSeverity is the subset of MonitorSeverity that the processor derives from a metric value — never UNKNOWN (cold-start) or PAUSED (lifecycle). */
-export type ComputedSeverity = "NO_DATA" | "OK" | "WARNING" | "ALERT";
-
 /** computeSeverity maps a metric value to a non-lifecycle severity by comparing it against the alert (and optional warning) thresholds. */
 export function computeSeverity(args: {
   value: number | null;
@@ -42,3 +39,6 @@ function matches(
       return value !== threshold;
   }
 }
+
+/** ComputedSeverity is the subset of MonitorSeverity that the processor derives from a metric value — never UNKNOWN (cold-start) or PAUSED (lifecycle). */
+export type ComputedSeverity = "NO_DATA" | "OK" | "WARNING" | "ALERT";

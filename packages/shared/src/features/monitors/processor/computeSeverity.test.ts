@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { computeSeverity } from "./computeSeverity";
 import type { MonitorThresholdOperator } from "../types";
 
+/** ComputeSeverityCase is one computeSeverity table row: inputs and the expected severity. */
 type ComputeSeverityCase = {
   name: string;
   input: {
@@ -14,8 +15,8 @@ type ComputeSeverityCase = {
   expected: "NO_DATA" | "OK" | "WARNING" | "ALERT";
 };
 
+/** cases covers the NO_DATA branch plus each operator's alert/warning/OK bands. */
 const cases: ComputeSeverityCase[] = [
-  // === NO_DATA branch ===
   {
     name: "null value -> NO_DATA (with warning)",
     input: {
@@ -37,7 +38,6 @@ const cases: ComputeSeverityCase[] = [
     expected: "NO_DATA",
   },
 
-  // === GT (>) ===
   {
     name: "GT: value > alert -> ALERT",
     input: {
@@ -109,7 +109,6 @@ const cases: ComputeSeverityCase[] = [
     expected: "OK",
   },
 
-  // === GTE (>=) ===
   {
     name: "GTE: value == alert -> ALERT",
     input: {
@@ -151,7 +150,6 @@ const cases: ComputeSeverityCase[] = [
     expected: "OK",
   },
 
-  // === LT (<) ===
   {
     name: "LT: value < alert -> ALERT",
     input: {
@@ -193,7 +191,6 @@ const cases: ComputeSeverityCase[] = [
     expected: "OK",
   },
 
-  // === LTE (<=) ===
   {
     name: "LTE: value == alert -> ALERT",
     input: {
@@ -225,7 +222,6 @@ const cases: ComputeSeverityCase[] = [
     expected: "OK",
   },
 
-  // === EQ (==) ===
   {
     name: "EQ: value == alert -> ALERT",
     input: {
@@ -257,7 +253,6 @@ const cases: ComputeSeverityCase[] = [
     expected: "OK",
   },
 
-  // === NEQ (!=) ===
   {
     name: "NEQ: value != alert -> ALERT (alert checked first)",
     input: {

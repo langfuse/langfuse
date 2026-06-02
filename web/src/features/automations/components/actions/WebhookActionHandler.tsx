@@ -74,7 +74,9 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
 
   getDefaultValues(automation?: AutomationDomain): WebhookActionFormData {
     // Extract apiVersion from existing config
-    let apiVersion = { prompt: "v1" } as const;
+    let apiVersion: z.infer<typeof AvailableWebhookApiSchema> = {
+      prompt: "v1",
+    };
     if (
       automation?.action?.type === "WEBHOOK" &&
       automation?.action?.config &&

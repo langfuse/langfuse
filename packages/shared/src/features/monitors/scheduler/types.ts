@@ -1,6 +1,3 @@
-/** scheduler/types.ts contains the transport DTOs the scheduler/worker
- * publish on BullMQ. These are wire-shaped (coerced primitives) and not
- * domain entities. */
 import { z } from "zod";
 
 import { metric as MetricSchema } from "../../query/types";
@@ -12,49 +9,35 @@ import {
   MonitorWindowSchema,
 } from "../types";
 
-/**
- * MonitorQueueEventSchema represents a batch of monitors that can be
- * evaluated together using the same set of parameters.
- *
- * All monitors in `monitors[]` share `view` / `filters` / `window`, so the
- * worker runs one ClickHouse query for the whole batch.
- */
+/** MonitorQueueEventSchema validates a batch of monitors evaluated together with shared query parameters. */
 export const MonitorQueueEventSchema = z.object({
   projectId: z.string(),
-  // Fingerprint of (projectId, view, filters, window)
+  // Fingerprint of (projectId, view, filters, window).
   schedulerBatchId: z.coerce.bigint().nonnegative(),
 
-  // Deterministic run boundary this batch represents. CH window anchor.
+  // CH window anchor.
   runAt: z.coerce.date(),
 
-  // Wallclock at which the scheduler published this event. Publish identifier
-  // for the processor's claim/complete CAS.
+  // Publish identifier for the processor's claim/complete CAS.
   publishedAt: z.coerce.date(),
 
-  // Shared query primitives — every monitor in this batch agrees on these.
   view: MonitorViewSchema,
   filters: MonitorFiltersSchema,
   window: MonitorWindowSchema,
   metrics: z.array(MetricSchema),
 
-  // Monitors map to metricNames returned by the above query params
   monitors: z.array(
     z.object({ monitorId: z.string(), metricName: z.string() }),
   ),
 });
-/** MonitorQueueEvent is the parsed/domain shape — schedulerBatchId is a bigint. */
+
+/** MonitorQueueEvent is the parsed shape of MonitorQueueEventSchema. */
 export type MonitorQueueEvent = z.infer<typeof MonitorQueueEventSchema>;
 
-/** MonitorQueueEventWire is the unparsed wire shape — schedulerBatchId is string|number|bigint. Producers (the scheduler) emit this; consumers parse to MonitorQueueEvent. Keeps BullMQ JSON.stringify safe. */
-export type MonitorQueueEventWire = z.input<typeof MonitorQueueEventSchema>;
+/** MonitorQueueEventInput is the unparsed input shape of MonitorQueueEventSchema. */
+export type MonitorQueueEventInput = z.input<typeof MonitorQueueEventSchema>;
 
-/**
- * MonitorWebhookQueueEventSchema is the unified envelope: it's both the BullMQ
- * payload the MonitorProcessor publishes onto `WebhookQueue` and the HTTP body
- * the dispatcher posts to customer webhooks. `id` is the executionId and
- * `timestamp` is publish-time wallclock — both stable across BullMQ retries
- * so consumers can dedupe.
- */
+/** MonitorWebhookQueueEventSchema validates the envelope published onto WebhookQueue and posted to customer webhooks. */
 export const MonitorWebhookQueueEventSchema = z.object({
   id: z.string(),
   timestamp: z.coerce.date(),
@@ -62,6 +45,16 @@ export const MonitorWebhookQueueEventSchema = z.object({
   apiVersion: z.literal("v1"),
   payload: MonitorAlertSchema,
 });
+
+/** MonitorWebhookQueueEvent is the parsed shape of MonitorWebhookQueueEventSchema. */
 export type MonitorWebhookQueueEvent = z.infer<
   typeof MonitorWebhookQueueEventSchema
 >;
+
+/** MonitorWebhookInput is the routing head plus monitor envelope the processor publishes onto WebhookQueue. */
+export type MonitorWebhookInput = {
+  projectId: string;
+  automationId: string;
+  executionId: string;
+  payload: MonitorWebhookQueueEvent;
+};

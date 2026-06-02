@@ -1,13 +1,13 @@
 import { v4 } from "uuid";
-import { vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   MonitorProcessor,
   type MonitorPublisher,
-  type MonitorQueryExecutor,
+  type QueryExecutor,
   type MonitorQueueEvent,
-  type MonitorTriggerLoader,
+  type GetTriggerConfigurations,
 } from "@langfuse/shared/monitors/server";
 import { prisma } from "@langfuse/shared/src/db";
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -37,6 +37,7 @@ type SeedOverrides = Partial<{
   severityChangedAt: Date | null;
   alertedAt: Date | null;
   tags: string[];
+  triggerIds: string[];
   lastPublishedAt: Date | null;
   lastClaimedAt: Date | null;
   lastCompletedAt: Date | null;
@@ -72,6 +73,7 @@ type ProcessCase = {
   triggers?: TriggerSeed[];
   ch?: Record<string, unknown>[];
   injectError?: { stage: InjectErrorStage; message: string };
+  preempt?: { newClaimedAt: Date };
   expect: {
     throws?: string;
     publishCallCount: number;
@@ -87,6 +89,7 @@ const fiveMinutesMs = 5n * oneMinuteMs;
 const runAt = new Date("2026-05-27T12:00:00.000Z");
 const justAfterRunAt = new Date("2026-05-27T12:00:01.000Z");
 const tenMinutesAgo = new Date("2026-05-27T11:50:00.000Z");
+const laterPublish = new Date("2026-05-27T12:01:00.000Z");
 
 const matchAnyAlertTrigger: TriggerSeed = {
   filter: [
@@ -128,13 +131,15 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       status: seed.status ?? "ACTIVE",
       schedulerBatchId: seed.schedulerBatchId ?? 0n,
       nextRunAt: new Date("2099-01-01T00:00:00.000Z"),
-      lastPublishedAt: seed.lastPublishedAt ?? runAt,
+      lastPublishedAt:
+        seed.lastPublishedAt === undefined ? runAt : seed.lastPublishedAt,
       lastClaimedAt: seed.lastClaimedAt ?? null,
       lastCompletedAt: seed.lastCompletedAt ?? null,
       severity: seed.severity ?? "UNKNOWN",
       severityChangedAt: seed.severityChangedAt ?? null,
       alertedAt: seed.alertedAt ?? null,
       tags: seed.tags ?? [],
+      triggerIds: seed.triggerIds ?? [],
       name: `Test ${seed.id}`,
     },
   });
@@ -158,16 +163,60 @@ function makeEvent(projectId: string, monitorIds: string[]): MonitorQueueEvent {
   };
 }
 
-/** wrapDbToThrow returns a Proxy over `db` that rejects when `method` is called, delegating everything else through. Used to inject claim ($queryRaw) and complete ($executeRaw) errors without per-method seams. */
+/** wrapDbToThrow returns a Proxy over `db` that rejects at the DB seam matching `stage`: claim intercepts `monitor.updateManyAndReturn`, complete intercepts `$executeRaw`. Lets the table inject failures without per-method seams on the processor. */
 function wrapDbToThrow(
   db: PrismaClient,
-  method: "$queryRaw" | "$executeRaw",
+  stage: "claim" | "complete",
   message: string,
 ): PrismaClient {
+  if (stage === "complete") {
+    return new Proxy(db, {
+      get(target, prop, _receiver) {
+        if (prop === "$executeRaw") {
+          return () => Promise.reject(new Error(message));
+        }
+        return Reflect.get(target, prop, target);
+      },
+    }) as PrismaClient;
+  }
   return new Proxy(db, {
     get(target, prop, _receiver) {
-      if (prop === method) {
-        return () => Promise.reject(new Error(message));
+      if (prop === "monitor") {
+        const delegate = Reflect.get(target, prop, target);
+        return new Proxy(delegate, {
+          get(dTarget, dProp, _dReceiver) {
+            if (dProp === "updateManyAndReturn") {
+              return () => Promise.reject(new Error(message));
+            }
+            return Reflect.get(dTarget, dProp, dTarget);
+          },
+        });
+      }
+      return Reflect.get(target, prop, target);
+    },
+  }) as PrismaClient;
+}
+
+/** wrapDbPreemptBeforeComplete simulates another worker re-claiming between this worker's claim and complete: the first `$executeRaw` (the complete) first bumps `lastClaimedAt` on the project's monitors so the complete-side CAS owner key no longer matches and the update no-ops. */
+function wrapDbPreemptBeforeComplete(
+  db: PrismaClient,
+  projectId: string,
+  newClaimedAt: Date,
+): PrismaClient {
+  let preempted = false;
+  return new Proxy(db, {
+    get(target, prop, _receiver) {
+      if (prop === "$executeRaw") {
+        return async (...args: unknown[]) => {
+          if (!preempted) {
+            preempted = true;
+            await target.monitor.updateMany({
+              where: { projectId },
+              data: { lastClaimedAt: newClaimedAt },
+            });
+          }
+          return (target.$executeRaw as (...a: unknown[]) => unknown)(...args);
+        };
       }
       return Reflect.get(target, prop, target);
     },
@@ -176,33 +225,7 @@ function wrapDbToThrow(
 
 const cases: ProcessCase[] = [
   {
-    name: "all monitors claimed: no ack, no ts changes, no emit",
-    monitors: [
-      {
-        id: monitorAId,
-        severity: "OK",
-        severityChangedAt: tenMinutesAgo,
-        lastPublishedAt: runAt,
-        lastClaimedAt: runAt,
-        lastCompletedAt: runAt,
-      },
-    ],
-    expect: {
-      publishCallCount: 0,
-      rows: [
-        {
-          id: monitorAId,
-          severity: "OK",
-          severityChangedAt: tenMinutesAgo,
-          alertedAt: null,
-          lastClaimedAt: runAt,
-          lastCompletedAt: runAt,
-        },
-      ],
-    },
-  },
-  {
-    name: "no severity change: ack, ts changes, no emit",
+    name: "no severity change: claim, complete, no sev change, no emit",
     monitors: [
       {
         id: monitorAId,
@@ -227,7 +250,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "no triggers match: ack, ts + sev changes, no emit",
+    name: "no triggers match: claim, complete, sev change, no emit",
     monitors: [
       {
         id: monitorAId,
@@ -263,7 +286,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "alert: ack, ts + sev changes, emit",
+    name: "alert: claim, complete, sev change, emit",
     monitors: [
       {
         id: monitorAId,
@@ -307,7 +330,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "renotify on: ack, ts changes, emit",
+    name: "renotify on: claim, complete, no sev change, emit",
     monitors: [
       {
         id: monitorAId,
@@ -335,7 +358,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "renotify off: ack, ts changes, no emit",
+    name: "renotify off: claim, complete, no sev change, no emit",
     monitors: [
       {
         id: monitorAId,
@@ -363,7 +386,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "nodata on: ack, ts + sev changes, emit",
+    name: "nodata on: claim, complete, sev change, emit",
     monitors: [
       {
         id: monitorAId,
@@ -390,7 +413,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "nodata off: ack, ts + sev changes, no emit",
+    name: "nodata off: claim, complete, sev change, no emit",
     monitors: [
       {
         id: monitorAId,
@@ -417,7 +440,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "error on claim: no ack, no changes, no emit",
+    name: "error on claim: no claim, no complete, no sev change, no emit",
     monitors: [
       {
         id: monitorAId,
@@ -443,7 +466,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "error on executeQuery: no ack, no changes, no emit",
+    name: "error on executeQuery: claim, no complete, no sev change, no emit",
     monitors: [
       {
         id: monitorAId,
@@ -469,7 +492,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "error on getTriggers: no ack, no changes, no emit",
+    name: "error on getTriggers: claim, no complete, no sev change, no emit",
     monitors: [
       {
         id: monitorAId,
@@ -495,7 +518,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "error on publish: no ack, no changes, emit (publish fired before throwing)",
+    name: "error on publish: claim, no complete, no sev change, emit (publish fired before throwing)",
     monitors: [
       {
         id: monitorAId,
@@ -522,7 +545,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "error on complete: no ack, no changes, emit (publish fired before throwing)",
+    name: "error on complete: claim, no complete, no sev change, emit (publish fired before throwing)",
     monitors: [
       {
         id: monitorAId,
@@ -549,7 +572,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "partial claim: ack + ts + sev changes + emit for claimable, untouched for already-completed",
+    name: "partial claim: claim, complete, sev change, emit for claimable; no claim for already-completed",
     monitors: [
       // already-completed: claim's clause 2 rejects it (lastCompletedAt == lastPublishedAt)
       {
@@ -706,6 +729,141 @@ const cases: ProcessCase[] = [
       ],
     },
   },
+  {
+    name: "scheduler published a newer event: no claim, no complete, no sev change, no emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedAt: laterPublish,
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "OK",
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedAt: null,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "scheduler never published this event: no claim, no complete, no sev change, no emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "UNKNOWN",
+        lastPublishedAt: null,
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "UNKNOWN",
+          severityChangedAt: null,
+          alertedAt: null,
+          lastClaimedAt: null,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "processor claimed this event already: no claim, no complete, no sev change, no emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "UNKNOWN",
+        lastPublishedAt: runAt,
+        lastClaimedAt: justAfterRunAt,
+        lastCompletedAt: null,
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "UNKNOWN",
+          severityChangedAt: null,
+          alertedAt: null,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "processor completed this event already: no claim, no complete, no sev change, no emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedAt: runAt,
+        lastClaimedAt: runAt,
+        lastCompletedAt: runAt,
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "OK",
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedAt: runAt,
+          lastCompletedAt: runAt,
+        },
+      ],
+    },
+  },
+  {
+    name: "another worker re-claims before complete: claim, no complete, no sev change, emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "ALERT",
+        severityChangedAt: tenMinutesAgo,
+        alertedAt: tenMinutesAgo,
+        lastPublishedAt: runAt,
+        renotify: { mode: "EVERY", intervalMinutes: 5 },
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [matchAnyAlertTrigger],
+    preempt: { newClaimedAt: laterPublish },
+    expect: {
+      publishCallCount: 1,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "ALERT",
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: tenMinutesAgo,
+          lastClaimedAt: laterPublish,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
 ];
 
 describe("MonitorProcessor.process (integration)", () => {
@@ -721,8 +879,9 @@ describe("MonitorProcessor.process (integration)", () => {
   });
 
   it.each(cases)("$name", async (c) => {
+    const triggerIds = (c.triggers ?? []).map((_, i) => `trig_${i}`);
     for (const m of c.monitors) {
-      await seedMonitor(projectId, m);
+      await seedMonitor(projectId, { ...m, triggerIds });
     }
 
     const publish = vi.fn<MonitorPublisher>(async () => {});
@@ -730,41 +889,48 @@ describe("MonitorProcessor.process (integration)", () => {
       publish.mockRejectedValueOnce(new Error(c.injectError.message));
     }
 
-    const executeQuery: MonitorQueryExecutor = async () => {
+    const executeQuery: QueryExecutor = async () => {
       if (c.injectError?.stage === "executeQuery") {
         throw new Error(c.injectError.message);
       }
       return c.ch ?? [{ count_count: 0 }];
     };
 
-    const getTriggers: MonitorTriggerLoader = async () => {
+    const getTriggers: GetTriggerConfigurations = async () => {
       if (c.injectError?.stage === "getTriggers") {
         throw new Error(c.injectError.message);
       }
-      // matchesTriggerFilter only reads filter + eventActions; processor
-      // iterates `automations` for fan-out. Cast minimal seeds.
+      // Trigger ids line up with the monitor's seeded triggerIds so the
+      // triggerIds opt-in passes; the severity filter does the discriminating.
       return (c.triggers ?? []).map((t, i) => ({
+        id: `trig_${i}`,
         filter: t.filter,
         eventActions: t.eventActions ?? [],
         automations: t.automations ?? [
           { id: `auto_default_${i}`, actionId: `act_default_${i}` },
         ],
-      })) as unknown as Awaited<ReturnType<MonitorTriggerLoader>>;
+      })) as unknown as Awaited<ReturnType<GetTriggerConfigurations>>;
     };
 
     let db: PrismaClient = prisma;
     if (c.injectError?.stage === "claim") {
-      db = wrapDbToThrow(prisma, "$queryRaw", c.injectError.message);
+      db = wrapDbToThrow(prisma, "claim", c.injectError.message);
     } else if (c.injectError?.stage === "complete") {
-      db = wrapDbToThrow(prisma, "$executeRaw", c.injectError.message);
+      db = wrapDbToThrow(prisma, "complete", c.injectError.message);
+    } else if (c.preempt) {
+      db = wrapDbPreemptBeforeComplete(
+        prisma,
+        projectId,
+        c.preempt.newClaimedAt,
+      );
     }
 
-    const processor = new MonitorProcessor({
+    const processor = new MonitorProcessor(
       db,
       publish,
       executeQuery,
       getTriggers,
-    });
+    );
 
     const event = makeEvent(
       projectId,
@@ -846,33 +1012,35 @@ describe("MonitorProcessor.process evaluation offset", () => {
       id: monitorId,
       severity: "UNKNOWN",
       lastPublishedAt: runAt,
+      triggerIds: ["trig_off"],
     });
 
     let capturedQuery: { fromTimestamp: string; toTimestamp: string } | null =
       null;
     const publish = vi.fn<MonitorPublisher>(async () => {});
-    const executeQuery: MonitorQueryExecutor = async (_p, query) => {
+    const executeQuery: QueryExecutor = async (_p, query) => {
       capturedQuery = {
         fromTimestamp: query.fromTimestamp,
         toTimestamp: query.toTimestamp,
       };
       return [{ count_count: 200 }];
     };
-    const getTriggers: MonitorTriggerLoader = async () =>
+    const getTriggers: GetTriggerConfigurations = async () =>
       [
         {
+          id: "trig_off",
           filter: matchAnyAlertTrigger.filter,
           eventActions: [],
           automations: [{ id: "auto_off", actionId: "act_off" }],
         },
-      ] as unknown as Awaited<ReturnType<MonitorTriggerLoader>>;
+      ] as unknown as Awaited<ReturnType<GetTriggerConfigurations>>;
 
-    const processor = new MonitorProcessor({
-      db: prisma,
+    const processor = new MonitorProcessor(
+      prisma,
       publish,
       executeQuery,
       getTriggers,
-    });
+    );
 
     const event = makeEvent(projectId, [monitorId]);
     await processor.process(event, justAfterRunAt);

@@ -5,28 +5,23 @@ import { Prisma, type PrismaClient } from "../../../db";
 import type { singleFilter } from "../../../interfaces/filters";
 import type { metric as MetricSchema } from "../../query/types";
 import { viewFromPrisma, windowFromMs } from "../service/helpers";
-import type { MonitorQueueEventWire } from "./types";
+import type { MonitorQueueEventInput } from "./types";
 
 /** monitorProcessorTtl bounds how long a published run can be in flight before the scheduler republishes it. */
 export const monitorProcessorTtl = 5 * 60 * 1000;
-
-type Metric = z.infer<typeof MetricSchema>;
-type FilterState = z.infer<typeof singleFilter>[];
-
-type PublishMonitorEvents = (events: MonitorQueueEventWire[]) => Promise<void>;
 
 /** MonitorScheduler claims and publishes due monitors for its scheduler slot. */
 export class MonitorScheduler {
   private readonly schedulerId: number;
   private readonly totalSchedulers: number;
   private readonly db: PrismaClient;
-  private readonly publish: PublishMonitorEvents;
+  private readonly publish: PublishMonitorEvent;
 
   constructor(deps: {
     schedulerId: number;
     totalSchedulers: number;
     db: PrismaClient;
-    publish: PublishMonitorEvents;
+    publish: PublishMonitorEvent;
   }) {
     this.schedulerId = deps.schedulerId;
     this.totalSchedulers = deps.totalSchedulers;
@@ -39,7 +34,7 @@ export class MonitorScheduler {
    * advances the schedule to the next run.
    */
   async schedule(scheduledAt: Date): Promise<number> {
-    const rows = await this.db.$queryRaw<MonitorBatchRow[]>(
+    const results = await this.db.$queryRaw<MonitorBatchResult[]>(
       buildScheduleQuery({
         tick: scheduledAt,
         schedulerId: this.schedulerId,
@@ -47,31 +42,24 @@ export class MonitorScheduler {
       }),
     );
 
-    if (rows.length === 0) return 0;
+    if (results.length === 0) return 0;
 
-    const events = rows.map((row) => toMonitorQueueEvent(row, scheduledAt));
-    await this.publish(events);
-    return events.length;
+    await Promise.all(
+      results.map((result) => {
+        let event = toMonitorQueueEvent(result, scheduledAt);
+        return this.publish(event);
+      }),
+    );
+
+    return results.length;
   }
 }
 
-/** MonitorBatchRow is one published batch keyed by (project_id, scheduler_batch_id). */
-type MonitorBatchRow = {
-  project_id: string;
-  scheduler_batch_id: bigint;
-  run_at: Date;
-  view: PrismaMonitorView;
-  filters: FilterState;
-  window_ms: bigint;
-  metrics: Metric[];
-  monitors: { monitorId: string; metricName: string }[];
-};
-
-/** toMonitorQueueEvent converts a MonitorBatchRow into its JSON-safe wire shape. `schedulerBatchId` is stringified at this boundary so the bigint never crosses BullMQ's JSON.stringify. Consumer parses back to bigint via `z.coerce.bigint()`. */
+/** toMonitorQueueEvent converts a MonitorBatchResult into its JSON-safe wire shape. */
 function toMonitorQueueEvent(
-  row: MonitorBatchRow,
+  row: MonitorBatchResult,
   publishedAt: Date,
-): MonitorQueueEventWire {
+): MonitorQueueEventInput {
   return {
     projectId: row.project_id,
     schedulerBatchId: row.scheduler_batch_id.toString(),
@@ -205,3 +193,21 @@ function buildScheduleQuery({
     ORDER BY MAX(run_at) ASC
   `;
 }
+
+type Metric = z.infer<typeof MetricSchema>;
+type FilterState = z.infer<typeof singleFilter>[];
+
+/** PublishMonitorEvent publishes a monitor queue event. */
+type PublishMonitorEvent = (event: MonitorQueueEventInput) => Promise<void>;
+
+/** MonitorBatchResult is one published batch keyed by (project_id, scheduler_batch_id). */
+type MonitorBatchResult = {
+  project_id: string;
+  scheduler_batch_id: bigint;
+  run_at: Date;
+  view: PrismaMonitorView;
+  filters: FilterState;
+  window_ms: bigint;
+  metrics: Metric[];
+  monitors: { monitorId: string; metricName: string }[];
+};

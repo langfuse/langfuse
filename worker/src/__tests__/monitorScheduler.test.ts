@@ -1,7 +1,9 @@
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   MonitorScheduler,
-  type MonitorQueueEvent,
+  type MonitorQueueEventInput,
 } from "@langfuse/shared/monitors/server";
 import { prisma } from "@langfuse/shared/src/db";
 import type { Prisma } from "@prisma/client";
@@ -25,7 +27,7 @@ type SeedOverrides = Partial<{
 type MonitorSeed = { id: string } & SeedOverrides;
 
 type ExpectedEvent = {
-  schedulerBatchId: bigint;
+  schedulerBatchId: string;
   runAt: Date;
   monitorIds: string[];
 };
@@ -101,7 +103,7 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
 }
 
 function makeScheduler(
-  publish: (events: MonitorQueueEvent[]) => Promise<void>,
+  publish: (event: MonitorQueueEventInput) => Promise<void>,
   shard: { id: number; total: number } = { id: 0, total: 1 },
 ) {
   return new MonitorScheduler({
@@ -149,7 +151,7 @@ const cases: SchedulerCase[] = [
     tick: now,
     monitors: [{ id: "m_new", nextRunAt: null }],
     expect: {
-      events: [{ schedulerBatchId: 0n, runAt: now, monitorIds: ["m_new"] }],
+      events: [{ schedulerBatchId: "0", runAt: now, monitorIds: ["m_new"] }],
       rows: [
         {
           id: "m_new",
@@ -167,7 +169,7 @@ const cases: SchedulerCase[] = [
     expect: {
       events: [
         {
-          schedulerBatchId: 0n,
+          schedulerBatchId: "0",
           runAt: prevCadence,
           monitorIds: ["m_behind"],
         },
@@ -242,7 +244,7 @@ const cases: SchedulerCase[] = [
     expect: {
       events: [
         {
-          schedulerBatchId: 0n,
+          schedulerBatchId: "0",
           runAt: prevCadence,
           monitorIds: ["m_stuck"],
         },
@@ -272,7 +274,7 @@ const cases: SchedulerCase[] = [
     expect: {
       events: [
         {
-          schedulerBatchId: 0n,
+          schedulerBatchId: "0",
           runAt: prevCadence30m,
           monitorIds: ["m_long_stuck"],
         },
@@ -318,7 +320,7 @@ const cases: SchedulerCase[] = [
     expect: {
       events: [
         {
-          schedulerBatchId: 0n,
+          schedulerBatchId: "0",
           runAt: prevCadence,
           monitorIds: ["m_far_behind"],
         },
@@ -397,7 +399,7 @@ const cases: SchedulerCase[] = [
     expect: {
       events: [
         {
-          schedulerBatchId: 7n,
+          schedulerBatchId: "7",
           runAt: prevCadenceBatch7,
           monitorIds: ["m_a", "m_b"],
         },
@@ -431,12 +433,12 @@ const cases: SchedulerCase[] = [
     expect: {
       events: [
         {
-          schedulerBatchId: 1n,
+          schedulerBatchId: "1",
           runAt: prevCadenceBatch1,
           monitorIds: ["m_a1", "m_a2", "m_a3"],
         },
         {
-          schedulerBatchId: 2n,
+          schedulerBatchId: "2",
           runAt: prevCadenceBatch2,
           monitorIds: ["m_b1", "m_b2"],
         },
@@ -486,7 +488,7 @@ const cases: SchedulerCase[] = [
     expect: {
       events: [
         {
-          schedulerBatchId: 5n,
+          schedulerBatchId: "5",
           runAt: prevCadenceBatch5,
           monitorIds: ["m_in"],
         },
@@ -502,6 +504,74 @@ const cases: SchedulerCase[] = [
           id: "m_out",
           nextRunAt: prevCadence,
           lastPublishedAt: null,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "new monitor, 1m cadence: publishes at tick, advances to cadence-aligned + 17s slot",
+    tick: now,
+    monitors: [
+      { id: "m_cadence_1m", schedulerBatchId: 17n, cadenceMs: oneMinuteMs },
+    ],
+    expect: {
+      events: [
+        { schedulerBatchId: "17", runAt: now, monitorIds: ["m_cadence_1m"] },
+      ],
+      rows: [
+        {
+          id: "m_cadence_1m",
+          nextRunAt: new Date("2026-05-27T12:01:17.000Z"),
+          lastPublishedAt: now,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "new monitor, 30m cadence: publishes at tick, advances to cadence-aligned + 17s slot",
+    tick: now,
+    monitors: [
+      {
+        id: "m_cadence_30m",
+        schedulerBatchId: 17n,
+        cadenceMs: thirtyMinutesMs,
+      },
+    ],
+    expect: {
+      events: [
+        { schedulerBatchId: "17", runAt: now, monitorIds: ["m_cadence_30m"] },
+      ],
+      rows: [
+        {
+          id: "m_cadence_30m",
+          nextRunAt: new Date("2026-05-27T12:30:17.000Z"),
+          lastPublishedAt: now,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "new monitor, 1d cadence: publishes at tick, advances to cadence-aligned + 17s slot",
+    tick: now,
+    monitors: [
+      {
+        id: "m_cadence_1d",
+        schedulerBatchId: 17n,
+        cadenceMs: 24n * 60n * 60n * 1000n,
+      },
+    ],
+    expect: {
+      events: [
+        { schedulerBatchId: "17", runAt: now, monitorIds: ["m_cadence_1d"] },
+      ],
+      rows: [
+        {
+          id: "m_cadence_1d",
+          nextRunAt: new Date("2026-05-28T00:00:17.000Z"),
+          lastPublishedAt: now,
           lastCompletedAt: null,
         },
       ],
@@ -526,7 +596,7 @@ describe("MonitorScheduler (integration)", () => {
       await seedMonitor(projectId, m);
     }
 
-    const publish = vi.fn<(events: MonitorQueueEvent[]) => Promise<void>>();
+    const publish = vi.fn<(event: MonitorQueueEventInput) => Promise<void>>();
     await makeScheduler(publish, c.scheduler).schedule(c.tick);
 
     // Filter to this project's events — the scheduler is global, so concurrent
@@ -539,7 +609,7 @@ describe("MonitorScheduler (integration)", () => {
     myEvents.forEach((event, i) => {
       const exp = c.expect.events[i];
       expect(event.schedulerBatchId).toBe(exp.schedulerBatchId);
-      expect(event.runAt.toISOString()).toBe(exp.runAt.toISOString());
+      expect(event.runAt).toEqual(exp.runAt);
       expect(event.monitors.map((m) => m.monitorId).sort()).toEqual(
         [...exp.monitorIds].sort(),
       );
@@ -568,7 +638,7 @@ describe("MonitorScheduler (integration)", () => {
       nextRunAt: prevCadence,
     });
 
-    const publish1 = vi.fn<(events: MonitorQueueEvent[]) => Promise<void>>();
+    const publish1 = vi.fn<(event: MonitorQueueEventInput) => Promise<void>>();
     await makeScheduler(publish1).schedule(now);
     const firstNext = (
       await prisma.monitor.findUniqueOrThrow({ where: { id: "m_det" } })
@@ -579,7 +649,7 @@ describe("MonitorScheduler (integration)", () => {
       data: { nextRunAt: prevCadence, lastPublishedAt: null },
     });
 
-    const publish2 = vi.fn<(events: MonitorQueueEvent[]) => Promise<void>>();
+    const publish2 = vi.fn<(event: MonitorQueueEventInput) => Promise<void>>();
     await makeScheduler(publish2).schedule(now);
     const secondNext = (
       await prisma.monitor.findUniqueOrThrow({ where: { id: "m_det" } })
@@ -587,39 +657,4 @@ describe("MonitorScheduler (integration)", () => {
 
     expect(firstNext?.toISOString()).toBe(secondNext?.toISOString());
   });
-
-  it.each([
-    {
-      label: "1m",
-      cadenceMs: 60n * 1000n,
-      expectedNext: new Date("2026-05-27T12:01:17.000Z"),
-    },
-    {
-      label: "30m",
-      cadenceMs: 30n * 60n * 1000n,
-      expectedNext: new Date("2026-05-27T12:30:17.000Z"),
-    },
-    {
-      label: "1d",
-      cadenceMs: 24n * 60n * 60n * 1000n,
-      expectedNext: new Date("2026-05-28T00:00:17.000Z"),
-    },
-  ])(
-    "advances next_run_at to the next cadence-aligned + 17s slot for $label cadence",
-    async ({ cadenceMs, expectedNext }) => {
-      await seedMonitor(projectId, {
-        id: "m_cadence",
-        schedulerBatchId: 17n,
-        cadenceMs,
-        nextRunAt: null,
-      });
-      const publish = vi.fn<(events: MonitorQueueEvent[]) => Promise<void>>();
-      await makeScheduler(publish).schedule(now);
-
-      const row = await prisma.monitor.findUniqueOrThrow({
-        where: { id: "m_cadence" },
-      });
-      expect(row.nextRunAt?.toISOString()).toBe(expectedNext.toISOString());
-    },
-  );
 });

@@ -1,4 +1,3 @@
-import type { Monitor as PrismaMonitor } from "@prisma/client";
 import { randomUUID } from "crypto";
 
 import { JobConfigState, Prisma, type PrismaClient } from "../../../db";
@@ -6,106 +5,144 @@ import { env } from "../../../env";
 import { TriggerEventSource } from "../../../domain/automations";
 import { matchesTriggerFilter } from "../../../server/automations";
 import {
-  getTriggerConfigurations,
+  instrumentAsync,
+  instrumentSync,
+} from "../../../server/instrumentation";
+import {
+  getTriggerConfigurations as defaultGetTriggerConfigurations,
   type TriggerDomainWithActions,
 } from "../../../server/repositories/automation-repository";
-import type { WebhookInput } from "../../../server/queues";
-import { executeQuery } from "../../query/server/queryExecutor";
+import { executeQuery as defaultExecuteQuery } from "../../query/server/queryExecutor";
 import type { QueryType } from "../../query/types";
-import type { MonitorQueueEvent } from "../scheduler/types";
-import { windowToMs } from "../service/helpers";
 import type {
-  MonitorAlert,
-  MonitorNoData,
-  MonitorRenotify,
-  MonitorSeverity,
-  MonitorThresholdOperator,
-  MonitorView,
-  MonitorWindow,
-} from "../types";
-import { applyStateMachine } from "./applyStateMachine";
+  MonitorQueueEvent,
+  MonitorWebhookInput,
+} from "../scheduler/types";
+import { monitorFromPrisma, windowToMs } from "../service/helpers";
+import { type MonitorAlert, type MonitorWindow, type Monitor } from "../types";
+import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
+import { renderAlertMessage } from "./renderAlertMessage";
 
-/** monitorEvaluationOffsetMs shifts the CH query window back so the planner reads data old enough to be settled past the events-table write lag. Anchored to `event.runAt` so retries scan an identical window. */
+/** monitorEvaluationOffsetMs shifts the query window back so ClickHouse reads data settled past the events-table write lag. */
 export const monitorEvaluationOffsetMs = 30 * 1000;
 
-/** MonitorCompletion is one row of the bulk-update emitted by the state machine — what to write back to a single monitor after evaluation. lastClaimedAt is the worker's claim stash, used as the complete-side CAS owner key. */
-export type MonitorCompletion = {
-  monitorId: string;
-  lastClaimedAt: Date;
-  lastCompletedAt: Date;
-  severity: MonitorSeverity;
-  severityChangedAt: Date | null;
-  alertedAt: Date | null;
-};
-
-/** MonitorPublisher pushes one fully-built WebhookInput per (alert × matched-trigger) onto WebhookQueue. The processor owns the fan-out — the callback is a thin queue.add boundary. */
-export type MonitorPublisher = (input: WebhookInput) => Promise<void>;
-
-/** MonitorQueryExecutor runs the scalar-shape ClickHouse query for a monitor evaluation; injected so tests can fake CH responses. */
-export type MonitorQueryExecutor = (
-  projectId: string,
-  query: QueryType,
-) => Promise<Array<Record<string, unknown>>>;
-
-/** MonitorTriggerLoader loads the Monitor-source trigger configurations for a project; injected so tests can fake trigger sets. */
-export type MonitorTriggerLoader = (
-  projectId: string,
-) => Promise<TriggerDomainWithActions[]>;
-
-/** defaultMonitorTriggerLoader is the production wiring: load ACTIVE Monitor-source triggers for the project. */
-export const defaultMonitorTriggerLoader: MonitorTriggerLoader = (projectId) =>
-  getTriggerConfigurations({
-    projectId,
-    eventSource: TriggerEventSource.Monitor,
-    status: JobConfigState.ACTIVE,
-  });
-
-/** defaultMonitorQueryExecutor is the production wiring: forward to the shared ClickHouse executeQuery. */
-export const defaultMonitorQueryExecutor: MonitorQueryExecutor = (
-  projectId,
-  query,
-) => executeQuery(projectId, query);
-
-/** MonitorProcessor consumes MonitorQueueEvents, evaluates the severity state machine, and emits monitor alerts. */
+/** MonitorProcessor evaluates queued monitor events and emits MonitorAlerts. */
 export class MonitorProcessor {
-  private readonly db: PrismaClient;
-  private readonly publish: MonitorPublisher;
-  private readonly executeQuery: MonitorQueryExecutor;
-  private readonly getTriggers: MonitorTriggerLoader;
+  constructor(
+    private readonly db: PrismaClient,
+    private readonly publish: MonitorPublisher,
+    private readonly executeQuery: QueryExecutor = defaultExecuteQuery,
+    private readonly getTriggerConfigurations: GetTriggerConfigurations = defaultGetTriggerConfigurations,
+  ) {}
 
-  constructor(deps: {
-    db: PrismaClient;
-    publish: MonitorPublisher;
-    executeQuery?: MonitorQueryExecutor;
-    getTriggers?: MonitorTriggerLoader;
-  }) {
-    this.db = deps.db;
-    this.publish = deps.publish;
-    this.executeQuery = deps.executeQuery ?? defaultMonitorQueryExecutor;
-    this.getTriggers = deps.getTriggers ?? defaultMonitorTriggerLoader;
+  /** process evaluates one queued monitor event and publishes any resulting alerts. */
+  async process(event: MonitorQueueEvent, now: Date): Promise<void> {
+    return instrumentAsync({ name: "process" }, async (span) => {
+      const monitors = await instrumentAsync({ name: "claimMonitors" }, () =>
+        this.claimMonitors(event, now),
+      );
+      span.setAttribute("monitors", monitors.length);
+      if (monitors.length === 0) return;
+
+      const [metrics, triggers] = await Promise.all([
+        instrumentAsync({ name: "queryMetrics" }, () =>
+          this.queryMetrics(event),
+        ),
+        instrumentAsync({ name: "getTriggerConfigurations" }, () =>
+          this.getTriggerConfigurations({
+            projectId: event.projectId,
+            eventSource: TriggerEventSource.Monitor,
+            status: JobConfigState.ACTIVE,
+          }),
+        ),
+      ]);
+      span.setAttribute("metrics", Object.keys(metrics).length);
+      span.setAttribute("triggers", triggers.length);
+
+      const [completions, monitorWebhookInputs] = instrumentSync(
+        { name: "processMonitors" },
+        () =>
+          processMonitors({
+            monitors,
+            metrics,
+            triggers,
+            now,
+            runAt: event.runAt,
+          }),
+      );
+      span.setAttribute("monitorWebhookInputs", monitorWebhookInputs.length);
+
+      await instrumentAsync({ name: "publishWebhookInputs" }, () =>
+        this.publishWebhookInputs(monitorWebhookInputs),
+      );
+
+      await instrumentAsync({ name: "complete" }, () =>
+        this.complete({ projectId: event.projectId, completions }),
+      );
+    });
   }
 
-  /** claim takes ownership of the event's monitors for this worker via a conditional update that rejects superseded or already-completed publishes, returning the full claimed rows. Each row's lastClaimedAt is the `now` this statement stamped — the complete-side CAS owner key. */
-  async claim(event: MonitorQueueEvent, now: Date): Promise<PrismaMonitor[]> {
+  /** claimMonitors conditionally claims the event's monitors for this worker, returning the rows it won. */
+  private async claimMonitors(
+    event: MonitorQueueEvent,
+    now: Date,
+  ): Promise<Monitor[]> {
     if (event.monitors.length === 0) return [];
-    return this.db.monitor.updateManyAndReturn({
+    const prismaMonitors = await this.db.monitor.updateManyAndReturn({
       where: {
         id: { in: event.monitors.map((m) => m.monitorId) },
         projectId: event.projectId,
         lastPublishedAt: { lte: event.publishedAt }, // newest event
-        // not completed yet
-        OR: [
-          { lastCompletedAt: null },
-          { lastCompletedAt: { lt: event.publishedAt } },
+        AND: [
+          // not already claimed
+          {
+            OR: [
+              { lastClaimedAt: null },
+              { lastClaimedAt: { lte: event.publishedAt } },
+            ],
+          },
+          // not yet completed
+          {
+            OR: [
+              { lastCompletedAt: null },
+              { lastCompletedAt: { lt: event.publishedAt } },
+            ],
+          },
         ],
       },
       data: { lastClaimedAt: now },
     });
+    return prismaMonitors.map(monitorFromPrisma);
   }
 
-  /** complete writes the post-evaluation lifecycle stamps for every monitor in the batch in one statement. */
-  async complete(args: {
+  /** queryMetrics runs the monitor's scalar query and returns each metric coerced to number | null. */
+  private async queryMetrics(
+    event: MonitorQueueEvent,
+  ): Promise<Record<string, number | null>> {
+    const rows = await this.executeQuery(
+      event.projectId,
+      buildMonitorQuery(event),
+    );
+    const row = (rows[0] ?? {}) as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(row).map(([name, value]) => [
+        name,
+        parseNumericValue(value),
+      ]),
+    );
+  }
+
+  private async publishWebhookInputs(
+    inputs: MonitorWebhookInput[],
+  ): Promise<void> {
+    for (const input of inputs) {
+      await this.publish(input);
+    }
+  }
+
+  /** complete writes each monitor's post-evaluation lifecycle stamps in one statement. */
+  private async complete(args: {
     projectId: string;
     completions: MonitorCompletion[];
   }): Promise<void> {
@@ -117,93 +154,178 @@ export class MonitorProcessor {
       }),
     );
   }
-
-  /** process orchestrates one MonitorQueueEvent: claim, query CH, load triggers, apply the state machine per monitor, publish surviving alerts (before commit per RFC step 9), and complete. */
-  async process(event: MonitorQueueEvent, now: Date): Promise<void> {
-    const claimed = await this.claim(event, now);
-    if (claimed.length === 0) return;
-
-    const [chRows, triggers] = await Promise.all([
-      this.executeQuery(event.projectId, buildMonitorQuery(event)),
-      this.getTriggers(event.projectId),
-    ]);
-
-    const chRow = (chRows[0] ?? {}) as Record<string, unknown>;
-    const metricByMonitor = new Map(
-      event.monitors.map((m) => [m.monitorId, m]),
-    );
-
-    const completions: MonitorCompletion[] = [];
-    const publishInputs: WebhookInput[] = [];
-    for (const row of claimed) {
-      const eventMonitor = metricByMonitor.get(row.id);
-      if (!eventMonitor) continue;
-      const computed = computeSeverity({
-        value: parseNumericValue(chRow[eventMonitor.metricName]),
-        operator: row.thresholdOperator,
-        alertThreshold: row.alertThreshold.toNumber(),
-        warningThreshold: row.warningThreshold?.toNumber() ?? null,
-      });
-      const decision = applyStateMachine({
-        prevSeverity: row.severity,
-        computedSeverity: computed,
-        prevSeverityChangedAt: row.severityChangedAt,
-        prevAlertedAt: row.alertedAt,
-        now,
-        noData: row.noData as unknown as MonitorNoData,
-        renotify: row.renotify as unknown as MonitorRenotify,
-      });
-      completions.push({
-        monitorId: row.id,
-        lastClaimedAt: now,
-        lastCompletedAt: now,
-        severity: decision.nextSeverity,
-        severityChangedAt: decision.nextSeverityChangedAt,
-        alertedAt: decision.nextAlertedAt,
-      });
-      if (!decision.emit) continue;
-
-      const alert = buildAlert({
-        row,
-        prevSeverity: row.severity,
-        severity: decision.nextSeverity,
-        event,
-      });
-      const filterData = toFilterData(row, alert);
-
-      // Fan out: one publish per (matched trigger × automation under it). The
-      // 1:1 trigger:automation invariant means automations[] is length 1 in
-      // practice, but iterating respects the data model.
-      for (const trigger of triggers.filter((t) =>
-        matchesTriggerFilter(filterData, t),
-      )) {
-        for (const automation of trigger.automations) {
-          const executionId = randomUUID();
-          publishInputs.push({
-            projectId: alert.projectId,
-            automationId: automation.id,
-            executionId,
-            payload: {
-              id: executionId,
-              timestamp: now,
-              type: "monitor-alert",
-              apiVersion: "v1",
-              payload: alert,
-            },
-          });
-        }
-      }
-    }
-
-    // RFC step 9: publish before complete so a tx failure prefers double-alert over lost-alert.
-    for (const input of publishInputs) {
-      await this.publish(input);
-    }
-    await this.complete({ projectId: event.projectId, completions });
-  }
 }
 
-/** buildCompleteQuery returns the bulk UPDATE that lands every monitor's post-evaluation stamps via a VALUES-join. The last_claimed_at match acts as the CAS owner key — a preempted worker no-ops. */
+/** buildMonitorQuery converts a MonitorQueueEvent into the scalar QueryType executeQuery accepts. */
+function buildMonitorQuery(event: MonitorQueueEvent): QueryType {
+  const { fromTimestamp, toTimestamp } = evaluationWindow(
+    event.window,
+    event.runAt,
+  );
+  return {
+    view: event.view,
+    dimensions: [],
+    metrics: event.metrics,
+    filters: event.filters,
+    timeDimension: null,
+    fromTimestamp: fromTimestamp.toISOString(),
+    toTimestamp: toTimestamp.toISOString(),
+    orderBy: null,
+  };
+}
+
+/** evaluationWindow returns the `[runAt - window, runAt]` edges, both shifted back by monitorEvaluationOffsetMs. */
+function evaluationWindow(
+  window: MonitorWindow,
+  runAt: Date,
+): {
+  fromTimestamp: Date;
+  toTimestamp: Date;
+} {
+  const windowMs = Number(windowToMs(window));
+  const toTimestamp = new Date(runAt.getTime() - monitorEvaluationOffsetMs);
+  const fromTimestamp = new Date(toTimestamp.getTime() - windowMs);
+  return { fromTimestamp, toTimestamp };
+}
+
+/** parseNumericValue coerces a ClickHouse cell to number | null, mapping missing or non-finite values to null. */
+function parseNumericValue(raw: unknown): number | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** processMonitors evaluates every claimed monitor, collecting the completions to persist and the webhook inputs to publish. */
+function processMonitors(args: {
+  monitors: Monitor[];
+  metrics: Record<string, number | null>;
+  triggers: TriggerDomainWithActions[];
+  now: Date;
+  runAt: Date;
+}): [MonitorCompletion[], MonitorWebhookInput[]] {
+  const completions: MonitorCompletion[] = [];
+  const monitorWebhookInputs: MonitorWebhookInput[] = [];
+  for (const monitor of args.monitors) {
+    const [completion, inputs] = processMonitor({
+      monitor,
+      metrics: args.metrics,
+      triggers: args.triggers,
+      now: args.now,
+      runAt: args.runAt,
+    });
+    completions.push(completion);
+    monitorWebhookInputs.push(...inputs);
+  }
+  return [completions, monitorWebhookInputs];
+}
+
+/** processMonitor evaluates one monitor and returns its lifecycle completion plus any webhook inputs to publish. */
+function processMonitor(args: {
+  monitor: Monitor;
+  metrics: Record<string, number | null>;
+  triggers: TriggerDomainWithActions[];
+  now: Date;
+  runAt: Date;
+}): [MonitorCompletion, MonitorWebhookInput[]] {
+  const { monitor, metrics, triggers, now, runAt } = args;
+  const severity = computeSeverity({
+    value: getValue(metrics, monitor.metric),
+    operator: monitor.thresholdOperator,
+    alertThreshold: monitor.alertThreshold,
+    warningThreshold: monitor.warningThreshold ?? null,
+  });
+
+  const { completion, emit } = applyStateMachine({
+    prev: monitor,
+    next: { severity },
+    now,
+  });
+  if (!emit) return [completion, []];
+
+  const automations = getAutomations({ monitor, completion, triggers });
+  if (automations.length === 0) return [completion, []];
+
+  const alert = buildAlert({ prev: monitor, next: completion, runAt });
+  return [completion, toMonitorWebhookInputs({ alert, automations, now })];
+}
+
+/** getValue reads a monitor's scalar result from the metrics map, keyed by `${aggregation}_${measure}`. */
+function getValue(
+  metrics: Record<string, number | null>,
+  metric: Monitor["metric"],
+): number | null {
+  return metrics[`${metric.aggregation}_${metric.measure}`] ?? null;
+}
+
+/** getAutomations returns the automations under every trigger that consumes this alert. */
+function getAutomations(args: {
+  monitor: Monitor;
+  completion: MonitorCompletion;
+  triggers: TriggerDomainWithActions[];
+}): TriggerDomainWithActions["automations"] {
+  const filterData = {
+    severity: args.completion.severity,
+    triggerIds: args.monitor.triggerIds,
+  };
+  return args.triggers
+    .filter((trigger) => matchesTriggerFilter(filterData, trigger))
+    .flatMap((trigger) => trigger.automations);
+}
+
+/** buildAlert assembles the MonitorAlert payload from the monitor row and state-machine completion. */
+function buildAlert(args: {
+  prev: Monitor;
+  next: MonitorCompletion;
+  runAt: Date;
+}): MonitorAlert {
+  const { prev, next, runAt } = args;
+  const { fromTimestamp, toTimestamp } = evaluationWindow(prev.window, runAt);
+  return {
+    monitorId: prev.id,
+    projectId: prev.projectId,
+    severity: next.severity,
+    timestamp: runAt,
+    fromTimestamp,
+    toTimestamp,
+    permalink: buildPermalink(prev.projectId, prev.id),
+    message: renderAlertMessage({ monitor: prev, completion: next }),
+    view: prev.view,
+    filters: prev.filters,
+    window: prev.window,
+  };
+}
+
+/** buildPermalink composes the Langfuse Cloud URL for a monitor. */
+function buildPermalink(projectId: string, monitorId: string): string {
+  const base = (env.NEXTAUTH_URL ?? "").replace(/\/$/, "");
+  return `${base}/project/${projectId}/monitors/${monitorId}`;
+}
+
+/** toMonitorWebhookInputs fans an alert out to one webhook input per matched automation. */
+function toMonitorWebhookInputs(args: {
+  alert: MonitorAlert;
+  automations: TriggerDomainWithActions["automations"];
+  now: Date;
+}): MonitorWebhookInput[] {
+  return args.automations.map((automation) => {
+    const executionId = randomUUID();
+    return {
+      projectId: args.alert.projectId,
+      automationId: automation.id,
+      executionId,
+      payload: {
+        id: executionId,
+        timestamp: args.now,
+        type: "monitor-alert",
+        apiVersion: "v1",
+        payload: args.alert,
+      },
+    };
+  });
+}
+
+/** buildCompleteQuery builds the bulk UPDATE that lands every monitor's post-evaluation stamps. */
 function buildCompleteQuery(args: {
   projectId: string;
   completions: MonitorCompletion[];
@@ -232,166 +354,15 @@ function buildCompleteQuery(args: {
     )
     WHERE m.id = data.id
       AND m.project_id = ${args.projectId}
-      AND m.last_claimed_at = data.last_claimed_at
+      AND m.last_claimed_at = data.last_claimed_at -- no-op if another worker re-claimed since
   `;
 }
 
-/** buildMonitorQuery converts a MonitorQueueEvent into the scalar-shape QueryType `executeQuery` accepts (no dimensions, no time bucketing; window derived from event, shifted by `monitorEvaluationOffsetMs`). */
-function buildMonitorQuery(event: MonitorQueueEvent): QueryType {
-  const { fromTimestamp, toTimestamp } = evaluationWindow(event);
-  return {
-    view: event.view,
-    dimensions: [],
-    metrics: event.metrics,
-    filters: event.filters,
-    timeDimension: null,
-    fromTimestamp: fromTimestamp.toISOString(),
-    toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
-  };
-}
+/** MonitorPublisher publishes one MonitorWebhookInput onto the webhook queue. */
+export type MonitorPublisher = (input: MonitorWebhookInput) => Promise<void>;
 
-/** evaluationWindow returns the absolute CH window for an event: both edges of `[runAt - window, runAt]` shifted back by `monitorEvaluationOffsetMs`. */
-function evaluationWindow(event: MonitorQueueEvent): {
-  fromTimestamp: Date;
-  toTimestamp: Date;
-} {
-  const windowMs = Number(windowToMs(event.window));
-  const toTimestamp = new Date(
-    event.runAt.getTime() - monitorEvaluationOffsetMs,
-  );
-  const fromTimestamp = new Date(toTimestamp.getTime() - windowMs);
-  return { fromTimestamp, toTimestamp };
-}
+/** QueryExecutor runs a monitor's ClickHouse query. */
+export type QueryExecutor = typeof defaultExecuteQuery;
 
-/** parseNumericValue safely coerces a ClickHouse-returned cell to number | null. Missing/non-finite values become null so they flow into computeSeverity as NO_DATA. */
-function parseNumericValue(raw: unknown): number | null {
-  if (raw === null || raw === undefined) return null;
-  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
-}
-
-/** buildAlert assembles the MonitorAlert payload from the row, the state-machine outcome, and the originating event. */
-function buildAlert(args: {
-  row: PrismaMonitor;
-  prevSeverity: MonitorSeverity;
-  severity: MonitorSeverity;
-  event: MonitorQueueEvent;
-}): MonitorAlert {
-  const eventMonitor = args.event.monitors.find(
-    (m) => m.monitorId === args.row.id,
-  );
-  // Recover the original (measure, aggregation) from event.metrics by matching on metricName.
-  const metric = args.event.metrics.find(
-    (m) => `${m.aggregation}_${m.measure}` === eventMonitor?.metricName,
-  ) ?? { measure: "value", aggregation: "count" };
-  const { fromTimestamp, toTimestamp } = evaluationWindow(args.event);
-  return {
-    monitorId: args.row.id,
-    projectId: args.event.projectId,
-    severity: args.severity,
-    timestamp: args.event.runAt,
-    fromTimestamp,
-    toTimestamp,
-    permalink: buildPermalink(args.event.projectId, args.row.id),
-    message: synthesizeAlertMessage({
-      monitorName: args.row.name,
-      prevSeverity: args.prevSeverity,
-      severity: args.severity,
-      thresholdOperator: args.row.thresholdOperator,
-      alertThreshold: args.row.alertThreshold.toNumber(),
-      warningThreshold: args.row.warningThreshold?.toNumber() ?? null,
-      measure: metric.measure,
-      aggregation: metric.aggregation,
-      view: args.event.view,
-      window: args.event.window,
-    }),
-    view: args.event.view,
-    filters: args.event.filters,
-    window: args.event.window,
-  };
-}
-
-/** buildPermalink composes the Langfuse Cloud URL for a monitor; falls back to a path-only URL if NEXTAUTH_URL is unset. */
-function buildPermalink(projectId: string, monitorId: string): string {
-  const base = (env.NEXTAUTH_URL ?? "").replace(/\/$/, "");
-  return `${base}/project/${projectId}/monitors/${monitorId}`;
-}
-
-/** synthesizeAlertMessage builds the human-readable title/body for a MonitorAlert. The body distinguishes no-data alerts from threshold-crossing alerts. */
-function synthesizeAlertMessage(args: {
-  monitorName: string;
-  prevSeverity: MonitorSeverity;
-  severity: MonitorSeverity;
-  thresholdOperator: MonitorThresholdOperator;
-  alertThreshold: number;
-  warningThreshold: number | null;
-  measure: string;
-  aggregation: string;
-  view: MonitorView;
-  window: MonitorWindow;
-}): { title: string; body: string } {
-  const title = `[${args.severity}] ${args.monitorName}`;
-  // Standard markdown: `code` and **bold**. The Slack message builder runs
-  // this through slackify-markdown; webhook/GH consumers see standard markdown.
-  const metricRef = `\`${args.aggregation}(${args.view}.${args.measure})\``;
-  let body: string;
-  if (args.severity === "NO_DATA") {
-    body = `${metricRef} has no data over the last **${args.window}**`;
-  } else if (args.prevSeverity === "NO_DATA" && args.severity === "OK") {
-    body = `${metricRef} has data again`;
-  } else if (args.severity === "OK") {
-    body = `${metricRef} is back within threshold`;
-  } else {
-    // WARNING or ALERT (whether escalation, de-escalation, recovery from NO_DATA, or self-loop renotify).
-    const threshold = selectThreshold(
-      args.severity,
-      args.alertThreshold,
-      args.warningThreshold,
-    );
-    body = `${metricRef} is **${operatorWord(args.thresholdOperator)}** \`${threshold}\``;
-  }
-  return { title, body };
-}
-
-/** operatorWord returns the human-readable form of a threshold operator. */
-function operatorWord(op: MonitorThresholdOperator): string {
-  switch (op) {
-    case "GT":
-      return "above";
-    case "GTE":
-      return "at or above";
-    case "LT":
-      return "below";
-    case "LTE":
-      return "at or below";
-    case "EQ":
-      return "equal to";
-    case "NEQ":
-      return "not equal to";
-  }
-}
-
-/** selectThreshold picks the threshold relevant to the current severity (warning band for WARNING, alert for everything else). */
-function selectThreshold(
-  severity: MonitorSeverity,
-  alertThreshold: number,
-  warningThreshold: number | null,
-): number {
-  if (severity === "WARNING" && warningThreshold !== null) {
-    return warningThreshold;
-  }
-  return alertThreshold;
-}
-
-/** toFilterData provides tirgger filter information */
-function toFilterData(
-  row: PrismaMonitor,
-  alert: MonitorAlert,
-): Record<string, unknown> {
-  return {
-    severity: alert.severity,
-    triggerIds: row.triggerIds,
-  };
-}
+/** GetTriggerConfigurations loads the trigger configurations matching a filter. */
+export type GetTriggerConfigurations = typeof defaultGetTriggerConfigurations;

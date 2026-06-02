@@ -12,11 +12,11 @@ import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/add
 import { EvalTargetObjectSchema } from "../features/evals/types";
 import { JobConfigExecutionMode } from "../features/evals/evalConfigBlocking";
 import {
-  MonitorQueueEventSchema,
+  type MonitorQueueEvent,
   MonitorWebhookQueueEventSchema,
 } from "../features/monitors/scheduler/types";
 
-export type MonitorQueueEvent = z.infer<typeof MonitorQueueEventSchema>;
+export type { MonitorQueueEvent };
 
 export const IngestionEvent = z.object({
   data: z.object({

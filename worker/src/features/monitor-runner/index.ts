@@ -36,17 +36,13 @@ export class MonitorRunner extends PeriodicExclusiveRunner {
       schedulerId,
       totalSchedulers,
       db: prisma,
-      publish: async (events) => {
-        await Promise.all(
-          events.map((event) =>
-            queue.add(QueueJobs.MonitorJob, {
-              timestamp: new Date(),
-              id: v4(),
-              payload: event,
-              name: QueueJobs.MonitorJob,
-            }),
-          ),
-        );
+      publish: async (event) => {
+        await queue.add(QueueJobs.MonitorJob, {
+          timestamp: new Date(),
+          id: v4(),
+          payload: event,
+          name: QueueJobs.MonitorJob,
+        });
       },
     });
   }

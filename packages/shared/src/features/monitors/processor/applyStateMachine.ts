@@ -1,59 +1,59 @@
-import type { MonitorNoData, MonitorRenotify, MonitorSeverity } from "../types";
+import type {
+  MonitorNoData,
+  MonitorRenotify,
+  MonitorSeverity,
+  Monitor,
+} from "../types";
 import type { ComputedSeverity } from "./computeSeverity";
 
-/** StateMachineDecision is the post-transition lifecycle stamps the processor writes back to the row, plus the emit flag. */
-export type StateMachineDecision = {
-  emit: boolean;
-  nextSeverity: MonitorSeverity;
-  nextSeverityChangedAt: Date | null;
-  nextAlertedAt: Date | null;
-};
-
-/** applyStateMachine encodes the RFC §Severity State Machine table — given a transition from prev to computed severity, returns whether to emit and the next lifecycle stamps. `now` is the worker wallclock; severityChangedAt/alertedAt are wallclock stamps. */
+/** applyStateMachine maps a monitor's prior row and newly computed severity to its lifecycle writeback and whether to emit an alert. */
 export function applyStateMachine(args: {
-  prevSeverity: MonitorSeverity;
-  computedSeverity: ComputedSeverity;
-  prevSeverityChangedAt: Date | null;
-  prevAlertedAt: Date | null;
+  prev: Monitor;
+  next: { severity: ComputedSeverity };
   now: Date;
-  noData: MonitorNoData;
-  renotify: MonitorRenotify;
 }): StateMachineDecision {
-  const { prevSeverity: prev, computedSeverity: next } = args;
+  const { prev, next, now } = args;
 
-  // PAUSED is service-written; if a user paused the monitor between publish and
-  // process, no-op so the worker doesn't overwrite the user's intent.
-  if (prev === "PAUSED") {
+  // PAUSED is service-written; no-op so the worker doesn't overwrite user intent.
+  if (prev.severity === "PAUSED") {
     return {
       emit: false,
-      nextSeverity: "PAUSED",
-      nextSeverityChangedAt: args.prevSeverityChangedAt,
-      nextAlertedAt: args.prevAlertedAt,
+      completion: {
+        monitorId: prev.id,
+        lastClaimedAt: now,
+        lastCompletedAt: now,
+        severity: "PAUSED",
+        severityChangedAt: prev.severityChangedAt,
+        alertedAt: prev.alertedAt,
+      },
     };
   }
 
-  const severityChanged = prev !== next;
+  const severityChanged = prev.severity !== next.severity;
 
   const emit = shouldEmit({
-    prev,
-    next,
-    prevAlertedAt: args.prevAlertedAt,
-    now: args.now,
-    noData: args.noData,
-    renotify: args.renotify,
+    prev: prev.severity,
+    next: next.severity,
+    prevAlertedAt: prev.alertedAt,
+    now,
+    noData: prev.noData,
+    renotify: prev.renotify,
   });
 
   return {
     emit,
-    nextSeverity: next,
-    nextSeverityChangedAt: severityChanged
-      ? args.now
-      : args.prevSeverityChangedAt,
-    nextAlertedAt: emit ? args.now : args.prevAlertedAt,
+    completion: {
+      monitorId: prev.id,
+      lastClaimedAt: now,
+      lastCompletedAt: now,
+      severity: next.severity,
+      severityChangedAt: severityChanged ? now : prev.severityChangedAt,
+      alertedAt: emit ? now : prev.alertedAt,
+    },
   };
 }
 
-/** shouldEmit applies the RFC transition table row that matches (prev, next). */
+/** shouldEmit applies the RFC transition-table row matching (prev, next). */
 function shouldEmit(args: {
   prev: MonitorSeverity;
   next: ComputedSeverity;
@@ -77,7 +77,7 @@ function shouldEmit(args: {
     return true;
   }
 
-  // Escalation into NO_DATA: NOTIFY mode with cooldown elapsed (NULL prevAlertedAt fires immediately).
+  // Escalation into NO_DATA: NOTIFY mode with cooldown elapsed.
   if (args.next === "NO_DATA" && args.prev !== "NO_DATA") {
     return (
       args.noData.mode === "NOTIFY" &&
@@ -88,8 +88,7 @@ function shouldEmit(args: {
   // Self-loops. OK -> OK is the only one that ignores renotify entirely.
   if (args.prev === args.next) {
     if (args.next === "OK") return false;
-    // Renotify is a *re*-emit, so a NULL prevAlertedAt (no baseline) is silent
-    // rather than fire-immediately.
+    // Renotify is a *re*-emit, so a NULL prevAlertedAt is silent.
     if (args.prevAlertedAt === null) return false;
     return (
       args.renotify.mode === "EVERY" &&
@@ -101,7 +100,7 @@ function shouldEmit(args: {
   return true;
 }
 
-/** passedDelay returns true when at least `intervalMinutes` has elapsed since `prevAlertedAt`; NULL means no prior emit -> fire immediately. */
+/** passedDelay returns true when at least `intervalMinutes` has elapsed since `prevAlertedAt`; NULL fires immediately. */
 function passedDelay(
   prevAlertedAt: Date | null,
   intervalMinutes: number,
@@ -111,3 +110,19 @@ function passedDelay(
   const intervalMs = intervalMinutes * 60_000;
   return now.getTime() - prevAlertedAt.getTime() >= intervalMs;
 }
+
+/** MonitorCompletion is one row of the bulk update the state machine emits for a single monitor. */
+export type MonitorCompletion = {
+  monitorId: string;
+  lastClaimedAt: Date;
+  lastCompletedAt: Date;
+  severity: MonitorSeverity;
+  severityChangedAt: Date | null;
+  alertedAt: Date | null;
+};
+
+/** StateMachineDecision is the per-monitor evaluation outcome: the lifecycle writeback and whether to emit an alert. */
+export type StateMachineDecision = {
+  completion: MonitorCompletion;
+  emit: boolean;
+};
