@@ -1,6 +1,6 @@
 import { EventType } from "@ag-ui/core";
-import { TRPCError } from "@trpc/server";
 
+import { LangfuseConflictError, LangfuseNotFoundError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import type {
   InAppAgentConversation,
@@ -60,10 +60,7 @@ export async function getOwnedConversationOrThrow(params: {
   });
 
   if (!conversation) {
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Agent conversation not found",
-    });
+    throw new LangfuseNotFoundError("Agent conversation not found");
   }
 
   return conversation;
@@ -85,10 +82,7 @@ export async function ensureOwnedConversation(params: {
 
   if (existing) {
     if (existing.createdByUserId !== params.userId) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Agent conversation not found",
-      });
+      throw new LangfuseNotFoundError("Agent conversation not found");
     }
 
     return existing;
@@ -148,10 +142,7 @@ export async function createRun(params: {
     });
 
     if (activeRun) {
-      throw new TRPCError({
-        code: "CONFLICT",
-        message: ACTIVE_RUN_CONFLICT_MESSAGE,
-      });
+      throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
     }
 
     return tx.inAppAgentRun.create({

@@ -1,5 +1,4 @@
 import { getServerSession } from "next-auth";
-import { TRPCError } from "@trpc/server";
 
 import { env } from "@/src/env.mjs";
 import {
@@ -269,13 +268,6 @@ export default async function handler(request: Request) {
       return Response.json({ error: err.message }, { status: err.httpCode });
     }
 
-    if (err instanceof TRPCError) {
-      return Response.json(
-        { error: err.message },
-        { status: getStatusCodeForTrpcError(err) },
-      );
-    }
-
     throw err;
   }
 }
@@ -448,22 +440,5 @@ async function readBoundedJsonBody(
     return { success: true, data: bodyText ? JSON.parse(bodyText) : null };
   } catch {
     return { success: false, error: "invalid_body" };
-  }
-}
-
-function getStatusCodeForTrpcError(error: TRPCError): number {
-  switch (error.code) {
-    case "BAD_REQUEST":
-      return 400;
-    case "UNAUTHORIZED":
-      return 401;
-    case "FORBIDDEN":
-      return 403;
-    case "NOT_FOUND":
-      return 404;
-    case "CONFLICT":
-      return 409;
-    default:
-      return 500;
   }
 }

@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { TRPCError } from "@trpc/server";
 
+import { ForbiddenError } from "@langfuse/shared";
+import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -12,7 +13,6 @@ import {
   reduceEventsToMessages,
   serializeConversation,
 } from "@/src/features/in-app-agent/server/persistence";
-import type { PrismaClient } from "@langfuse/shared/src/db";
 
 const CONVERSATION_LIST_LIMIT = 50;
 const WEEKDAY_NAMES = [
@@ -156,10 +156,7 @@ async function assertInAppAgentAvailable({
     ctx.session.environment.enableExperimentalFeatures === true;
 
   if (!isInAppAgentEnabled) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Assistant is not enabled for this user",
-    });
+    throw new ForbiddenError("Assistant is not enabled for this user");
   }
 
   const project = await ctx.prisma.project.findUnique({
@@ -174,10 +171,7 @@ async function assertInAppAgentAvailable({
   });
 
   if (!project?.organization.aiFeaturesEnabled) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Assistant is not enabled for this organization",
-    });
+    throw new ForbiddenError("Assistant is not enabled for this organization");
   }
 }
 
