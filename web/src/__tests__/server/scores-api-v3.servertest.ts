@@ -18,27 +18,28 @@ const maybe =
   env.LANGFUSE_ENABLE_SCORES_V3_API === "true" ? describe : describe.skip;
 
 describe("/api/public/v3/scores API Endpoint", () => {
-  it("should return 404 when feature flag is off", async () => {
-    if (env.LANGFUSE_ENABLE_SCORES_V3_API === "true") return;
+  it.skipIf(env.LANGFUSE_ENABLE_SCORES_V3_API === "true")(
+    "should return 404 when feature flag is off",
+    async () => {
+      const project = await createOrgProjectAndApiKey();
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores",
+        undefined,
+        project.auth,
+      );
+      expect(res.status).toBe(404);
 
-    const project = await createOrgProjectAndApiKey();
-    const res = await makeAPICall(
-      "GET",
-      "/api/public/v3/scores",
-      undefined,
-      project.auth,
-    );
-    expect(res.status).toBe(404);
-
-    const scoreId = v4();
-    const res2 = await makeAPICall(
-      "GET",
-      `/api/public/v3/scores/${scoreId}`,
-      undefined,
-      project.auth,
-    );
-    expect(res2.status).toBe(404);
-  });
+      const scoreId = v4();
+      const res2 = await makeAPICall(
+        "GET",
+        `/api/public/v3/scores/${scoreId}`,
+        undefined,
+        project.auth,
+      );
+      expect(res2.status).toBe(404);
+    },
+  );
 
   describe("polymorphicValue unit", () => {
     it("NUMERIC → number", () => {
