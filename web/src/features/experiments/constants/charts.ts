@@ -44,7 +44,7 @@ const BASE_EXPERIMENT_WIDGET_CONFIG = {
   view: "observations",
   minVersion: "v2",
   dimensions: [] as WidgetDimensionConfig[],
-  orderBy: [{ field: "min_startTime", direction: "asc" }],
+  orderBy: [{ field: "min_startTime", direction: "desc" }],
   chartType: "LINE_TIME_SERIES",
   chartConfig: { type: "LINE_TIME_SERIES" },
   timeDimension: null,
@@ -78,7 +78,7 @@ const BASE_SCORE_CHART_CONFIG = {
   entityDimension: { field: "experimentName" },
   timeDimension: null,
   minVersion: "v2",
-  orderBy: [{ field: "min_timestamp", direction: "asc" }],
+  orderBy: [{ field: "min_timestamp", direction: "desc" }],
 } as const;
 
 export const SCORE_LEVEL_ENTITY_DIMENSIONS: Record<
