@@ -155,6 +155,7 @@ function InAppAiAgentProviderInner({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const agentRef = useRef<HttpAgent | null>(null);
+  const intentionalAbortRef = useRef(false);
   const submitInFlightRef = useRef(false);
   const subscriptionRef = useRef<ReturnType<HttpAgent["subscribe"]> | null>(
     null,
@@ -201,6 +202,10 @@ function InAppAiAgentProviderInner({
     conversationQuery.isLoading &&
     !conversationQuery.data;
   const resetAgent = useCallback(() => {
+    if (agentRef.current?.isRunning) {
+      intentionalAbortRef.current = true;
+    }
+
     subscriptionRef.current?.unsubscribe();
     subscriptionRef.current = null;
     agentRef.current?.abortRun();
@@ -230,6 +235,7 @@ function InAppAiAgentProviderInner({
     }
 
     resetAgent();
+    setError(null);
     setMessages(storedMessages);
   }, [
     conversationQuery.data,
@@ -239,14 +245,21 @@ function InAppAiAgentProviderInner({
     selectedConversationId,
   ]);
 
-  // Clear local selection when the selected conversation was deleted remotely.
+  // Clear local selection when the selected conversation cannot be loaded.
   useEffect(() => {
-    if (
-      !selectedConversationId ||
-      isRunning ||
-      conversationQuery.error?.data?.code !== "NOT_FOUND"
-    ) {
+    if (!selectedConversationId || isRunning || !conversationQuery.error) {
       return;
+    }
+
+    if (conversationQuery.error.data?.code !== "NOT_FOUND") {
+      const errorMessage = getAgentErrorMessage(conversationQuery.error);
+      setError(errorMessage);
+      showErrorToast("Failed to load conversation", errorMessage);
+      console.error("Failed to load in-app agent conversation", {
+        error: conversationQuery.error,
+        projectId,
+        conversationId: selectedConversationId,
+      });
     }
 
     resetAgent();
@@ -255,6 +268,7 @@ function InAppAiAgentProviderInner({
   }, [
     conversationQuery.error,
     isRunning,
+    projectId,
     resetAgent,
     selectedConversationId,
     setSelectedConversationId,
@@ -315,6 +329,10 @@ function InAppAiAgentProviderInner({
       agent
         .runAgent({ runId })
         .catch((error) => {
+          if (intentionalAbortRef.current || isAbortError(error)) {
+            return;
+          }
+
           const errorMessage = getAgentErrorMessage(error);
           setError(errorMessage);
           showErrorToast("Assistant failed", errorMessage);
@@ -329,6 +347,7 @@ function InAppAiAgentProviderInner({
             conversationId,
           });
           releaseSubmitLock();
+          intentionalAbortRef.current = false;
         });
     },
     [projectId, releaseSubmitLock, utils.inAppAgent.get, utils.inAppAgent.list],
@@ -500,6 +519,15 @@ function getHydratedMessages(
   }
 
   return storedMessages?.filter(isAgentConversationMessage) ?? [];
+}
+
+function isAbortError(error: unknown) {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    "name" in error &&
+    error.name === "AbortError"
+  );
 }
 
 function getAgentErrorMessage(error: unknown): string {

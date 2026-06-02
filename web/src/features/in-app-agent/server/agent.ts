@@ -101,6 +101,7 @@ export function createAgUiStream(params: {
   let ending = false;
   let closed = false;
   let finished = false;
+  let shouldEnqueue = true;
   let abortHandler: (() => void) | undefined;
   let eventQueue = Promise.resolve();
 
@@ -138,25 +139,62 @@ export function createAgUiStream(params: {
     }
   };
 
+  const runTerminalCallback = async (
+    callback: (() => void | Promise<void>) | undefined,
+    errorContext: string,
+  ) => {
+    try {
+      await callback?.();
+    } catch (error) {
+      logger.error(errorContext, {
+        error,
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      });
+    }
+  };
+
+  const abortStream = (close?: () => void) => {
+    if (ending || closed) {
+      return;
+    }
+
+    ending = true;
+    shouldEnqueue = false;
+    removeAbortHandler();
+    subscription?.unsubscribe();
+    adapter.interrupt().catch(() => undefined);
+
+    eventQueue
+      .then(() =>
+        runTerminalCallback(
+          () => params.options.onAbort?.(),
+          "Error while marking agent stream as aborted",
+        ),
+      )
+      .then(() => {
+        if (closed) {
+          return;
+        }
+
+        closed = true;
+        close?.();
+      })
+      .catch((error) => {
+        closed = true;
+        logger.error("Error while aborting agent stream", {
+          error,
+          runId: params.input.runId,
+          threadId: params.input.threadId,
+        });
+      })
+      .finally(finish);
+  };
+
   return new ReadableStream<Uint8Array>({
     start(controller) {
       let streamedRunError: string | null = null;
       let streamedRunErrorHandled = false;
-
-      const runTerminalCallback = async (
-        callback: (() => void | Promise<void>) | undefined,
-        errorContext: string,
-      ) => {
-        try {
-          await callback?.();
-        } catch (error) {
-          logger.error(errorContext, {
-            error,
-            runId: params.input.runId,
-            threadId: params.input.threadId,
-          });
-        }
-      };
 
       const failStream = (error: unknown, eventType?: string) => {
         if (closed) {
@@ -197,7 +235,7 @@ export function createAgUiStream(params: {
             await params.options.onEvent?.(agUiEvent);
             await afterPersist?.();
 
-            if (closed) {
+            if (closed || !shouldEnqueue) {
               return;
             }
 
@@ -245,29 +283,12 @@ export function createAgUiStream(params: {
           .finally(finish);
       };
 
-      const abort = () => {
-        if (ending || closed) {
-          return;
-        }
-
-        ending = true;
-        closed = true;
-        removeAbortHandler();
-        runTerminalCallback(
-          () => params.options.onAbort?.(),
-          "Error while marking agent stream as aborted",
-        ).finally(finish);
-        adapter.interrupt().catch(() => undefined);
-        controller.close();
-      };
-
       abortHandler = () => {
-        subscription?.unsubscribe();
-        abort();
+        abortStream(() => controller.close());
       };
 
       if (params.signal.aborted) {
-        abort();
+        abortStream(() => controller.close());
         return;
       }
 
@@ -280,13 +301,13 @@ export function createAgUiStream(params: {
           }
 
           if (params.signal.aborted) {
-            abort();
+            abortStream(() => controller.close());
             return;
           }
 
           for (const agUiEvent of normalizeAdapterEvent(
             event,
-            adapterInput,
+            params.input,
             params.options.onResumeSessionId,
           )) {
             if (
@@ -310,7 +331,7 @@ export function createAgUiStream(params: {
           }
 
           if (params.signal.aborted) {
-            abort();
+            abortStream(() => controller.close());
             return;
           }
 
@@ -343,7 +364,7 @@ export function createAgUiStream(params: {
           }
 
           if (params.signal.aborted) {
-            abort();
+            abortStream(() => controller.close());
             return;
           }
 
@@ -356,24 +377,7 @@ export function createAgUiStream(params: {
       });
     },
     cancel() {
-      if (ending || closed) {
-        return;
-      }
-
-      ending = true;
-      closed = true;
-      removeAbortHandler();
-      subscription?.unsubscribe();
-      adapter.interrupt().catch(() => undefined);
-      Promise.resolve(params.options.onAbort?.())
-        .catch((error) => {
-          logger.error("Error while marking agent stream as aborted", {
-            error,
-            runId: params.input.runId,
-            threadId: params.input.threadId,
-          });
-        })
-        .finally(finish);
+      abortStream();
     },
   });
 }
