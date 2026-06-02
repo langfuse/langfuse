@@ -7,6 +7,7 @@ import {
   type MonitorPublisher,
   type QueryExecutor,
   type MonitorQueueEvent,
+  type MonitorQueueEventInput,
   type GetTriggerConfigurations,
 } from "@langfuse/shared/monitors/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -1064,5 +1065,77 @@ describe("MonitorProcessor.process evaluation offset", () => {
     expect(sent.payload.toTimestamp.toISOString()).toBe(expectedTo);
     // The cadence-boundary stamp stays unshifted — alerts say "fired at runAt".
     expect(sent.payload.timestamp.toISOString()).toBe(runAt.toISOString());
+  });
+});
+
+describe("MonitorProcessor.process wire deserialization", () => {
+  let projectId: string;
+
+  beforeAll(async () => {
+    const org = await createOrgProjectAndApiKey();
+    projectId = org.projectId;
+  });
+
+  afterEach(async () => {
+    await prisma.monitor.deleteMany({ where: { projectId } });
+  });
+
+  it("coerces a JSON round-tripped event (Redis wire shape) back to typed dates", async () => {
+    const monitorId = `m_wire_${v4()}`;
+    await seedMonitor(projectId, {
+      id: monitorId,
+      severity: "UNKNOWN",
+      lastPublishedAt: runAt,
+      triggerIds: ["trig_wire"],
+    });
+
+    let capturedQuery: { fromTimestamp: string; toTimestamp: string } | null =
+      null;
+    const publish = vi.fn<MonitorPublisher>(async () => {});
+    const executeQuery: QueryExecutor = async (_p, query) => {
+      capturedQuery = {
+        fromTimestamp: query.fromTimestamp,
+        toTimestamp: query.toTimestamp,
+      };
+      return [{ count_count: 200 }];
+    };
+    const getTriggers: GetTriggerConfigurations = async () =>
+      [
+        {
+          id: "trig_wire",
+          filter: matchAnyAlertTrigger.filter,
+          eventActions: [],
+          automations: [{ id: "auto_wire", actionId: "act_wire" }],
+        },
+      ] as unknown as Awaited<ReturnType<GetTriggerConfigurations>>;
+
+    const processor = new MonitorProcessor(
+      prisma,
+      publish,
+      executeQuery,
+      getTriggers,
+    );
+
+    // Mirror BullMQ: the scheduler stringifies the bigint batch id, then Redis
+    // round-trips the payload through JSON, turning runAt/publishedAt into ISO strings.
+    const event = makeEvent(projectId, [monitorId]);
+    const wire: MonitorQueueEventInput = JSON.parse(
+      JSON.stringify({
+        ...event,
+        schedulerBatchId: event.schedulerBatchId.toString(),
+      }),
+    );
+
+    await processor.process(wire, justAfterRunAt);
+
+    const expectedTo = new Date(runAt.getTime() - 30_000).toISOString();
+    const expectedFrom = new Date(
+      runAt.getTime() - 30_000 - 5 * 60_000,
+    ).toISOString();
+    expect(capturedQuery).toEqual({
+      fromTimestamp: expectedFrom,
+      toTimestamp: expectedTo,
+    });
+    expect(publish).toHaveBeenCalledTimes(1);
   });
 });

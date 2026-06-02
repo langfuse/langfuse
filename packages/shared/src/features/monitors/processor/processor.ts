@@ -14,9 +14,11 @@ import {
 } from "../../../server/repositories/automation-repository";
 import { executeQuery as defaultExecuteQuery } from "../../query/server/queryExecutor";
 import type { QueryType } from "../../query/types";
-import type {
-  MonitorQueueEvent,
-  MonitorWebhookInput,
+import {
+  MonitorQueueEventSchema,
+  type MonitorQueueEvent,
+  type MonitorQueueEventInput,
+  type MonitorWebhookInput,
 } from "../scheduler/types";
 import { monitorFromPrisma, windowToMs } from "../service/helpers";
 import { type MonitorAlert, type MonitorWindow, type Monitor } from "../types";
@@ -36,8 +38,9 @@ export class MonitorProcessor {
     private readonly getTriggerConfigurations: GetTriggerConfigurations = defaultGetTriggerConfigurations,
   ) {}
 
-  /** process evaluates one queued monitor event and publishes any resulting alerts. */
-  async process(event: MonitorQueueEvent, now: Date): Promise<void> {
+  /** process evaluates one queued monitor event and publishes any resulting alerts; the input is parsed to recoerce dates the queue serialized to strings. */
+  async process(input: MonitorQueueEventInput, now: Date): Promise<void> {
+    const event = MonitorQueueEventSchema.parse(input);
     return instrumentAsync({ name: "process" }, async (span) => {
       const monitors = await instrumentAsync({ name: "claimMonitors" }, () =>
         this.claimMonitors(event, now),
@@ -123,6 +126,8 @@ export class MonitorProcessor {
     const rows = await this.executeQuery(
       event.projectId,
       buildMonitorQuery(event),
+      "v2",
+      true,
     );
     const row = (rows[0] ?? {}) as Record<string, unknown>;
     return Object.fromEntries(
