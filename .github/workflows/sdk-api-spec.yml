@@ -103,7 +103,7 @@ jobs:
 
           # Push new branch and create PR
           gh auth setup-git
-          git push origin "$BRANCH_NAME"
+          git -c core.hooksPath=/dev/null push origin "$BRANCH_NAME"
 
           # Create PR with original author as reviewer
           ORIGINAL_AUTHOR="$(gh api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login')"
@@ -170,7 +170,7 @@ jobs:
 
           # Push new branch and create PR
           gh auth setup-git
-          git push origin "$BRANCH_NAME"
+          git -c core.hooksPath=/dev/null push origin "$BRANCH_NAME"
 
           # Create PR with original author as reviewer
           ORIGINAL_AUTHOR="$(gh api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login')"
