@@ -3,8 +3,12 @@
  * for Docker builds.
  */
 await import("./src/env.mjs");
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * CSP headers
@@ -98,6 +102,13 @@ const nextConfig = {
     defaultLocale: "en",
   },
   output: "standalone",
+  outputFileTracingRoot: path.join(__dirname, ".."),
+  outputFileTracingIncludes: {
+    "/*": [
+      "../node_modules/@anthropic-ai/claude-agent-sdk-*",
+      "../node_modules/.pnpm/@anthropic-ai+claude-agent-sdk-*",
+    ],
+  },
 
   async headers() {
     return [
