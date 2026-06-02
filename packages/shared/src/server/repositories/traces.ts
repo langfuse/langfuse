@@ -514,6 +514,7 @@ export const getTraceById = async ({
   preferredClickhouseService,
   excludeInputOutput = false,
   excludeMetadata = false,
+  orderByEventTs = true,
 }: {
   traceId: string;
   projectId: string;
@@ -526,6 +527,8 @@ export const getTraceById = async ({
   excludeInputOutput?: boolean;
   /** When true, sets metadata column to empty in the query to reduce database load */
   excludeMetadata?: boolean;
+  /** When true, returns the latest physical trace version by event timestamp. */
+  orderByEventTs?: boolean;
 }) => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
@@ -587,7 +590,7 @@ export const getTraceById = async ({
         AND project_id = {projectId: String}
         ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""}
         ${fromTimestamp ? `AND timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
-        ORDER BY event_ts DESC
+        ${orderByEventTs ? "ORDER BY event_ts DESC" : ""}
         LIMIT 1
       `;
 

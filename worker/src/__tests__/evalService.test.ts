@@ -42,11 +42,12 @@ vi.mock("@langfuse/shared/src/server", async () => {
     fetchLLMCompletion: vi
       .fn()
       .mockImplementation(actual.fetchLLMCompletion as any),
+    getTraceById: vi.fn().mockImplementation(actual.getTraceById as any),
   };
 });
 
 // Import the mocked function
-import { fetchLLMCompletion } from "@langfuse/shared/src/server";
+import { fetchLLMCompletion, getTraceById } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../errors/UnrecoverableError";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -791,6 +792,83 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       // If this does not throw, we're good.
       expect(true).toBe(true);
     });
+
+    test("fetches cached trace without event timestamp ordering when creating eval jobs", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+      const now = new Date();
+
+      await prisma.jobConfiguration.createMany({
+        data: [
+          {
+            id: randomUUID(),
+            projectId,
+            filter: JSON.parse("[]"),
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: EvalTargetObject.TRACE,
+            scoreName: "score-a",
+            variableMapping: JSON.parse("[]"),
+          },
+          {
+            id: randomUUID(),
+            projectId,
+            filter: JSON.parse("[]"),
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: EvalTargetObject.TRACE,
+            scoreName: "score-b",
+            variableMapping: JSON.parse("[]"),
+          },
+        ],
+      });
+
+      const mockGetTraceById = vi.mocked(getTraceById);
+      mockGetTraceById.mockClear();
+      mockGetTraceById.mockResolvedValueOnce({
+        id: traceId,
+        projectId,
+        timestamp: now,
+        name: null,
+        environment: "default",
+        tags: [],
+        bookmarked: false,
+        public: false,
+        release: null,
+        version: null,
+        input: null,
+        output: null,
+        metadata: {},
+        createdAt: now,
+        updatedAt: now,
+        sessionId: null,
+        userId: null,
+      });
+
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: {
+          projectId,
+          traceId,
+          timestamp: now,
+        },
+        jobTimestamp,
+      });
+
+      expect(mockGetTraceById).toHaveBeenCalledTimes(1);
+      expect(mockGetTraceById).toHaveBeenCalledWith(
+        expect.objectContaining({
+          traceId,
+          projectId,
+          clickhouseFeatureTag: "eval-create",
+          excludeInputOutput: true,
+          excludeMetadata: false,
+          orderByEventTs: false,
+        }),
+      );
+    }, 10_000);
 
     test("creates new eval job for a dataset on upsert of the trace", async () => {
       const { projectId } = await createOrgProjectAndApiKey();

@@ -271,6 +271,7 @@ export const createEvalJobs = async ({
         clickhouseFeatureTag: "eval-create",
         excludeInputOutput: true,
         excludeMetadata: false, // Metadata needed for in-memory filter evaluation
+        orderByEventTs: false,
       });
 
       recordIncrement("langfuse.evaluation-execution.trace_cache_fetch", 1, {
