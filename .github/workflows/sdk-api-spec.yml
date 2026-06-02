@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   generate-sdk-api-specs:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -163,9 +163,16 @@ jobs:
   notify-slack-on-failure:
     needs: generate-sdk-api-specs
     if: failure()
-    uses: ./.github/workflows/_notify_slack_failure.yml
-    secrets:
-      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-    with:
-      title: "❌ SDK API Spec Generation Failed"
-      message: "❌ SDK API spec generation failed on ${{ github.ref_name }}"
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          title: "❌ SDK API Spec Generation Failed"
+          message: "❌ SDK API spec generation failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
