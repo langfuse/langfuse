@@ -40,14 +40,8 @@ function domainToV3(score: ScoreDomain): APIScoreV3 {
     value: polymorphicValue({
       dataType: score.dataType,
       value: score.value,
-      stringValue:
-        "stringValue" in score
-          ? (score.stringValue as string | null | undefined)
-          : null,
-      longStringValue:
-        "longStringValue" in score
-          ? (score.longStringValue as string | null | undefined)
-          : null,
+      stringValue: score.stringValue as string | null | undefined,
+      longStringValue: score.longStringValue as string | null | undefined,
     }),
     source: score.source,
     timestamp: score.timestamp,
