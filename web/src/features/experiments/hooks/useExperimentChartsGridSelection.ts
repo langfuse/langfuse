@@ -5,10 +5,7 @@ import {
   getDefaultCharts,
   isValidChartSelection,
 } from "@/src/features/experiments/utils/charts";
-import {
-  BASE_CHART_IDS,
-  MAX_CHARTS,
-} from "@/src/features/experiments/constants/charts";
+import { MAX_CHARTS } from "@/src/features/experiments/constants/charts";
 import { api } from "@/src/utils/api";
 import { type ScoreFilterOptions } from "@/src/features/experiments/types/charts";
 
@@ -77,8 +74,13 @@ export function useExperimentChartsGridSelection({
     [transformedScoreOptions],
   );
 
+  const availableMetric = useMemo(() => {
+    const usedMetrics = new Set(charts);
+    return availableMetricOptions.find((opt) => !usedMetrics.has(opt.id));
+  }, [charts, availableMetricOptions]);
+
   // Check if we can add more charts
-  const canAddChart = charts.length < MAX_CHARTS;
+  const canAddChart = charts.length < MAX_CHARTS && Boolean(availableMetric);
 
   // Check if we can delete charts (must have more than 1)
   const canDeleteChart = charts.length > 1;
@@ -96,18 +98,10 @@ export function useExperimentChartsGridSelection({
 
   // Add a new chart with the first available metric not already selected
   const addChart = useCallback(() => {
-    if (!canAddChart) return;
+    if (!canAddChart || !availableMetric) return;
 
-    // Find a metric not already in use
-    const usedMetrics = new Set(charts);
-    const availableMetric = availableMetricOptions.find(
-      (opt) => !usedMetrics.has(opt.id),
-    );
-
-    // Default to first available option or Cost
-    const newMetricId = availableMetric?.id ?? BASE_CHART_IDS.COST;
-    setCharts([...charts, newMetricId]);
-  }, [canAddChart, charts, availableMetricOptions, setCharts]);
+    setCharts([...charts, availableMetric.id]);
+  }, [canAddChart, charts, availableMetric, setCharts]);
 
   // Remove a chart at a specific index
   const removeChart = useCallback(
