@@ -1,12 +1,26 @@
 # Agent Guidelines for Langfuse
 
+This is the canonical root agent guide for the repo. The root `AGENTS.md`
+should remain only as a discovery symlink so tools that require that filename
+continue to work while `.agents/` stays the source of truth.
+
 Langfuse is an open source LLM engineering platform for developing, monitoring,
 evaluating, and debugging AI applications.
+
+## Maintenance Contract
+
+- `AGENTS.md` is a living document.
+- Keep this file concise and router-like. Push narrow or conditional workflows
+  into package-local `AGENTS.md` files or shared skills under `.agents/skills/`.
+- Update this file in the same PR when monorepo-level architecture, workflows,
+  dependency boundaries, mandatory verification commands, or release/security
+  processes materially change.
 
 ## How To Work
 
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
+- Do not revert unrelated working-tree changes.
 - For bug fixes, write the failing test first, confirm it fails, then fix the
   bug.
 - For user-visible frontend changes in `web/**`, review the affected flow in a
@@ -88,6 +102,11 @@ regenerated outputs. Never hand-edit `generated/**`.
 - `.agents/AGENTS.md` is the canonical root guide.
 - Root `AGENTS.md` is a symlink to `.agents/AGENTS.md`.
 - Root `CLAUDE.md` is a compatibility symlink to `AGENTS.md`.
+- Shared agent/tool config lives in `.agents/config.json` and shared skills
+  live in `.agents/skills/`.
+- When creating or editing `.agents/skills/**`, use
+  `.agents/skills/skill-creator/SKILL.md`, keep `SKILL.md` concise with
+  progressive disclosure, and run the shared agent verification below.
 - After changing shared agent setup, run `pnpm run agents:sync` and
   `pnpm run agents:check`.
 - Generated provider config and shim outputs under `.claude/`, `.cursor/`,
