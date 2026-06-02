@@ -329,7 +329,7 @@ export function CreateLLMApiKeyForm({
                 : "",
             openAIUseResponsesApi:
               existingKey.adapter === LLMAdapter.OpenAI &&
-              existingKey.config !== null
+              existingKey.config != null
                 ? Boolean((existingKey.config as OpenAIConfig).useResponsesApi)
                 : false,
             awsRegion:

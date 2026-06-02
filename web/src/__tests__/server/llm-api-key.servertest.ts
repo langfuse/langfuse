@@ -302,6 +302,29 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].config).toEqual({ useResponsesApi: false });
   });
 
+  it("should preserve empty VertexAI config without applying OpenAI defaults", async () => {
+    await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider: "vertex-empty-config",
+        adapter: LLMAdapter.VertexAI,
+        secretKey: encrypt("test-secret"),
+        displaySecretKey: "...cret",
+        customModels: ["gemini-2.5-flash"],
+        withDefaultModels: false,
+        extraHeaderKeys: [],
+        config: {},
+      },
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+    });
+
+    expect(llmApiKeys).toHaveLength(1);
+    expect(llmApiKeys[0].config).toEqual({});
+  });
+
   it("should derive the Bedrock auth method in llmApiKey.all without returning secrets", async () => {
     await prisma.llmApiKeys.createMany({
       data: [

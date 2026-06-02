@@ -515,7 +515,7 @@ export const LLMApiKeySchema = z
     customModels: z.array(z.string()),
     withDefaultModels: z.boolean(),
     config: z
-      .union([BedrockConfigSchema, OpenAIConfigSchema, VertexAIConfigSchema])
+      .union([BedrockConfigSchema, VertexAIConfigSchema, OpenAIConfigSchema])
       .nullish(),
   })
   // strict mode to prevent extra keys. Thorws error otherwise
