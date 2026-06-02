@@ -36,6 +36,17 @@ import {
 import { handleCreateTextPrompt } from "@/src/features/mcp/features/prompts/tools/createTextPrompt";
 import { handleCreateChatPrompt } from "@/src/features/mcp/features/prompts/tools/createChatPrompt";
 import { handleUpdatePromptLabels } from "@/src/features/mcp/features/prompts/tools/updatePromptLabels";
+import { handleCreateAnnotationQueue } from "@/src/features/mcp/features/annotationQueues/tools";
+
+const createScoreConfig = async (projectId: string) =>
+  prisma.scoreConfig.create({
+    data: {
+      id: nanoid(),
+      projectId,
+      name: `mcp-score-${nanoid()}`,
+      dataType: "NUMERIC",
+    },
+  });
 
 describe("MCP Write Tools", () => {
   describe("dataset tool schemas", () => {
@@ -51,6 +62,42 @@ describe("MCP Write Tools", () => {
         expect(properties).not.toHaveProperty("datasetName");
         expect(properties).not.toHaveProperty("name");
       }
+    });
+  });
+
+  describe("createAnnotationQueue tool", () => {
+    it("should create a basic annotation queue", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const scoreConfig = await createScoreConfig(projectId);
+      const queueName = `mcp-queue-${nanoid()}`;
+
+      const result = (await handleCreateAnnotationQueue(
+        {
+          name: queueName,
+          description: "MCP queue",
+          scoreConfigIds: [scoreConfig.id],
+        },
+        context,
+      )) as {
+        id: string;
+        name: string;
+        description: string;
+        scoreConfigIds: string[];
+      };
+
+      expect(result.id).toBeDefined();
+      expect(result.name).toBe(queueName);
+      expect(result.description).toBe("MCP queue");
+      expect(result.scoreConfigIds).toEqual([scoreConfig.id]);
+
+      await expect(
+        prisma.annotationQueue.findUniqueOrThrow({
+          where: { id: result.id, projectId },
+        }),
+      ).resolves.toMatchObject({
+        name: queueName,
+        scoreConfigIds: [scoreConfig.id],
+      });
     });
   });
 

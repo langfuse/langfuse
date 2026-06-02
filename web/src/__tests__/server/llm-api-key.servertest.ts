@@ -242,6 +242,89 @@ describe("llmApiKey.all RPC", () => {
     expect(secretKey).toBeUndefined();
   });
 
+  it("should create and get an OpenAI llm api key with Responses API config", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "test-secret",
+      provider: "openai-responses",
+      adapter: LLMAdapter.OpenAI,
+      baseURL: "https://example.com/v1",
+      customModels: ["openai.gpt-5.4"],
+      withDefaultModels: false,
+      config: { useResponsesApi: true },
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+    });
+
+    expect(llmApiKeys).toHaveLength(1);
+    expect(llmApiKeys[0].config).toEqual({ useResponsesApi: true });
+    expect(llmApiKeys[0].customModels).toEqual(["openai.gpt-5.4"]);
+    expect(llmApiKeys[0].secretKey).toBeUndefined();
+  });
+
+  it("should update an OpenAI llm api key to disable Responses API config", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "test-secret",
+      provider: "openai-responses",
+      adapter: LLMAdapter.OpenAI,
+      baseURL: "https://example.com/v1",
+      customModels: ["openai.gpt-5.4"],
+      withDefaultModels: false,
+      config: { useResponsesApi: true },
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "openai-responses",
+      },
+    });
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "openai-responses",
+      adapter: LLMAdapter.OpenAI,
+      baseURL: "https://example.com/v1",
+      customModels: ["openai.gpt-5.4"],
+      withDefaultModels: false,
+      config: { useResponsesApi: false },
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+    });
+
+    expect(llmApiKeys).toHaveLength(1);
+    expect(llmApiKeys[0].config).toEqual({ useResponsesApi: false });
+  });
+
+  it("should preserve empty VertexAI config without applying OpenAI defaults", async () => {
+    await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider: "vertex-empty-config",
+        adapter: LLMAdapter.VertexAI,
+        secretKey: encrypt("test-secret"),
+        displaySecretKey: "...cret",
+        customModels: ["gemini-2.5-flash"],
+        withDefaultModels: false,
+        extraHeaderKeys: [],
+        config: {},
+      },
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+    });
+
+    expect(llmApiKeys).toHaveLength(1);
+    expect(llmApiKeys[0].config).toEqual({});
+  });
+
   it("should derive the Bedrock auth method in llmApiKey.all without returning secrets", async () => {
     await prisma.llmApiKeys.createMany({
       data: [
