@@ -23,13 +23,15 @@ export function polymorphicValue(score: {
     case ScoreDataTypeEnum.TEXT:
       return score.stringValue ?? null;
     case ScoreDataTypeEnum.CORRECTION:
-      return score.longStringValue || null;
+      return score.longStringValue ?? null;
     default:
       return null;
   }
 }
 
 function domainToV3(score: ScoreDomain): APIScoreV3 {
+  // ScoreDomain is a flat type so TypeScript cannot verify that dataType and
+  // value are a valid discriminated pair; polymorphicValue guarantees it at runtime.
   return {
     id: score.id,
     projectId: score.projectId,
@@ -42,14 +44,17 @@ function domainToV3(score: ScoreDomain): APIScoreV3 {
         "stringValue" in score
           ? (score.stringValue as string | null | undefined)
           : null,
-      longStringValue: score.longStringValue,
+      longStringValue:
+        "longStringValue" in score
+          ? (score.longStringValue as string | null | undefined)
+          : null,
     }),
     source: score.source,
     timestamp: score.timestamp,
     environment: score.environment,
     createdAt: score.createdAt,
     updatedAt: score.updatedAt,
-  };
+  } as APIScoreV3;
 }
 
 const v3ListQuery = `
