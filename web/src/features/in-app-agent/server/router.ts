@@ -6,18 +6,19 @@ import {
   protectedProjectProcedure,
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
-import { AgUiMessageSchema } from "@/src/features/in-app-agent/schema";
 import {
+  getConversationEvents,
   getOwnedConversationOrThrow,
+  reduceEventsToMessages,
   serializeConversation,
-  serializeMessage,
-  upsertConversationMessages,
 } from "@/src/features/in-app-agent/server/persistence";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
-const SyncMessageDeltaSchema = z.object({
-  message: AgUiMessageSchema,
-  sequenceNumber: z.number().int().min(0),
+const CONVERSATION_LIST_LIMIT = 50;
+
+const ConversationListCursorSchema = z.object({
+  updatedAt: z.date(),
+  id: z.string(),
 });
 
 const ConversationIdInput = z.object({
@@ -30,6 +31,8 @@ export const inAppAgentRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        cursor: ConversationListCursorSchema.optional(),
+        limit: z.number().int().min(1).max(CONVERSATION_LIST_LIMIT).default(50),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -40,15 +43,35 @@ export const inAppAgentRouter = createTRPCRouter({
           projectId: input.projectId,
           createdByUserId: ctx.session.user.id,
           deletedAt: null,
+          ...(input.cursor
+            ? {
+                OR: [
+                  { updatedAt: { lt: input.cursor.updatedAt } },
+                  {
+                    updatedAt: input.cursor.updatedAt,
+                    id: { lt: input.cursor.id },
+                  },
+                ],
+              }
+            : {}),
         },
-        orderBy: [
-          { lastMessageAt: { sort: "desc", nulls: "last" } },
-          { updatedAt: "desc" },
-        ],
-        take: 50,
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        take: input.limit + 1,
       });
 
-      return conversations.map(serializeConversation);
+      const page = conversations.slice(0, input.limit);
+      const lastConversation = page.at(-1);
+
+      return {
+        conversations: page.map(serializeConversation),
+        nextCursor:
+          conversations.length > input.limit && lastConversation
+            ? {
+                updatedAt: lastConversation.updatedAt,
+                id: lastConversation.id,
+              }
+            : undefined,
+      };
     }),
 
   create: protectedProjectProcedure
@@ -82,73 +105,21 @@ export const inAppAgentRouter = createTRPCRouter({
         userId: ctx.session.user.id,
       });
 
-      const messages = await ctx.prisma.inAppAgentMessage.findMany({
-        where: {
-          projectId: input.projectId,
-          conversationId: input.conversationId,
-        },
-        orderBy: [{ sequenceNumber: "asc" }, { createdAt: "asc" }],
+      const events = await getConversationEvents({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
       });
 
       return {
         conversation: serializeConversation(conversation),
-        messages: messages.flatMap((message) => {
-          const serialized = serializeMessage(message);
-          return serialized ? [serialized] : [];
-        }),
+        messages: reduceEventsToMessages(events),
         state: {
           type: "existingConversation" as const,
           projectId: input.projectId,
           conversationId: input.conversationId,
         },
       };
-    }),
-
-  syncMessages: protectedProjectProcedureWithoutTracing
-    .input(
-      ConversationIdInput.extend({
-        runId: z.string().optional(),
-        messages: z.array(SyncMessageDeltaSchema).max(100),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      await assertInAppAgentAvailable({ ctx, projectId: input.projectId });
-      await getOwnedConversationOrThrow({
-        prisma: ctx.prisma,
-        projectId: input.projectId,
-        conversationId: input.conversationId,
-        userId: ctx.session.user.id,
-      });
-
-      if (input.runId) {
-        const run = await ctx.prisma.inAppAgentRun.findFirst({
-          where: {
-            id: input.runId,
-            projectId: input.projectId,
-            conversationId: input.conversationId,
-            createdByUserId: ctx.session.user.id,
-          },
-          select: { id: true },
-        });
-
-        if (!run) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Agent run not found",
-          });
-        }
-      }
-
-      await upsertConversationMessages({
-        prisma: ctx.prisma,
-        projectId: input.projectId,
-        conversationId: input.conversationId,
-        userId: ctx.session.user.id,
-        messages: input.messages,
-        runId: input.runId,
-      });
-
-      return { ok: true };
     }),
 });
 

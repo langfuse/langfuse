@@ -78,7 +78,6 @@ model User {
   notificationPreferences   NotificationPreference[]
   defaultViews              DefaultView[]               @relation("DefaultViewUser")
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
-  inAppAgentMessages        InAppAgentMessage[]         @relation("InAppAgentMessageAuthorUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunCreatedByUser")
 
   @@map("users")
@@ -175,7 +174,7 @@ model Project {
   NotificationPreference    NotificationPreference[]
   DefaultView               DefaultView[]
   InAppAgentConversation    InAppAgentConversation[]
-  InAppAgentMessage         InAppAgentMessage[]
+  InAppAgentEvent           InAppAgentEvent[]
   InAppAgentRun             InAppAgentRun[]
 
   @@index([orgId])
@@ -217,15 +216,6 @@ enum InAppAgentConversationVisibilityScope {
   PROJECT
 }
 
-enum InAppAgentMessageRole {
-  USER
-  ASSISTANT
-  SYSTEM
-  TOOL
-  ACTIVITY
-  REASONING
-}
-
 model InAppAgentConversation {
   id                String                                @id @default(cuid())
   projectId         String                                @map("project_id")
@@ -240,15 +230,15 @@ model InAppAgentConversation {
   createdAt         DateTime                              @default(now()) @map("created_at")
   updatedAt         DateTime                              @default(now()) @updatedAt @map("updated_at")
 
-  messages InAppAgentMessage[]
-  runs     InAppAgentRun[]
+  events InAppAgentEvent[]
+  runs   InAppAgentRun[]
 
-  @@index([projectId, createdByUserId, deletedAt, lastMessageAt])
+  @@index([projectId, createdByUserId, deletedAt, updatedAt, id])
   @@index([projectId, updatedAt])
   @@map("in_app_agent_conversations")
 }
 
-model InAppAgentMessage {
+model InAppAgentEvent {
   id             String                 @id @default(cuid())
   projectId      String                 @map("project_id")
   project        Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -256,21 +246,15 @@ model InAppAgentMessage {
   conversation   InAppAgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   runId          String?                @map("run_id")
   run            InAppAgentRun?         @relation(fields: [runId], references: [id], onDelete: SetNull)
-  externalId     String                 @map("external_id")
   sequenceNumber Int                    @map("sequence_number")
-  role           InAppAgentMessageRole
-  content        Json                   @db.JsonB
-  authorUserId   String?                @map("author_user_id")
-  authorUser     User?                  @relation("InAppAgentMessageAuthorUser", fields: [authorUserId], references: [id], onDelete: SetNull)
-  metadata       Json?                  @db.JsonB
+  type           String
+  event          Json                   @db.JsonB
   createdAt      DateTime               @default(now()) @map("created_at")
-  updatedAt      DateTime               @default(now()) @updatedAt @map("updated_at")
 
-  @@unique([projectId, conversationId, externalId])
-  @@index([projectId, conversationId, sequenceNumber])
-  @@index([projectId, createdAt])
-  @@index([runId])
-  @@map("in_app_agent_messages")
+  @@unique([projectId, conversationId, sequenceNumber])
+  @@index([projectId, conversationId, createdAt])
+  @@index([runId, sequenceNumber])
+  @@map("in_app_agent_events")
 }
 
 model InAppAgentRun {
@@ -291,7 +275,7 @@ model InAppAgentRun {
   createdAt       DateTime               @default(now()) @map("created_at")
   updatedAt       DateTime               @default(now()) @updatedAt @map("updated_at")
 
-  messages InAppAgentMessage[]
+  events InAppAgentEvent[]
 
   @@index([projectId, conversationId, createdAt])
   @@index([projectId, createdByUserId, createdAt])

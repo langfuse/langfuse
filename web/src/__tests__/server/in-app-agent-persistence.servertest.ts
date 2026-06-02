@@ -1,15 +1,17 @@
 import type { Session } from "next-auth";
+import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 
-import { InAppAgentMessageRole, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import type { AgUiEvent } from "@/src/features/in-app-agent/schema";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import {
-  appendConversationMessage,
+  appendConversationEvent,
   createRun,
   finishRun,
 } from "@/src/features/in-app-agent/server/persistence";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 describe("in-app agent persistence", () => {
   const createCaller = async (userId = `user-${randomUUID()}`) => {
@@ -73,11 +75,110 @@ describe("in-app agent persistence", () => {
     };
   };
 
-  it("creates conversations and persists messages as separate rows", async () => {
-    const { caller, projectId, userId } = await createCaller();
+  const createConversationRun = async (params: {
+    projectId: string;
+    conversationId: string;
+    userId: string;
+    runId?: string;
+  }) =>
+    createRun({
+      prisma,
+      runId: params.runId ?? `run-${randomUUID()}`,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      userId: params.userId,
+      model: "haiku",
+      mcpApiKeyId: "api-key-id-1",
+    });
 
-    const conversation = await caller.create({
+  const appendEvent = async (params: {
+    projectId: string;
+    conversationId: string;
+    runId: string;
+    event: AgUiEvent;
+  }) =>
+    appendConversationEvent({
+      prisma,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      runId: params.runId,
+      event: params.event,
+    });
+
+  const appendRunStarted = async (params: {
+    projectId: string;
+    conversationId: string;
+    runId: string;
+    messageId: string;
+    content: string;
+  }) =>
+    appendEvent({
+      ...params,
+      event: {
+        type: EventType.RUN_STARTED,
+        threadId: params.conversationId,
+        runId: params.runId,
+        input: {
+          threadId: params.conversationId,
+          runId: params.runId,
+          messages: [
+            {
+              id: params.messageId,
+              role: "user",
+              content: params.content,
+            },
+          ],
+          tools: [],
+          context: [],
+          state: null,
+          forwardedProps: {},
+        },
+      },
+    });
+
+  const appendAssistantText = async (params: {
+    projectId: string;
+    conversationId: string;
+    runId: string;
+    messageId: string;
+    chunks: string[];
+  }) => {
+    await appendEvent({
+      ...params,
+      event: {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: params.messageId,
+        role: "assistant",
+      },
+    });
+
+    for (const delta of params.chunks) {
+      await appendEvent({
+        ...params,
+        event: {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: params.messageId,
+          delta,
+        },
+      });
+    }
+
+    await appendEvent({
+      ...params,
+      event: {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId: params.messageId,
+      },
+    });
+  };
+
+  it("stores only ordered events and reduces multi-turn messages", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await caller.create({ projectId });
+    const run1 = await createConversationRun({
       projectId,
+      conversationId: conversation.id,
+      userId,
     });
 
     expect(conversation).not.toHaveProperty("providerSessionId");
@@ -88,28 +189,39 @@ describe("in-app agent persistence", () => {
       data: { providerSessionId: "claude-session-secret" },
     });
 
-    await caller.syncMessages({
+    await appendRunStarted({
       projectId,
       conversationId: conversation.id,
-      messages: [
-        {
-          sequenceNumber: 0,
-          message: {
-            id: "user-message-1",
-            role: "user",
-            content: "Please inspect today's traces for outliers",
-          },
-        },
-        {
-          sequenceNumber: 1,
-          message: {
-            id: "assistant-message-1",
-            role: "assistant",
-            content:
-              "I will inspect recent traces and look for latency outliers.",
-          },
-        },
-      ],
+      runId: run1.id,
+      messageId: "user-message-1",
+      content: "Please inspect today's traces for outliers",
+    });
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: run1.id,
+      messageId: "assistant-message-1",
+      chunks: ["I will inspect recent traces", " and look for outliers."],
+    });
+
+    const run2 = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await appendRunStarted({
+      projectId,
+      conversationId: conversation.id,
+      runId: run2.id,
+      messageId: "user-message-2",
+      content: "Inspect the next trace",
+    });
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: run2.id,
+      messageId: "assistant-message-2",
+      chunks: ["Next trace inspected."],
     });
 
     const detail = await caller.get({
@@ -119,8 +231,6 @@ describe("in-app agent persistence", () => {
 
     expect(detail.conversation).not.toHaveProperty("providerSessionId");
     expect(detail.conversation).not.toHaveProperty("provider");
-    expect(detail.conversation.id).toBe(conversation.id);
-    expect(detail.conversation.title).toBeNull();
     expect(detail.state).toEqual({
       type: "existingConversation",
       projectId,
@@ -135,286 +245,357 @@ describe("in-app agent persistence", () => {
       {
         id: "assistant-message-1",
         role: "assistant",
-        content: "I will inspect recent traces and look for latency outliers.",
-      },
-    ]);
-
-    const rows = await prisma.inAppAgentMessage.findMany({
-      where: { projectId, conversationId: conversation.id },
-      orderBy: { sequenceNumber: "asc" },
-    });
-
-    const listedConversations = await caller.list({ projectId });
-    expect(listedConversations[0]).not.toHaveProperty("providerSessionId");
-    expect(listedConversations[0]).not.toHaveProperty("provider");
-
-    const run = await createRun({
-      prisma,
-      runId: `run-${randomUUID()}`,
-      projectId,
-      conversationId: conversation.id,
-      userId,
-      model: "haiku",
-      mcpApiKeyId: "api-key-id-1",
-    });
-
-    expect(run.mcpApiKeyId).toBe("api-key-id-1");
-    expect(run.finishedAt).toBeNull();
-
-    await finishRun({
-      prisma,
-      runId: run.id,
-      projectId,
-      errorCode: "agent_error",
-      errorMessage: "Original agent error",
-    });
-    await finishRun({
-      prisma,
-      runId: run.id,
-      projectId,
-      errorCode: "cancelled",
-      errorMessage: "Client aborted request",
-    });
-
-    await expect(
-      prisma.inAppAgentRun.findUniqueOrThrow({ where: { id: run.id } }),
-    ).resolves.toMatchObject({
-      errorCode: "agent_error",
-      errorMessage: "Original agent error",
-    });
-
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({
-      externalId: "user-message-1",
-      role: "USER",
-      authorUserId: userId,
-      sequenceNumber: 0,
-    });
-    expect(rows[1]).toMatchObject({
-      externalId: "assistant-message-1",
-      role: "ASSISTANT",
-      authorUserId: null,
-      sequenceNumber: 1,
-    });
-
-    await caller.syncMessages({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      messages: [
-        {
-          sequenceNumber: 1,
-          message: {
-            id: "assistant-message-1",
-            role: "assistant",
-            content: "Updated assistant response",
-          },
-        },
-      ],
-    });
-
-    await expect(
-      prisma.inAppAgentMessage.findMany({
-        where: { projectId, conversationId: conversation.id },
-        orderBy: [{ sequenceNumber: "asc" }, { createdAt: "asc" }],
-        select: {
-          externalId: true,
-          sequenceNumber: true,
-          content: true,
-          runId: true,
-        },
-      }),
-    ).resolves.toEqual([
-      {
-        externalId: "user-message-1",
-        sequenceNumber: 0,
-        content: {
-          id: "user-message-1",
-          role: "user",
-          content: "Please inspect today's traces for outliers",
-        },
-        runId: null,
+        content: "I will inspect recent traces and look for outliers.",
       },
       {
-        externalId: "assistant-message-1",
-        sequenceNumber: 1,
-        content: {
-          id: "assistant-message-1",
-          role: "assistant",
-          content: "Updated assistant response",
-        },
-        runId: run.id,
-      },
-    ]);
-
-    await caller.syncMessages({
-      projectId,
-      conversationId: conversation.id,
-      messages: [
-        {
-          sequenceNumber: 2,
-          message: {
-            id: "user-message-2",
-            role: "user",
-            content: "Rename this conversation",
-          },
-        },
-      ],
-    });
-
-    const emptyConversation = await caller.create({ projectId });
-    const listedAfterEmptyCreate = await caller.list({ projectId });
-
-    expect(listedAfterEmptyCreate[0]?.id).toBe(conversation.id);
-    expect(listedAfterEmptyCreate.at(-1)?.id).toBe(emptyConversation.id);
-
-    await appendConversationMessage({
-      prisma,
-      projectId,
-      conversationId: conversation.id,
-      userId,
-      message: {
         id: "user-message-2",
-        role: "user",
-        content: "Rename this conversation",
-      },
-      runId: run.id,
-    });
-
-    await appendConversationMessage({
-      prisma,
-      projectId,
-      conversationId: conversation.id,
-      userId,
-      message: {
-        id: "user-message-3",
         role: "user",
         content: "Inspect the next trace",
       },
-      runId: run.id,
-    });
-
-    await expect(
-      prisma.inAppAgentMessage.findMany({
-        where: { projectId, conversationId: conversation.id },
-        orderBy: [{ sequenceNumber: "asc" }, { createdAt: "asc" }],
-        select: {
-          externalId: true,
-          sequenceNumber: true,
-          runId: true,
-        },
-      }),
-    ).resolves.toEqual([
       {
-        externalId: "user-message-1",
-        sequenceNumber: 0,
-        runId: null,
-      },
-      {
-        externalId: "assistant-message-1",
-        sequenceNumber: 1,
-        runId: run.id,
-      },
-      {
-        externalId: "user-message-2",
-        sequenceNumber: 2,
-        runId: run.id,
-      },
-      {
-        externalId: "user-message-3",
-        sequenceNumber: 3,
-        runId: run.id,
+        id: "assistant-message-2",
+        role: "assistant",
+        content: "Next trace inspected.",
       },
     ]);
 
-    await expect(
-      caller.get({
-        projectId,
-        conversationId: conversation.id,
-      }),
-    ).resolves.toMatchObject({
-      conversation: {
-        title: null,
+    const events = await prisma.inAppAgentEvent.findMany({
+      where: { projectId, conversationId: conversation.id },
+      orderBy: { sequenceNumber: "asc" },
+      select: { sequenceNumber: true, type: true, event: true },
+    });
+
+    expect(events.map((event) => event.sequenceNumber)).toEqual([
+      0, 1, 2, 3, 4, 5, 6, 7, 8,
+    ]);
+    expect(events.map((event) => event.type)).toEqual([
+      EventType.RUN_STARTED,
+      EventType.TEXT_MESSAGE_START,
+      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.TEXT_MESSAGE_END,
+      EventType.RUN_STARTED,
+      EventType.TEXT_MESSAGE_START,
+      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.TEXT_MESSAGE_END,
+    ]);
+    expect(events[0]?.event).toMatchObject({
+      type: EventType.RUN_STARTED,
+      input: {
+        messages: [
+          {
+            id: "user-message-1",
+            role: "user",
+          },
+        ],
       },
     });
+
+    const listedConversations = await caller.list({ projectId });
+    expect(listedConversations.conversations.map((item) => item.id)).toContain(
+      conversation.id,
+    );
   });
 
-  it("syncs deltas for long conversations", async () => {
+  it("does not reduce partial assistant content before the end event", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await caller.create({ projectId });
-
-    const existingMessages = Array.from(
-      { length: 201 },
-      (_, sequenceNumber) => {
-        const role = sequenceNumber % 2 === 0 ? "user" : "assistant";
-        const message = {
-          id: `message-${sequenceNumber}`,
-          role,
-          content: `message ${sequenceNumber}`,
-        };
-
-        return {
-          projectId,
-          conversationId: conversation.id,
-          externalId: message.id,
-          sequenceNumber,
-          role:
-            role === "user"
-              ? InAppAgentMessageRole.USER
-              : InAppAgentMessageRole.ASSISTANT,
-          content: message,
-          authorUserId: role === "user" ? userId : null,
-        };
-      },
-    );
-
-    await prisma.inAppAgentMessage.createMany({ data: existingMessages });
-
-    const run = await createRun({
-      prisma,
-      runId: `run-${randomUUID()}`,
+    const run = await createConversationRun({
       projectId,
       conversationId: conversation.id,
       userId,
-      model: "haiku",
     });
 
-    await caller.syncMessages({
+    await appendRunStarted({
       projectId,
       conversationId: conversation.id,
       runId: run.id,
+      messageId: "partial-user",
+      content: "Start a long answer",
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "partial-assistant",
+        role: "assistant",
+      },
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "partial-assistant",
+        delta: "Half-written",
+      },
+    });
+
+    await expect(
+      caller.get({ projectId, conversationId: conversation.id }),
+    ).resolves.toMatchObject({
       messages: [
         {
-          sequenceNumber: 201,
-          message: {
-            id: "message-201",
-            role: "assistant",
-            content: "new assistant tail",
-          },
+          id: "partial-user",
+          role: "user",
+          content: "Start a long answer",
+        },
+      ],
+    });
+    await expect(
+      prisma.inAppAgentEvent.count({
+        where: { projectId, conversationId: conversation.id, runId: run.id },
+      }),
+    ).resolves.toBe(3);
+  });
+
+  it("stores and reduces tool calls, tool results, reasoning, and activities", async () => {
+    const { projectId, userId, caller } = await createCaller();
+    const conversation = await caller.create({ projectId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    await appendRunStarted({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "tool-user",
+      content: "Search traces",
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "tool-assistant",
+        role: "assistant",
+      },
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-call-1",
+        toolCallName: "list_traces",
+        parentMessageId: "tool-assistant",
+      },
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-call-1",
+        delta: '{"limit":',
+      },
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-call-1",
+        delta: "10}",
+      },
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-call-1",
+      },
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "tool-assistant",
+        delta: "I searched traces.",
+      },
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId: "tool-assistant",
+      },
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.TOOL_CALL_RESULT,
+        messageId: "tool-result-1",
+        toolCallId: "tool-call-1",
+        content: "[]",
+        role: "tool",
+      },
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: "reasoning-1",
+        role: "reasoning",
+      },
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: "reasoning-1",
+        delta: "Checking filters",
+      },
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.REASONING_ENCRYPTED_VALUE,
+        subtype: "message",
+        entityId: "reasoning-1",
+        encryptedValue: "encrypted-reasoning",
+      },
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: "reasoning-1",
+      },
+    });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.ACTIVITY_SNAPSHOT,
+        messageId: "activity-1",
+        activityType: "progress",
+        content: { status: "done" },
+      },
+    });
+
+    await expect(
+      caller.get({ projectId, conversationId: conversation.id }),
+    ).resolves.toMatchObject({
+      messages: [
+        {
+          id: "tool-user",
+          role: "user",
+          content: "Search traces",
+        },
+        {
+          id: "tool-assistant",
+          role: "assistant",
+          content: "I searched traces.",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "list_traces",
+                arguments: '{"limit":10}',
+              },
+            },
+          ],
+        },
+        {
+          id: "tool-result-1",
+          role: "tool",
+          content: "[]",
+          toolCallId: "tool-call-1",
+        },
+        {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "Checking filters",
+          encryptedValue: "encrypted-reasoning",
+        },
+        {
+          id: "activity-1",
+          role: "activity",
+          activityType: "progress",
+          content: { status: "done" },
         },
       ],
     });
 
-    const detail = await caller.get({
+    await expect(
+      prisma.inAppAgentEvent.count({
+        where: { projectId, conversationId: conversation.id, runId: run.id },
+      }),
+    ).resolves.toBe(14);
+  });
+
+  it("ignores adapter message snapshots when reducing history", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await caller.create({ projectId });
+    const run = await createConversationRun({
       projectId,
       conversationId: conversation.id,
+      userId,
     });
 
-    expect(detail.messages).toHaveLength(202);
-    expect(detail.messages.at(-1)).toEqual({
-      id: "message-201",
-      role: "assistant",
-      content: "new assistant tail",
+    await appendRunStarted({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "snapshot-user",
+      content: "Keep this",
     });
+    await appendEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      event: {
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          {
+            id: "snapshot-only",
+            role: "assistant",
+            content: "Do not restore me",
+          },
+        ],
+      },
+    });
+
     await expect(
-      prisma.inAppAgentMessage.findFirstOrThrow({
-        where: {
-          projectId,
-          conversationId: conversation.id,
-          externalId: "message-201",
+      caller.get({ projectId, conversationId: conversation.id }),
+    ).resolves.toMatchObject({
+      messages: [
+        {
+          id: "snapshot-user",
+          role: "user",
+          content: "Keep this",
         },
-      }),
-    ).resolves.toMatchObject({ runId: run.id });
+      ],
+    });
   });
 
   it("does not expose another user's conversation in the same project", async () => {
@@ -457,6 +638,106 @@ describe("in-app agent persistence", () => {
       projectId: owner.projectId,
     });
 
-    expect(visibleConversations).toEqual([]);
+    expect(visibleConversations.conversations).toEqual([]);
+    expect(visibleConversations.nextCursor).toBeUndefined();
+  });
+
+  it("finishes runs once and preserves the first terminal error", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await caller.create({ projectId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    expect(run.mcpApiKeyId).toBe("api-key-id-1");
+    expect(run.finishedAt).toBeNull();
+
+    await finishRun({
+      prisma,
+      runId: run.id,
+      projectId,
+      errorCode: "agent_error",
+      errorMessage: "Original agent error",
+    });
+    await finishRun({
+      prisma,
+      runId: run.id,
+      projectId,
+      errorCode: "cancelled",
+      errorMessage: "Client aborted request",
+    });
+
+    await expect(
+      prisma.inAppAgentRun.findUniqueOrThrow({ where: { id: run.id } }),
+    ).resolves.toMatchObject({
+      errorCode: "agent_error",
+      errorMessage: "Original agent error",
+    });
+  });
+
+  it("paginates conversation list with a stable cursor", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const idPrefix = `pagination-${randomUUID()}`;
+    const latest = new Date("2026-05-20T10:00:00.000Z");
+    const middle = new Date("2026-05-20T09:00:00.000Z");
+    const oldest = new Date("2026-05-20T08:00:00.000Z");
+
+    await prisma.inAppAgentConversation.createMany({
+      data: [
+        {
+          id: `${idPrefix}-a`,
+          projectId,
+          createdByUserId: userId,
+          createdAt: latest,
+          updatedAt: latest,
+        },
+        {
+          id: `${idPrefix}-b`,
+          projectId,
+          createdByUserId: userId,
+          createdAt: latest,
+          updatedAt: latest,
+        },
+        {
+          id: `${idPrefix}-c`,
+          projectId,
+          createdByUserId: userId,
+          createdAt: middle,
+          updatedAt: middle,
+        },
+        {
+          id: `${idPrefix}-d`,
+          projectId,
+          createdByUserId: userId,
+          createdAt: oldest,
+          updatedAt: oldest,
+        },
+      ],
+    });
+
+    const firstPage = await caller.list({ projectId, limit: 2 });
+
+    expect(firstPage.conversations.map((item) => item.id)).toEqual([
+      `${idPrefix}-b`,
+      `${idPrefix}-a`,
+    ]);
+    expect(firstPage.nextCursor).toEqual({
+      updatedAt: latest,
+      id: `${idPrefix}-a`,
+    });
+
+    const secondPage = await caller.list({
+      projectId,
+      limit: 2,
+      cursor: firstPage.nextCursor,
+    });
+
+    expect(secondPage.conversations.map((item) => item.id)).toEqual([
+      `${idPrefix}-c`,
+      `${idPrefix}-d`,
+    ]);
+    expect(secondPage.nextCursor).toBeUndefined();
   });
 });

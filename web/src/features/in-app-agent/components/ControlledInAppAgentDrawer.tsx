@@ -25,9 +25,12 @@ export function ControlledInAppAgentDrawer(
   const {
     conversations,
     error,
+    hasMoreConversations,
+    isLoadingMoreConversations,
     isRunning,
     isSelectedConversationHydrating,
     isSubmitting,
+    loadMoreConversations,
     messages,
     selectConversation,
     selectedConversationId,
@@ -42,7 +45,12 @@ export function ControlledInAppAgentDrawer(
 
     const mappedMessages = parsedMessages.flatMap(
       (message, index): InAppAgentDrawerMessage[] => {
-        if (message.role === "system" || message.role === "activity") {
+        if (
+          message.role === "system" ||
+          message.role === "developer" ||
+          message.role === "tool" ||
+          message.role === "activity"
+        ) {
           return [];
         }
 
@@ -133,7 +141,10 @@ export function ControlledInAppAgentDrawer(
       isInputDisabled={isInputDisabled}
       messages={drawerMessages}
       conversations={conversations}
+      hasMoreConversations={hasMoreConversations}
+      isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
+      onLoadMoreConversations={loadMoreConversations}
       onSelectConversation={selectConversation}
       onNewConversation={startNewConversation}
       onSubmit={submit}

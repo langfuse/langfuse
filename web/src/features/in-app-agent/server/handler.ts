@@ -10,7 +10,7 @@ import {
 } from "@/src/features/in-app-agent/schema";
 import { createAgUiStream } from "@/src/features/in-app-agent/server/agent";
 import {
-  appendConversationMessage,
+  appendConversationEvent,
   createRun,
   ensureOwnedConversation,
   finishRun,
@@ -175,15 +175,6 @@ export default async function handler(request: Request) {
           });
           runCreated = true;
 
-          await appendConversationMessage({
-            prisma,
-            projectId,
-            conversationId: conversation.id,
-            userId: auth.userId,
-            message: sanitizedInput.messages[0]!,
-            runId: sanitizedInput.runId,
-          });
-
           const finishCurrentRun = (error?: {
             errorCode: string;
             errorMessage: string;
@@ -207,7 +198,11 @@ export default async function handler(request: Request) {
                   conversationId: conversation.id,
                   providerSessionId: claudeSessionId,
                 }).catch((error) =>
-                  console.error("Failed to persist agent session id", error),
+                  logger.error("Failed to persist agent session id", {
+                    error,
+                    projectId,
+                    conversationId: conversation.id,
+                  }),
                 );
 
                 return {
@@ -216,6 +211,14 @@ export default async function handler(request: Request) {
                   conversationId: conversation.id,
                 };
               },
+              onEvent: (event) =>
+                appendConversationEvent({
+                  prisma,
+                  projectId,
+                  conversationId: conversation.id,
+                  runId: sanitizedInput.runId,
+                  event,
+                }),
               onComplete: () => finishCurrentRun(),
               onAbort: () =>
                 finishCurrentRun({
@@ -353,7 +356,11 @@ async function cleanupInAppAgentMcpApiKey(params: {
   });
 }
 
-function sanitizeAgentInput(input: AgUiRunAgentInput): AgUiRunAgentInput {
+type SanitizedAgentInput = AgUiRunAgentInput & {
+  messages: [SanitizedUserMessage];
+};
+
+function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
   const lastUserMessage = getLastUserMessage(input.messages);
 
   if (!lastUserMessage) {

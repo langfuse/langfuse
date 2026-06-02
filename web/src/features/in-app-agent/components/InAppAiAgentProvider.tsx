@@ -26,7 +26,6 @@ import { api } from "@/src/utils/api";
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
 const OPEN_STORAGE_KEY = "langfuse:in-app-ai-agent-open";
-const MAX_SYNC_MESSAGE_DELTAS = 100;
 
 const getConversationAgentState = (
   projectId: string,
@@ -47,24 +46,16 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   error: null,
   messages: [],
   conversations: [],
+  hasMoreConversations: false,
+  isLoadingMoreConversations: false,
   selectedConversationId: undefined,
+  loadMoreConversations: () => undefined,
   selectConversation: () => undefined,
   startNewConversation: () => undefined,
   submit: () => undefined,
 };
 
-type InAppAiAgentMessage = Extract<AgUiMessage, { role: "user" | "assistant" }>;
-
-type SyncMessageDelta = {
-  message: InAppAiAgentMessage;
-  sequenceNumber: number;
-  serializedMessage: string;
-};
-
-type SyncMessagesOptions = {
-  runId?: string;
-  runMessageIds?: ReadonlySet<string>;
-};
+type InAppAiAgentMessage = AgUiMessage;
 
 export type InAppAiAgentConversation = {
   id: string;
@@ -83,7 +74,10 @@ type InAppAiAgentContextType = {
   error: string | null;
   messages: InAppAiAgentMessage[];
   conversations: InAppAiAgentConversation[];
+  hasMoreConversations: boolean;
+  isLoadingMoreConversations: boolean;
   selectedConversationId: string | undefined;
+  loadMoreConversations: () => void;
   selectConversation: (conversationId: string) => void;
   startNewConversation: () => void;
   submit: (content: string) => void;
@@ -162,14 +156,16 @@ function InAppAiAgentProviderInner({
   const [error, setError] = useState<string | null>(null);
   const agentRef = useRef<HttpAgent | null>(null);
   const submitInFlightRef = useRef(false);
-  const syncedMessagesRef = useRef<Map<string, Map<string, string>>>(new Map());
   const subscriptionRef = useRef<ReturnType<HttpAgent["subscribe"]> | null>(
     null,
   );
 
-  const conversationListQuery = api.inAppAgent.list.useQuery(
+  const conversationListQuery = api.inAppAgent.list.useInfiniteQuery(
     { projectId },
-    { enabled: open },
+    {
+      enabled: open,
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+    },
   );
   const conversationQuery = api.inAppAgent.get.useQuery(
     {
@@ -179,12 +175,27 @@ function InAppAiAgentProviderInner({
     { enabled: open && Boolean(selectedConversationId) },
   );
   const createConversationMutation = api.inAppAgent.create.useMutation();
-  const syncMessagesMutation = api.inAppAgent.syncMessages.useMutation();
 
   const conversations = useMemo(
-    () => conversationListQuery.data ?? [],
-    [conversationListQuery.data],
+    () =>
+      conversationListQuery.data?.pages.flatMap((page) => page.conversations) ??
+      [],
+    [conversationListQuery.data?.pages],
   );
+  const loadMoreConversations = useCallback(() => {
+    if (
+      !conversationListQuery.hasNextPage ||
+      conversationListQuery.isFetchingNextPage
+    ) {
+      return;
+    }
+
+    conversationListQuery.fetchNextPage().catch((error) => {
+      const errorMessage = getAgentErrorMessage(error);
+      showErrorToast("Failed to load conversations", errorMessage);
+      console.error("Failed to load in-app agent conversations", error);
+    });
+  }, [conversationListQuery]);
   const isSelectedConversationHydrating =
     Boolean(selectedConversationId) &&
     conversationQuery.isLoading &&
@@ -195,39 +206,6 @@ function InAppAiAgentProviderInner({
     agentRef.current?.abortRun();
     agentRef.current = null;
   }, []);
-
-  const markMessagesSynced = useCallback(
-    (
-      conversationId: string,
-      syncedMessages: readonly InAppAiAgentMessage[],
-    ) => {
-      const snapshot =
-        syncedMessagesRef.current.get(conversationId) ??
-        new Map<string, string>();
-
-      for (const message of syncedMessages) {
-        snapshot.set(message.id, serializeMessageForSync(message));
-      }
-
-      syncedMessagesRef.current.set(conversationId, snapshot);
-    },
-    [],
-  );
-
-  const markMessageDeltasSynced = useCallback(
-    (conversationId: string, messageDeltas: readonly SyncMessageDelta[]) => {
-      const snapshot =
-        syncedMessagesRef.current.get(conversationId) ??
-        new Map<string, string>();
-
-      for (const delta of messageDeltas) {
-        snapshot.set(delta.message.id, delta.serializedMessage);
-      }
-
-      syncedMessagesRef.current.set(conversationId, snapshot);
-    },
-    [],
-  );
 
   // Hydrate local state from the selected persisted conversation once it loads.
   useEffect(() => {
@@ -251,13 +229,11 @@ function InAppAiAgentProviderInner({
       return;
     }
 
-    markMessagesSynced(conversationQuery.data.conversation.id, storedMessages);
     resetAgent();
     setMessages(storedMessages);
   }, [
     conversationQuery.data,
     isRunning,
-    markMessagesSynced,
     messages.length,
     resetAgent,
     selectedConversationId,
@@ -290,116 +266,20 @@ function InAppAiAgentProviderInner({
     };
   }, [resetAgent]);
 
-  const syncMessages = useCallback(
-    (
-      conversationId: string,
-      nextMessages: readonly unknown[],
-      options: SyncMessagesOptions = {},
-    ) => {
-      const parsedMessages = nextMessages.filter(isAgentConversationMessage);
-      setMessages(parsedMessages);
+  const ensureSubscription = useCallback((agent: HttpAgent) => {
+    if (subscriptionRef.current) {
+      return;
+    }
 
-      const messageDeltas = getUnsyncedMessageDeltas(
-        parsedMessages,
-        syncedMessagesRef.current.get(conversationId),
-      );
-
-      if (messageDeltas.length === 0) {
-        return;
-      }
-
-      (async () => {
-        try {
-          const runMessageIds = options.runId
-            ? options.runMessageIds
-            : undefined;
-          const attributedDeltas = runMessageIds
-            ? messageDeltas.filter((delta) =>
-                runMessageIds.has(delta.message.id),
-              )
-            : [];
-          const unattributedDeltas = runMessageIds
-            ? messageDeltas.filter(
-                (delta) => !runMessageIds.has(delta.message.id),
-              )
-            : messageDeltas;
-
-          for (const { deltas, runId } of [
-            { deltas: unattributedDeltas },
-            { deltas: attributedDeltas, runId: options.runId },
-          ]) {
-            if (deltas.length === 0) {
-              continue;
-            }
-
-            for (
-              let index = 0;
-              index < deltas.length;
-              index += MAX_SYNC_MESSAGE_DELTAS
-            ) {
-              const chunk = deltas.slice(
-                index,
-                index + MAX_SYNC_MESSAGE_DELTAS,
-              );
-
-              await syncMessagesMutation.mutateAsync({
-                projectId,
-                conversationId,
-                ...(runId ? { runId } : {}),
-                messages: chunk.map(({ message, sequenceNumber }) => ({
-                  message,
-                  sequenceNumber,
-                })),
-              });
-
-              markMessageDeltasSynced(conversationId, chunk);
-            }
-          }
-
-          utils.inAppAgent.list.invalidate({ projectId });
-          utils.inAppAgent.get.invalidate({
-            projectId,
-            conversationId,
-          });
-        } catch (error) {
-          const errorMessage = getAgentErrorMessage(error);
-          showErrorToast("Failed to save conversation", errorMessage);
-          console.error("Failed to sync in-app agent messages", error);
-          utils.inAppAgent.get.invalidate({
-            projectId,
-            conversationId,
-          });
-        }
-      })();
-    },
-    [
-      markMessageDeltasSynced,
-      projectId,
-      syncMessagesMutation,
-      utils.inAppAgent.get,
-      utils.inAppAgent.list,
-    ],
-  );
-
-  const ensureSubscription = useCallback(
-    (agent: HttpAgent, conversationId: string) => {
-      if (subscriptionRef.current) {
-        return;
-      }
-
-      subscriptionRef.current = agent.subscribe({
-        onMessagesChanged: ({ messages }) => {
-          setMessages(messages.filter(isAgentConversationMessage));
-        },
-        onStateChanged: ({ messages }) => {
-          setMessages(messages.filter(isAgentConversationMessage));
-        },
-      });
-
-      syncMessages(conversationId, agent.messages);
-    },
-    [syncMessages],
-  );
+    subscriptionRef.current = agent.subscribe({
+      onMessagesChanged: ({ messages }) => {
+        setMessages(messages.filter(isAgentConversationMessage));
+      },
+      onStateChanged: ({ messages }) => {
+        setMessages(messages.filter(isAgentConversationMessage));
+      },
+    });
+  }, []);
 
   const getOrCreateAgent = useCallback(
     (conversationId: string, initialMessages: InAppAiAgentMessage[]) => {
@@ -430,10 +310,8 @@ function InAppAiAgentProviderInner({
 
   const runAgent = useCallback(
     (agent: HttpAgent, conversationId: string) => {
-      syncMessages(conversationId, agent.messages);
       setIsRunning(true);
       const runId = crypto.randomUUID();
-      const runStartMessageIds = getMessageIds(agent.messages);
       agent
         .runAgent({ runId })
         .catch((error) => {
@@ -444,21 +322,16 @@ function InAppAiAgentProviderInner({
         })
         .finally(() => {
           setIsRunning(false);
-          const runGeneratedMessageIds = getRunGeneratedMessageIds(
-            agent.messages,
-            runStartMessageIds,
-          );
-          syncMessages(
+          setMessages(agent.messages.filter(isAgentConversationMessage));
+          utils.inAppAgent.list.invalidate({ projectId });
+          utils.inAppAgent.get.invalidate({
+            projectId,
             conversationId,
-            agent.messages,
-            runGeneratedMessageIds.size > 0
-              ? { runId, runMessageIds: runGeneratedMessageIds }
-              : undefined,
-          );
+          });
           releaseSubmitLock();
         });
     },
-    [releaseSubmitLock, syncMessages],
+    [projectId, releaseSubmitLock, utils.inAppAgent.get, utils.inAppAgent.list],
   );
 
   const selectConversation = useCallback(
@@ -524,7 +397,7 @@ function InAppAiAgentProviderInner({
             return;
           }
 
-          ensureSubscription(agent, conversationId);
+          ensureSubscription(agent);
 
           const userMessage = {
             id: crypto.randomUUID(),
@@ -576,17 +449,23 @@ function InAppAiAgentProviderInner({
       error,
       messages,
       conversations,
+      hasMoreConversations: conversationListQuery.hasNextPage === true,
+      isLoadingMoreConversations: conversationListQuery.isFetchingNextPage,
       selectedConversationId: selectedConversationId ?? undefined,
+      loadMoreConversations,
       selectConversation,
       startNewConversation,
       submit,
     }),
     [
       conversations,
+      conversationListQuery.hasNextPage,
+      conversationListQuery.isFetchingNextPage,
       error,
       isRunning,
       isSelectedConversationHydrating,
       isSubmitting,
+      loadMoreConversations,
       messages,
       open,
       selectConversation,
@@ -609,10 +488,7 @@ function isAgentConversationMessage(
 ): message is InAppAiAgentMessage {
   const result = AgUiMessageSchema.safeParse(message);
 
-  return (
-    result.success &&
-    (result.data.role === "user" || result.data.role === "assistant")
-  );
+  return result.success;
 }
 
 function getHydratedMessages(
@@ -624,52 +500,6 @@ function getHydratedMessages(
   }
 
   return storedMessages?.filter(isAgentConversationMessage) ?? [];
-}
-
-function getUnsyncedMessageDeltas(
-  messages: readonly InAppAiAgentMessage[],
-  syncedMessages: ReadonlyMap<string, string> | undefined,
-): SyncMessageDelta[] {
-  return messages.flatMap((message, sequenceNumber) => {
-    const serializedMessage = serializeMessageForSync(message);
-
-    if (syncedMessages?.get(message.id) === serializedMessage) {
-      return [];
-    }
-
-    return [
-      {
-        message,
-        sequenceNumber,
-        serializedMessage,
-      },
-    ];
-  });
-}
-
-function getMessageIds(messages: readonly unknown[]): ReadonlySet<string> {
-  return new Set(
-    messages.filter(isAgentConversationMessage).map((message) => message.id),
-  );
-}
-
-function getRunGeneratedMessageIds(
-  messages: readonly unknown[],
-  runStartMessageIds: ReadonlySet<string>,
-): ReadonlySet<string> {
-  return new Set(
-    messages
-      .filter(isAgentConversationMessage)
-      .filter(
-        (message) =>
-          message.role === "assistant" && !runStartMessageIds.has(message.id),
-      )
-      .map((message) => message.id),
-  );
-}
-
-function serializeMessageForSync(message: InAppAiAgentMessage): string {
-  return JSON.stringify(message);
 }
 
 function getAgentErrorMessage(error: unknown): string {

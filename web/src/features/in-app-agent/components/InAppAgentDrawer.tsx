@@ -8,6 +8,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
@@ -19,6 +20,7 @@ import {
 
 const AUTO_SCROLL_THRESHOLD_PX = 200;
 const NEW_CONVERSATION_VALUE = "__new__";
+const LOAD_MORE_CONVERSATIONS_VALUE = "__load_more__";
 
 export type InAppAgentDrawerMessage = {
   id: string;
@@ -48,7 +50,10 @@ export type InAppAgentDrawerProps = {
   isInputDisabled: boolean;
   messages: InAppAgentDrawerMessage[];
   conversations: InAppAgentDrawerConversation[];
+  hasMoreConversations: boolean;
+  isLoadingMoreConversations: boolean;
   selectedConversationId: string | undefined;
+  onLoadMoreConversations: () => void;
   onSelectConversation: (conversationId: string) => void;
   onNewConversation: () => void;
   onSubmit: (input: string) => void;
@@ -58,8 +63,11 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
   const {
     conversations,
     error,
+    hasMoreConversations,
     isInputDisabled,
+    isLoadingMoreConversations,
     messages,
+    onLoadMoreConversations,
     onNewConversation,
     onSelectConversation,
     onSubmit,
@@ -125,6 +133,11 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
                 return;
               }
 
+              if (value === LOAD_MORE_CONVERSATIONS_VALUE) {
+                onLoadMoreConversations();
+                return;
+              }
+
               onSelectConversation(value);
             }}
             disabled={isInputDisabled}
@@ -144,6 +157,17 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
                   {conversation.title?.trim() || "Untitled conversation"}
                 </SelectItem>
               ))}
+              {hasMoreConversations ? (
+                <>
+                  <SelectSeparator />
+                  <SelectItem
+                    value={LOAD_MORE_CONVERSATIONS_VALUE}
+                    disabled={isLoadingMoreConversations}
+                  >
+                    {isLoadingMoreConversations ? "Loading..." : "Load more"}
+                  </SelectItem>
+                </>
+              ) : null}
             </SelectContent>
           </Select>
           <Button
