@@ -13,8 +13,12 @@ const allowLoopback =
 function isBlockedHostname(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, ""); // strip IPv6 brackets
 
-  // Loopback — conditionally allowed for self-hosted deployments
-  const isLoopback = h === "localhost" || /^127\./.test(h) || h === "::1";
+  // Loopback and Docker Desktop host gateway — conditionally allowed for self-hosted
+  const isLoopback =
+    h === "localhost" ||
+    /^127\./.test(h) ||
+    h === "::1" ||
+    h === "host.docker.internal"; // Docker Desktop host gateway
   if (isLoopback) return !allowLoopback;
 
   // RFC-1918 private ranges and link-local
@@ -26,10 +30,10 @@ function isBlockedHostname(hostname: string): boolean {
   )
     return true;
 
-  // Internal TLDs and IPv6 private ranges
+  // Internal TLDs (excluding host.docker.internal handled above) and IPv6 private ranges
   if (
     h.endsWith(".local") ||
-    h.endsWith(".internal") ||
+    (h.endsWith(".internal") && h !== "host.docker.internal") ||
     h.endsWith(".intranet") ||
     /^fe80:/i.test(h) ||
     /^fc[0-9a-f]{2}:/i.test(h)
