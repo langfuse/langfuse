@@ -78,9 +78,6 @@ export const transformTraceForMixpanel = (
             (trace.langfuse_session_id as string)
           : undefined,
       ...otherProps,
-      langfuse_user_id: hasValidUserId
-        ? (trace.langfuse_user_id as string)
-        : "langfuse_unknown_user",
     },
   };
 };
@@ -117,9 +114,6 @@ export const transformGenerationForMixpanel = (
             (generation.langfuse_session_id as string)
           : undefined,
       ...otherProps,
-      langfuse_user_id: hasValidUserId
-        ? (generation.langfuse_user_id as string)
-        : "langfuse_unknown_user",
     },
   };
 };
@@ -152,9 +146,6 @@ export const transformScoreForMixpanel = (
             (score.langfuse_session_id as string)
           : undefined,
       ...otherProps,
-      langfuse_user_id: hasValidUserId
-        ? (score.langfuse_user_id as string)
-        : "langfuse_unknown_user",
     },
   };
 };
@@ -187,9 +178,6 @@ export const transformEventForMixpanel = (
             (event.langfuse_session_id as string)
           : undefined,
       ...otherProps,
-      langfuse_user_id: hasValidUserId
-        ? (event.langfuse_user_id as string)
-        : "langfuse_unknown_user",
     },
   };
 };
