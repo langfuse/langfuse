@@ -120,23 +120,15 @@ export function createAgUiStream(params: {
     }
 
     finished = true;
-    try {
-      eventQueue
-        .then(() => params.options.onFinish?.())
-        .catch((error) => {
-          logger.error("Error in agent stream cleanup", {
-            error,
-            runId: params.input.runId,
-            threadId: params.input.threadId,
-          });
+    eventQueue
+      .then(() => params.options.onFinish?.())
+      .catch((error) => {
+        logger.error("Error in agent stream cleanup", {
+          error,
+          runId: params.input.runId,
+          threadId: params.input.threadId,
         });
-    } catch (error) {
-      logger.error("Error in agent stream cleanup", {
-        error,
-        runId: params.input.runId,
-        threadId: params.input.threadId,
       });
-    }
   };
 
   const runTerminalCallback = async (

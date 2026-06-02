@@ -329,7 +329,7 @@ function InAppAiAgentProviderInner({
       agent
         .runAgent({ runId })
         .catch((error) => {
-          if (intentionalAbortRef.current || isAbortError(error)) {
+          if (intentionalAbortRef.current) {
             return;
           }
 
@@ -519,15 +519,6 @@ function getHydratedMessages(
   }
 
   return storedMessages?.filter(isAgentConversationMessage) ?? [];
-}
-
-function isAbortError(error: unknown) {
-  return (
-    error !== null &&
-    typeof error === "object" &&
-    "name" in error &&
-    error.name === "AbortError"
-  );
 }
 
 function getAgentErrorMessage(error: unknown): string {
