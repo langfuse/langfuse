@@ -6,6 +6,24 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TRPCError } from "@trpc/server";
 import { logger } from "@langfuse/shared/src/server";
+import { encrypt, decrypt } from "@langfuse/shared/encryption";
+
+type StoredHeader = { name: string; value: string };
+
+function encryptHeaders(headers: StoredHeader[]): string {
+  return encrypt(JSON.stringify(headers));
+}
+
+function decryptHeaderNames(encrypted: string | null): string[] {
+  if (!encrypted) return [];
+  try {
+    return (JSON.parse(decrypt(encrypted)) as StoredHeader[]).map(
+      (h) => h.name,
+    );
+  } catch {
+    return [];
+  }
+}
 
 export const agentStudioRouter = createTRPCRouter({
   listServers: protectedProjectProcedure
@@ -16,11 +34,17 @@ export const agentStudioRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "project:read",
       });
-      return ctx.prisma.agentStudioServer.findMany({
+      const servers = await ctx.prisma.agentStudioServer.findMany({
         where: { projectId: input.projectId },
         orderBy: { createdAt: "desc" },
         include: { chains: { orderBy: { createdAt: "desc" } } },
       });
+      // Return header names only — never send encrypted values to the client
+      return servers.map((s) => ({
+        ...s,
+        headersEncrypted: undefined,
+        headerNames: decryptHeaderNames(s.headersEncrypted),
+      }));
     }),
 
   upsertServer: protectedProjectProcedure
@@ -29,7 +53,11 @@ export const agentStudioRouter = createTRPCRouter({
         projectId: z.string(),
         id: z.string().optional(),
         name: z.string().min(1),
-        serverUrl: z.string().url(),
+        serverUrl: z.url(),
+        // headers: present = update; absent = keep existing
+        headers: z
+          .array(z.object({ name: z.string(), value: z.string() }))
+          .optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -38,15 +66,30 @@ export const agentStudioRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "integrations:CRUD",
       });
+
+      const headersEncrypted =
+        input.headers !== undefined
+          ? input.headers.length > 0
+            ? encryptHeaders(input.headers)
+            : null
+          : undefined; // undefined = don't change existing value
+
       if (input.id) {
         const existing = await ctx.prisma.agentStudioServer.findFirst({
           where: { id: input.id, projectId: input.projectId },
         });
         if (!existing)
-          throw new TRPCError({ code: "NOT_FOUND", message: "Server not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Server not found",
+          });
         return ctx.prisma.agentStudioServer.update({
           where: { id: input.id },
-          data: { name: input.name, serverUrl: input.serverUrl },
+          data: {
+            name: input.name,
+            serverUrl: input.serverUrl,
+            ...(headersEncrypted !== undefined ? { headersEncrypted } : {}),
+          },
         });
       }
       return ctx.prisma.agentStudioServer.create({
@@ -54,6 +97,7 @@ export const agentStudioRouter = createTRPCRouter({
           name: input.name,
           serverUrl: input.serverUrl,
           projectId: input.projectId,
+          headersEncrypted: headersEncrypted ?? null,
         },
       });
     }),
@@ -71,7 +115,9 @@ export const agentStudioRouter = createTRPCRouter({
       });
       if (!existing)
         throw new TRPCError({ code: "NOT_FOUND", message: "Server not found" });
-      await ctx.prisma.agentStudioServer.delete({ where: { id: input.serverId } });
+      await ctx.prisma.agentStudioServer.delete({
+        where: { id: input.serverId },
+      });
       return { success: true };
     }),
 
@@ -96,7 +142,10 @@ export const agentStudioRouter = createTRPCRouter({
           signal: AbortSignal.timeout(5000),
         });
         if (!res.ok) {
-          return { success: false, error: `HTTP ${res.status}: ${res.statusText}` };
+          return {
+            success: false,
+            error: `HTTP ${res.status}: ${res.statusText}`,
+          };
         }
         return { success: true };
       } catch (err) {
@@ -144,7 +193,11 @@ export const agentStudioRouter = createTRPCRouter({
         });
       }
       return ctx.prisma.agentStudioChain.create({
-        data: { name: input.name, steps: input.steps, serverId: input.serverId },
+        data: {
+          name: input.name,
+          steps: input.steps,
+          serverId: input.serverId,
+        },
       });
     }),
 
@@ -156,7 +209,9 @@ export const agentStudioRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "integrations:CRUD",
       });
-      await ctx.prisma.agentStudioChain.delete({ where: { id: input.chainId } });
+      await ctx.prisma.agentStudioChain.delete({
+        where: { id: input.chainId },
+      });
       return { success: true };
     }),
 });

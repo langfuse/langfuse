@@ -1,5 +1,11 @@
 import React, { useState } from "react";
-import { ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+} from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
@@ -14,9 +20,9 @@ export function NodeEventCard({ event }: Props) {
 
   const statusIcon =
     event.status === "running" ? (
-      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+      <Loader2 className="text-muted-foreground h-3.5 w-3.5 animate-spin" />
     ) : event.status === "error" ? (
-      <XCircle className="h-3.5 w-3.5 text-destructive" />
+      <XCircle className="text-destructive h-3.5 w-3.5" />
     ) : (
       <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
     );
@@ -24,7 +30,7 @@ export function NodeEventCard({ event }: Props) {
   return (
     <div
       className={cn(
-        "rounded-md border bg-card",
+        "bg-card rounded-md border",
         event.status === "error" && "border-destructive/50",
       )}
     >
@@ -33,16 +39,16 @@ export function NodeEventCard({ event }: Props) {
         onClick={() => setOpen((v) => !v)}
       >
         {open ? (
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <ChevronDown className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
         ) : (
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <ChevronRight className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
         )}
         {statusIcon}
         <span className="flex-1 truncate font-mono text-sm font-medium">
-          {event.nodeName}
+          {event.nodeName === "__state__" ? "Final State" : event.nodeName}
         </span>
         {event.durationMs !== undefined && event.status !== "running" && (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             {event.durationMs < 1000
               ? `${event.durationMs}ms`
               : `${(event.durationMs / 1000).toFixed(1)}s`}
@@ -62,7 +68,7 @@ export function NodeEventCard({ event }: Props) {
         </Badge>
       </button>
       {open && (
-        <div className="border-t px-3 pb-3 pt-2">
+        <div className="border-t px-3 pt-2 pb-3">
           <PrettyJsonView json={event.data} />
         </div>
       )}

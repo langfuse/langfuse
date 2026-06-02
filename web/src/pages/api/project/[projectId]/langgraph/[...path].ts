@@ -1,8 +1,9 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { authorizeRequestOrThrow } from "@/src/features/playground/server/authorizeRequest";
+import { getServerSession } from "next-auth";
+import { getAuthOptions } from "@/src/server/auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-import { ForbiddenError, UnauthorizedError } from "@langfuse/shared";
+import { decrypt } from "@langfuse/shared/encryption";
 
 export const config = {
   api: { bodyParser: false },
@@ -12,7 +13,11 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const { projectId, path: pathSegments, serverId } = req.query as {
+  const {
+    projectId,
+    path: pathSegments,
+    serverId,
+  } = req.query as {
     projectId: string;
     path: string[];
     serverId?: string;
@@ -22,16 +27,10 @@ export default async function handler(
     return res.status(400).json({ error: "serverId query param required" });
   }
 
-  try {
-    await authorizeRequestOrThrow(projectId);
-  } catch (err) {
-    if (err instanceof UnauthorizedError) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    if (err instanceof ForbiddenError) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-    return res.status(500).json({ error: "Internal server error" });
+  const authOptions = await getAuthOptions();
+  const session = await getServerSession(req, res, authOptions);
+  if (!session?.user) {
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
   const server = await prisma.agentStudioServer.findFirst({
@@ -68,6 +67,21 @@ export default async function handler(
       "Content-Type": req.headers["content-type"] ?? "application/json",
     };
 
+    // Decrypt and inject custom headers stored server-side (never exposed to the browser)
+    if (server.headersEncrypted) {
+      try {
+        const stored = JSON.parse(decrypt(server.headersEncrypted)) as {
+          name: string;
+          value: string;
+        }[];
+        for (const h of stored) {
+          if (h.name.trim()) forwardHeaders[h.name.trim()] = h.value;
+        }
+      } catch (err) {
+        logger.warn("AgentStudio: failed to decrypt custom headers", { err });
+      }
+    }
+
     const upstreamRes = await fetch(targetUrl, {
       method: req.method ?? "GET",
       headers: forwardHeaders,
@@ -99,7 +113,8 @@ export default async function handler(
           res.write(decoder.decode(value, { stream: true }));
           if (
             "flush" in res &&
-            typeof (res as unknown as { flush: () => void }).flush === "function"
+            typeof (res as unknown as { flush: () => void }).flush ===
+              "function"
           ) {
             (res as unknown as { flush: () => void }).flush();
           }

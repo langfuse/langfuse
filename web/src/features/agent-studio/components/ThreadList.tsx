@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { RefreshCw, Copy } from "lucide-react";
+import { RefreshCw, Copy, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type LangGraphThread } from "../types";
 import { useLangGraphApi } from "../hooks/useLangGraphApi";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
@@ -11,22 +12,31 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 type Props = {
   projectId: string;
   serverId: string | null;
+  autoExpandThreadId?: string | null;
+  onRefreshRef?: React.RefObject<(() => void) | null>;
 };
 
-const STATUS_VARIANT: Record<
-  string,
-  "outline" | "secondary" | "destructive"
-> = {
-  idle: "outline",
-  busy: "secondary",
-  error: "destructive",
-  interrupted: "secondary",
-};
+const STATUS_VARIANT: Record<string, "outline" | "secondary" | "destructive"> =
+  {
+    idle: "outline",
+    busy: "secondary",
+    error: "destructive",
+    interrupted: "secondary",
+  };
 
-export function ThreadList({ projectId, serverId }: Props) {
+export function ThreadList({
+  projectId,
+  serverId,
+  autoExpandThreadId,
+  onRefreshRef,
+}: Props) {
   const [threads, setThreads] = useState<LangGraphThread[]>([]);
   const [loading, setLoading] = useState(false);
-  const { proxyFetch } = useLangGraphApi(projectId, serverId);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [threadStates, setThreadStates] = useState<Record<string, unknown>>({});
+  const [loadingState, setLoadingState] = useState<string | null>(null);
+
+  const { proxyFetch, getThreadState } = useLangGraphApi(projectId, serverId);
 
   const fetchThreads = useCallback(async () => {
     if (!serverId) return;
@@ -52,10 +62,59 @@ export function ThreadList({ projectId, serverId }: Props) {
     void fetchThreads();
   }, [fetchThreads]);
 
+  // Expose refresh function to parent
+  useEffect(() => {
+    if (onRefreshRef) onRefreshRef.current = fetchThreads;
+  }, [fetchThreads, onRefreshRef]);
+
+  // Auto-expand thread when parent signals a new run completed
+  useEffect(() => {
+    if (!autoExpandThreadId) return;
+    setExpandedId(autoExpandThreadId);
+    // Load state for this thread
+    if (!threadStates[autoExpandThreadId]) {
+      setLoadingState(autoExpandThreadId);
+      getThreadState(autoExpandThreadId)
+        .then((state) =>
+          setThreadStates((prev) => ({ ...prev, [autoExpandThreadId]: state })),
+        )
+        .catch(() =>
+          setThreadStates((prev) => ({
+            ...prev,
+            [autoExpandThreadId]: { error: "Failed to load thread state" },
+          })),
+        )
+        .finally(() => setLoadingState(null));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoExpandThreadId]);
+
+  const toggleThread = async (thread: LangGraphThread) => {
+    if (expandedId === thread.thread_id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(thread.thread_id);
+    if (!threadStates[thread.thread_id]) {
+      setLoadingState(thread.thread_id);
+      try {
+        const state = await getThreadState(thread.thread_id);
+        setThreadStates((prev) => ({ ...prev, [thread.thread_id]: state }));
+      } catch {
+        setThreadStates((prev) => ({
+          ...prev,
+          [thread.thread_id]: { error: "Failed to load thread state" },
+        }));
+      } finally {
+        setLoadingState(null);
+      }
+    }
+  };
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
           Threads
         </span>
         <Button
@@ -78,40 +137,71 @@ export function ThreadList({ projectId, serverId }: Props) {
           </div>
         )}
         {!loading && threads.length === 0 && (
-          <p className="px-3 py-4 text-center text-xs text-muted-foreground">
+          <p className="text-muted-foreground px-3 py-4 text-center text-xs">
             No threads yet. Run an agent to create one.
           </p>
         )}
         {!loading &&
-          threads.map((thread) => (
-            <div
-              key={thread.thread_id}
-              className="flex flex-col gap-0.5 border-b px-3 py-2 last:border-0"
-            >
-              <div className="flex items-center justify-between gap-1">
-                <span className="truncate font-mono text-xs text-muted-foreground">
-                  {thread.thread_id.slice(0, 16)}…
-                </span>
+          threads.map((thread) => {
+            const isExpanded = expandedId === thread.thread_id;
+            const state = threadStates[thread.thread_id];
+            const isLoadingThis = loadingState === thread.thread_id;
+
+            return (
+              <div key={thread.thread_id} className="border-b last:border-0">
                 <button
-                  className="shrink-0 rounded p-0.5 hover:bg-muted"
-                  onClick={() => void copyTextToClipboard(thread.thread_id)}
+                  className="hover:bg-muted/40 flex w-full items-start gap-1.5 px-3 py-2 text-left"
+                  onClick={() => void toggleThread(thread)}
                 >
-                  <Copy className="h-3 w-3" />
+                  {isExpanded ? (
+                    <ChevronDown className="text-muted-foreground mt-0.5 h-3 w-3 shrink-0" />
+                  ) : (
+                    <ChevronRight className="text-muted-foreground mt-0.5 h-3 w-3 shrink-0" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1">
+                      <span className="text-muted-foreground truncate font-mono text-xs">
+                        {thread.thread_id.slice(0, 14)}…
+                      </span>
+                      <button
+                        className="hover:bg-muted shrink-0 rounded p-0.5"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void copyTextToClipboard(thread.thread_id);
+                        }}
+                      >
+                        <Copy className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-1.5">
+                      <Badge
+                        variant={STATUS_VARIANT[thread.status] ?? "outline"}
+                        className="text-xs"
+                      >
+                        {thread.status}
+                      </Badge>
+                      <span className="text-muted-foreground text-xs">
+                        {new Date(thread.updated_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  </div>
                 </button>
+
+                {isExpanded && (
+                  <div className="bg-muted/20 border-t px-3 py-2">
+                    {isLoadingThis ? (
+                      <Skeleton className="h-20 w-full" />
+                    ) : state ? (
+                      <PrettyJsonView
+                        json={state}
+                        collapseStringsAfterLength={80}
+                      />
+                    ) : null}
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-1.5">
-                <Badge
-                  variant={STATUS_VARIANT[thread.status] ?? "outline"}
-                  className="text-xs"
-                >
-                  {thread.status}
-                </Badge>
-                <span className="text-xs text-muted-foreground">
-                  {new Date(thread.updated_at).toLocaleTimeString()}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
       </ScrollArea>
     </div>
   );

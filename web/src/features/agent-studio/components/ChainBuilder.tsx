@@ -4,10 +4,20 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Badge } from "@/src/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 import { Separator } from "@/src/components/ui/separator";
 import { api } from "@/src/utils/api";
-import { type LangGraphAssistant, type ChainStep, type AgentStudioChainRecord } from "../types";
+import {
+  type LangGraphAssistant,
+  type ChainStep,
+  type AgentStudioChainRecord,
+} from "../types";
 
 type Props = {
   projectId: string;
@@ -18,7 +28,14 @@ type Props = {
   onRunChain: (steps: ChainStep[]) => void;
 };
 
-export function ChainBuilder({ projectId, serverId, assistants, chain, onClose, onRunChain }: Props) {
+export function ChainBuilder({
+  projectId,
+  serverId,
+  assistants,
+  chain,
+  onClose,
+  onRunChain,
+}: Props) {
   const [chainName, setChainName] = useState(chain?.name ?? "My Chain");
   const [steps, setSteps] = useState<ChainStep[]>(
     chain?.steps ?? [{ assistantId: "", assistantName: "", fieldMappings: [] }],
@@ -32,7 +49,10 @@ export function ChainBuilder({ projectId, serverId, assistants, chain, onClose, 
   });
 
   const addStep = () => {
-    setSteps((prev) => [...prev, { assistantId: "", assistantName: "", fieldMappings: [] }]);
+    setSteps((prev) => [
+      ...prev,
+      { assistantId: "", assistantName: "", fieldMappings: [] },
+    ]);
   };
 
   const removeStep = (idx: number) => {
@@ -115,7 +135,7 @@ export function ChainBuilder({ projectId, serverId, assistants, chain, onClose, 
                     className="h-6 w-6"
                     onClick={() => removeStep(stepIdx)}
                   >
-                    <Trash2 className="h-3 w-3 text-destructive" />
+                    <Trash2 className="text-destructive h-3 w-3" />
                   </Button>
                 )}
               </div>
@@ -145,7 +165,7 @@ export function ChainBuilder({ projectId, serverId, assistants, chain, onClose, 
 
                 {step.fieldMappings.length > 0 && (
                   <div className="flex flex-col gap-1">
-                    <Label className="text-xs text-muted-foreground">
+                    <Label className="text-muted-foreground text-xs">
                       Output → next input mappings
                     </Label>
                     {step.fieldMappings.map((m, mapIdx) => (
@@ -155,16 +175,26 @@ export function ChainBuilder({ projectId, serverId, assistants, chain, onClose, 
                           placeholder="from.path"
                           value={m.fromPath}
                           onChange={(e) =>
-                            updateMapping(stepIdx, mapIdx, "fromPath", e.target.value)
+                            updateMapping(
+                              stepIdx,
+                              mapIdx,
+                              "fromPath",
+                              e.target.value,
+                            )
                           }
                         />
-                        <span className="text-xs text-muted-foreground">→</span>
+                        <span className="text-muted-foreground text-xs">→</span>
                         <Input
                           className="h-7 text-xs"
                           placeholder="to_field"
                           value={m.toField}
                           onChange={(e) =>
-                            updateMapping(stepIdx, mapIdx, "toField", e.target.value)
+                            updateMapping(
+                              stepIdx,
+                              mapIdx,
+                              "toField",
+                              e.target.value,
+                            )
                           }
                         />
                         <Button
@@ -196,7 +226,7 @@ export function ChainBuilder({ projectId, serverId, assistants, chain, onClose, 
 
             {stepIdx < steps.length - 1 && (
               <div className="flex justify-center">
-                <ArrowDown className="h-4 w-4 text-muted-foreground" />
+                <ArrowDown className="text-muted-foreground h-4 w-4" />
               </div>
             )}
           </div>
@@ -223,11 +253,7 @@ export function ChainBuilder({ projectId, serverId, assistants, chain, onClose, 
           <Save className="mr-1 h-3.5 w-3.5" />
           {upsertChain.isPending ? "Saving…" : "Save Chain"}
         </Button>
-        <Button
-          size="sm"
-          onClick={() => onRunChain(steps)}
-          disabled={!isValid}
-        >
+        <Button size="sm" onClick={() => onRunChain(steps)} disabled={!isValid}>
           Run Chain
         </Button>
       </div>

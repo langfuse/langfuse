@@ -1739,8 +1739,9 @@ model AgentStudioServer {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  name      String
-  serverUrl String  @map("server_url")
+  name             String
+  serverUrl        String  @map("server_url")
+  headersEncrypted String? @map("headers_encrypted") // AES-256-GCM encrypted JSON: [{name,value}]
 
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)

@@ -14,12 +14,19 @@ type Props = {
   onSelectServer: (server: AgentStudioServerRecord) => void;
 };
 
-export function ServerList({ projectId, selectedServerId, onSelectServer }: Props) {
+export function ServerList({
+  projectId,
+  selectedServerId,
+  onSelectServer,
+}: Props) {
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [editingServer, setEditingServer] = useState<AgentStudioServerRecord | null>(null);
+  const [editingServer, setEditingServer] =
+    useState<AgentStudioServerRecord | null>(null);
 
   const utils = api.useUtils();
-  const { data: servers, isLoading } = api.agentStudio.listServers.useQuery({ projectId });
+  const { data: servers, isLoading } = api.agentStudio.listServers.useQuery({
+    projectId,
+  });
   const deleteMutation = api.agentStudio.deleteServer.useMutation({
     onSuccess: async () => {
       await utils.agentStudio.listServers.invalidate({ projectId });
@@ -37,7 +44,10 @@ export function ServerList({ projectId, selectedServerId, onSelectServer }: Prop
     setSheetOpen(true);
   };
 
-  const handleDelete = (server: AgentStudioServerRecord, e: React.MouseEvent) => {
+  const handleDelete = (
+    server: AgentStudioServerRecord,
+    e: React.MouseEvent,
+  ) => {
     e.stopPropagation();
     if (confirm(`Delete server "${server.name}"?`)) {
       deleteMutation.mutate({ projectId, serverId: server.id });
@@ -45,24 +55,31 @@ export function ServerList({ projectId, selectedServerId, onSelectServer }: Prop
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col">
       <div className="flex items-center justify-between px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
           Servers
         </span>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleAdd}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={handleAdd}
+        >
           <Plus className="h-3.5 w-3.5" />
         </Button>
       </div>
       <Separator />
-      <div className="flex-1 overflow-y-auto py-1">
+      <div className="max-h-48 overflow-y-auto py-1">
         {isLoading && (
-          <div className="px-3 py-2 text-xs text-muted-foreground">Loading…</div>
+          <div className="text-muted-foreground px-3 py-2 text-xs">
+            Loading…
+          </div>
         )}
         {!isLoading && (!servers || servers.length === 0) && (
           <div className="px-3 py-4 text-center">
-            <Server className="mx-auto mb-1 h-5 w-5 text-muted-foreground" />
-            <p className="text-xs text-muted-foreground">No servers yet</p>
+            <Server className="text-muted-foreground mx-auto mb-1 h-5 w-5" />
+            <p className="text-muted-foreground text-xs">No servers yet</p>
             <Button
               variant="link"
               size="sm"
@@ -78,33 +95,58 @@ export function ServerList({ projectId, selectedServerId, onSelectServer }: Prop
             key={server.id}
             onClick={() => onSelectServer(server as AgentStudioServerRecord)}
             className={cn(
-              "group flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-accent",
+              "group hover:bg-accent flex w-full items-start gap-2 px-3 py-2 text-left text-sm",
               selectedServerId === server.id && "bg-accent",
             )}
           >
-            <Server className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <Server className="text-muted-foreground mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium">{server.name}</div>
-              <div className="truncate text-xs text-muted-foreground">{server.serverUrl}</div>
+              <div className="text-muted-foreground truncate text-xs">
+                {server.serverUrl}
+              </div>
               {server.chains.length > 0 && (
                 <Badge variant="secondary" className="mt-0.5 text-xs">
-                  {server.chains.length} chain{server.chains.length > 1 ? "s" : ""}
+                  {server.chains.length} chain
+                  {server.chains.length > 1 ? "s" : ""}
                 </Badge>
               )}
             </div>
             <div className="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100">
-              <button
-                className="rounded p-0.5 hover:bg-background"
-                onClick={(e) => handleEdit(server as AgentStudioServerRecord, e)}
+              <div
+                role="button"
+                tabIndex={0}
+                className="hover:bg-background cursor-pointer rounded p-0.5"
+                onClick={(e) =>
+                  handleEdit(server as AgentStudioServerRecord, e)
+                }
+                onKeyDown={(e) =>
+                  e.key === "Enter" &&
+                  handleEdit(
+                    server as AgentStudioServerRecord,
+                    e as unknown as React.MouseEvent,
+                  )
+                }
               >
                 <Pencil className="h-3 w-3" />
-              </button>
-              <button
-                className="rounded p-0.5 hover:bg-background"
-                onClick={(e) => handleDelete(server as AgentStudioServerRecord, e)}
+              </div>
+              <div
+                role="button"
+                tabIndex={0}
+                className="hover:bg-background cursor-pointer rounded p-0.5"
+                onClick={(e) =>
+                  handleDelete(server as AgentStudioServerRecord, e)
+                }
+                onKeyDown={(e) =>
+                  e.key === "Enter" &&
+                  handleDelete(
+                    server as AgentStudioServerRecord,
+                    e as unknown as React.MouseEvent,
+                  )
+                }
               >
-                <Trash2 className="h-3 w-3 text-destructive" />
-              </button>
+                <Trash2 className="text-destructive h-3 w-3" />
+              </div>
             </div>
           </button>
         ))}
