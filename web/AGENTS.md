@@ -84,6 +84,9 @@ signoff of user-visible changes.
   must be installed, ask the user before doing so.
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
+- In flex layouts, prefer `gap-*` over margin-based `space-x-*`/`space-y-*`.
+- Treat `!` Tailwind classes as a smell. Step back and fix the owning layout,
+  variant, or primitive before overriding with higher specificity.
 - When changing shared UI/table patterns, update sibling variants consistently,
   including default-visible and hidden columns or states.
 - For component style variants, prefer `cva` with `VariantProps` and merge

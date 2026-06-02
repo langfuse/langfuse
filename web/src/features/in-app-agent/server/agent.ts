@@ -113,7 +113,7 @@ export function createAgUiStream(params: {
 
     finished = true;
     try {
-      void Promise.resolve(params.options.onFinish?.()).catch((error) => {
+      Promise.resolve(params.options.onFinish?.()).catch((error) => {
         console.error("Error in agent stream cleanup:", error);
       });
     } catch (error) {
@@ -135,7 +135,7 @@ export function createAgUiStream(params: {
       };
 
       const abort = () => {
-        void adapter.interrupt().catch(() => undefined);
+        adapter.interrupt().catch(() => undefined);
         closeController();
       };
 
@@ -201,7 +201,7 @@ export function createAgUiStream(params: {
       closed = true;
       removeAbortHandler();
       subscription?.unsubscribe();
-      void adapter.interrupt().catch(() => undefined);
+      adapter.interrupt().catch(() => undefined);
       finish();
     },
   });
