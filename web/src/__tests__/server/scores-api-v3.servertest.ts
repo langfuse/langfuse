@@ -828,7 +828,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
     });
   });
 
-  maybe("GET /api/public/v3/scores — filter params (Phase 4)", () => {
+  maybe("GET /api/public/v3/scores — filter params", () => {
     let auth: string;
     let projectId: string;
 
@@ -1325,7 +1325,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(ids).not.toContain(outOfRangeId);
     });
 
-    it("fromTimestamp omitted with no entity filter → 200 (allowed in Phase 4)", async () => {
+    it("fromTimestamp omitted with no entity filter → 200", async () => {
       const res = await makeAPICall(
         "GET",
         "/api/public/v3/scores",
@@ -1335,7 +1335,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(200);
     });
 
-    it("Phase 1–3 regression: limit and fields still work", async () => {
+    it("regression: limit and fields still work alongside filters", async () => {
       const scoreId = v4();
       await createScoresCh([
         createTraceScore({
