@@ -145,8 +145,7 @@ const getXAxisValue = (
 ) => {
   const entityDimensionValue = String(item["entity_dimension"]);
   const entityDimensionLabel = entityDimensionLabelMap?.[entityDimensionValue];
-  return;
-  entityDimensionLabel && entityDimensionLabel.length > 0
+  return entityDimensionLabel && entityDimensionLabel.length > 0
     ? entityDimensionLabel
     : entityDimensionValue;
 };

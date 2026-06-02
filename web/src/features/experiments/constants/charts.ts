@@ -78,7 +78,7 @@ const BASE_SCORE_CHART_CONFIG = {
   entityDimension: { field: "experimentName" },
   timeDimension: null,
   minVersion: "v2",
-  orderBy: [{ field: "min_timestamp", direction: "desc" }],
+  orderBy: [{ field: "min_timestamp", direction: "asc" }],
 } as const;
 
 export const SCORE_LEVEL_ENTITY_DIMENSIONS: Record<
