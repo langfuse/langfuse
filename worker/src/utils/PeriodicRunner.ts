@@ -20,7 +20,7 @@ export abstract class PeriodicRunner {
       return;
     }
     this.isRunning = true;
-    void this.runAndScheduleNext();
+    this.runAndScheduleNext();
   }
 
   public stop(): void {
@@ -65,7 +65,7 @@ export abstract class PeriodicRunner {
       return;
     }
     this.timeoutId = setTimeout(() => {
-      void this.runAndScheduleNext();
+      this.runAndScheduleNext();
     }, delayMs);
   }
 }

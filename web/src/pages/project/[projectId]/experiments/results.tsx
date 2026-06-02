@@ -74,7 +74,7 @@ export default function ExperimentResults() {
   // Auto-redirect to datasets page when beta is off
   useEffect(() => {
     if (!isExperimentsBetaActive) {
-      void router.push(`/project/${projectId}/datasets`);
+      router.push(`/project/${projectId}/datasets`);
     }
   }, [isExperimentsBetaActive, projectId, router]);
 
@@ -94,7 +94,7 @@ export default function ExperimentResults() {
 
     // When switching OFF, redirect to datasets page
     if (!enabled) {
-      void router.push(`/project/${projectId}/datasets`);
+      router.push(`/project/${projectId}/datasets`);
     }
   };
 

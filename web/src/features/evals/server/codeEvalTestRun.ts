@@ -32,6 +32,7 @@ import {
   isEventTarget,
   isExperimentTarget,
 } from "@/src/features/evals/utils/typeHelpers";
+import { isCodeEvalSourceCodeLanguageSupported } from "@/src/features/evals/server/isCodeEvalEnabled";
 
 type CodeEvalTestRunError = Omit<CodeEvalUserVisibleError, "retryable">;
 
@@ -135,6 +136,14 @@ async function runCodeEvalTestForObservation(params: {
     throw new TRPCError({
       code: "NOT_FOUND",
       message: "Evaluator template not found",
+    });
+  }
+
+  if (!isCodeEvalSourceCodeLanguageSupported(codeTemplate.sourceCodeLanguage)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "This code evaluator language is not supported by the configured dispatcher.",
     });
   }
 

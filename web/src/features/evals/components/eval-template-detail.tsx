@@ -76,7 +76,7 @@ export const EvalTemplateDetail = () => {
       delete nextQuery.mode;
     }
 
-    void router.replace(
+    router.replace(
       {
         pathname: router.pathname,
         query: nextQuery,

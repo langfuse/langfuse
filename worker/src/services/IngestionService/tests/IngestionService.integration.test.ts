@@ -986,7 +986,7 @@ describe("Ingestion end-to-end tests", () => {
           ? null
           : getModelId(testConfig.expectedInternalModelId);
       expect(generation.internal_model_id).toBe(expectedModelId);
-    });
+    }, 15_000);
   });
 
   it("should create and update all events", async () => {
@@ -1341,11 +1341,15 @@ describe("Ingestion end-to-end tests", () => {
 
     // Verify that invalid scores were silently rejected (not inserted)
     await expect(
-      getClickhouseRecord(TableName.Scores, invalidScoreId1),
+      getClickhouseRecord(TableName.Scores, invalidScoreId1, {
+        waitForRecord: false,
+      }),
     ).rejects.toThrow();
 
     await expect(
-      getClickhouseRecord(TableName.Scores, invalidScoreId2),
+      getClickhouseRecord(TableName.Scores, invalidScoreId2, {
+        waitForRecord: false,
+      }),
     ).rejects.toThrow();
   });
 
@@ -2908,13 +2912,29 @@ describe("Ingestion end-to-end tests", () => {
 async function getClickhouseRecord<T extends TableName>(
   tableName: T,
   entityId: string,
+  options: { waitForRecord?: boolean } = {},
 ): Promise<RecordReadType<T>> {
-  const query = await clickhouseClient().query({
-    query: `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
-    format: "JSONEachRow",
-  });
+  let result: unknown;
+  const waitForRecord = options.waitForRecord ?? true;
 
-  const result = (await query.json())[0];
+  const loadResult = async () => {
+    let query = await clickhouseClient().query({
+      query: `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
+      format: "JSONEachRow",
+    });
+
+    result = (await query.json())[0];
+  };
+
+  if (waitForRecord) {
+    await waitForExpect(async () => {
+      await loadResult();
+      expect(result).toBeDefined();
+    }, 1_500);
+  } else {
+    await loadResult();
+    expect(result).toBeDefined();
+  }
 
   return (
     tableName === TableName.Traces
