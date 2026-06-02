@@ -67,9 +67,9 @@ export const transformTraceForMixpanel = (
     event: "[Langfuse] Trace",
     properties: {
       time: new Date(trace.timestamp as Date).getTime(),
-      distinct_id: hasValidUserId
-        ? (trace.langfuse_user_id as string)
-        : insertId,
+      // Empty string signals Mixpanel to distribute the event across shards
+      // without attributing it to a user (recommended for non-user events).
+      distinct_id: hasValidUserId ? (trace.langfuse_user_id as string) : "",
       $insert_id: insertId,
       ...(hasValidUserId ? { $user_id: trace.langfuse_user_id as string } : {}),
       session_id:
@@ -78,6 +78,9 @@ export const transformTraceForMixpanel = (
             (trace.langfuse_session_id as string)
           : undefined,
       ...otherProps,
+      langfuse_user_id: hasValidUserId
+        ? (trace.langfuse_user_id as string)
+        : "langfuse_unknown_user",
     },
   };
 };
@@ -103,7 +106,7 @@ export const transformGenerationForMixpanel = (
       time: new Date(generation.timestamp as Date).getTime(),
       distinct_id: hasValidUserId
         ? (generation.langfuse_user_id as string)
-        : insertId,
+        : "",
       $insert_id: insertId,
       ...(hasValidUserId
         ? { $user_id: generation.langfuse_user_id as string }
@@ -114,6 +117,9 @@ export const transformGenerationForMixpanel = (
             (generation.langfuse_session_id as string)
           : undefined,
       ...otherProps,
+      langfuse_user_id: hasValidUserId
+        ? (generation.langfuse_user_id as string)
+        : "langfuse_unknown_user",
     },
   };
 };
@@ -137,9 +143,7 @@ export const transformScoreForMixpanel = (
     event: "[Langfuse] Score",
     properties: {
       time: new Date(score.timestamp as Date).getTime(),
-      distinct_id: hasValidUserId
-        ? (score.langfuse_user_id as string)
-        : insertId,
+      distinct_id: hasValidUserId ? (score.langfuse_user_id as string) : "",
       $insert_id: insertId,
       ...(hasValidUserId ? { $user_id: score.langfuse_user_id as string } : {}),
       session_id:
@@ -148,6 +152,9 @@ export const transformScoreForMixpanel = (
             (score.langfuse_session_id as string)
           : undefined,
       ...otherProps,
+      langfuse_user_id: hasValidUserId
+        ? (score.langfuse_user_id as string)
+        : "langfuse_unknown_user",
     },
   };
 };
@@ -171,9 +178,7 @@ export const transformEventForMixpanel = (
     event: "[Langfuse] Observation",
     properties: {
       time: new Date(event.timestamp as Date).getTime(),
-      distinct_id: hasValidUserId
-        ? (event.langfuse_user_id as string)
-        : insertId,
+      distinct_id: hasValidUserId ? (event.langfuse_user_id as string) : "",
       $insert_id: insertId,
       ...(hasValidUserId ? { $user_id: event.langfuse_user_id as string } : {}),
       session_id:
@@ -182,6 +187,9 @@ export const transformEventForMixpanel = (
             (event.langfuse_session_id as string)
           : undefined,
       ...otherProps,
+      langfuse_user_id: hasValidUserId
+        ? (event.langfuse_user_id as string)
+        : "langfuse_unknown_user",
     },
   };
 };
