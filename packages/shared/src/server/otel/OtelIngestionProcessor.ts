@@ -2388,6 +2388,39 @@ export class OtelIngestionProcessor {
       if (Object.keys(usageDetails).length > 0) return usageDetails;
     }
 
+    // Google Vertex AI Agent Development Kit (ADK)
+    //
+    // ADK records the prompt/completion token counts as
+    // gen_ai.usage.input_tokens / gen_ai.usage.output_tokens (picked up by the
+    // generic gen_ai extractor below), but the cached-token count is only
+    // available inside the serialized response on gcp.vertex.agent.llm_response
+    // (usage_metadata.cached_content_token_count) and never as a
+    // gen_ai.usage.* attribute. Without it, cached input is billed at the full
+    // (uncached) input rate. https://github.com/langfuse/langfuse/issues/13988
+    if ("gcp.vertex.agent.llm_response" in attributes) {
+      const usageDetails = this.extractGenericGenAiUsageDetails(attributes);
+
+      const llmResponse = this.parseJsonPayload(
+        attributes["gcp.vertex.agent.llm_response"],
+      );
+      const cachedTokens = llmResponse?.usage_metadata?.cached_content_token_count;
+
+      if (typeof cachedTokens === "number" && cachedTokens > 0) {
+        // gen_ai.usage.input_tokens already includes the cached tokens, so move
+        // them into input_cached_tokens and leave `input` as the uncached
+        // remainder (consistent with the other provider branches above).
+        usageDetails["input_cached_tokens"] ??= cachedTokens;
+        if (typeof usageDetails["input"] === "number") {
+          usageDetails["input"] = Math.max(
+            usageDetails["input"] - cachedTokens,
+            0,
+          );
+        }
+      }
+
+      if (Object.keys(usageDetails).length > 0) return usageDetails;
+    }
+
     return this.extractGenericGenAiUsageDetails(attributes);
   }
 
