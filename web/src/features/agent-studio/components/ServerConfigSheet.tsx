@@ -131,16 +131,18 @@ export function ServerConfigSheet({ open, onClose, projectId, server }: Props) {
   const runTest = async (url: string) => {
     setTestState({ status: "testing" });
     try {
-      const res = await fetch("/api/agent-studio/test-url", {
+      // Test directly from the browser (same as LangSmith Studio) so that
+      // localhost URLs resolve on the user's machine, not the Langfuse server.
+      const res = await fetch(`${url.replace(/\/$/, "")}/assistants/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ limit: 1 }),
+        signal: AbortSignal.timeout(5000),
       });
-      const data = (await res.json()) as { success: boolean; error?: string };
       setTestState(
-        data.success
+        res.ok
           ? { status: "success" }
-          : { status: "error", message: data.error ?? "Connection failed" },
+          : { status: "error", message: `HTTP ${res.status}` },
       );
     } catch (err) {
       setTestState({
