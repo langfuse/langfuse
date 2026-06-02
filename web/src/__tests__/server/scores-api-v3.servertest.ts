@@ -406,10 +406,10 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(400);
     });
 
-    it("valid base64 but wrong JSON shape cursor → 400", async () => {
+    it("valid base64url but wrong JSON shape cursor → 400", async () => {
       const badShapeCursor = Buffer.from(
         JSON.stringify({ foo: "bar" }),
-      ).toString("base64");
+      ).toString("base64url");
       const res = await makeAPICall(
         "GET",
         `/api/public/v3/scores?cursor=${badShapeCursor}`,
@@ -426,7 +426,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
           lastEventTs: new Date(0).toISOString(),
           lastId: "00000000-0000-0000-0000-000000000000",
         }),
-      ).toString("base64");
+      ).toString("base64url");
 
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,

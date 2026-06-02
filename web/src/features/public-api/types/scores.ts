@@ -11,7 +11,7 @@ export type ScoresCursorV3Type = z.infer<typeof ScoresCursorV3>;
 export const EncodedScoresCursorV3 = z.string().transform((val) => {
   let parsed: unknown;
   try {
-    const decoded = Buffer.from(val, "base64").toString("utf-8");
+    const decoded = Buffer.from(val, "base64url").toString("utf-8");
     parsed = JSON.parse(decoded);
   } catch (_e) {
     throw new InvalidRequestError("Invalid cursor format");
@@ -30,4 +30,4 @@ export const encodeCursorV3 = (cursor: ScoresCursorV3Type): string =>
       lastEventTs: cursor.lastEventTs.toISOString(),
       lastId: cursor.lastId,
     }),
-  ).toString("base64");
+  ).toString("base64url");
