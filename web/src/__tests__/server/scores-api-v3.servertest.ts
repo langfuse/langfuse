@@ -149,4 +149,116 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(leaked).toBeUndefined();
     });
   });
+
+  maybe("GET /api/public/v3/scores — cursor pagination", () => {
+    let auth: string;
+    let projectId: string;
+
+    beforeAll(async () => {
+      const project = await createOrgProjectAndApiKey();
+      auth = project.auth;
+      projectId = project.projectId;
+    });
+
+    it("returns cursor when more pages exist and no cursor on last page", async () => {
+      const scores = Array.from({ length: 3 }, () =>
+        createTraceScore({ project_id: projectId }),
+      );
+      await createScoresCh(scores);
+
+      // page 1: limit=2, expect cursor
+      const page1 = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?limit=2",
+        undefined,
+        auth,
+      );
+      expect(page1.status).toBe(200);
+      expect(page1.body.data.length).toBe(2);
+      expect(page1.body.meta.limit).toBe(2);
+      expect(page1.body.meta.cursor).toBeDefined();
+
+      // page 2: use cursor, should return remaining and no cursor
+      const page2 = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?limit=2&cursor=${page1.body.meta.cursor}`,
+        undefined,
+        auth,
+      );
+      expect(page2.status).toBe(200);
+      // last page has no cursor
+      expect(page2.body.meta.cursor).toBeUndefined();
+    });
+
+    it("paginates without duplicates or skips", async () => {
+      const project = await createOrgProjectAndApiKey();
+      const count = 7;
+      const scores = Array.from({ length: count }, () =>
+        createTraceScore({ project_id: project.projectId }),
+      );
+      await createScoresCh(scores);
+      const scoreIds = new Set(scores.map((s) => s.id));
+
+      const seenIds = new Set<string>();
+      let cursor: string | undefined;
+
+      do {
+        const url = cursor
+          ? `/api/public/v3/scores?limit=3&cursor=${cursor}`
+          : "/api/public/v3/scores?limit=3";
+        const res = await makeZodVerifiedAPICall(
+          GetScoresResponseV3,
+          "GET",
+          url,
+          undefined,
+          project.auth,
+        );
+        expect(res.status).toBe(200);
+        for (const s of res.body.data) {
+          expect(seenIds.has(s.id)).toBe(false);
+          seenIds.add(s.id);
+        }
+        cursor = res.body.meta.cursor;
+      } while (cursor);
+
+      // all inserted scores must appear exactly once
+      for (const id of scoreIds) {
+        expect(seenIds.has(id)).toBe(true);
+      }
+    });
+
+    it("invalid cursor → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?cursor=not-valid-base64!!",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("stale cursor (no matching rows) returns empty page with no cursor", async () => {
+      // Encode a cursor far in the past so no scores precede it
+      const staleCursor = Buffer.from(
+        JSON.stringify({
+          lastTimestamp: new Date(0).toISOString(),
+          lastEventTs: new Date(0).toISOString(),
+          lastId: "00000000-0000-0000-0000-000000000000",
+        }),
+      ).toString("base64");
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?cursor=${staleCursor}`,
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.data.length).toBe(0);
+      expect(res.body.meta.cursor).toBeUndefined();
+    });
+  });
 });

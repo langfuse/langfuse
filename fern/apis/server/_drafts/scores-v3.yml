@@ -25,6 +25,9 @@ service:
           limit:
             type: optional<integer>
             docs: Number of items per page. Maximum 100, default 50. Requests with a limit greater than 100 return HTTP 400.
+          cursor:
+            type: optional<string>
+            docs: Base64-encoded cursor for pagination. Use the cursor from the previous response to get the next page. Absent on the final page.
       response: GetScoresV3Response
 
 types:
@@ -98,6 +101,9 @@ types:
   GetScoresV3Meta:
     properties:
       limit: integer
+      cursor:
+        type: optional<string>
+        docs: Base64-encoded cursor for the next page. Absent when there are no more results.
 
   GetScoresV3Response:
     properties:
