@@ -53,7 +53,25 @@ function parseMultiEncodedJson(value: unknown): unknown {
 }
 
 function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
-  // JSONPath can only query objects/arrays — return primitives as-is
+  // JSONPath can only query objects/arrays. If selectedColumn is a string,
+  // it may be stringified JSON (e.g. a JSON array or object serialized by
+  // the SDK). Try to parse it so JSONPath can query the structure instead
+  // of treating the string as a raw value.
+  if (typeof selectedColumn === "string") {
+    try {
+      const parsed = JSON.parse(selectedColumn);
+      // Only use the parsed result if it's a queryable structure (object or
+      // array). Primitive JSON values (numbers, booleans, bare strings)
+      // should fall through and be returned as-is.
+      if (typeof parsed === "object" && parsed !== null) {
+        selectedColumn = parsed;
+      }
+    } catch {
+      // Not valid JSON — return the raw string as-is
+      return selectedColumn;
+    }
+  }
+
   if (typeof selectedColumn !== "object" || selectedColumn === null) {
     return selectedColumn;
   }
@@ -70,6 +88,21 @@ function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
 
   // For single-match queries (e.g. $.name), return the unwrapped value.
   // For multi-match queries (e.g. $[1:], $[*].name), return the full array.
+  // Also unwrap single-element arrays containing primitives (strings,
+  // numbers, booleans) — JSONPath always wraps results in an array, so a
+  // query like $.field that resolves to a string returns ["string"].
+  if (result.length === 1) {
+    const first = result[0];
+    if (
+      typeof first === "string" ||
+      typeof first === "number" ||
+      typeof first === "boolean" ||
+      first === null
+    ) {
+      return first;
+    }
+  }
+
   return result.length === 1 ? result[0] : result;
 }
 
