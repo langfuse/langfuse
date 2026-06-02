@@ -15,6 +15,15 @@ import {
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
 const CONVERSATION_LIST_LIMIT = 50;
+const WEEKDAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 
 const ConversationListCursorSchema = z.object({
   updatedAt: z.date(),
@@ -87,6 +96,8 @@ export const inAppAgentRouter = createTRPCRouter({
         data: {
           projectId: input.projectId,
           createdByUserId: ctx.session.user.id,
+          // TODO: we want to auto-generate titles based on content later
+          title: getDefaultConversationTitle(new Date()),
         },
       });
 
@@ -168,4 +179,12 @@ async function assertInAppAgentAvailable({
       message: "Assistant is not enabled for this organization",
     });
   }
+}
+
+function getDefaultConversationTitle(date: Date) {
+  const weekday = WEEKDAY_NAMES[date.getDay()] ?? "Unknown";
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `Chat on ${weekday} at ${hours}:${minutes}`;
 }
