@@ -206,7 +206,7 @@ export type Monitor = z.infer<typeof MonitorSchema>;
 
 /**
  * MonitorAlertSchema is emitted when a monitor alerts.
- * It carries enough information to query events that occured
+ * It carries enough information to query events that occurred
  * during the evaluation window of the monitor.
  */
 export const MonitorAlertSchema = z.object({

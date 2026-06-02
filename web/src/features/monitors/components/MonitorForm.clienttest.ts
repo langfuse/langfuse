@@ -91,8 +91,9 @@ describe("monitorToDefaults", () => {
       createdBy: null,
       updatedBy: null,
       nextRunAt: new Date(),
-      lastPublishedRunAt: null,
-      lastCompletedRunAt: null,
+      lastPublishedAt: null,
+      lastClaimedAt: null,
+      lastCompletedAt: null,
     };
     const defaults = monitorToDefaults(monitor);
     expect(defaults.triggerIds).toEqual(["t-a", "t-b"]);
