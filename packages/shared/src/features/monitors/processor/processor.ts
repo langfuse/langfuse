@@ -364,6 +364,7 @@ function buildCompleteQuery(args: {
     WHERE m.id = data.id
       AND m.project_id = ${args.projectId}
       AND m.last_claimed_at = data.last_claimed_at -- no-op if another worker re-claimed since
+      AND m.status = 'ACTIVE' -- no-op if the user paused since claim
   `;
 }
 

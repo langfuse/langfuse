@@ -75,6 +75,7 @@ type ProcessCase = {
   ch?: Record<string, unknown>[];
   injectError?: { stage: InjectErrorStage; message: string };
   preempt?: { newClaimedAt: Date };
+  preemptPause?: { at: Date };
   expect: {
     throws?: string;
     publishCallCount: number;
@@ -91,6 +92,7 @@ const runAt = new Date("2026-05-27T12:00:00.000Z");
 const justAfterRunAt = new Date("2026-05-27T12:00:01.000Z");
 const tenMinutesAgo = new Date("2026-05-27T11:50:00.000Z");
 const laterPublish = new Date("2026-05-27T12:01:00.000Z");
+const pausedAt = new Date("2026-05-27T12:00:00.500Z");
 
 const matchAnyAlertTrigger: TriggerSeed = {
   filter: [
@@ -214,6 +216,36 @@ function wrapDbPreemptBeforeComplete(
             await target.monitor.updateMany({
               where: { projectId },
               data: { lastClaimedAt: newClaimedAt },
+            });
+          }
+          return (target.$executeRaw as (...a: unknown[]) => unknown)(...args);
+        };
+      }
+      return Reflect.get(target, prop, target);
+    },
+  }) as PrismaClient;
+}
+
+/** wrapDbPauseBeforeComplete simulates a user pausing between this worker's claim and complete: the first `$executeRaw` (the complete) first flips the project's monitors to PAUSED without touching `lastClaimedAt`, so the complete-side CAS owner key still matches. */
+function wrapDbPauseBeforeComplete(
+  db: PrismaClient,
+  projectId: string,
+  at: Date,
+): PrismaClient {
+  let paused = false;
+  return new Proxy(db, {
+    get(target, prop, _receiver) {
+      if (prop === "$executeRaw") {
+        return async (...args: unknown[]) => {
+          if (!paused) {
+            paused = true;
+            await target.monitor.updateMany({
+              where: { projectId },
+              data: {
+                status: "PAUSED",
+                severity: "PAUSED",
+                severityChangedAt: at,
+              },
             });
           }
           return (target.$executeRaw as (...a: unknown[]) => unknown)(...args);
@@ -865,6 +897,34 @@ const cases: ProcessCase[] = [
       ],
     },
   },
+  {
+    name: "user pauses after claim before complete: webhook fired (RFC §9), but PAUSED row not overwritten",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        alertedAt: null,
+        lastPublishedAt: runAt,
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [matchAnyAlertTrigger],
+    preemptPause: { at: pausedAt },
+    expect: {
+      publishCallCount: 1, // webhook fires pre-complete; separable per RFC §9
+      rows: [
+        {
+          id: monitorAId,
+          severity: "PAUSED",
+          severityChangedAt: pausedAt,
+          alertedAt: null,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: null, // complete CAS no-ops on the PAUSED row
+        },
+      ],
+    },
+  },
 ];
 
 describe("MonitorProcessor.process (integration)", () => {
@@ -924,6 +984,8 @@ describe("MonitorProcessor.process (integration)", () => {
         projectId,
         c.preempt.newClaimedAt,
       );
+    } else if (c.preemptPause) {
+      db = wrapDbPauseBeforeComplete(prisma, projectId, c.preemptPause.at);
     }
 
     const processor = new MonitorProcessor(
