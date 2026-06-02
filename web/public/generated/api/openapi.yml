@@ -5476,10 +5476,7 @@ paths:
             nullable: true
         - name: fromTimestamp
           in: query
-          description: >-
-            Inclusive lower bound on the score timestamp. Optional in Phase 4;
-            will be required in Phase 5 unless an entity-bounded filter is
-            present.
+          description: Inclusive lower bound on the score timestamp.
           required: false
           schema:
             type: string
