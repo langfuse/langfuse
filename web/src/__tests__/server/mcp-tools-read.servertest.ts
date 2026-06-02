@@ -1036,6 +1036,143 @@ describe("MCP Read Tools", () => {
       expect(Number(rows[0].count_count)).toBe(3);
     });
 
+    it("should accept raw metric names in orderBy", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const highCountName = `mcp-metrics-order-high-${nanoid()}`;
+      const lowCountName = `mcp-metrics-order-low-${nanoid()}`;
+
+      await createEventsCh([
+        ...Array.from({ length: 3 }, (_, index) =>
+          createObservationEvent({
+            projectId,
+            traceId,
+            name: highCountName,
+            startTime: new Date(`2026-01-01T00:00:0${index}.000Z`),
+          }),
+        ),
+        createObservationEvent({
+          projectId,
+          traceId,
+          name: lowCountName,
+          startTime: new Date("2026-01-01T00:01:00.000Z"),
+        }),
+      ]);
+
+      const rows = getMetricRows(
+        await handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "name" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "traceId",
+                operator: "=",
+                value: traceId,
+              },
+            ],
+            orderBy: [{ field: "count", direction: "desc" }],
+            ...metricsWindow,
+          },
+          context,
+        ),
+      );
+
+      expect(rows).toHaveLength(2);
+      expect(rows[0].name).toBe(highCountName);
+      expect(Number(rows[0].count_count)).toBe(3);
+      expect(rows[1].name).toBe(lowCountName);
+      expect(Number(rows[1].count_count)).toBe(1);
+    });
+
+    it("should prefer dimension fields over matching raw metric names in orderBy", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const scoreName = `mcp-metrics-score-value-order-${nanoid()}`;
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: `mcp-score-observation-${nanoid()}`,
+          start_time: Date.parse("2026-01-01T00:00:00.000Z") * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        ...Array.from({ length: 3 }, () =>
+          createTraceScore({
+            id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: observationId,
+            name: scoreName,
+            value: 1,
+            data_type: "NUMERIC",
+            timestamp: Date.parse("2026-01-01T00:00:00.000Z"),
+          }),
+        ),
+        createTraceScore({
+          id: randomUUID(),
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          name: scoreName,
+          value: 2,
+          data_type: "NUMERIC",
+          timestamp: Date.parse("2026-01-01T00:00:00.000Z"),
+        }),
+      ]);
+
+      const rows = getMetricRows(
+        await handleQueryMetrics(
+          {
+            view: "scores-numeric",
+            dimensions: [{ field: "value" }],
+            metrics: [{ measure: "value", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "name",
+                operator: "=",
+                value: scoreName,
+              },
+            ],
+            orderBy: [{ field: "value", direction: "desc" }],
+            ...metricsWindow,
+          },
+          context,
+        ),
+      );
+
+      expect(rows).toHaveLength(2);
+      expect(Number(rows[0].value)).toBe(2);
+      expect(Number(rows[0].count_value)).toBe(1);
+      expect(Number(rows[1].value)).toBe(1);
+      expect(Number(rows[1].count_value)).toBe(3);
+    });
+
+    it("should reject internal sql field names in orderBy", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "name" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            orderBy: [{ field: "observations.name", direction: "asc" }],
+            ...metricsWindow,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/Use returned metric aliases.*getMetricsSchema/i);
+    });
+
     it("should apply default row_limit of 100 when omitted", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();

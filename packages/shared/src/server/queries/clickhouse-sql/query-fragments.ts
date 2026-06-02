@@ -32,6 +32,7 @@ interface EventsTracesAggregationParams {
   projectId: string;
   traceIds?: string[];
   startTimeFrom?: string | null;
+  orderByTimestamp?: boolean;
   /**
    * Whether to use truncated I/O (events_core) or full I/O (events_full).
    * Default is false (full) for better compatibility.
@@ -60,7 +61,9 @@ export const eventsTracesAggregation = (
     .withStartTimeFrom(params.startTimeFrom)
     .withTruncated(params.truncated ?? false);
 
-  builder.orderByColumns([{ column: "timestamp", direction: "DESC" }]);
+  if (params.orderByTimestamp ?? true) {
+    builder.orderByColumns([{ column: "timestamp", direction: "DESC" }]);
+  }
 
   return builder;
 };

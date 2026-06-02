@@ -5,8 +5,9 @@ import CodeMirror, {
 } from "@uiw/react-codemirror";
 import { EditorState, Prec } from "@codemirror/state";
 import { linter, type Diagnostic } from "@codemirror/lint";
-import { StreamLanguage, type StringStream } from "@codemirror/language";
+import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
+import { foldEffect, foldable } from "@codemirror/language";
 import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 import { useTheme } from "next-themes";
 import {
@@ -28,6 +29,7 @@ import {
 } from "@/src/features/evals/utils/code-eval-template-hover-docs";
 import {
   formatPythonCodeEvalSourceWithRuff,
+  PYTHON_CODE_EVAL_CONTRACT,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
   type CodeEvalSourceCodeLanguage,
   type CodeEvalValidationResult,
@@ -55,79 +57,6 @@ type ContractRanges = {
 const PYTHON_EVALUATE_SIGNATURE_PATTERN =
   /(?:^|\n)def evaluate\s*\(\s*ctx\s*:\s*EvaluationContext\s*\)\s*->\s*EvaluationResult\s*:/;
 const FORMAT_SHORTCUT_ARIA = "Alt+Shift+F";
-const TYPESCRIPT_KEYWORDS = new Set([
-  "async",
-  "await",
-  "const",
-  "let",
-  "return",
-  "export",
-  "function",
-  "type",
-  "interface",
-  "if",
-  "else",
-  "true",
-  "false",
-  "undefined",
-  "null",
-]);
-const TYPESCRIPT_BUILTIN_TYPES = new Set([
-  "any",
-  "boolean",
-  "number",
-  "Promise",
-  "Record",
-  "string",
-  "unknown",
-]);
-
-const typescriptCodeEvalLanguage = StreamLanguage.define({
-  name: "typescript-code-eval",
-  token: (stream: StringStream) => {
-    if (stream.match("//")) {
-      stream.skipToEnd();
-      return "comment";
-    }
-
-    if (stream.match("/*")) {
-      while (!stream.eol()) {
-        if (stream.match("*/")) break;
-        stream.next();
-      }
-      return "comment";
-    }
-
-    if (stream.match(/["'`]/, false)) {
-      const quote = stream.next();
-      let escaped = false;
-      while (!stream.eol()) {
-        const next = stream.next();
-        if (next === quote && !escaped) break;
-        escaped = next === "\\" && !escaped;
-      }
-      return "string";
-    }
-
-    const identifier = stream.match(/[A-Za-z_][A-Za-z0-9_]*/, false);
-    if (identifier && identifier !== true) {
-      const word = identifier[0];
-      stream.match(word);
-      if (TYPESCRIPT_KEYWORDS.has(word)) return "keyword";
-      if (TYPESCRIPT_BUILTIN_TYPES.has(word) || /^[A-Z]/.test(word)) {
-        return "typeName";
-      }
-      return null;
-    }
-
-    if (stream.match(/\b\d+(?:\.\d+)?\b/)) {
-      return "number";
-    }
-
-    stream.next();
-    return null;
-  },
-});
 
 function createCodeEvalHoverExtension(hoverDocs: CodeEvalHoverDocs) {
   return hoverTooltip((view, pos) => {
@@ -283,6 +212,45 @@ function scrollCodeMirrorToBottom(view: EditorView) {
   });
 }
 
+function foldContractTypes(
+  view: EditorView,
+  sourceCodeLanguage: CodeEvalSourceCodeLanguage,
+) {
+  if (typeof window === "undefined") return;
+
+  const contractLength =
+    sourceCodeLanguage === "PYTHON"
+      ? PYTHON_CODE_EVAL_CONTRACT.length
+      : TYPESCRIPT_CODE_EVAL_CONTRACT.length;
+
+  const doFold = () => {
+    if (!view.dom.isConnected) return;
+
+    const effects: ReturnType<typeof foldEffect.of>[] = [];
+    const state = view.state;
+
+    // Find all foldable ranges within the contract section
+    let pos = 0;
+    while (pos < contractLength && pos < state.doc.length) {
+      const line = state.doc.lineAt(pos);
+      const range = foldable(state, line.from, line.to);
+      if (range && range.from < contractLength) {
+        effects.push(foldEffect.of({ from: range.from, to: range.to }));
+      }
+      pos = line.to + 1;
+    }
+
+    if (effects.length > 0) {
+      view.dispatch({ effects });
+    }
+  };
+
+  // Delay to ensure the language parser has time to analyze the document.
+  // Python parsing may need more time than TypeScript.
+  const delay = sourceCodeLanguage === "PYTHON" ? 100 : 50;
+  setTimeout(doFold, delay);
+}
+
 export function CodeEvalTemplateFormBody({
   sourceCode,
   sourceCodeLanguage,
@@ -301,17 +269,31 @@ export function CodeEvalTemplateFormBody({
       : "TypeScript";
   const shouldShowFormatButton = editable;
 
-  const handleCreateEditor = useCallback((view: EditorView) => {
-    codeMirrorViewRef.current = view;
-    scrollCodeMirrorToBottom(view);
-  }, []);
+  const handleCreateEditor = useCallback(
+    (view: EditorView) => {
+      codeMirrorViewRef.current = view;
+      foldContractTypes(view, sourceCodeLanguage);
+      scrollCodeMirrorToBottom(view);
+    },
+    [sourceCodeLanguage],
+  );
 
   useEffect(() => {
     const view = codeMirrorViewRef.current;
     if (!view) return;
 
+    // Don't re-fold on every sourceCode change, only on language change
     scrollCodeMirrorToBottom(view);
-  }, [sourceCode, sourceCodeLanguage]);
+  }, [sourceCode]);
+
+  useEffect(() => {
+    const view = codeMirrorViewRef.current;
+    if (!view) return;
+
+    // Re-fold when language changes
+    foldContractTypes(view, sourceCodeLanguage);
+    scrollCodeMirrorToBottom(view);
+  }, [sourceCodeLanguage]);
 
   const diagnostics = useMemo(
     () => validationResult?.diagnostics ?? [],
@@ -384,7 +366,7 @@ export function CodeEvalTemplateFormBody({
     () =>
       sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
         ? python()
-        : typescriptCodeEvalLanguage,
+        : javascript({ typescript: true }),
     [sourceCodeLanguage],
   );
   const codeEvalHoverExtension = useMemo(

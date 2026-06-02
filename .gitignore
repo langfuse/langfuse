@@ -78,7 +78,6 @@ node_modules
 .turbo
 
 web/test-results/*
-.playwright-mcp/*
 .codex-artifacts/
 
 # Local DeepSec workspace and generated scan state

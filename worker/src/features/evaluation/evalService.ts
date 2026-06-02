@@ -84,6 +84,7 @@ import {
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
 import { type ExtractedVariable } from "@langfuse/shared/src/server";
+import { buildEvalExecutionSpanAttributes } from "./evalSpanAttributes";
 
 /**
  * Determines which eval jobs to create for a given event (traces or dataset run items).
@@ -811,7 +812,7 @@ export async function runLLMAsJudgeEvaluation({
         parsedOutputDefinition.data,
       );
 
-      span.setAttribute("eval.job_configuration.id", config.id);
+      span.setAttributes(buildEvalExecutionSpanAttributes({ config }));
       span.setAttribute("eval.template.version", template.version);
       span.setAttribute("eval.score.name", config.scoreName);
       span.setAttribute(
