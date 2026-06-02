@@ -352,7 +352,7 @@ describe("in-app agent persistence", () => {
     ).resolves.toBe(3);
   });
 
-  it("stores and reduces tool calls, tool results, reasoning, and activities", async () => {
+  it("stores and reduces tool calls, tool results, and activities", async () => {
     const { projectId, userId, caller } = await createCaller();
     const conversation = await caller.create({ projectId });
     const run = await createConversationRun({
@@ -532,12 +532,6 @@ describe("in-app agent persistence", () => {
           toolCallId: "tool-call-1",
         },
         {
-          id: "reasoning-1",
-          role: "reasoning",
-          content: "Checking filters",
-          encryptedValue: "encrypted-reasoning",
-        },
-        {
           id: "activity-1",
           role: "activity",
           activityType: "progress",
@@ -550,7 +544,134 @@ describe("in-app agent persistence", () => {
       prisma.inAppAgentEvent.count({
         where: { projectId, conversationId: conversation.id, runId: run.id },
       }),
-    ).resolves.toBe(14);
+    ).resolves.toBe(10);
+  });
+
+  it("redacts persisted events before storing raw adapter payloads", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await caller.create({ projectId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const append = (event: AgUiEvent) =>
+      appendEvent({
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        event,
+      });
+
+    await append({
+      type: EventType.RUN_STARTED,
+      threadId: conversation.id,
+      runId: run.id,
+      parentRunId: "parent-run",
+      input: {
+        threadId: conversation.id,
+        runId: run.id,
+        messages: [
+          {
+            id: "safe-user",
+            role: "user",
+            content: "visible user text",
+          },
+          {
+            id: "hidden-system",
+            role: "system",
+            content: "system-message-secret",
+          },
+        ],
+        tools: [{ name: "tool", description: "tool-secret" }],
+        context: [{ description: "ctx", value: "context-secret" }],
+        state: { providerSessionId: "state-secret" },
+        forwardedProps: { resume: "resume-session-secret" },
+      },
+      rawEvent: { providerSessionId: "raw-run-secret" },
+    });
+    await append({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: "assistant-safe",
+      role: "assistant",
+      rawEvent: { token: "raw-text-start-secret" },
+    });
+    await append({
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: "assistant-safe",
+      delta: "visible assistant text",
+      rawEvent: { token: "raw-text-content-secret" },
+      providerSessionId: "content-secret",
+    });
+
+    for (const event of [
+      {
+        type: EventType.CUSTOM,
+        name: "system:status",
+        value: { session_id: "provider-status-secret" },
+      },
+      {
+        type: EventType.STATE_DELTA,
+        delta: [
+          {
+            op: "replace",
+            path: "",
+            value: { providerSessionId: "state-delta-secret" },
+          },
+        ],
+      },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: "reasoning-1",
+        delta: "reasoning-secret",
+      },
+      {
+        type: EventType.RAW,
+        event: { Authorization: "Basic raw-secret" },
+      },
+    ]) {
+      await append(event);
+    }
+
+    const events = await prisma.inAppAgentEvent.findMany({
+      where: { projectId, conversationId: conversation.id, runId: run.id },
+      orderBy: { sequenceNumber: "asc" },
+      select: { type: true, event: true },
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      EventType.RUN_STARTED,
+      EventType.TEXT_MESSAGE_START,
+      EventType.TEXT_MESSAGE_CONTENT,
+    ]);
+    expect(events[0]?.event).toEqual({
+      type: EventType.RUN_STARTED,
+      threadId: conversation.id,
+      runId: run.id,
+      parentRunId: "parent-run",
+      input: {
+        threadId: conversation.id,
+        runId: run.id,
+        messages: [
+          {
+            id: "safe-user",
+            role: "user",
+            content: "visible user text",
+          },
+        ],
+      },
+    });
+    expect(events[1]?.event).toEqual({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: "assistant-safe",
+      role: "assistant",
+    });
+    expect(events[2]?.event).toEqual({
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: "assistant-safe",
+      delta: "visible assistant text",
+    });
+    expect(JSON.stringify(events)).not.toContain("secret");
   });
 
   it("ignores adapter message snapshots when reducing history", async () => {

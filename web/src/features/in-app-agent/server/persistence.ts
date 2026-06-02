@@ -198,6 +198,12 @@ export async function appendConversationEvent(params: {
   runId: string;
   event: AgUiEvent;
 }) {
+  const event = sanitizePersistedEvent(params.event);
+
+  if (!event) {
+    return;
+  }
+
   await params.prisma.$transaction(async (tx) => {
     await lockConversation(tx, params.projectId, params.conversationId);
 
@@ -216,8 +222,8 @@ export async function appendConversationEvent(params: {
         conversationId: params.conversationId,
         runId: params.runId,
         sequenceNumber: (latestEvent?.sequenceNumber ?? -1) + 1,
-        type: String(params.event.type),
-        event: toJsonValue(params.event),
+        type: String(event.type),
+        event: toJsonValue(event),
       },
     });
 
@@ -265,7 +271,6 @@ export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
       args: string;
     }
   >();
-  const reasoningEncryptedValues = new Map<string, string>();
 
   const upsertMessage = (message: AgUiMessage) => {
     const parsed = AgUiMessageSchema.safeParse(message);
@@ -296,21 +301,16 @@ export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
         }
         break;
       }
-      case EventType.TEXT_MESSAGE_START:
-      case EventType.REASONING_MESSAGE_START: {
+      case EventType.TEXT_MESSAGE_START: {
         const messageId = getString(event, "messageId");
-        const role =
-          event.type === EventType.REASONING_MESSAGE_START
-            ? "reasoning"
-            : getTextMessageRole(event);
+        const role = getTextMessageRole(event);
 
         if (messageId && role) {
           textDrafts.set(messageId, { id: messageId, role, content: "" });
         }
         break;
       }
-      case EventType.TEXT_MESSAGE_CONTENT:
-      case EventType.REASONING_MESSAGE_CONTENT: {
+      case EventType.TEXT_MESSAGE_CONTENT: {
         const messageId = getString(event, "messageId");
         const delta = getString(event, "delta") ?? "";
         const draft = messageId ? textDrafts.get(messageId) : undefined;
@@ -320,28 +320,7 @@ export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
         }
         break;
       }
-      case EventType.REASONING_ENCRYPTED_VALUE: {
-        if (getString(event, "subtype") !== "message") {
-          break;
-        }
-
-        const entityId = getString(event, "entityId");
-        const encryptedValue = getString(event, "encryptedValue");
-
-        if (entityId && encryptedValue) {
-          reasoningEncryptedValues.set(entityId, encryptedValue);
-          const existingIndex = messageIndexes.get(entityId);
-          const existing =
-            existingIndex === undefined ? undefined : messages[existingIndex];
-
-          if (existing?.role === "reasoning") {
-            messages[existingIndex!] = { ...existing, encryptedValue };
-          }
-        }
-        break;
-      }
-      case EventType.TEXT_MESSAGE_END:
-      case EventType.REASONING_MESSAGE_END: {
+      case EventType.TEXT_MESSAGE_END: {
         const messageId = getString(event, "messageId");
         const draft = messageId ? textDrafts.get(messageId) : undefined;
 
@@ -349,22 +328,11 @@ export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
           break;
         }
 
-        if (draft.role === "reasoning") {
-          upsertMessage({
-            id: draft.id,
-            role: "reasoning",
-            content: draft.content,
-            ...(reasoningEncryptedValues.get(draft.id)
-              ? { encryptedValue: reasoningEncryptedValues.get(draft.id) }
-              : {}),
-          });
-        } else {
-          upsertMessage({
-            id: draft.id,
-            role: draft.role,
-            content: draft.content,
-          });
-        }
+        upsertMessage({
+          id: draft.id,
+          role: draft.role,
+          content: draft.content,
+        });
 
         textDrafts.delete(draft.id);
         break;
@@ -456,10 +424,130 @@ export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
 }
 
 type InAppAgentTx = Prisma.TransactionClient;
-type TextMessageRole = Extract<
-  AgUiMessage["role"],
-  "assistant" | "developer" | "system" | "user" | "reasoning"
->;
+type TextMessageRole = Extract<AgUiMessage["role"], "assistant">;
+type PersistedEventFields = {
+  required?: readonly string[];
+  optional?: readonly string[];
+};
+
+const PERSISTED_EVENT_FIELDS = {
+  [EventType.TEXT_MESSAGE_START]: { required: ["messageId", "role"] },
+  [EventType.TEXT_MESSAGE_CONTENT]: { required: ["messageId", "delta"] },
+  [EventType.TEXT_MESSAGE_END]: { required: ["messageId"] },
+  [EventType.TOOL_CALL_START]: {
+    required: ["toolCallId", "toolCallName", "parentMessageId"],
+  },
+  [EventType.TOOL_CALL_ARGS]: { required: ["toolCallId", "delta"] },
+  [EventType.TOOL_CALL_END]: { required: ["toolCallId"] },
+  [EventType.TOOL_CALL_RESULT]: {
+    required: ["messageId", "toolCallId", "content"],
+    optional: ["error"],
+  },
+  [EventType.RUN_FINISHED]: { optional: ["threadId", "runId"] },
+  [EventType.RUN_ERROR]: {
+    optional: ["threadId", "runId", "message", "code"],
+  },
+  [EventType.STEP_STARTED]: { required: ["stepName"] },
+  [EventType.STEP_FINISHED]: { required: ["stepName"] },
+} satisfies Partial<Record<EventType, PersistedEventFields>>;
+
+function sanitizePersistedEvent(event: AgUiEvent): AgUiEvent | null {
+  if (event.type === EventType.RUN_STARTED) {
+    return sanitizeRunStartedEvent(event);
+  }
+
+  if (event.type === EventType.ACTIVITY_SNAPSHOT) {
+    return sanitizeActivitySnapshotEvent(event);
+  }
+
+  if (
+    event.type === EventType.TEXT_MESSAGE_START &&
+    getString(event, "role") !== "assistant"
+  ) {
+    return null;
+  }
+
+  const fields = PERSISTED_EVENT_FIELDS[event.type];
+
+  if (!fields) {
+    return null;
+  }
+
+  return sanitizeFieldEvent(event, fields);
+}
+
+function sanitizeRunStartedEvent(event: AgUiEvent): AgUiEvent | null {
+  const messages = getRunStartedMessages(event).filter(
+    (message): message is Extract<AgUiMessage, { role: "user" }> =>
+      message.role === "user",
+  );
+
+  if (!messages.length) {
+    return null;
+  }
+
+  const threadId = getString(event, "threadId");
+  const runId = getString(event, "runId");
+
+  return compactObject({
+    ...baseEvent(event),
+    threadId,
+    runId,
+    parentRunId: getString(event, "parentRunId"),
+    input: compactObject({
+      threadId,
+      runId,
+      messages,
+    }),
+  });
+}
+
+function sanitizeActivitySnapshotEvent(event: AgUiEvent): AgUiEvent | null {
+  const messageId = getString(event, "messageId");
+  const activityType = getString(event, "activityType");
+  const content = event.content;
+
+  if (!messageId || !activityType || !isRecord(content)) {
+    return null;
+  }
+
+  return { ...baseEvent(event), messageId, activityType, content };
+}
+
+function sanitizeFieldEvent(
+  event: AgUiEvent,
+  fields: PersistedEventFields,
+): AgUiEvent | null {
+  const sanitized = baseEvent(event);
+
+  for (const field of fields.required ?? []) {
+    const value = getString(event, field);
+
+    if (value === undefined) {
+      return null;
+    }
+
+    sanitized[field] = value;
+  }
+
+  for (const field of fields.optional ?? []) {
+    const value = getString(event, field);
+
+    if (value !== undefined) {
+      sanitized[field] = value;
+    }
+  }
+
+  return sanitized;
+}
+
+function baseEvent(event: AgUiEvent): AgUiEvent {
+  return compactObject({
+    type: event.type,
+    timestamp:
+      typeof event.timestamp === "number" ? event.timestamp : undefined,
+  });
+}
 
 async function lockConversation(
   tx: InAppAgentTx,
@@ -488,12 +576,7 @@ function getRunStartedMessages(event: AgUiEvent): AgUiMessage[] {
 function getTextMessageRole(event: AgUiEvent): TextMessageRole | undefined {
   const role = getString(event, "role");
 
-  if (
-    role === "assistant" ||
-    role === "developer" ||
-    role === "system" ||
-    role === "user"
-  ) {
+  if (role === "assistant") {
     return role;
   }
 
@@ -553,6 +636,12 @@ function getString(event: unknown, key: string): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function compactObject<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined),
+  ) as T;
 }
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {

@@ -233,8 +233,8 @@ model InAppAgentConversation {
   events InAppAgentEvent[]
   runs   InAppAgentRun[]
 
-  @@index([projectId, createdByUserId, deletedAt, updatedAt, id])
-  @@index([projectId, updatedAt])
+  @@index([projectId, createdByUserId, deletedAt, updatedAt, id], map: "in_app_agent_conversations_project_user_list_idx")
+  @@index([projectId, updatedAt], map: "in_app_agent_conversations_project_updated_idx")
   @@map("in_app_agent_conversations")
 }
 
@@ -251,9 +251,9 @@ model InAppAgentEvent {
   event          Json                   @db.JsonB
   createdAt      DateTime               @default(now()) @map("created_at")
 
-  @@unique([projectId, conversationId, sequenceNumber])
-  @@index([projectId, conversationId, createdAt])
-  @@index([runId, sequenceNumber])
+  @@unique([projectId, conversationId, sequenceNumber], map: "in_app_agent_events_project_conversation_seq_key")
+  @@index([projectId, conversationId, createdAt], map: "in_app_agent_events_project_conversation_created_idx")
+  @@index([runId, sequenceNumber], map: "in_app_agent_events_run_seq_idx")
   @@map("in_app_agent_events")
 }
 
@@ -277,8 +277,8 @@ model InAppAgentRun {
 
   events InAppAgentEvent[]
 
-  @@index([projectId, conversationId, createdAt])
-  @@index([projectId, createdByUserId, createdAt])
+  @@index([projectId, conversationId, createdAt], map: "in_app_agent_runs_project_conversation_created_idx")
+  @@index([projectId, createdByUserId, createdAt], map: "in_app_agent_runs_project_user_created_idx")
   @@map("in_app_agent_runs")
 }
 

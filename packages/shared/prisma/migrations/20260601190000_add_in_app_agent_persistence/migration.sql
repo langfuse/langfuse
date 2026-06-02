@@ -46,14 +46,14 @@ CREATE TABLE "in_app_agent_events" (
   CONSTRAINT "in_app_agent_events_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "in_app_agent_events_project_id_conversation_id_sequence_number_key" ON "in_app_agent_events"("project_id", "conversation_id", "sequence_number");
+CREATE UNIQUE INDEX "in_app_agent_events_project_conversation_seq_key" ON "in_app_agent_events"("project_id", "conversation_id", "sequence_number");
 
-CREATE INDEX "in_app_agent_conversations_project_id_created_by_user_id_deleted_at_updated_at_id_idx" ON "in_app_agent_conversations"("project_id", "created_by_user_id", "deleted_at", "updated_at", "id");
-CREATE INDEX "in_app_agent_conversations_project_id_updated_at_idx" ON "in_app_agent_conversations"("project_id", "updated_at");
-CREATE INDEX "in_app_agent_events_project_id_conversation_id_created_at_idx" ON "in_app_agent_events"("project_id", "conversation_id", "created_at");
-CREATE INDEX "in_app_agent_events_run_id_sequence_number_idx" ON "in_app_agent_events"("run_id", "sequence_number");
-CREATE INDEX "in_app_agent_runs_project_id_conversation_id_created_at_idx" ON "in_app_agent_runs"("project_id", "conversation_id", "created_at");
-CREATE INDEX "in_app_agent_runs_project_id_created_by_user_id_created_at_idx" ON "in_app_agent_runs"("project_id", "created_by_user_id", "created_at");
+CREATE INDEX "in_app_agent_conversations_project_user_list_idx" ON "in_app_agent_conversations"("project_id", "created_by_user_id", "deleted_at", "updated_at", "id");
+CREATE INDEX "in_app_agent_conversations_project_updated_idx" ON "in_app_agent_conversations"("project_id", "updated_at");
+CREATE INDEX "in_app_agent_events_project_conversation_created_idx" ON "in_app_agent_events"("project_id", "conversation_id", "created_at");
+CREATE INDEX "in_app_agent_events_run_seq_idx" ON "in_app_agent_events"("run_id", "sequence_number");
+CREATE INDEX "in_app_agent_runs_project_conversation_created_idx" ON "in_app_agent_runs"("project_id", "conversation_id", "created_at");
+CREATE INDEX "in_app_agent_runs_project_user_created_idx" ON "in_app_agent_runs"("project_id", "created_by_user_id", "created_at");
 
 ALTER TABLE "in_app_agent_conversations" ADD CONSTRAINT "in_app_agent_conversations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "in_app_agent_conversations" ADD CONSTRAINT "in_app_agent_conversations_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
