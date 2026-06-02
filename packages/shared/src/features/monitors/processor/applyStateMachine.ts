@@ -85,6 +85,16 @@ function shouldEmit(args: {
     );
   }
 
+  // NO_DATA persistence: SILENT never re-emits; NOTIFY follows the renotify cadence.
+  if (args.prev === "NO_DATA" && args.next === "NO_DATA") {
+    if (args.noData.mode !== "NOTIFY") return false;
+    if (args.prevAlertedAt === null) return false;
+    return (
+      args.renotify.mode === "EVERY" &&
+      passedDelay(args.prevAlertedAt, args.renotify.intervalMinutes, args.now)
+    );
+  }
+
   // Self-loops. OK -> OK is the only one that ignores renotify entirely.
   if (args.prev === args.next) {
     if (args.next === "OK") return false;

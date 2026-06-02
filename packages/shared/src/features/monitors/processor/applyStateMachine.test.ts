@@ -555,7 +555,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "NO_DATA -> NO_DATA with renotify EVERY past interval: emit",
+    name: "NO_DATA -> NO_DATA with noData SILENT and renotify EVERY past interval: silent",
     input: {
       prevSeverity: "NO_DATA",
       computedSeverity: "NO_DATA",
@@ -566,10 +566,64 @@ const cases: StateMachineCase[] = [
       renotify: renotifyEvery5,
     },
     expected: {
+      emit: false,
+      nextSeverity: "NO_DATA",
+      nextSeverityChangedAt: tMinus10m,
+      nextAlertedAt: tMinus10m,
+    },
+  },
+  {
+    name: "NO_DATA -> NO_DATA with noData NOTIFY and renotify EVERY past interval: emit",
+    input: {
+      prevSeverity: "NO_DATA",
+      computedSeverity: "NO_DATA",
+      prevSeverityChangedAt: tMinus10m,
+      prevAlertedAt: tMinus10m,
+      now: t0,
+      noData: noDataNotify5,
+      renotify: renotifyEvery5,
+    },
+    expected: {
       emit: true,
       nextSeverity: "NO_DATA",
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: t0,
+    },
+  },
+  {
+    name: "NO_DATA -> NO_DATA with noData NOTIFY and renotify EVERY within interval: silent",
+    input: {
+      prevSeverity: "NO_DATA",
+      computedSeverity: "NO_DATA",
+      prevSeverityChangedAt: tMinus10m,
+      prevAlertedAt: tMinus2m,
+      now: t0,
+      noData: noDataNotify5,
+      renotify: renotifyEvery5,
+    },
+    expected: {
+      emit: false,
+      nextSeverity: "NO_DATA",
+      nextSeverityChangedAt: tMinus10m,
+      nextAlertedAt: tMinus2m,
+    },
+  },
+  {
+    name: "NO_DATA -> NO_DATA with noData NOTIFY and renotify OFF: silent",
+    input: {
+      prevSeverity: "NO_DATA",
+      computedSeverity: "NO_DATA",
+      prevSeverityChangedAt: tMinus10m,
+      prevAlertedAt: tMinus10m,
+      now: t0,
+      noData: noDataNotify5,
+      renotify: renotifyOff,
+    },
+    expected: {
+      emit: false,
+      nextSeverity: "NO_DATA",
+      nextSeverityChangedAt: tMinus10m,
+      nextAlertedAt: tMinus10m,
     },
   },
   {
@@ -633,5 +687,43 @@ describe("applyStateMachine", () => {
     expect(result.completion.alertedAt?.toISOString() ?? null).toBe(
       expected.nextAlertedAt?.toISOString() ?? null,
     );
+  });
+
+  it("ALERT -> OK -> NO_DATA -> NO_DATA with noData SILENT stays silent on the self-loop", () => {
+    const tAlert = new Date("2026-05-27T11:40:00.000Z");
+    const tOk = new Date("2026-05-27T11:50:00.000Z");
+    const tNoData = new Date("2026-05-27T11:55:00.000Z");
+    const tLoop = new Date("2026-05-27T12:05:00.000Z");
+    const monitor: Monitor = {
+      ...baseMonitor,
+      noData: noDataSilent,
+      renotify: renotifyEvery5,
+      severity: "ALERT",
+      severityChangedAt: tAlert,
+      alertedAt: tAlert,
+    };
+
+    const recovery = applyStateMachine({
+      prev: monitor,
+      next: { severity: "OK" },
+      now: tOk,
+    });
+    expect(recovery.emit).toBe(true);
+    expect(recovery.completion.alertedAt).toEqual(tOk);
+
+    const enterNoData = applyStateMachine({
+      prev: { ...monitor, ...recovery.completion },
+      next: { severity: "NO_DATA" },
+      now: tNoData,
+    });
+    expect(enterNoData.emit).toBe(false);
+    expect(enterNoData.completion.alertedAt).toEqual(tOk);
+
+    const selfLoop = applyStateMachine({
+      prev: { ...monitor, ...enterNoData.completion },
+      next: { severity: "NO_DATA" },
+      now: tLoop,
+    });
+    expect(selfLoop.emit).toBe(false);
   });
 });
