@@ -2,9 +2,10 @@
 
 Shared repo skills for any coding agent working in Langfuse.
 
-Use these from `AGENTS.md`. Claude Code reaches the same shared instructions via
-the root `CLAUDE.md` compatibility symlink. Shared skills should stay focused on
-reusable implementation guidance rather than runtime automation.
+Use these through agent skill discovery. Claude Code reaches the same shared
+instructions via the root `CLAUDE.md` compatibility symlink. Shared skills
+should stay focused on reusable implementation guidance rather than runtime
+automation.
 
 For the shared agent config and generated shim model, start with
 [`../README.md`](../README.md).
@@ -20,7 +21,6 @@ Those discovery links are created and verified by `pnpm run agents:sync` and
 Shared skills should use progressive disclosure:
 
 - `SKILL.md` is the short entrypoint with trigger guidance and navigation.
-- `AGENTS.md` is optional and should stay concise when it exists.
 - `references/` holds focused prose references that agents should open only
   when the task needs them.
 - `scripts/` holds deterministic helpers for repetitive or fragile steps.
@@ -122,6 +122,16 @@ Use for:
 
 Open: [code-review/SKILL.md](code-review/SKILL.md)
 
+### git-workflow
+
+Use for:
+- Git safety rules for staging, commits, branches, and destructive commands
+- Conventional Commit and PR title requirements
+- GitHub issue search expectations
+- release and production-promotion workflow
+
+Open: [git-workflow/SKILL.md](git-workflow/SKILL.md)
+
 ### weekly-production-review
 
 Use for:
@@ -200,17 +210,15 @@ Open: [turborepo/SKILL.md](turborepo/SKILL.md)
 2. Start with [skill-creator/SKILL.md](skill-creator/SKILL.md); if it is not
    available, follow these rules and the shape of nearby skills.
 3. Create a concise `.agents/skills/<skill-name>/SKILL.md`.
-4. Add `.agents/skills/<skill-name>/AGENTS.md` only when the skill benefits
-   from a short router or checklist on top of `SKILL.md`.
-5. Prefer `references/` for detailed prose and `scripts/` for deterministic
+4. Prefer `references/` for detailed prose and `scripts/` for deterministic
    execution helpers.
-6. Keep the skill tightly scoped to one domain or workflow.
-7. Link the skill from `AGENTS.md` if it is relevant across the repo.
-8. Run `pnpm run agents:sync` and `pnpm run agents:check` so Claude's projected
+5. Keep the skill tightly scoped to one domain or workflow.
+6. Add the skill to this README if it is relevant across the repo.
+7. Run `pnpm run agents:sync` and `pnpm run agents:check` so Claude's projected
    `.claude/skills/` view stays in sync.
-9. Update `AGENTS.md` or package-local `AGENTS.md` if the new skill changes the
-   default reusable workflow for future agents.
-10. Run the relevant verification for the package or workflow the skill affects.
+8. Update package-local `AGENTS.md` files or other focused docs only when the
+   new skill changes their scoped workflow.
+9. Run the relevant verification for the package or workflow the skill affects.
 
 ## Skill Design Rules
 

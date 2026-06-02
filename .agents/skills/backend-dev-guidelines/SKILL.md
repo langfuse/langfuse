@@ -20,8 +20,8 @@ Use this skill for backend and API work across `web/`, `worker/`, and
 
 ## How to Read This Skill
 
-- Start with [AGENTS.md](AGENTS.md) when the task spans multiple backend areas
-  or you need the end-to-end checklists.
+- Use this `SKILL.md` when the task spans multiple backend areas or you need the
+  end-to-end reference map.
 - Read only the specific reference file that matches the work when the scope is
   narrower.
 
@@ -37,7 +37,7 @@ Use this skill for backend and API work across `web/`, `worker/`, and
 | Configuration | You are adding env vars, startup config, or runtime toggles | [references/configuration.md](references/configuration.md) |
 | Testing | You are adding or updating backend tests | [references/testing-guide.md](references/testing-guide.md) |
 
-## Full Compiled Guide
+## Full Guide
 
-Read [AGENTS.md](AGENTS.md) for the complete backend guide with checklists,
+This `SKILL.md` is the backend entrypoint. Open the focused references above for
 directory conventions, imports, architecture, and cross-cutting practices.

@@ -517,6 +517,6 @@ Common targeted forms:
 ---
 
 **Related Files:**
-- [../AGENTS.md](../AGENTS.md) - Main backend guidelines
+- [../SKILL.md](../SKILL.md) - Main backend guidelines
 - [architecture-overview.md](architecture-overview.md) - Architecture patterns
 - [services-and-repositories.md](services-and-repositories.md) - Service and repository examples

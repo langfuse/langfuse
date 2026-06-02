@@ -36,8 +36,8 @@ Use this skill when changing the shared agent setup for the repository.
 5. Treat developer feedback as a learning loop: when a task reveals a durable
    repo convention, recurring pitfall, reusable workflow, or verification
    pattern, update the smallest relevant `AGENTS.md` or shared skill.
-6. When adding or changing a shared skill, update `skills/README.md` and link
-   it from root `AGENTS.md` if it changes the default reusable workflow.
+6. When adding or changing a shared skill, update `skills/README.md`; do not add
+   skill-by-skill links to root `AGENTS.md`.
 7. When shared setup behavior changes materially, update `README.md` and
    contributor-facing docs in the same PR.
 
@@ -69,3 +69,5 @@ Run additional verification when relevant:
 - Only keep provider-specific files in source control when the provider requires
   a fixed discovery path or feature that cannot be expressed through the shared
   setup model.
+- Keep remaining `.cursor/rules/*.mdc` files as thin wrappers around shared
+  docs or skills rather than owning durable repo guidance directly.

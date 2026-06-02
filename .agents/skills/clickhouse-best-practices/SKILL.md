@@ -239,8 +239,7 @@ Each rule file in `rules/` contains:
 
 ---
 
-## Compatibility Entrypoint
+## Entrypoint
 
-`AGENTS.md` is a short compatibility index for agents that open that file
-directly. The authoritative workflow lives in this `SKILL.md`, and detailed rule
-bodies live in `rules/`.
+The authoritative workflow lives in this `SKILL.md`, and detailed rule bodies
+live in `rules/`.

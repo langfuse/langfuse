@@ -19,9 +19,8 @@ updates in `packages/shared/`.
 
 ## How to Read This Skill
 
-- Start with [AGENTS.md](AGENTS.md) for the high-level workflow and helper
-  scripts.
-- Then open only the specific reference file that matches the task.
+- Use this `SKILL.md` as the high-level workflow and helper index.
+- Open only the specific reference file that matches the task.
 
 ## Reference Map
 

@@ -12,7 +12,7 @@ Use this skill for interactive dependency bumps in Langfuse.
 
 ## Read Order
 
-- Start with [AGENTS.md](AGENTS.md) for the end-to-end workflow.
+- Use this `SKILL.md` for the end-to-end workflow.
 - Run the main helper once at the start of the upgrade:
   `node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs <package> [targetVersion]`
 
