@@ -69,6 +69,10 @@ export interface WidgetContentProps {
    * Additional class names for the container
    */
   className?: string;
+  /**
+   * Optional presentation-only labels for entity_dimension values.
+   */
+  entityDimensionLabelMap?: Record<string, string>;
 }
 
 export interface WidgetHeaderProps {
@@ -135,6 +139,18 @@ export function WidgetHeader({
   );
 }
 
+const getXAxisValue = (
+  item: Record<string, unknown>,
+  entityDimensionLabelMap?: Record<string, string>,
+) => {
+  const entityDimensionValue = String(item["entity_dimension"]);
+  const entityDimensionLabel = entityDimensionLabelMap?.[entityDimensionValue];
+  return;
+  entityDimensionLabel && entityDimensionLabel.length > 0
+    ? entityDimensionLabel
+    : entityDimensionValue;
+};
+
 /**
  * Core widget content: executes query, transforms data, renders chart with loading states.
  *
@@ -162,6 +178,7 @@ export function WidgetContent({
   sortState,
   onSortChange,
   className,
+  entityDimensionLabelMap,
 }: WidgetContentProps) {
   const { isBetaEnabled } = useV4Beta();
   const [retryCount, setRetryCount] = useState(0);
@@ -233,7 +250,7 @@ export function WidgetContent({
       // Handle x-axis: prefer entity_dimension, then time_dimension
       let xAxisValue: string | undefined;
       if (item["entity_dimension"] !== undefined) {
-        xAxisValue = String(item["entity_dimension"]);
+        xAxisValue = getXAxisValue(item, entityDimensionLabelMap);
       } else if (item["time_dimension"] !== undefined) {
         xAxisValue = String(item["time_dimension"]);
       }
@@ -264,7 +281,13 @@ export function WidgetContent({
           : Number(metricValue || 0),
       };
     });
-  }, [queryResult.data, chartType, metrics, dimensions]);
+  }, [
+    queryResult.data,
+    chartType,
+    metrics,
+    dimensions,
+    entityDimensionLabelMap,
+  ]);
 
   // Chart presentation (label and formatter)
   const chartPresentation = useMemo(() => {

@@ -57,6 +57,14 @@ export function ExperimentChartSlot({
     [availableMetricOptions, selectedMetricId],
   );
 
+  const entityDimensionLabelMap = useMemo(
+    () =>
+      Object.fromEntries(
+        experiments.map((experiment) => [experiment.id, experiment.name]),
+      ),
+    [experiments],
+  );
+
   // Build query from widget config
   const query: QueryType | null = useMemo(() => {
     if (!widgetConfig) return null;
@@ -207,6 +215,7 @@ export function ExperimentChartSlot({
             schedulerId={`chart-slot-${chartIndex}-${selectedMetricId}`}
             isExternalLoading={isExternalLoading || !isEnabled}
             layoutHint="compact"
+            entityDimensionLabelMap={entityDimensionLabelMap}
           />
         ) : (
           <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed">
