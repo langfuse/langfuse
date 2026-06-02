@@ -12,7 +12,7 @@ const ALL_CODE_EVAL_SOURCE_LANGUAGES = [
 ] satisfies EvalTemplateSourceCodeLanguage[];
 
 export function getCodeEvalCapabilities(): CodeEvalCapabilities {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) {
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     return {
       enabled: true,
       supportedSourceCodeLanguages: ALL_CODE_EVAL_SOURCE_LANGUAGES,

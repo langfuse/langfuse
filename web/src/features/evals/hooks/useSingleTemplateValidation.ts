@@ -1,17 +1,15 @@
 import { api } from "@/src/utils/api";
-import type { EvalTemplateWithType } from "@langfuse/shared";
+import { type EvalTemplate } from "@langfuse/shared";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import {
   isCodeEvalTemplate,
   shouldShowEvalTemplate,
 } from "@/src/features/evals/utils/code-eval-template-utils";
 
-export type TemplateValidationInput =
-  EvalTemplateWithType extends infer Template
-    ? Template extends EvalTemplateWithType
-      ? Pick<Template, "provider" | "model" | "type" | "sourceCodeLanguage">
-      : never
-    : never;
+export type TemplateValidationInput = Pick<
+  EvalTemplate,
+  "provider" | "model" | "type" | "sourceCodeLanguage"
+>;
 
 export function useSingleTemplateValidation({
   projectId,

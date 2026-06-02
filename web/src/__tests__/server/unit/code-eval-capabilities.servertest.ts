@@ -47,6 +47,18 @@ describe("getCodeEvalCapabilities", () => {
     });
   });
 
+  it("treats an empty cloud region as self-hosted", async () => {
+    await expect(
+      getCapabilitiesForEnv({
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "",
+        LANGFUSE_CODE_EVAL_DISPATCHER: "insecure-local",
+      }),
+    ).resolves.toEqual({
+      enabled: true,
+      supportedSourceCodeLanguages: ["TYPESCRIPT"],
+    });
+  });
+
   it("enables TypeScript and Python for self-hosted aws-lambda dispatching", async () => {
     await expect(
       getCapabilitiesForEnv({ LANGFUSE_CODE_EVAL_DISPATCHER: "aws-lambda" }),

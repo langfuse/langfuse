@@ -14,7 +14,7 @@ export function useIsCodeEvalEnabled(): {
   supportedSourceCodeLanguages: EvalTemplateSourceCodeLanguage[];
   isLoading: boolean;
 } {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) {
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     return {
       enabled: true,
       supportedSourceCodeLanguages: CLOUD_SUPPORTED_SOURCE_CODE_LANGUAGES,

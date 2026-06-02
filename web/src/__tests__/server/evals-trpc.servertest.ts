@@ -1,3 +1,33 @@
+import { beforeEach, vi } from "vitest";
+import type * as SharedEnvModule from "@langfuse/shared/src/env";
+
+const { runCodeEvalTestForJobConfigMock } = vi.hoisted(() => {
+  process.env.LANGFUSE_CODE_EVAL_DISPATCHER = "insecure-local";
+  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_UI = "true";
+
+  return {
+    runCodeEvalTestForJobConfigMock: vi.fn(),
+  };
+});
+
+vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof SharedEnvModule>();
+
+  return {
+    ...actual,
+    env: {
+      ...actual.env,
+      LANGFUSE_CODE_EVAL_DISPATCHER: "insecure-local",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    },
+  };
+});
+
+vi.mock("@/src/features/evals/server/codeEvalTestRun", () => ({
+  runCodeEvalTest: vi.fn(),
+  runCodeEvalTestForJobConfig: runCodeEvalTestForJobConfigMock,
+}));
+
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
@@ -14,21 +44,6 @@ import {
   EvaluatorBlockReason,
 } from "@langfuse/shared";
 import type { Session } from "next-auth";
-import { beforeEach, vi } from "vitest";
-
-const { runCodeEvalTestForJobConfigMock } = vi.hoisted(() => {
-  process.env.LANGFUSE_CODE_EVAL_DISPATCHER = "insecure-local";
-  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_UI = "true";
-
-  return {
-    runCodeEvalTestForJobConfigMock: vi.fn(),
-  };
-});
-
-vi.mock("@/src/features/evals/server/codeEvalTestRun", () => ({
-  runCodeEvalTest: vi.fn(),
-  runCodeEvalTestForJobConfig: runCodeEvalTestForJobConfigMock,
-}));
 
 beforeEach(() => {
   runCodeEvalTestForJobConfigMock.mockReset();

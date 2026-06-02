@@ -422,7 +422,7 @@ export default function EvalsTemplateTable({
   const convertToTableRow = (
     template: RouterOutputs["evals"]["templateNames"]["templates"][number],
   ): EvalsTemplateRow => {
-    const rowBase = {
+    return {
       name: template.name,
       resultType:
         template.type === EvalTemplateType.CODE
@@ -435,20 +435,8 @@ export default function EvalsTemplateTable({
       usageCount: template.usageCount,
       provider: template.provider ?? null,
       model: template.model ?? null,
-    };
-
-    if (template.type === EvalTemplateType.CODE) {
-      return {
-        ...rowBase,
-        type: template.type,
-        sourceCodeLanguage: template.sourceCodeLanguage!,
-      };
-    }
-
-    return {
-      ...rowBase,
       type: template.type,
-      sourceCodeLanguage: null,
+      sourceCodeLanguage: template.sourceCodeLanguage,
     };
   };
 
