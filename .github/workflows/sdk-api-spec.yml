@@ -18,6 +18,11 @@ permissions:
 jobs:
   generate-sdk-api-specs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    outputs:
+      python_has_changes: ${{ steps.prepare-python-sdk.outputs.has_changes }}
+      python_branch_name: ${{ steps.prepare-python-sdk.outputs.branch_name }}
+      typescript_has_changes: ${{ steps.prepare-typescript-sdk.outputs.has_changes }}
+      typescript_branch_name: ${{ steps.prepare-typescript-sdk.outputs.branch_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -86,35 +91,19 @@ jobs:
           git checkout -b "$BRANCH_NAME"
           git add .
           git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}"
+          git bundle create "$RUNNER_TEMP/langfuse-python-api-spec-bot.bundle" "$BRANCH_NAME"
 
           echo "has_changes=true" >> "$GITHUB_OUTPUT"
           echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Push Python SDK update
+      - name: Upload Python SDK update
         if: steps.prepare-python-sdk.outputs.has_changes == 'true'
-        env:
-          BRANCH_NAME: ${{ steps.prepare-python-sdk.outputs.branch_name }}
-          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
-        run: |
-          cd ../langfuse-python
-
-          # Close existing api-spec-bot PRs
-          gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
-
-          # Push new branch and create PR
-          git \
-            -c credential.helper= \
-            -c credential.https://github.com.helper= \
-            -c core.hooksPath=/dev/null \
-            push "https://x-access-token:${GH_TOKEN}@github.com/langfuse/langfuse-python.git" "$BRANCH_NAME"
-
-          # Create PR with original author as reviewer
-          ORIGINAL_AUTHOR="$(gh api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login // empty')"
-          REVIEWER_ARGS=()
-          if [ -n "$ORIGINAL_AUTHOR" ]; then
-            REVIEWER_ARGS=(--reviewer "$ORIGINAL_AUTHOR")
-          fi
-          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" "${REVIEWER_ARGS[@]}"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: langfuse-python-sdk-update
+          path: ${{ runner.temp }}/langfuse-python-api-spec-bot.bundle
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Prepare TypeScript SDK update
         id: prepare-typescript-sdk
@@ -160,38 +149,135 @@ jobs:
           git checkout -b "$BRANCH_NAME"
           git add .
           git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --no-verify
+          git bundle create "$RUNNER_TEMP/langfuse-js-api-spec-bot.bundle" "$BRANCH_NAME"
 
           echo "has_changes=true" >> "$GITHUB_OUTPUT"
           echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Push TypeScript SDK update
+      - name: Upload TypeScript SDK update
         if: steps.prepare-typescript-sdk.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: langfuse-js-sdk-update
+          path: ${{ runner.temp }}/langfuse-js-api-spec-bot.bundle
+          if-no-files-found: error
+          retention-days: 1
+
+  push-python-sdk:
+    needs: generate-sdk-api-specs
+    if: needs.generate-sdk-api-specs.outputs.python_has_changes == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Download Python SDK update
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: langfuse-python-sdk-update
+          path: ${{ runner.temp }}/langfuse-python-sdk-update
+
+      - name: Push Python SDK update
         env:
-          BRANCH_NAME: ${{ steps.prepare-typescript-sdk.outputs.branch_name }}
+          BRANCH_NAME: ${{ needs.generate-sdk-api-specs.outputs.python_branch_name }}
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         run: |
-          cd ../langfuse-js
+          set -euo pipefail
+
+          GIT_BIN="$(command -v git)"
+          GH_BIN="$(command -v gh)"
+          BUNDLE_PATH="$RUNNER_TEMP/langfuse-python-sdk-update/langfuse-python-api-spec-bot.bundle"
+          PUSH_REPO="$RUNNER_TEMP/push-langfuse-python"
+
+          mkdir -p "$PUSH_REPO"
+          "$GIT_BIN" -C "$PUSH_REPO" init -q
+          "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags "$BUNDLE_PATH" "$BRANCH_NAME:refs/heads/$BRANCH_NAME"
 
           # Close existing api-spec-bot PRs
-          gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
+          "$GH_BIN" pr list --repo langfuse/langfuse-python --author langfuse-bot --state open --json number --jq '.[].number' | while read -r pr_number; do
+            if [ -n "$pr_number" ]; then
+              "$GH_BIN" pr close --repo langfuse/langfuse-python "$pr_number"
+            fi
+          done
 
-          # Push new branch and create PR
-          git \
+          # Push new branch and create PR from a fresh repo that never ran SDK install scripts.
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
+            -C "$PUSH_REPO" \
+            -c credential.helper= \
+            -c credential.https://github.com.helper= \
+            -c core.hooksPath=/dev/null \
+            push "https://x-access-token:${GH_TOKEN}@github.com/langfuse/langfuse-python.git" "$BRANCH_NAME"
+
+          # Create PR with original author as reviewer
+          ORIGINAL_AUTHOR="$("$GH_BIN" api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login // empty')"
+          REVIEWER_ARGS=()
+          if [ -n "$ORIGINAL_AUTHOR" ]; then
+            REVIEWER_ARGS=(--reviewer "$ORIGINAL_AUTHOR")
+          fi
+          "$GH_BIN" pr create \
+            --repo langfuse/langfuse-python \
+            --head "$BRANCH_NAME" \
+            --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" \
+            --body "" \
+            "${REVIEWER_ARGS[@]}"
+
+  push-typescript-sdk:
+    needs: generate-sdk-api-specs
+    if: needs.generate-sdk-api-specs.outputs.typescript_has_changes == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Download TypeScript SDK update
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: langfuse-js-sdk-update
+          path: ${{ runner.temp }}/langfuse-js-sdk-update
+
+      - name: Push TypeScript SDK update
+        env:
+          BRANCH_NAME: ${{ needs.generate-sdk-api-specs.outputs.typescript_branch_name }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          GIT_BIN="$(command -v git)"
+          GH_BIN="$(command -v gh)"
+          BUNDLE_PATH="$RUNNER_TEMP/langfuse-js-sdk-update/langfuse-js-api-spec-bot.bundle"
+          PUSH_REPO="$RUNNER_TEMP/push-langfuse-js"
+
+          mkdir -p "$PUSH_REPO"
+          "$GIT_BIN" -C "$PUSH_REPO" init -q
+          "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags "$BUNDLE_PATH" "$BRANCH_NAME:refs/heads/$BRANCH_NAME"
+
+          # Close existing api-spec-bot PRs
+          "$GH_BIN" pr list --repo langfuse/langfuse-js --author langfuse-bot --state open --json number --jq '.[].number' | while read -r pr_number; do
+            if [ -n "$pr_number" ]; then
+              "$GH_BIN" pr close --repo langfuse/langfuse-js "$pr_number"
+            fi
+          done
+
+          # Push new branch and create PR from a fresh repo that never ran SDK install scripts.
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
+            -C "$PUSH_REPO" \
             -c credential.helper= \
             -c credential.https://github.com.helper= \
             -c core.hooksPath=/dev/null \
             push "https://x-access-token:${GH_TOKEN}@github.com/langfuse/langfuse-js.git" "$BRANCH_NAME"
 
           # Create PR with original author as reviewer
-          ORIGINAL_AUTHOR="$(gh api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login // empty')"
+          ORIGINAL_AUTHOR="$("$GH_BIN" api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login // empty')"
           REVIEWER_ARGS=()
           if [ -n "$ORIGINAL_AUTHOR" ]; then
             REVIEWER_ARGS=(--reviewer "$ORIGINAL_AUTHOR")
           fi
-          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" "${REVIEWER_ARGS[@]}"
+          "$GH_BIN" pr create \
+            --repo langfuse/langfuse-js \
+            --head "$BRANCH_NAME" \
+            --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" \
+            --body "" \
+            "${REVIEWER_ARGS[@]}"
 
   notify-slack-on-failure:
-    needs: generate-sdk-api-specs
+    needs:
+      - generate-sdk-api-specs
+      - push-python-sdk
+      - push-typescript-sdk
     if: failure()
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
