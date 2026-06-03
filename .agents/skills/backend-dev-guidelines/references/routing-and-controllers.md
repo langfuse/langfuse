@@ -7,6 +7,7 @@ Complete guide to routing and separation of concerns in Langfuse's Next.js + tRP
 - [Architecture Overview](#architecture-overview)
 - [tRPC Routers](#trpc-routers)
 - [Public REST API Routes](#public-rest-api-routes)
+- [Fern API Definitions](#fern-api-definitions)
 - [Service Layer](#service-layer)
 - [Repository Layer](#repository-layer)
 - [Separation of Concerns](#separation-of-concerns)
@@ -360,6 +361,32 @@ export default withMiddlewares({
 - Define separate handlers for each HTTP method
 - Input/output validated with Zod schemas
 - Delegate to services for business logic
+
+### Fern API Definitions
+
+When modifying public API types in `web/src/features/public-api/types/`, update
+the matching Fern API definitions in `fern/apis/server/definition/`.
+
+**Zod to Fern Type Mapping:**
+
+| Zod Type       | Fern Type               | Example                                                   |
+| -------------- | ----------------------- | --------------------------------------------------------- |
+| `.nullish()`   | `optional<nullable<T>>` | `z.string().nullish()` -> `optional<nullable<string>>`    |
+| `.nullable()`  | `nullable<T>`           | `z.string().nullable()` -> `nullable<string>`             |
+| `.optional()`  | `optional<T>`           | `z.string().optional()` -> `optional<string>`             |
+| Always present | `T`                     | `z.string()` -> `string`                                  |
+
+Add a source comment at the top of each Fern type that references the
+TypeScript source:
+
+```yaml
+# Source: web/src/features/public-api/types/traces.ts - APITrace
+Trace:
+  properties:
+    id: string
+    name:
+      type: nullable<string>
+```
 
 ### Simple Public Routes
 
