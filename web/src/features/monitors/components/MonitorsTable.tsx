@@ -1,16 +1,29 @@
+import { MoreVertical, Pause, Pencil, Play } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo } from "react";
 import { useMediaQuery } from "react-responsive";
 
+import { DeleteMonitorButton } from "@/src/components/deleteButton";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableControls } from "@/src/components/table/data-table-controls";
 import { TableBadgeLoadingCell } from "@/src/components/table/loading-cells";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { Button } from "@/src/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { monitorFilterConfig } from "@/src/features/filters/config/monitors-config";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import TagList from "@/src/features/tag/components/TagList";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -20,10 +33,15 @@ import { type FilterState } from "@langfuse/shared";
 import {
   type ListMonitorFilter,
   ListMonitorFilterSchema,
+  type Monitor,
   MonitorSeveritySchema,
+  type UpdateMonitor,
 } from "@langfuse/shared/monitors";
 
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
+
+/** monitorsRefetchInterval keeps the list's severity and paused state current without a manual reload. */
+const monitorsRefetchInterval = 5_000;
 
 /** MonitorRow is one row of the monitors list, shaped by the `monitors.all` tRPC output. */
 type MonitorRow = RouterOutputs["monitors"]["all"]["monitors"][number];
@@ -36,8 +54,31 @@ export function MonitorsTable() {
   const router = useRouter();
   const projectId = useProjectIdFromURL() ?? "";
   const { setDetailPageList } = useDetailPageLists();
+  const utils = api.useUtils();
+  /** hasCUDAccess gates the edit, pause/resume, and delete row actions behind the monitors:CUD RBAC scope. */
+  const hasCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "monitors:CUD",
+  });
   /** isWiderThanPhone is true at viewports wider than the main nav's drawer breakpoint (768px / Tailwind `md`), the threshold at which the Tags column appears. */
   const isWiderThanPhone = useMediaQuery({ query: "(min-width: 768px)" });
+
+  /** statusMutation flips a monitor's status between ACTIVE and PAUSED from the row's pause/resume action. */
+  const statusMutation = api.monitors.update.useMutation({
+    onSuccess: async (_data, variables) => {
+      await utils.monitors.invalidate();
+      showSuccessToast({
+        title:
+          variables.status === "PAUSED" ? "Monitor paused" : "Monitor resumed",
+        description:
+          variables.status === "PAUSED"
+            ? "Evaluations are halted until you resume."
+            : "Evaluations have resumed.",
+      });
+    },
+    onError: (e) =>
+      showErrorToast("Failed to update monitor status", e.message),
+  });
 
   /** paginationState is the bound page index + size, defaulting to 50 per page and synced to the `pageIndex`/`pageSize` URL params. */
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
@@ -109,6 +150,7 @@ export function MonitorsTable() {
     {
       enabled: Boolean(projectId),
       trpc: { context: { skipBatch: true } },
+      refetchInterval: monitorsRefetchInterval,
     },
   );
 
@@ -185,6 +227,28 @@ export function MonitorsTable() {
           } satisfies LangfuseColumnDef<MonitorRow>,
         ]
       : []),
+    {
+      accessorKey: "actions",
+      header: "Actions",
+      id: "actions",
+      enableSorting: false,
+      enableResizing: false,
+      size: 70,
+      minSize: 70,
+      maxSize: 70,
+      cell: ({ row }) => (
+        <MonitorRowActions
+          monitor={row.original}
+          projectId={projectId}
+          hasCUDAccess={hasCUDAccess}
+          collapsed={!isWiderThanPhone}
+          isStatusPending={statusMutation.isPending}
+          onToggleStatus={() =>
+            statusMutation.mutate(buildStatusToggleUpdate(row.original))
+          }
+        />
+      ),
+    },
   ];
 
   return (
@@ -218,14 +282,111 @@ export function MonitorsTable() {
               state: paginationState,
             }}
             onRowClick={(row) => {
-              router.push(
-                `/project/${projectId}/monitors/${encodeURIComponent(row.id)}/edit`,
-              );
+              router.push(monitorHref(projectId, row.id));
             }}
             cellPadding="comfortable"
           />
         </div>
       </ResizableFilterLayout>
+    </div>
+  );
+}
+
+/** MonitorRowActions renders the per-row edit, pause/resume, and delete controls, collapsing into a kebab menu on narrow viewports. */
+function MonitorRowActions({
+  monitor,
+  projectId,
+  hasCUDAccess,
+  collapsed,
+  isStatusPending,
+  onToggleStatus,
+}: {
+  monitor: MonitorRow;
+  projectId: string;
+  hasCUDAccess: boolean;
+  collapsed: boolean;
+  isStatusPending: boolean;
+  /** onToggleStatus flips the monitor between ACTIVE and PAUSED. */
+  onToggleStatus: () => void;
+}) {
+  const isPaused = monitor.status === "PAUSED";
+
+  const editButton = (
+    <Button
+      asChild
+      variant="ghost"
+      size={collapsed ? "default" : "icon"}
+      disabled={!hasCUDAccess}
+      aria-label="Edit monitor"
+    >
+      <Link
+        href={monitorHref(projectId, monitor.id)}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Pencil className="h-4 w-4" aria-hidden="true" />
+        {collapsed ? <span className="ml-2">Edit</span> : null}
+      </Link>
+    </Button>
+  );
+
+  const pauseButton = (
+    <Button
+      variant="ghost"
+      size={collapsed ? "default" : "icon"}
+      disabled={!hasCUDAccess || isStatusPending}
+      aria-label={isPaused ? "Resume monitor" : "Pause monitor"}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggleStatus();
+      }}
+    >
+      {isPaused ? (
+        <Play className="h-4 w-4" aria-hidden="true" />
+      ) : (
+        <Pause className="h-4 w-4" aria-hidden="true" />
+      )}
+      {collapsed ? (
+        <span className="ml-2">{isPaused ? "Resume" : "Pause"}</span>
+      ) : null}
+    </Button>
+  );
+
+  const deleteButton = (
+    <DeleteMonitorButton
+      itemId={monitor.id}
+      projectId={projectId}
+      isTableAction
+      icon={!collapsed}
+    />
+  );
+
+  if (collapsed) {
+    return (
+      <div onClick={(e) => e.stopPropagation()}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="xs" variant="ghost" aria-label="Monitor actions">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
+            <DropdownMenuItem asChild>{editButton}</DropdownMenuItem>
+            <DropdownMenuItem asChild>{pauseButton}</DropdownMenuItem>
+            <DropdownMenuItem asChild>{deleteButton}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex items-center gap-1"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {editButton}
+      {pauseButton}
+      {deleteButton}
     </div>
   );
 }
@@ -248,4 +409,33 @@ const filterStateToListMonitorFilter = (
   });
 };
 
-export const __test = { filterStateToListMonitorFilter };
+/** monitorHref is the project-scoped path to a monitor's page, the row-click and edit-action target. */
+const monitorHref = (projectId: string, monitorId: string): string =>
+  `/project/${projectId}/monitors/${encodeURIComponent(monitorId)}`;
+
+/** buildStatusToggleUpdate returns a full update payload with only the status flipped between ACTIVE and PAUSED. */
+const buildStatusToggleUpdate = (monitor: Monitor): UpdateMonitor => ({
+  id: monitor.id,
+  projectId: monitor.projectId,
+  view: monitor.view,
+  filters: monitor.filters,
+  metric: monitor.metric,
+  window: monitor.window,
+  thresholdOperator: monitor.thresholdOperator,
+  alertThreshold: monitor.alertThreshold,
+  warningThreshold: monitor.warningThreshold,
+  noData: monitor.noData,
+  renotify: monitor.renotify,
+  name: monitor.name,
+  tags: monitor.tags,
+  triggerIds: monitor.triggerIds,
+  status: monitor.status === "PAUSED" ? "ACTIVE" : "PAUSED",
+});
+
+export const __test = {
+  filterStateToListMonitorFilter,
+  buildStatusToggleUpdate,
+  monitorHref,
+  monitorsRefetchInterval,
+  MonitorRowActions,
+};

@@ -356,6 +356,8 @@ describe("SlackMessageBuilder", () => {
       ["WARNING", "#ffc107"],
       ["OK", "#28a745"],
       ["NO_DATA", "#6c757d"],
+      ["UNKNOWN", "#6c757d"],
+      ["PAUSED", "#6c757d"],
     ] as const)(
       "%s: header is title only, attachment color %s",
       (severity, color) => {

@@ -131,6 +131,7 @@ export const events = {
     "delete_dashboard_form_open",
     "delete_dashboard_button_click",
   ],
+  monitors: ["delete_form_open", "delete_monitor_button_click"],
   datasets: [
     "delete_form_open",
     "delete_dataset_button_click",
