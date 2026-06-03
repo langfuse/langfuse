@@ -1,4 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -6,6 +7,7 @@ import {
 } from "@/src/server/api/trpc";
 import {
   BatchExportStatus,
+  BatchExportTableName,
   CreateBatchExportSchema,
   paginationZod,
 } from "@langfuse/shared";
@@ -16,7 +18,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { assertLegacyTracingIoSearchEnabled } from "@/src/features/traces/server/legacyIoSearch";
+import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
 
 export const batchExportRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -31,7 +33,21 @@ export const batchExportRouter = createTRPCRouter({
         });
 
         const { projectId, query, format, name } = input;
-        assertLegacyTracingIoSearchEnabled({
+
+        if (query.tableName === BatchExportTableName.AuditLogs) {
+          throwIfNoEntitlement({
+            entitlement: "audit-logs",
+            sessionUser: ctx.session.user,
+            projectId,
+          });
+          throwIfNoProjectAccess({
+            session: ctx.session,
+            projectId,
+            scope: "auditLogs:read",
+          });
+        }
+
+        assertLegacyTracingIoSearchCanCreateBatchJob({
           searchQuery: query.searchQuery,
           searchType: query.searchType,
           tableName: query.tableName,

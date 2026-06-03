@@ -1095,13 +1095,36 @@ describe("/api/public/llm-connections API Endpoints", () => {
         expect(response.body.config).toBeNull();
       });
 
-      it("should reject OpenAI connection with config", async () => {
+      it("should create OpenAI connection with Responses API config", async () => {
+        const createData = {
+          provider: generateUniqueProvider("openai-responses-api"),
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "sk-test123",
+          config: {
+            useResponsesApi: true,
+          },
+        };
+
+        const response = await makeZodVerifiedAPICall(
+          PutLlmConnectionV1Response,
+          "PUT",
+          "/api/public/llm-connections",
+          createData,
+          auth,
+          201,
+        );
+
+        expect(response.status).toBe(201);
+        expect(response.body.config).toEqual({ useResponsesApi: true });
+      });
+
+      it("should reject OpenAI connection with unsupported config", async () => {
         const createData = {
           provider: generateUniqueProvider("openai-with-config"),
           adapter: LLMAdapter.OpenAI,
           secretKey: "sk-test123",
           config: {
-            region: "us-east-1", // OpenAI doesn't support config
+            region: "us-east-1",
           },
         };
 
@@ -1114,7 +1137,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
 
         expect(response.status).toBe(400);
         expect(JSON.stringify(response.body)).toContain(
-          "Config is not supported for openai adapter",
+          "Invalid OpenAI config",
         );
       });
 

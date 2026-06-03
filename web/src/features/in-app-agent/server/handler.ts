@@ -23,7 +23,13 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { assertUnreachable } from "@/src/utils/types";
+import {
+  createAndAddApiKeysToDb,
+  deleteApiKeyFromDb,
+} from "@langfuse/shared/src/server/auth/apiKeys";
+import { logger, redis } from "@langfuse/shared/src/server";
 
+const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
 const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
 
 export default async function handler(request: Request) {
@@ -40,15 +46,6 @@ export default async function handler(request: Request) {
         "PreconditionFailedError",
         412,
         "Assistant is not available in self-hosted deployments.",
-        true,
-      );
-    }
-
-    if (!env.LANGFUSE_AWS_BEDROCK_REGION) {
-      throw new BaseError(
-        "PreconditionFailedError",
-        412,
-        "Assistant is not configured",
         true,
       );
     }
@@ -137,37 +134,47 @@ export default async function handler(request: Request) {
 
     const sanitizedInput = sanitizeAgentInput(input);
     const awsProfile = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
+    return await withInAppAgentMcpApiKeyCleanup(
+      projectId,
+      (mcpApiKey, cleanupMcpApiKey) => {
+        const stream = createAgUiStream({
+          input: sanitizedInput,
+          signal: request.signal,
+          options: {
+            resumeSessionId: claudeSessionId,
+            createResumeStateForSessionId: (claudeSessionId) => ({
+              type: "existingSession",
+              claudeSessionToken: signInAppAgentSessionToken({
+                userId: auth.userId,
+                projectId,
+                threadId: sanitizedInput.threadId,
+                claudeSessionId,
+              }),
+            }),
+            awsBedrock: {
+              region: env.LANGFUSE_AWS_BEDROCK_REGION,
+              ...(awsProfile ? { profile: awsProfile } : {}),
+            },
+            langfuseMcp: {
+              url: getLangfuseMcpUrl(),
+              publicKey: mcpApiKey.publicKey,
+              secretKey: mcpApiKey.secretKey,
+            },
+            onFinish: cleanupMcpApiKey,
+          },
+        });
 
-    const stream = createAgUiStream({
-      input: sanitizedInput,
-      signal: request.signal,
-      options: {
-        resumeSessionId: claudeSessionId,
-        createResumeStateForSessionId: (claudeSessionId) => ({
-          type: "existingSession",
-          claudeSessionToken: signInAppAgentSessionToken({
-            userId: auth.userId,
-            projectId,
-            threadId: sanitizedInput.threadId,
-            claudeSessionId,
-          }),
-        }),
-        awsBedrock: {
-          region: env.LANGFUSE_AWS_BEDROCK_REGION,
-          ...(awsProfile ? { profile: awsProfile } : {}),
-        },
+        return new Response(stream, {
+          headers: {
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Content-Encoding": "none",
+            "Cache-Control": "no-cache, no-transform",
+            Connection: "keep-alive",
+            "X-Accel-Buffering": "no",
+          },
+        });
       },
-    });
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Content-Encoding": "none",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-        "X-Accel-Buffering": "no",
-      },
-    });
+    );
   } catch (err) {
     if (err instanceof BaseError) {
       return Response.json({ error: err.message }, { status: err.httpCode });
@@ -182,6 +189,74 @@ export default async function handler(request: Request) {
 
     throw err;
   }
+}
+
+function getLangfuseMcpUrl(): string {
+  const rawUrl = env.NEXTAUTH_URL.replace(/\/api\/auth\/?$/, "");
+  const baseUrl = new URL(rawUrl);
+
+  baseUrl.pathname = `${baseUrl.pathname.replace(/\/$/, "")}/api/public/mcp`;
+  baseUrl.search = "";
+  baseUrl.hash = "";
+
+  return baseUrl.toString();
+}
+
+async function createInAppAgentMcpApiKey(projectId: string) {
+  return createAndAddApiKeysToDb({
+    prisma,
+    entityId: projectId,
+    scope: "PROJECT",
+    note: IN_APP_AGENT_API_KEY_NOTE,
+    isInAppAgentKey: true,
+  });
+}
+
+async function withInAppAgentMcpApiKeyCleanup<T>(
+  projectId: string,
+  createResponse: (
+    mcpApiKey: Awaited<ReturnType<typeof createInAppAgentMcpApiKey>>,
+    cleanupMcpApiKey: () => Promise<void>,
+  ) => T,
+): Promise<T> {
+  const mcpApiKey = await createInAppAgentMcpApiKey(projectId);
+  let cleanupPromise: Promise<void> | undefined;
+
+  const cleanupMcpApiKey = () => {
+    if (!cleanupPromise) {
+      cleanupPromise = cleanupInAppAgentMcpApiKey({
+        apiKeyId: mcpApiKey.id,
+        projectId,
+      }).catch((cleanupErr) => {
+        cleanupPromise = undefined;
+        throw cleanupErr;
+      });
+    }
+
+    return cleanupPromise;
+  };
+
+  try {
+    return createResponse(mcpApiKey, cleanupMcpApiKey);
+  } catch (err) {
+    await cleanupMcpApiKey().catch((cleanupErr) => {
+      logger.error("Failed to clean up in-app agent MCP API key", cleanupErr);
+    });
+    throw err;
+  }
+}
+
+async function cleanupInAppAgentMcpApiKey(params: {
+  apiKeyId: string;
+  projectId: string;
+}) {
+  await deleteApiKeyFromDb({
+    prisma,
+    id: params.apiKeyId,
+    entityId: params.projectId,
+    scope: "PROJECT",
+    redis,
+  });
 }
 
 function sanitizeAgentInput(input: AgUiRunAgentInput): AgUiRunAgentInput {

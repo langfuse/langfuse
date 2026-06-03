@@ -206,7 +206,8 @@ export const InnerEvalTemplateForm = (props: {
 }) => {
   const capture = usePostHogClientCapture();
   const [formError, setFormError] = useState<string | null>(null);
-  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
+  const { enabled: isCodeEvalEnabled } = codeEvalCapabilities;
   const templateTypeSelectorMode = props.templateTypeSelectorMode ?? "all";
 
   // Determine if we should use default model or custom model
@@ -415,9 +416,7 @@ export const InnerEvalTemplateForm = (props: {
         if (props.preventRedirect) {
           return;
         }
-        void router.push(
-          `/project/${props.projectId}/evals/templates/${res.id}`,
-        );
+        router.push(`/project/${props.projectId}/evals/templates/${res.id}`);
       })
       .catch((error) => {
         if ("message" in error && typeof error.message === "string") {
@@ -558,7 +557,7 @@ export const InnerEvalTemplateForm = (props: {
 
       <EvalTemplateTypeSelector
         form={form}
-        enabled={isCodeEvalEnabled}
+        codeEvalCapabilities={codeEvalCapabilities}
         mode={templateTypeSelectorMode}
         hasExistingTemplate={Boolean(props.existingEvalTemplateId)}
         onChange={() => {

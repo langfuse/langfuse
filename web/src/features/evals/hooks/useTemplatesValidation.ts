@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
 import { api } from "@/src/utils/api";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
-import { isCodeEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
+import {
+  isCodeEvalTemplate,
+  shouldShowEvalTemplate,
+} from "@/src/features/evals/utils/code-eval-template-utils";
 
 export function useTemplatesValidation({
   projectId,
@@ -11,7 +14,9 @@ export function useTemplatesValidation({
   selectedTemplateIds?: string[];
 }) {
   const [isSelectionValid, setIsSelectionValid] = useState(true);
-  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
+  const { enabled: isCodeEvalEnabled, supportedSourceCodeLanguages } =
+    codeEvalCapabilities;
 
   // Fetch default model
   const { data: defaultModel, isLoading: isLoadingDefaultModel } =
@@ -36,7 +41,11 @@ export function useTemplatesValidation({
 
     if (
       selectedTemplates.some(
-        (template) => isCodeEvalTemplate(template) && !isCodeEvalEnabled,
+        (template) =>
+          !shouldShowEvalTemplate(template, {
+            enabled: isCodeEvalEnabled,
+            supportedSourceCodeLanguages,
+          }),
       )
     ) {
       setIsSelectionValid(false);
@@ -60,6 +69,7 @@ export function useTemplatesValidation({
     defaultModel,
     isLoadingDefaultModel,
     isCodeEvalEnabled,
+    supportedSourceCodeLanguages,
     selectedTemplateIds,
     templatesData?.templates,
   ]);
@@ -73,7 +83,9 @@ export function useTemplatesValidation({
     // Find the template
     const template = templatesData.templates.find((t) => t.id === templateId);
     if (!template) return true;
-    if (isCodeEvalTemplate(template)) return isCodeEvalEnabled;
+    if (isCodeEvalTemplate(template)) {
+      return shouldShowEvalTemplate(template, codeEvalCapabilities);
+    }
 
     // If we have a default model, all LLM-as-a-judge templates are valid
     if (defaultModel) return true;

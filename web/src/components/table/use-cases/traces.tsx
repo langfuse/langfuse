@@ -102,10 +102,6 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
-import {
-  hasLegacyIoSearchType,
-  isLegacyIoSearchDisabledError,
-} from "@/src/features/traces/lib/legacyIoSearch";
 
 export type TracesTableRow = {
   // Shown by default
@@ -211,7 +207,7 @@ export default function TracesTable({
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
     setManualRefreshTrigger((t) => t + 1);
-    void Promise.all([
+    Promise.all([
       utils.traces.all.invalidate(),
       utils.traces.metrics.invalidate(),
       utils.traces.countAll.invalidate(),
@@ -439,24 +435,6 @@ export default function TracesTable({
     refetchOnMount: false,
     refetchOnWindowFocus: true,
   });
-  const shouldClearLegacyIoSearch =
-    isLegacyIoSearchDisabledError(totalCountQuery.error) ||
-    isLegacyIoSearchDisabledError(traces.error);
-
-  useEffect(() => {
-    if (!shouldClearLegacyIoSearch) return;
-    if (!searchQuery && !hasLegacyIoSearchType(searchType)) return;
-
-    setSearchQuery(null);
-    setSearchType(["id"]);
-  }, [
-    searchQuery,
-    searchType,
-    setSearchQuery,
-    setSearchType,
-    shouldClearLegacyIoSearch,
-  ]);
-
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
@@ -535,7 +513,7 @@ export default function TracesTable({
       });
     },
     onSettled: () => {
-      void utils.traces.all.invalidate();
+      utils.traces.all.invalidate();
     },
   });
 
@@ -1442,12 +1420,8 @@ export default function TracesTable({
               updateQuery: setSearchQuery,
               currentQuery: searchQuery ?? undefined,
               tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
-              ...(legacyTracingIoSearchEnabled
-                ? {
-                    setSearchType,
-                    searchType,
-                  }
-                : {}),
+              setSearchType,
+              searchType,
             }}
             columnsWithCustomSelect={["traceName", "traceTags"]}
             actionButtons={[
