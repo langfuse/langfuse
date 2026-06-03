@@ -197,6 +197,13 @@ jobs:
             fi
           done
 
+          # Resolve the reviewer before pushing so a transient GitHub API failure cannot orphan a branch.
+          ORIGINAL_AUTHOR="$("$GH_BIN" api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login // empty')"
+          REVIEWER_ARGS=()
+          if [ -n "$ORIGINAL_AUTHOR" ]; then
+            REVIEWER_ARGS=(--reviewer "$ORIGINAL_AUTHOR")
+          fi
+
           # Push new branch and create PR from a fresh repo that never ran SDK install scripts.
           GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
             -C "$PUSH_REPO" \
@@ -205,12 +212,6 @@ jobs:
             -c core.hooksPath=/dev/null \
             push "https://x-access-token:${GH_TOKEN}@github.com/langfuse/langfuse-python.git" "$BRANCH_NAME"
 
-          # Create PR with original author as reviewer
-          ORIGINAL_AUTHOR="$("$GH_BIN" api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login // empty')"
-          REVIEWER_ARGS=()
-          if [ -n "$ORIGINAL_AUTHOR" ]; then
-            REVIEWER_ARGS=(--reviewer "$ORIGINAL_AUTHOR")
-          fi
           "$GH_BIN" pr create \
             --repo langfuse/langfuse-python \
             --head "$BRANCH_NAME" \
@@ -252,6 +253,13 @@ jobs:
             fi
           done
 
+          # Resolve the reviewer before pushing so a transient GitHub API failure cannot orphan a branch.
+          ORIGINAL_AUTHOR="$("$GH_BIN" api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login // empty')"
+          REVIEWER_ARGS=()
+          if [ -n "$ORIGINAL_AUTHOR" ]; then
+            REVIEWER_ARGS=(--reviewer "$ORIGINAL_AUTHOR")
+          fi
+
           # Push new branch and create PR from a fresh repo that never ran SDK install scripts.
           GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
             -C "$PUSH_REPO" \
@@ -260,12 +268,6 @@ jobs:
             -c core.hooksPath=/dev/null \
             push "https://x-access-token:${GH_TOKEN}@github.com/langfuse/langfuse-js.git" "$BRANCH_NAME"
 
-          # Create PR with original author as reviewer
-          ORIGINAL_AUTHOR="$("$GH_BIN" api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login // empty')"
-          REVIEWER_ARGS=()
-          if [ -n "$ORIGINAL_AUTHOR" ]; then
-            REVIEWER_ARGS=(--reviewer "$ORIGINAL_AUTHOR")
-          fi
           "$GH_BIN" pr create \
             --repo langfuse/langfuse-js \
             --head "$BRANCH_NAME" \
