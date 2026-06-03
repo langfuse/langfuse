@@ -265,7 +265,6 @@ model InAppAgentRun {
   mcpApiKeyId       String?                @map("mcp_api_key_id")
   errorCode         String?                @map("error_code")
   errorMessage      String?                @map("error_message")
-  startedAt         DateTime?              @map("started_at")
   finishedAt        DateTime?              @map("finished_at")
   createdAt         DateTime               @default(now()) @map("created_at")
   updatedAt         DateTime               @default(now()) @updatedAt @map("updated_at")

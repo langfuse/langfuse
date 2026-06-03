@@ -23,7 +23,6 @@ CREATE TABLE "in_app_agent_runs" (
   "mcp_api_key_id" TEXT,
   "error_code" TEXT,
   "error_message" TEXT,
-  "started_at" TIMESTAMP(3),
   "finished_at" TIMESTAMP(3),
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

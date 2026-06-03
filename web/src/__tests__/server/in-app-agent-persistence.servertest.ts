@@ -898,7 +898,7 @@ describe("in-app agent persistence", () => {
 
     await prisma.inAppAgentRun.update({
       where: { id_projectId: { id: staleRun.id, projectId } },
-      data: { startedAt: new Date("2026-05-20T10:00:00.000Z") },
+      data: { createdAt: new Date("2026-05-20T10:00:00.000Z") },
     });
 
     const newRun = await createConversationRun({

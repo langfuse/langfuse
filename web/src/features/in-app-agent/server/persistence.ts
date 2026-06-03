@@ -120,10 +120,7 @@ export async function createRun(params: {
         projectId: params.projectId,
         conversationId: params.conversationId,
         finishedAt: null,
-        OR: [
-          { startedAt: { lt: staleBefore } },
-          { startedAt: null, createdAt: { lt: staleBefore } },
-        ],
+        createdAt: { lt: staleBefore },
       },
       data: {
         finishedAt: now,
@@ -151,7 +148,6 @@ export async function createRun(params: {
         projectId: params.projectId,
         conversationId: params.conversationId,
         triggeredByUserId: params.triggeredByUserId,
-        startedAt: now,
         model: params.model,
         mcpApiKeyId: params.mcpApiKeyId,
       },
