@@ -41,8 +41,7 @@ This skill activates when you:
 
 | File         | Purpose                                                  |
 | ------------ | -------------------------------------------------------- |
-| `SKILL.md`   | Quick reference and decision frameworks                  |
-| `SKILL.md`   | ClickHouse review workflow and rule-selection entrypoint |
+| `SKILL.md`   | Review workflow, quick reference, and rule-selection entrypoint |
 | `rules/*.md` | Individual rule definitions                              |
 
 ## Related Documentation
