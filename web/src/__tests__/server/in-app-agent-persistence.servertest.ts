@@ -8,10 +8,12 @@ import { env } from "@/src/env.mjs";
 import type { AgUiEvent } from "@/src/features/in-app-agent/schema";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import {
-  appendConversationEvent,
+  appendMessagesSnapshot,
+  createConversationMessageAccumulator,
   createRun,
   ensureOwnedConversation,
   finishRun,
+  getLatestConversationMessages,
 } from "@/src/features/in-app-agent/server/persistence";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -115,60 +117,70 @@ describe("in-app agent persistence", () => {
       mcpApiKeyId: "api-key-id-1",
     });
 
-  const appendEvent = async (params: {
-    projectId: string;
-    conversationId: string;
-    runId: string;
-    event: AgUiEvent;
-  }) =>
-    appendConversationEvent({
-      prisma,
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-      runId: params.runId,
-      event: params.event,
-    });
-
-  const appendRunStarted = async (params: {
+  const startCompactRun = async (params: {
     projectId: string;
     conversationId: string;
     runId: string;
     messageId: string;
     content: string;
-  }) =>
-    appendEvent({
-      ...params,
-      event: {
-        type: EventType.RUN_STARTED,
-        threadId: params.conversationId,
-        runId: params.runId,
-        input: {
-          threadId: params.conversationId,
-          runId: params.runId,
-          messages: [
-            {
-              id: params.messageId,
-              role: "user",
-              content: params.content,
-            },
-          ],
-          tools: [],
-          context: [],
-          state: null,
-          forwardedProps: {},
-        },
-      },
+  }) => {
+    const userMessage = {
+      id: params.messageId,
+      role: "user" as const,
+      content: params.content,
+    };
+    const accumulator = createConversationMessageAccumulator(
+      await getLatestConversationMessages({
+        prisma,
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+      }),
+    );
+
+    accumulator.upsertMessage(userMessage);
+
+    await appendMessagesSnapshot({
+      prisma,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      runId: params.runId,
+      messages: accumulator.getMessages(),
     });
+
+    return accumulator;
+  };
+
+  const processAndPersistEvent = async (params: {
+    projectId: string;
+    conversationId: string;
+    runId: string;
+    accumulator: ReturnType<typeof createConversationMessageAccumulator>;
+    event: AgUiEvent;
+  }) => {
+    if (!params.accumulator.processEvent(params.event)) {
+      return;
+    }
+
+    await appendMessagesSnapshot({
+      prisma,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      runId: params.runId,
+      messages: params.accumulator.getMessages(),
+    });
+  };
 
   const appendAssistantText = async (params: {
     projectId: string;
     conversationId: string;
     runId: string;
+    accumulator: ReturnType<typeof createConversationMessageAccumulator>;
     messageId: string;
     chunks: string[];
   }) => {
-    await appendEvent({
+    await processAndPersistEvent({
       ...params,
+      accumulator: params.accumulator,
       event: {
         type: EventType.TEXT_MESSAGE_START,
         messageId: params.messageId,
@@ -177,8 +189,9 @@ describe("in-app agent persistence", () => {
     });
 
     for (const delta of params.chunks) {
-      await appendEvent({
+      await processAndPersistEvent({
         ...params,
+        accumulator: params.accumulator,
         event: {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: params.messageId,
@@ -187,8 +200,9 @@ describe("in-app agent persistence", () => {
       });
     }
 
-    await appendEvent({
+    await processAndPersistEvent({
       ...params,
+      accumulator: params.accumulator,
       event: {
         type: EventType.TEXT_MESSAGE_END,
         messageId: params.messageId,
@@ -196,7 +210,7 @@ describe("in-app agent persistence", () => {
     });
   };
 
-  it("stores only ordered events and reduces multi-turn messages", async () => {
+  it("stores compact snapshots and restores multi-turn messages", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run1 = await createConversationRun({
@@ -210,7 +224,7 @@ describe("in-app agent persistence", () => {
       data: { providerSessionId: "claude-session-secret" },
     });
 
-    await appendRunStarted({
+    const accumulator1 = await startCompactRun({
       projectId,
       conversationId: conversation.id,
       runId: run1.id,
@@ -221,6 +235,7 @@ describe("in-app agent persistence", () => {
       projectId,
       conversationId: conversation.id,
       runId: run1.id,
+      accumulator: accumulator1,
       messageId: "assistant-message-1",
       chunks: ["I will inspect recent traces", " and look for outliers."],
     });
@@ -235,7 +250,7 @@ describe("in-app agent persistence", () => {
       conversationId: conversation.id,
       userId,
     });
-    await appendRunStarted({
+    const accumulator2 = await startCompactRun({
       projectId,
       conversationId: conversation.id,
       runId: run2.id,
@@ -246,6 +261,7 @@ describe("in-app agent persistence", () => {
       projectId,
       conversationId: conversation.id,
       runId: run2.id,
+      accumulator: accumulator2,
       messageId: "assistant-message-2",
       chunks: ["Next trace inspected."],
     });
@@ -291,30 +307,47 @@ describe("in-app agent persistence", () => {
       select: { sequenceNumber: true, type: true, event: true },
     });
 
-    expect(events.map((event) => event.sequenceNumber)).toEqual([
-      0, 1, 2, 3, 4, 5, 6, 7, 8,
-    ]);
+    expect(events.map((event) => event.sequenceNumber)).toEqual([0, 1, 2, 3]);
     expect(events.map((event) => event.type)).toEqual([
-      EventType.RUN_STARTED,
-      EventType.TEXT_MESSAGE_START,
-      EventType.TEXT_MESSAGE_CONTENT,
-      EventType.TEXT_MESSAGE_CONTENT,
-      EventType.TEXT_MESSAGE_END,
-      EventType.RUN_STARTED,
-      EventType.TEXT_MESSAGE_START,
-      EventType.TEXT_MESSAGE_CONTENT,
-      EventType.TEXT_MESSAGE_END,
+      EventType.MESSAGES_SNAPSHOT,
+      EventType.MESSAGES_SNAPSHOT,
+      EventType.MESSAGES_SNAPSHOT,
+      EventType.MESSAGES_SNAPSHOT,
     ]);
     expect(events[0]?.event).toMatchObject({
-      type: EventType.RUN_STARTED,
-      input: {
-        messages: [
-          {
-            id: "user-message-1",
-            role: "user",
-          },
-        ],
-      },
+      type: EventType.MESSAGES_SNAPSHOT,
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user",
+          content: "Please inspect today's traces for outliers",
+        },
+      ],
+    });
+    expect(events.at(-1)?.event).toMatchObject({
+      type: EventType.MESSAGES_SNAPSHOT,
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user",
+          content: "Please inspect today's traces for outliers",
+        },
+        {
+          id: "assistant-message-1",
+          role: "assistant",
+          content: "I will inspect recent traces and look for outliers.",
+        },
+        {
+          id: "user-message-2",
+          role: "user",
+          content: "Inspect the next trace",
+        },
+        {
+          id: "assistant-message-2",
+          role: "assistant",
+          content: "Next trace inspected.",
+        },
+      ],
     });
 
     const listedConversations = await caller.listConversations({ projectId });
@@ -332,27 +365,29 @@ describe("in-app agent persistence", () => {
       userId,
     });
 
-    await appendRunStarted({
+    const accumulator = await startCompactRun({
       projectId,
       conversationId: conversation.id,
       runId: run.id,
       messageId: "partial-user",
       content: "Start a long answer",
     });
-    await appendEvent({
+    await processAndPersistEvent({
       projectId,
       conversationId: conversation.id,
       runId: run.id,
+      accumulator,
       event: {
         type: EventType.TEXT_MESSAGE_START,
         messageId: "partial-assistant",
         role: "assistant",
       },
     });
-    await appendEvent({
+    await processAndPersistEvent({
       projectId,
       conversationId: conversation.id,
       runId: run.id,
+      accumulator,
       event: {
         type: EventType.TEXT_MESSAGE_CONTENT,
         messageId: "partial-assistant",
@@ -375,7 +410,7 @@ describe("in-app agent persistence", () => {
       prisma.inAppAgentEvent.count({
         where: { projectId, conversationId: conversation.id, runId: run.id },
       }),
-    ).resolves.toBe(3);
+    ).resolves.toBe(1);
   });
 
   it("stores and reduces tool calls, tool results, and activities", async () => {
@@ -387,144 +422,88 @@ describe("in-app agent persistence", () => {
       userId,
     });
 
-    await appendRunStarted({
+    const accumulator = await startCompactRun({
       projectId,
       conversationId: conversation.id,
       runId: run.id,
       messageId: "tool-user",
       content: "Search traces",
     });
-    await appendEvent({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      event: {
-        type: EventType.TEXT_MESSAGE_START,
-        messageId: "tool-assistant",
-        role: "assistant",
-      },
+    const process = (event: AgUiEvent) =>
+      processAndPersistEvent({
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        accumulator,
+        event,
+      });
+
+    await process({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: "tool-assistant",
+      role: "assistant",
     });
-    await appendEvent({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      event: {
-        type: EventType.TOOL_CALL_START,
-        toolCallId: "tool-call-1",
-        toolCallName: "list_traces",
-        parentMessageId: "tool-assistant",
-      },
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "tool-call-1",
+      toolCallName: "list_traces",
+      parentMessageId: "tool-assistant",
     });
-    await appendEvent({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      event: {
-        type: EventType.TOOL_CALL_ARGS,
-        toolCallId: "tool-call-1",
-        delta: '{"limit":',
-      },
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "tool-call-1",
+      delta: '{"limit":',
     });
-    await appendEvent({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      event: {
-        type: EventType.TOOL_CALL_ARGS,
-        toolCallId: "tool-call-1",
-        delta: "10}",
-      },
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "tool-call-1",
+      delta: "10}",
     });
-    await appendEvent({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      event: {
-        type: EventType.TOOL_CALL_END,
-        toolCallId: "tool-call-1",
-      },
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "tool-call-1",
     });
-    await appendEvent({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      event: {
-        type: EventType.TEXT_MESSAGE_CONTENT,
-        messageId: "tool-assistant",
-        delta: "I searched traces.",
-      },
+    await process({
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: "tool-assistant",
+      delta: "I searched traces.",
     });
-    await appendEvent({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      event: {
-        type: EventType.TEXT_MESSAGE_END,
-        messageId: "tool-assistant",
-      },
+    await process({
+      type: EventType.TEXT_MESSAGE_END,
+      messageId: "tool-assistant",
     });
-    await appendEvent({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      event: {
-        type: EventType.TOOL_CALL_RESULT,
-        messageId: "tool-result-1",
-        toolCallId: "tool-call-1",
-        content: "[]",
-        role: "tool",
-      },
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "tool-result-1",
+      toolCallId: "tool-call-1",
+      content: "[]",
+      role: "tool",
     });
-    await appendEvent({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      event: {
-        type: EventType.REASONING_MESSAGE_START,
-        messageId: "reasoning-1",
-        role: "reasoning",
-      },
+    await process({
+      type: EventType.REASONING_MESSAGE_START,
+      messageId: "reasoning-1",
+      role: "reasoning",
     });
-    await appendEvent({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      event: {
-        type: EventType.REASONING_MESSAGE_CONTENT,
-        messageId: "reasoning-1",
-        delta: "Checking filters",
-      },
+    await process({
+      type: EventType.REASONING_MESSAGE_CONTENT,
+      messageId: "reasoning-1",
+      delta: "Checking filters",
     });
-    await appendEvent({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      event: {
-        type: EventType.REASONING_ENCRYPTED_VALUE,
-        subtype: "message",
-        entityId: "reasoning-1",
-        encryptedValue: "encrypted-reasoning",
-      },
+    await process({
+      type: EventType.REASONING_ENCRYPTED_VALUE,
+      subtype: "message",
+      entityId: "reasoning-1",
+      encryptedValue: "encrypted-reasoning",
     });
-    await appendEvent({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      event: {
-        type: EventType.REASONING_MESSAGE_END,
-        messageId: "reasoning-1",
-      },
+    await process({
+      type: EventType.REASONING_MESSAGE_END,
+      messageId: "reasoning-1",
     });
-    await appendEvent({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      event: {
-        type: EventType.ACTIVITY_SNAPSHOT,
-        messageId: "activity-1",
-        activityType: "progress",
-        content: { status: "done" },
-      },
+    await process({
+      type: EventType.ACTIVITY_SNAPSHOT,
+      messageId: "activity-1",
+      activityType: "progress",
+      content: { status: "done" },
     });
 
     await expect(
@@ -570,10 +549,10 @@ describe("in-app agent persistence", () => {
       prisma.inAppAgentEvent.count({
         where: { projectId, conversationId: conversation.id, runId: run.id },
       }),
-    ).resolves.toBe(10);
+    ).resolves.toBe(5);
   });
 
-  it("redacts persisted events before storing raw adapter payloads", async () => {
+  it("stores only compact events and skips raw adapter payloads", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
@@ -581,48 +560,30 @@ describe("in-app agent persistence", () => {
       conversationId: conversation.id,
       userId,
     });
-    const append = (event: AgUiEvent) =>
-      appendEvent({
+
+    const accumulator = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "safe-user",
+      content: "visible user text",
+    });
+    const process = (event: AgUiEvent) =>
+      processAndPersistEvent({
         projectId,
         conversationId: conversation.id,
         runId: run.id,
+        accumulator,
         event,
       });
 
-    await append({
-      type: EventType.RUN_STARTED,
-      threadId: conversation.id,
-      runId: run.id,
-      parentRunId: "parent-run",
-      input: {
-        threadId: conversation.id,
-        runId: run.id,
-        messages: [
-          {
-            id: "safe-user",
-            role: "user",
-            content: "visible user text",
-          },
-          {
-            id: "hidden-system",
-            role: "system",
-            content: "system-message-secret",
-          },
-        ],
-        tools: [{ name: "tool", description: "tool-secret" }],
-        context: [{ description: "ctx", value: "context-secret" }],
-        state: { providerSessionId: "state-secret" },
-        forwardedProps: { resume: "resume-session-secret" },
-      },
-      rawEvent: { providerSessionId: "raw-run-secret" },
-    });
-    await append({
+    await process({
       type: EventType.TEXT_MESSAGE_START,
       messageId: "assistant-safe",
       role: "assistant",
       rawEvent: { token: "raw-text-start-secret" },
     });
-    await append({
+    await process({
       type: EventType.TEXT_MESSAGE_CONTENT,
       messageId: "assistant-safe",
       delta: "visible assistant text",
@@ -656,7 +617,7 @@ describe("in-app agent persistence", () => {
         event: { Authorization: "Basic raw-secret" },
       },
     ]) {
-      await append(event);
+      await process(event);
     }
 
     const events = await prisma.inAppAgentEvent.findMany({
@@ -666,41 +627,22 @@ describe("in-app agent persistence", () => {
     });
 
     expect(events.map((event) => event.type)).toEqual([
-      EventType.RUN_STARTED,
-      EventType.TEXT_MESSAGE_START,
-      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.MESSAGES_SNAPSHOT,
     ]);
     expect(events[0]?.event).toEqual({
-      type: EventType.RUN_STARTED,
-      threadId: conversation.id,
-      runId: run.id,
-      parentRunId: "parent-run",
-      input: {
-        threadId: conversation.id,
-        runId: run.id,
-        messages: [
-          {
-            id: "safe-user",
-            role: "user",
-            content: "visible user text",
-          },
-        ],
-      },
-    });
-    expect(events[1]?.event).toEqual({
-      type: EventType.TEXT_MESSAGE_START,
-      messageId: "assistant-safe",
-      role: "assistant",
-    });
-    expect(events[2]?.event).toEqual({
-      type: EventType.TEXT_MESSAGE_CONTENT,
-      messageId: "assistant-safe",
-      delta: "visible assistant text",
+      type: EventType.MESSAGES_SNAPSHOT,
+      messages: [
+        {
+          id: "safe-user",
+          role: "user",
+          content: "visible user text",
+        },
+      ],
     });
     expect(JSON.stringify(events)).not.toContain("secret");
   });
 
-  it("ignores adapter message snapshots when reducing history", async () => {
+  it("ignores adapter message snapshots when compacting history", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
@@ -709,17 +651,18 @@ describe("in-app agent persistence", () => {
       userId,
     });
 
-    await appendRunStarted({
+    const accumulator = await startCompactRun({
       projectId,
       conversationId: conversation.id,
       runId: run.id,
       messageId: "snapshot-user",
       content: "Keep this",
     });
-    await appendEvent({
+    await processAndPersistEvent({
       projectId,
       conversationId: conversation.id,
       runId: run.id,
+      accumulator,
       event: {
         type: EventType.MESSAGES_SNAPSHOT,
         messages: [
@@ -743,6 +686,12 @@ describe("in-app agent persistence", () => {
         },
       ],
     });
+
+    await expect(
+      prisma.inAppAgentEvent.count({
+        where: { projectId, conversationId: conversation.id, runId: run.id },
+      }),
+    ).resolves.toBe(1);
   });
 
   it("does not expose another user's conversation in the same project", async () => {

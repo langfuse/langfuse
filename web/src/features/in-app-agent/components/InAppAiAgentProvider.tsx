@@ -171,7 +171,9 @@ function InAppAiAgentProviderInner({
       projectId,
       conversationId: selectedConversationId ?? "",
     },
-    { enabled: open && Boolean(selectedConversationId) },
+    {
+      enabled: open && Boolean(selectedConversationId) && !isSubmitting,
+    },
   );
 
   const conversations = useMemo(
@@ -400,7 +402,6 @@ function InAppAiAgentProviderInner({
       setError(null);
 
       let startedRun = false;
-
       try {
         const isNewConversation = !selectedConversationId;
         const conversationId = selectedConversationId ?? crypto.randomUUID();

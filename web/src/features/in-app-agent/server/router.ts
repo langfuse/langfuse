@@ -9,9 +9,8 @@ import {
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import {
-  getConversationEvents,
+  getLatestConversationMessages,
   getOwnedConversationOrThrow,
-  reduceEventsToMessages,
   serializeConversation,
 } from "@/src/features/in-app-agent/server/persistence";
 
@@ -87,8 +86,7 @@ export const inAppAgentRouter = createTRPCRouter({
         userId: ctx.session.user.id,
       });
 
-      // TODO: compact/page event replay before supporting long-running chats.
-      const events = await getConversationEvents({
+      const messages = await getLatestConversationMessages({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
@@ -96,7 +94,7 @@ export const inAppAgentRouter = createTRPCRouter({
 
       return {
         conversation: serializeConversation(conversation),
-        messages: reduceEventsToMessages(events),
+        messages,
         state: {
           type: "existingConversation" as const,
           projectId: input.projectId,

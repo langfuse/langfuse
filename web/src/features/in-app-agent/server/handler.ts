@@ -9,10 +9,12 @@ import {
 } from "@/src/features/in-app-agent/schema";
 import { createAgUiStream } from "@/src/features/in-app-agent/server/agent";
 import {
-  appendConversationEvent,
+  appendMessagesSnapshot,
   createRun,
+  createConversationMessageAccumulator,
   ensureOwnedConversation,
   finishRun,
+  getLatestConversationMessages,
   updateProviderSessionId,
 } from "@/src/features/in-app-agent/server/persistence";
 import { getAuthOptions } from "@/src/server/auth";
@@ -160,10 +162,31 @@ export default async function handler(request: Request) {
             projectId,
             conversationId: conversation.id,
             triggeredByUserId: auth.userId,
+            // TODO: Store the exact provider model id, not the Claude SDK alias.
             model: "haiku",
             mcpApiKeyId: mcpApiKey.id,
           });
           runCreated = true;
+
+          const messageAccumulator = createConversationMessageAccumulator(
+            await getLatestConversationMessages({
+              prisma,
+              projectId,
+              conversationId: conversation.id,
+            }),
+          );
+          messageAccumulator.upsertMessage(sanitizedInput.messages[0]);
+
+          const appendMessageSnapshot = () =>
+            appendMessagesSnapshot({
+              prisma,
+              projectId,
+              conversationId: conversation.id,
+              runId: sanitizedInput.runId,
+              messages: messageAccumulator.getMessages(),
+            });
+
+          await appendMessageSnapshot();
 
           const finishCurrentRun = (error?: {
             errorCode: string;
@@ -201,14 +224,13 @@ export default async function handler(request: Request) {
                   conversationId: conversation.id,
                 };
               },
-              onEvent: (event) =>
-                appendConversationEvent({
-                  prisma,
-                  projectId,
-                  conversationId: conversation.id,
-                  runId: sanitizedInput.runId,
-                  event,
-                }),
+              onEvent: (event) => {
+                if (!messageAccumulator.processEvent(event)) {
+                  return;
+                }
+
+                return appendMessageSnapshot();
+              },
               onComplete: () => finishCurrentRun(),
               onAbort: () =>
                 finishCurrentRun({

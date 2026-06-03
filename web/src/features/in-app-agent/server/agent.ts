@@ -82,6 +82,7 @@ export function createAgUiStream(params: {
       ...(awsSdkLoadConfig ? { AWS_SDK_LOAD_CONFIG: awsSdkLoadConfig } : {}),
     },
     includePartialMessages: true,
+    // TODO: Persist and configure an exact provider model id once we stop using SDK aliases.
     model: "haiku",
   });
 

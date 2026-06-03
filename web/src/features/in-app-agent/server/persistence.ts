@@ -201,19 +201,13 @@ export async function updateProviderSessionId(params: {
   });
 }
 
-export async function appendConversationEvent(params: {
+export async function appendMessagesSnapshot(params: {
   prisma: PrismaClient;
   projectId: string;
   conversationId: string;
   runId: string;
-  event: AgUiEvent;
+  messages: readonly AgUiMessage[];
 }) {
-  const event = sanitizePersistedEvent(params.event);
-
-  if (!event) {
-    return;
-  }
-
   await params.prisma.$transaction(async (tx) => {
     await lockConversation(tx, params.projectId, params.conversationId);
 
@@ -225,15 +219,17 @@ export async function appendConversationEvent(params: {
       select: { sequenceNumber: true },
       orderBy: { sequenceNumber: "desc" },
     });
-
     await tx.inAppAgentEvent.create({
       data: {
         projectId: params.projectId,
         conversationId: params.conversationId,
         runId: params.runId,
         sequenceNumber: (latestEvent?.sequenceNumber ?? -1) + 1,
-        type: String(event.type),
-        event,
+        type: EventType.MESSAGES_SNAPSHOT,
+        event: {
+          type: EventType.MESSAGES_SNAPSHOT,
+          messages: params.messages as Prisma.InputJsonArray,
+        },
       },
     });
 
@@ -249,30 +245,36 @@ export async function appendConversationEvent(params: {
   });
 }
 
-export async function getConversationEvents(params: {
+export async function getLatestConversationMessages(params: {
   prisma: PrismaClient;
   projectId: string;
   conversationId: string;
 }) {
-  const events = await params.prisma.inAppAgentEvent.findMany({
+  const snapshot = await params.prisma.inAppAgentEvent.findFirst({
     where: {
       projectId: params.projectId,
       conversationId: params.conversationId,
+      type: EventType.MESSAGES_SNAPSHOT,
     },
-    orderBy: { sequenceNumber: "asc" },
+    orderBy: { sequenceNumber: "desc" },
     select: { event: true },
   });
 
-  return events.map((row) => row.event as unknown as AgUiEvent);
+  const event = snapshot?.event;
+
+  if (!isRecord(event) || !Array.isArray(event.messages)) {
+    return [];
+  }
+
+  return parseMessages(event.messages);
 }
 
-export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
+export function createConversationMessageAccumulator(
+  initialMessages: readonly AgUiMessage[],
+) {
   const messages: AgUiMessage[] = [];
   const messageIndexes = new Map<string, number>();
-  const textDrafts = new Map<
-    string,
-    { id: string; role: TextMessageRole; content: string }
-  >();
+  const textDrafts = new Map<string, { id: string; content: string }>();
   const toolCallDrafts = new Map<
     string,
     {
@@ -282,11 +284,11 @@ export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
     }
   >();
 
-  const upsertMessage = (message: AgUiMessage) => {
+  const upsertMessage = (message: AgUiMessage): boolean => {
     const parsed = AgUiMessageSchema.safeParse(message);
 
     if (!parsed.success) {
-      return;
+      return false;
     }
 
     const existingIndex = messageIndexes.get(parsed.data.id);
@@ -294,29 +296,28 @@ export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
     if (existingIndex === undefined) {
       messageIndexes.set(parsed.data.id, messages.length);
       messages.push(parsed.data);
-      return;
+      return true;
     }
 
     messages[existingIndex] = mergeMessages(
       messages[existingIndex]!,
       parsed.data,
     );
+
+    return true;
   };
 
-  for (const event of events) {
+  for (const message of initialMessages) {
+    upsertMessage(message);
+  }
+
+  const processEvent = (event: AgUiEvent): boolean => {
     switch (event.type) {
-      case EventType.RUN_STARTED: {
-        for (const message of getRunStartedMessages(event)) {
-          upsertMessage(message);
-        }
-        break;
-      }
       case EventType.TEXT_MESSAGE_START: {
         const messageId = getString(event, "messageId");
-        const role = getTextMessageRole(event);
 
-        if (messageId && role) {
-          textDrafts.set(messageId, { id: messageId, role, content: "" });
+        if (messageId && getString(event, "role") === "assistant") {
+          textDrafts.set(messageId, { id: messageId, content: "" });
         }
         break;
       }
@@ -338,14 +339,14 @@ export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
           break;
         }
 
-        upsertMessage({
+        const changed = upsertMessage({
           id: draft.id,
-          role: draft.role,
+          role: "assistant",
           content: draft.content,
         });
 
         textDrafts.delete(draft.id);
-        break;
+        return changed;
       }
       case EventType.TOOL_CALL_START: {
         const toolCallId = getString(event, "toolCallId");
@@ -375,7 +376,7 @@ export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
         const draft = toolCallId ? toolCallDrafts.get(toolCallId) : undefined;
 
         if (toolCallId && draft) {
-          upsertMessage({
+          const changed = upsertMessage({
             id: draft.parentMessageId,
             role: "assistant",
             toolCalls: [
@@ -389,6 +390,8 @@ export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
               },
             ],
           });
+          toolCallDrafts.delete(toolCallId);
+          return changed;
         }
         break;
       }
@@ -398,7 +401,7 @@ export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
         const content = getString(event, "content");
 
         if (messageId && toolCallId && content !== undefined) {
-          upsertMessage({
+          return upsertMessage({
             id: messageId,
             role: "tool",
             content,
@@ -416,7 +419,7 @@ export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
         const content = event.content;
 
         if (messageId && activityType && isRecord(content)) {
-          upsertMessage({
+          return upsertMessage({
             id: messageId,
             role: "activity",
             activityType,
@@ -428,150 +431,18 @@ export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
       default:
         break;
     }
-  }
 
-  return messages;
+    return false;
+  };
+
+  return {
+    getMessages: () => [...messages],
+    upsertMessage,
+    processEvent,
+  };
 }
 
 type InAppAgentTx = Prisma.TransactionClient;
-type TextMessageRole = Extract<AgUiMessage["role"], "assistant">;
-type PersistedAgUiEvent = Prisma.InputJsonObject & { type: EventType };
-type MutablePersistedAgUiEvent = Record<
-  string,
-  Prisma.InputJsonValue | null | undefined
-> & {
-  type: EventType;
-};
-type PersistedEventFields = {
-  required?: readonly string[];
-  optional?: readonly string[];
-};
-
-const PERSISTED_EVENT_FIELDS: Partial<Record<EventType, PersistedEventFields>> =
-  {
-    [EventType.TEXT_MESSAGE_START]: { required: ["messageId", "role"] },
-    [EventType.TEXT_MESSAGE_CONTENT]: { required: ["messageId", "delta"] },
-    [EventType.TEXT_MESSAGE_END]: { required: ["messageId"] },
-    [EventType.TOOL_CALL_START]: {
-      required: ["toolCallId", "toolCallName", "parentMessageId"],
-    },
-    [EventType.TOOL_CALL_ARGS]: { required: ["toolCallId", "delta"] },
-    [EventType.TOOL_CALL_END]: { required: ["toolCallId"] },
-    [EventType.TOOL_CALL_RESULT]: {
-      required: ["messageId", "toolCallId", "content"],
-      optional: ["error"],
-    },
-    [EventType.RUN_FINISHED]: { optional: ["threadId", "runId"] },
-    [EventType.RUN_ERROR]: {
-      optional: ["threadId", "runId", "message", "code"],
-    },
-    [EventType.STEP_STARTED]: { required: ["stepName"] },
-    [EventType.STEP_FINISHED]: { required: ["stepName"] },
-  };
-function sanitizePersistedEvent(event: AgUiEvent): PersistedAgUiEvent | null {
-  if (event.type === EventType.RUN_STARTED) {
-    return sanitizeRunStartedEvent(event);
-  }
-
-  if (event.type === EventType.ACTIVITY_SNAPSHOT) {
-    return sanitizeActivitySnapshotEvent(event);
-  }
-
-  if (
-    event.type === EventType.TEXT_MESSAGE_START &&
-    getString(event, "role") !== "assistant"
-  ) {
-    return null;
-  }
-
-  const fields = PERSISTED_EVENT_FIELDS[event.type];
-
-  if (!fields) {
-    return null;
-  }
-
-  return sanitizeFieldEvent(event, fields);
-}
-
-function sanitizeRunStartedEvent(event: AgUiEvent): PersistedAgUiEvent | null {
-  const messages = getRunStartedMessages(event).filter(
-    (message): message is Extract<AgUiMessage, { role: "user" }> =>
-      message.role === "user",
-  );
-
-  if (!messages.length) {
-    return null;
-  }
-
-  const threadId = getString(event, "threadId");
-  const runId = getString(event, "runId");
-
-  return compactObject({
-    ...baseEvent(event),
-    threadId,
-    runId,
-    parentRunId: getString(event, "parentRunId"),
-    input: compactObject({
-      threadId,
-      runId,
-      messages: messages as Prisma.InputJsonArray,
-    }),
-  });
-}
-
-function sanitizeActivitySnapshotEvent(
-  event: AgUiEvent,
-): PersistedAgUiEvent | null {
-  const messageId = getString(event, "messageId");
-  const activityType = getString(event, "activityType");
-  const content = event.content;
-
-  if (!messageId || !activityType || !isRecord(content)) {
-    return null;
-  }
-
-  return {
-    ...baseEvent(event),
-    messageId,
-    activityType,
-    content: content as Prisma.InputJsonObject,
-  };
-}
-
-function sanitizeFieldEvent(
-  event: AgUiEvent,
-  fields: PersistedEventFields,
-): PersistedAgUiEvent | null {
-  const sanitized = baseEvent(event);
-
-  for (const field of fields.required ?? []) {
-    const value = getString(event, field);
-
-    if (value === undefined) {
-      return null;
-    }
-
-    sanitized[field] = value;
-  }
-
-  for (const field of fields.optional ?? []) {
-    const value = getString(event, field);
-
-    if (value !== undefined) {
-      sanitized[field] = value;
-    }
-  }
-
-  return sanitized;
-}
-
-function baseEvent(event: AgUiEvent): MutablePersistedAgUiEvent {
-  return compactObject({
-    type: event.type,
-    timestamp:
-      typeof event.timestamp === "number" ? event.timestamp : undefined,
-  });
-}
 
 async function lockConversation(
   tx: InAppAgentTx,
@@ -587,24 +458,11 @@ async function lockConversation(
   `;
 }
 
-function getRunStartedMessages(event: AgUiEvent): AgUiMessage[] {
-  const input = isRecord(event.input) ? event.input : undefined;
-  const messages = Array.isArray(input?.messages) ? input.messages : [];
-
+function parseMessages(messages: unknown[]): AgUiMessage[] {
   return messages.flatMap((message) => {
     const parsed = AgUiMessageSchema.safeParse(message);
     return parsed.success ? [parsed.data] : [];
   });
-}
-
-function getTextMessageRole(event: AgUiEvent): TextMessageRole | undefined {
-  const role = getString(event, "role");
-
-  if (role === "assistant") {
-    return role;
-  }
-
-  return undefined;
 }
 
 function mergeMessages(existing: AgUiMessage, next: AgUiMessage): AgUiMessage {
@@ -613,12 +471,12 @@ function mergeMessages(existing: AgUiMessage, next: AgUiMessage): AgUiMessage {
   }
 
   if (existing.role === "assistant" && next.role === "assistant") {
-    return {
+    return compactObject({
       ...existing,
       ...next,
       content: next.content ?? existing.content,
       toolCalls: mergeToolCalls(existing.toolCalls, next.toolCalls),
-    };
+    }) as AgUiMessage;
   }
 
   return next;
