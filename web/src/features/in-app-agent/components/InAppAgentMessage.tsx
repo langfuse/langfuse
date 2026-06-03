@@ -13,24 +13,32 @@ export type InAppAgentMessageContent =
 export type InAppAgentMessageProps = {
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
+  isCompact?: boolean;
 };
 
-export function InAppAgentMessage({ role, content }: InAppAgentMessageProps) {
+export function InAppAgentMessage({
+  role,
+  content,
+  isCompact = false,
+}: InAppAgentMessageProps) {
   const isUser = role === "user";
 
   return (
     <div
       className={cn(
-        "rounded-2xl px-3.5 py-2.5 text-sm shadow-xs",
+        "shadow-xs",
+        isCompact
+          ? "rounded-xl px-2.5 py-1 text-xs"
+          : "rounded-2xl px-3 py-1.5 text-sm",
         isUser
           ? "bg-primary text-primary-foreground"
-          : "bg-card text-card-foreground border-border border",
+          : "bg-card dark:bg-header text-card-foreground border-border border",
       )}
     >
       {content.type === "loading" ? (
-        <ThinkingIndicator label={content.label} />
+        <ThinkingIndicator label={content.label} isCompact={isCompact} />
       ) : (
-        <MessageText role={role} text={content.text} />
+        <MessageText role={role} text={content.text} isCompact={isCompact} />
       )}
     </div>
   );
@@ -39,16 +47,34 @@ export function InAppAgentMessage({ role, content }: InAppAgentMessageProps) {
 function MessageText({
   role,
   text,
+  isCompact,
 }: {
   role: InAppAgentMessageRole;
   text: string;
+  isCompact: boolean;
 }) {
   if (role === "user") {
-    return <p className="leading-5.5 whitespace-pre-wrap">{text}</p>;
+    return (
+      <p
+        className={cn(
+          "whitespace-pre-wrap",
+          isCompact ? "leading-4" : "leading-4.5",
+        )}
+      >
+        {text}
+      </p>
+    );
   }
 
   return (
-    <div className="prose prose-sm text-foreground prose-headings:my-2.5 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-1 prose-ol:my-1.5 prose-strong:text-inherit prose-blockquote:my-2.5 prose-pre:my-2.5 prose-pre:bg-muted prose-pre:text-foreground prose-code:text-foreground prose-table:my-2.5 max-w-none leading-5.5">
+    <div
+      className={cn(
+        "prose prose-sm text-foreground prose-strong:text-inherit prose-pre:bg-muted prose-pre:text-foreground prose-code:text-foreground max-w-none",
+        isCompact
+          ? "prose-headings:my-2 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-ol:my-1 prose-blockquote:my-2 prose-pre:my-2 prose-table:my-2 text-xs leading-4"
+          : "prose-headings:my-2.5 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-1 prose-ol:my-1.5 prose-blockquote:my-2.5 prose-pre:my-2.5 prose-table:my-2.5 leading-4.5",
+      )}
+    >
       <Streamdown
         // Remove all default classNames so that tailwind's prose styling can be applied without conflicts
         components={{
@@ -84,13 +110,23 @@ function MessageText({
 function ThinkingIndicator({
   className,
   label = "Thinking...",
+  isCompact = false,
 }: {
   className?: string;
   label?: string;
+  isCompact?: boolean;
 }) {
   return (
-    <div className={cn("flex items-center gap-2 text-sm", className)}>
-      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+    <div
+      className={cn(
+        "flex items-center",
+        isCompact ? "gap-1.5 text-xs" : "gap-2 text-sm",
+        className,
+      )}
+    >
+      <Loader2
+        className={cn("animate-spin", isCompact ? "h-3 w-3" : "h-3.5 w-3.5")}
+      />
       <span>{label}</span>
     </div>
   );

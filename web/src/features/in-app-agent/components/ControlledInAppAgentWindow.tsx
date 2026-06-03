@@ -3,31 +3,35 @@
 import { useMemo } from "react";
 import { z } from "zod";
 import {
-  InAppAgentDrawer,
-  type InAppAgentDrawerMessage,
-} from "./InAppAgentDrawer";
+  InAppAgentWindow,
+  type InAppAgentWindowMessage,
+} from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { AgUiMessageSchema } from "@/src/features/in-app-agent/schema";
 
-type ControlledInAppAgentDrawerProps =
+type ControlledInAppAgentWindowProps =
   | {
+      isExpanded: boolean;
       showCloseButton: false;
+      onExpandedChange: (isExpanded: boolean) => void;
       onClose?: () => void;
     }
   | {
+      isExpanded: boolean;
       showCloseButton?: true;
+      onExpandedChange: (isExpanded: boolean) => void;
       onClose: () => void;
     };
 
-export function ControlledInAppAgentDrawer(
-  props: ControlledInAppAgentDrawerProps,
+export function ControlledInAppAgentWindow(
+  props: ControlledInAppAgentWindowProps,
 ) {
   const { error, isRunning, messages, submit } = useInAppAiAgent();
   const drawerMessages = useMemo(() => {
     const parsedMessages = z.array(AgUiMessageSchema).parse(messages);
 
     const mappedMessages = parsedMessages.flatMap(
-      (message, index): InAppAgentDrawerMessage[] => {
+      (message, index): InAppAgentWindowMessage[] => {
         if (message.role === "system" || message.role === "activity") {
           return [];
         }
@@ -101,7 +105,7 @@ export function ControlledInAppAgentDrawer(
               ? { type: "loading" }
               : { type: "loading", label: "Connecting..." },
           ],
-        } satisfies InAppAgentDrawerMessage,
+        } satisfies InAppAgentWindowMessage,
       ];
     }
 
@@ -114,10 +118,12 @@ export function ControlledInAppAgentDrawer(
       : ({ showCloseButton: true, onClose: props.onClose } as const);
 
   return (
-    <InAppAgentDrawer
+    <InAppAgentWindow
       error={error}
+      isExpanded={props.isExpanded}
       isRunning={isRunning}
       messages={drawerMessages}
+      onExpandedChange={props.onExpandedChange}
       onSubmit={submit}
       {...closeButtonProps}
     />

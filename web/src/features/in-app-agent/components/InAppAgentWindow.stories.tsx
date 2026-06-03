@@ -1,26 +1,47 @@
 import preview from "../../../../.storybook/preview";
+import { useArgs } from "storybook/preview-api";
 import { fn } from "storybook/test";
-import { InAppAgentDrawer } from "./InAppAgentDrawer";
+import {
+  InAppAgentWindow,
+  type InAppAgentWindowProps,
+} from "./InAppAgentWindow";
+
+function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
+  const [, updateArgs] = useArgs<InAppAgentWindowProps>();
+
+  return (
+    <InAppAgentWindow
+      {...args}
+      onExpandedChange={(isExpanded) => {
+        updateArgs({ isExpanded });
+        args.onExpandedChange(isExpanded);
+      }}
+    />
+  );
+}
 
 const meta = preview.meta({
-  component: InAppAgentDrawer,
+  component: InAppAgentWindow,
   parameters: {
     layout: "fullscreen",
   },
   decorators: [
     (Story) => (
-      <div className="h-screen w-full">
+      <div className="flex h-screen w-full items-center justify-center">
         <Story />
       </div>
     ),
   ],
   args: {
     error: null,
+    isExpanded: false,
     isRunning: false,
     onClose: fn(),
+    onExpandedChange: fn(),
     onSubmit: fn(),
     showCloseButton: true,
   },
+  render: StatefulInAppAgentWindow,
 });
 
 export const Empty = meta.story({

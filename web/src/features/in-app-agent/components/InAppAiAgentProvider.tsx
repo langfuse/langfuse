@@ -42,6 +42,8 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isAvailable: false,
   open: false,
   setOpen: () => undefined,
+  isExpanded: false,
+  setIsExpanded: () => undefined,
   isRunning: false,
   error: null,
   messages: [],
@@ -54,6 +56,8 @@ type InAppAiAgentContextType = {
   isAvailable: boolean;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
+  isExpanded: boolean;
+  setIsExpanded: Dispatch<SetStateAction<boolean>>;
   isRunning: boolean;
   error: string | null;
   messages: InAppAiAgentMessage[];
@@ -133,6 +137,7 @@ function InAppAiAgentProviderInner({
     );
 
   const [isRunning, setIsRunning] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const agentRef = useRef<HttpAgent | null>(null);
   const subscriptionRef = useRef<ReturnType<HttpAgent["subscribe"]> | null>(
@@ -319,17 +324,25 @@ function InAppAiAgentProviderInner({
     [ensureSubscription, restoredMessages, restoredSession, runAgent],
   );
 
+  useEffect(() => {
+    if (!open) {
+      setIsExpanded(false);
+    }
+  }, [open]);
+
   const value = useMemo<InAppAiAgentContextType>(
     () => ({
       isAvailable: true,
       open,
       setOpen,
+      isExpanded,
+      setIsExpanded,
       isRunning,
       error,
       messages: restoredMessages,
       submit,
     }),
-    [error, isRunning, open, restoredMessages, setOpen, submit],
+    [error, isExpanded, isRunning, open, restoredMessages, setOpen, submit],
   );
 
   return (
