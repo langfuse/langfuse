@@ -195,7 +195,7 @@ export default function EvalsTemplateTable({
 
   const createEvalTemplateMutation = api.evals.createTemplate.useMutation({
     onSuccess: () => {
-      void utils.evals.templateNames.invalidate();
+      utils.evals.templateNames.invalidate();
       setCloneTemplateId(null);
       setPendingCloneSubmission(null);
       setShowReferenceUpdateDialog(false);
@@ -349,7 +349,7 @@ export default function EvalsTemplateTable({
               onClick={(e) => {
                 e.stopPropagation();
                 if (id) {
-                  void router.push(
+                  router.push(
                     `/project/${projectId}/evals/new?evaluator=${id}`,
                   );
                 }
@@ -524,7 +524,7 @@ export default function EvalsTemplateTable({
             existingEvalTemplate={template.data ?? undefined}
             onFormSuccess={() => {
               setEditTemplateId(null);
-              void utils.evals.templateNames.invalidate();
+              utils.evals.templateNames.invalidate();
               showSuccessToast({
                 title: "Evaluator updated successfully",
                 description: "You can now use this evaluator.",
@@ -595,7 +595,7 @@ export default function EvalsTemplateTable({
             onFormSuccess={() => {
               setCloneTemplateId(null);
               setPendingCloneSubmission(null);
-              void utils.evals.templateNames.invalidate();
+              utils.evals.templateNames.invalidate();
               showSuccessToast({
                 title: "Evaluator cloned successfully",
                 description:

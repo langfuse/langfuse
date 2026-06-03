@@ -78,9 +78,12 @@ type GetDatasetV1Input = z.infer<typeof GetDatasetV1Query> & {
 };
 
 type CreateDatasetInput = {
-  input:
+  input: (
     | z.infer<typeof PostDatasetsV1Body>
-    | z.infer<typeof PostDatasetsV2Body>;
+    | z.infer<typeof PostDatasetsV2Body>
+  ) & {
+    id?: string;
+  };
   projectId: string;
   auditScope?: DatasetAuditScope;
 };
@@ -244,18 +247,26 @@ export const createDatasetForApi = async ({
 }: CreateDatasetInput) => {
   const existingDataset = auditScope
     ? await prisma.dataset.findUnique({
-        where: {
-          projectId_name: {
-            projectId,
-            name: input.name,
-          },
-        },
+        where: input.id
+          ? {
+              id_projectId: {
+                id: input.id,
+                projectId,
+              },
+            }
+          : {
+              projectId_name: {
+                projectId,
+                name: input.name,
+              },
+            },
       })
     : null;
 
   const dataset = await upsertDataset({
     input: {
       name: input.name,
+      id: input.id,
       description: input.description ?? undefined,
       metadata: input.metadata ?? undefined,
       inputSchema: input.inputSchema,

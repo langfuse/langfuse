@@ -37,6 +37,51 @@ const OPENAI_RESPONSE_BODY = JSON.stringify({
   ],
 });
 
+const OPENAI_RESPONSES_BODY = JSON.stringify({
+  id: "resp_test",
+  object: "response",
+  created_at: 1,
+  status: "completed",
+  error: null,
+  incomplete_details: null,
+  instructions: null,
+  max_output_tokens: null,
+  model: "gpt-4o-mini",
+  output: [
+    {
+      id: "msg_test",
+      type: "message",
+      status: "completed",
+      role: "assistant",
+      content: [
+        {
+          type: "output_text",
+          text: "4",
+          annotations: [],
+        },
+      ],
+    },
+  ],
+  parallel_tool_calls: true,
+  previous_response_id: null,
+  reasoning: null,
+  store: true,
+  temperature: 0,
+  text: { format: { type: "text" } },
+  tool_choice: "auto",
+  tools: [],
+  top_p: 1,
+  truncation: "disabled",
+  usage: {
+    input_tokens: 10,
+    output_tokens: 1,
+    total_tokens: 11,
+  },
+  user: null,
+  metadata: {},
+});
+const OPENAI_RESPONSES_RESPONSE = JSON.parse(OPENAI_RESPONSES_BODY);
+
 describe("secure LLM fetch", () => {
   const originalWhitelistedHosts = env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST;
   // env is the zod-validated object: read from process.env at module load and
@@ -107,6 +152,138 @@ describe("secure LLM fetch", () => {
         expect(JSON.parse(request.body)).toMatchObject({
           model: "gpt-4o-mini",
         });
+      },
+    );
+
+    test(
+      "OpenAI Responses API config routes through the responses endpoint",
+      { timeout: 30_000 },
+      async () => {
+        const server = await spinUp((_req, _body, res) => {
+          res.setHeader("content-type", "application/json");
+          res.end(OPENAI_RESPONSES_BODY);
+        });
+
+        const completion = await fetchLLMCompletion({
+          streaming: false,
+          messages: [
+            {
+              role: "user",
+              content: "What is 2+2? Answer only with the number.",
+              type: ChatMessageType.PublicAPICreated,
+            },
+          ],
+          modelParams: {
+            provider: "openai",
+            adapter: LLMAdapter.OpenAI,
+            model: "gpt-4o-mini",
+            temperature: 0,
+            max_tokens: 10,
+          },
+          llmConnection: {
+            secretKey: encrypt("openai-api-key"),
+            baseURL: `${server.url}/v1`,
+            config: {
+              useResponsesApi: true,
+            },
+          },
+        });
+
+        expect(completion).toBe("4");
+        expect(server.requests).toHaveLength(1);
+        const [request] = server.requests;
+        expect(request.method).toBe("POST");
+        expect(request.url).toBe("/v1/responses");
+        expect(request.headers.authorization).toBe("Bearer openai-api-key");
+        expect(JSON.parse(request.body)).toMatchObject({
+          model: "gpt-4o-mini",
+        });
+      },
+    );
+
+    test(
+      "OpenAI Responses API streaming returns text instead of content block arrays",
+      { timeout: 30_000 },
+      async () => {
+        const server = await spinUp((_req, _body, res) => {
+          res.writeHead(200, {
+            "content-type": "text/event-stream",
+            "cache-control": "no-cache",
+            connection: "keep-alive",
+          });
+
+          const writeEvent = (event: Record<string, unknown>) => {
+            res.write(`data: ${JSON.stringify(event)}\n\n`);
+          };
+
+          writeEvent({
+            type: "response.created",
+            response: {
+              id: "resp_test",
+              model: "gpt-4o-mini",
+            },
+          });
+          writeEvent({
+            type: "response.output_item.added",
+            output_index: 0,
+            item: {
+              id: "msg_test",
+              type: "message",
+              status: "in_progress",
+              role: "assistant",
+              content: [],
+              phase: "final_answer",
+            },
+          });
+          writeEvent({
+            type: "response.output_text.delta",
+            item_id: "msg_test",
+            output_index: 0,
+            content_index: 0,
+            delta: "pong",
+          });
+          writeEvent({
+            type: "response.completed",
+            response: OPENAI_RESPONSES_RESPONSE,
+          });
+          res.write("data: [DONE]\n\n");
+          res.end();
+        });
+
+        const stream = await fetchLLMCompletion({
+          streaming: true,
+          messages: [
+            {
+              role: "user",
+              content: "What is 2+2? Answer only with the number.",
+              type: ChatMessageType.PublicAPICreated,
+            },
+          ],
+          modelParams: {
+            provider: "openai",
+            adapter: LLMAdapter.OpenAI,
+            model: "gpt-4o-mini",
+            temperature: 0,
+            max_tokens: 10,
+          },
+          llmConnection: {
+            secretKey: encrypt("openai-api-key"),
+            baseURL: `${server.url}/v1`,
+            config: {
+              useResponsesApi: true,
+            },
+          },
+        });
+
+        const decoder = new TextDecoder();
+        let text = "";
+        for await (const chunk of stream) {
+          text += decoder.decode(chunk);
+        }
+
+        expect(text).toBe("pong");
+        expect(server.requests).toHaveLength(1);
+        expect(server.requests[0].url).toBe("/v1/responses");
       },
     );
   });

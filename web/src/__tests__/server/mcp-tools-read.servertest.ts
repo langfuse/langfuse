@@ -1482,6 +1482,61 @@ describe("MCP Read Tools", () => {
       expect(result.meta).toBeDefined();
     });
 
+    it("should return string examples and numeric ranges for filter columns", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const uniqueSessionId = `mcp-session-${nanoid()}`;
+      const lowTotalCost = 0.1;
+      const highTotalCost = 0.3;
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-examples-${nanoid()}`,
+          sessionId: uniqueSessionId,
+          totalCost: lowTotalCost,
+        }),
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-examples-${nanoid()}`,
+          sessionId: uniqueSessionId,
+          totalCost: highTotalCost,
+        }),
+      ]);
+
+      const sessionResult = await handleGetObservationFilterValues(
+        { column: "sessionId", limit: 100 },
+        context,
+      );
+
+      expect(sessionResult).toEqual(
+        expect.objectContaining({
+          type: "VALUES",
+          column: "sessionId",
+          values: expect.arrayContaining([
+            expect.objectContaining({ value: uniqueSessionId, count: 2 }),
+          ]),
+        }),
+      );
+
+      const costResult = await handleGetObservationFilterValues(
+        { column: "totalCost", limit: 100 },
+        context,
+      );
+
+      expect(costResult).toEqual(
+        expect.objectContaining({
+          type: "RANGE",
+          column: "totalCost",
+          range: expect.objectContaining({
+            count: 2,
+            min: expect.closeTo(lowTotalCost),
+            max: expect.closeTo(highTotalCost),
+            avg: expect.closeTo(0.2),
+          }),
+        }),
+      );
+    });
+
     it("should map public tags column to traceTags option source", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const uniqueTag = `mcp-tag-${nanoid()}`;

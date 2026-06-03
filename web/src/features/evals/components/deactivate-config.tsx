@@ -26,7 +26,7 @@ export function DeactivateEvalConfig({
 
   const mutEvaluator = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
-      void utils.evals.invalidate();
+      utils.evals.invalidate();
     },
   });
 

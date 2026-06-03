@@ -47,7 +47,7 @@ const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
   const [isCopied, setIsCopied] = useState(false);
   const handleCopy = () => {
     setIsCopied(true);
-    void copyTextToClipboard(value ?? "");
+    copyTextToClipboard(value ?? "");
     setTimeout(() => setIsCopied(false), 1000);
   };
 

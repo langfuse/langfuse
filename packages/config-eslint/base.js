@@ -44,6 +44,7 @@ export default tseslint.config(
       },
     },
     rules: {
+      "no-void": "warn",
       "no-redeclare": "off",
       "import/order": "off",
     },

@@ -565,7 +565,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               mode="edit"
               onFormSuccess={() => {
                 setEditConfigId(null);
-                void utils.evals.allConfigs.invalidate();
+                utils.evals.allConfigs.invalidate();
                 showSuccessToast({
                   title: "Evaluator updated successfully",
                   description:

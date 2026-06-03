@@ -8,7 +8,10 @@ import { DatasetJSONSchema } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
+const idField = z.string().min(1).optional();
+
 const UpsertDatasetBaseSchema = z.object({
+  id: idField,
   name: z.string(),
   description: z.string().optional(),
   metadata: z.any().optional(),
@@ -38,6 +41,7 @@ const DatasetJSONSchemaInput = z
 const UpsertDatasetInputSchema = PostDatasetsV2Body.extend({
   inputSchema: DatasetJSONSchemaInput,
   expectedOutputSchema: DatasetJSONSchemaInput,
+  id: idField,
 });
 
 export const [upsertDatasetTool, handleUpsertDataset] = defineTool({

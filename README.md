@@ -1,4 +1,4 @@
-<img width="2400" height="600" alt="hero-b" src="https://github.com/user-attachments/assets/5ccecfb8-2990-4d03-8014-88ec7cd75e9a" />
+<img width="2400" height="600" alt="hero-b (1)" src="https://github.com/user-attachments/assets/5810ae13-15d6-4b60-afd2-927adc501861" />
 
 <div align="center">
    <div>

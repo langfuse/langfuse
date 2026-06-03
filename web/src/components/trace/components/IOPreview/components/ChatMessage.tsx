@@ -139,7 +139,7 @@ export function ChatMessage({
           handleOnValueChange={() => {}}
           handleOnCopy={() => {
             const rawText = JSON.stringify(message, null, 2);
-            void copyTextToClipboard(rawText);
+            copyTextToClipboard(rawText);
           }}
           controlButtons={passthroughToggleButton}
         />

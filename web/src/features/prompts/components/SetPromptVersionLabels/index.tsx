@@ -91,7 +91,7 @@ export function SetPromptVersionLabels({
 
   const mutatePromptVersionLabels = api.prompts.setLabels.useMutation({
     onSuccess: () => {
-      void utils.prompts.invalidate();
+      utils.prompts.invalidate();
     },
   });
 
