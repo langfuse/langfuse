@@ -306,7 +306,7 @@ export const createAuthedProjectAPIRoute = <
     ) {
       res.status(404).json({
         message:
-          "This endpoint is not available on deployments running in V4 events_only mode.",
+          "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn move about Langfuse v4 at: https://langfuse.com/docs/v4",
       });
       return;
     }

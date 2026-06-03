@@ -586,7 +586,9 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 
   const { sessionId, projectId } = result.data;
 
-  // trace sessions are stored in postgres. No need to check for clickhouse eligibility.
+  // trace_sessions should be a sparse metadata side-table: a row only exists once a
+  // session has been bookmarked or published.
+  // If it's not marked as public, we fallback to the usual user-based project access check.
   const session = await ctx.prisma.traceSession.findFirst({
     where: {
       id: sessionId,
@@ -597,22 +599,14 @@ const enforceSessionAccess = t.middleware(async (opts) => {
     },
   });
 
-  if (!session) {
-    logger.error(
-      `Session with id ${sessionId} not found for project ${projectId}`,
-    );
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Session not found",
-    });
-  }
+  const isPublicSession = session?.public ?? false;
 
   const userSessionProject = ctx.session?.user?.organizations
     .flatMap((org) => org.projects)
     .find(({ id }) => id === projectId);
 
   if (
-    !session.public &&
+    !isPublicSession &&
     !userSessionProject &&
     ctx.session?.user?.admin !== true
   ) {
