@@ -49,8 +49,8 @@ function RightDrawerLoadingFallback() {
 /**
  * App-shell content wrapper that attaches the support / AI assistant right drawer.
  *
- * Desktop uses a resizable split only while a right drawer is active. Mobile
- * uses a bottom drawer.
+ * Desktop keeps a stable split wrapper so routed page content does not remount
+ * when a right drawer opens or closes. Mobile uses a bottom drawer.
  */
 export function AppContentWithRightDrawer({
   aiAgentEnabled,
@@ -70,35 +70,23 @@ export function AppContentWithRightDrawer({
     );
   }
 
-  if (!showRightDrawer) {
-    return (
-      <div
-        className="relative h-full w-full overflow-auto"
-        style={{ overscrollBehaviorY: "none" }}
-      >
-        {children}
-      </div>
-    );
-  }
+  const rightDrawerContent = showAiAgent ? (
+    <DynamicControlledInAppAgentDrawer onClose={() => setAiAgentOpen(false)} />
+  ) : supportOpen ? (
+    <DynamicSupportDrawer />
+  ) : null;
 
   return (
     <ResizableSplitLayout
       primaryContent={children}
-      secondaryContent={
-        showAiAgent ? (
-          <DynamicControlledInAppAgentDrawer
-            onClose={() => setAiAgentOpen(false)}
-          />
-        ) : (
-          <DynamicSupportDrawer />
-        )
-      }
-      open={true}
+      secondaryContent={rightDrawerContent}
+      open={showRightDrawer}
       showHandle={showAiAgent}
       defaultPrimarySize={showAiAgent ? 72 : 70}
       defaultSecondarySize={showAiAgent ? 28 : 30}
       minPrimarySize={30}
       maxSecondarySize={60}
+      keepSecondaryMounted={false}
       persistId={showAiAgent ? "assistant-sidebar" : undefined}
     />
   );

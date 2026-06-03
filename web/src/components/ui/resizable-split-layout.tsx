@@ -18,6 +18,7 @@ interface ResizableSplitLayoutProps {
   maxSecondarySize?: number;
   className?: string;
   secondaryPosition?: "left" | "right";
+  keepSecondaryMounted?: boolean;
   persistId?: string;
 }
 
@@ -32,8 +33,9 @@ const NOOP_LAYOUT_STORAGE = {
 /**
  * Horizontal split layout with a collapsible secondary panel.
  *
- * Keeps a stable DOM tree while mounted so callers can preserve state while
- * opening and closing the secondary panel.
+ * Keeps the primary panel mounted so callers can preserve state while opening
+ * and closing the secondary panel. By default, the secondary panel also stays
+ * mounted and collapses; callers can opt out to remove inactive secondary DOM.
  */
 export function ResizableSplitLayout({
   primaryContent,
@@ -46,6 +48,7 @@ export function ResizableSplitLayout({
   maxSecondarySize = 60,
   className = "flex h-full w-full",
   secondaryPosition = "right",
+  keepSecondaryMounted = true,
   persistId,
 }: ResizableSplitLayoutProps) {
   const instanceId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -58,10 +61,12 @@ export function ResizableSplitLayout({
       ? sessionStorage
       : NOOP_LAYOUT_STORAGE;
 
-  const panelIds =
-    secondaryPosition === "left"
+  const renderSecondaryPanel = keepSecondaryMounted || open;
+  const panelIds = renderSecondaryPanel
+    ? secondaryPosition === "left"
       ? [SECONDARY_PANEL_ID, PRIMARY_PANEL_ID]
-      : [PRIMARY_PANEL_ID, SECONDARY_PANEL_ID];
+      : [PRIMARY_PANEL_ID, SECONDARY_PANEL_ID]
+    : [PRIMARY_PANEL_ID];
 
   const secondaryPanelRef = usePanelRef();
 
@@ -72,6 +77,8 @@ export function ResizableSplitLayout({
   });
 
   useLayoutEffect(() => {
+    if (!keepSecondaryMounted) return;
+
     const panel = secondaryPanelRef.current;
     if (!panel) return;
 
@@ -87,18 +94,21 @@ export function ResizableSplitLayout({
     } else {
       panel.collapse();
     }
-  }, [open, secondaryPanelRef, defaultSecondarySize]);
+  }, [keepSecondaryMounted, open, secondaryPanelRef, defaultSecondarySize]);
 
   return (
     <ResizablePanelGroup
       id={groupId}
       orientation="horizontal"
       className={className}
-      defaultLayout={defaultLayout}
-      onLayoutChanged={persistId ? onLayoutChanged : undefined}
+      defaultLayout={renderSecondaryPanel ? defaultLayout : undefined}
+      onLayoutChanged={
+        persistId && renderSecondaryPanel ? onLayoutChanged : undefined
+      }
     >
-      {secondaryPosition === "left" && (
+      {secondaryPosition === "left" && renderSecondaryPanel && (
         <ResizablePanel
+          key={SECONDARY_PANEL_ID}
           id={SECONDARY_PANEL_ID}
           panelRef={secondaryPanelRef}
           defaultSize={`${defaultSecondarySize}%`}
@@ -113,11 +123,12 @@ export function ResizableSplitLayout({
         </ResizablePanel>
       )}
       {secondaryPosition === "left" && open && showHandle && (
-        <ResizableHandle withHandle />
+        <ResizableHandle key="secondary-handle" withHandle />
       )}
       <ResizablePanel
+        key={PRIMARY_PANEL_ID}
         id={PRIMARY_PANEL_ID}
-        defaultSize={`${defaultPrimarySize}%`}
+        defaultSize={renderSecondaryPanel ? `${defaultPrimarySize}%` : "100%"}
         minSize={`${minPrimarySize}%`}
       >
         <div
@@ -128,10 +139,11 @@ export function ResizableSplitLayout({
         </div>
       </ResizablePanel>
       {secondaryPosition === "right" && open && showHandle && (
-        <ResizableHandle withHandle />
+        <ResizableHandle key="secondary-handle" withHandle />
       )}
-      {secondaryPosition === "right" && (
+      {secondaryPosition === "right" && renderSecondaryPanel && (
         <ResizablePanel
+          key={SECONDARY_PANEL_ID}
           id={SECONDARY_PANEL_ID}
           panelRef={secondaryPanelRef}
           defaultSize={`${defaultSecondarySize}%`}
