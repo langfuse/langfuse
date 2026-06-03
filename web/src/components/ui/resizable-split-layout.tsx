@@ -7,22 +7,22 @@ import {
   usePanelRef,
 } from "@/src/components/ui/resizable";
 
-interface ResizableDesktopLayoutProps {
-  mainContent: ReactNode;
-  sidebarContent: ReactNode;
+interface ResizableSplitLayoutProps {
+  primaryContent: ReactNode;
+  secondaryContent: ReactNode;
   open: boolean;
   showHandle?: boolean;
-  defaultMainSize?: number;
-  defaultSidebarSize?: number;
-  minMainSize?: number;
-  maxSidebarSize?: number;
+  defaultPrimarySize?: number;
+  defaultSecondarySize?: number;
+  minPrimarySize?: number;
+  maxSecondarySize?: number;
   className?: string;
-  sidebarPosition?: "left" | "right";
+  secondaryPosition?: "left" | "right";
   persistId?: string;
 }
 
-const MAIN_PANEL_ID = "main";
-const SIDEBAR_PANEL_ID = "sidebar";
+const PRIMARY_PANEL_ID = "primary";
+const SECONDARY_PANEL_ID = "secondary";
 
 const NOOP_LAYOUT_STORAGE = {
   getItem: () => null,
@@ -30,22 +30,24 @@ const NOOP_LAYOUT_STORAGE = {
 };
 
 /**
- * Reusable component to show/hide resizable panels with a consistent DOM tree.
- * Always renders the same DOM tree to prevent remounting children and preserve their state.
+ * Horizontal split layout with a collapsible secondary panel.
+ *
+ * Keeps a stable DOM tree while mounted so callers can preserve state while
+ * opening and closing the secondary panel.
  */
-export function ResizableDesktopLayout({
-  mainContent,
-  sidebarContent,
+export function ResizableSplitLayout({
+  primaryContent,
+  secondaryContent,
   open,
   showHandle = true,
-  defaultMainSize = 70,
-  defaultSidebarSize = 30,
-  minMainSize = 30,
-  maxSidebarSize = 60,
+  defaultPrimarySize = 70,
+  defaultSecondarySize = 30,
+  minPrimarySize = 30,
+  maxSecondarySize = 60,
   className = "flex h-full w-full",
-  sidebarPosition = "right",
+  secondaryPosition = "right",
   persistId,
-}: ResizableDesktopLayoutProps) {
+}: ResizableSplitLayoutProps) {
   const instanceId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const groupId = persistId
     ? `resizable-layout-${persistId}`
@@ -57,9 +59,11 @@ export function ResizableDesktopLayout({
       : NOOP_LAYOUT_STORAGE;
 
   const panelIds =
-    sidebarPosition === "left"
-      ? [SIDEBAR_PANEL_ID, MAIN_PANEL_ID]
-      : [MAIN_PANEL_ID, SIDEBAR_PANEL_ID];
+    secondaryPosition === "left"
+      ? [SECONDARY_PANEL_ID, PRIMARY_PANEL_ID]
+      : [PRIMARY_PANEL_ID, SECONDARY_PANEL_ID];
+
+  const secondaryPanelRef = usePanelRef();
 
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: groupId,
@@ -67,10 +71,8 @@ export function ResizableDesktopLayout({
     storage,
   });
 
-  const sidebarPanelRef = usePanelRef();
-
   useLayoutEffect(() => {
-    const panel = sidebarPanelRef.current;
+    const panel = secondaryPanelRef.current;
     if (!panel) return;
 
     if (open) {
@@ -80,12 +82,12 @@ export function ResizableDesktopLayout({
         panel.expand();
       }
       if (panel.getSize().asPercentage < 2) {
-        panel.resize(`${defaultSidebarSize}%`);
+        panel.resize(`${defaultSecondarySize}%`);
       }
     } else {
       panel.collapse();
     }
-  }, [open, sidebarPanelRef, defaultSidebarSize]);
+  }, [open, secondaryPanelRef, defaultSecondarySize]);
 
   return (
     <ResizablePanelGroup
@@ -95,52 +97,52 @@ export function ResizableDesktopLayout({
       defaultLayout={defaultLayout}
       onLayoutChanged={persistId ? onLayoutChanged : undefined}
     >
-      {sidebarPosition === "left" && (
+      {secondaryPosition === "left" && (
         <ResizablePanel
-          id={SIDEBAR_PANEL_ID}
-          panelRef={sidebarPanelRef}
-          defaultSize={`${defaultSidebarSize}%`}
+          id={SECONDARY_PANEL_ID}
+          panelRef={secondaryPanelRef}
+          defaultSize={`${defaultSecondarySize}%`}
           minSize="0%"
-          maxSize={`${maxSidebarSize}%`}
+          maxSize={`${maxSecondarySize}%`}
           collapsible={true}
           collapsedSize="0%"
           className={open ? "visible" : "invisible"}
           style={{ overscrollBehaviorY: "none" }}
         >
-          {sidebarContent}
+          {secondaryContent}
         </ResizablePanel>
       )}
-      {sidebarPosition === "left" && open && showHandle && (
+      {secondaryPosition === "left" && open && showHandle && (
         <ResizableHandle withHandle />
       )}
       <ResizablePanel
-        id={MAIN_PANEL_ID}
-        defaultSize={`${defaultMainSize}%`}
-        minSize={`${minMainSize}%`}
+        id={PRIMARY_PANEL_ID}
+        defaultSize={`${defaultPrimarySize}%`}
+        minSize={`${minPrimarySize}%`}
       >
         <div
           className="relative h-full w-full overflow-auto"
           style={{ overscrollBehaviorY: "none" }}
         >
-          {mainContent}
+          {primaryContent}
         </div>
       </ResizablePanel>
-      {sidebarPosition === "right" && open && showHandle && (
+      {secondaryPosition === "right" && open && showHandle && (
         <ResizableHandle withHandle />
       )}
-      {sidebarPosition === "right" && (
+      {secondaryPosition === "right" && (
         <ResizablePanel
-          id={SIDEBAR_PANEL_ID}
-          panelRef={sidebarPanelRef}
-          defaultSize={`${defaultSidebarSize}%`}
+          id={SECONDARY_PANEL_ID}
+          panelRef={secondaryPanelRef}
+          defaultSize={`${defaultSecondarySize}%`}
           minSize="0%"
-          maxSize={`${maxSidebarSize}%`}
+          maxSize={`${maxSecondarySize}%`}
           collapsible={true}
           collapsedSize="0%"
           className={open ? "visible" : "invisible"}
           style={{ overscrollBehaviorY: "none" }}
         >
-          {sidebarContent}
+          {secondaryContent}
         </ResizablePanel>
       )}
     </ResizablePanelGroup>
