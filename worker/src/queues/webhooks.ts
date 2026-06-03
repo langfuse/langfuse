@@ -633,6 +633,7 @@ async function executeGitHubDispatchAction({
               ...monitorEnvelope,
               payload: {
                 ...monitorEnvelope.payload,
+                filters: [],
                 message: {
                   ...monitorEnvelope.payload.message,
                   body: GITHUB_REPOSITORY_DISPATCH_TRUNCATION_MARKER,
@@ -640,7 +641,7 @@ async function executeGitHubDispatchAction({
               },
               truncation: {
                 payloadTruncated: true,
-                truncatedFields: ["payload.message.body"],
+                truncatedFields: ["payload.filters", "payload.message.body"],
               },
             },
           });

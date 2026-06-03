@@ -1660,5 +1660,100 @@ describe("Webhook Integration Tests", () => {
       const clientPayloadKeys = Object.keys(payload.client_payload);
       expect(clientPayloadKeys[clientPayloadKeys.length - 1]).toBe("prompt");
     });
+
+    it("should truncate oversized GitHub dispatch monitor-alert filters", async () => {
+      const ghActionId = v4();
+      await prisma.action.create({
+        data: {
+          id: ghActionId,
+          projectId,
+          type: "GITHUB_DISPATCH",
+          config: {
+            type: "GITHUB_DISPATCH",
+            url: "https://webhook.example.com/dispatches",
+            eventType: "monitor-alert",
+            githubToken: encrypt("ghp_test_token"),
+            displayGitHubToken: "ghp_...n",
+          },
+        },
+      });
+
+      const ghAutomationId = v4();
+      await prisma.automation.create({
+        data: {
+          id: ghAutomationId,
+          projectId,
+          triggerId,
+          actionId: ghActionId,
+          name: "GitHub Dispatch Monitor Automation",
+        },
+      });
+
+      const ghExecutionId = v4();
+      await prisma.automationExecution.create({
+        data: {
+          id: ghExecutionId,
+          projectId,
+          triggerId,
+          automationId: ghAutomationId,
+          actionId: ghActionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: v4(),
+          input: {},
+        },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId: ghAutomationId,
+        executionId: ghExecutionId,
+        payload: {
+          id: v4(),
+          timestamp: new Date(),
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: {
+            monitorId: v4(),
+            projectId,
+            severity: "ALERT",
+            permalink: `https://cloud.langfuse.com/project/${projectId}/monitors/mon`,
+            timestamp: new Date(),
+            fromTimestamp: new Date(Date.now() - 5 * 60_000),
+            toTimestamp: new Date(),
+            message: { title: "High error rate", body: "errors > 100" },
+            view: "observations",
+            filters: [
+              {
+                column: "metadata.user_id",
+                operator: "any of",
+                value: [
+                  "x".repeat(
+                    GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES + 1000,
+                  ),
+                ],
+                type: "stringOptions",
+              },
+            ],
+            window: "5m",
+          },
+        },
+      };
+
+      await executeWebhook(webhookInput, { skipValidation: true });
+
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1);
+      expect(Buffer.byteLength(requests[0].body, "utf8")).toBeLessThan(
+        GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES,
+      );
+
+      const payload = JSON.parse(requests[0].body);
+      expect(payload.event_type).toBe("monitor-alert");
+      expect(payload.client_payload.payload.filters).toEqual([]);
+      expect(payload.client_payload.truncation).toEqual({
+        payloadTruncated: true,
+        truncatedFields: ["payload.filters", "payload.message.body"],
+      });
+    });
   });
 });
