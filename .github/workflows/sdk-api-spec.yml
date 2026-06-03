@@ -102,12 +102,19 @@ jobs:
           gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
 
           # Push new branch and create PR
-          gh auth setup-git
-          git -c core.hooksPath=/dev/null push origin "$BRANCH_NAME"
+          git \
+            -c credential.helper= \
+            -c credential.https://github.com.helper= \
+            -c core.hooksPath=/dev/null \
+            push "https://x-access-token:${GH_TOKEN}@github.com/langfuse/langfuse-python.git" "$BRANCH_NAME"
 
           # Create PR with original author as reviewer
-          ORIGINAL_AUTHOR="$(gh api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login')"
-          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" --reviewer "$ORIGINAL_AUTHOR"
+          ORIGINAL_AUTHOR="$(gh api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login // empty')"
+          REVIEWER_ARGS=()
+          if [ -n "$ORIGINAL_AUTHOR" ]; then
+            REVIEWER_ARGS=(--reviewer "$ORIGINAL_AUTHOR")
+          fi
+          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" "${REVIEWER_ARGS[@]}"
 
       - name: Prepare TypeScript SDK update
         id: prepare-typescript-sdk
@@ -169,12 +176,19 @@ jobs:
           gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
 
           # Push new branch and create PR
-          gh auth setup-git
-          git -c core.hooksPath=/dev/null push origin "$BRANCH_NAME"
+          git \
+            -c credential.helper= \
+            -c credential.https://github.com.helper= \
+            -c core.hooksPath=/dev/null \
+            push "https://x-access-token:${GH_TOKEN}@github.com/langfuse/langfuse-js.git" "$BRANCH_NAME"
 
           # Create PR with original author as reviewer
-          ORIGINAL_AUTHOR="$(gh api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login')"
-          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" --reviewer "$ORIGINAL_AUTHOR"
+          ORIGINAL_AUTHOR="$(gh api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login // empty')"
+          REVIEWER_ARGS=()
+          if [ -n "$ORIGINAL_AUTHOR" ]; then
+            REVIEWER_ARGS=(--reviewer "$ORIGINAL_AUTHOR")
+          fi
+          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" "${REVIEWER_ARGS[@]}"
 
   notify-slack-on-failure:
     needs: generate-sdk-api-specs
