@@ -698,24 +698,24 @@ async function executeSlackAction({
   const { projectId, executionId } = input;
   const executionStart = new Date();
 
+  const actionConfig = await getActionById({
+    projectId,
+    actionId: automation.action.id,
+  });
+
+  if (!actionConfig) {
+    throw new InternalServerError("Action config not found");
+  }
+
+  if (!isSlackActionConfig(actionConfig.config)) {
+    throw new InternalServerError(
+      "Action config is not a valid Slack configuration",
+    );
+  }
+
+  const slackConfig = actionConfig.config;
+
   try {
-    const actionConfig = await getActionById({
-      projectId,
-      actionId: automation.action.id,
-    });
-
-    if (!actionConfig) {
-      throw new InternalServerError("Action config not found");
-    }
-
-    if (!isSlackActionConfig(actionConfig.config)) {
-      throw new InternalServerError(
-        "Action config is not a valid Slack configuration",
-      );
-    }
-
-    const slackConfig = actionConfig.config;
-
     // monitor-alert envelopes survive a BullMQ JSON round-trip as plain strings;
     // parse to recover the Dates buildMonitorMessage formats, matching the
     // webhook/github dispatchers' buildWebhookOutboundPayload discipline.

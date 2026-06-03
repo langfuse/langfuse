@@ -28,6 +28,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
     SlackService: {
       getInstance: vi.fn(),
     },
+    getActionById: vi.fn(),
   };
 });
 
@@ -42,7 +43,12 @@ describe("Slack Processor", () => {
 
   beforeAll(async () => {
     // Import mocked SlackService
-    const { SlackService } = await import("@langfuse/shared/src/server");
+    const server = await import("@langfuse/shared/src/server");
+    const { SlackService } = server;
+
+    // getActionById delegates to the real impl so existing tests read real rows
+    const actual = await vi.importActual<any>("@langfuse/shared/src/server");
+    (server.getActionById as any).mockImplementation(actual.getActionById);
 
     // Create mock service instance
     mockSlackService = {
@@ -67,6 +73,11 @@ describe("Slack Processor", () => {
   beforeEach(async () => {
     // Reset mocks
     vi.clearAllMocks();
+
+    // clearAllMocks wipes call history but preserves the getActionById impl
+    const actual = await vi.importActual<any>("@langfuse/shared/src/server");
+    const server = await import("@langfuse/shared/src/server");
+    (server.getActionById as any).mockImplementation(actual.getActionById);
 
     // Create test project
     ({ projectId } = await createOrgProjectAndApiKey());
@@ -597,6 +608,55 @@ describe("Slack Processor", () => {
       });
       expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
       expect(execution?.error).toContain("Failed to get Slack client");
+    });
+
+    it("getActionById infra failure propagates for BullMQ retry instead of disabling the trigger", async () => {
+      const server = await import("@langfuse/shared/src/server");
+      (server.getActionById as any).mockRejectedValueOnce(
+        new Error("P2024: connection pool timeout"),
+      );
+
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const slackInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: fullPrompt as PromptDomain,
+          action: "created",
+          type: "prompt-version",
+          user: {
+            id: "user-123",
+            name: "Test User",
+            email: "test@example.com",
+          },
+        },
+      };
+
+      // Pre-create the execution row so the catch path can fully disable the
+      // trigger pre-fix; post-fix the error propagates before the catch.
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: executionId,
+          input: slackInput,
+        },
+      });
+
+      await expect(executeWebhook(slackInput)).rejects.toThrow();
+
+      const trigger = await prisma.trigger.findUnique({
+        where: { id: triggerId },
+      });
+      expect(trigger?.status).toBe(JobConfigState.ACTIVE);
     });
   });
 });
