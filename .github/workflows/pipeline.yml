@@ -717,11 +717,13 @@ jobs:
           # Next.js type checks in test builds to reduce CI runtime.
           NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Cache apt archives on a sticky disk
+        if: env.CI_CACHE_ALLOWED == 'true'
         uses: useblacksmith/stickydisk@13af8883542ca949a717e70fef89d15edbb29d88 # v1.2.0
         with:
           key: ${{ github.repository }}-e2e-apt-archives
           path: /var/cache/apt/archives
       - name: Cache Playwright browsers on a sticky disk
+        if: env.CI_CACHE_ALLOWED == 'true'
         uses: useblacksmith/stickydisk@13af8883542ca949a717e70fef89d15edbb29d88 # v1.2.0
         with:
           key: ${{ github.repository }}-e2e-ms-playwright
