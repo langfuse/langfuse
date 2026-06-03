@@ -24,7 +24,6 @@ const STALE_RUN_ERROR_MESSAGE =
 export type SerializedInAppAgentConversation = {
   id: string;
   title: string | null;
-  lastMessageAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -32,13 +31,12 @@ export type SerializedInAppAgentConversation = {
 export function serializeConversation(
   conversation: Pick<
     InAppAgentConversation,
-    "id" | "title" | "lastMessageAt" | "createdAt" | "updatedAt"
+    "id" | "title" | "createdAt" | "updatedAt"
   >,
 ): SerializedInAppAgentConversation {
   return {
     id: conversation.id,
     title: conversation.title,
-    lastMessageAt: conversation.lastMessageAt,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
   };
@@ -105,7 +103,6 @@ export async function createRun(params: {
   conversationId: string;
   userId: string;
   model?: string;
-  modelParams?: Prisma.InputJsonValue;
   mcpApiKeyId?: string;
 }) {
   const now = new Date();
@@ -154,7 +151,6 @@ export async function createRun(params: {
         createdByUserId: params.userId,
         startedAt: now,
         model: params.model,
-        modelParams: params.modelParams,
         mcpApiKeyId: params.mcpApiKeyId,
       },
     });
@@ -250,7 +246,7 @@ export async function appendConversationEvent(params: {
           projectId: params.projectId,
         },
       },
-      data: { lastMessageAt: new Date() },
+      data: { updatedAt: new Date() },
     });
   });
 }
@@ -269,7 +265,7 @@ export async function getConversationEvents(params: {
     select: { event: true },
   });
 
-  return events.flatMap((row) => (isAgUiEvent(row.event) ? [row.event] : []));
+  return events.map((row) => row.event as unknown as AgUiEvent);
 }
 
 export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
@@ -467,8 +463,6 @@ const PERSISTED_EVENT_FIELDS: Partial<Record<EventType, PersistedEventFields>> =
     [EventType.STEP_STARTED]: { required: ["stepName"] },
     [EventType.STEP_FINISHED]: { required: ["stepName"] },
   };
-const AG_UI_EVENT_TYPES = new Set<string>(Object.values(EventType));
-
 function sanitizePersistedEvent(event: AgUiEvent): AgUiEvent | null {
   if (event.type === EventType.RUN_STARTED) {
     return sanitizeRunStartedEvent(event);
@@ -637,14 +631,6 @@ function mergeToolCalls(
   }
 
   return Array.from(byId.values());
-}
-
-function isAgUiEvent(event: unknown): event is AgUiEvent {
-  return (
-    isRecord(event) &&
-    typeof event.type === "string" &&
-    AG_UI_EVENT_TYPES.has(event.type)
-  );
 }
 
 function getString(event: unknown, key: string): string | undefined {

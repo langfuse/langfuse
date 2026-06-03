@@ -30,7 +30,6 @@ export type InAppAgentDrawerMessage = {
 export type InAppAgentDrawerConversation = {
   id: string;
   title: string | null;
-  lastMessageAt: Date | null;
   updatedAt: Date;
 };
 

@@ -59,7 +59,6 @@ type InAppAiAgentMessage = AgUiMessage;
 export type InAppAiAgentConversation = {
   id: string;
   title: string | null;
-  lastMessageAt: Date | null;
   updatedAt: Date;
 };
 

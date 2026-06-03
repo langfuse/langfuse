@@ -6,13 +6,11 @@ const conversations = [
   {
     id: "conversation-1",
     title: "Latency outliers",
-    lastMessageAt: new Date("2026-05-19T10:00:00.000Z"),
     updatedAt: new Date("2026-05-19T10:00:00.000Z"),
   },
   {
     id: "conversation-2",
     title: "Score correlation",
-    lastMessageAt: new Date("2026-05-19T09:00:00.000Z"),
     updatedAt: new Date("2026-05-19T09:00:00.000Z"),
   },
 ];

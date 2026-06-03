@@ -166,13 +166,3 @@ export const InAppAgentRuntimeStateSchema = z.discriminatedUnion("type", [
 export type InAppAgentRuntimeState = z.infer<
   typeof InAppAgentRuntimeStateSchema
 >;
-
-export const PersistentInAppAiAgentSessionSchema = z.object({
-  threadId: z.string().optional(),
-  state: InAppAgentRuntimeStateSchema,
-  messages: z.array(AgUiMessageSchema).default([]),
-});
-
-export type PersistentInAppAiAgentSession = z.infer<
-  typeof PersistentInAppAiAgentSessionSchema
->;

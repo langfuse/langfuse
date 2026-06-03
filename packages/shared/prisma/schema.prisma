@@ -225,7 +225,6 @@ model InAppAgentConversation {
   title             String?
   visibilityScope   InAppAgentConversationVisibilityScope @default(PERSONAL) @map("visibility_scope")
   providerSessionId String?                               @map("provider_session_id")
-  lastMessageAt     DateTime?                             @map("last_message_at")
   deletedAt         DateTime?                             @map("deleted_at")
   createdAt         DateTime                              @default(now()) @map("created_at")
   updatedAt         DateTime                              @default(now()) @updatedAt @map("updated_at")
@@ -267,7 +266,6 @@ model InAppAgentRun {
   createdByUserId String?                @map("created_by_user_id")
   createdByUser   User?                  @relation("InAppAgentRunCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   model           String?
-  modelParams     Json?                  @map("model_params") @db.JsonB
   mcpApiKeyId     String?                @map("mcp_api_key_id")
   errorCode       String?                @map("error_code")
   errorMessage    String?                @map("error_message")
