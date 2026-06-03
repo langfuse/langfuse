@@ -235,7 +235,7 @@ export async function appendConversationEvent(params: {
         runId: params.runId,
         sequenceNumber: (latestEvent?.sequenceNumber ?? -1) + 1,
         type: String(event.type),
-        event: toJsonValue(event),
+        event,
       },
     });
 
@@ -437,6 +437,13 @@ export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
 
 type InAppAgentTx = Prisma.TransactionClient;
 type TextMessageRole = Extract<AgUiMessage["role"], "assistant">;
+type PersistedAgUiEvent = Prisma.InputJsonObject & { type: EventType };
+type MutablePersistedAgUiEvent = Record<
+  string,
+  Prisma.InputJsonValue | null | undefined
+> & {
+  type: EventType;
+};
 type PersistedEventFields = {
   required?: readonly string[];
   optional?: readonly string[];
@@ -463,7 +470,7 @@ const PERSISTED_EVENT_FIELDS: Partial<Record<EventType, PersistedEventFields>> =
     [EventType.STEP_STARTED]: { required: ["stepName"] },
     [EventType.STEP_FINISHED]: { required: ["stepName"] },
   };
-function sanitizePersistedEvent(event: AgUiEvent): AgUiEvent | null {
+function sanitizePersistedEvent(event: AgUiEvent): PersistedAgUiEvent | null {
   if (event.type === EventType.RUN_STARTED) {
     return sanitizeRunStartedEvent(event);
   }
@@ -488,7 +495,7 @@ function sanitizePersistedEvent(event: AgUiEvent): AgUiEvent | null {
   return sanitizeFieldEvent(event, fields);
 }
 
-function sanitizeRunStartedEvent(event: AgUiEvent): AgUiEvent | null {
+function sanitizeRunStartedEvent(event: AgUiEvent): PersistedAgUiEvent | null {
   const messages = getRunStartedMessages(event).filter(
     (message): message is Extract<AgUiMessage, { role: "user" }> =>
       message.role === "user",
@@ -509,12 +516,14 @@ function sanitizeRunStartedEvent(event: AgUiEvent): AgUiEvent | null {
     input: compactObject({
       threadId,
       runId,
-      messages,
+      messages: messages as Prisma.InputJsonArray,
     }),
   });
 }
 
-function sanitizeActivitySnapshotEvent(event: AgUiEvent): AgUiEvent | null {
+function sanitizeActivitySnapshotEvent(
+  event: AgUiEvent,
+): PersistedAgUiEvent | null {
   const messageId = getString(event, "messageId");
   const activityType = getString(event, "activityType");
   const content = event.content;
@@ -523,13 +532,18 @@ function sanitizeActivitySnapshotEvent(event: AgUiEvent): AgUiEvent | null {
     return null;
   }
 
-  return { ...baseEvent(event), messageId, activityType, content };
+  return {
+    ...baseEvent(event),
+    messageId,
+    activityType,
+    content: content as Prisma.InputJsonObject,
+  };
 }
 
 function sanitizeFieldEvent(
   event: AgUiEvent,
   fields: PersistedEventFields,
-): AgUiEvent | null {
+): PersistedAgUiEvent | null {
   const sanitized = baseEvent(event);
 
   for (const field of fields.required ?? []) {
@@ -553,7 +567,7 @@ function sanitizeFieldEvent(
   return sanitized;
 }
 
-function baseEvent(event: AgUiEvent): AgUiEvent {
+function baseEvent(event: AgUiEvent): MutablePersistedAgUiEvent {
   return compactObject({
     type: event.type,
     timestamp:
@@ -650,8 +664,4 @@ function compactObject<T extends Record<string, unknown>>(value: T): T {
   return Object.fromEntries(
     Object.entries(value).filter(([, entry]) => entry !== undefined),
   ) as T;
-}
-
-function toJsonValue(value: unknown): Prisma.InputJsonValue {
-  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
