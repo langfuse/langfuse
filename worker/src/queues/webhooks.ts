@@ -303,10 +303,17 @@ async function executeHttpAction({
 
     // Update execution status on success
     if (isMonitorAlert) {
-      await resetAutomationFailures({
-        projectId,
-        automationId: automation.id,
-      });
+      try {
+        await resetAutomationFailures({
+          projectId,
+          automationId: automation.id,
+        });
+      } catch (resetError) {
+        logger.warn(
+          `Failed to reset automation failure counter after successful delivery for automation ${automation.id} in project ${projectId}`,
+          resetError,
+        );
+      }
     } else {
       await prisma.automationExecution.update({
         where: {
@@ -767,10 +774,17 @@ async function executeSlackAction({
 
     // Update execution status to completed
     if (input.payload.type === "monitor-alert") {
-      await resetAutomationFailures({
-        projectId,
-        automationId: automation.id,
-      });
+      try {
+        await resetAutomationFailures({
+          projectId,
+          automationId: automation.id,
+        });
+      } catch (resetError) {
+        logger.warn(
+          `Failed to reset automation failure counter after successful delivery for automation ${automation.id} in project ${projectId}`,
+          resetError,
+        );
+      }
     } else {
       await prisma.automationExecution.update({
         where: {

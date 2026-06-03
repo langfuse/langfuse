@@ -9,6 +9,7 @@ import {
   beforeEach,
   afterAll,
   afterEach,
+  vi,
 } from "vitest";
 import { v4 } from "uuid";
 import { setupServer } from "msw/node";
@@ -18,6 +19,7 @@ import { Prisma } from "@prisma/client";
 import { JobConfigState } from "@langfuse/shared";
 import {
   createOrgProjectAndApiKey,
+  redis,
   type WebhookInput,
 } from "@langfuse/shared/src/server";
 import {
@@ -44,6 +46,7 @@ describe("monitor-alert e2e (scheduler → processor → dispatcher → webhook 
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await prisma.monitor.deleteMany({ where: { projectId } });
     webhookServer.reset();
   });
@@ -131,6 +134,75 @@ describe("monitor-alert e2e (scheduler → processor → dispatcher → webhook 
         },
       });
     });
+  });
+
+  it("redis.del failure on a delivered monitor-alert webhook: does not increment the failure counter", async () => {
+    const { triggerId } = await seedWebhookAutomation({
+      projectId,
+      url: "https://webhook.example.com/monitor-redis-del-fail",
+      triggerFilter: [
+        {
+          column: "severity",
+          operator: "any of",
+          value: ["ALERT"],
+          type: "stringOptions",
+        },
+      ],
+    });
+    const monitorId = await seedMonitor({
+      projectId,
+      alertThreshold: 100,
+      triggerIds: [triggerId],
+    });
+    const now = new Date();
+
+    const delSpy = vi
+      .spyOn(redis!, "del")
+      .mockRejectedValueOnce(new Error("READONLY simulated failover"));
+    const multiSpy = vi.spyOn(redis!, "multi");
+
+    const monitorQueueEvents: MonitorQueueEvent[] = [];
+    const scheduler = new MonitorScheduler({
+      schedulerId: 0,
+      totalSchedulers: 1,
+      db: prisma,
+      publish: async (event) => {
+        monitorQueueEvents.push(MonitorQueueEventSchema.parse(event));
+      },
+    });
+    await scheduler.schedule(now);
+    const projectEvents = monitorQueueEvents.filter(
+      (e) => e.projectId === projectId,
+    );
+    expect(projectEvents).toHaveLength(1);
+
+    const webhookInputs: WebhookInput[] = [];
+    const processor = new MonitorProcessor(
+      prisma,
+      async (event) => {
+        webhookInputs.push(event);
+      },
+      async () => [{ count_count: 150 }],
+    );
+    await Promise.all(
+      projectEvents.map((event) => processor.process(event, now)),
+    );
+    expect(webhookInputs).toHaveLength(1);
+
+    for (const input of webhookInputs) {
+      await expect(
+        executeWebhook(input, { skipValidation: true }),
+      ).resolves.not.toThrow();
+    }
+
+    expect(delSpy).toHaveBeenCalled();
+    expect(multiSpy).not.toHaveBeenCalled();
+
+    const trigger = await prisma.trigger.findUnique({
+      where: { id: triggerId, projectId },
+    });
+    expect(trigger?.status).toBe(JobConfigState.ACTIVE);
+    expect(monitorId).toBeTruthy();
   });
 
   it("does not write AutomationExecution rows for monitor-alert dispatches", async () => {
