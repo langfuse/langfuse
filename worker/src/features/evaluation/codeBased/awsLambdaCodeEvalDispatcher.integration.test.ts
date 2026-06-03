@@ -8,6 +8,7 @@ import {
 
 const endpoint = process.env.LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT;
 const describeWithFloci = endpoint ? describe : describe.skip;
+const FLOCI_TEST_TIMEOUT_MS = 30_000;
 
 process.env.AWS_ACCESS_KEY_ID ??= "test";
 process.env.AWS_SECRET_ACCESS_KEY ??= "test";
@@ -108,21 +109,26 @@ describeWithFloci("AwsLambdaCodeEvalDispatcher Floci integration", () => {
         }),
       ).resolves.toEqual({ scores: expectedScores });
     },
+    FLOCI_TEST_TIMEOUT_MS,
   );
 
-  it("preserves runner error classifications", async () => {
-    await expect(
-      dispatcher.dispatch({
-        ...baseInput,
-        runtime: { language: "TYPESCRIPT" },
-        code: {
-          source: `function evaluate() { throw new Error("boom") }`,
-        },
-      }),
-    ).rejects.toMatchObject({
-      code: "USER_CODE_ERROR",
-      message: "boom",
-      retryable: false,
-    } satisfies Partial<CodeEvalDispatcherError>);
-  });
+  it(
+    "preserves runner error classifications",
+    async () => {
+      await expect(
+        dispatcher.dispatch({
+          ...baseInput,
+          runtime: { language: "TYPESCRIPT" },
+          code: {
+            source: `function evaluate() { throw new Error("boom") }`,
+          },
+        }),
+      ).rejects.toMatchObject({
+        code: "USER_CODE_ERROR",
+        message: "boom",
+        retryable: false,
+      } satisfies Partial<CodeEvalDispatcherError>);
+    },
+    FLOCI_TEST_TIMEOUT_MS,
+  );
 });
