@@ -101,7 +101,7 @@ export async function createRun(params: {
   runId: string;
   projectId: string;
   conversationId: string;
-  userId: string;
+  triggeredByUserId: string;
   model?: string;
   mcpApiKeyId?: string;
 }) {
@@ -148,7 +148,7 @@ export async function createRun(params: {
         id: params.runId,
         projectId: params.projectId,
         conversationId: params.conversationId,
-        createdByUserId: params.userId,
+        triggeredByUserId: params.triggeredByUserId,
         startedAt: now,
         model: params.model,
         mcpApiKeyId: params.mcpApiKeyId,

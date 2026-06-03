@@ -87,7 +87,7 @@ describe("in-app agent persistence", () => {
       runId: params.runId ?? `run-${randomUUID()}`,
       projectId: params.projectId,
       conversationId: params.conversationId,
-      userId: params.userId,
+      triggeredByUserId: params.userId,
       model: "haiku",
       mcpApiKeyId: "api-key-id-1",
     });

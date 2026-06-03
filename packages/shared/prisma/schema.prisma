@@ -78,7 +78,7 @@ model User {
   notificationPreferences   NotificationPreference[]
   defaultViews              DefaultView[]               @relation("DefaultViewUser")
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
-  inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunCreatedByUser")
+  inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
 
   @@map("users")
 }
@@ -258,27 +258,27 @@ model InAppAgentEvent {
 }
 
 model InAppAgentRun {
-  id              String                 @default(cuid())
-  projectId       String                 @map("project_id")
-  project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  conversationId  String                 @map("conversation_id")
-  conversation    InAppAgentConversation @relation(fields: [conversationId, projectId], references: [id, projectId], onDelete: Cascade)
-  createdByUserId String?                @map("created_by_user_id")
-  createdByUser   User?                  @relation("InAppAgentRunCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  model           String?
-  mcpApiKeyId     String?                @map("mcp_api_key_id")
-  errorCode       String?                @map("error_code")
-  errorMessage    String?                @map("error_message")
-  startedAt       DateTime?              @map("started_at")
-  finishedAt      DateTime?              @map("finished_at")
-  createdAt       DateTime               @default(now()) @map("created_at")
-  updatedAt       DateTime               @default(now()) @updatedAt @map("updated_at")
+  id                String                 @default(cuid())
+  projectId         String                 @map("project_id")
+  project           Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  conversationId    String                 @map("conversation_id")
+  conversation      InAppAgentConversation @relation(fields: [conversationId, projectId], references: [id, projectId], onDelete: Cascade)
+  triggeredByUserId String?                @map("triggered_by_user_id")
+  triggeredByUser   User?                  @relation("InAppAgentRunTriggeredByUser", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
+  model             String?
+  mcpApiKeyId       String?                @map("mcp_api_key_id")
+  errorCode         String?                @map("error_code")
+  errorMessage      String?                @map("error_message")
+  startedAt         DateTime?              @map("started_at")
+  finishedAt        DateTime?              @map("finished_at")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @default(now()) @updatedAt @map("updated_at")
 
   events InAppAgentEvent[]
 
   @@id([id, projectId])
   @@index([projectId, conversationId, createdAt], map: "in_app_agent_runs_project_conversation_created_idx")
-  @@index([projectId, createdByUserId, createdAt], map: "in_app_agent_runs_project_user_created_idx")
+  @@index([projectId, triggeredByUserId, createdAt], map: "in_app_agent_runs_project_triggered_user_created_idx")
   @@map("in_app_agent_runs")
 }
 

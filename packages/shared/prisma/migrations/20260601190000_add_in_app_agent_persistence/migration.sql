@@ -18,7 +18,7 @@ CREATE TABLE "in_app_agent_runs" (
   "id" TEXT NOT NULL,
   "project_id" TEXT NOT NULL,
   "conversation_id" TEXT NOT NULL,
-  "created_by_user_id" TEXT,
+  "triggered_by_user_id" TEXT,
   "model" TEXT,
   "mcp_api_key_id" TEXT,
   "error_code" TEXT,
@@ -51,14 +51,14 @@ CREATE INDEX "in_app_agent_conversations_project_updated_idx" ON "in_app_agent_c
 CREATE INDEX "in_app_agent_events_project_conversation_created_idx" ON "in_app_agent_events"("project_id", "conversation_id", "created_at");
 CREATE INDEX "in_app_agent_events_project_run_seq_idx" ON "in_app_agent_events"("project_id", "run_id", "sequence_number");
 CREATE INDEX "in_app_agent_runs_project_conversation_created_idx" ON "in_app_agent_runs"("project_id", "conversation_id", "created_at");
-CREATE INDEX "in_app_agent_runs_project_user_created_idx" ON "in_app_agent_runs"("project_id", "created_by_user_id", "created_at");
+CREATE INDEX "in_app_agent_runs_project_triggered_user_created_idx" ON "in_app_agent_runs"("project_id", "triggered_by_user_id", "created_at");
 
 ALTER TABLE "in_app_agent_conversations" ADD CONSTRAINT "in_app_agent_conversations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "in_app_agent_conversations" ADD CONSTRAINT "in_app_agent_conversations_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 ALTER TABLE "in_app_agent_runs" ADD CONSTRAINT "in_app_agent_runs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "in_app_agent_runs" ADD CONSTRAINT "in_app_agent_runs_conversation_id_project_id_fkey" FOREIGN KEY ("conversation_id", "project_id") REFERENCES "in_app_agent_conversations"("id", "project_id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "in_app_agent_runs" ADD CONSTRAINT "in_app_agent_runs_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "in_app_agent_runs" ADD CONSTRAINT "in_app_agent_runs_triggered_by_user_id_fkey" FOREIGN KEY ("triggered_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 ALTER TABLE "in_app_agent_events" ADD CONSTRAINT "in_app_agent_events_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "in_app_agent_events" ADD CONSTRAINT "in_app_agent_events_conversation_id_project_id_fkey" FOREIGN KEY ("conversation_id", "project_id") REFERENCES "in_app_agent_conversations"("id", "project_id") ON DELETE CASCADE ON UPDATE CASCADE;

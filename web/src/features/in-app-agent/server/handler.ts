@@ -159,7 +159,7 @@ export default async function handler(request: Request) {
             runId: sanitizedInput.runId,
             projectId,
             conversationId: conversation.id,
-            userId: auth.userId,
+            triggeredByUserId: auth.userId,
             model: "haiku",
             mcpApiKeyId: mcpApiKey.id,
           });
