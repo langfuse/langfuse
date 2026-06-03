@@ -53,3 +53,24 @@ Use this skill for interactive dependency bumps in Langfuse.
   locally installed exact peer dependencies.
 - Finish with `pnpm why -r <package>` to confirm that only the intended version
   remains in the workspace.
+
+## Quick Commands
+
+- Analysis pass:
+  `node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs <package> <targetVersion>`
+- Transitive provenance check:
+  `pnpm why -r <package>`
+- Inspect a current parent manifest on the registry:
+  `npm view <parent>@<installedVersion> dependencies peerDependencies optionalDependencies --json`
+- Final graph verification:
+  `pnpm why -r <package>`
+- Optional lockfile cleanup:
+  `pnpm dedupe`
+- Bump in the root workspace:
+  `pnpm -w up <package>@<version>`
+- Bump in one workspace:
+  `pnpm --filter web up <package>@<version>`
+- Bump everywhere that should move together:
+  `pnpm -r up <package>@<version>`
+- Verify temporary override removal:
+  remove the override, then run `pnpm install` and `pnpm dedupe`

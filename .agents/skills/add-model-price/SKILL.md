@@ -22,6 +22,25 @@ updates in `packages/shared/`.
 - Use this `SKILL.md` as the high-level workflow and helper index.
 - Open only the specific reference file that matches the task.
 
+## Quick Start Checklist
+
+### Adding a New Model
+
+- Gather official pricing from the provider documentation.
+- Generate a lowercase UUID for the model entry.
+- Create a `matchPattern` that covers supported provider formats.
+- Add at least one default pricing tier.
+- Insert the pricing entry into `worker/src/constants/default-model-prices.json`.
+- Update `packages/shared/src/server/llm/types.ts` if the model should be
+  selectable in playground or evaluation flows.
+- Validate the JSON after editing.
+
+### Updating an Existing Model
+
+- Update the relevant prices, keys, tiers, or regexes.
+- Refresh `updatedAt` to today's ISO-8601 timestamp.
+- Validate the JSON after editing.
+
 ## Reference Map
 
 | Topic                           | Read this when                                                                        | File                                                                                           |
@@ -37,3 +56,5 @@ updates in `packages/shared/`.
   `node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs`
 - Match-pattern tester:
   `node .agents/skills/add-model-price/scripts/test-match-pattern.mjs --model <modelName> --accept <sample...> --reject <sample...>`
+- Direct regex tester:
+  `node .agents/skills/add-model-price/scripts/test-match-pattern.mjs --pattern '(?i)^(openai/)?(gpt-4o)$' --accept gpt-4o openai/gpt-4o --reject gpt-4o-mini`
