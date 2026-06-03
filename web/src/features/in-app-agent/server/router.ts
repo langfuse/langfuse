@@ -1,7 +1,8 @@
 import { z } from "zod";
 
-import { ForbiddenError } from "@langfuse/shared";
+import { BaseError, ForbiddenError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -150,6 +151,15 @@ async function assertInAppAgentAvailable({
   };
   projectId: string;
 }) {
+  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    throw new BaseError(
+      "PreconditionFailedError",
+      412,
+      "In-app agent is not available in this environment yet.",
+      true,
+    );
+  }
+
   const isInAppAgentEnabled =
     ctx.session.user.featureFlags.inAppAgent === true ||
     ctx.session.user.admin === true ||

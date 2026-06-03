@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 import type { AgUiEvent } from "@/src/features/in-app-agent/schema";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import {
@@ -15,6 +16,16 @@ import {
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 describe("in-app agent persistence", () => {
+  const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+  beforeEach(() => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+  });
+
+  afterEach(() => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+  });
+
   const createCaller = async (userId = `user-${randomUUID()}`) => {
     const setup = await createOrgProjectAndApiKey();
 
