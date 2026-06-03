@@ -3,7 +3,9 @@ import {
   LambdaClient,
   type InvokeCommandInput,
 } from "@aws-sdk/client-lambda";
+import { SpanKind, type AttributeValue, type Span } from "@opentelemetry/api";
 import { z } from "zod";
+import { instrumentAsync, traceException } from "../instrumentation";
 import { logger } from "../logger";
 import {
   assertDispatchInputWithinLimits,
@@ -162,8 +164,37 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
   }
 
   async dispatch(input: DispatchInput): Promise<DispatchResult> {
+    return instrumentAsync(
+      {
+        name: "code-eval.dispatch.aws-lambda",
+        spanKind: SpanKind.CLIENT,
+        traceScope: "code-eval-dispatcher",
+        startNewTrace: true,
+      },
+      async (span) => this.dispatchWithTracing(input, span),
+    );
+  }
+
+  private async dispatchWithTracing(
+    input: DispatchInput,
+    span: Span,
+  ): Promise<DispatchResult> {
     const serializedPayload = assertDispatchInputWithinLimits(input);
     const functionName = this.functionNameByLanguage[input.runtime.language];
+
+    span.setAttributes({
+      "langfuse.code_eval.dispatcher": this.name,
+      "langfuse.code_eval.runtime.language": input.runtime.language,
+      "langfuse.code_eval.lambda.function_name": functionName,
+      "langfuse.code_eval.payload.bytes": Buffer.byteLength(
+        serializedPayload,
+        "utf8",
+      ),
+      "langfuse.organization.id": input.scope.organizationId,
+      "langfuse.project.id": input.scope.projectId,
+      "langfuse.evaluator.id": input.scope.evaluatorId,
+      "langfuse.eval.job_execution_id": input.execution.jobExecutionId,
+    });
 
     try {
       const commandInput: InvokeCommandInput = {
@@ -176,17 +207,30 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
       const response = await this.lambdaClient.send(
         new InvokeCommand(commandInput),
       );
+      setSpanAttributes(span, {
+        ...getAwsMetadataSpanAttributes(response.$metadata),
+        "langfuse.code_eval.lambda.status_code": response.StatusCode,
+        "langfuse.code_eval.lambda.executed_version": response.ExecutedVersion,
+        "langfuse.code_eval.lambda.function_error": response.FunctionError,
+      });
 
       // Lambda function errors come back as HTTP 200 with `FunctionError`
       // set; the SDK does NOT throw for these. SDK service exceptions
       // (throttling, auth, etc.) hit the outer catch instead.
       // https://docs.aws.amazon.com/lambda/latest/dg/invocation-errors.html
       if (response.FunctionError) {
-        throw classifyLambdaFunctionError({
+        const dispatcherError = classifyLambdaFunctionError({
           functionName,
           functionError: response.FunctionError,
           payload: response.Payload,
         });
+        traceLambdaFunctionError({
+          span,
+          functionName,
+          functionError: response.FunctionError,
+          payload: response.Payload,
+        });
+        throw dispatcherError;
       }
 
       if (!response.Payload) {
@@ -199,21 +243,42 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
         );
       }
 
-      return parseLambdaResponsePayload({
+      span.setAttribute(
+        "langfuse.code_eval.lambda.response_payload.bytes",
+        response.Payload.byteLength,
+      );
+
+      const result = parseLambdaResponsePayload({
         functionName,
         payload: response.Payload,
       });
+      span.setAttribute(
+        "langfuse.code_eval.result.score_count",
+        result.scores.length,
+      );
+      return result;
     } catch (error) {
       if (error instanceof CodeEvalDispatcherError) {
+        setDispatcherErrorSpanAttributes(span, error);
         logDispatcherError({ functionName, error });
         throw error;
       }
 
+      traceException(error, span, "code_eval.aws_lambda.original_error");
+      const errorRecord = isRecord(error) ? error : null;
+      setSpanAttributes(span, {
+        ...getAwsMetadataSpanAttributes(errorRecord?.$metadata),
+        "langfuse.code_eval.aws_error.name":
+          error instanceof Error ? error.name : undefined,
+        "langfuse.code_eval.aws_error.code":
+          typeof errorRecord?.code === "string" ? errorRecord.code : undefined,
+      });
       const awsError = classifyAwsLambdaError(error);
       const dispatcherError = new CodeEvalDispatcherError(
         `Failed to invoke code eval Lambda ${functionName}: ${error instanceof Error ? error.message : String(error)}`,
         { ...awsError, cause: error },
       );
+      setDispatcherErrorSpanAttributes(span, dispatcherError);
       logDispatcherError({ functionName, error: dispatcherError });
       throw dispatcherError;
     }
@@ -235,6 +300,78 @@ function logDispatcherError(params: {
       retryable: params.error.retryable,
     },
   );
+}
+
+function setDispatcherErrorSpanAttributes(
+  span: Span,
+  error: CodeEvalDispatcherError,
+): void {
+  span.setAttributes({
+    "langfuse.code_eval.error.code": error.code,
+    "langfuse.code_eval.error.retryable": error.retryable,
+  });
+}
+
+function getAwsMetadataSpanAttributes(
+  metadata: unknown,
+): Record<string, AttributeValue | undefined> {
+  if (!isRecord(metadata)) return {};
+
+  return {
+    "aws.request_id":
+      typeof metadata.requestId === "string" ? metadata.requestId : undefined,
+    "aws.http_status_code":
+      typeof metadata.httpStatusCode === "number"
+        ? metadata.httpStatusCode
+        : undefined,
+    "aws.sdk.attempts":
+      typeof metadata.attempts === "number" ? metadata.attempts : undefined,
+    "aws.sdk.total_retry_delay_ms":
+      typeof metadata.totalRetryDelay === "number"
+        ? metadata.totalRetryDelay
+        : undefined,
+  };
+}
+
+function setSpanAttributes(
+  span: Span,
+  attributes: Record<string, AttributeValue | undefined>,
+): void {
+  const definedAttributes = Object.fromEntries(
+    Object.entries(attributes).filter(([, value]) => value !== undefined),
+  ) as Record<string, AttributeValue>;
+
+  if (Object.keys(definedAttributes).length > 0) {
+    span.setAttributes(definedAttributes);
+  }
+}
+
+function traceLambdaFunctionError(params: {
+  span: Span;
+  functionName: string;
+  functionError: string;
+  payload: Uint8Array | undefined;
+}): void {
+  const errorPayload = parseLambdaErrorPayload(params.payload);
+  const record = isRecord(errorPayload) ? errorPayload : null;
+
+  const error = new Error(
+    typeof record?.errorMessage === "string"
+      ? record.errorMessage
+      : `Code eval Lambda ${params.functionName} returned FunctionError=${params.functionError}`,
+  );
+  error.name =
+    typeof record?.errorType === "string"
+      ? record.errorType
+      : "LambdaFunctionError";
+
+  if (Array.isArray(record?.stackTrace)) {
+    error.stack = record.stackTrace
+      .filter((line) => typeof line === "string")
+      .join("\n");
+  }
+
+  traceException(error, params.span, "code_eval.aws_lambda.function_error");
 }
 
 function classifyLambdaFunctionError(params: {
