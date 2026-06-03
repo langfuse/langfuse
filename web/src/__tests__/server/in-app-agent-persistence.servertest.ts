@@ -8,12 +8,12 @@ import { env } from "@/src/env.mjs";
 import type { AgUiEvent } from "@/src/features/in-app-agent/schema";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import {
-  appendMessagesSnapshot,
-  createConversationMessageAccumulator,
   createRun,
   ensureOwnedConversation,
   finishRun,
-  getLatestConversationMessages,
+  replaceRunEvents,
+  shouldFlushPersistedEvent,
+  toPersistableAgentEvent,
 } from "@/src/features/in-app-agent/server/persistence";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -129,44 +129,59 @@ describe("in-app agent persistence", () => {
       role: "user" as const,
       content: params.content,
     };
-    const accumulator = createConversationMessageAccumulator(
-      await getLatestConversationMessages({
-        prisma,
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-      }),
-    );
+    const events: AgUiEvent[] = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: params.conversationId,
+        runId: params.runId,
+        input: {
+          threadId: params.conversationId,
+          runId: params.runId,
+          state: null,
+          messages: [userMessage],
+          tools: [],
+          context: [],
+          forwardedProps: {},
+        },
+      },
+    ];
 
-    accumulator.upsertMessage(userMessage);
-
-    await appendMessagesSnapshot({
+    await replaceRunEvents({
       prisma,
       projectId: params.projectId,
       conversationId: params.conversationId,
       runId: params.runId,
-      messages: accumulator.getMessages(),
+      events,
     });
 
-    return accumulator;
+    return events;
   };
 
   const processAndPersistEvent = async (params: {
     projectId: string;
     conversationId: string;
     runId: string;
-    accumulator: ReturnType<typeof createConversationMessageAccumulator>;
+    events: AgUiEvent[];
     event: AgUiEvent;
   }) => {
-    if (!params.accumulator.processEvent(params.event)) {
+    const persistedEvent = toPersistableAgentEvent(params.event);
+
+    if (!persistedEvent) {
       return;
     }
 
-    await appendMessagesSnapshot({
+    params.events.push(persistedEvent);
+
+    if (!shouldFlushPersistedEvent(persistedEvent)) {
+      return;
+    }
+
+    await replaceRunEvents({
       prisma,
       projectId: params.projectId,
       conversationId: params.conversationId,
       runId: params.runId,
-      messages: params.accumulator.getMessages(),
+      events: params.events,
     });
   };
 
@@ -174,13 +189,12 @@ describe("in-app agent persistence", () => {
     projectId: string;
     conversationId: string;
     runId: string;
-    accumulator: ReturnType<typeof createConversationMessageAccumulator>;
+    events: AgUiEvent[];
     messageId: string;
     chunks: string[];
   }) => {
     await processAndPersistEvent({
       ...params,
-      accumulator: params.accumulator,
       event: {
         type: EventType.TEXT_MESSAGE_START,
         messageId: params.messageId,
@@ -191,7 +205,6 @@ describe("in-app agent persistence", () => {
     for (const delta of params.chunks) {
       await processAndPersistEvent({
         ...params,
-        accumulator: params.accumulator,
         event: {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: params.messageId,
@@ -202,7 +215,6 @@ describe("in-app agent persistence", () => {
 
     await processAndPersistEvent({
       ...params,
-      accumulator: params.accumulator,
       event: {
         type: EventType.TEXT_MESSAGE_END,
         messageId: params.messageId,
@@ -210,7 +222,7 @@ describe("in-app agent persistence", () => {
     });
   };
 
-  it("stores compact snapshots and restores multi-turn messages", async () => {
+  it("stores compacted events and restores multi-turn messages", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run1 = await createConversationRun({
@@ -224,7 +236,7 @@ describe("in-app agent persistence", () => {
       data: { providerSessionId: "claude-session-secret" },
     });
 
-    const accumulator1 = await startCompactRun({
+    const events1 = await startCompactRun({
       projectId,
       conversationId: conversation.id,
       runId: run1.id,
@@ -235,7 +247,7 @@ describe("in-app agent persistence", () => {
       projectId,
       conversationId: conversation.id,
       runId: run1.id,
-      accumulator: accumulator1,
+      events: events1,
       messageId: "assistant-message-1",
       chunks: ["I will inspect recent traces", " and look for outliers."],
     });
@@ -250,7 +262,7 @@ describe("in-app agent persistence", () => {
       conversationId: conversation.id,
       userId,
     });
-    const accumulator2 = await startCompactRun({
+    const events2 = await startCompactRun({
       projectId,
       conversationId: conversation.id,
       runId: run2.id,
@@ -261,7 +273,7 @@ describe("in-app agent persistence", () => {
       projectId,
       conversationId: conversation.id,
       runId: run2.id,
-      accumulator: accumulator2,
+      events: events2,
       messageId: "assistant-message-2",
       chunks: ["Next trace inspected."],
     });
@@ -307,47 +319,50 @@ describe("in-app agent persistence", () => {
       select: { sequenceNumber: true, type: true, event: true },
     });
 
-    expect(events.map((event) => event.sequenceNumber)).toEqual([0, 1, 2, 3]);
+    expect(events.map((event) => event.sequenceNumber)).toEqual([
+      0, 1, 2, 3, 4, 5, 6, 7,
+    ]);
     expect(events.map((event) => event.type)).toEqual([
-      EventType.MESSAGES_SNAPSHOT,
-      EventType.MESSAGES_SNAPSHOT,
-      EventType.MESSAGES_SNAPSHOT,
-      EventType.MESSAGES_SNAPSHOT,
+      EventType.RUN_STARTED,
+      EventType.TEXT_MESSAGE_START,
+      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.TEXT_MESSAGE_END,
+      EventType.RUN_STARTED,
+      EventType.TEXT_MESSAGE_START,
+      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.TEXT_MESSAGE_END,
     ]);
     expect(events[0]?.event).toMatchObject({
-      type: EventType.MESSAGES_SNAPSHOT,
-      messages: [
-        {
-          id: "user-message-1",
-          role: "user",
-          content: "Please inspect today's traces for outliers",
-        },
-      ],
+      type: EventType.RUN_STARTED,
+      input: {
+        messages: [
+          {
+            id: "user-message-1",
+            role: "user",
+            content: "Please inspect today's traces for outliers",
+          },
+        ],
+      },
     });
-    expect(events.at(-1)?.event).toMatchObject({
-      type: EventType.MESSAGES_SNAPSHOT,
-      messages: [
-        {
-          id: "user-message-1",
-          role: "user",
-          content: "Please inspect today's traces for outliers",
-        },
-        {
-          id: "assistant-message-1",
-          role: "assistant",
-          content: "I will inspect recent traces and look for outliers.",
-        },
-        {
-          id: "user-message-2",
-          role: "user",
-          content: "Inspect the next trace",
-        },
-        {
-          id: "assistant-message-2",
-          role: "assistant",
-          content: "Next trace inspected.",
-        },
-      ],
+    expect(events[2]?.event).toMatchObject({
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      delta: "I will inspect recent traces and look for outliers.",
+    });
+    expect(events[4]?.event).toMatchObject({
+      type: EventType.RUN_STARTED,
+      input: {
+        messages: [
+          {
+            id: "user-message-2",
+            role: "user",
+            content: "Inspect the next trace",
+          },
+        ],
+      },
+    });
+    expect(events[6]?.event).toMatchObject({
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      delta: "Next trace inspected.",
     });
 
     const listedConversations = await caller.listConversations({ projectId });
@@ -365,7 +380,7 @@ describe("in-app agent persistence", () => {
       userId,
     });
 
-    const accumulator = await startCompactRun({
+    const events = await startCompactRun({
       projectId,
       conversationId: conversation.id,
       runId: run.id,
@@ -376,7 +391,7 @@ describe("in-app agent persistence", () => {
       projectId,
       conversationId: conversation.id,
       runId: run.id,
-      accumulator,
+      events,
       event: {
         type: EventType.TEXT_MESSAGE_START,
         messageId: "partial-assistant",
@@ -387,7 +402,7 @@ describe("in-app agent persistence", () => {
       projectId,
       conversationId: conversation.id,
       runId: run.id,
-      accumulator,
+      events,
       event: {
         type: EventType.TEXT_MESSAGE_CONTENT,
         messageId: "partial-assistant",
@@ -422,7 +437,7 @@ describe("in-app agent persistence", () => {
       userId,
     });
 
-    const accumulator = await startCompactRun({
+    const events = await startCompactRun({
       projectId,
       conversationId: conversation.id,
       runId: run.id,
@@ -434,7 +449,7 @@ describe("in-app agent persistence", () => {
         projectId,
         conversationId: conversation.id,
         runId: run.id,
-        accumulator,
+        events,
         event,
       });
 
@@ -549,7 +564,7 @@ describe("in-app agent persistence", () => {
       prisma.inAppAgentEvent.count({
         where: { projectId, conversationId: conversation.id, runId: run.id },
       }),
-    ).resolves.toBe(5);
+    ).resolves.toBe(9);
   });
 
   it("stores only compact events and skips raw adapter payloads", async () => {
@@ -561,7 +576,7 @@ describe("in-app agent persistence", () => {
       userId,
     });
 
-    const accumulator = await startCompactRun({
+    const eventsBuffer = await startCompactRun({
       projectId,
       conversationId: conversation.id,
       runId: run.id,
@@ -573,7 +588,7 @@ describe("in-app agent persistence", () => {
         projectId,
         conversationId: conversation.id,
         runId: run.id,
-        accumulator,
+        events: eventsBuffer,
         event,
       });
 
@@ -626,23 +641,23 @@ describe("in-app agent persistence", () => {
       select: { type: true, event: true },
     });
 
-    expect(events.map((event) => event.type)).toEqual([
-      EventType.MESSAGES_SNAPSHOT,
-    ]);
-    expect(events[0]?.event).toEqual({
-      type: EventType.MESSAGES_SNAPSHOT,
-      messages: [
-        {
-          id: "safe-user",
-          role: "user",
-          content: "visible user text",
-        },
-      ],
+    expect(events.map((event) => event.type)).toEqual([EventType.RUN_STARTED]);
+    expect(events[0]?.event).toMatchObject({
+      type: EventType.RUN_STARTED,
+      input: {
+        messages: [
+          {
+            id: "safe-user",
+            role: "user",
+            content: "visible user text",
+          },
+        ],
+      },
     });
     expect(JSON.stringify(events)).not.toContain("secret");
   });
 
-  it("ignores adapter message snapshots when compacting history", async () => {
+  it("ignores adapter message snapshots when persisting compact events", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
@@ -651,7 +666,7 @@ describe("in-app agent persistence", () => {
       userId,
     });
 
-    const accumulator = await startCompactRun({
+    const events = await startCompactRun({
       projectId,
       conversationId: conversation.id,
       runId: run.id,
@@ -662,7 +677,7 @@ describe("in-app agent persistence", () => {
       projectId,
       conversationId: conversation.id,
       runId: run.id,
-      accumulator,
+      events,
       event: {
         type: EventType.MESSAGES_SNAPSHOT,
         messages: [

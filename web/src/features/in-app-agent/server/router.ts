@@ -9,7 +9,7 @@ import {
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import {
-  getLatestConversationMessages,
+  getConversationMessages,
   getOwnedConversationOrThrow,
   serializeConversation,
 } from "@/src/features/in-app-agent/server/persistence";
@@ -86,7 +86,7 @@ export const inAppAgentRouter = createTRPCRouter({
         userId: ctx.session.user.id,
       });
 
-      const messages = await getLatestConversationMessages({
+      const messages = await getConversationMessages({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,

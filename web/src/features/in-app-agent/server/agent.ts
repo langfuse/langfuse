@@ -385,11 +385,13 @@ function normalizeAdapterEvent(
   }
 
   if (event.type === EventType.RUN_STARTED) {
+    const publicEvent = { ...event };
+    delete publicEvent.input;
+
     return [
       {
-        ...event,
-        parentRunId: input.parentRunId,
-        input,
+        ...publicEvent,
+        ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
       },
     ];
   }

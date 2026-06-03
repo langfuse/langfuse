@@ -1,22 +1,24 @@
 import { randomUUID } from "node:crypto";
 
+import { EventType } from "@ag-ui/core";
 import { getServerSession } from "next-auth";
 
 import { env } from "@/src/env.mjs";
 import {
   AgUiRunAgentInputSchema,
   type AgUiRunAgentInput,
+  type AgUiEvent,
   InAppAgentRuntimeStateSchema,
   type AgUiMessage,
 } from "@/src/features/in-app-agent/schema";
 import { createAgUiStream } from "@/src/features/in-app-agent/server/agent";
 import {
-  appendMessagesSnapshot,
   createRun,
-  createConversationMessageAccumulator,
   ensureOwnedConversation,
   finishRun,
-  getLatestConversationMessages,
+  replaceRunEvents,
+  shouldFlushPersistedEvent,
+  toPersistableAgentEvent,
   updateProviderSessionId,
 } from "@/src/features/in-app-agent/server/persistence";
 import { getAuthOptions } from "@/src/server/auth";
@@ -170,25 +172,28 @@ export default async function handler(request: Request) {
           });
           runCreated = true;
 
-          const messageAccumulator = createConversationMessageAccumulator(
-            await getLatestConversationMessages({
-              prisma,
-              projectId,
-              conversationId: conversation.id,
-            }),
-          );
-          messageAccumulator.upsertMessage(sanitizedInput.messages[0]);
+          const persistedEvents: AgUiEvent[] = [
+            {
+              type: EventType.RUN_STARTED,
+              threadId: sanitizedInput.threadId,
+              runId: sanitizedInput.runId,
+              ...(sanitizedInput.parentRunId
+                ? { parentRunId: sanitizedInput.parentRunId }
+                : {}),
+              input: sanitizedInput,
+            },
+          ];
 
-          const appendMessageSnapshot = () =>
-            appendMessagesSnapshot({
+          const replacePersistedRunEvents = () =>
+            replaceRunEvents({
               prisma,
               projectId,
               conversationId: conversation.id,
               runId: sanitizedInput.runId,
-              messages: messageAccumulator.getMessages(),
+              events: persistedEvents,
             });
 
-          await appendMessageSnapshot();
+          await replacePersistedRunEvents();
 
           let providerSessionPersistence: Promise<void> = Promise.resolve();
           const persistProviderSessionId = (claudeSessionId: string) => {
@@ -234,13 +239,26 @@ export default async function handler(request: Request) {
                 };
               },
               onEvent: (event) => {
-                if (!messageAccumulator.processEvent(event)) {
+                const persistedEvent = toPersistableAgentEvent(event);
+
+                if (!persistedEvent) {
                   return;
                 }
 
-                return appendMessageSnapshot();
+                if (persistedEvent.type === EventType.RUN_STARTED) {
+                  return;
+                }
+
+                persistedEvents.push(persistedEvent);
+
+                if (!shouldFlushPersistedEvent(persistedEvent)) {
+                  return;
+                }
+
+                return replacePersistedRunEvents();
               },
-              onComplete: () => finishCurrentRun(),
+              onComplete: () =>
+                replacePersistedRunEvents().then(() => finishCurrentRun()),
               onAbort: () =>
                 finishCurrentRun({
                   errorCode: "cancelled",

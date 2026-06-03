@@ -122,8 +122,8 @@ describe("createAgUiStream", () => {
     ]);
     expect(persistedEvents[0]).toMatchObject({
       type: EventType.RUN_STARTED,
-      input,
     });
+    expect(persistedEvents[0]).not.toHaveProperty("input");
     expect(eventOrder).toEqual([
       `persist:${EventType.RUN_STARTED}`,
       `stream:${EventType.RUN_STARTED}`,

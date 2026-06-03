@@ -1,4 +1,5 @@
 import { EventType } from "@ag-ui/core";
+import { compactEvents } from "@ag-ui/client";
 
 import { LangfuseConflictError, LangfuseNotFoundError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
@@ -203,15 +204,23 @@ export async function updateProviderSessionId(params: {
   });
 }
 
-export async function appendMessagesSnapshot(params: {
+export async function replaceRunEvents(params: {
   prisma: PrismaClient;
   projectId: string;
   conversationId: string;
   runId: string;
-  messages: readonly AgUiMessage[];
+  events: readonly AgUiEvent[];
 }) {
   await params.prisma.$transaction(async (tx) => {
     await lockConversation(tx, params.projectId, params.conversationId);
+
+    await tx.inAppAgentEvent.deleteMany({
+      where: {
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        runId: params.runId,
+      },
+    });
 
     const latestEvent = await tx.inAppAgentEvent.findFirst({
       where: {
@@ -221,19 +230,23 @@ export async function appendMessagesSnapshot(params: {
       select: { sequenceNumber: true },
       orderBy: { sequenceNumber: "desc" },
     });
-    await tx.inAppAgentEvent.create({
-      data: {
+
+    const compactedEvents = compactEvents([...params.events]).map(
+      (event, index) => ({
         projectId: params.projectId,
         conversationId: params.conversationId,
         runId: params.runId,
-        sequenceNumber: (latestEvent?.sequenceNumber ?? -1) + 1,
-        type: EventType.MESSAGES_SNAPSHOT,
-        event: {
-          type: EventType.MESSAGES_SNAPSHOT,
-          messages: params.messages as Prisma.InputJsonArray,
-        },
-      },
-    });
+        sequenceNumber: (latestEvent?.sequenceNumber ?? -1) + index + 1,
+        type: String(event.type),
+        event: event as unknown as Prisma.InputJsonValue,
+      }),
+    );
+
+    if (compactedEvents.length > 0) {
+      await tx.inAppAgentEvent.createMany({
+        data: compactedEvents,
+      });
+    }
 
     await tx.inAppAgentConversation.update({
       where: {
@@ -247,28 +260,145 @@ export async function appendMessagesSnapshot(params: {
   });
 }
 
-export async function getLatestConversationMessages(params: {
+export async function getConversationEvents(params: {
   prisma: PrismaClient;
   projectId: string;
   conversationId: string;
 }) {
-  const snapshot = await params.prisma.inAppAgentEvent.findFirst({
+  const events = await params.prisma.inAppAgentEvent.findMany({
     where: {
       projectId: params.projectId,
       conversationId: params.conversationId,
-      type: EventType.MESSAGES_SNAPSHOT,
     },
-    orderBy: { sequenceNumber: "desc" },
+    orderBy: { sequenceNumber: "asc" },
     select: { event: true },
   });
 
-  const event = snapshot?.event;
+  return events.map(({ event }) => event as unknown as AgUiEvent);
+}
 
-  if (!isRecord(event) || !Array.isArray(event.messages)) {
-    return [];
+export async function getConversationMessages(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+}) {
+  return getMessagesFromEvents(await getConversationEvents(params));
+}
+
+export function getMessagesFromEvents(events: readonly AgUiEvent[]) {
+  const accumulator = createConversationMessageAccumulator([]);
+
+  for (const event of events) {
+    accumulator.processEvent(event);
   }
 
-  return parseMessages(event.messages);
+  return accumulator.getMessages();
+}
+
+export function shouldFlushPersistedEvent(event: AgUiEvent) {
+  return (
+    event.type === EventType.TEXT_MESSAGE_END ||
+    event.type === EventType.TOOL_CALL_END ||
+    event.type === EventType.TOOL_CALL_RESULT ||
+    event.type === EventType.ACTIVITY_SNAPSHOT ||
+    event.type === EventType.RUN_FINISHED ||
+    event.type === EventType.RUN_ERROR
+  );
+}
+
+export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
+  switch (event.type) {
+    case EventType.RUN_STARTED: {
+      const input = isRecord(event.input)
+        ? {
+            ...event.input,
+            messages: Array.isArray(event.input.messages)
+              ? parseMessages(event.input.messages)
+              : [],
+            tools: [],
+            context: [],
+            forwardedProps: {},
+          }
+        : undefined;
+
+      return compactObject({
+        type: event.type,
+        threadId: getString(event, "threadId"),
+        runId: getString(event, "runId"),
+        parentRunId: getString(event, "parentRunId"),
+        input,
+      });
+    }
+    case EventType.TEXT_MESSAGE_START:
+      return compactObject({
+        type: event.type,
+        messageId: getString(event, "messageId"),
+        role: getString(event, "role"),
+        name: getString(event, "name"),
+      });
+    case EventType.TEXT_MESSAGE_CONTENT:
+      return compactObject({
+        type: event.type,
+        messageId: getString(event, "messageId"),
+        delta: getString(event, "delta") ?? "",
+      });
+    case EventType.TEXT_MESSAGE_END:
+      return compactObject({
+        type: event.type,
+        messageId: getString(event, "messageId"),
+      });
+    case EventType.TOOL_CALL_START:
+      return compactObject({
+        type: event.type,
+        toolCallId: getString(event, "toolCallId"),
+        toolCallName: getString(event, "toolCallName"),
+        parentMessageId: getString(event, "parentMessageId"),
+      });
+    case EventType.TOOL_CALL_ARGS:
+      return compactObject({
+        type: event.type,
+        toolCallId: getString(event, "toolCallId"),
+        delta: getString(event, "delta") ?? "",
+      });
+    case EventType.TOOL_CALL_END:
+      return compactObject({
+        type: event.type,
+        toolCallId: getString(event, "toolCallId"),
+      });
+    case EventType.TOOL_CALL_RESULT:
+      return compactObject({
+        type: event.type,
+        messageId: getString(event, "messageId"),
+        toolCallId: getString(event, "toolCallId"),
+        content: getString(event, "content"),
+        role: getString(event, "role"),
+        error: getString(event, "error"),
+      });
+    case EventType.ACTIVITY_SNAPSHOT:
+      return compactObject({
+        type: event.type,
+        messageId: getString(event, "messageId"),
+        activityType: getString(event, "activityType"),
+        content: isRecord(event.content) ? event.content : undefined,
+        replace: typeof event.replace === "boolean" ? event.replace : undefined,
+      });
+    case EventType.RUN_FINISHED:
+      return compactObject({
+        type: event.type,
+        threadId: getString(event, "threadId"),
+        runId: getString(event, "runId"),
+      });
+    case EventType.RUN_ERROR:
+      return compactObject({
+        type: event.type,
+        threadId: getString(event, "threadId"),
+        runId: getString(event, "runId"),
+        message: getString(event, "message"),
+        code: getString(event, "code"),
+      });
+    default:
+      return null;
+  }
 }
 
 export function createConversationMessageAccumulator(
@@ -315,6 +445,19 @@ export function createConversationMessageAccumulator(
 
   const processEvent = (event: AgUiEvent): boolean => {
     switch (event.type) {
+      case EventType.RUN_STARTED: {
+        if (!isRecord(event.input) || !Array.isArray(event.input.messages)) {
+          break;
+        }
+
+        let changed = false;
+
+        for (const message of parseMessages(event.input.messages)) {
+          changed = upsertMessage(message) || changed;
+        }
+
+        return changed;
+      }
       case EventType.TEXT_MESSAGE_START: {
         const messageId = getString(event, "messageId");
 
