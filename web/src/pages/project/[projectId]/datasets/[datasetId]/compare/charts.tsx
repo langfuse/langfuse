@@ -97,14 +97,14 @@ export default function DatasetCompare() {
     setExperimentsBetaEnabled(enabled);
 
     if (enabled && runIds && runIds.length > 0) {
-      void router.push(toExperimentsResultsUrl(projectId, runIds));
+      router.push(toExperimentsResultsUrl(projectId, runIds));
     }
   };
 
   // Auto-redirect when experiments beta is active (e.g., user arrives via bookmark/back button)
   useEffect(() => {
     if (isExperimentsBetaActive && projectId && runIds && runIds.length > 0) {
-      void router.push(toExperimentsResultsUrl(projectId, runIds));
+      router.push(toExperimentsResultsUrl(projectId, runIds));
     }
   }, [isExperimentsBetaActive, projectId, runIds, router]);
 

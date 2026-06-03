@@ -24,6 +24,8 @@ import GCPServiceAccountKeySchema, {
   BedrockAccessKeysSchema,
   BedrockConfigSchema,
   BedrockCredentialSchema,
+  LLMConnectionConfig,
+  OpenAIConfigSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
@@ -185,7 +187,7 @@ type LLMCompletionParams = {
     secretKey: string;
     extraHeaders?: string | null;
     baseURL?: string | null;
-    config?: Record<string, string> | null;
+    config?: LLMConnectionConfig | null;
   };
   structuredOutputSchema?: ZodType | LLMJSONSchema;
   callbacks?: BaseCallbackHandler[];
@@ -346,6 +348,7 @@ export async function fetchLLMCompletion(
     });
 
   let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse | ChatGoogle;
+  let usesOpenAIResponsesApi = false;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
     const shouldNormalizeAnthropicSamplingParams =
       modelParams.model?.includes("claude-opus-4-8") ||
@@ -404,6 +407,8 @@ export async function fetchLLMCompletion(
       url: baseURL,
       modelName: modelParams.model,
     });
+    const openAIConfig = OpenAIConfigSchema.parse(config ?? {});
+    usesOpenAIResponsesApi = openAIConfig.useResponsesApi;
 
     chatModel = new ChatOpenAI({
       apiKey,
@@ -422,6 +427,7 @@ export async function fetchLLMCompletion(
         defaultHeaders: extraHeaders,
         fetch: secureLlmFetch("OpenAI LLM base URL"),
       },
+      useResponsesApi: openAIConfig.useResponsesApi,
       modelKwargs: modelParams.providerOptions,
       timeout: timeoutMs,
     });
@@ -566,6 +572,8 @@ export async function fetchLLMCompletion(
     : runConfig;
 
   const supportsReasoning = adapterSupportsReasoning(modelParams.adapter);
+  const shouldNormalizeStreamingContentBlocks =
+    supportsReasoning || usesOpenAIResponsesApi;
 
   try {
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
@@ -632,7 +640,9 @@ export async function fetchLLMCompletion(
         abortController: runtimeTimeoutController,
         operation: () =>
           chatModel
-            .pipe(createBytesOutputParser(supportsReasoning))
+            .pipe(
+              createBytesOutputParser(shouldNormalizeStreamingContentBlocks),
+            )
             .stream(finalMessages, runConfigWithTimeout),
       });
 
@@ -735,18 +745,19 @@ function extractCompletionWithReasoning(
 }
 
 function createBytesOutputParser(
-  filterReasoningBlocks: boolean,
+  normalizeContentBlocks: boolean,
 ): BytesOutputParser {
-  return filterReasoningBlocks
-    ? new ReasoningStrippingBytesOutputParser()
+  return normalizeContentBlocks
+    ? new ContentBlockBytesOutputParser()
     : new BytesOutputParser();
 }
 
-class ReasoningStrippingBytesOutputParser extends BytesOutputParser {
+class ContentBlockBytesOutputParser extends BytesOutputParser {
   // Override `_baseMessageToString` (not `_baseMessageContentToString`) so we
   // have the whole AIMessage(Chunk) and can read `contentBlocks`, which the
-  // langchain provider translator normalizes into standard blocks. Streaming
-  // yields AIMessageChunk instances, so we check both predicates explicitly.
+  // langchain provider translator normalizes into standard blocks. This strips
+  // reasoning blocks and also avoids serializing OpenAI Responses API lifecycle
+  // chunks such as empty `final_answer` phase markers.
   protected _baseMessageToString(message: BaseMessage): string {
     if (AIMessage.isInstance(message) || AIMessageChunk.isInstance(message)) {
       return splitAIMessage(message).text;

@@ -43,7 +43,7 @@ function resolveExportStartDate(params: {
       return null;
     default: {
       const _exhaustive: never = params.exportMode;
-      void _exhaustive;
+      _exhaustive;
       return null;
     }
   }

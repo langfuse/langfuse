@@ -201,7 +201,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
             onFormSuccess={(newTemplate) => {
               setIsCreateTemplateOpen(false);
               setCustomEvaluatorType(null);
-              void utils.evals.allTemplates.invalidate();
+              utils.evals.allTemplates.invalidate();
               if (newTemplate) {
                 setSelectedTemplate(newTemplate);
               }

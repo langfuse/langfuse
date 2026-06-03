@@ -170,14 +170,14 @@ const Base = (props: {
 
   const copyUrl = () => {
     setIsCopied(true);
-    void copyTextToClipboard(window.location.href);
+    copyTextToClipboard(window.location.href);
     setTimeout(() => setIsCopied(false), 2500);
   };
 
   const handleOnClick = () => {
     if (props.isLoading) return;
     setIsOpen(false);
-    void props.onChange(!props.isPublic);
+    props.onChange(!props.isPublic);
   };
 
   return (

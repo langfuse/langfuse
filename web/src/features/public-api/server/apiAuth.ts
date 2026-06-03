@@ -167,6 +167,7 @@ export class ApiAuthService {
                 orgId: finalApiKey.orgId,
                 plan,
                 apiKeyId: finalApiKey.id,
+                publicKey: finalApiKey.publicKey,
               },
               span,
             );
@@ -216,6 +217,7 @@ export class ApiAuthService {
                 orgId,
                 plan,
                 apiKeyId: dbKey.id,
+                publicKey: dbKey.publicKey,
               },
               span,
             );
