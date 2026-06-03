@@ -1,125 +1,38 @@
-export const TYPESCRIPT_CODE_EVAL_CONTRACT = `/**
- * The data Langfuse passes to a code evaluator.
- */
-type EvaluationContext = {
-  /**
-   * The observation selected by the evaluator target.
-   */
+export const TYPESCRIPT_CODE_EVAL_CONTRACT = `type EvaluationContext = {
   observation: {
-    /**
-     * The input recorded on the observation.
-     */
     input: any;
-    /**
-     * The output recorded on the observation.
-     */
     output: any;
-    /**
-     * The metadata recorded on the observation.
-     */
     metadata: any;
   };
-  /**
-   * Experiment item data. Present when the evaluator runs on an experiment.
-   */
   experiment:
     | {
-        /**
-         * The expected output from the experiment item.
-         */
         itemExpectedOutput: any;
-        /**
-         * The metadata from the experiment item.
-         */
         itemMetadata: any;
       }
     | undefined;
 };
 
-/**
- * A Langfuse score returned by a code evaluator.
- */
 type ScoreBase = {
-  /**
-   * The score name.
-   */
   name: string;
-  /**
-   * The reasoning or explanation stored with the score.
-   */
   comment?: string;
-  /**
-   * The score config id to attach to the score.
-   */
   configId?: string | null;
-  /**
-   * Extra metadata stored with the score.
-   */
   metadata?: Record<string, unknown>;
 };
 
-type NumericScore = ScoreBase & {
-  /**
-   * The Langfuse score data type.
-   */
-  dataType: "NUMERIC";
-  /**
-   * The score value.
-   */
-  value: number;
-};
-
-type BooleanScore = ScoreBase & {
-  /**
-   * The Langfuse score data type.
-   */
-  dataType: "BOOLEAN";
-  /**
-   * The score value.
-   */
-  value: boolean;
-};
-
-type CategoricalScore = ScoreBase & {
-  /**
-   * The Langfuse score data type.
-   */
-  dataType: "CATEGORICAL";
-  /**
-   * The score value.
-   */
-  value: string;
-};
-
-type TextScore = ScoreBase & {
-  /**
-   * The Langfuse score data type.
-   */
-  dataType: "TEXT";
-  /**
-   * The score value.
-   */
-  value: string;
-};
+type NumericScore = ScoreBase & { dataType: "NUMERIC"; value: number };
+type BooleanScore = ScoreBase & { dataType: "BOOLEAN"; value: boolean };
+type CategoricalScore = ScoreBase & { dataType: "CATEGORICAL"; value: string };
+type TextScore = ScoreBase & { dataType: "TEXT"; value: string };
 
 type Score = NumericScore | BooleanScore | CategoricalScore | TextScore;
 
-/**
- * The value returned by evaluate.
- */
 type EvaluationResult = {
-  /**
-   * One or more Langfuse scores to create for the target observation.
-   */
   scores: Score[];
 };
 `;
 
 export const DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE = `${TYPESCRIPT_CODE_EVAL_CONTRACT}
 
-/**
- * Evaluates one observation and returns one or more Langfuse scores.
- */
 function evaluate(ctx: EvaluationContext): EvaluationResult {
   const input = ctx.observation.input;
   const matchesOutput =

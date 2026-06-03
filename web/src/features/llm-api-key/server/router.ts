@@ -20,11 +20,13 @@ import {
   GCPServiceAccountKeySchema,
   BedrockConfigSchema,
   BedrockCredentialSchema,
+  OpenAIConfigSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
   getEvaluatorBlockMetadata,
+  type LLMConnectionConfig,
 } from "@langfuse/shared";
 import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/defaultModelEvalTemplateRepository";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
@@ -128,11 +130,13 @@ async function testLLMConnection(
     ];
 
     // Parse config properly for type safety
-    let parsedConfig: Record<string, string> | null = null;
+    let parsedConfig: LLMConnectionConfig | null = null;
     if (params.config && params.adapter === LLMAdapter.Bedrock) {
       const bedrockConfig = BedrockConfigSchema.parse(params.config);
 
       parsedConfig = { region: bedrockConfig.region };
+    } else if (params.config && params.adapter === LLMAdapter.OpenAI) {
+      parsedConfig = OpenAIConfigSchema.parse(params.config);
     } else if (params.config && params.adapter === LLMAdapter.VertexAI) {
       const vertexAIConfig = VertexAIConfigSchema.parse(params.config);
       parsedConfig = vertexAIConfig.location

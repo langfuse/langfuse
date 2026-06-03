@@ -12,6 +12,7 @@ import {
   SystemMessage,
   ToolMessage,
 } from "@langchain/core/messages";
+import { ContextOverflowError } from "@langchain/core/errors";
 import {
   BytesOutputParser,
   StringOutputParser,
@@ -23,6 +24,8 @@ import GCPServiceAccountKeySchema, {
   BedrockAccessKeysSchema,
   BedrockConfigSchema,
   BedrockCredentialSchema,
+  LLMConnectionConfig,
+  OpenAIConfigSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
@@ -74,6 +77,7 @@ const NON_RETRYABLE_LLM_ERROR_PATTERNS = [
   "Unterminated string in JSON at position",
   "TypeError",
   "reached the end of its life",
+  "prompt is too long",
   // secureLlmFetch validation failures: synchronous, status-less errors that
   // would otherwise default to 500 + retryable and burn the eval-retry budget
   // on permanent config or redirect-target failures.
@@ -183,7 +187,7 @@ type LLMCompletionParams = {
     secretKey: string;
     extraHeaders?: string | null;
     baseURL?: string | null;
-    config?: Record<string, string> | null;
+    config?: LLMConnectionConfig | null;
   };
   structuredOutputSchema?: ZodType | LLMJSONSchema;
   callbacks?: BaseCallbackHandler[];
@@ -344,6 +348,7 @@ export async function fetchLLMCompletion(
     });
 
   let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse | ChatGoogle;
+  let usesOpenAIResponsesApi = false;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
     const shouldNormalizeAnthropicSamplingParams =
       modelParams.model?.includes("claude-opus-4-8") ||
@@ -402,6 +407,8 @@ export async function fetchLLMCompletion(
       url: baseURL,
       modelName: modelParams.model,
     });
+    const openAIConfig = OpenAIConfigSchema.parse(config ?? {});
+    usesOpenAIResponsesApi = openAIConfig.useResponsesApi;
 
     chatModel = new ChatOpenAI({
       apiKey,
@@ -420,6 +427,7 @@ export async function fetchLLMCompletion(
         defaultHeaders: extraHeaders,
         fetch: secureLlmFetch("OpenAI LLM base URL"),
       },
+      useResponsesApi: openAIConfig.useResponsesApi,
       modelKwargs: modelParams.providerOptions,
       timeout: timeoutMs,
     });
@@ -564,6 +572,8 @@ export async function fetchLLMCompletion(
     : runConfig;
 
   const supportsReasoning = adapterSupportsReasoning(modelParams.adapter);
+  const shouldNormalizeStreamingContentBlocks =
+    supportsReasoning || usesOpenAIResponsesApi;
 
   try {
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
@@ -630,7 +640,9 @@ export async function fetchLLMCompletion(
         abortController: runtimeTimeoutController,
         operation: () =>
           chatModel
-            .pipe(createBytesOutputParser(supportsReasoning))
+            .pipe(
+              createBytesOutputParser(shouldNormalizeStreamingContentBlocks),
+            )
             .stream(finalMessages, runConfigWithTimeout),
       });
 
@@ -669,12 +681,7 @@ export async function fetchLLMCompletion(
 
     return completion;
   } catch (e) {
-    const responseStatusCode =
-      (e as any)?.response?.status ??
-      (e as any)?.status ??
-      // Bedrock errors have status code in $metadata.httpStatusCode
-      (e as any)?.$metadata?.httpStatusCode ??
-      500;
+    const responseStatusCode = getErrorResponseStatusCode(e) ?? 500;
     const rawMessage = e instanceof Error ? e.message : String(e);
     // Anthropic/OpenAI/Azure SDKs wrap synchronous fetch errors as
     // `APIConnectionError { message: "Connection error.", cause: original }`,
@@ -695,7 +702,9 @@ export async function fetchLLMCompletion(
     // - Non-retryable patterns: not retryable
     let isRetryable = false;
 
-    if (
+    if (ContextOverflowError.isInstance(e)) {
+      isRetryable = false;
+    } else if (
       e instanceof Error &&
       (e.name === "InsufficientQuotaError" || e.name === "ThrottlingException")
     ) {
@@ -736,18 +745,19 @@ function extractCompletionWithReasoning(
 }
 
 function createBytesOutputParser(
-  filterReasoningBlocks: boolean,
+  normalizeContentBlocks: boolean,
 ): BytesOutputParser {
-  return filterReasoningBlocks
-    ? new ReasoningStrippingBytesOutputParser()
+  return normalizeContentBlocks
+    ? new ContentBlockBytesOutputParser()
     : new BytesOutputParser();
 }
 
-class ReasoningStrippingBytesOutputParser extends BytesOutputParser {
+class ContentBlockBytesOutputParser extends BytesOutputParser {
   // Override `_baseMessageToString` (not `_baseMessageContentToString`) so we
   // have the whole AIMessage(Chunk) and can read `contentBlocks`, which the
-  // langchain provider translator normalizes into standard blocks. Streaming
-  // yields AIMessageChunk instances, so we check both predicates explicitly.
+  // langchain provider translator normalizes into standard blocks. This strips
+  // reasoning blocks and also avoids serializing OpenAI Responses API lifecycle
+  // chunks such as empty `final_answer` phase markers.
   protected _baseMessageToString(message: BaseMessage): string {
     if (AIMessage.isInstance(message) || AIMessageChunk.isInstance(message)) {
       return splitAIMessage(message).text;
@@ -816,26 +826,55 @@ function processOpenAIBaseURL(params: {
   return url.replace("{model}", modelName);
 }
 
-function findNonRetryableCauseMessage(error: unknown): string | undefined {
+// Walks an error and its `.cause` chain (cycle-safe), yielding each link.
+function* walkCauseChain(error: unknown): Generator<unknown> {
   const visited = new Set<unknown>();
   for (
     let current: unknown = error;
-    current;
+    current && !visited.has(current);
     current = (current as any).cause
   ) {
-    if (visited.has(current)) break;
     visited.add(current);
+    yield current;
+  }
+}
+
+function findNonRetryableCauseMessage(error: unknown): string | undefined {
+  for (const current of walkCauseChain(error)) {
     if (!(current instanceof Error)) continue;
     const message = extractCleanErrorMessage(current.message);
-    if (
-      NON_RETRYABLE_LLM_ERROR_PATTERNS.some((pattern) =>
-        message.includes(pattern),
-      )
-    ) {
+    if (NON_RETRYABLE_LLM_ERROR_PATTERNS.some((p) => message.includes(p))) {
       return message;
     }
   }
   return undefined;
+}
+
+function getErrorResponseStatusCode(error: unknown): number | undefined {
+  for (const current of walkCauseChain(error)) {
+    if (!current || typeof current !== "object") continue;
+    const errorLike = current as any;
+    const statusCode = [
+      errorLike.response?.status,
+      errorLike.status,
+      errorLike.statusCode,
+      // Bedrock errors have status code in $metadata.httpStatusCode.
+      errorLike.$metadata?.httpStatusCode,
+    ]
+      .map(toHttpStatusCode)
+      .find((code) => code !== undefined);
+    if (statusCode !== undefined) return statusCode;
+  }
+  return undefined;
+}
+
+function toHttpStatusCode(value: unknown): number | undefined {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 100 &&
+    value <= 599
+    ? value
+    : undefined;
 }
 
 function extractCleanErrorMessage(rawMessage: string): string {

@@ -35,7 +35,7 @@ export function useAuthSession() {
         }
         setRetryCount((prevCount) => prevCount + 1);
       };
-      void fetchSession();
+      fetchSession();
     }
 
     // Reset retry count on successful authentication

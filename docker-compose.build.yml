@@ -5,7 +5,6 @@ services:
       context: .
       args:
         - NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
-        - NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED=${NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED}
     depends_on: &langfuse-depends-on
       postgres:
         condition: service_healthy

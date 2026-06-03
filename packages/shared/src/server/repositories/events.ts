@@ -100,6 +100,7 @@ import {
   eventsTableCols,
   eventsTableHasParentObservationSql,
   eventsTableIsRootObservationSql,
+  type NumericEventsTableColumnId,
 } from "../../eventsTable";
 import {
   findUiColumnMapping,
@@ -2228,6 +2229,71 @@ export const getEventsGroupedByVersion = async (
   return res;
 };
 
+export const getEventsNumericStatsByFilterColumn = async (
+  projectId: string,
+  filter: FilterState,
+  columnId: Exclude<
+    NumericEventsTableColumnId,
+    "inputTokens" | "outputTokens" | "inputCost" | "outputCost"
+  >,
+) => {
+  const column = eventsTableCols.find((col) => col.id === columnId);
+
+  if (!column || column.type !== "number") {
+    throw new Error(`Column ${columnId} is not supported for numeric stats`);
+  }
+
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      filter,
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    ),
+  );
+
+  const valueExpression = column.internal;
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "tuple()",
+    selectExpression: `min(${valueExpression}) as min, max(${valueExpression}) as max, avg(${valueExpression}) as avg, count(${valueExpression}) as count`,
+  })
+    .where(appliedEventsFilter)
+    .whereRaw(`isNotNull(${valueExpression})`);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{
+    min: number | null;
+    max: number | null;
+    avg: number | null;
+    count: number;
+  }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+  const range = res[0];
+
+  if (
+    !range ||
+    range.min === null ||
+    range.max === null ||
+    range.avg === null
+  ) {
+    return null;
+  }
+
+  return range;
+};
+
 /**
  * Get grouped session IDs from events table (joined with traces)
  * Used for filter options
@@ -3772,3 +3838,86 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
     ...sdkInfo,
   };
 }
+
+export const getTracesIdentifierForSessionFromEvents = async (
+  projectId: string,
+  sessionId: string,
+) => {
+  // Build traces CTE using eventsTracesAggregation
+  const tracesBuilder = eventsTracesAggregation({
+    projectId,
+    truncated: true,
+    orderByTimestamp: false,
+  });
+
+  tracesBuilder.whereRaw(
+    `e.trace_id IN (
+      SELECT DISTINCT trace_id
+      FROM events_core
+      WHERE project_id = {projectId: String}
+        AND session_id = {sessionId: String}
+    )`,
+    {
+      projectId: projectId,
+      sessionId: sessionId,
+    },
+  );
+
+  tracesBuilder.havingRaw("session_id = {sessionId: String}", {
+    sessionId: sessionId,
+  });
+
+  // Build the final query
+  const queryBuilder = new CTEQueryBuilder()
+    .withCTEFromBuilder("traces", tracesBuilder)
+    .from("traces", "t")
+    .selectColumns(
+      "t.id",
+      "t.user_id",
+      "t.name",
+      "t.timestamp",
+      "t.project_id",
+      "t.environment",
+    )
+    .orderBy("ORDER BY t.timestamp ASC")
+    .limitBy("t.id", "t.project_id");
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const rows = await measureAndReturn({
+    operationName: "getTracesIdentifierForSessionFromEvents",
+    projectId,
+    input: {
+      params,
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "list",
+        projectId,
+        operation_name: "getTracesIdentifierForSessionFromEvents",
+      },
+    },
+    fn: async (input) => {
+      return await queryClickhouse<{
+        id: string;
+        user_id: string;
+        name: string;
+        timestamp: string;
+        environment: string;
+      }>({
+        query,
+        params: input.params,
+        tags: input.tags,
+        preferredClickhouseService: "EventsReadOnly",
+      });
+    },
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+    environment: row.environment,
+  }));
+};

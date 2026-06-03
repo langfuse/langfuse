@@ -41,7 +41,7 @@ export const ErrorPage = ({
       <div className="flex gap-3">
         {session.status === "unauthenticated" ? (
           <Button
-            onClick={() => void router.push(`/auth/sign-in${targetPathQuery}`)}
+            onClick={() => router.push(`/auth/sign-in${targetPathQuery}`)}
           >
             Sign In
           </Button>
