@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { getServerSession } from "next-auth";
 
 import { env } from "@/src/env.mjs";
@@ -188,16 +190,34 @@ export default async function handler(request: Request) {
 
           await appendMessageSnapshot();
 
+          let providerSessionPersistence = Promise.resolve();
+          const persistProviderSessionId = (claudeSessionId: string) => {
+            providerSessionPersistence = updateProviderSessionId({
+              prisma,
+              projectId,
+              conversationId: conversation.id,
+              providerSessionId: claudeSessionId,
+            }).catch((error) =>
+              logger.error("Failed to persist agent session id", {
+                error,
+                projectId,
+                conversationId: conversation.id,
+              }),
+            );
+          };
+
           const finishCurrentRun = (error?: {
             errorCode: string;
             errorMessage: string;
           }) =>
-            finishRun({
-              prisma,
-              runId: sanitizedInput.runId,
-              projectId,
-              ...error,
-            });
+            providerSessionPersistence.then(() =>
+              finishRun({
+                prisma,
+                runId: sanitizedInput.runId,
+                projectId,
+                ...error,
+              }),
+            );
 
           const stream = createAgUiStream({
             input: sanitizedInput,
@@ -205,18 +225,7 @@ export default async function handler(request: Request) {
             options: {
               resumeSessionId: conversation.providerSessionId ?? undefined,
               onResumeSessionId: (claudeSessionId) => {
-                updateProviderSessionId({
-                  prisma,
-                  projectId,
-                  conversationId: conversation.id,
-                  providerSessionId: claudeSessionId,
-                }).catch((error) =>
-                  logger.error("Failed to persist agent session id", {
-                    error,
-                    projectId,
-                    conversationId: conversation.id,
-                  }),
-                );
+                persistProviderSessionId(claudeSessionId);
 
                 return {
                   type: "existingConversation",
@@ -378,7 +387,7 @@ function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
     runId: input.runId,
     ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
     state: null,
-    messages: [lastUserMessage],
+    messages: [{ ...lastUserMessage, id: randomUUID() }],
     tools: [],
     context: [],
     forwardedProps: {},

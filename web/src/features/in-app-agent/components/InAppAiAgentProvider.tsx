@@ -101,6 +101,7 @@ export function InAppAiAgentProvider({
 
   return (
     <InAppAiAgentProjectProvider
+      key={projectId}
       projectId={projectId}
       defaultOpen={defaultOpen}
     >
@@ -121,7 +122,6 @@ function InAppAiAgentProjectProvider({
 
   return (
     <InAppAiAgentProviderInner
-      key={projectId}
       projectId={projectId}
       open={open}
       setOpen={setOpen}
@@ -182,20 +182,24 @@ function InAppAiAgentProviderInner({
       [],
     [conversationListQuery.data?.pages],
   );
+  const hasMoreConversations = conversationListQuery.hasNextPage === true;
+  const isLoadingMoreConversations = conversationListQuery.isFetchingNextPage;
+  const fetchNextConversationsPage = conversationListQuery.fetchNextPage;
   const loadMoreConversations = useCallback(() => {
-    if (
-      !conversationListQuery.hasNextPage ||
-      conversationListQuery.isFetchingNextPage
-    ) {
+    if (!hasMoreConversations || isLoadingMoreConversations) {
       return;
     }
 
-    conversationListQuery.fetchNextPage().catch((error) => {
+    fetchNextConversationsPage().catch((error) => {
       const errorMessage = getAgentErrorMessage(error);
       showErrorToast("Failed to load conversations", errorMessage);
       console.error("Failed to load in-app agent conversations", error);
     });
-  }, [conversationListQuery]);
+  }, [
+    fetchNextConversationsPage,
+    hasMoreConversations,
+    isLoadingMoreConversations,
+  ]);
 
   useEffect(() => {
     if (!conversationListQuery.error) {
@@ -418,6 +422,8 @@ function InAppAiAgentProviderInner({
         const initialMessages = !isNewConversation
           ? getHydratedMessages(messages, storedMessages)
           : [];
+        // TODO: Avoid hydrating the full history once the agent client can send
+        // only the latest user turn; the server ignores older messages.
         const agent = getOrCreateAgent(
           conversationId,
           initialMessages,
@@ -477,8 +483,8 @@ function InAppAiAgentProviderInner({
       error,
       messages,
       conversations,
-      hasMoreConversations: conversationListQuery.hasNextPage === true,
-      isLoadingMoreConversations: conversationListQuery.isFetchingNextPage,
+      hasMoreConversations,
+      isLoadingMoreConversations,
       selectedConversationId: selectedConversationId ?? undefined,
       loadMoreConversations,
       selectConversation,
@@ -486,9 +492,9 @@ function InAppAiAgentProviderInner({
     }),
     [
       conversations,
-      conversationListQuery.hasNextPage,
-      conversationListQuery.isFetchingNextPage,
       error,
+      hasMoreConversations,
+      isLoadingMoreConversations,
       isRunning,
       isSelectedConversationHydrating,
       isSubmitting,
