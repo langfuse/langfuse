@@ -11,7 +11,7 @@ evaluating, and debugging AI applications.
   bug.
 - For user-visible frontend changes in `web/**`, review the affected flow in a
   real browser before signoff.
-- Never add secrets or credentials to the repo. Keep `.env*.example` files in
+- Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
 
 ## Project Structure
@@ -88,6 +88,9 @@ regenerated outputs. Never hand-edit `generated/**`.
 - `.agents/AGENTS.md` is the canonical root guide.
 - Root `AGENTS.md` is a symlink to `.agents/AGENTS.md`.
 - Root `CLAUDE.md` is a compatibility symlink to `AGENTS.md`.
+- When creating or editing `.agents/skills/**`, use
+  `.agents/skills/skill-creator/SKILL.md`; keep skills concise with
+  progressive disclosure.
 - After changing shared agent setup, run `pnpm run agents:sync` and
   `pnpm run agents:check`.
 - Generated provider config and shim outputs under `.claude/`, `.cursor/`,
