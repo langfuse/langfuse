@@ -769,7 +769,10 @@ async function executeSlackAction({
       channelId: slackConfig.channelId,
       blocks,
       attachments,
-      text: "Langfuse Notification",
+      text:
+        payload.type === "monitor-alert"
+          ? payload.payload.message.title
+          : "Langfuse Notification",
     });
 
     // Update execution status to completed
