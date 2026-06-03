@@ -246,7 +246,6 @@ function InAppAiAgentProviderInner({
     }
 
     resetAgent();
-    setError(null);
     setMessages(storedMessages);
   }, [
     conversationQuery.data,
