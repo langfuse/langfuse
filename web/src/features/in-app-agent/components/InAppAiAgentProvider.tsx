@@ -271,6 +271,7 @@ function InAppAiAgentProviderInner({
         projectId,
         conversationId: selectedConversationId,
       });
+      return;
     }
 
     resetAgent();

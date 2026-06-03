@@ -14,7 +14,9 @@ import {
   type AgUiMessage,
 } from "@/src/features/in-app-agent/schema";
 
-const ACTIVE_RUN_STALE_AFTER_MS = 10 * 60 * 1000;
+// Keep this close to the route maxDuration (120s) so a killed foreground stream
+// does not block the conversation long after the route can no longer respond.
+const ACTIVE_RUN_STALE_AFTER_MS = 150 * 1000;
 const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
 const STALE_RUN_ERROR_CODE = "stale";
