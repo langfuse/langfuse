@@ -27,7 +27,7 @@ import {
   createAndAddApiKeysToDb,
   deleteApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, redis } from "@langfuse/shared/src/server";
 
 const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
 const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
@@ -255,6 +255,7 @@ async function cleanupInAppAgentMcpApiKey(params: {
     id: params.apiKeyId,
     entityId: params.projectId,
     scope: "PROJECT",
+    redis,
   });
 }
 
