@@ -110,8 +110,3 @@ Use this skill for backend and API work across `web/`, `worker/`, and
 | Database access                     | You are touching Prisma, ClickHouse, tenant filters, or query patterns   | [references/database-patterns.md](references/database-patterns.md)                 |
 | Configuration                       | You are adding env vars, startup config, or runtime toggles              | [references/configuration.md](references/configuration.md)                         |
 | Testing                             | You are adding or updating backend tests                                 | [references/testing-guide.md](references/testing-guide.md)                         |
-
-## Full Guide
-
-This `SKILL.md` is the backend entrypoint. Open the focused references above for
-directory conventions, imports, architecture, and cross-cutting practices.

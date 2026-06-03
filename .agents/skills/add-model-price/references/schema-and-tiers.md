@@ -116,7 +116,7 @@ tiers:
       }
     },
     {
-      "id": "{model-id}_tier_large_context",
+      "id": "uuid-for-large-context-tier",
       "name": "Large Context (>200K)",
       "isDefault": false,
       "priority": 1,

@@ -22,8 +22,6 @@ template, then:
 
 - add the new entry near related models
 - refresh `updatedAt` when editing an existing entry
-- update `packages/shared/src/server/llm/types.ts` when the model should be
-  selectable in product flows
 
 Example for a model with `$5` input, `$25` output, `$6.25` cache write, and
 `$0.50` cache read per million tokens:
