@@ -292,6 +292,57 @@ export function DeleteDashboardButton(props: DeleteButtonProps) {
   );
 }
 
+/** DeleteMonitorButton deletes a monitor through the shared confirm-then-delete pattern. */
+export function DeleteMonitorButton(props: DeleteButtonProps) {
+  const utils = api.useUtils();
+  const {
+    itemId,
+    projectId,
+    scope = "monitors:CUD",
+    invalidateFunc = () => void utils.monitors.invalidate(),
+  } = props;
+  const monitorMutation = api.monitors.delete.useMutation({
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Monitor deleted",
+        description: "The monitor has been deleted successfully",
+      });
+      void utils.monitors.invalidate();
+    },
+  });
+
+  const executeDeleteMutation = async (onSuccess: () => void) => {
+    try {
+      await monitorMutation.mutateAsync({ id: itemId, projectId });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    onSuccess();
+  };
+
+  return (
+    <DeleteButton
+      {...props}
+      scope={scope}
+      invalidateFunc={invalidateFunc}
+      captureDeleteOpen={(capture, isTableAction) =>
+        capture("monitors:delete_form_open", {
+          source: isTableAction ? "table-single-row" : "monitor",
+        })
+      }
+      captureDeleteSuccess={(capture, isTableAction) =>
+        capture("monitors:delete_monitor_button_click", {
+          source: isTableAction ? "table-single-row" : "monitor",
+        })
+      }
+      entityToDeleteName="monitor"
+      customDeletePrompt="This action cannot be undone. It stops all evaluations and removes the monitor's alert history."
+      executeDeleteMutation={executeDeleteMutation}
+      isDeleteMutationLoading={monitorMutation.isPending}
+    />
+  );
+}
+
 export function DeleteEvalConfigButton(props: DeleteButtonProps) {
   const utils = api.useUtils();
   const {
