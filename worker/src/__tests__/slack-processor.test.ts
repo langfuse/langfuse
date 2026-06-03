@@ -500,9 +500,9 @@ describe("Slack Processor", () => {
       const sent = mockSlackService.sendMessage.mock.calls[0][0];
       const blocks = sent.blocks;
 
-      // Full monitor message: header block with the severity emoji.
+      // Full monitor message: header block carries the alert title.
       expect(blocks[0].type).toBe("header");
-      expect(blocks[0].text.text).toContain("🚨");
+      expect(blocks[0].text.text).toBe("High error rate");
 
       // Not the fallback: a single section block starting "*Langfuse Notification*".
       const isFallback =
