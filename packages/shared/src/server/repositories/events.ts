@@ -944,6 +944,9 @@ async function getObservationByIdFromEventsTableInternal({
 /**
  * Get a trace by ID from the events table.
  * Compatible with getTraceById but queries the events table instead.
+ *
+ * Avoid using the `excludeInputOutput` and `excludeMetadata` fields as they
+ * are only for backwards compatibility with the existing `getTraceById` interface.
  */
 export const getTraceByIdFromEventsTable = async ({
   traceId,
@@ -1077,6 +1080,10 @@ export const getTraceByIdFromEventsTable = async ({
  *
  * If data is only written into the events tables, we look there and go to
  * traces otherwise.
+ *
+ * @deprecated Please prefer `getTraceByIdFromEventsTable` for new use-cases.
+ * This should be exclusively used for backwards compatibility if the write mode
+ * is events_only.
  */
 export const getTraceById = async (
   params: Parameters<typeof getTraceByIdFromTracesTable>[0],

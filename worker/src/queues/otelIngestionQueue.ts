@@ -395,13 +395,17 @@ export const otelIngestionQueueProcessorBuilder = (
         );
       }
 
-      const writePath = useDirectEventWrite
-        ? envForcesDirect && !headerBasedDirectWrite
-          ? "direct_env"
-          : headerBasedDirectWrite
-            ? "direct_header"
-            : "direct_scope"
-        : "dual";
+      let writePath: "dual" | "direct_header" | "direct_env" | "direct_scope";
+      if (!useDirectEventWrite) {
+        writePath = "dual";
+      } else if (headerBasedDirectWrite) {
+        writePath = "direct_header";
+      } else if (envForcesDirect) {
+        writePath = "direct_env";
+      } else {
+        writePath = "direct_scope";
+      }
+
       span?.setAttribute("langfuse.ingestion.otel.write_path", writePath);
       recordIncrement("langfuse.ingestion.otel.write_path", 1, {
         path: writePath,
