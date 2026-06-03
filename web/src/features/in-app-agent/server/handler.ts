@@ -402,7 +402,7 @@ function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
 
   return {
     threadId: input.threadId,
-    runId: input.runId,
+    runId: randomUUID(),
     ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
     state: null,
     messages: [{ ...lastUserMessage, id: randomUUID() }],

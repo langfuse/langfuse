@@ -268,8 +268,6 @@ function InAppAiAgentProviderInner({
     }
 
     if (conversationQuery.error.data?.code !== "NOT_FOUND") {
-      const errorMessage = getAgentErrorMessage(conversationQuery.error);
-      setError(errorMessage);
       console.error("Failed to load in-app agent conversation", {
         error: conversationQuery.error,
         projectId,
