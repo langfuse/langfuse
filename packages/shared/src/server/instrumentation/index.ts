@@ -195,6 +195,7 @@ export const addUserToSpan = (
     orgId?: string;
     plan?: string;
     apiKeyId?: string;
+    publicKey?: string;
   },
   span?: opentelemetry.Span,
 ) => {
@@ -244,6 +245,15 @@ export const addUserToSpan = (
       value: attributes.apiKeyId,
     });
     activeSpan.setAttribute("langfuse.api_key.id", attributes.apiKeyId);
+  }
+  if (attributes.publicKey) {
+    baggage = baggage.setEntry("langfuse.api_key.public_key", {
+      value: attributes.publicKey,
+    });
+    activeSpan.setAttribute(
+      "langfuse.api_key.public_key",
+      attributes.publicKey,
+    );
   }
 
   return opentelemetry.propagation.setBaggage(ctx, baggage);
