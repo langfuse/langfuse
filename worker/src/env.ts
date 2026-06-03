@@ -435,18 +435,6 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
-  // Background-migration env gates. Names share the LANGFUSE_BACKGROUND_MIGRATION_
-  // prefix so the BackgroundMigrationManager can discover them by scanning env
-  // keys; each gates one or more rows in the background_migrations table via
-  // `args.envGate`. Default to "false" so dormant migrations only run when the
-  // operator explicitly opts in.
-  LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES: z
-    .enum(["true", "false"])
-    .default("false"),
-
   LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES: z.coerce
     .number()
     .positive()
