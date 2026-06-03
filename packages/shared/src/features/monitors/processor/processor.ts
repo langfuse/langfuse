@@ -97,6 +97,7 @@ export class MonitorProcessor {
       where: {
         id: { in: event.monitors.map((m) => m.monitorId) },
         projectId: event.projectId,
+        status: "ACTIVE", // reject the claim while paused so a stale PAUSED snapshot is never returned
         lastPublishedAt: { lte: event.publishedAt }, // newest event
         AND: [
           // not already claimed

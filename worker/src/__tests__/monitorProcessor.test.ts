@@ -980,6 +980,34 @@ const cases: ProcessCase[] = [
       ],
     },
   },
+  {
+    name: "monitor paused before claim: no claim, no complete, no sev change, no emit",
+    monitors: [
+      {
+        id: monitorAId,
+        status: "PAUSED",
+        severity: "PAUSED",
+        lastPublishedAt: runAt,
+        lastClaimedAt: null,
+        lastCompletedAt: null,
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "PAUSED",
+          severityChangedAt: null,
+          alertedAt: null,
+          lastClaimedAt: null,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
 ];
 
 describe("MonitorProcessor.process (integration)", () => {
