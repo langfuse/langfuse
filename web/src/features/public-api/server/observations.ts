@@ -24,6 +24,7 @@ type QueryType = {
   toStartTime?: string;
   version?: string;
   advancedFilters?: FilterState;
+  clickhouseTags?: Record<string, string>;
 };
 
 export const generateObservationsForPublicApi = async (props: QueryType) => {
@@ -102,6 +103,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
           : {}),
       },
       tags: {
+        ...(props.clickhouseTags ?? {}),
         feature: "tracing",
         type: "observation",
         projectId: props.projectId,
@@ -140,6 +142,7 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
     input: {
       params: { ...filter.params, projectId: props.projectId },
       tags: {
+        ...(props.clickhouseTags ?? {}),
         feature: "tracing",
         type: "observation",
         projectId: props.projectId,
@@ -165,7 +168,11 @@ const filterParams = createPublicApiObservationsColumnMapping(
 );
 
 const generateFilter = (query: QueryType) => {
-  const { advancedFilters, ...simpleFilterProps } = query;
+  const {
+    advancedFilters,
+    clickhouseTags: _clickhouseTags,
+    ...simpleFilterProps
+  } = query;
   const chFilter = deriveFilters(
     simpleFilterProps,
     filterParams,

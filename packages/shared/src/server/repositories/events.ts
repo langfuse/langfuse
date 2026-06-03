@@ -681,6 +681,7 @@ export const getObservationByIdFromEventsTable = async ({
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
   preferredClickhouseService,
+  clickhouseTags,
 }: {
   id: string;
   projectId: string;
@@ -690,6 +691,7 @@ export const getObservationByIdFromEventsTable = async ({
   traceId?: string;
   renderingProps?: RenderingProps;
   preferredClickhouseService?: PreferredClickhouseService;
+  clickhouseTags?: Record<string, string>;
 }) => {
   const records = await getObservationByIdFromEventsTableInternal({
     id,
@@ -700,6 +702,7 @@ export const getObservationByIdFromEventsTable = async ({
     traceId,
     renderingProps,
     preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
+    clickhouseTags,
   });
   const mapped = records.map((record) => {
     // Remove raw tags field as this is re-mapped to traceTags
@@ -890,6 +893,7 @@ async function getObservationByIdFromEventsTableInternal({
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
   preferredClickhouseService,
+  clickhouseTags,
 }: {
   id: string;
   projectId: string;
@@ -899,6 +903,7 @@ async function getObservationByIdFromEventsTableInternal({
   traceId?: string;
   renderingProps?: RenderingProps;
   preferredClickhouseService?: PreferredClickhouseService;
+  clickhouseTags?: Record<string, string>;
 }) {
   const queryBuilder = new EventsQueryBuilder({ projectId })
     .selectFieldSet("byIdBase", "byIdModel", "byIdPrompt", "byIdTimestamps")
@@ -930,6 +935,7 @@ async function getObservationByIdFromEventsTableInternal({
     query,
     params,
     tags: {
+      ...(clickhouseTags ?? {}),
       feature: "tracing",
       type: "events",
       kind: "byId",
@@ -1090,6 +1096,7 @@ type PublicApiObservationsQuery = {
    * - string[]: expand specified keys (or all keys if empty array)
    */
   expandMetadataKeys?: string[] | null;
+  clickhouseTags?: Record<string, string>;
 };
 
 type BuildObservationsQueryComponentsOptions = {
@@ -1154,7 +1161,12 @@ function buildObservationsQueryComponents(
     queryWithParams: { query: string; params: Record<string, any> };
   }>;
 } {
-  const { projectId, advancedFilters, ...filterParams } = opts;
+  const {
+    projectId,
+    advancedFilters,
+    clickhouseTags: _clickhouseTags,
+    ...filterParams
+  } = opts;
 
   if (!options.allowUnindexedIoFilters) {
     validateInputOutputFilterTypes(advancedFilters, columnDefinitions);
@@ -1284,6 +1296,7 @@ async function getObservationsRowsFromBuilder<T>(
   projectId: string,
   queryBuilder: QueryWithParams,
   operationName: string = "getObservationsFromEventsTableForPublicApi_rows",
+  clickhouseTags?: Record<string, string>,
 ): Promise<Array<T>> {
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -1293,6 +1306,7 @@ async function getObservationsRowsFromBuilder<T>(
     input: {
       params,
       tags: {
+        ...(clickhouseTags ?? {}),
         feature: "tracing",
         type: "events",
         kind: "publicApiRows",
@@ -1332,6 +1346,7 @@ async function getObservationsCountFromEventsTableForPublicApiInternal(
     input: {
       params,
       tags: {
+        ...(opts.clickhouseTags ?? {}),
         feature: "tracing",
         type: "events",
         kind: "publicApiCount",
@@ -1374,6 +1389,8 @@ export const getObservationsFromEventsTableForPublicApi = async (
     await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
       projectId,
       queryBuilder,
+      undefined,
+      opts.clickhouseTags,
     );
 
   const observations = await enrichObservationsWithModelData(
@@ -1457,6 +1474,8 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
       projectId,
       builder,
+      undefined,
+      opts.clickhouseTags,
     );
 
   return await enrichObservationsWithModelData(
@@ -1494,6 +1513,7 @@ type PublicApiTracesQuery = {
   fields?: string[];
   advancedFilters?: FilterState;
   orderBy?: { column: string; order: "ASC" | "DESC" } | null;
+  clickhouseTags?: Record<string, string>;
 };
 
 /**
@@ -1511,6 +1531,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
     advancedFilters,
     fields,
     orderBy,
+    clickhouseTags,
     ...filterParams
   } = opts;
 
@@ -1649,6 +1670,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
     input: {
       params,
       tags: {
+        ...(clickhouseTags ?? {}),
         feature: "tracing",
         type: "traces",
         kind: opts.select === "count" ? "publicApiCount" : "publicApiRows",

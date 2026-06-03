@@ -514,6 +514,7 @@ export const getTraceById = async ({
   preferredClickhouseService,
   excludeInputOutput = false,
   excludeMetadata = false,
+  clickhouseTags,
 }: {
   traceId: string;
   projectId: string;
@@ -526,6 +527,7 @@ export const getTraceById = async ({
   excludeInputOutput?: boolean;
   /** When true, sets metadata column to empty in the query to reduce database load */
   excludeMetadata?: boolean;
+  clickhouseTags?: Record<string, string>;
 }) => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
@@ -542,6 +544,7 @@ export const getTraceById = async ({
           : {}),
       },
       tags: {
+        ...(clickhouseTags ?? {}),
         feature: clickhouseFeatureTag,
         type: "trace",
         kind: "byId",

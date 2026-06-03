@@ -28,7 +28,13 @@ export default withMiddlewares(
           });
 
           // Execute the query using QueryBuilder
-          const result = await executeQuery(auth.scope.projectId, queryParams);
+          const result = await executeQuery(
+            auth.scope.projectId,
+            queryParams,
+            "v1",
+            false,
+            { api_path: "GET /api/public/metrics" },
+          );
 
           // Format and return the result
           return {

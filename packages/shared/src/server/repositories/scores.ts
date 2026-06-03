@@ -179,6 +179,7 @@ export type GetScoresForTracesProps<
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
   preferredClickhouseService?: PreferredClickhouseService;
+  clickhouseTags?: Record<string, string>;
 };
 
 type GetScoresForSessionsProps<
@@ -515,6 +516,7 @@ const getScoresForTracesInternal = async <
     excludeMetadata = false,
     includeHasMetadata = false,
     preferredClickhouseService,
+    clickhouseTags,
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
@@ -560,6 +562,7 @@ const getScoresForTracesInternal = async <
         : {}),
     },
     tags: {
+      ...(clickhouseTags ?? {}),
       feature: "tracing",
       type: "score",
       kind: "list",

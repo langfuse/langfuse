@@ -44,6 +44,7 @@ export default withMiddlewares(
           toStartTime: query.toStartTime ?? undefined,
           version: query.version ?? undefined,
           advancedFilters: query.filter,
+          clickhouseTags: { api_path: "GET /api/public/observations" },
         };
 
         // Use events table if query parameter is explicitly set, otherwise use environment variable

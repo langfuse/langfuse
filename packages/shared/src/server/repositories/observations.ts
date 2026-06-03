@@ -131,6 +131,7 @@ export type GetObservationsForTraceOpts<IncludeIO extends boolean> = {
   timestamp?: Date;
   includeIO?: IncludeIO;
   preferredClickhouseService?: PreferredClickhouseService;
+  clickhouseTags?: Record<string, string>;
 };
 
 export const getObservationsForTrace = async <IncludeIO extends boolean>(
@@ -142,6 +143,7 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     timestamp,
     includeIO = false,
     preferredClickhouseService,
+    clickhouseTags,
   } = opts;
 
   // OTel projects use immutable spans - no need for deduplication
@@ -196,6 +198,7 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
         : {}),
     },
     tags: {
+      ...(clickhouseTags ?? {}),
       feature: "tracing",
       type: "observation",
       kind: "list",
@@ -337,6 +340,7 @@ export const getObservationById = async ({
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
   preferredClickhouseService,
+  clickhouseTags,
 }: {
   id: string;
   projectId: string;
@@ -346,6 +350,7 @@ export const getObservationById = async ({
   traceId?: string;
   renderingProps?: RenderingProps;
   preferredClickhouseService?: PreferredClickhouseService;
+  clickhouseTags?: Record<string, string>;
 }) => {
   const records = await getObservationByIdInternal({
     id,
@@ -356,6 +361,7 @@ export const getObservationById = async ({
     traceId,
     renderingProps,
     preferredClickhouseService,
+    clickhouseTags,
   });
   const mapped = records.map((record) =>
     convertObservation(record, renderingProps),
@@ -446,6 +452,7 @@ const getObservationByIdInternal = async ({
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
   preferredClickhouseService,
+  clickhouseTags,
 }: {
   id: string;
   projectId: string;
@@ -455,6 +462,7 @@ const getObservationByIdInternal = async ({
   traceId?: string;
   renderingProps?: RenderingProps;
   preferredClickhouseService?: PreferredClickhouseService;
+  clickhouseTags?: Record<string, string>;
 }) => {
   const query = `
   SELECT
@@ -511,6 +519,7 @@ const getObservationByIdInternal = async ({
       ...(traceId ? { traceId } : {}),
     },
     tags: {
+      ...(clickhouseTags ?? {}),
       feature: "tracing",
       type: "observation",
       kind: "byId",

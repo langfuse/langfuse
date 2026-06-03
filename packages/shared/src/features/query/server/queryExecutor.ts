@@ -23,6 +23,7 @@ export async function prepareExecuteQuery(opts: {
   query: QueryType;
   version?: ViewVersion;
   enableSingleLevelOptimization?: boolean;
+  clickhouseTags?: Record<string, string>;
 }): Promise<PreparedQuery> {
   const {
     projectId,
@@ -54,6 +55,7 @@ export async function prepareExecuteQuery(opts: {
     : undefined;
 
   const tags = {
+    ...(opts.clickhouseTags ?? {}),
     feature: "custom-queries",
     type: query.view,
     kind: "analytic",
@@ -98,12 +100,14 @@ export async function executeQuery(
   query: QueryType,
   version: ViewVersion = "v1",
   enableSingleLevelOptimization: boolean = false,
+  clickhouseTags?: Record<string, string>,
 ): Promise<Array<Record<string, unknown>>> {
   const prepared = await prepareExecuteQuery({
     projectId,
     query,
     version,
     enableSingleLevelOptimization,
+    clickhouseTags,
   });
 
   const chOpts = toClickhouseQueryOpts(prepared);

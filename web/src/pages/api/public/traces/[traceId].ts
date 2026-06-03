@@ -54,6 +54,9 @@ export default withMiddlewares(
         const includeObservations = requestedFields.includes("observations");
         const includeScores = requestedFields.includes("scores");
         const includeMetrics = requestedFields.includes("metrics");
+        const clickhouseTags = {
+          api_path: "GET /api/public/traces/{id}",
+        };
 
         const trace = await getTraceById({
           traceId,
@@ -62,6 +65,7 @@ export default withMiddlewares(
           preferredClickhouseService: "ReadOnly",
           excludeInputOutput: !includeIO,
           excludeMetadata: !includeIO,
+          clickhouseTags,
         });
 
         if (!trace) {
@@ -78,6 +82,7 @@ export default withMiddlewares(
                 timestamp: trace?.timestamp,
                 includeIO: includeObservations,
                 preferredClickhouseService: "ReadOnly",
+                clickhouseTags,
               })
             : Promise.resolve([]),
           includeScores
@@ -86,6 +91,7 @@ export default withMiddlewares(
                 traceIds: [traceId],
                 timestamp: trace?.timestamp,
                 preferredClickhouseService: "ReadOnly",
+                clickhouseTags,
               })
             : Promise.resolve([]),
         ]);

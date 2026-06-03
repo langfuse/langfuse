@@ -43,6 +43,7 @@ export type TraceQueryType = {
   toTimestamp?: string;
   fields?: TraceFieldGroup[];
   useEventsTable?: boolean | null;
+  clickhouseTags?: Record<string, string>;
 };
 
 async function buildTracesBaseQuery(
@@ -76,8 +77,10 @@ async function buildTracesBaseQuery(
   const propagateObservationsTimeBounds =
     env.LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS === "true";
 
+  const { clickhouseTags: _clickhouseTags, ...filterProps } = props;
+
   let filter = deriveFilters(
-    props,
+    filterProps,
     filterParams,
     advancedFilters,
     tracesTableUiColumnDefinitions,
@@ -431,6 +434,7 @@ export const generateTracesForPublicApi = async ({
     input: {
       params,
       tags: {
+        ...(props.clickhouseTags ?? {}),
         feature: "tracing",
         type: "trace",
         kind: "public-api",
@@ -472,8 +476,9 @@ export const getTracesCountForPublicApi = async ({
   props: TraceQueryType;
   advancedFilters?: FilterState;
 }) => {
+  const { clickhouseTags: _clickhouseTags, ...filterProps } = props;
   let filter = deriveFilters(
-    props,
+    filterProps,
     filterParams,
     advancedFilters,
     tracesTableUiColumnDefinitions,
@@ -517,6 +522,7 @@ export const getTracesCountForPublicApi = async ({
     input: {
       params,
       tags: {
+        ...(props.clickhouseTags ?? {}),
         feature: "tracing",
         type: "trace",
         kind: "count",

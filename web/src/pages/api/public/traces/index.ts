@@ -121,6 +121,7 @@ export default withMiddlewares(
           release: query.release ?? undefined,
           fromTimestamp: effectiveFromTimestamp,
           toTimestamp: query.toTimestamp ?? undefined,
+          clickhouseTags: { api_path: "GET /api/public/traces" },
         };
 
         // Use events table if query parameter is explicitly set, otherwise use environment variable
