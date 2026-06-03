@@ -207,8 +207,7 @@ describe("monitor-alert e2e (scheduler → processor → dispatcher → webhook 
 
   it("does not write AutomationExecution rows for monitor-alert dispatches", async () => {
     const now = new Date();
-    const monitorId = await seedMonitor({ projectId, alertThreshold: 100 });
-    await seedWebhookAutomation({
+    const { triggerId } = await seedWebhookAutomation({
       projectId,
       url: "https://webhook.example.com/monitor-no-exec",
       triggerFilter: [
@@ -220,10 +219,30 @@ describe("monitor-alert e2e (scheduler → processor → dispatcher → webhook 
         },
       ],
     });
+    await seedMonitor({
+      projectId,
+      alertThreshold: 100,
+      triggerIds: [triggerId],
+    });
 
     const before = await prisma.automationExecution.count({
       where: { projectId },
     });
+
+    const monitorQueueEvents: MonitorQueueEvent[] = [];
+    const scheduler = new MonitorScheduler({
+      schedulerId: 0,
+      totalSchedulers: 1,
+      db: prisma,
+      publish: async (event) => {
+        monitorQueueEvents.push(MonitorQueueEventSchema.parse(event));
+      },
+    });
+    await scheduler.schedule(now);
+    const projectEvents = monitorQueueEvents.filter(
+      (e) => e.projectId === projectId,
+    );
+    expect(projectEvents).toHaveLength(1);
 
     const captured: WebhookInput[] = [];
     const processor = new MonitorProcessor(
@@ -233,18 +252,10 @@ describe("monitor-alert e2e (scheduler → processor → dispatcher → webhook 
       },
       async () => [{ count_count: 150 }],
     );
-    const event = {
-      projectId,
-      schedulerBatchId: 0n,
-      runAt: now,
-      publishedAt: now,
-      view: "observations" as const,
-      filters: [],
-      window: "5m" as const,
-      metrics: [{ measure: "count", aggregation: "count" as const }],
-      monitors: [{ monitorId, metricName: "count_count" }],
-    };
-    await processor.process(event, now);
+    await Promise.all(
+      projectEvents.map((event) => processor.process(event, now)),
+    );
+    expect(captured).toHaveLength(1);
     for (const input of captured) {
       await executeWebhook(input, { skipValidation: true });
     }
