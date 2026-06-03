@@ -48,6 +48,10 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
+import {
+  useTableRowIsSelected,
+  useTableSelectAll,
+} from "@/src/features/table/components/TableSelectionStoreContext";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -537,6 +541,8 @@ function TableRowComponent<TData>({
 }) {
   const router = useRouter();
   const selectedRowId = router.query.peek as string | undefined;
+  const rowIsSelected = useTableRowIsSelected(row.id, row.getIsSelected());
+  const shouldHighlightAllRows = useTableSelectAll(highlightAllRows);
 
   return (
     <TableRow
@@ -554,7 +560,7 @@ function TableRowComponent<TData>({
       className={cn(
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
-        (row.getIsSelected() || highlightAllRows) &&
+        (rowIsSelected || shouldHighlightAllRows) &&
           "bg-muted/40 dark:bg-muted",
         selectedRowId && selectedRowId === row.id
           ? "bg-muted/40 dark:bg-muted"
@@ -583,9 +589,11 @@ function TableBodyComponent<TData>({
   tableSnapshot: _tableSnapshot,
 }: TableBodyComponentProps<TData>) {
   const visibleColumns = table.getVisibleLeafColumns();
+  const rowModelRows = table.getRowModel().rows;
+  const tableState = table.getState();
   const skeletonRowCount = Math.max(
     1,
-    Math.min(table.getState().pagination?.pageSize ?? 8, 8),
+    Math.min(tableState.pagination?.pageSize ?? 8, 8),
   );
 
   return (
@@ -651,8 +659,8 @@ function TableBodyComponent<TData>({
             })}
           </TableRow>
         ))
-      ) : table.getRowModel().rows.length ? (
-        table.getRowModel().rows.map((row) => (
+      ) : rowModelRows.length ? (
+        rowModelRows.map((row) => (
           <TableRowComponent
             key={row.id}
             row={row}
