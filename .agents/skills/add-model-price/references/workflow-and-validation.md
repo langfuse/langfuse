@@ -30,7 +30,7 @@ Example for a model with `$5` input, `$25` output, `$6.25` cache write, and
 {
   "id": "13458bc0-1c20-44c2-8753-172f54b67647",
   "modelName": "claude-opus-4-6",
-  "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-6-v1(:0)?|claude-opus-4-6)$",
+  "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-6-v1(:0)?)$",
   "createdAt": "2026-03-09T00:00:00.000Z",
   "updatedAt": "2026-03-09T00:00:00.000Z",
   "tokenizerConfig": null,

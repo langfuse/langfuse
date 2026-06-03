@@ -58,12 +58,10 @@ Use this skill for interactive dependency bumps in Langfuse.
 
 - Analysis pass:
   `node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs <package> <targetVersion>`
-- Transitive provenance check:
+- Transitive provenance / final graph verification:
   `pnpm why -r <package>`
 - Inspect a current parent manifest on the registry:
   `npm view <parent>@<installedVersion> dependencies peerDependencies optionalDependencies --json`
-- Final graph verification:
-  `pnpm why -r <package>`
 - Optional lockfile cleanup:
   `pnpm dedupe`
 - Bump in the root workspace:

@@ -68,7 +68,7 @@ Use this skill for backend and API work across `web/`, `worker/`, and
 - Validate all external input with Zod v4.
 - Use Prisma directly for simple CRUD and repositories for complex query access.
 - Use OpenTelemetry and DataDog for backend observability.
-- Always filter project-scoped database reads by `projectId`.
+- Always filter project-scoped database queries by `projectId`.
 - Keep Fern API definitions in sync with public TypeScript API contracts.
 - Keep backend tests independent and parallel-safe.
 
