@@ -156,13 +156,18 @@ export class SlackMessageBuilder {
   /** buildMonitorMessage renders a MonitorWebhookQueueEvent into Slack Block Kit per RFC §855-902. The processor emits standard markdown; we convert the body to Slack mrkdwn via slackify-markdown. */
   static buildMonitorMessage(envelope: MonitorWebhookQueueEvent): SlackMessage {
     const alert = envelope.payload;
-    const { emoji, color } = severityVisual[alert.severity];
+    const { color } = severityVisual[alert.severity];
+    // Slack hard-limits header plain_text to 150 chars and rejects longer
+    // values with invalid_blocks; the [SEVERITY] prefix already conveys
+    // severity, so the header carries the title alone (no severity emoji).
+    const title = alert.message.title;
+    const headerText = title.length > 150 ? `${title.slice(0, 149)}…` : title;
     const blocks: any[] = [
       {
         type: "header",
         text: {
           type: "plain_text",
-          text: `${emoji} ${alert.message.title}`,
+          text: headerText,
           emoji: true,
         },
       },

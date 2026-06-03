@@ -330,12 +330,12 @@ describe("SlackMessageBuilder", () => {
       },
     };
 
-    it("ALERT: header has 🚨 + title; body converted to Slack mrkdwn; red attachment", () => {
+    it("ALERT: header is title only (no severity emoji); body converted to Slack mrkdwn; red attachment", () => {
       const { blocks, attachments } =
         SlackMessageBuilder.buildMonitorMessage(mockMonitorEnvelope);
       expect(blocks[0]).toMatchObject({
         type: "header",
-        text: { type: "plain_text", text: "🚨 High error rate" },
+        text: { type: "plain_text", text: "High error rate" },
       });
       // slackify-markdown converts **bold** → *bold* (Slack mrkdwn)
       expect(blocks[1]).toMatchObject({
@@ -353,22 +353,42 @@ describe("SlackMessageBuilder", () => {
     });
 
     it.each([
-      ["WARNING", "⚠️", "#ffc107"],
-      ["OK", "✅", "#28a745"],
-      ["NO_DATA", "❓", "#6c757d"],
+      ["WARNING", "#ffc107"],
+      ["OK", "#28a745"],
+      ["NO_DATA", "#6c757d"],
     ] as const)(
-      "%s: header emoji %s, attachment color %s",
-      (severity, emoji, color) => {
+      "%s: header is title only, attachment color %s",
+      (severity, color) => {
         const { blocks, attachments } = SlackMessageBuilder.buildMonitorMessage(
           {
             ...mockMonitorEnvelope,
             payload: { ...mockMonitorEnvelope.payload, severity },
           },
         );
-        expect((blocks[0].text.text as string).startsWith(emoji)).toBe(true);
+        expect(blocks[0].text.text).toBe("High error rate");
         expect(attachments).toEqual([{ color }]);
       },
     );
+
+    it("header has no severity emoji prefix", () => {
+      const { blocks } =
+        SlackMessageBuilder.buildMonitorMessage(mockMonitorEnvelope);
+      expect(blocks[0].text.text).toBe("High error rate");
+    });
+
+    it("truncates a header longer than 150 chars to 150 with an ellipsis", () => {
+      const longTitle = "[ALERT] " + "x".repeat(160);
+      const { blocks } = SlackMessageBuilder.buildMonitorMessage({
+        ...mockMonitorEnvelope,
+        payload: {
+          ...mockMonitorEnvelope.payload,
+          message: { ...mockMonitorEnvelope.payload.message, title: longTitle },
+        },
+      });
+      const headerText = blocks[0].text.text as string;
+      expect(headerText.length).toBeLessThanOrEqual(150);
+      expect(headerText.endsWith("…")).toBe(true);
+    });
 
     it("omits the actions block when permalink is absent", () => {
       const { blocks } = SlackMessageBuilder.buildMonitorMessage({
@@ -382,7 +402,7 @@ describe("SlackMessageBuilder", () => {
     it("buildMessage routes monitor-alert envelopes", () => {
       const result = SlackMessageBuilder.buildMessage(mockMonitorEnvelope);
       expect(result.attachments).toEqual([{ color: "#dc3545" }]);
-      expect(result.blocks[0].text.text).toBe("🚨 High error rate");
+      expect(result.blocks[0].text.text).toBe("High error rate");
     });
   });
 });
