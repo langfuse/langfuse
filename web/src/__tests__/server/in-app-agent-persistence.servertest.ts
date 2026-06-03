@@ -9,6 +9,7 @@ import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import {
   appendConversationEvent,
   createRun,
+  ensureOwnedConversation,
   finishRun,
 } from "@/src/features/in-app-agent/server/persistence";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -185,7 +186,7 @@ describe("in-app agent persistence", () => {
     expect(conversation).not.toHaveProperty("provider");
 
     await prisma.inAppAgentConversation.update({
-      where: { id: conversation.id, projectId },
+      where: { id_projectId: { id: conversation.id, projectId } },
       data: { providerSessionId: "claude-session-secret" },
     });
 
@@ -768,6 +769,46 @@ describe("in-app agent persistence", () => {
     expect(visibleConversations.nextCursor).toBeUndefined();
   });
 
+  it("allows conversation and run ids to repeat across projects", async () => {
+    const owner = await createCaller();
+    const other = await createCaller();
+    const conversation = await owner.caller.create({
+      projectId: owner.projectId,
+    });
+
+    const otherConversation = await ensureOwnedConversation({
+      prisma,
+      projectId: other.projectId,
+      conversationId: conversation.id,
+      userId: other.userId,
+    });
+
+    expect(otherConversation).toMatchObject({
+      id: conversation.id,
+      projectId: other.projectId,
+      createdByUserId: other.userId,
+    });
+
+    const runId = `run-${randomUUID()}`;
+    await createConversationRun({
+      projectId: owner.projectId,
+      conversationId: conversation.id,
+      userId: owner.userId,
+      runId,
+    });
+    await expect(
+      createConversationRun({
+        projectId: other.projectId,
+        conversationId: otherConversation.id,
+        userId: other.userId,
+        runId,
+      }),
+    ).resolves.toMatchObject({
+      id: runId,
+      projectId: other.projectId,
+    });
+  });
+
   it("finishes runs once and preserves the first terminal error", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await caller.create({ projectId });
@@ -796,7 +837,9 @@ describe("in-app agent persistence", () => {
     });
 
     await expect(
-      prisma.inAppAgentRun.findUniqueOrThrow({ where: { id: run.id } }),
+      prisma.inAppAgentRun.findUniqueOrThrow({
+        where: { id_projectId: { id: run.id, projectId } },
+      }),
     ).resolves.toMatchObject({
       errorCode: "agent_error",
       errorMessage: "Original agent error",
@@ -832,7 +875,7 @@ describe("in-app agent persistence", () => {
     });
 
     await prisma.inAppAgentRun.update({
-      where: { id: staleRun.id },
+      where: { id_projectId: { id: staleRun.id, projectId } },
       data: { startedAt: new Date("2026-05-20T10:00:00.000Z") },
     });
 
@@ -843,7 +886,9 @@ describe("in-app agent persistence", () => {
     });
 
     await expect(
-      prisma.inAppAgentRun.findUniqueOrThrow({ where: { id: staleRun.id } }),
+      prisma.inAppAgentRun.findUniqueOrThrow({
+        where: { id_projectId: { id: staleRun.id, projectId } },
+      }),
     ).resolves.toMatchObject({
       errorCode: "stale",
       errorMessage: "Run was marked stale before starting a new run",

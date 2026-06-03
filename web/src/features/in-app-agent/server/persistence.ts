@@ -72,16 +72,17 @@ export async function ensureOwnedConversation(params: {
   conversationId: string;
   userId: string;
 }) {
-  const existing = await params.prisma.inAppAgentConversation.findFirst({
+  const existing = await params.prisma.inAppAgentConversation.findUnique({
     where: {
-      id: params.conversationId,
-      projectId: params.projectId,
-      deletedAt: null,
+      id_projectId: {
+        id: params.conversationId,
+        projectId: params.projectId,
+      },
     },
   });
 
   if (existing) {
-    if (existing.createdByUserId !== params.userId) {
+    if (existing.createdByUserId !== params.userId || existing.deletedAt) {
       throw new LangfuseNotFoundError("Agent conversation not found");
     }
 
@@ -196,7 +197,12 @@ export async function updateProviderSessionId(params: {
   providerSessionId: string;
 }) {
   await params.prisma.inAppAgentConversation.update({
-    where: { id: params.conversationId, projectId: params.projectId },
+    where: {
+      id_projectId: {
+        id: params.conversationId,
+        projectId: params.projectId,
+      },
+    },
     data: { providerSessionId: params.providerSessionId },
   });
 }
@@ -239,8 +245,10 @@ export async function appendConversationEvent(params: {
 
     await tx.inAppAgentConversation.update({
       where: {
-        id: params.conversationId,
-        projectId: params.projectId,
+        id_projectId: {
+          id: params.conversationId,
+          projectId: params.projectId,
+        },
       },
       data: { lastMessageAt: new Date() },
     });

@@ -217,7 +217,7 @@ enum InAppAgentConversationVisibilityScope {
 }
 
 model InAppAgentConversation {
-  id                String                                @id @default(cuid())
+  id                String                                @default(cuid())
   projectId         String                                @map("project_id")
   project           Project                               @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdByUserId   String?                               @map("created_by_user_id")
@@ -233,6 +233,7 @@ model InAppAgentConversation {
   events InAppAgentEvent[]
   runs   InAppAgentRun[]
 
+  @@id([id, projectId])
   @@index([projectId, createdByUserId, deletedAt, updatedAt, id], map: "in_app_agent_conversations_project_user_list_idx")
   @@index([projectId, updatedAt], map: "in_app_agent_conversations_project_updated_idx")
   @@map("in_app_agent_conversations")
@@ -243,9 +244,9 @@ model InAppAgentEvent {
   projectId      String                 @map("project_id")
   project        Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   conversationId String                 @map("conversation_id")
-  conversation   InAppAgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation   InAppAgentConversation @relation(fields: [conversationId, projectId], references: [id, projectId], onDelete: Cascade)
   runId          String?                @map("run_id")
-  run            InAppAgentRun?         @relation(fields: [runId], references: [id], onDelete: SetNull)
+  run            InAppAgentRun?         @relation(fields: [runId, projectId], references: [id, projectId], onDelete: Cascade)
   sequenceNumber Int                    @map("sequence_number")
   type           String
   event          Json                   @db.JsonB
@@ -253,16 +254,16 @@ model InAppAgentEvent {
 
   @@unique([projectId, conversationId, sequenceNumber], map: "in_app_agent_events_project_conversation_seq_key")
   @@index([projectId, conversationId, createdAt], map: "in_app_agent_events_project_conversation_created_idx")
-  @@index([runId, sequenceNumber], map: "in_app_agent_events_run_seq_idx")
+  @@index([projectId, runId, sequenceNumber], map: "in_app_agent_events_project_run_seq_idx")
   @@map("in_app_agent_events")
 }
 
 model InAppAgentRun {
-  id              String                 @id @default(cuid())
+  id              String                 @default(cuid())
   projectId       String                 @map("project_id")
   project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   conversationId  String                 @map("conversation_id")
-  conversation    InAppAgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation    InAppAgentConversation @relation(fields: [conversationId, projectId], references: [id, projectId], onDelete: Cascade)
   createdByUserId String?                @map("created_by_user_id")
   createdByUser   User?                  @relation("InAppAgentRunCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   model           String?
@@ -277,6 +278,7 @@ model InAppAgentRun {
 
   events InAppAgentEvent[]
 
+  @@id([id, projectId])
   @@index([projectId, conversationId, createdAt], map: "in_app_agent_runs_project_conversation_created_idx")
   @@index([projectId, createdByUserId, createdAt], map: "in_app_agent_runs_project_user_created_idx")
   @@map("in_app_agent_runs")
