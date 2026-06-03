@@ -14,8 +14,16 @@ vi.mock("../../../db", async () => {
 });
 
 import { prisma } from "../../../db";
+import { calculateSchedulerBatchId } from "./helpers";
 import { MonitorService } from "./service";
 import { type SessionContext, type UpdateMonitor } from "./types";
+
+const unchangedBatchId = calculateSchedulerBatchId({
+  projectId: "proj_01",
+  view: "observations",
+  filters: [],
+  windowMs: 300000n,
+});
 
 const session: SessionContext = { userId: "user_01" };
 
@@ -81,5 +89,25 @@ describe("MonitorService.update", () => {
     expect(prisma.monitor.findFirst).toHaveBeenCalledWith({
       where: { id: input.id, projectId: input.projectId },
     });
+  });
+
+  it("resume PAUSED->ACTIVE resets next_run_at and lifecycle stamps", async () => {
+    (prisma.monitor.findFirst as any).mockResolvedValue({
+      ...prismaRow,
+      status: "PAUSED",
+      schedulerBatchId: unchangedBatchId,
+      nextRunAt: new Date("2026-05-01T00:00:00.000Z"),
+      lastPublishedAt: new Date("2026-05-01T00:00:00.000Z"),
+      lastCompletedAt: new Date("2026-05-01T00:00:00.000Z"),
+      lastClaimedAt: new Date("2026-05-01T00:00:00.000Z"),
+    });
+
+    await MonitorService.update(session, { ...input, status: "ACTIVE" });
+
+    const data = (prisma.monitor.update as any).mock.calls[0][0].data;
+    expect(data.nextRunAt).toBeNull();
+    expect(data.lastPublishedAt).toBeNull();
+    expect(data.lastCompletedAt).toBeNull();
+    expect(data.lastClaimedAt).toBeNull();
   });
 });

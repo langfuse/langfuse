@@ -532,6 +532,14 @@ describe("updateStatusAndSeverity", () => {
     expect(result.severityChangedAt).toBeInstanceOf(Date);
   });
 
+  it("resets the publish lifecycle stamps when status returns to ACTIVE", () => {
+    const result = updateStatusAndSeverity("PAUSED", "ACTIVE");
+    expect(result.nextRunAt).toBeNull();
+    expect(result.lastPublishedAt).toBeNull();
+    expect(result.lastCompletedAt).toBeNull();
+    expect(result.lastClaimedAt).toBeNull();
+  });
+
   it("emits UNKNOWN when recovering from ERROR_BAD_QUERY to ACTIVE", () => {
     const result = updateStatusAndSeverity("ERROR_BAD_QUERY", "ACTIVE");
     expect(result.status).toBe("ACTIVE");

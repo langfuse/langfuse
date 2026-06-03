@@ -260,6 +260,10 @@ export const updateStatusAndSeverity = (
   status?: MonitorStatus;
   severity?: MonitorSeverity;
   severityChangedAt?: Date;
+  nextRunAt?: null;
+  lastPublishedAt?: null;
+  lastCompletedAt?: null;
+  lastClaimedAt?: null;
 } => {
   if (!next) return {};
   const fromActive = current === MonitorStatusSchema.enum.ACTIVE;
@@ -277,6 +281,10 @@ export const updateStatusAndSeverity = (
       status: next,
       severity: PrismaMonitorSeverity.UNKNOWN,
       severityChangedAt: new Date(),
+      nextRunAt: null,
+      lastPublishedAt: null,
+      lastCompletedAt: null,
+      lastClaimedAt: null,
     };
   // No Severity Change (eg ACTIVE -> ACTIVE, ERROR_* -> PAUSED)
   return { status: next };

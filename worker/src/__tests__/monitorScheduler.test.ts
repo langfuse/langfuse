@@ -163,6 +163,37 @@ const cases: SchedulerCase[] = [
     },
   },
   {
+    name: "mixed batch: new monitor does not drag existing sibling forward",
+    tick: now,
+    monitors: [
+      { id: "m_existing", nextRunAt: prevCadence },
+      { id: "m_new", nextRunAt: null },
+    ],
+    expect: {
+      events: [
+        {
+          schedulerBatchId: "0",
+          runAt: prevCadence,
+          monitorIds: ["m_existing", "m_new"],
+        },
+      ],
+      rows: [
+        {
+          id: "m_existing",
+          nextRunAt: nextCadence,
+          lastPublishedAt: now,
+          lastCompletedAt: null,
+        },
+        {
+          id: "m_new",
+          nextRunAt: nextCadence,
+          lastPublishedAt: now,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
+  {
     name: "behind monitor: publishes at prior next_run_at, advances",
     tick: now,
     monitors: [{ id: "m_behind", nextRunAt: prevCadence }],
