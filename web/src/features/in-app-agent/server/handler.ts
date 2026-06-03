@@ -190,20 +190,20 @@ export default async function handler(request: Request) {
 
           await appendMessageSnapshot();
 
-          let providerSessionPersistence = Promise.resolve();
+          let providerSessionPersistence: Promise<void> = Promise.resolve();
           const persistProviderSessionId = (claudeSessionId: string) => {
             providerSessionPersistence = updateProviderSessionId({
               prisma,
               projectId,
               conversationId: conversation.id,
               providerSessionId: claudeSessionId,
-            }).catch((error) =>
+            }).catch((error) => {
               logger.error("Failed to persist agent session id", {
                 error,
                 projectId,
                 conversationId: conversation.id,
-              }),
-            );
+              });
+            });
           };
 
           const finishCurrentRun = (error?: {
