@@ -25,7 +25,7 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, redis } from "@langfuse/shared/src/server";
 import {
   createAndAddApiKeysToDb,
   deleteApiKeyFromDb,
@@ -336,6 +336,7 @@ async function cleanupInAppAgentMcpApiKey(params: {
     id: params.apiKeyId,
     entityId: params.projectId,
     scope: "PROJECT",
+    redis,
   });
 }
 
