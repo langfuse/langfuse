@@ -87,6 +87,7 @@ export const inAppAgentRouter = createTRPCRouter({
         userId: ctx.session.user.id,
       });
 
+      // TODO: compact/page event replay before supporting long-running chats.
       const events = await getConversationEvents({
         prisma: ctx.prisma,
         projectId: input.projectId,

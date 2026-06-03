@@ -234,26 +234,22 @@ model InAppAgentConversation {
 
   @@id([id, projectId])
   @@index([projectId, createdByUserId, deletedAt, updatedAt, id], map: "in_app_agent_conversations_project_user_list_idx")
-  @@index([projectId, updatedAt], map: "in_app_agent_conversations_project_updated_idx")
   @@map("in_app_agent_conversations")
 }
 
 model InAppAgentEvent {
-  id             String                 @id @default(cuid())
   projectId      String                 @map("project_id")
   project        Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   conversationId String                 @map("conversation_id")
   conversation   InAppAgentConversation @relation(fields: [conversationId, projectId], references: [id, projectId], onDelete: Cascade)
-  runId          String?                @map("run_id")
-  run            InAppAgentRun?         @relation(fields: [runId, projectId], references: [id, projectId], onDelete: Cascade)
+  runId          String                 @map("run_id")
+  run            InAppAgentRun          @relation(fields: [runId, projectId], references: [id, projectId], onDelete: Cascade)
   sequenceNumber Int                    @map("sequence_number")
   type           String
   event          Json                   @db.JsonB
   createdAt      DateTime               @default(now()) @map("created_at")
 
-  @@unique([projectId, conversationId, sequenceNumber], map: "in_app_agent_events_project_conversation_seq_key")
-  @@index([projectId, conversationId, createdAt], map: "in_app_agent_events_project_conversation_created_idx")
-  @@index([projectId, runId, sequenceNumber], map: "in_app_agent_events_project_run_seq_idx")
+  @@id([projectId, conversationId, sequenceNumber])
   @@map("in_app_agent_events")
 }
 
@@ -278,7 +274,6 @@ model InAppAgentRun {
 
   @@id([id, projectId])
   @@index([projectId, conversationId, createdAt], map: "in_app_agent_runs_project_conversation_created_idx")
-  @@index([projectId, triggeredByUserId, createdAt], map: "in_app_agent_runs_project_triggered_user_created_idx")
   @@map("in_app_agent_runs")
 }
 

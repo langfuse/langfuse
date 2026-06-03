@@ -32,26 +32,19 @@ CREATE TABLE "in_app_agent_runs" (
 );
 
 CREATE TABLE "in_app_agent_events" (
-  "id" TEXT NOT NULL,
   "project_id" TEXT NOT NULL,
   "conversation_id" TEXT NOT NULL,
-  "run_id" TEXT,
+  "run_id" TEXT NOT NULL,
   "sequence_number" INTEGER NOT NULL,
   "type" TEXT NOT NULL,
   "event" JSONB NOT NULL,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-  CONSTRAINT "in_app_agent_events_pkey" PRIMARY KEY ("id")
+  CONSTRAINT "in_app_agent_events_pkey" PRIMARY KEY ("project_id", "conversation_id", "sequence_number")
 );
 
-CREATE UNIQUE INDEX "in_app_agent_events_project_conversation_seq_key" ON "in_app_agent_events"("project_id", "conversation_id", "sequence_number");
-
 CREATE INDEX "in_app_agent_conversations_project_user_list_idx" ON "in_app_agent_conversations"("project_id", "created_by_user_id", "deleted_at", "updated_at", "id");
-CREATE INDEX "in_app_agent_conversations_project_updated_idx" ON "in_app_agent_conversations"("project_id", "updated_at");
-CREATE INDEX "in_app_agent_events_project_conversation_created_idx" ON "in_app_agent_events"("project_id", "conversation_id", "created_at");
-CREATE INDEX "in_app_agent_events_project_run_seq_idx" ON "in_app_agent_events"("project_id", "run_id", "sequence_number");
 CREATE INDEX "in_app_agent_runs_project_conversation_created_idx" ON "in_app_agent_runs"("project_id", "conversation_id", "created_at");
-CREATE INDEX "in_app_agent_runs_project_triggered_user_created_idx" ON "in_app_agent_runs"("project_id", "triggered_by_user_id", "created_at");
 
 ALTER TABLE "in_app_agent_conversations" ADD CONSTRAINT "in_app_agent_conversations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "in_app_agent_conversations" ADD CONSTRAINT "in_app_agent_conversations_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
