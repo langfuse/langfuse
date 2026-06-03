@@ -197,6 +197,20 @@ function InAppAiAgentProviderInner({
       console.error("Failed to load in-app agent conversations", error);
     });
   }, [conversationListQuery]);
+
+  useEffect(() => {
+    if (!conversationListQuery.error) {
+      return;
+    }
+
+    const errorMessage = getAgentErrorMessage(conversationListQuery.error);
+    showErrorToast("Failed to load conversations", errorMessage);
+    console.error("Failed to load in-app agent conversations", {
+      error: conversationListQuery.error,
+      projectId,
+    });
+  }, [conversationListQuery.error, projectId]);
+
   const isSelectedConversationHydrating =
     Boolean(selectedConversationId) &&
     conversationQuery.isLoading &&
