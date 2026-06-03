@@ -25,7 +25,7 @@ import { api } from "@/src/utils/api";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
-const OPEN_STORAGE_KEY = "langfuse:in-app-ai-agent-open";
+const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
 
 const getConversationAgentState = (
   projectId: string,
@@ -115,7 +115,7 @@ function InAppAiAgentProjectProvider({
   defaultOpen,
 }: InAppAiAgentProviderProps & { projectId: string }) {
   const [open, setOpen] = useSessionStorage<boolean>(
-    OPEN_STORAGE_KEY,
+    `${OPEN_STORAGE_KEY_PREFIX}:${projectId}`,
     defaultOpen ?? false,
   );
 
