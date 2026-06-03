@@ -175,7 +175,7 @@ describe("in-app agent persistence", () => {
 
   it("stores only ordered events and reduces multi-turn messages", async () => {
     const { caller, projectId, userId } = await createCaller();
-    const conversation = await caller.create({ projectId });
+    const conversation = await caller.createConversation({ projectId });
     const run1 = await createConversationRun({
       projectId,
       conversationId: conversation.id,
@@ -230,7 +230,7 @@ describe("in-app agent persistence", () => {
       chunks: ["Next trace inspected."],
     });
 
-    const detail = await caller.get({
+    const detail = await caller.getConversation({
       projectId,
       conversationId: conversation.id,
     });
@@ -297,7 +297,7 @@ describe("in-app agent persistence", () => {
       },
     });
 
-    const listedConversations = await caller.list({ projectId });
+    const listedConversations = await caller.listConversations({ projectId });
     expect(listedConversations.conversations.map((item) => item.id)).toContain(
       conversation.id,
     );
@@ -305,7 +305,7 @@ describe("in-app agent persistence", () => {
 
   it("does not reduce partial assistant content before the end event", async () => {
     const { caller, projectId, userId } = await createCaller();
-    const conversation = await caller.create({ projectId });
+    const conversation = await caller.createConversation({ projectId });
     const run = await createConversationRun({
       projectId,
       conversationId: conversation.id,
@@ -341,7 +341,7 @@ describe("in-app agent persistence", () => {
     });
 
     await expect(
-      caller.get({ projectId, conversationId: conversation.id }),
+      caller.getConversation({ projectId, conversationId: conversation.id }),
     ).resolves.toMatchObject({
       messages: [
         {
@@ -360,7 +360,7 @@ describe("in-app agent persistence", () => {
 
   it("stores and reduces tool calls, tool results, and activities", async () => {
     const { projectId, userId, caller } = await createCaller();
-    const conversation = await caller.create({ projectId });
+    const conversation = await caller.createConversation({ projectId });
     const run = await createConversationRun({
       projectId,
       conversationId: conversation.id,
@@ -508,7 +508,7 @@ describe("in-app agent persistence", () => {
     });
 
     await expect(
-      caller.get({ projectId, conversationId: conversation.id }),
+      caller.getConversation({ projectId, conversationId: conversation.id }),
     ).resolves.toMatchObject({
       messages: [
         {
@@ -555,7 +555,7 @@ describe("in-app agent persistence", () => {
 
   it("redacts persisted events before storing raw adapter payloads", async () => {
     const { caller, projectId, userId } = await createCaller();
-    const conversation = await caller.create({ projectId });
+    const conversation = await caller.createConversation({ projectId });
     const run = await createConversationRun({
       projectId,
       conversationId: conversation.id,
@@ -682,7 +682,7 @@ describe("in-app agent persistence", () => {
 
   it("ignores adapter message snapshots when reducing history", async () => {
     const { caller, projectId, userId } = await createCaller();
-    const conversation = await caller.create({ projectId });
+    const conversation = await caller.createConversation({ projectId });
     const run = await createConversationRun({
       projectId,
       conversationId: conversation.id,
@@ -713,7 +713,7 @@ describe("in-app agent persistence", () => {
     });
 
     await expect(
-      caller.get({ projectId, conversationId: conversation.id }),
+      caller.getConversation({ projectId, conversationId: conversation.id }),
     ).resolves.toMatchObject({
       messages: [
         {
@@ -750,18 +750,18 @@ describe("in-app agent persistence", () => {
     });
     const otherCaller = inAppAgentRouter.createCaller({ ...otherCtx, prisma });
 
-    const conversation = await owner.caller.create({
+    const conversation = await owner.caller.createConversation({
       projectId: owner.projectId,
     });
 
     await expect(
-      otherCaller.get({
+      otherCaller.getConversation({
         projectId: owner.projectId,
         conversationId: conversation.id,
       }),
     ).rejects.toThrow("Agent conversation not found");
 
-    const visibleConversations = await otherCaller.list({
+    const visibleConversations = await otherCaller.listConversations({
       projectId: owner.projectId,
     });
 
@@ -772,7 +772,7 @@ describe("in-app agent persistence", () => {
   it("allows conversation and run ids to repeat across projects", async () => {
     const owner = await createCaller();
     const other = await createCaller();
-    const conversation = await owner.caller.create({
+    const conversation = await owner.caller.createConversation({
       projectId: owner.projectId,
     });
 
@@ -811,7 +811,7 @@ describe("in-app agent persistence", () => {
 
   it("finishes runs once and preserves the first terminal error", async () => {
     const { caller, projectId, userId } = await createCaller();
-    const conversation = await caller.create({ projectId });
+    const conversation = await caller.createConversation({ projectId });
     const run = await createConversationRun({
       projectId,
       conversationId: conversation.id,
@@ -848,7 +848,7 @@ describe("in-app agent persistence", () => {
 
   it("blocks a second active run in the same conversation", async () => {
     const { caller, projectId, userId } = await createCaller();
-    const conversation = await caller.create({ projectId });
+    const conversation = await caller.createConversation({ projectId });
 
     await createConversationRun({
       projectId,
@@ -867,7 +867,7 @@ describe("in-app agent persistence", () => {
 
   it("marks old unfinished runs stale before starting a new run", async () => {
     const { caller, projectId, userId } = await createCaller();
-    const conversation = await caller.create({ projectId });
+    const conversation = await caller.createConversation({ projectId });
     const staleRun = await createConversationRun({
       projectId,
       conversationId: conversation.id,
@@ -936,7 +936,7 @@ describe("in-app agent persistence", () => {
       ],
     });
 
-    const firstPage = await caller.list({ projectId, limit: 2 });
+    const firstPage = await caller.listConversations({ projectId, limit: 2 });
 
     expect(firstPage.conversations.map((item) => item.id)).toEqual([
       `${idPrefix}-b`,
@@ -947,7 +947,7 @@ describe("in-app agent persistence", () => {
       id: `${idPrefix}-a`,
     });
 
-    const secondPage = await caller.list({
+    const secondPage = await caller.listConversations({
       projectId,
       limit: 2,
       cursor: firstPage.nextCursor,

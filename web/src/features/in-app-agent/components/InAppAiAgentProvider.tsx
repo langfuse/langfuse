@@ -51,7 +51,6 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   selectedConversationId: undefined,
   loadMoreConversations: () => undefined,
   selectConversation: () => undefined,
-  startNewConversation: () => undefined,
   submit: async () => false,
 };
 
@@ -78,8 +77,7 @@ type InAppAiAgentContextType = {
   isLoadingMoreConversations: boolean;
   selectedConversationId: string | undefined;
   loadMoreConversations: () => void;
-  selectConversation: (conversationId: string) => void;
-  startNewConversation: () => void;
+  selectConversation: (conversationId: string | null) => void;
   submit: (content: string) => Promise<boolean>;
 };
 
@@ -161,21 +159,23 @@ function InAppAiAgentProviderInner({
     null,
   );
 
-  const conversationListQuery = api.inAppAgent.list.useInfiniteQuery(
-    { projectId },
-    {
-      enabled: open,
-      getNextPageParam: (lastPage) => lastPage.nextCursor,
-    },
-  );
-  const conversationQuery = api.inAppAgent.get.useQuery(
+  const conversationListQuery =
+    api.inAppAgent.listConversations.useInfiniteQuery(
+      { projectId },
+      {
+        enabled: open,
+        getNextPageParam: (lastPage) => lastPage.nextCursor,
+      },
+    );
+  const conversationQuery = api.inAppAgent.getConversation.useQuery(
     {
       projectId,
       conversationId: selectedConversationId ?? "",
     },
     { enabled: open && Boolean(selectedConversationId) },
   );
-  const createConversationMutation = api.inAppAgent.create.useMutation();
+  const createConversationMutation =
+    api.inAppAgent.createConversation.useMutation();
 
   const conversations = useMemo(
     () =>
@@ -268,7 +268,6 @@ function InAppAiAgentProviderInner({
     if (conversationQuery.error.data?.code !== "NOT_FOUND") {
       const errorMessage = getAgentErrorMessage(conversationQuery.error);
       setError(errorMessage);
-      showErrorToast("Failed to load conversation", errorMessage);
       console.error("Failed to load in-app agent conversation", {
         error: conversationQuery.error,
         projectId,
@@ -349,14 +348,13 @@ function InAppAiAgentProviderInner({
 
           const errorMessage = getAgentErrorMessage(error);
           setError(errorMessage);
-          showErrorToast("Assistant failed", errorMessage);
           console.error("In-app agent drawer error", error);
         })
         .finally(() => {
           setIsRunning(false);
           setMessages(agent.messages.filter(isAgentConversationMessage));
-          utils.inAppAgent.list.invalidate({ projectId });
-          utils.inAppAgent.get.invalidate({
+          utils.inAppAgent.listConversations.invalidate({ projectId });
+          utils.inAppAgent.getConversation.invalidate({
             projectId,
             conversationId,
           });
@@ -364,11 +362,16 @@ function InAppAiAgentProviderInner({
           intentionalAbortRef.current = false;
         });
     },
-    [projectId, releaseSubmitLock, utils.inAppAgent.get, utils.inAppAgent.list],
+    [
+      projectId,
+      releaseSubmitLock,
+      utils.inAppAgent.getConversation,
+      utils.inAppAgent.listConversations,
+    ],
   );
 
   const selectConversation = useCallback(
-    (conversationId: string) => {
+    (conversationId: string | null) => {
       setError(null);
       resetAgent();
       setMessages([]);
@@ -376,13 +379,6 @@ function InAppAiAgentProviderInner({
     },
     [resetAgent, setSelectedConversationId],
   );
-
-  const startNewConversation = useCallback(() => {
-    setError(null);
-    resetAgent();
-    setMessages([]);
-    setSelectedConversationId(null);
-  }, [resetAgent, setSelectedConversationId]);
 
   const submit = useCallback(
     async (content: string) => {
@@ -412,7 +408,7 @@ function InAppAiAgentProviderInner({
 
         if (!selectedConversationId) {
           setSelectedConversationId(conversationId);
-          utils.inAppAgent.list.invalidate({ projectId });
+          utils.inAppAgent.listConversations.invalidate({ projectId });
         }
 
         const storedMessages =
@@ -445,7 +441,6 @@ function InAppAiAgentProviderInner({
       } catch (error) {
         const errorMessage = getAgentErrorMessage(error);
         setError(errorMessage);
-        showErrorToast("Assistant failed", errorMessage);
         console.error("Failed to start in-app agent conversation", error);
         return false;
       } finally {
@@ -467,7 +462,7 @@ function InAppAiAgentProviderInner({
       runAgent,
       selectedConversationId,
       setSelectedConversationId,
-      utils.inAppAgent.list,
+      utils.inAppAgent.listConversations,
     ],
   );
 
@@ -487,7 +482,6 @@ function InAppAiAgentProviderInner({
       selectedConversationId: selectedConversationId ?? undefined,
       loadMoreConversations,
       selectConversation,
-      startNewConversation,
       submit,
     }),
     [
@@ -504,7 +498,6 @@ function InAppAiAgentProviderInner({
       selectConversation,
       selectedConversationId,
       setOpen,
-      startNewConversation,
       submit,
     ],
   );

@@ -269,9 +269,7 @@ export async function getConversationEvents(params: {
     select: { event: true },
   });
 
-  return events.flatMap((row) =>
-    isAgUiEvent(row.event) ? [row.event as AgUiEvent] : [],
-  );
+  return events.flatMap((row) => (isAgUiEvent(row.event) ? [row.event] : []));
 }
 
 export function reduceEventsToMessages(events: readonly AgUiEvent[]) {
@@ -469,6 +467,7 @@ const PERSISTED_EVENT_FIELDS: Partial<Record<EventType, PersistedEventFields>> =
     [EventType.STEP_STARTED]: { required: ["stepName"] },
     [EventType.STEP_FINISHED]: { required: ["stepName"] },
   };
+const AG_UI_EVENT_TYPES = new Set<string>(Object.values(EventType));
 
 function sanitizePersistedEvent(event: AgUiEvent): AgUiEvent | null {
   if (event.type === EventType.RUN_STARTED) {
@@ -640,8 +639,12 @@ function mergeToolCalls(
   return Array.from(byId.values());
 }
 
-function isAgUiEvent(event: unknown) {
-  return isRecord(event) && typeof event.type === "string";
+function isAgUiEvent(event: unknown): event is AgUiEvent {
+  return (
+    isRecord(event) &&
+    typeof event.type === "string" &&
+    AG_UI_EVENT_TYPES.has(event.type)
+  );
 }
 
 function getString(event: unknown, key: string): string | undefined {

@@ -36,7 +36,7 @@ const ConversationIdInput = z.object({
 });
 
 export const inAppAgentRouter = createTRPCRouter({
-  list: protectedProjectProcedure
+  listConversations: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -83,7 +83,7 @@ export const inAppAgentRouter = createTRPCRouter({
       };
     }),
 
-  create: protectedProjectProcedure
+  createConversation: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -104,7 +104,7 @@ export const inAppAgentRouter = createTRPCRouter({
       return serializeConversation(conversation);
     }),
 
-  get: protectedProjectProcedureWithoutTracing
+  getConversation: protectedProjectProcedureWithoutTracing
     .input(ConversationIdInput)
     .query(async ({ ctx, input }) => {
       await assertInAppAgentAvailable({ ctx, projectId: input.projectId });

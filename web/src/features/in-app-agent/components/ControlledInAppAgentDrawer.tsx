@@ -34,7 +34,6 @@ export function ControlledInAppAgentDrawer(
     messages,
     selectConversation,
     selectedConversationId,
-    startNewConversation,
     submit,
   } = useInAppAiAgent();
   const isInputDisabled =
@@ -146,7 +145,7 @@ export function ControlledInAppAgentDrawer(
       selectedConversationId={selectedConversationId}
       onLoadMoreConversations={loadMoreConversations}
       onSelectConversation={selectConversation}
-      onNewConversation={startNewConversation}
+      onNewConversation={() => selectConversation(null)}
       onSubmit={submit}
       {...closeButtonProps}
     />
