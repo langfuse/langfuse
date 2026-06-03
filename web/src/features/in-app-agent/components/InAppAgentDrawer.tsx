@@ -20,6 +20,7 @@ import {
 
 const AUTO_SCROLL_THRESHOLD_PX = 200;
 const NEW_CONVERSATION_VALUE = "__new__";
+const LOAD_MORE_CONVERSATIONS_VALUE = "__load_more__";
 
 export type InAppAgentDrawerMessage = {
   id: string;
@@ -131,6 +132,10 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
                 return;
               }
 
+              if (value === LOAD_MORE_CONVERSATIONS_VALUE) {
+                return;
+              }
+
               onSelectConversation(value);
             }}
             disabled={isInputDisabled}
@@ -153,18 +158,17 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
               {hasMoreConversations ? (
                 <>
                   <SelectSeparator />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="h-8 w-full justify-start rounded-sm px-8 text-sm font-normal"
+                  <SelectItem
+                    value={LOAD_MORE_CONVERSATIONS_VALUE}
+                    className="h-8"
                     disabled={isLoadingMoreConversations}
-                    onClick={(event) => {
+                    onSelect={(event) => {
                       event.preventDefault();
                       onLoadMoreConversations();
                     }}
                   >
                     {isLoadingMoreConversations ? "Loading..." : "Load more"}
-                  </Button>
+                  </SelectItem>
                 </>
               ) : null}
             </SelectContent>
