@@ -179,24 +179,25 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
     input: DispatchInput,
     span: Span,
   ): Promise<DispatchResult> {
-    const serializedPayload = assertDispatchInputWithinLimits(input);
     const functionName = this.functionNameByLanguage[input.runtime.language];
 
     span.setAttributes({
-      "langfuse.code_eval.dispatcher": this.name,
-      "langfuse.code_eval.runtime.language": input.runtime.language,
+      "eval.dispatcher.name": this.name,
+      "eval.job_execution.id": input.execution.jobExecutionId,
+      "eval.runner.language": input.runtime.language,
+      "eval.template.id": input.scope.evaluatorId,
       "langfuse.code_eval.lambda.function_name": functionName,
-      "langfuse.code_eval.payload.bytes": Buffer.byteLength(
-        serializedPayload,
-        "utf8",
-      ),
-      "langfuse.organization.id": input.scope.organizationId,
+      "langfuse.org.id": input.scope.organizationId,
       "langfuse.project.id": input.scope.projectId,
-      "langfuse.evaluator.id": input.scope.evaluatorId,
-      "langfuse.eval.job_execution_id": input.execution.jobExecutionId,
     });
 
     try {
+      const serializedPayload = assertDispatchInputWithinLimits(input);
+      span.setAttribute(
+        "langfuse.code_eval.payload.bytes",
+        Buffer.byteLength(serializedPayload, "utf8"),
+      );
+
       const commandInput: InvokeCommandInput = {
         FunctionName: functionName,
         InvocationType: "RequestResponse",
@@ -252,10 +253,7 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
         functionName,
         payload: response.Payload,
       });
-      span.setAttribute(
-        "langfuse.code_eval.result.score_count",
-        result.scores.length,
-      );
+      span.setAttribute("eval.score.count", result.scores.length);
       return result;
     } catch (error) {
       if (error instanceof CodeEvalDispatcherError) {

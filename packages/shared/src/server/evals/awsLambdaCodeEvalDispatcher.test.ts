@@ -88,19 +88,16 @@ describe("AwsLambdaCodeEvalDispatcher observability", () => {
       expect.any(Function),
     );
     expectSpanAttributes({
-      "langfuse.code_eval.dispatcher": "aws-lambda",
-      "langfuse.code_eval.runtime.language": "TYPESCRIPT",
+      "eval.dispatcher.name": "aws-lambda",
+      "eval.job_execution.id": "job-1",
+      "eval.runner.language": "TYPESCRIPT",
+      "eval.template.id": "evaluator-1",
       "langfuse.code_eval.lambda.function_name":
         "code-based-eval-executor-node",
-      "langfuse.organization.id": "org-1",
+      "langfuse.org.id": "org-1",
       "langfuse.project.id": "project-1",
-      "langfuse.evaluator.id": "evaluator-1",
-      "langfuse.eval.job_execution_id": "job-1",
     });
-    expect(mocks.span.setAttribute).toHaveBeenCalledWith(
-      "langfuse.code_eval.result.score_count",
-      1,
-    );
+    expect(mocks.span.setAttribute).toHaveBeenCalledWith("eval.score.count", 1);
     expectSpanAttributes({
       "langfuse.code_eval.lambda.status_code": 200,
       "langfuse.code_eval.lambda.executed_version": "$LATEST",
@@ -147,6 +144,35 @@ describe("AwsLambdaCodeEvalDispatcher observability", () => {
       "aws.http_status_code": 429,
       "aws.sdk.attempts": 3,
       "aws.sdk.total_retry_delay_ms": 25,
+    });
+  });
+
+  it("records dispatch context and error code for preflight limit failures", async () => {
+    const dispatcher = new AwsLambdaCodeEvalDispatcher({
+      lambdaClient: { send: vi.fn() } as any,
+    });
+
+    await expect(
+      dispatcher.dispatch({
+        ...baseInput,
+        code: { source: "a".repeat(256 * 1024 + 1) },
+      }),
+    ).rejects.toMatchObject({
+      code: "SOURCE_TOO_LARGE",
+      retryable: false,
+    });
+
+    expectSpanAttributes({
+      "eval.dispatcher.name": "aws-lambda",
+      "eval.job_execution.id": "job-1",
+      "eval.runner.language": "TYPESCRIPT",
+      "eval.template.id": "evaluator-1",
+      "langfuse.org.id": "org-1",
+      "langfuse.project.id": "project-1",
+    });
+    expectSpanAttributes({
+      "langfuse.code_eval.error.code": "SOURCE_TOO_LARGE",
+      "langfuse.code_eval.error.retryable": false,
     });
   });
 
