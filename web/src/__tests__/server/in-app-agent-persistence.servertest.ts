@@ -87,6 +87,18 @@ describe("in-app agent persistence", () => {
     };
   };
 
+  const createConversation = (params: {
+    projectId: string;
+    userId: string;
+    conversationId?: string;
+  }) =>
+    ensureOwnedConversation({
+      prisma,
+      projectId: params.projectId,
+      conversationId: params.conversationId ?? `conversation-${randomUUID()}`,
+      userId: params.userId,
+    });
+
   const createConversationRun = async (params: {
     projectId: string;
     conversationId: string;
@@ -186,15 +198,12 @@ describe("in-app agent persistence", () => {
 
   it("stores only ordered events and reduces multi-turn messages", async () => {
     const { caller, projectId, userId } = await createCaller();
-    const conversation = await caller.createConversation({ projectId });
+    const conversation = await createConversation({ projectId, userId });
     const run1 = await createConversationRun({
       projectId,
       conversationId: conversation.id,
       userId,
     });
-
-    expect(conversation).not.toHaveProperty("providerSessionId");
-    expect(conversation).not.toHaveProperty("provider");
 
     await prisma.inAppAgentConversation.update({
       where: { id_projectId: { id: conversation.id, projectId } },
@@ -316,7 +325,7 @@ describe("in-app agent persistence", () => {
 
   it("does not reduce partial assistant content before the end event", async () => {
     const { caller, projectId, userId } = await createCaller();
-    const conversation = await caller.createConversation({ projectId });
+    const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
       projectId,
       conversationId: conversation.id,
@@ -371,7 +380,7 @@ describe("in-app agent persistence", () => {
 
   it("stores and reduces tool calls, tool results, and activities", async () => {
     const { projectId, userId, caller } = await createCaller();
-    const conversation = await caller.createConversation({ projectId });
+    const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
       projectId,
       conversationId: conversation.id,
@@ -565,8 +574,8 @@ describe("in-app agent persistence", () => {
   });
 
   it("redacts persisted events before storing raw adapter payloads", async () => {
-    const { caller, projectId, userId } = await createCaller();
-    const conversation = await caller.createConversation({ projectId });
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
       projectId,
       conversationId: conversation.id,
@@ -693,7 +702,7 @@ describe("in-app agent persistence", () => {
 
   it("ignores adapter message snapshots when reducing history", async () => {
     const { caller, projectId, userId } = await createCaller();
-    const conversation = await caller.createConversation({ projectId });
+    const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
       projectId,
       conversationId: conversation.id,
@@ -761,8 +770,9 @@ describe("in-app agent persistence", () => {
     });
     const otherCaller = inAppAgentRouter.createCaller({ ...otherCtx, prisma });
 
-    const conversation = await owner.caller.createConversation({
+    const conversation = await createConversation({
       projectId: owner.projectId,
+      userId: owner.userId,
     });
 
     await expect(
@@ -783,8 +793,9 @@ describe("in-app agent persistence", () => {
   it("allows conversation and run ids to repeat across projects", async () => {
     const owner = await createCaller();
     const other = await createCaller();
-    const conversation = await owner.caller.createConversation({
+    const conversation = await createConversation({
       projectId: owner.projectId,
+      userId: owner.userId,
     });
 
     const otherConversation = await ensureOwnedConversation({
@@ -821,8 +832,8 @@ describe("in-app agent persistence", () => {
   });
 
   it("finishes runs once and preserves the first terminal error", async () => {
-    const { caller, projectId, userId } = await createCaller();
-    const conversation = await caller.createConversation({ projectId });
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
       projectId,
       conversationId: conversation.id,
@@ -858,8 +869,8 @@ describe("in-app agent persistence", () => {
   });
 
   it("blocks a second active run in the same conversation", async () => {
-    const { caller, projectId, userId } = await createCaller();
-    const conversation = await caller.createConversation({ projectId });
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
 
     await createConversationRun({
       projectId,
@@ -877,8 +888,8 @@ describe("in-app agent persistence", () => {
   });
 
   it("marks old unfinished runs stale before starting a new run", async () => {
-    const { caller, projectId, userId } = await createCaller();
-    const conversation = await caller.createConversation({ projectId });
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
     const staleRun = await createConversationRun({
       projectId,
       conversationId: conversation.id,

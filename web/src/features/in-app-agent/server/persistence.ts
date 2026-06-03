@@ -92,6 +92,8 @@ export async function ensureOwnedConversation(params: {
       id: params.conversationId,
       projectId: params.projectId,
       createdByUserId: params.userId,
+      // TODO: we want to auto-generate titles based on content later
+      title: getDefaultConversationTitle(new Date()),
     },
   });
 }
@@ -664,4 +666,12 @@ function compactObject<T extends Record<string, unknown>>(value: T): T {
   return Object.fromEntries(
     Object.entries(value).filter(([, entry]) => entry !== undefined),
   ) as T;
+}
+
+function getDefaultConversationTitle(date: Date) {
+  const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `Chat on ${weekday} at ${hours}:${minutes}`;
 }

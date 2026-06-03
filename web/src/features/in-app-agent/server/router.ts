@@ -16,15 +16,6 @@ import {
 } from "@/src/features/in-app-agent/server/persistence";
 
 const CONVERSATION_LIST_LIMIT = 50;
-const WEEKDAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
 
 const ConversationListCursorSchema = z.object({
   updatedAt: z.date(),
@@ -82,27 +73,6 @@ export const inAppAgentRouter = createTRPCRouter({
               }
             : undefined,
       };
-    }),
-
-  createConversation: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      await assertInAppAgentAvailable({ ctx, projectId: input.projectId });
-
-      const conversation = await ctx.prisma.inAppAgentConversation.create({
-        data: {
-          projectId: input.projectId,
-          createdByUserId: ctx.session.user.id,
-          // TODO: we want to auto-generate titles based on content later
-          title: getDefaultConversationTitle(new Date()),
-        },
-      });
-
-      return serializeConversation(conversation);
     }),
 
   getConversation: protectedProjectProcedureWithoutTracing
@@ -183,12 +153,4 @@ async function assertInAppAgentAvailable({
   if (!project?.organization.aiFeaturesEnabled) {
     throw new ForbiddenError("Assistant is not enabled for this organization");
   }
-}
-
-function getDefaultConversationTitle(date: Date) {
-  const weekday = WEEKDAY_NAMES[date.getDay()] ?? "Unknown";
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-
-  return `Chat on ${weekday} at ${hours}:${minutes}`;
 }

@@ -30,11 +30,11 @@ const OPEN_STORAGE_KEY = "langfuse:in-app-ai-agent-open";
 const getConversationAgentState = (
   projectId: string,
   conversationId: string,
-): InAppAgentRuntimeState => ({
-  type: "existingConversation",
-  projectId,
-  conversationId,
-});
+  isNewConversation: boolean,
+): InAppAgentRuntimeState =>
+  isNewConversation
+    ? { type: "newConversation", projectId }
+    : { type: "existingConversation", projectId, conversationId };
 
 const NOOP_CONTEXT: InAppAiAgentContextType = {
   isAvailable: false,
@@ -173,8 +173,6 @@ function InAppAiAgentProviderInner({
     },
     { enabled: open && Boolean(selectedConversationId) },
   );
-  const createConversationMutation =
-    api.inAppAgent.createConversation.useMutation();
 
   const conversations = useMemo(
     () =>
@@ -308,7 +306,11 @@ function InAppAiAgentProviderInner({
   }, []);
 
   const getOrCreateAgent = useCallback(
-    (conversationId: string, initialMessages: InAppAiAgentMessage[]) => {
+    (
+      conversationId: string,
+      initialMessages: InAppAiAgentMessage[],
+      isNewConversation: boolean,
+    ) => {
       if (agentRef.current?.threadId === conversationId) {
         return agentRef.current;
       }
@@ -319,7 +321,11 @@ function InAppAiAgentProviderInner({
         url: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/in-app-agent`,
         threadId: conversationId,
         initialMessages,
-        initialState: getConversationAgentState(projectId, conversationId),
+        initialState: getConversationAgentState(
+          projectId,
+          conversationId,
+          isNewConversation,
+        ),
       });
 
       agentRef.current = agent;
@@ -397,28 +403,25 @@ function InAppAiAgentProviderInner({
       let startedRun = false;
 
       try {
-        const conversationId =
-          selectedConversationId ??
-          (
-            await createConversationMutation.mutateAsync({
-              projectId,
-            })
-          ).id;
+        const isNewConversation = !selectedConversationId;
+        const conversationId = selectedConversationId ?? crypto.randomUUID();
 
-        if (!selectedConversationId) {
+        if (isNewConversation) {
           setSelectedConversationId(conversationId);
-          utils.inAppAgent.listConversations.invalidate({ projectId });
         }
 
         const storedMessages =
           conversationQuery.data?.conversation.id === conversationId
             ? conversationQuery.data.messages
             : undefined;
-        const initialMessages =
-          selectedConversationId === conversationId
-            ? getHydratedMessages(messages, storedMessages)
-            : [];
-        const agent = getOrCreateAgent(conversationId, initialMessages);
+        const initialMessages = !isNewConversation
+          ? getHydratedMessages(messages, storedMessages)
+          : [];
+        const agent = getOrCreateAgent(
+          conversationId,
+          initialMessages,
+          isNewConversation,
+        );
 
         if (agent.isRunning) {
           return false;
@@ -449,19 +452,16 @@ function InAppAiAgentProviderInner({
       }
     },
     [
-      createConversationMutation,
       conversationQuery.data,
       ensureSubscription,
       getOrCreateAgent,
       isSelectedConversationHydrating,
       isRunning,
       messages,
-      projectId,
       releaseSubmitLock,
       runAgent,
       selectedConversationId,
       setSelectedConversationId,
-      utils.inAppAgent.listConversations,
     ],
   );
 
