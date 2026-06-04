@@ -408,7 +408,15 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
       query,
       queryId,
       tags: {
+        surface: "worker",
+        service: "worker",
         feature: "background-migration",
+        entity: "event",
+        storage: "events",
+        workload: "write",
+        physical_table: "events_full",
+        type: "events",
+        kind: "backfill",
         operation: "fireQuery",
       },
       // clickhouseConfigs: {

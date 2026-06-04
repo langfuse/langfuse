@@ -1292,6 +1292,10 @@ export const deleteObservationsByTraceIds = async (
     },
     tags: {
       feature: "tracing",
+      entity: "observation",
+      storage: "legacy",
+      workload: "delete",
+      physical_table: "observations",
       type: "observation",
       kind: "delete",
       projectId,
@@ -1335,10 +1339,14 @@ export const deleteObservationsByProjectId = async (
   `;
   const tags = {
     feature: "tracing",
+    entity: "observation",
+    storage: "legacy",
+    workload: "delete",
+    physical_table: "observations",
     type: "observation",
     kind: "delete",
     projectId,
-  };
+  } as const;
 
   await commandClickhouse({
     query,
@@ -1406,6 +1414,10 @@ export const deleteObservationsOlderThanDays = async (
     },
     tags: {
       feature: "tracing",
+      entity: "observation",
+      storage: "legacy",
+      workload: "delete",
+      physical_table: "observations",
       type: "observation",
       kind: "delete",
       projectId,

@@ -954,10 +954,14 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
       },
       tags: {
         feature: "tracing",
+        entity: "trace",
+        storage: "legacy",
+        workload: "delete",
+        physical_table: "traces",
         type: "trace",
         kind: "delete",
         projectId,
-      },
+      } as const,
     },
     fn: async (input) => {
       // Pre-flight query with time bounds computed
@@ -1059,10 +1063,14 @@ export const deleteTracesOlderThanDays = async (
       },
       tags: {
         feature: "tracing",
+        entity: "trace",
+        storage: "legacy",
+        workload: "delete",
+        physical_table: "traces",
         type: "trace",
         kind: "delete",
         projectId,
-      },
+      } as const,
     },
     fn: async (input) => {
       const query = `
@@ -1101,10 +1109,14 @@ export const deleteTracesByProjectId = async (
       },
       tags: {
         feature: "tracing",
+        entity: "trace",
+        storage: "legacy",
+        workload: "delete",
+        physical_table: "traces",
         type: "trace",
         kind: "delete",
         projectId,
-      },
+      } as const,
     },
     fn: async (input) => {
       const query = `

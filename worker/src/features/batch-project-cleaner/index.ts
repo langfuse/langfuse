@@ -23,6 +23,12 @@ export type BatchDeletionTable = (typeof BATCH_DELETION_TABLES)[number];
 export const BATCH_PROJECT_CLEANER_LOCK_PREFIX =
   "langfuse:batch-project-cleaner";
 
+function getStorageForTable(tableName: BatchDeletionTable) {
+  return tableName === "events_full" || tableName === "events_core"
+    ? "events"
+    : "legacy";
+}
+
 interface ProjectCount {
   project_id: string;
   count: number;
@@ -245,7 +251,12 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
         request_timeout: env.LANGFUSE_BATCH_PROJECT_CLEANER_DELETE_TIMEOUT_MS,
       },
       tags: {
+        surface: "worker",
+        service: "worker",
         feature: "batch-project-cleaner",
+        storage: getStorageForTable(this.tableName),
+        workload: "delete",
+        physical_table: this.tableName,
         table: this.tableName,
         operation: "delete",
       },

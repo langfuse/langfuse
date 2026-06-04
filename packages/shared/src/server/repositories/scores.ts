@@ -1645,6 +1645,10 @@ export const deleteScores = async (projectId: string, scoreIds: string[]) => {
     },
     tags: {
       feature: "tracing",
+      entity: "score",
+      storage: "legacy",
+      workload: "delete",
+      physical_table: "scores",
       type: "score",
       kind: "delete",
       projectId,
@@ -1672,6 +1676,10 @@ export const deleteScoresByTraceIds = async (
     },
     tags: {
       feature: "tracing",
+      entity: "score",
+      storage: "legacy",
+      workload: "delete",
+      physical_table: "scores",
       type: "score",
       kind: "delete",
       projectId,
@@ -1693,10 +1701,14 @@ export const deleteScoresByProjectId = async (
   `;
   const tags = {
     feature: "tracing",
+    entity: "score",
+    storage: "legacy",
+    workload: "delete",
+    physical_table: "scores",
     type: "score",
     kind: "delete",
     projectId,
-  };
+  } as const;
 
   await commandClickhouse({
     query,
@@ -1764,6 +1776,10 @@ export const deleteScoresOlderThanDays = async (
     },
     tags: {
       feature: "tracing",
+      entity: "score",
+      storage: "legacy",
+      workload: "delete",
+      physical_table: "scores",
       type: "score",
       kind: "delete",
       projectId,

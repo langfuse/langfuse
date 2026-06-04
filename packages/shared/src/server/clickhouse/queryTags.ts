@@ -134,7 +134,6 @@ export type ClickHouseQueryTags = {
 
 type NormalizeClickHouseQueryTagsArgs = {
   tags?: ClickHouseQueryTags;
-  query?: string;
   operation?: "select" | "command" | "insert" | "upsert";
   table?: string;
 };
@@ -173,8 +172,6 @@ const STRUCTURED_TAG_KEYS = new Set([
   "physical_table",
   "service",
 ]);
-
-const KNOWN_CLICKHOUSE_TABLES = CLICKHOUSE_QUERY_PHYSICAL_TABLES;
 
 function isOneOf<T extends readonly string[]>(
   values: T,
@@ -226,61 +223,59 @@ export function normalizeClickHouseRoute(
     .join("/");
 }
 
-function extractPhysicalTables(query?: string, table?: string): string[] {
-  const candidates = new Set<string>();
-
-  if (table) candidates.add(table);
-
-  if (query) {
-    const tablePattern = new RegExp(
-      `\\b(?:from|join|into|update|table)\\s+(?:\\w+\\.)?\`?(${KNOWN_CLICKHOUSE_TABLES.join(
-        "|",
-      )})\`?\\b`,
-      "gi",
-    );
-
-    for (const match of query.matchAll(tablePattern)) {
-      if (match[1]) candidates.add(match[1]);
-    }
-  }
-
-  return Array.from(candidates);
+function getExplicitPhysicalTable(
+  tags: ClickHouseQueryTags | undefined,
+  table?: string,
+): ClickHouseQueryPhysicalTable | undefined {
+  const physicalTable = firstDefined(tags?.physical_table, table, tags?.table);
+  return physicalTable as ClickHouseQueryPhysicalTable | undefined;
 }
 
-function inferPhysicalTable(
-  query?: string,
-  table?: string,
-): string | undefined {
-  const tables = extractPhysicalTables(query, table);
-  if (tables.length === 0) return undefined;
-  if (tables.length === 1) return tables[0];
-  return "multiple";
+function isEventsPhysicalTable(
+  physicalTable: ClickHouseQueryPhysicalTable | undefined,
+): boolean {
+  return (
+    physicalTable === "events" ||
+    physicalTable === "events_core" ||
+    physicalTable === "events_full"
+  );
 }
 
 function inferStorage(
   tags: ClickHouseQueryTags | undefined,
-  query?: string,
-  table?: string,
+  physicalTable: ClickHouseQueryPhysicalTable | undefined,
 ): ClickHouseQueryStorage {
   if (isOneOf(CLICKHOUSE_QUERY_STORAGES, tags?.storage)) return tags.storage;
 
-  const tables = extractPhysicalTables(query, table);
-  const hasEvents = tables.some(
-    (physicalTable) =>
-      physicalTable === "events_core" ||
-      physicalTable === "events_full" ||
-      physicalTable === "events",
-  );
-  const hasLegacy = tables.some(
-    (physicalTable) =>
-      physicalTable !== "events_core" &&
-      physicalTable !== "events_full" &&
-      physicalTable !== "events",
-  );
+  if (physicalTable === "multiple") return "mixed";
+  if (physicalTable)
+    return isEventsPhysicalTable(physicalTable) ? "events" : "legacy";
 
-  if (hasEvents && hasLegacy) return "mixed";
-  if (hasEvents) return "events";
-  if (hasLegacy) return "legacy";
+  const legacyType = sanitizeTagValue(tags?.type)?.toLowerCase();
+  if (
+    legacyType === "events" ||
+    legacyType === "events_core" ||
+    legacyType === "events_full"
+  ) {
+    return "events";
+  }
+
+  if (
+    legacyType === "trace" ||
+    legacyType === "traces" ||
+    legacyType === "observation" ||
+    legacyType === "observations" ||
+    legacyType === "score" ||
+    legacyType === "scores" ||
+    legacyType === "dataset-run-item" ||
+    legacyType === "dataset-run-items" ||
+    legacyType === "dataset_run_items_rmt" ||
+    legacyType === "blob-storage-file-log" ||
+    legacyType === "blob_storage_file_log"
+  ) {
+    return "legacy";
+  }
+
   return "unknown";
 }
 
@@ -346,37 +341,38 @@ function inferWorkload(
 }
 
 function normalizeEntityName(value: string): string {
-  if (value === "traces") return "trace";
-  if (value === "observations") return "observation";
-  if (value === "scores") return "score";
-  if (value === "events") return "event";
-  if (value === "events_core") return "event";
-  if (value === "events_full") return "event";
-  if (value === "dataset_run_items_rmt") return "dataset-run-item";
-  if (value === "blob_storage_file_log") return "blob-storage-file-log";
-  if (value === "traces-table") return "trace";
-  return value;
+  const normalizedValue = value.toLowerCase();
+  if (normalizedValue === "traces") return "trace";
+  if (normalizedValue === "observations") return "observation";
+  if (normalizedValue === "scores") return "score";
+  if (normalizedValue === "events") return "event";
+  if (normalizedValue === "events_core") return "event";
+  if (normalizedValue === "events_full") return "event";
+  if (normalizedValue === "dataset-run-items") return "dataset-run-item";
+  if (normalizedValue === "dataset_run_items_rmt") return "dataset-run-item";
+  if (normalizedValue === "blob_storage_file_log")
+    return "blob-storage-file-log";
+  if (normalizedValue === "traces-table") return "trace";
+  return normalizedValue;
 }
 
 function inferEntity(
   tags: ClickHouseQueryTags | undefined,
-  query?: string,
-  table?: string,
+  physicalTable: ClickHouseQueryPhysicalTable | undefined,
 ): ClickHouseQueryEntity {
   if (tags?.entity) return normalizeEntityName(tags.entity);
 
-  const type = tags?.type;
-  if (
-    type &&
-    type !== "events" &&
-    type !== "events_core" &&
-    type !== "events_full"
-  ) {
+  const type = sanitizeTagValue(tags?.type);
+  if (type) {
     return normalizeEntityName(type);
   }
 
-  const text = `${tags?.operation_name ?? ""} ${tags?.feature ?? ""} ${
-    query ?? ""
+  if (physicalTable && physicalTable !== "multiple") {
+    return normalizeEntityName(physicalTable);
+  }
+
+  const text = `${tags?.operation_name ?? ""} ${
+    tags?.operation ?? ""
   }`.toLowerCase();
 
   if (text.includes("observation")) return "observation";
@@ -385,11 +381,6 @@ function inferEntity(
   if (text.includes("session")) return "session";
   if (text.includes("dataset")) return "dataset";
   if (text.includes("event")) return "event";
-
-  const physicalTable = inferPhysicalTable(query, table);
-  if (physicalTable && physicalTable !== "multiple") {
-    return normalizeEntityName(physicalTable);
-  }
 
   return "unknown";
 }
@@ -426,7 +417,6 @@ function sanitizeLegacyTags(
 
 export function normalizeClickHouseQueryTags({
   tags,
-  query,
   operation = "select",
   table,
 }: NormalizeClickHouseQueryTagsArgs): ClickHouseQueryTags &
@@ -443,10 +433,7 @@ export function normalizeClickHouseQueryTags({
     tags?.service,
     getBaggageValue(BAGGAGE_KEYS.service),
   );
-  const physicalTable = firstDefined(
-    tags?.physical_table,
-    inferPhysicalTable(query, table),
-  );
+  const physicalTable = getExplicitPhysicalTable(tags, table);
 
   return {
     ...sanitizeLegacyTags(tags),
@@ -455,8 +442,8 @@ export function normalizeClickHouseQueryTags({
     ...(route ? { route } : {}),
     ...(method ? { method } : {}),
     feature: inferFeature(tags),
-    entity: inferEntity(tags, query, table),
-    storage: inferStorage(tags, query, table),
+    entity: inferEntity(tags, physicalTable),
+    storage: inferStorage(tags, physicalTable),
     workload: inferWorkload(tags, operation),
     project_id: inferProjectId(tags),
     ...(physicalTable ? { physical_table: physicalTable } : {}),

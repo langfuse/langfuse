@@ -1121,6 +1121,10 @@ export const deleteDatasetRunItemsByProjectId = async (
     },
     tags: {
       feature: "datasets",
+      entity: "dataset-run-item",
+      storage: "legacy",
+      workload: "delete",
+      physical_table: "dataset_run_items_rmt",
       type: "dataset-run-items",
       kind: "delete",
       projectId,
@@ -1154,6 +1158,10 @@ export const deleteDatasetRunItemsByDatasetId = async ({
     },
     tags: {
       feature: "datasets",
+      entity: "dataset-run-item",
+      storage: "legacy",
+      workload: "delete",
+      physical_table: "dataset_run_items_rmt",
       type: "dataset-run-items",
       kind: "delete",
       projectId,
@@ -1189,6 +1197,10 @@ export const deleteDatasetRunItemsByDatasetRunIds = async ({
     },
     tags: {
       feature: "datasets",
+      entity: "dataset-run-item",
+      storage: "legacy",
+      workload: "delete",
+      physical_table: "dataset_run_items_rmt",
       type: "dataset-run-items",
       kind: "delete",
       projectId,

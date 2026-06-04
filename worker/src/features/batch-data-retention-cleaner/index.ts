@@ -39,6 +39,12 @@ export const TIMESTAMP_COLUMN_MAP: Record<BatchDataRetentionTable, string> = {
   events_core: "start_time",
 };
 
+function getStorageForTable(tableName: BatchDataRetentionTable) {
+  return tableName === "events_full" || tableName === "events_core"
+    ? "events"
+    : "legacy";
+}
+
 interface ProjectWorkload {
   projectId: string;
   retentionDays: number;
@@ -391,7 +397,12 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
           env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_DELETE_TIMEOUT_MS,
       },
       tags: {
+        surface: "worker",
+        service: "worker",
         feature: "batch-data-retention-cleaner",
+        storage: getStorageForTable(this.tableName),
+        workload: "delete",
+        physical_table: this.tableName,
         table: this.tableName,
         operation: "delete",
       },

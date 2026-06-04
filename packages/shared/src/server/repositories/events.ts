@@ -1801,7 +1801,16 @@ export const updateEvents = async (
       ? `UPDATE ${table} SET ${setClauses.join(", ")} ${whereClause}`
       : `ALTER TABLE ${table} UPDATE ${setClauses.join(", ")} ${whereClause}`,
     params,
-    tags: { type: table, kind: "update", projectId },
+    tags: {
+      feature: "tracing",
+      entity: "event",
+      storage: "events",
+      workload: "write",
+      physical_table: table,
+      type: table,
+      kind: "update",
+      projectId,
+    } as const,
   });
 
   await Promise.all([
@@ -2846,10 +2855,14 @@ export const deleteEventsByTraceIds = async (
     },
     tags: {
       feature: "tracing",
+      entity: "event",
+      storage: "events",
+      workload: "delete",
+      physical_table: table,
       type: table,
       kind: "delete",
       projectId,
-    },
+    } as const,
   });
 
   // Delete from all tables in parallel
@@ -2900,7 +2913,16 @@ export const deleteEventsByProjectId = async (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
-    tags: { feature: "tracing", type: table, kind: "delete", projectId },
+    tags: {
+      feature: "tracing",
+      entity: "event",
+      storage: "events",
+      workload: "delete",
+      physical_table: table,
+      type: table,
+      kind: "delete",
+      projectId,
+    } as const,
     clickhouseSettings: { send_logs_level: "trace" as const },
   });
 
@@ -3016,7 +3038,16 @@ export const deleteEventsOlderThanDays = async (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
-    tags: { feature: "tracing", type: table, kind: "delete", projectId },
+    tags: {
+      feature: "tracing",
+      entity: "event",
+      storage: "events",
+      workload: "delete",
+      physical_table: table,
+      type: table,
+      kind: "delete",
+      projectId,
+    } as const,
   });
 
   await Promise.all([

@@ -210,8 +210,12 @@ export const insertIntoS3RefsTableFromEventLog = async (
       offset,
     },
     tags: {
-      feature: "backgroundMigration",
-      kind: "list",
+      feature: "background-migration",
+      entity: "blob-storage-file-log",
+      storage: "legacy",
+      workload: "write",
+      physical_table: "blob_storage_file_log",
+      kind: "insert-from-event-log",
     },
   });
 };

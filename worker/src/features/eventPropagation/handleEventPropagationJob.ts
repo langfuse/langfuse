@@ -301,7 +301,15 @@ export const handleEventPropagationJob = async (
         ${excludeProjectIdsInClause ? `AND obs.project_id ${excludeProjectIdsInClause}` : ""}
       `,
       tags: {
+        surface: "worker",
+        service: "worker",
         feature: "ingestion",
+        entity: "event",
+        storage: "events",
+        workload: "write",
+        physical_table: "events_full",
+        type: "events",
+        kind: "propagate-observations",
         operation_name: "propagateObservationsToEvents",
       },
       clickhouseConfigs: {

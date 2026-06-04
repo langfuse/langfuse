@@ -400,7 +400,6 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
 }) {
   const normalizedTags = normalizeClickHouseQueryTags({
     tags: opts.tags,
-    query: opts.query,
     operation: "select",
   });
 
@@ -638,7 +637,6 @@ export async function commandClickhouse(opts: {
 
       const normalizedTags = normalizeClickHouseQueryTags({
         tags: opts.tags,
-        query: opts.query,
         operation: "command",
       });
 
