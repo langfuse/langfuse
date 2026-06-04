@@ -3,6 +3,7 @@ import path from "node:path";
 import { parseJsonPrioritised } from "@langfuse/shared";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import {
+  buildClickHouseLogComment,
   clickhouseClient,
   clickhouseStringDateSchema,
   logger,
@@ -293,6 +294,22 @@ async function verifyClickhouseObservation(postgresObservation: any) {
   const clickhouseResult = await clickhouseClient().query({
     query: `SELECT * FROM observations WHERE project_id = '${projectId}' AND id = '${observationId}' ORDER BY updated_at DESC LIMIT 1`,
     format: "JSONEachRow",
+    clickhouse_settings: {
+      log_comment: buildClickHouseLogComment({
+        table: "observations",
+        operation: "select",
+        tags: {
+          surface: "internal",
+          service: "worker",
+          feature: "clickhouse-record-verification",
+          entity: "observation",
+          storage: "legacy",
+          workload: "lookup",
+          project_id: projectId,
+          operation_name: "verifyClickhouseObservation",
+        },
+      }),
+    },
   });
 
   const clickhouseRecord = (await clickhouseResult.json()).shift();
@@ -718,6 +735,22 @@ async function verifyClickhouseTrace(postgresTrace: any) {
   const clickhouseResult = await clickhouseClient().query({
     query: `SELECT * FROM traces WHERE project_id = '${projectId}' AND id = '${traceId}' ORDER BY updated_at DESC LIMIT 1`,
     format: "JSONEachRow",
+    clickhouse_settings: {
+      log_comment: buildClickHouseLogComment({
+        table: "traces",
+        operation: "select",
+        tags: {
+          surface: "internal",
+          service: "worker",
+          feature: "clickhouse-record-verification",
+          entity: "trace",
+          storage: "legacy",
+          workload: "lookup",
+          project_id: projectId,
+          operation_name: "verifyClickhouseTrace",
+        },
+      }),
+    },
   });
 
   const clickhouseTrace = (await clickhouseResult.json())[0];
@@ -882,6 +915,22 @@ async function verifyClickhouseScore(postgresScore: any) {
   const clickhouseResult = await clickhouseClient().query({
     query: `SELECT * FROM scores WHERE project_id = '${projectId}' AND id = '${scoreId}' ORDER BY updated_at DESC LIMIT 1`,
     format: "JSONEachRow",
+    clickhouse_settings: {
+      log_comment: buildClickHouseLogComment({
+        table: "scores",
+        operation: "select",
+        tags: {
+          surface: "internal",
+          service: "worker",
+          feature: "clickhouse-record-verification",
+          entity: "score",
+          storage: "legacy",
+          workload: "lookup",
+          project_id: projectId,
+          operation_name: "verifyClickhouseScore",
+        },
+      }),
+    },
   });
 
   const clickhouseScore = (await clickhouseResult.json())[0];

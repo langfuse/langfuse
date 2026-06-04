@@ -252,7 +252,12 @@ export const getObservationStream = async (props: {
     },
     clickhouseConfigs,
     tags: {
+      surface: "batch-export",
       feature: "batch-export",
+      entity: "observation",
+      storage: "legacy",
+      workload: "export",
+      project_id: projectId,
       type: "observation",
       kind: "export",
       projectId,

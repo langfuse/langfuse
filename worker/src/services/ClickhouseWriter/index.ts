@@ -1,4 +1,5 @@
 import {
+  buildClickHouseLogComment,
   clickhouseClient,
   ClickhouseClientType,
   BlobStorageFileLogInsertType,
@@ -571,14 +572,28 @@ export class ClickhouseWriter {
         format: "JSONEachRow",
         values: params.records,
         clickhouse_settings: {
-          log_comment: JSON.stringify({
-            feature: "ingestion",
-            type: params.table,
-            operation_name: "writeToClickhouse",
-            projectId:
-              params.records.length > 0
-                ? params.records[0].project_id
-                : undefined,
+          log_comment: buildClickHouseLogComment({
+            operation: "insert",
+            table: params.table,
+            tags: {
+              surface: "worker",
+              service: "worker",
+              entity: params.table,
+              storage:
+                params.table === TableName.EventsFull ? "events" : "legacy",
+              workload: "write",
+              project_id:
+                params.records.length > 0
+                  ? params.records[0].project_id
+                  : "unknown",
+              feature: "ingestion",
+              type: params.table,
+              operation_name: "writeToClickhouse",
+              projectId:
+                params.records.length > 0
+                  ? params.records[0].project_id
+                  : undefined,
+            },
           }),
         },
       })

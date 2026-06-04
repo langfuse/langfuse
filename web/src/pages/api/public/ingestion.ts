@@ -96,6 +96,12 @@ export default async function handler(
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
       projectId: authCheck.scope.projectId,
+      clickhouse: {
+        surface: "public-api",
+        route: req.url,
+        method: req.method,
+        service: "web",
+      },
     });
     // Execute the rest of the handler within the context
     return opentelemetry.context.with(ctx, async () => {

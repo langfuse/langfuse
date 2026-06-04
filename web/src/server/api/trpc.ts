@@ -210,6 +210,11 @@ const withOtelInstrumentation = t.middleware(async (opts) => {
     headers: opts.ctx.headers,
     userId: opts.ctx.session?.user?.id,
     projectId: (actualInput as Record<string, string>)?.projectId,
+    clickhouse: {
+      surface: "trpc",
+      route: opts.path,
+      service: "web",
+    },
   });
 
   // Execute the next middleware/procedure with our context

@@ -1,5 +1,6 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
+  buildClickHouseLogComment,
   clickhouseClient,
   convertPostgresScoreToInsert,
   logger,
@@ -35,6 +36,22 @@ export default class MigrateScoresFromPostgresToClickhouse implements IBackgroun
     // Check if ClickHouse scores table exists
     const tables = await clickhouseClient().query({
       query: "SHOW TABLES",
+      clickhouse_settings: {
+        log_comment: buildClickHouseLogComment({
+          query: "SHOW TABLES",
+          operation: "select",
+          tags: {
+            surface: "worker",
+            service: "worker",
+            feature: "background-migration",
+            entity: "clickhouse-metadata",
+            storage: "unknown",
+            workload: "lookup",
+            project_id: "none",
+            operation_name: "migrateScoresFromPostgresToClickhouse.validate",
+          },
+        }),
+      },
     });
     const tableNames = (await tables.json()).data as { name: string }[];
     if (!tableNames.some((r) => r.name === "scores")) {
@@ -120,6 +137,22 @@ export default class MigrateScoresFromPostgresToClickhouse implements IBackgroun
         table: "scores",
         values: scores.map(convertPostgresScoreToInsert),
         format: "JSONEachRow",
+        clickhouse_settings: {
+          log_comment: buildClickHouseLogComment({
+            operation: "insert",
+            table: "scores",
+            tags: {
+              surface: "worker",
+              service: "worker",
+              feature: "background-migration",
+              entity: "score",
+              storage: "legacy",
+              workload: "write",
+              project_id: "multiple",
+              operation_name: "migrateScoresFromPostgresToClickhouse",
+            },
+          }),
+        },
       });
 
       logger.info(

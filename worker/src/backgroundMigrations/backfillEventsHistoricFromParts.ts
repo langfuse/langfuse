@@ -1,5 +1,6 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
+  buildClickHouseLogComment,
   clickhouseClient,
   commandClickhouse,
   logger,
@@ -501,6 +502,22 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
     // Check if ClickHouse events_full table exists
     const tables = await clickhouseClient().query({
       query: "SHOW TABLES",
+      clickhouse_settings: {
+        log_comment: buildClickHouseLogComment({
+          query: "SHOW TABLES",
+          operation: "select",
+          tags: {
+            surface: "worker",
+            service: "worker",
+            feature: "background-migration",
+            entity: "clickhouse-metadata",
+            storage: "unknown",
+            workload: "lookup",
+            project_id: "none",
+            operation_name: "backfillEventsHistoricFromParts.validate",
+          },
+        }),
+      },
     });
     const tableNames = (await tables.json()).data as { name: string }[];
 

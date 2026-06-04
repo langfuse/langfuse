@@ -69,6 +69,12 @@ export function withMiddlewares(
   return async (req: NextApiRequest, res: NextApiResponse) => {
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
+      clickhouse: {
+        surface: "public-api",
+        route: req.url,
+        method: req.method,
+        service: "web",
+      },
     });
 
     return opentelemetry.context.with(ctx, async () => {

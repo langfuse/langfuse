@@ -2,6 +2,7 @@ import {
   queryClickhouse,
   measureAndReturn,
   type ClickhouseQueryOpts,
+  type ClickHouseQueryTagInput,
   type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
@@ -19,7 +20,7 @@ export type PreparedQuery = {
   compiledQuery: string;
   parameters: Record<string, unknown>;
   preferredClickhouseService: PreferredClickhouseService | undefined;
-  tags: Record<string, string>;
+  tags: ClickHouseQueryTagInput;
   clickhouseSettings: Record<string, string>;
   usesTraceTable: boolean;
   fromTimestamp: string;
@@ -56,11 +57,18 @@ export async function prepareExecuteQuery(opts: {
     : undefined;
 
   const tags = {
+    tag_schema_version: "1",
+    surface: "custom-query",
     feature: "custom-queries",
+    entity: query.view,
+    storage:
+      preferredClickhouseService === "EventsReadOnly" ? "events" : "legacy",
+    workload: "aggregate",
+    project_id: projectId,
     type: query.view,
     kind: "analytic",
     projectId,
-  };
+  } satisfies ClickHouseQueryTagInput;
 
   const clickhouseSettings: Record<string, string> = {
     date_time_output_format: "iso",

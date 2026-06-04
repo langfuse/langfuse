@@ -1,5 +1,6 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
+  buildClickHouseLogComment,
   clickhouseClient,
   findS3RefsByPrimaryKey,
   getLastEventLogPrimaryKey,
@@ -42,6 +43,22 @@ export default class MigrateEventLogToBlobStorageRefTable implements IBackground
     // Check if ClickHouse traces table exists
     const tables = await clickhouseClient().query({
       query: "SHOW TABLES",
+      clickhouse_settings: {
+        log_comment: buildClickHouseLogComment({
+          query: "SHOW TABLES",
+          operation: "select",
+          tags: {
+            surface: "worker",
+            service: "worker",
+            feature: "background-migration",
+            entity: "clickhouse-metadata",
+            storage: "unknown",
+            workload: "lookup",
+            project_id: "none",
+            operation_name: "migrateEventLogToBlobStorageRefTable.validate",
+          },
+        }),
+      },
     });
     const tableNames = (await tables.json()).data as { name: string }[];
     if (

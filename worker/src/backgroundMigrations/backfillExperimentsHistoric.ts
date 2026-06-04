@@ -1,5 +1,6 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
+  buildClickHouseLogComment,
   clickhouseClient,
   convertDateToClickhouseDateTime,
   logger,
@@ -362,7 +363,25 @@ export default class BackfillExperimentsHistoric implements IBackgroundMigration
     }
 
     // Check required tables exist
-    const tables = await clickhouseClient().query({ query: "SHOW TABLES" });
+    const tables = await clickhouseClient().query({
+      query: "SHOW TABLES",
+      clickhouse_settings: {
+        log_comment: buildClickHouseLogComment({
+          query: "SHOW TABLES",
+          operation: "select",
+          tags: {
+            surface: "worker",
+            service: "worker",
+            feature: "background-migration",
+            entity: "clickhouse-metadata",
+            storage: "unknown",
+            workload: "lookup",
+            project_id: "none",
+            operation_name: "backfillExperimentsHistoric.validate",
+          },
+        }),
+      },
+    });
     const tableNames = (await tables.json()).data as { name: string }[];
 
     const requiredTables = ["events_full", "dataset_run_items_rmt"];

@@ -8,6 +8,7 @@ import {
   Prompt,
 } from "@langfuse/shared";
 import {
+  buildClickHouseLogComment,
   ClickhouseClientType,
   convertDateToClickhouseDateTime,
   convertObservationReadToInsert,
@@ -1420,8 +1421,7 @@ export class IngestionService {
         span.setAttribute("db.system", "clickhouse");
         span.setAttribute("db.operation.name", "SELECT");
         span.setAttribute("projectId", projectId);
-        const queryResult = await this.clickhouseClient.query({
-          query: `
+        const query = `
             SELECT *
             FROM ${table}
             WHERE project_id = {projectId: String}
@@ -1429,13 +1429,26 @@ export class IngestionService {
             ${additionalFilters.whereCondition}
             ORDER BY event_ts DESC
             LIMIT 1 BY id, project_id SETTINGS use_query_cache = false;
-          `,
+          `;
+        const queryResult = await this.clickhouseClient.query({
+          query,
           format: "JSONEachRow",
           query_params: { projectId, entityId, ...additionalFilters.params },
           clickhouse_settings: {
-            log_comment: JSON.stringify({
-              feature: "ingestion",
-              projectId,
+            log_comment: buildClickHouseLogComment({
+              query,
+              operation: "select",
+              table,
+              tags: {
+                surface: "worker",
+                service: "worker",
+                feature: "ingestion",
+                entity: table,
+                storage: "legacy",
+                workload: "lookup",
+                project_id: projectId,
+                projectId,
+              },
             }),
           },
         });

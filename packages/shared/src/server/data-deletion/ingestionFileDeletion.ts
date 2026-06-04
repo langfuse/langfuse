@@ -8,6 +8,7 @@ import { BlobStorageFileRefRecordReadType } from "../repositories/definitions";
 import { logger } from "../logger";
 import { env } from "../../env";
 import { clickhouseClient } from "../clickhouse/client";
+import { buildClickHouseLogComment } from "../clickhouse/queryTags";
 import { getS3EventStorageClient } from "../s3";
 
 export const deleteIngestionEventsFromS3AndClickhouseForScores = async (p: {
@@ -104,5 +105,20 @@ async function softDeleteInClickhouse(
       updated_at: new Date().getTime(),
     })),
     format: "JSONEachRow",
+    clickhouse_settings: {
+      log_comment: buildClickHouseLogComment({
+        operation: "insert",
+        table: "blob_storage_file_log",
+        tags: {
+          surface: "worker",
+          service: "shared",
+          feature: "data-deletion",
+          entity: "blob-storage-file-log",
+          storage: "legacy",
+          workload: "delete",
+          project_id: blobStorageRefs[0]?.project_id ?? "unknown",
+        },
+      }),
+    },
   });
 }

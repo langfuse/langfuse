@@ -1,5 +1,6 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
+  buildClickHouseLogComment,
   clickhouseClient,
   convertPostgresTraceToInsert,
   logger,
@@ -35,6 +36,22 @@ export default class MigrateTracesFromPostgresToClickhouse implements IBackgroun
     // Check if ClickHouse traces table exists
     const tables = await clickhouseClient().query({
       query: "SHOW TABLES",
+      clickhouse_settings: {
+        log_comment: buildClickHouseLogComment({
+          query: "SHOW TABLES",
+          operation: "select",
+          tags: {
+            surface: "worker",
+            service: "worker",
+            feature: "background-migration",
+            entity: "clickhouse-metadata",
+            storage: "unknown",
+            workload: "lookup",
+            project_id: "none",
+            operation_name: "migrateTracesFromPostgresToClickhouse.validate",
+          },
+        }),
+      },
     });
     const tableNames = (await tables.json()).data as { name: string }[];
     if (!tableNames.some((r) => r.name === "traces")) {
@@ -120,6 +137,22 @@ export default class MigrateTracesFromPostgresToClickhouse implements IBackgroun
         table: "traces",
         values: traces.map(convertPostgresTraceToInsert),
         format: "JSONEachRow",
+        clickhouse_settings: {
+          log_comment: buildClickHouseLogComment({
+            operation: "insert",
+            table: "traces",
+            tags: {
+              surface: "worker",
+              service: "worker",
+              feature: "background-migration",
+              entity: "trace",
+              storage: "legacy",
+              workload: "write",
+              project_id: "multiple",
+              operation_name: "migrateTracesFromPostgresToClickhouse",
+            },
+          }),
+        },
       });
 
       logger.info(

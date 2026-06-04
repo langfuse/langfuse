@@ -21,6 +21,11 @@ import {
   type DataFormat,
 } from "@clickhouse/client";
 import { RESOURCE_LIMIT_ERROR_MESSAGE } from "../../errors/errorMessages";
+import {
+  buildClickHouseLogComment,
+  normalizeClickHouseQueryTags,
+  type ClickHouseQueryTagInput,
+} from "../clickhouse/queryTags";
 
 /**
  * Custom error class for ClickHouse resource-related errors
@@ -122,7 +127,7 @@ export async function upsertClickhouse<
   table: "scores" | "traces" | "observations" | "traces_null";
   records: T[];
   eventBodyMapper: (body: T) => Record<string, unknown>;
-  tags?: Record<string, string>;
+  tags?: ClickHouseQueryTagInput;
 }): Promise<void> {
   return await instrumentAsync(
     { name: "clickhouse-upsert", spanKind: SpanKind.CLIENT },
@@ -165,7 +170,11 @@ export async function upsertClickhouse<
               ],
               format: "JSONEachRow",
               clickhouse_settings: {
-                log_comment: JSON.stringify(opts.tags ?? {}),
+                log_comment: buildClickHouseLogComment({
+                  tags: opts.tags,
+                  operation: "insert",
+                  table: "blob_storage_file_log",
+                }),
               },
             });
           }
@@ -183,6 +192,12 @@ export async function upsertClickhouse<
         }),
       );
 
+      const normalizedTags = normalizeClickHouseQueryTags({
+        tags: opts.tags,
+        operation: "upsert",
+        table: opts.table,
+      });
+
       const res = await clickhouseClient().insert({
         table: opts.table,
         values: opts.records.map((record) => ({
@@ -191,7 +206,7 @@ export async function upsertClickhouse<
         })),
         format: "JSONEachRow",
         clickhouse_settings: {
-          log_comment: JSON.stringify(opts.tags ?? {}),
+          log_comment: JSON.stringify(normalizedTags),
         },
       });
       // same logic as for prisma. we want to see queries in development
@@ -200,6 +215,7 @@ export async function upsertClickhouse<
       }
 
       span.setAttribute("ch.queryId", res.query_id);
+      setSpanTagAttributes(span, normalizedTags);
 
       // add summary headers to the span. Helps to tune performance
       const summaryHeader = res.response_headers["x-clickhouse-summary"];
@@ -296,7 +312,7 @@ export type ClickhouseQueryOpts = {
   query: string;
   params?: Record<string, unknown>;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags?: Record<string, string>;
+  tags?: ClickHouseQueryTagInput;
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
   allowLegacyEventsRead?: boolean;
@@ -330,16 +346,31 @@ function setSpanQueryAttributes(span: Span, query: string): void {
   span.setAttribute("db.operation.name", "SELECT");
 }
 
+function setSpanTagAttributes(
+  span: Span,
+  tags: ReturnType<typeof normalizeClickHouseQueryTags>,
+): void {
+  for (const [key, value] of Object.entries(tags)) {
+    span.setAttribute(`ch.tag.${key}`, value);
+  }
+}
+
 async function sendClickhouseQuery<F extends DataFormat>(opts: {
   query: string;
   params?: Record<string, unknown>;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags?: Record<string, string>;
+  tags?: ClickHouseQueryTagInput;
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
   format: F;
   span: Span;
 }) {
+  const normalizedTags = normalizeClickHouseQueryTags({
+    tags: opts.tags,
+    query: opts.query,
+    operation: "select",
+  });
+
   const res = await clickhouseClient(
     opts.clickhouseConfigs,
     opts.preferredClickhouseService,
@@ -349,7 +380,7 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
     query_params: opts.params,
     clickhouse_settings: {
       ...opts.clickhouseSettings,
-      log_comment: JSON.stringify(opts.tags ?? {}),
+      log_comment: JSON.stringify(normalizedTags),
     },
   });
 
@@ -358,6 +389,7 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
   }
 
   opts.span.setAttribute("ch.queryId", res.query_id);
+  setSpanTagAttributes(opts.span, normalizedTags);
   recordSummaryOnSpan(opts.span, res.response_headers);
 
   return res;
@@ -494,7 +526,7 @@ export async function commandClickhouse(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags?: Record<string, string>;
+  tags?: ClickHouseQueryTagInput;
   clickhouseSettings?: ClickHouseSettings;
   abortSignal?: AbortSignal;
   session_id?: string;
@@ -508,6 +540,12 @@ export async function commandClickhouse(opts: {
       span.setAttribute("db.query.text", opts.query);
       span.setAttribute("db.operation.name", "COMMAND");
 
+      const normalizedTags = normalizeClickHouseQueryTags({
+        tags: opts.tags,
+        query: opts.query,
+        operation: "command",
+      });
+
       const res = await clickhouseClient(opts.clickhouseConfigs).command({
         query: opts.query,
         query_params: opts.params,
@@ -518,7 +556,7 @@ export async function commandClickhouse(opts: {
         ...(opts.abortSignal ? { abort_signal: opts.abortSignal } : {}),
         clickhouse_settings: {
           ...opts.clickhouseSettings,
-          log_comment: JSON.stringify(opts.tags ?? {}),
+          log_comment: JSON.stringify(normalizedTags),
         },
       });
       // same logic as for prisma. we want to see queries in development
@@ -527,6 +565,7 @@ export async function commandClickhouse(opts: {
       }
 
       span.setAttribute("ch.queryId", res.query_id);
+      setSpanTagAttributes(span, normalizedTags);
 
       // add summary headers to the span. Helps to tune performance
       const summaryHeader = res.response_headers["x-clickhouse-summary"];
