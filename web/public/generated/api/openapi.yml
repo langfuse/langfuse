@@ -5323,8 +5323,9 @@ paths:
         - name: cursor
           in: query
           description: >-
-            Base64-encoded cursor for pagination. Use the cursor from the
-            previous response to get the next page. Absent on the final page.
+            URL-safe base64 (base64url) cursor for pagination. Use the cursor
+            from the previous response to get the next page. Absent on the final
+            page.
           required: false
           schema:
             type: string
@@ -12204,8 +12205,8 @@ components:
           type: string
           nullable: true
           description: >-
-            Base64-encoded cursor for the next page. Absent when there are no
-            more results.
+            URL-safe base64 (base64url) cursor for the next page. Absent when
+            there are no more results.
       required:
         - limit
     GetScoresV3Response:
