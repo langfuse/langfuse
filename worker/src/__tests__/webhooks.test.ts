@@ -6,6 +6,7 @@ import {
   beforeAll,
   afterAll,
   afterEach,
+  vi,
 } from "vitest";
 import { v4 } from "uuid";
 import {
@@ -704,6 +705,73 @@ describe("Webhook Integration Tests", () => {
       expect(trigger?.status).toBe(JobConfigState.INACTIVE);
 
       expect(await redis!.get(failureKey)).toBeNull();
+    });
+
+    it("auto-disables despite a redis.del failure on the failure-side reset", async () => {
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          projectId,
+          type: "WEBHOOK",
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            url: "https://webhook-error.example.com/test",
+          },
+        },
+      });
+
+      const failureKey = `automation-failures:${projectId}:${automationId}`;
+      await redis!.del(failureKey);
+
+      const buildInput = (): WebhookInput => ({
+        projectId,
+        automationId,
+        executionId: v4(),
+        payload: {
+          id: v4(),
+          timestamp: new Date(),
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: {
+            monitorId: v4(),
+            projectId,
+            severity: "ALERT",
+            permalink: `https://cloud.langfuse.com/project/${projectId}/monitors/mon`,
+            timestamp: new Date(),
+            fromTimestamp: new Date(Date.now() - 5 * 60_000),
+            toTimestamp: new Date(),
+            message: { title: "High error rate", body: "errors > 100" },
+            view: "observations",
+            filters: [],
+            window: "5m",
+          },
+        },
+      });
+
+      for (let i = 0; i < 4; i++) {
+        await executeWebhook(buildInput(), { skipValidation: true });
+      }
+
+      const delSpy = vi
+        .spyOn(redis!, "del")
+        .mockRejectedValue(new Error("READONLY during failover"));
+      try {
+        await executeWebhook(buildInput(), { skipValidation: true });
+      } finally {
+        delSpy.mockRestore();
+      }
+
+      const trigger = await prisma.trigger.findUnique({
+        where: { id: triggerId },
+      });
+      expect(trigger?.status).toBe(JobConfigState.INACTIVE);
     });
 
     it("should execute webhook with secret headers correctly", async () => {

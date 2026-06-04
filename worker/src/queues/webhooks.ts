@@ -364,10 +364,17 @@ async function executeHttpAction({
           where: { id: automation.trigger.id, projectId },
           data: { status: JobConfigState.INACTIVE },
         });
-        await resetAutomationFailures({
-          projectId,
-          automationId: automation.id,
-        });
+        try {
+          await resetAutomationFailures({
+            projectId,
+            automationId: automation.id,
+          });
+        } catch (resetError) {
+          logger.warn(
+            `Failed to reset automation failure counter after auto-disable for automation ${automation.id} in project ${projectId}`,
+            resetError,
+          );
+        }
         logger.warn(
           `Automation ${automation.trigger.id} disabled after ${count} consecutive failures in project ${projectId} (monitor-alert)`,
         );
@@ -824,10 +831,17 @@ async function executeSlackAction({
           where: { id: automation.trigger.id, projectId },
           data: { status: JobConfigState.INACTIVE },
         });
-        await resetAutomationFailures({
-          projectId,
-          automationId: automation.id,
-        });
+        try {
+          await resetAutomationFailures({
+            projectId,
+            automationId: automation.id,
+          });
+        } catch (resetError) {
+          logger.warn(
+            `Failed to reset automation failure counter after auto-disable for automation ${automation.id} in project ${projectId}`,
+            resetError,
+          );
+        }
         logger.warn(
           `Automation ${automation.trigger.id} disabled after ${count} consecutive failures in project ${projectId} (monitor-alert/slack)`,
         );
