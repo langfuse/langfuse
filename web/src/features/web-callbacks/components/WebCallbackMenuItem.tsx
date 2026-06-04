@@ -103,7 +103,7 @@ export function WebCallbackMenuItem(props: {
       <DropdownMenuItem
         className="text-xs"
         onSelect={() => {
-          void sendCallback();
+          sendCallback();
         }}
       >
         <Webhook className="mr-2 h-4 w-4" />
