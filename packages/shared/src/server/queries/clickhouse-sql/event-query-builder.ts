@@ -1978,3 +1978,94 @@ export function buildEventsFullTableSplitQuery(opts: {
 
   return cteBuilder as unknown as SplitQueryBuilder;
 }
+
+/**
+ * Identity tuple used by the subquery-IN rewrite. The inner subquery projects
+ * exactly these columns (in this order) and the outer IN clause matches against
+ * the same tuple positionally. project_id is included so the outer can prune by
+ * partition before the hash-set check.
+ */
+const SUBQUERY_IDENTITY_TUPLE = [
+  "e.span_id",
+  "e.trace_id",
+  "e.start_time",
+  "e.project_id",
+] as const;
+
+/**
+ * Build the observations v2 subquery-IN late-materialization query.
+ *
+ * Emits a single outer SELECT against events_full gated by an
+ * `(span_id, trace_id, start_time, project_id) IN (SELECT ...)` subquery that
+ * runs the filter/sort/limit on the inner builder's table (events_core, or
+ * events_full when forceFullTable() escalates). There is no JOIN: ClickHouse
+ * builds the inner hash set once and prunes the outer scan.
+ *
+ * The inner builder must already carry filters, ORDER BY, and LIMIT; this
+ * function owns the inner identity-tuple SELECT (so it always lines up with the
+ * outer IN tuple). The outer SELECT projects core + requested field groups from
+ * events_full, guaranteeing full untruncated input/output/metadata. The outer
+ * re-applies the canonical ORDER BY because IN does not preserve order.
+ *
+ * The CTE+JOIN counterpart is buildEventsFullTableSplitQuery; both must return
+ * identical result sets.
+ */
+export function buildEventsFullTableSubqueryQuery(opts: {
+  projectId: string;
+  innerBuilder: EventsQueryBuilder;
+  fieldSetNames: FieldSetName[];
+  externalCTEs?: Array<{
+    name: string;
+    queryWithParams: { query: string; params: Record<string, any> };
+  }>;
+}): QueryWithParams {
+  // Inner: project only the identity tuple. Filters/ORDER BY/LIMIT are already
+  // configured on the builder by the caller.
+  const { query: innerQuery, params: innerParams } = opts.innerBuilder
+    .selectRaw(...SUBQUERY_IDENTITY_TUPLE)
+    .buildWithParams();
+
+  // Outer SELECT expressions: core + requested field groups, all from
+  // events_full (e. prefix). Dedupe field keys while preserving order.
+  const fieldKeys = Array.from(
+    new Set(opts.fieldSetNames.flatMap((name) => FIELD_SETS[name])),
+  );
+  const outerSelect = fieldKeys.flatMap((key) => {
+    const expr = EVENTS_FIELDS[key as keyof typeof EVENTS_FIELDS];
+    return expr ? [expr] : [];
+  });
+
+  // Canonical ORDER BY: identical to what the inner builder emits via
+  // orderByColumns, re-applied here because IN does not preserve order.
+  // Bounded by the inner LIMIT (<= page size).
+  const outerOrderBy =
+    "ORDER BY e.project_id DESC, toStartOfMinute(e.start_time) DESC, " +
+    "e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC";
+
+  const params: Record<string, any> = { projectId: opts.projectId };
+  const cteParts: string[] = [];
+  for (const cte of opts.externalCTEs ?? []) {
+    cteParts.push(`${cte.name} AS (${cte.queryWithParams.query})`);
+    Object.assign(params, cte.queryWithParams.params);
+  }
+  // Inner params last so the inner subquery's bindings win on any overlap
+  // (same projectId value, plus filter/cursor/limit bindings).
+  Object.assign(params, innerParams);
+
+  const tuple = `(${SUBQUERY_IDENTITY_TUPLE.join(", ")})`;
+  const queryParts: string[] = [];
+  if (cteParts.length > 0) {
+    queryParts.push(`WITH ${cteParts.join(",\n")}`);
+  }
+  queryParts.push(
+    `SELECT\n  ${outerSelect.join(",\n  ")}`,
+    "FROM events_full e",
+    "WHERE e.project_id = {projectId: String}",
+    `  AND ${tuple} IN (\n${innerQuery}\n)`,
+    outerOrderBy,
+    "SETTINGS log_comment = 'observations-v2-subquery-rewrite'",
+  );
+
+  const query = queryParts.join("\n");
+  return { buildWithParams: () => ({ query, params }) };
+}

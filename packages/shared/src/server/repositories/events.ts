@@ -96,10 +96,12 @@ import {
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
+  buildEventsFullTableSubqueryQuery,
   type QueryWithParams,
   type SessionEventsMetricsRow,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
+import { shouldUseObservationsSubqueryRewrite } from "../queries/clickhouse-sql/query-options";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
   eventsTableCols,
@@ -1500,19 +1502,39 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
       options,
     );
 
-  baseBuilder.selectFieldSet("core");
-  const excludeFromBase = new Set<string>(["core", "io"]);
-  if (metadataFromFullTable) excludeFromBase.add("metadata");
-  requestedFields
-    .filter((fg) => !excludeFromBase.has(fg))
-    .forEach((fg) => baseBuilder.selectFieldSet(fg));
+  // The subquery-IN rewrite only replaces the CTE+JOIN split query, i.e. the
+  // needsIOCTE branch. The non-CTE simple path is untouched, so the
+  // truncated-metadata default (events_core) is preserved exactly.
+  const useSubqueryRewrite =
+    needsIOCTE && shouldUseObservationsSubqueryRewrite();
+
+  if (!useSubqueryRewrite) {
+    // CTE+JOIN and simple paths project core + requested scalar groups on the
+    // base builder. The subquery path skips this: its inner only needs the
+    // identity tuple, which the builder projects itself.
+    baseBuilder.selectFieldSet("core");
+    const excludeFromBase = new Set<string>(["core", "io"]);
+    if (metadataFromFullTable) excludeFromBase.add("metadata");
+    requestedFields
+      .filter((fg) => !excludeFromBase.has(fg))
+      .forEach((fg) => baseBuilder.selectFieldSet(fg));
+  }
 
   applyOrderByForObservationsQuery(baseBuilder);
   applyCursorPagination(opts, baseBuilder);
 
   let builder: QueryWithParams;
 
-  if (!needsIOCTE) {
+  if (useSubqueryRewrite) {
+    // Outer fetches core + every requested group from events_full; inner runs
+    // filter/sort/limit and emits the identity tuple for the IN clause.
+    builder = buildEventsFullTableSubqueryQuery({
+      projectId,
+      innerBuilder: baseBuilder,
+      fieldSetNames: ["core", ...requestedFields],
+      externalCTEs,
+    });
+  } else if (!needsIOCTE) {
     // Simple path: add CTEs back to the builder and use directly
     for (const cte of externalCTEs) {
       baseBuilder.withCTE(cte.name, cte.queryWithParams);

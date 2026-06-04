@@ -11,6 +11,9 @@ import {
 import { GetObservationsV2Response } from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
+// Shared env: the subquery-rewrite kill-switch is read by shouldUseObservationsSubqueryRewrite()
+// from the shared env object, not the web env above. Mutate this instance to toggle the flag.
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import waitForExpect from "wait-for-expect";
 
 let projectId: string;
@@ -1737,6 +1740,135 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(response.body).toHaveProperty("message");
       expect((response.body as { message: string }).message).toContain(
         "Invalid cursor format",
+      );
+    });
+  });
+
+  // The subquery-IN rewrite only replaces the CTE+JOIN split query, i.e.
+  // requests that hit the needsIOCTE branch (io requested, or metadata with
+  // expandMetadata). These tests exercise that branch under both flag values and
+  // assert (a) byte-identical results vs the CTE path and (b) the canonical
+  // ORDER BY. The non-CTE simple path is unaffected and covered by the suites above.
+  maybe("subquery rewrite", () => {
+    const originalFlag = sharedEnv.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE;
+
+    const setRewrite = (value: "true" | "false") => {
+      (
+        sharedEnv as { LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: string }
+      ).LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE = value;
+    };
+
+    afterEach(() => {
+      setRewrite(originalFlag);
+    });
+
+    const seedRichObservations = async (traceId: string, count: number) => {
+      const base = Date.now() * 1000;
+      const seeded = [] as Array<{ id: string; startMicros: number }>;
+      const events = Array.from({ length: count }, (_, i) => {
+        const obsId = randomUUID();
+        const startMicros = base + i * 1000 * 1000; // 1s apart, distinct order
+        seeded.push({ id: obsId, startMicros });
+        return createEvent({
+          id: obsId,
+          span_id: obsId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: `rewrite-obs-${i}`,
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: startMicros,
+          end_time: startMicros + 500 * 1000,
+          input: `input-${i}-${"x".repeat(300)}`, // > events_core truncation
+          output: `output-${i}-${"y".repeat(300)}`,
+          metadata: { source: "api", idx: String(i) },
+          metadata_names: ["source", "idx"],
+          metadata_values: ["api", String(i)],
+          provided_model_name: "gpt-4",
+        });
+      });
+      await createEventsCh(events);
+      return seeded;
+    };
+
+    it("returns identical results to the CTE path across field-group combos", async () => {
+      const traceId = randomUUID();
+      await seedRichObservations(traceId, 5);
+
+      // Each combo includes `io` (or expandMetadata) so the needsIOCTE branch —
+      // the only path the rewrite touches — is exercised.
+      const urls = [
+        `/api/public/v2/observations?traceId=${traceId}&fields=core,basic,io`,
+        `/api/public/v2/observations?traceId=${traceId}&fields=core,basic,model,usage,io,metadata`,
+        `/api/public/v2/observations?traceId=${traceId}&fields=io,metadata`,
+        `/api/public/v2/observations?traceId=${traceId}&fields=metadata&expandMetadata=source,idx`,
+      ];
+
+      for (const url of urls) {
+        setRewrite("false");
+        const ctePath = await getObservations(url);
+        setRewrite("true");
+        const subqueryPath = await getObservations(url);
+
+        expect(subqueryPath.status).toBe(200);
+        expect(ctePath.status).toBe(200);
+        expect(subqueryPath.body.data.length).toBe(5);
+        // Byte-identical rows (same values, same order) between both code paths.
+        expect(subqueryPath.body.data).toEqual(ctePath.body.data);
+      }
+    });
+
+    it("applies the canonical ORDER BY under the subquery path", async () => {
+      const traceId = randomUUID();
+      const base = Date.now() * 1000;
+
+      // Two observations share a start_time to exercise the span_id tiebreak.
+      const sharedStart = base + 1000 * 1000;
+      const specs = [
+        { id: randomUUID(), startMicros: base + 3 * 1000 * 1000 },
+        { id: randomUUID(), startMicros: sharedStart },
+        { id: randomUUID(), startMicros: sharedStart },
+        { id: randomUUID(), startMicros: base },
+      ];
+      await createEventsCh(
+        specs.map((s, i) =>
+          createEvent({
+            id: s.id,
+            span_id: s.id,
+            trace_id: traceId,
+            project_id: projectId,
+            name: `order-obs-${i}`,
+            type: "GENERATION",
+            level: "DEFAULT",
+            start_time: s.startMicros,
+            input: `io-${i}`,
+            output: `io-${i}`,
+          }),
+        ),
+      );
+
+      // Canonical order within a single trace (xxHash32(trace_id) constant):
+      // start_time DESC, then span_id DESC.
+      const expectedIds = [...specs]
+        .sort((a, b) =>
+          b.startMicros !== a.startMicros
+            ? b.startMicros - a.startMicros
+            : a.id < b.id
+              ? 1
+              : a.id > b.id
+                ? -1
+                : 0,
+        )
+        .map((s) => s.id);
+
+      setRewrite("true");
+      const response = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=io&limit=50`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.map((o: { id: string }) => o.id)).toEqual(
+        expectedIds,
       );
     });
   });
