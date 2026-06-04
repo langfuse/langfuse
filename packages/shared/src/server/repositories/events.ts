@@ -22,7 +22,10 @@ import {
   convertClickhouseToDomain,
   convertClickhouseTracesListToDomain,
 } from "./traces_converters";
-import { getTraceByIdFromTracesTable } from "./traces";
+import {
+  getTraceByIdFromTracesTable,
+  getTracesIdentifierForSessionFromTracesTable,
+} from "./traces";
 import {
   DateTimeFilter,
   type Filter,
@@ -1108,6 +1111,26 @@ export const getObservationById = async (
     return getObservationByIdFromObservationsTable(params);
   }
   return getObservationByIdFromEventsTable(params);
+};
+
+/**
+ * Routing wrapper for "trace identifiers for session" reads.
+ *
+ * If data is only written into the events tables, we look there and go to the
+ * legacy traces table otherwise.
+ *
+ * @deprecated Please prefer `getTracesIdentifierForSessionFromEvents` for new
+ * use-cases. This should be exclusively used for backwards compatibility if the
+ * write mode is events_only.
+ */
+export const getTracesIdentifierForSession = async (
+  projectId: string,
+  sessionId: string,
+) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only") {
+    return getTracesIdentifierForSessionFromTracesTable(projectId, sessionId);
+  }
+  return getTracesIdentifierForSessionFromEvents(projectId, sessionId);
 };
 
 type PublicApiObservationsQuery = {

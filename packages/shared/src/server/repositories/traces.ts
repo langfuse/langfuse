@@ -886,7 +886,17 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
   });
 };
 
-export const getTracesIdentifierForSession = async (
+/**
+ * Retrieves identifier rows for the traces referencing a session from the
+ * legacy `traces` table.
+ *
+ * Prefer the routing wrapper `getTracesIdentifierForSession` (in
+ * repositories/events.ts) for application reads: it dispatches between this
+ * legacy reader and the events table based on the V4 migration flags. Call this
+ * directly only when you specifically need the legacy table (e.g. backfills,
+ * migration tooling).
+ */
+export const getTracesIdentifierForSessionFromTracesTable = async (
   projectId: string,
   sessionId: string,
 ) => {
