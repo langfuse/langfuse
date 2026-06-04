@@ -1002,6 +1002,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.data.every((s) => s.source === "ANNOTATION")).toBe(true);
+      expect(res.body.data.some((s) => s.id === scoreId)).toBe(true);
     });
 
     it("dataType filter returns only scores of that type", async () => {
@@ -1032,6 +1033,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.data.every((s) => s.dataType === "NUMERIC")).toBe(true);
+      expect(res.body.data.some((s) => s.id === numericId)).toBe(true);
     });
 
     it("traceId filter returns only scores for that trace", async () => {
