@@ -250,6 +250,7 @@ model InAppAgentEvent {
   createdAt      DateTime               @default(now()) @map("created_at")
 
   @@id([projectId, conversationId, sequenceNumber])
+  @@index([projectId, runId], map: "in_app_agent_events_project_run_idx")
   @@map("in_app_agent_events")
 }
 

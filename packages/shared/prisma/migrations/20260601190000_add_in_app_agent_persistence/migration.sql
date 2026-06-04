@@ -43,6 +43,7 @@ CREATE TABLE "in_app_agent_events" (
 );
 
 CREATE INDEX "in_app_agent_conversations_project_user_list_idx" ON "in_app_agent_conversations"("project_id", "created_by_user_id", "deleted_at", "updated_at", "id");
+CREATE INDEX "in_app_agent_events_project_run_idx" ON "in_app_agent_events"("project_id", "run_id");
 CREATE INDEX "in_app_agent_runs_project_conversation_created_idx" ON "in_app_agent_runs"("project_id", "conversation_id", "created_at");
 
 ALTER TABLE "in_app_agent_conversations" ADD CONSTRAINT "in_app_agent_conversations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
