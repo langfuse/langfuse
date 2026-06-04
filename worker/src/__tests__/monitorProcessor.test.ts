@@ -446,6 +446,67 @@ const cases: ProcessCase[] = [
     },
   },
   {
+    name: "count monitor empty window (count_count 0): NO_DATA, not OK",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedAt: runAt,
+        noData: { mode: "NOTIFY", intervalMinutes: 5 },
+      },
+    ],
+    ch: [{ count_count: 0 }],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 1,
+      rows: [
+        {
+          id: monitorAId,
+          severity: "NO_DATA",
+          severityChangedAt: justAfterRunAt,
+          alertedAt: justAfterRunAt,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: justAfterRunAt,
+        },
+      ],
+    },
+  },
+  {
+    name: "count monitor non-empty window (count_count 5): evaluates normally",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "UNKNOWN",
+        lastPublishedAt: runAt,
+        alertThreshold: 3,
+        thresholdOperator: "GT",
+      },
+    ],
+    ch: [{ count_count: 5 }],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 1,
+      publishMatch: {
+        payload: {
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: { monitorId: monitorAId, severity: "ALERT" },
+        },
+      },
+      rows: [
+        {
+          id: monitorAId,
+          severity: "ALERT",
+          severityChangedAt: justAfterRunAt,
+          alertedAt: justAfterRunAt,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: justAfterRunAt,
+        },
+      ],
+    },
+  },
+  {
     name: "nodata on: claim, complete, sev change, emit",
     monitors: [
       {
@@ -1288,5 +1349,51 @@ describe("MonitorProcessor.process wire deserialization", () => {
       toTimestamp: expectedTo,
     });
     expect(publish).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("MonitorProcessor.process count metric", () => {
+  let projectId: string;
+
+  beforeAll(async () => {
+    const org = await createOrgProjectAndApiKey();
+    projectId = org.projectId;
+  });
+
+  afterEach(async () => {
+    await prisma.monitor.deleteMany({ where: { projectId } });
+  });
+
+  it("appends the count_count metric exactly once for a count monitor", async () => {
+    const monitorId = `m_count_${v4()}`;
+    await seedMonitor(projectId, {
+      id: monitorId,
+      severity: "UNKNOWN",
+      lastPublishedAt: runAt,
+    });
+
+    let capturedMetrics: { measure: string; aggregation: string }[] = [];
+    const publish = vi.fn<MonitorPublisher>(async () => {});
+    const executeQuery: QueryExecutor = async (_p, query) => {
+      capturedMetrics = query.metrics;
+      return [{ count_count: 5 }];
+    };
+    const getTriggers: GetTriggerConfigurations = async () =>
+      [] as unknown as Awaited<ReturnType<GetTriggerConfigurations>>;
+
+    const processor = new MonitorProcessor(
+      prisma,
+      publish,
+      executeQuery,
+      getTriggers,
+    );
+
+    await processor.process(makeEvent(projectId, [monitorId]), justAfterRunAt);
+
+    expect(
+      capturedMetrics.filter(
+        (m) => m.measure === "count" && m.aggregation === "count",
+      ),
+    ).toHaveLength(1);
   });
 });

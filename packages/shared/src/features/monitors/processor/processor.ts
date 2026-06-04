@@ -169,16 +169,31 @@ function buildMonitorQuery(event: MonitorQueueEvent): QueryType {
     event.window,
     event.runAt,
   );
+  const metrics = dedupeMetrics([
+    ...event.metrics,
+    { measure: "count", aggregation: "count" as const },
+  ]);
   return {
     view: event.view,
     dimensions: [],
-    metrics: event.metrics,
+    metrics,
     filters: event.filters,
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
     orderBy: null,
   };
+}
+
+/** dedupeMetrics drops duplicate metrics keyed by `${aggregation}_${measure}` so the appended row-count metric never collides with an existing count metric. */
+function dedupeMetrics(metrics: QueryType["metrics"]): QueryType["metrics"] {
+  const seen = new Set<string>();
+  return metrics.filter((m) => {
+    const key = `${m.aggregation}_${m.measure}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /** evaluationWindow returns the `[runAt - window, runAt]` edges, both shifted back by monitorEvaluationOffsetMs. */
@@ -239,8 +254,9 @@ function processMonitor(args: {
   publishedAt: Date;
 }): [MonitorCompletion, MonitorWebhookInput[]] {
   const { monitor, metrics, triggers, now, runAt, publishedAt } = args;
+  const value = getValue(metrics, monitor.metric);
   const severity = computeSeverity({
-    value: getValue(metrics, monitor.metric),
+    value: metrics["count_count"] === 0 ? null : value,
     operator: monitor.thresholdOperator,
     alertThreshold: monitor.alertThreshold,
     warningThreshold: monitor.warningThreshold ?? null,
