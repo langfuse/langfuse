@@ -6,14 +6,14 @@ import {
   type ScoreRecordReadType,
 } from "@langfuse/shared/src/server";
 import type { APIScoreV3, ScoreDomain } from "@langfuse/shared";
-import { ScoreDataTypeEnum } from "@langfuse/shared";
+import { InternalServerError, ScoreDataTypeEnum } from "@langfuse/shared";
 
 export function polymorphicValue(score: {
   dataType: string;
   value: number;
   stringValue?: string | null;
   longStringValue?: string | null;
-}): number | boolean | string | null {
+}): number | boolean | string {
   switch (score.dataType) {
     case ScoreDataTypeEnum.NUMERIC:
       return score.value;
@@ -21,11 +21,23 @@ export function polymorphicValue(score: {
       return score.value === 1;
     case ScoreDataTypeEnum.CATEGORICAL:
     case ScoreDataTypeEnum.TEXT:
-      return score.stringValue ?? null;
+      if (score.stringValue == null) {
+        throw new InternalServerError(
+          `Score with dataType ${score.dataType} is missing its stringValue`,
+        );
+      }
+      return score.stringValue;
     case ScoreDataTypeEnum.CORRECTION:
-      return score.longStringValue ?? null;
+      if (score.longStringValue == null) {
+        throw new InternalServerError(
+          "Score with dataType CORRECTION is missing its longStringValue",
+        );
+      }
+      return score.longStringValue;
     default:
-      return null;
+      throw new InternalServerError(
+        `Score has unknown dataType: ${score.dataType}`,
+      );
   }
 }
 
