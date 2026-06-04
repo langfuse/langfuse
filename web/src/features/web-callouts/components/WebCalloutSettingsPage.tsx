@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Pencil, Plus, Trash2, Webhook, X } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -51,7 +51,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 
-type WebCallbackEndpoint = RouterOutputs["webCallbacks"]["all"][number];
+type WebCalloutEndpoint = RouterOutputs["webCallouts"]["all"][number];
 
 const BLOCKED_HEADER_NAMES = new Set([
   "content-length",
@@ -59,20 +59,25 @@ const BLOCKED_HEADER_NAMES = new Set([
   "cookie",
   "host",
 ]);
+const SECRET_ONLY_HEADER_NAMES = new Set([
+  "authorization",
+  "proxy-authorization",
+  "x-api-key",
+]);
 const HEADER_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
-const webCallbackFormSchema = z
+const webCalloutFormSchema = z
   .object({
     id: z.string().optional(),
     name: z.string().trim().min(1).max(100),
     url: z.url(),
     enabled: z.boolean(),
     toastMessage: z.string().trim().min(1).max(200),
-    timeoutSeconds: z.number().int().min(1).max(60),
     headers: z.array(
       z.object({
         name: z.string(),
         value: z.string(),
+        secret: z.boolean(),
       }),
     ),
   })
@@ -104,6 +109,14 @@ const webCallbackFormSchema = z
         });
       }
 
+      if (SECRET_ONLY_HEADER_NAMES.has(lowerName) && !header.secret) {
+        ctx.addIssue({
+          code: "custom",
+          message: "This header must be marked as secret.",
+          path: ["headers", index, "secret"],
+        });
+      }
+
       if (seenHeaderNames.has(lowerName)) {
         ctx.addIssue({
           code: "custom",
@@ -116,41 +129,41 @@ const webCallbackFormSchema = z
     });
   });
 
-type WebCallbackFormValues = z.infer<typeof webCallbackFormSchema>;
+type WebCalloutFormValues = z.infer<typeof webCalloutFormSchema>;
 
-export function WebCallbackSettingsPage(props: { projectId: string }) {
+export function WebCalloutSettingsPage(props: { projectId: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEndpoint, setEditingEndpoint] =
-    useState<WebCallbackEndpoint | null>(null);
+    useState<WebCalloutEndpoint | null>(null);
 
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "integrations:CRUD",
   });
 
-  const endpoints = api.webCallbacks.all.useQuery(
+  const endpoints = api.webCallouts.all.useQuery(
     { projectId: props.projectId },
     { enabled: hasAccess },
   );
   const utils = api.useUtils();
 
-  const deleteMutation = api.webCallbacks.delete.useMutation({
+  const deleteMutation = api.webCallouts.delete.useMutation({
     onSuccess: async () => {
-      await utils.webCallbacks.invalidate();
+      await utils.webCallouts.invalidate();
       showSuccessToast({
-        title: "Callback endpoint deleted",
+        title: "Callout endpoint deleted",
         description: "The endpoint was removed from this project.",
       });
     },
     onError: (error) => {
-      showErrorToast("Failed to delete callback endpoint", error.message);
+      showErrorToast("Failed to delete callout endpoint", error.message);
     },
   });
 
   if (!hasAccess) {
     return (
       <div>
-        <Header title="Web Callbacks" />
+        <Header title="Web Callouts" />
         <Alert>
           <AlertTitle>Access Denied</AlertTitle>
           <AlertDescription>
@@ -169,7 +182,7 @@ export function WebCallbackSettingsPage(props: { projectId: string }) {
     setDialogOpen(true);
   };
 
-  const openEditDialog = (endpoint: WebCallbackEndpoint) => {
+  const openEditDialog = (endpoint: WebCalloutEndpoint) => {
     setEditingEndpoint(endpoint);
     setDialogOpen(true);
   };
@@ -177,8 +190,8 @@ export function WebCallbackSettingsPage(props: { projectId: string }) {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-2">
-        <Header title="Web Callbacks" />
-        <WebCallbackEndpointDialog
+        <Header title="Web Callouts" />
+        <WebCalloutEndpointDialog
           projectId={props.projectId}
           endpoint={editingEndpoint}
           open={dialogOpen}
@@ -201,8 +214,8 @@ export function WebCallbackSettingsPage(props: { projectId: string }) {
       </div>
 
       <p className="text-primary mb-4 text-sm">
-        Configure a project-level callback endpoint for trace, observation, and
-        session detail actions. The browser sends a POST with ids only.
+        Configure a project-level callout endpoint for trace, observation, and
+        session detail actions. Langfuse sends a backend POST with ids only.
       </p>
 
       <Card className="overflow-auto">
@@ -224,7 +237,7 @@ export function WebCallbackSettingsPage(props: { projectId: string }) {
                   colSpan={5}
                   className="text-muted-foreground text-center"
                 >
-                  No callback endpoint configured.
+                  No callout endpoint configured.
                 </TableCell>
               </TableRow>
             ) : (
@@ -283,71 +296,64 @@ export function WebCallbackSettingsPage(props: { projectId: string }) {
   );
 }
 
-function HeaderList(props: { endpoint: WebCallbackEndpoint }) {
-  const headerNames = Object.keys(props.endpoint.displayHeaders);
+function HeaderList(props: { endpoint: WebCalloutEndpoint }) {
+  const headers = Object.entries(props.endpoint.displayHeaders);
 
-  if (headerNames.length === 0) {
+  if (headers.length === 0) {
     return <span className="text-muted-foreground">None</span>;
   }
 
   return (
     <div className="flex flex-wrap gap-1">
-      {headerNames.map((name) => (
-        <code key={name}>{name}</code>
+      {headers.map(([name, header]) => (
+        <code key={name}>
+          {name}
+          {header.secret ? " (secret)" : ""}
+        </code>
       ))}
     </div>
   );
 }
 
-function BehaviorSummary(props: { endpoint: WebCallbackEndpoint }) {
+function BehaviorSummary(props: { endpoint: WebCalloutEndpoint }) {
   return (
     <div className="space-y-1 text-sm">
       <div className="max-w-xs truncate" title={props.endpoint.toastMessage}>
         {props.endpoint.toastMessage}
       </div>
-      <div className="text-muted-foreground">
-        {props.endpoint.timeoutMs / 1_000}s timeout
-      </div>
+      <div className="text-muted-foreground">5s backend timeout</div>
     </div>
   );
 }
 
-function WebCallbackEndpointDialog(props: {
+function WebCalloutEndpointDialog(props: {
   projectId: string;
-  endpoint: WebCallbackEndpoint | null;
+  endpoint: WebCalloutEndpoint | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   trigger: ReactNode;
 }) {
   const utils = api.useUtils();
-  const upsertMutation = api.webCallbacks.upsert.useMutation({
+  const upsertMutation = api.webCallouts.upsert.useMutation({
     onSuccess: async () => {
-      await utils.webCallbacks.invalidate();
+      await utils.webCallouts.invalidate();
       showSuccessToast({
         title: props.endpoint
-          ? "Callback endpoint updated"
-          : "Callback endpoint created",
-        description: "Web callback configuration was saved.",
+          ? "Callout endpoint updated"
+          : "Callout endpoint created",
+        description: "Web callout configuration was saved.",
       });
       props.onOpenChange(false);
     },
     onError: (error) => {
-      showErrorToast("Failed to save callback endpoint", error.message);
+      showErrorToast("Failed to save callout endpoint", error.message);
     },
   });
 
-  const form = useForm<WebCallbackFormValues>({
-    resolver: zodResolver(webCallbackFormSchema),
+  const form = useForm<WebCalloutFormValues>({
+    resolver: zodResolver(webCalloutFormSchema),
     defaultValues: endpointToFormValues(props.endpoint),
   });
-  const [langfuseOrigin, setLangfuseOrigin] = useState(
-    "https://cloud.langfuse.com",
-  );
-  const watchedHeaders = form.watch("headers");
-  const corsSnippet = useMemo(
-    () => createCorsSnippet(langfuseOrigin, watchedHeaders),
-    [langfuseOrigin, watchedHeaders],
-  );
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -360,11 +366,7 @@ function WebCallbackEndpointDialog(props: {
     }
   }, [form, props.endpoint, props.open]);
 
-  useEffect(() => {
-    setLangfuseOrigin(window.location.origin);
-  }, []);
-
-  const onSubmit = (values: WebCallbackFormValues) => {
+  const onSubmit = (values: WebCalloutFormValues) => {
     upsertMutation.mutate({
       projectId: props.projectId,
       id: values.id,
@@ -372,7 +374,6 @@ function WebCallbackEndpointDialog(props: {
       url: values.url,
       enabled: values.enabled,
       toastMessage: values.toastMessage,
-      timeoutMs: values.timeoutSeconds * 1_000,
       requestHeaders: formValuesToRequestHeaders(values),
     });
   };
@@ -383,12 +384,10 @@ function WebCallbackEndpointDialog(props: {
       <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>
-            {props.endpoint
-              ? "Edit Callback Endpoint"
-              : "Add Callback Endpoint"}
+            {props.endpoint ? "Edit Callout Endpoint" : "Add Callout Endpoint"}
           </DialogTitle>
           <DialogDescription>
-            The browser sends a JSON POST when a user clicks a web callback
+            Langfuse sends a backend JSON POST when a user clicks a web callout
             action.
           </DialogDescription>
         </DialogHeader>
@@ -397,20 +396,23 @@ function WebCallbackEndpointDialog(props: {
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <DialogBody>
               <Alert>
-                <AlertTitle>Browser request requirements</AlertTitle>
+                <AlertTitle>Backend request requirements</AlertTitle>
                 <AlertDescription className="space-y-3">
                   <p>
-                    Your callback route must handle the browser preflight and
-                    return these CORS headers on <code>OPTIONS</code> and{" "}
-                    <code>POST</code> responses.
+                    Langfuse sends this request from its backend. Your endpoint
+                    must accept <code>POST</code> requests with{" "}
+                    <code>Content-Type: application/json</code> and return HTTP
+                    2xx within 5 seconds.
                   </p>
-                  <pre className="bg-muted overflow-x-auto rounded-md p-3 text-xs whitespace-pre-wrap">
-                    {corsSnippet}
-                  </pre>
                   <p>
-                    All headers configured below are sent to the user&apos;s
-                    frontend and are visible in developer tools. Do not put API
-                    keys or other secrets in web callback headers.
+                    Secret headers are encrypted at rest and sent only from the
+                    backend. They are not exposed to the user&apos;s browser.
+                  </p>
+                  <p>
+                    Every configured header is sent with each callout request.
+                    If the URL uses <code>http://</code>, those headers are sent
+                    without transport encryption; use HTTPS for production and
+                    secret-bearing callouts.
                   </p>
                 </AlertDescription>
               </Alert>
@@ -437,13 +439,13 @@ function WebCallbackEndpointDialog(props: {
                     <FormLabel>Endpoint URL</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="https://example.com/langfuse/callback"
+                        placeholder="https://example.com/langfuse/callout"
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
                       HTTP or HTTPS URL. Custom ports are allowed. The endpoint
-                      must allow browser requests from Langfuse.
+                      is called from the Langfuse backend.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -458,7 +460,7 @@ function WebCallbackEndpointDialog(props: {
                     <div>
                       <FormLabel>Enabled</FormLabel>
                       <FormDescription>
-                        Shows the callback action in trace, observation, and
+                        Shows the callout action in trace, observation, and
                         session detail headers.
                       </FormDescription>
                     </div>
@@ -482,34 +484,7 @@ function WebCallbackEndpointDialog(props: {
                       <Input {...field} />
                     </FormControl>
                     <FormDescription>
-                      Shown immediately when the callback action is clicked.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="timeoutSeconds"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Request timeout</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={60}
-                        step={1}
-                        {...field}
-                        value={Number.isFinite(field.value) ? field.value : ""}
-                        onChange={(event) =>
-                          field.onChange(event.target.valueAsNumber)
-                        }
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Browser request timeout in seconds. Allowed range: 1-60.
+                      Shown after the backend callout succeeds.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -519,15 +494,17 @@ function WebCallbackEndpointDialog(props: {
               <div>
                 <FormLabel>Headers</FormLabel>
                 <FormDescription className="mb-2">
-                  Optional browser-visible headers added to the outbound POST.
-                  Content-Type is set automatically.
+                  Optional headers added to the backend POST. Content-Type is
+                  set automatically.
                 </FormDescription>
                 <div className="space-y-2">
                   {fields.map((field, index) => {
+                    const isSecret = form.watch(`headers.${index}.secret`);
+
                     return (
                       <div
                         key={field.id}
-                        className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2"
+                        className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] items-start gap-2"
                       >
                         <FormField
                           control={form.control}
@@ -547,8 +524,30 @@ function WebCallbackEndpointDialog(props: {
                           render={({ field }) => (
                             <FormItem>
                               <FormControl>
-                                <Input placeholder="Value" {...field} />
+                                <Input
+                                  placeholder="Value"
+                                  type={isSecret ? "password" : "text"}
+                                  {...field}
+                                />
                               </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={`headers.${index}.secret`}
+                          render={({ field }) => (
+                            <FormItem className="flex h-9 items-center gap-2 rounded-md border px-3">
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <FormLabel className="text-xs font-normal">
+                                Secret
+                              </FormLabel>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -578,6 +577,7 @@ function WebCallbackEndpointDialog(props: {
                     append({
                       name: "",
                       value: "",
+                      secret: false,
                     })
                   }
                 >
@@ -607,7 +607,7 @@ function WebCallbackEndpointDialog(props: {
 }
 
 function DeleteEndpointButton(props: {
-  endpoint: WebCallbackEndpoint;
+  endpoint: WebCalloutEndpoint;
   onDelete: (id: string) => void;
   loading: boolean;
 }) {
@@ -627,9 +627,9 @@ function DeleteEndpointButton(props: {
       </Tooltip>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete Callback Endpoint</DialogTitle>
+          <DialogTitle>Delete Callout Endpoint</DialogTitle>
           <DialogDescription>
-            This removes the configured endpoint and hides the web callback
+            This removes the configured endpoint and hides the web callout
             action.
           </DialogDescription>
         </DialogHeader>
@@ -653,43 +653,25 @@ function DeleteEndpointButton(props: {
   );
 }
 
-function createCorsSnippet(
-  langfuseOrigin: string,
-  headers: WebCallbackFormValues["headers"],
-) {
-  const configuredHeaderNames = headers
-    .map((header) => header.name.trim().toLowerCase())
-    .filter(Boolean);
-  const allowedHeaderNames = Array.from(
-    new Set(["content-type"].concat(configuredHeaderNames)),
-  );
-
-  return [
-    "Access-Control-Allow-Origin: " + langfuseOrigin,
-    "Access-Control-Allow-Methods: POST, OPTIONS",
-    "Access-Control-Allow-Headers: " + allowedHeaderNames.join(", "),
-  ].join("\n");
-}
-
 const endpointToFormValues = (
-  endpoint: WebCallbackEndpoint | null,
-): WebCallbackFormValues => ({
+  endpoint: WebCalloutEndpoint | null,
+): WebCalloutFormValues => ({
   id: endpoint?.id,
   name: endpoint?.name ?? "Default",
   url: endpoint?.url ?? "",
   enabled: endpoint?.enabled ?? true,
-  toastMessage: endpoint?.toastMessage ?? "Callback sent",
-  timeoutSeconds: endpoint ? Math.ceil(endpoint.timeoutMs / 1_000) : 10,
-  headers: Object.entries(endpoint?.displayHeaders ?? {})
-    .filter(([, header]) => !header.secret)
-    .map(([name, header]) => ({
+  toastMessage: endpoint?.toastMessage ?? "Callout sent",
+  headers: Object.entries(endpoint?.displayHeaders ?? {}).map(
+    ([name, header]) => ({
       name,
       value: header.value,
-    })),
+      secret: header.secret,
+    }),
+  ),
 });
 
 const formValuesToRequestHeaders = (
-  values: WebCallbackFormValues,
+  values: WebCalloutFormValues,
 ): Record<string, { secret: boolean; value: string }> =>
   Object.fromEntries(
     values.headers
@@ -697,13 +679,13 @@ const formValuesToRequestHeaders = (
       .map((header) => [
         header.name.trim(),
         {
-          secret: false,
+          secret: header.secret,
           value: header.value.trim(),
         },
       ]),
   );
 
-export function WebCallbackIntegrationCard(props: {
+export function WebCalloutIntegrationCard(props: {
   projectId: string;
   hasAccess: boolean;
 }) {
@@ -711,11 +693,11 @@ export function WebCallbackIntegrationCard(props: {
     <Card className="p-3">
       <div className="mb-4 flex items-center gap-2">
         <Webhook className="text-foreground h-5 w-5" />
-        <span className="font-semibold">Web Callbacks</span>
+        <span className="font-semibold">Web Callouts</span>
       </div>
       <p className="text-primary mb-4 text-sm">
-        Send a browser callback from trace, observation, and session detail
-        views to your own application.
+        Send backend callouts from trace, observation, and session detail views
+        to your own application.
       </p>
       <Button
         asChild
@@ -724,7 +706,7 @@ export function WebCallbackIntegrationCard(props: {
         className={cn(!props.hasAccess && "pointer-events-none")}
       >
         <Link
-          href={`/project/${props.projectId}/settings/integrations/web-callbacks`}
+          href={`/project/${props.projectId}/settings/integrations/web-callouts`}
         >
           Configure
         </Link>

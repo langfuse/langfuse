@@ -15,7 +15,7 @@ import {
 } from "@/src/features/events/lib/eventsTablePaths";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
-import { WebCallbackMenuItem } from "@/src/features/web-callbacks/components/WebCallbackMenuItem";
+import { WebCalloutMenuItem } from "@/src/features/web-callouts/components/WebCalloutMenuItem";
 
 type IdItem = {
   name: string;
@@ -27,7 +27,7 @@ type DetailHeaderActionsMenuProps = {
   observationType?: ObservationType;
   projectId: string;
   spanName?: string;
-  webCallback?: {
+  webCallout?: {
     traceId: string | null;
     observationId?: string | null;
     sessionId?: string | null;
@@ -39,7 +39,7 @@ export function DetailHeaderActionsMenu({
   observationType,
   projectId,
   spanName,
-  webCallback,
+  webCallout,
 }: DetailHeaderActionsMenuProps) {
   const router = useRouter();
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -84,13 +84,13 @@ export function DetailHeaderActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {webCallback && (
+        {webCallout && (
           <>
-            <WebCallbackMenuItem
+            <WebCalloutMenuItem
               projectId={projectId}
-              traceId={webCallback.traceId}
-              observationId={webCallback.observationId}
-              sessionId={webCallback.sessionId}
+              traceId={webCallout.traceId}
+              observationId={webCallout.observationId}
+              sessionId={webCallout.sessionId}
               withSeparator
             />
           </>

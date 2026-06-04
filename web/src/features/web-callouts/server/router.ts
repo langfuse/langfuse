@@ -3,18 +3,22 @@ import { TRPCError } from "@trpc/server";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { WebCallbackEndpointUpsertInputSchema } from "@/src/features/web-callbacks/types";
 import {
-  toBrowserWebCallbackEndpoint,
-  toSafeWebCallbackEndpoint,
-  upsertWebCallbackEndpoint,
-} from "@/src/features/web-callbacks/server/service";
+  WebCalloutEndpointUpsertInputSchema,
+  WebCalloutInvokeInputSchema,
+} from "@/src/features/web-callouts/types";
+import {
+  invokeWebCalloutEndpoint,
+  toEnabledWebCallout,
+  toSafeWebCalloutEndpoint,
+  upsertWebCalloutEndpoint,
+} from "@/src/features/web-callouts/server/service";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 
-export const webCallbacksRouter = createTRPCRouter({
+export const webCalloutsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -24,27 +28,27 @@ export const webCallbacksRouter = createTRPCRouter({
         scope: "integrations:CRUD",
       });
 
-      const endpoints = await ctx.prisma.webCallbackEndpoint.findMany({
+      const endpoints = await ctx.prisma.webCalloutEndpoint.findMany({
         where: { projectId: input.projectId },
         orderBy: { createdAt: "asc" },
       });
 
-      return endpoints.map(toSafeWebCallbackEndpoint);
+      return endpoints.map(toSafeWebCalloutEndpoint);
     }),
 
   enabled: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      const endpoint = await ctx.prisma.webCallbackEndpoint.findFirst({
+      const endpoint = await ctx.prisma.webCalloutEndpoint.findFirst({
         where: { projectId: input.projectId, enabled: true },
         orderBy: { createdAt: "asc" },
       });
 
-      return toBrowserWebCallbackEndpoint(endpoint);
+      return toEnabledWebCallout(endpoint);
     }),
 
   upsert: protectedProjectProcedure
-    .input(WebCallbackEndpointUpsertInputSchema)
+    .input(WebCalloutEndpointUpsertInputSchema)
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -53,16 +57,16 @@ export const webCallbacksRouter = createTRPCRouter({
       });
 
       const before = input.id
-        ? await ctx.prisma.webCallbackEndpoint
+        ? await ctx.prisma.webCalloutEndpoint
             .findFirst({
               where: { id: input.id, projectId: input.projectId },
             })
             .then((endpoint) =>
-              endpoint ? toSafeWebCallbackEndpoint(endpoint) : null,
+              endpoint ? toSafeWebCalloutEndpoint(endpoint) : null,
             )
         : null;
 
-      const endpoint = await upsertWebCallbackEndpoint({
+      const endpoint = await upsertWebCalloutEndpoint({
         prisma: ctx.prisma,
         projectId: input.projectId,
         input,
@@ -72,7 +76,7 @@ export const webCallbacksRouter = createTRPCRouter({
         {
           session: ctx.session,
           action: before ? "update" : "create",
-          resourceType: "webCallbackEndpoint",
+          resourceType: "webCalloutEndpoint",
           resourceId: endpoint.id,
           before,
           after: endpoint,
@@ -92,7 +96,7 @@ export const webCallbacksRouter = createTRPCRouter({
         scope: "integrations:CRUD",
       });
 
-      const endpoint = await ctx.prisma.webCallbackEndpoint.findFirst({
+      const endpoint = await ctx.prisma.webCalloutEndpoint.findFirst({
         where: {
           id: input.id,
           projectId: input.projectId,
@@ -102,13 +106,13 @@ export const webCallbacksRouter = createTRPCRouter({
       if (!endpoint) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Web callback endpoint not found",
+          message: "Web callout endpoint not found",
         });
       }
 
-      const safeEndpoint = toSafeWebCallbackEndpoint(endpoint);
+      const safeEndpoint = toSafeWebCalloutEndpoint(endpoint);
 
-      await ctx.prisma.webCallbackEndpoint.delete({
+      await ctx.prisma.webCalloutEndpoint.delete({
         where: { id: input.id },
       });
 
@@ -116,11 +120,21 @@ export const webCallbacksRouter = createTRPCRouter({
         {
           session: ctx.session,
           action: "delete",
-          resourceType: "webCallbackEndpoint",
+          resourceType: "webCalloutEndpoint",
           resourceId: input.id,
           before: safeEndpoint,
         },
         ctx.prisma,
       );
+    }),
+
+  invoke: protectedProjectProcedure
+    .input(WebCalloutInvokeInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      return invokeWebCalloutEndpoint({
+        prisma: ctx.prisma,
+        input,
+        useEventsTable: ctx.session.user.v4BetaEnabled === true,
+      });
     }),
 });

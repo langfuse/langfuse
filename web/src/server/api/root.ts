@@ -56,7 +56,7 @@ import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/a
 import { surveysRouter } from "@/src/server/api/routers/surveys";
 import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
 import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
-import { webCallbacksRouter } from "@/src/features/web-callbacks/server/router";
+import { webCalloutsRouter } from "@/src/features/web-callouts/server/router";
 
 /**
  * This is the primary router for your server.
@@ -121,7 +121,7 @@ export const appRouter = createTRPCRouter({
   surveys: surveysRouter,
   naturalLanguageFilters: naturalLanguageFilterRouter,
   notificationPreferences: notificationPreferencesRouter,
-  webCallbacks: webCallbacksRouter,
+  webCallouts: webCalloutsRouter,
 });
 
 // export type definition of API

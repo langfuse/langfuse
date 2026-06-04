@@ -31,7 +31,7 @@ import { SiSlack } from "react-icons/si";
 import { ScoreConfigSettings } from "@/src/features/score-configs/components/ScoreConfigSettings";
 import { env } from "@/src/env.mjs";
 import { NotificationSettings } from "@/src/features/notifications/components/NotificationSettings";
-import { WebCallbackIntegrationCard } from "@/src/features/web-callbacks/components/WebCallbackSettingsPage";
+import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
 
 type ProjectSettingsPage = {
@@ -390,7 +390,7 @@ const Integrations = (props: { projectId: string }) => {
           </div>
         </Card>
 
-        <WebCallbackIntegrationCard
+        <WebCalloutIntegrationCard
           projectId={props.projectId}
           hasAccess={hasAccess}
         />

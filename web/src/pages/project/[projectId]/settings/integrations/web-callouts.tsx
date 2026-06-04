@@ -1,8 +1,8 @@
 import ContainerPage from "@/src/components/layouts/container-page";
-import { WebCallbackSettingsPage } from "@/src/features/web-callbacks/components/WebCallbackSettingsPage";
+import { WebCalloutSettingsPage } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
 import { useRouter } from "next/router";
 
-export default function WebCallbacksSettings() {
+export default function WebCalloutsSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string | undefined;
 
@@ -13,13 +13,13 @@ export default function WebCallbacksSettings() {
   return (
     <ContainerPage
       headerProps={{
-        title: "Web Callbacks",
+        title: "Web Callouts",
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
       }}
     >
-      <WebCallbackSettingsPage projectId={projectId} />
+      <WebCalloutSettingsPage projectId={projectId} />
     </ContainerPage>
   );
 }
