@@ -39,6 +39,12 @@ export const webCalloutsRouter = createTRPCRouter({
   enabled: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "project:read",
+      });
+
       const endpoint = await ctx.prisma.webCalloutEndpoint.findFirst({
         where: { projectId: input.projectId, enabled: true },
         orderBy: { createdAt: "asc" },
@@ -131,6 +137,12 @@ export const webCalloutsRouter = createTRPCRouter({
   invoke: protectedProjectProcedure
     .input(WebCalloutInvokeInputSchema)
     .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "project:read",
+      });
+
       return invokeWebCalloutEndpoint({
         prisma: ctx.prisma,
         input,

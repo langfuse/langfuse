@@ -49,7 +49,7 @@ const buildSession = ({
 }: {
   orgId: string;
   projectId: string;
-  projectRole?: "ADMIN" | "MEMBER" | "OWNER" | "VIEWER";
+  projectRole?: "ADMIN" | "MEMBER" | "NONE" | "OWNER" | "VIEWER";
 }): Session => ({
   expires: "1",
   user: {
@@ -246,7 +246,9 @@ const createPrismaStub = () => {
 
 const prepare = async ({
   projectRole = "ADMIN",
-}: { projectRole?: "ADMIN" | "MEMBER" | "OWNER" | "VIEWER" } = {}) => {
+}: {
+  projectRole?: "ADMIN" | "MEMBER" | "NONE" | "OWNER" | "VIEWER";
+} = {}) => {
   const orgId = "org-1";
   const projectId = "project-1";
   const prismaStub = createPrismaStub();
@@ -532,6 +534,34 @@ describe("webCallouts router", () => {
         sessionId: null,
       }),
     ).resolves.toEqual({ success: true, status: 204 });
+  });
+
+  it("rejects callout metadata and invoke access for project none role", async () => {
+    const { caller, orgId, prismaStub, projectId } = await prepare();
+    await createEndpoint(caller, projectId);
+
+    const noneCtx = createInnerTRPCContext({
+      session: buildSession({ orgId, projectId, projectRole: "NONE" }),
+      headers: {},
+    });
+    const noneCaller = appRouter.createCaller({
+      ...noneCtx,
+      prisma: prismaStub.prisma as any,
+    });
+
+    await expect(
+      noneCaller.webCallouts.enabled({ projectId }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    await expect(
+      noneCaller.webCallouts.invoke({
+        projectId,
+        traceId: "trace-1",
+        observationId: null,
+        sessionId: null,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(fetchWithSecureRedirects).not.toHaveBeenCalled();
   });
 
   it("invokes the backend endpoint with decrypted headers and id-only payload", async () => {
