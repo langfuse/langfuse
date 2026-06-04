@@ -201,8 +201,8 @@ export function WebCallbackSettingsPage(props: { projectId: string }) {
       </div>
 
       <p className="text-primary mb-4 text-sm">
-        Configure a project-level callback endpoint for trace and observation
-        detail actions. The browser sends a POST with ids only.
+        Configure a project-level callback endpoint for trace, observation, and
+        session detail actions. The browser sends a POST with ids only.
       </p>
 
       <Card className="overflow-auto">
@@ -388,7 +388,7 @@ function WebCallbackEndpointDialog(props: {
               : "Add Callback Endpoint"}
           </DialogTitle>
           <DialogDescription>
-            The browser sends a JSON POST when a user clicks the trace callback
+            The browser sends a JSON POST when a user clicks a web callback
             action.
           </DialogDescription>
         </DialogHeader>
@@ -458,8 +458,8 @@ function WebCallbackEndpointDialog(props: {
                     <div>
                       <FormLabel>Enabled</FormLabel>
                       <FormDescription>
-                        Shows the callback action in trace and observation
-                        detail headers.
+                        Shows the callback action in trace, observation, and
+                        session detail headers.
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -629,7 +629,7 @@ function DeleteEndpointButton(props: {
         <DialogHeader>
           <DialogTitle>Delete Callback Endpoint</DialogTitle>
           <DialogDescription>
-            This removes the configured endpoint and hides the trace callback
+            This removes the configured endpoint and hides the web callback
             action.
           </DialogDescription>
         </DialogHeader>
@@ -714,8 +714,8 @@ export function WebCallbackIntegrationCard(props: {
         <span className="font-semibold">Web Callbacks</span>
       </div>
       <p className="text-primary mb-4 text-sm">
-        Send a browser callback from trace and observation detail views to your
-        own application.
+        Send a browser callback from trace, observation, and session detail
+        views to your own application.
       </p>
       <Button
         asChild

@@ -96,7 +96,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
           <DetailHeaderActionsMenu
             idItems={[{ id: trace.id, name: "Trace ID" }]}
             projectId={projectId}
-            webCallback={{ traceId: trace.id }}
+            webCallback={{
+              traceId: trace.id,
+              sessionId: trace.sessionId ?? null,
+            }}
           />
         </div>
         {/* Action buttons */}

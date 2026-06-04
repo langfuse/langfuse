@@ -36,8 +36,9 @@ export const WebCallbackPayloadSchema = z.object({
   items: z.array(
     z.object({
       projectId: z.string(),
-      traceId: z.string(),
+      traceId: z.string().nullable(),
       observationId: z.string().nullable(),
+      sessionId: z.string().nullable(),
     }),
   ),
 });

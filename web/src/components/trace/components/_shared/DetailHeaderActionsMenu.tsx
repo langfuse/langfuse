@@ -28,8 +28,9 @@ type DetailHeaderActionsMenuProps = {
   projectId: string;
   spanName?: string;
   webCallback?: {
-    traceId: string;
+    traceId: string | null;
     observationId?: string | null;
+    sessionId?: string | null;
   };
 };
 
@@ -89,6 +90,7 @@ export function DetailHeaderActionsMenu({
               projectId={projectId}
               traceId={webCallback.traceId}
               observationId={webCallback.observationId}
+              sessionId={webCallback.sessionId}
               withSeparator
             />
           </>

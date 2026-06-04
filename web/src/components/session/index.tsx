@@ -39,6 +39,7 @@ import {
   TableViewPresetTableName,
 } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { WebCallbackButton } from "@/src/features/web-callbacks/components/WebCallbackMenuItem";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
@@ -389,6 +390,12 @@ export const SessionPage: React.FC<{
                 listKey="sessions"
               />
             )}
+            <WebCallbackButton
+              projectId={projectId}
+              traceId={null}
+              observationId={null}
+              sessionId={sessionId}
+            />
             <Button
               variant="outline"
               size="icon"
@@ -897,6 +904,12 @@ export const SessionEventsPage: React.FC<{
                 listKey="sessions"
               />
             )}
+            <WebCallbackButton
+              projectId={projectId}
+              traceId={null}
+              observationId={null}
+              sessionId={sessionId}
+            />
             <CommentDrawerButton
               key="comment"
               variant="outline"
