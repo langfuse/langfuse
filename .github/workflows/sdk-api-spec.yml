@@ -17,8 +17,12 @@ permissions:
 
 jobs:
   generate-sdk-api-specs:
-    runs-on: ubuntu-latest
-    environment: "protected branches"
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    outputs:
+      python_has_changes: ${{ steps.prepare-python-sdk.outputs.has_changes }}
+      python_branch_name: ${{ steps.prepare-python-sdk.outputs.branch_name }}
+      typescript_has_changes: ${{ steps.prepare-typescript-sdk.outputs.has_changes }}
+      typescript_branch_name: ${{ steps.prepare-typescript-sdk.outputs.branch_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -26,15 +30,17 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
-          version: 10.33.0
+          version: 11.4.0
 
+      # Keep this secret-bearing job cache-cold to avoid exposing Fern
+      # credentials to potentially poisoned shared package-manager state.
       - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: "24"
-          cache: "pnpm"
+          package-manager-cache: false
 
       - name: Install dependencies
         run: pnpm install
@@ -45,13 +51,12 @@ jobs:
         run: npx fern-api generate --api server --force
 
       - name: Install uv
-        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.11.2"
 
-      - name: Update Python SDK
-        env:
-          GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+      - name: Prepare Python SDK update
+        id: prepare-python-sdk
         run: |
           # Clone langfuse-python repository
           git clone https://github.com/langfuse/langfuse-python.git ../langfuse-python
@@ -59,8 +64,6 @@ jobs:
 
           git config user.name "langfuse-bot"
           git config user.email "langfuse-bot@langfuse.com"
-          echo "$GH_ACCESS_TOKEN" | gh auth login --with-token
-          gh auth setup-git
 
           # Delete existing API contents
           rm -rf langfuse/api/*
@@ -79,30 +82,31 @@ jobs:
           # Check for changes and show diff for debugging
           if git diff --quiet; then
             echo "No changes detected in Python SDK"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Close existing api-spec-bot PRs
-          gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
-
-          # Get the GitHub username of the original commit author
-          cd ../langfuse
-          ORIGINAL_AUTHOR=$(gh api repos/langfuse/langfuse/commits/${GITHUB_SHA} --jq '.author.login')
-          cd ../langfuse-python
-
-          # Create new branch and push changes
+          # Create new branch and commit changes
           BRANCH_NAME="api-spec-bot-${GITHUB_SHA::7}"
           git checkout -b "$BRANCH_NAME"
           git add .
           git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}"
-          git push origin "$BRANCH_NAME"
+          git bundle create "$RUNNER_TEMP/langfuse-python-api-spec-bot.bundle" "$BRANCH_NAME"
 
-          # Create PR with original author as reviewer
-          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" --reviewer "$ORIGINAL_AUTHOR"
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Update TypeScript SDK
-        env:
-          GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+      - name: Upload Python SDK update
+        if: steps.prepare-python-sdk.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: langfuse-python-sdk-update
+          path: ${{ runner.temp }}/langfuse-python-api-spec-bot.bundle
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Prepare TypeScript SDK update
+        id: prepare-typescript-sdk
         run: |
           # Clone langfuse-js repository
           git clone https://github.com/langfuse/langfuse-js.git ../langfuse-js
@@ -111,8 +115,6 @@ jobs:
           # Configure git
           git config user.name "langfuse-bot"
           git config user.email "langfuse-bot@langfuse.com"
-          echo "$GH_ACCESS_TOKEN" | gh auth login --with-token
-          gh auth setup-git
 
           # Delete existing API contents
           rm -rf packages/core/src/api/*
@@ -131,30 +133,164 @@ jobs:
 
           # Install dependencies and format
           corepack enable
-          corepack prepare pnpm@10.33.0 --activate
+          corepack prepare pnpm@11.4.0 --activate
           pnpm install
           pnpm format
 
           # Check for changes and show diff for debugging
           if git diff --quiet; then
             echo "No changes detected in TypeScript SDK"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Close existing api-spec-bot PRs
-          gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
-
-          # Get the GitHub username of the original commit author
-          cd ../langfuse
-          ORIGINAL_AUTHOR=$(gh api repos/langfuse/langfuse/commits/${GITHUB_SHA} --jq '.author.login')
-          cd ../langfuse-js
-
-          # Create new branch and push changes
+          # Create new branch and commit changes
           BRANCH_NAME="api-spec-bot-${GITHUB_SHA::7}"
           git checkout -b "$BRANCH_NAME"
           git add .
           git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --no-verify
-          git push origin "$BRANCH_NAME"
+          git bundle create "$RUNNER_TEMP/langfuse-js-api-spec-bot.bundle" "$BRANCH_NAME"
 
-          # Create PR with original author as reviewer
-          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" --reviewer "$ORIGINAL_AUTHOR"
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload TypeScript SDK update
+        if: steps.prepare-typescript-sdk.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: langfuse-js-sdk-update
+          path: ${{ runner.temp }}/langfuse-js-api-spec-bot.bundle
+          if-no-files-found: error
+          retention-days: 1
+
+  push-python-sdk:
+    needs: generate-sdk-api-specs
+    if: needs.generate-sdk-api-specs.outputs.python_has_changes == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Download Python SDK update
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: langfuse-python-sdk-update
+          path: ${{ runner.temp }}/langfuse-python-sdk-update
+
+      - name: Push Python SDK update
+        env:
+          BRANCH_NAME: ${{ needs.generate-sdk-api-specs.outputs.python_branch_name }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          GIT_BIN="$(command -v git)"
+          GH_BIN="$(command -v gh)"
+          BUNDLE_PATH="$RUNNER_TEMP/langfuse-python-sdk-update/langfuse-python-api-spec-bot.bundle"
+          PUSH_REPO="$RUNNER_TEMP/push-langfuse-python"
+
+          mkdir -p "$PUSH_REPO"
+          "$GIT_BIN" -C "$PUSH_REPO" init -q
+          "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags "$BUNDLE_PATH" "$BRANCH_NAME:refs/heads/$BRANCH_NAME"
+
+          # Close existing api-spec-bot PRs
+          "$GH_BIN" pr list --repo langfuse/langfuse-python --author langfuse-bot --state open --json number --jq '.[].number' | while read -r pr_number; do
+            if [ -n "$pr_number" ]; then
+              "$GH_BIN" pr close --repo langfuse/langfuse-python "$pr_number"
+            fi
+          done
+
+          # Resolve the reviewer before pushing so a transient GitHub API failure cannot orphan a branch.
+          ORIGINAL_AUTHOR="$("$GH_BIN" api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login // empty')"
+          REVIEWER_ARGS=()
+          if [ -n "$ORIGINAL_AUTHOR" ]; then
+            REVIEWER_ARGS=(--reviewer "$ORIGINAL_AUTHOR")
+          fi
+
+          # Push new branch and create PR from a fresh repo that never ran SDK install scripts.
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
+            -C "$PUSH_REPO" \
+            -c credential.helper= \
+            -c credential.https://github.com.helper= \
+            -c core.hooksPath=/dev/null \
+            push "https://x-access-token:${GH_TOKEN}@github.com/langfuse/langfuse-python.git" "$BRANCH_NAME"
+
+          "$GH_BIN" pr create \
+            --repo langfuse/langfuse-python \
+            --head "$BRANCH_NAME" \
+            --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" \
+            --body "" \
+            "${REVIEWER_ARGS[@]}"
+
+  push-typescript-sdk:
+    needs: generate-sdk-api-specs
+    if: needs.generate-sdk-api-specs.outputs.typescript_has_changes == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Download TypeScript SDK update
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: langfuse-js-sdk-update
+          path: ${{ runner.temp }}/langfuse-js-sdk-update
+
+      - name: Push TypeScript SDK update
+        env:
+          BRANCH_NAME: ${{ needs.generate-sdk-api-specs.outputs.typescript_branch_name }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          GIT_BIN="$(command -v git)"
+          GH_BIN="$(command -v gh)"
+          BUNDLE_PATH="$RUNNER_TEMP/langfuse-js-sdk-update/langfuse-js-api-spec-bot.bundle"
+          PUSH_REPO="$RUNNER_TEMP/push-langfuse-js"
+
+          mkdir -p "$PUSH_REPO"
+          "$GIT_BIN" -C "$PUSH_REPO" init -q
+          "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags "$BUNDLE_PATH" "$BRANCH_NAME:refs/heads/$BRANCH_NAME"
+
+          # Close existing api-spec-bot PRs
+          "$GH_BIN" pr list --repo langfuse/langfuse-js --author langfuse-bot --state open --json number --jq '.[].number' | while read -r pr_number; do
+            if [ -n "$pr_number" ]; then
+              "$GH_BIN" pr close --repo langfuse/langfuse-js "$pr_number"
+            fi
+          done
+
+          # Resolve the reviewer before pushing so a transient GitHub API failure cannot orphan a branch.
+          ORIGINAL_AUTHOR="$("$GH_BIN" api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login // empty')"
+          REVIEWER_ARGS=()
+          if [ -n "$ORIGINAL_AUTHOR" ]; then
+            REVIEWER_ARGS=(--reviewer "$ORIGINAL_AUTHOR")
+          fi
+
+          # Push new branch and create PR from a fresh repo that never ran SDK install scripts.
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
+            -C "$PUSH_REPO" \
+            -c credential.helper= \
+            -c credential.https://github.com.helper= \
+            -c core.hooksPath=/dev/null \
+            push "https://x-access-token:${GH_TOKEN}@github.com/langfuse/langfuse-js.git" "$BRANCH_NAME"
+
+          "$GH_BIN" pr create \
+            --repo langfuse/langfuse-js \
+            --head "$BRANCH_NAME" \
+            --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" \
+            --body "" \
+            "${REVIEWER_ARGS[@]}"
+
+  notify-slack-on-failure:
+    needs:
+      - generate-sdk-api-specs
+      - push-python-sdk
+      - push-typescript-sdk
+    if: failure()
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          title: "❌ SDK API Spec Generation Failed"
+          message: "❌ SDK API spec generation failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}

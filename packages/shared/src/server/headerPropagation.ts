@@ -16,6 +16,7 @@ export type LangfuseContextProps = {
     method?: string;
     service?: ClickHouseQueryService;
   };
+  apiKeyId?: string;
 };
 
 /**
@@ -82,6 +83,11 @@ export const contextWithLangfuseProps = (
   if (props.clickhouse?.service) {
     baggage = baggage.setEntry("langfuse.clickhouse.service", {
       value: props.clickhouse.service,
+    });
+  }
+  if (props.apiKeyId) {
+    baggage = baggage.setEntry("langfuse.api_key.id", {
+      value: props.apiKeyId,
     });
   }
 

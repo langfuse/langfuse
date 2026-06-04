@@ -1,13 +1,10 @@
 import { useRouter } from "next/router";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import { Trace } from "@/src/components/trace2/Trace";
+import { Trace } from "@/src/components/trace/Trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { TablePeekView } from "@/src/components/table/peek";
 
-export const PeekViewExperimentItemDetail = ({
-  projectId,
-}: {
-  projectId: string;
-}) => {
+const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
   const router = useRouter();
   const peekId = router.query.peek as string | undefined;
   const timestampParam = router.query.timestamp as string | undefined;
@@ -40,5 +37,27 @@ export const PeekViewExperimentItemDetail = ({
       observations={trace.data.observations}
       context="peek"
     />
+  );
+};
+
+export const TablePeekViewExperimentItemDetail = (
+  props: Omit<
+    React.ComponentProps<typeof TablePeekView>,
+    "children" | "title"
+  > & {
+    projectId: string;
+  },
+) => {
+  const { projectId } = props;
+  const router = useRouter();
+  const peekId = router.query.peek as string | undefined;
+
+  return (
+    <TablePeekView
+      {...props}
+      title={peekId ? `Experiment Item: ${peekId}` : undefined}
+    >
+      <PeekViewExperimentItemDetail projectId={projectId} />
+    </TablePeekView>
   );
 };

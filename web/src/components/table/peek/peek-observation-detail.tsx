@@ -1,10 +1,10 @@
 import { TablePeekView } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import { Trace } from "@/src/components/trace2/Trace";
+import { Trace } from "@/src/components/trace/Trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useRouter } from "next/router";
 
-export const PeekViewObservationDetail = ({
+const PeekViewObservationDetail = ({
   peekId,
   trace,
 }: {

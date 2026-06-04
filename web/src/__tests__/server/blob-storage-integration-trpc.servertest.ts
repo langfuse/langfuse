@@ -11,6 +11,16 @@ import {
   QueueJobs,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
+import {
+  OBSERVATION_FIELD_GROUPS_FULL,
+  LEGACY_BLOB_EXPORT_CUTOFF,
+} from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
+const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -121,6 +131,26 @@ const findAuditLog = async ({
 
 const parseAuditLogAfter = (after: string | null) =>
   after ? (JSON.parse(after) as Record<string, unknown>) : null;
+
+// Base config for tRPC update calls (exportFieldGroups tests).
+// exportSource EVENTS triggers field-group validation.
+const baseConfig = {
+  type: "S3" as const,
+  bucketName: "test-bucket",
+  endpoint: null,
+  region: "us-east-1",
+  accessKeyId: "AKIA123456789",
+  secretAccessKey: "secret123456789",
+  prefix: "exports/",
+  exportFrequency: "daily" as const,
+  enabled: true,
+  forcePathStyle: false,
+  fileType: "JSONL" as const,
+  exportMode: "FULL_HISTORY" as const,
+  exportStartDate: null,
+  compressed: true,
+  exportSource: "EVENTS" as const,
+};
 
 describe("Blob Storage Integration tRPC Router", () => {
   afterAll(async () => {
@@ -311,6 +341,263 @@ describe("Blob Storage Integration tRPC Router", () => {
       expect(result.success).toBe(true);
       expect(uploadWithSignedUrl).toHaveBeenCalledTimes(1);
       expect(auditLogCreateSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("endpoint validation", () => {
+    const originalAllowedIps =
+      sharedEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS;
+    const originalSharedCloudRegion =
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+    beforeEach(() => {
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    });
+
+    afterEach(() => {
+      sharedEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS =
+        originalAllowedIps;
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalSharedCloudRegion;
+    });
+
+    it.each(["S3_COMPATIBLE", "AZURE_BLOB_STORAGE"] as const)(
+      "rejects %s endpoints that target blocked IP ranges when validation is enabled",
+      async (type) => {
+        sharedEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS = [
+          "203.0.113.10",
+        ];
+        const { caller, project } = await prepare();
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            type,
+            endpoint: "http://127.0.0.1:9000",
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      },
+    );
+
+    it("allows endpoints when their IP is whitelisted", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      const originalValidationAllowedIps =
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS = [
+          "127.0.0.1",
+        ];
+
+        await expect(
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).resolves.not.toThrow();
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS =
+          originalValidationAllowedIps;
+      }
+    });
+  });
+
+  describe("exportFieldGroups", () => {
+    it("stores a custom subset and round-trips via get", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportFieldGroups: ["core", "io"],
+      });
+
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result?.exportFieldGroups).toStrictEqual(["core", "io"]);
+    });
+
+    it("defaults to all groups when exportFieldGroups is omitted", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+
+      const stored = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+      });
+      expect(stored?.exportFieldGroups).toStrictEqual([
+        ...OBSERVATION_FIELD_GROUPS_FULL,
+      ]);
+    });
+
+    it("rejects submission when core group is absent (exportSource EVENTS)", async () => {
+      const { caller, project } = await prepare();
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportFieldGroups: ["basic", "io"],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("rejects empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS_EVENTS", async () => {
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+          exportFieldGroups: [],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("accepts empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS", async () => {
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS" as const,
+          exportFieldGroups: [],
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("overwrites stored subset when a new subset is submitted", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportFieldGroups: ["core", "basic"],
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportFieldGroups: ["core", "io", "metrics"],
+      });
+
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result?.exportFieldGroups).toStrictEqual([
+        "core",
+        "io",
+        "metrics",
+      ]);
+    });
+  });
+
+  describe("legacy blob export source cutoff gate", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("Cloud + pre-cutoff project + legacy source → allow", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("Cloud + post-cutoff project + legacy source → BAD_REQUEST", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("Cloud + post-cutoff project + EVENTS → allow", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "EVENTS" as const,
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("self-hosted + post-cutoff project + legacy source → allow (bypass)", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
     });
   });
 });

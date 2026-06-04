@@ -45,6 +45,7 @@ declare module "next-auth" {
       plan: Plan;
       metadata: Record<string, unknown>;
       aiFeaturesEnabled: boolean;
+      aiTelemetryEnabled: boolean;
       projects: {
         id: PrismaProject["id"];
         name: PrismaProject["name"];
@@ -53,6 +54,7 @@ declare module "next-auth" {
         hasTraces: PrismaProject["hasTraces"];
         metadata: Record<string, unknown>;
         role: Role; // include only projects where user has a role
+        createdAt: string; // iso datetime string — JWT does not support Date objects
       }[];
     }[];
     featureFlags: Flags;

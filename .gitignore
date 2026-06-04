@@ -55,6 +55,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
+# python
+__pycache__/
+*.py[cod]
+
 /generated
 
 # openapi spec that is copied during build
@@ -74,11 +78,15 @@ node_modules
 .turbo
 
 web/test-results/*
-.playwright-mcp/*
 .codex-artifacts/
+
+# Local DeepSec workspace and generated scan state
+.deepsec/
+
 .mcp.json
 .claude/settings.json
 .claude/skills/
+.claude/launch.json
 .cursor/mcp.json
 .cursor/environment.json
 .vscode/mcp.json
@@ -94,3 +102,12 @@ web/test-results/*
 # Refactoring planning files (local only)
 **/.refactor/
 **/.pi-lens/
+
+# Serena MCP server config (local only)
+.serena/
+
+# Local overrides for AGENTS.md
+**/AGENTS.override.md
+
+# Superset config
+.superset/

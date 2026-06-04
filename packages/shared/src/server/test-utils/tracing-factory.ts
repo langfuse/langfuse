@@ -232,6 +232,7 @@ export const createEvent = (
 
     user_id: null,
     session_id: null,
+    is_app_root: false,
 
     level: "DEFAULT",
     status_message: null,

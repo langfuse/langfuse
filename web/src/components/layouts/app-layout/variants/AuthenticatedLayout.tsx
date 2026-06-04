@@ -10,7 +10,8 @@ import { SidebarProvider, SidebarInset } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { Toaster } from "@/src/components/ui/sonner";
 import { TopBannerProvider } from "@/src/features/top-banner";
-import { ResizableContent } from "../components/ResizableContent";
+import { AppContentWithRightDrawer } from "../right-drawer/AppContentWithRightDrawer";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import {
   getAvailableCloudRegionOptions,
@@ -82,6 +83,7 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
     favicon256Path: string;
     appleTouchIconPath: string;
   };
+  aiFeaturesEnabled: boolean;
   onSignOut: () => void;
 }>;
 
@@ -99,9 +101,12 @@ export function AuthenticatedLayout({
   session,
   navigation,
   metadata,
+  aiFeaturesEnabled,
   onSignOut,
 }: AuthenticatedLayoutProps) {
   const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
+  const assistantEnabled =
+    useIsFeatureEnabled("inAppAgent") && aiFeaturesEnabled;
 
   // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
   // in AppLayout, which guarantees session.user exists at this point
@@ -183,7 +188,9 @@ export function AuthenticatedLayout({
                 userNavProps={userNavProps}
               />
               <SidebarInset className="h-screen-with-banner max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
-                <ResizableContent>{children}</ResizableContent>
+                <AppContentWithRightDrawer aiAgentEnabled={assistantEnabled}>
+                  {children}
+                </AppContentWithRightDrawer>
                 <Toaster visibleToasts={1} />
                 <CommandMenu mainNavigation={navigation.navigation} />
               </SidebarInset>

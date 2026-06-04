@@ -11,6 +11,7 @@ import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
 import type { FilterConfig } from "./lib/filter-config";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
+import { encodeFiltersGeneric } from "./lib/filter-query-encoding";
 
 const mockUseRouter = vi.fn();
 const mockCapture = vi.fn();
@@ -345,6 +346,77 @@ describe("Saved view restore with implicit environment defaults", () => {
     );
   });
 
+  it("does not apply a default saved view over explicit URL filters", async () => {
+    const explicitUrlFilters: FilterState = [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["search"],
+      },
+    ];
+    const encodedFilters = encodeFiltersGeneric(explicitUrlFilters);
+
+    queryParamStore.delete("viewId");
+    queryParamStore.set("filter", encodedFilters);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { filter: encodedFilters },
+    });
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: { viewId: "view-1", scope: "project" },
+      isLoading: false,
+    });
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "search",
+    );
+    expect(screen.getByTestId("explicit-state").textContent).not.toContain(
+      "checkout",
+    );
+    expect(queryParamStore.has("viewId")).toBe(false);
+  });
+
+  it("does not restore a stored saved view over explicit URL filters", async () => {
+    const explicitUrlFilters: FilterState = [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["search"],
+      },
+    ];
+    const encodedFilters = encodeFiltersGeneric(explicitUrlFilters);
+
+    queryParamStore.delete("viewId");
+    queryParamStore.set("filter", encodedFilters);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { filter: encodedFilters },
+    });
+    sessionStorage.setItem("traces-project-1-viewId", JSON.stringify("view-1"));
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "search",
+    );
+    expect(screen.getByTestId("explicit-state").textContent).not.toContain(
+      "checkout",
+    );
+    expect(queryParamStore.has("viewId")).toBe(false);
+  });
+
   it("does not re-apply a saved view after explicit default selection during bootstrap", async () => {
     queryParamStore.set("viewId", "view-1");
 
@@ -496,6 +568,92 @@ describe("Saved view restore with implicit environment defaults", () => {
     expect(mockGetByIdUseQuery).toHaveBeenCalledWith(
       { projectId: "project-1", viewId: null },
       expect.objectContaining({ enabled: false }),
+    );
+  });
+});
+
+describe("Explicit filter in URL without viewId", () => {
+  const URL_ONLY_FILTERS: FilterState = [
+    {
+      column: "name",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["search"],
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+    queryParamStore.clear();
+
+    const encoded = encodeFiltersGeneric(URL_ONLY_FILTERS);
+    queryParamStore.set("filter", encoded);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { filter: encoded },
+    });
+
+    sessionStorage.setItem("traces-project-1-viewId", JSON.stringify("view-1"));
+
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: null,
+      isLoading: false,
+    });
+
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "view-1",
+        name: "Session saved view",
+        tableName: TableViewPresetTableName.Traces,
+        projectId: "project-1",
+        orderBy: null,
+        filters: OLD_SAVED_VIEW_FILTERS,
+        columnOrder: null,
+        columnVisibility: null,
+        searchQuery: "",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        createdBy: "user-1",
+        createdByUser: null,
+      },
+      error: null,
+    });
+  });
+
+  it("does not overwrite URL filters when session storage has a last-used viewId", async () => {
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "search",
+    );
+    expect(screen.getByTestId("explicit-state").textContent).not.toContain(
+      "checkout",
+    );
+  });
+
+  it("does not overwrite URL filters when the project has a default viewId", async () => {
+    sessionStorage.clear();
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: { viewId: "view-1", scope: "project" },
+      isLoading: false,
+    });
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "search",
+    );
+    expect(screen.getByTestId("explicit-state").textContent).not.toContain(
+      "checkout",
     );
   });
 });

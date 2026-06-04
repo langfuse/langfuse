@@ -74,7 +74,7 @@ export default function ExperimentResults() {
   // Auto-redirect to datasets page when beta is off
   useEffect(() => {
     if (!isExperimentsBetaActive) {
-      void router.push(`/project/${projectId}/datasets`);
+      router.push(`/project/${projectId}/datasets`);
     }
   }, [isExperimentsBetaActive, projectId, router]);
 
@@ -94,7 +94,7 @@ export default function ExperimentResults() {
 
     // When switching OFF, redirect to datasets page
     if (!enabled) {
-      void router.push(`/project/${projectId}/datasets`);
+      router.push(`/project/${projectId}/datasets`);
     }
   };
 
@@ -159,10 +159,10 @@ export default function ExperimentResults() {
             onBaselineClear={clearBaseline}
           />
         }
-        defaultMainSize={75}
-        defaultSidebarSize={25}
-        minMainSize={50}
-        maxSidebarSize={40}
+        defaultPrimarySize={75}
+        defaultSecondarySize={25}
+        minPrimarySize={50}
+        maxSecondarySize={40}
       />
     </Page>
   );

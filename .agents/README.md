@@ -10,6 +10,8 @@ or `.vscode/`.
 ## Layout
 
 - `AGENTS.md`: canonical shared root instructions
+- `ARCHITECTURE_PRINCIPLES.md`: architecture principles for high-scale
+  observability
 - `config.json`: shared bootstrap and MCP configuration used to generate
   tool-specific shims
 - `skills/`: shared, tool-neutral implementation guidance for recurring
@@ -42,9 +44,9 @@ Current shape:
         "-y",
         "@playwright/mcp@latest",
         "--isolated",
-        "--save-trace",
+        "--save-session",
         "--output-dir",
-        ".playwright-mcp",
+        "/tmp/playwright-mcp",
         "--test-id-attribute",
         "data-testid"
       ]
@@ -202,7 +204,6 @@ Use them for durable, reusable guidance such as:
 
 Do not use skills for one-off task notes or tool runtime configuration.
 
+Use `skills/skill-creator/SKILL.md` when creating or editing shared skills.
 `pnpm run agents:sync` projects the shared skills into `.claude/skills/` so
 Claude can discover the same repo-owned skills.
-
-For the skill authoring workflow, see [skills/README.md](skills/README.md).

@@ -65,12 +65,12 @@ function BaselineToggle({ runId }: { runId: string }) {
   const handleClick = () => {
     if (isBaseline) {
       const { baseline, ...restQuery } = router.query;
-      void router.push({
+      router.push({
         pathname: router.pathname,
         query: restQuery,
       });
     } else {
-      void router.push({
+      router.push({
         pathname: router.pathname,
         query: { ...router.query, baseline: runId },
       });

@@ -5,6 +5,7 @@ import {
   type OrderByState,
 } from "@langfuse/shared";
 import { normalizeFilterColumnNames } from "@/src/features/filters/lib/filter-transform";
+import type { FilterStateMigration } from "@/src/features/filters/lib/filter-config";
 
 /**
  * Validates if an orderBy state references valid columns.
@@ -63,6 +64,7 @@ export function validateOrderBy(
 export function validateFilters(
   filters: FilterState,
   filterColumnDefinition?: ColumnDefinition[],
+  migrateFilterState?: FilterStateMigration,
 ): FilterState {
   if (!filterColumnDefinition || filterColumnDefinition.length === 0)
     return filters;
@@ -72,10 +74,13 @@ export function validateFilters(
     filters,
     filterColumnDefinition,
   );
+  const migrated = migrateFilterState
+    ? migrateFilterState(normalized)
+    : normalized;
 
   // Validate that columns exist (remove invalid ones)
   // After normalization, filter.column is always a canonical ID
-  return normalized.filter((filter) => {
+  return migrated.filter((filter) => {
     return filterColumnDefinition.some((def) => def.id === filter.column);
   });
 }

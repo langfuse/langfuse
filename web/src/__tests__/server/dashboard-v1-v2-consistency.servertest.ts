@@ -1,6 +1,6 @@
 import { v4 } from "uuid";
-import { type QueryType } from "@/src/features/query/types";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import { executeQuery } from "@langfuse/shared/query/server";
+import { type QueryType } from "@langfuse/shared/query";
 import {
   createOrgProjectAndApiKey,
   createTrace,
@@ -477,6 +477,7 @@ describe("dashboard v1 vs v2 consistency", () => {
             cloudConfig: undefined,
             metadata: {},
             aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: projectId,

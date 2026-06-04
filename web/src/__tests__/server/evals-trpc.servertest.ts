@@ -1,5 +1,39 @@
+import { beforeEach, vi } from "vitest";
+import type * as SharedEnvModule from "@langfuse/shared/src/env";
+
+const { runCodeEvalTestForJobConfigMock } = vi.hoisted(() => {
+  process.env.LANGFUSE_CODE_EVAL_DISPATCHER = "insecure-local";
+  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_UI = "true";
+
+  return {
+    runCodeEvalTestForJobConfigMock: vi.fn(),
+  };
+});
+
+vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof SharedEnvModule>();
+
+  return {
+    ...actual,
+    env: {
+      ...actual.env,
+      LANGFUSE_CODE_EVAL_DISPATCHER: "insecure-local",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    },
+  };
+});
+
+vi.mock("@/src/features/evals/server/codeEvalTestRun", () => ({
+  runCodeEvalTest: vi.fn(),
+  runCodeEvalTestForJobConfig: runCodeEvalTestForJobConfigMock,
+}));
+
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
+} from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
@@ -10,6 +44,16 @@ import {
   EvaluatorBlockReason,
 } from "@langfuse/shared";
 import type { Session } from "next-auth";
+
+beforeEach(() => {
+  runCodeEvalTestForJobConfigMock.mockReset();
+  runCodeEvalTestForJobConfigMock.mockResolvedValue({
+    success: true,
+    result: { scores: [] },
+    executionTraceId: "test-execution-trace-id",
+    executionTraceFromTimestamp: new Date("2026-05-27T00:00:00.000Z"),
+  });
+});
 
 const __orgIds: string[] = [];
 
@@ -401,7 +445,115 @@ describe("evals trpc", () => {
     });
   });
 
+  describe("evals.createTemplate", () => {
+    it("rejects Python code evaluators for the insecure-local dispatcher", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.evals.createTemplate({
+          projectId: project.id,
+          name: `python-code-template-${project.id}`,
+          type: EvalTemplateType.CODE,
+          sourceCode:
+            'def evaluate(ctx):\n    return { "scores": [{ "name": "python-score", "value": 1 }] }',
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.PYTHON,
+        }),
+      ).rejects.toThrow(
+        "This code evaluator language is not supported by the configured dispatcher.",
+      );
+    });
+  });
+
   describe("evals.createJob", () => {
+    it("saves experiment code evaluator configs without a matching observation", async () => {
+      const { project, caller } = await prepare();
+      runCodeEvalTestForJobConfigMock.mockResolvedValueOnce(null);
+
+      const evalTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: `code-experiment-template-${project.id}`,
+          version: 1,
+          type: EvalTemplateType.CODE,
+          prompt: null,
+          outputDefinition: undefined,
+          sourceCode:
+            'function evaluate() { return { scores: [{ name: "experiment-score", value: 1 }] }; }',
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        },
+      });
+
+      const response = await caller.evals.createJob({
+        projectId: project.id,
+        evalTemplateId: evalTemplate.id,
+        scoreName: "experiment-code-score",
+        target: EvalTargetObject.EXPERIMENT,
+        filter: [],
+        mapping: [],
+        sampling: 1,
+        delay: 0,
+        timeScope: ["NEW"],
+      });
+
+      const savedJob = await prisma.jobConfiguration.findUnique({
+        where: { id: response.id },
+      });
+
+      expect(savedJob?.targetObject).toBe(EvalTargetObject.EXPERIMENT);
+      expect(savedJob?.evalTemplateId).toBe(evalTemplate.id);
+      expect(runCodeEvalTestForJobConfigMock).toHaveBeenCalledOnce();
+    });
+
+    it("rejects experiment code evaluator configs when the matching test run fails", async () => {
+      const { project, caller } = await prepare();
+      runCodeEvalTestForJobConfigMock.mockResolvedValueOnce({
+        success: false,
+        error: {
+          code: "USER_CODE_ERROR",
+          message: "Evaluator failed during test run",
+        },
+        executionTraceId: "test-execution-trace-id",
+        executionTraceFromTimestamp: new Date("2026-05-27T00:00:00.000Z"),
+      });
+
+      const evalTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: `code-experiment-template-${project.id}`,
+          version: 1,
+          type: EvalTemplateType.CODE,
+          prompt: null,
+          outputDefinition: undefined,
+          sourceCode:
+            'function evaluate() { return { scores: [{ name: "experiment-score", value: 1 }] }; }',
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        },
+      });
+
+      await expect(
+        caller.evals.createJob({
+          projectId: project.id,
+          evalTemplateId: evalTemplate.id,
+          scoreName: "experiment-code-score",
+          target: EvalTargetObject.EXPERIMENT,
+          filter: [],
+          mapping: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+        }),
+      ).rejects.toThrow("Evaluator failed during test run");
+
+      await expect(
+        prisma.jobConfiguration.findFirst({
+          where: {
+            projectId: project.id,
+            scoreName: "experiment-code-score",
+          },
+        }),
+      ).resolves.toBeNull();
+    });
+
     it("rejects observation-only variable mappings for trace evaluators", async () => {
       const { project, caller } = await prepare();
 
@@ -491,6 +643,53 @@ describe("evals trpc", () => {
   });
 
   describe("evals.updateConfig", () => {
+    it("updates experiment code evaluator configs without a matching observation", async () => {
+      const { project, caller } = await prepare();
+      runCodeEvalTestForJobConfigMock.mockResolvedValueOnce(null);
+
+      const evalTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: `code-experiment-template-${project.id}`,
+          version: 1,
+          type: EvalTemplateType.CODE,
+          prompt: null,
+          outputDefinition: undefined,
+          sourceCode:
+            'function evaluate() { return { scores: [{ name: "experiment-score", value: 1 }] }; }',
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        },
+      });
+
+      const evalJobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          evalTemplateId: evalTemplate.id,
+          scoreName: "experiment-code-score",
+          filter: [],
+          targetObject: EvalTargetObject.EXPERIMENT,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          timeScope: ["NEW"],
+        },
+      });
+
+      const response = await caller.evals.updateEvalJob({
+        projectId: project.id,
+        evalConfigId: evalJobConfig.id,
+        config: {
+          scoreName: "updated-experiment-code-score",
+        },
+      });
+
+      expect(response.id).toEqual(evalJobConfig.id);
+      expect(response.scoreName).toEqual("updated-experiment-code-score");
+      expect(runCodeEvalTestForJobConfigMock).toHaveBeenCalledOnce();
+    });
+
     it("should update an evaluator configuration", async () => {
       const { project, caller } = await prepare();
 

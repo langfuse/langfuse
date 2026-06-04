@@ -1,0 +1,117 @@
+import {
+  createOrgProjectAndApiKey,
+  queryClickhouse,
+} from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
+import waitForExpect from "wait-for-expect";
+import { randomBytes } from "crypto";
+import { afterAll } from "vitest";
+
+describe("OTEL ingestion tenant isolation", () => {
+  const createdOrgIds: string[] = [];
+
+  afterAll(async () => {
+    if (createdOrgIds.length === 0) return;
+    await prisma.organization.deleteMany({
+      where: { id: { in: createdOrgIds } },
+    });
+  });
+
+  it("span posted with project A's key lands only in project A's observations", async () => {
+    const projectA = await createOrgProjectAndApiKey();
+    const projectB = await createOrgProjectAndApiKey();
+    createdOrgIds.push(projectA.orgId, projectB.orgId);
+
+    const traceId = randomBytes(16);
+    const spanId = randomBytes(8);
+    const spanIdHex = spanId.toString("hex");
+
+    const payload = {
+      resourceSpans: [
+        {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: {
+                name: "langfuse-sdk",
+                version: "1.0.0",
+                attributes: [],
+              },
+              spans: [
+                {
+                  traceId,
+                  spanId,
+                  name: "tenant-isolation-test-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 466848096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 467248096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  attributes: [],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const response = await fetch(
+      "http://localhost:3000/api/public/otel/v1/traces",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: projectA.auth,
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+    expect(response.status).toBe(200);
+
+    await waitForExpect(
+      async () => {
+        const rowsA = await queryClickhouse<{ count: string }>({
+          // ReplacingMergeTree: dedup with `LIMIT 1 BY id, project_id` so a
+          // retry-induced duplicate insert (the OtelIngestionQueue is
+          // configured with attempts: 6) cannot inflate the count and make
+          // the strict toBe(1) fail for a non-isolation reason.
+          query: `SELECT count() as count FROM (
+            SELECT id
+            FROM observations
+            WHERE project_id = {projectId: String} AND id = {spanId: String}
+            ORDER BY event_ts DESC
+            LIMIT 1 BY id, project_id
+          )`,
+          params: { projectId: projectA.projectId, spanId: spanIdHex },
+        });
+        expect(Number(rowsA[0]?.count)).toBe(1);
+
+        const rowsB = await queryClickhouse<{ count: string }>({
+          // ReplacingMergeTree: dedup with `LIMIT 1 BY id, project_id` so a
+          // retry-induced duplicate insert (the OtelIngestionQueue is
+          // configured with attempts: 6) cannot inflate the count and make
+          // the strict toBe(1) fail for a non-isolation reason.
+          query: `SELECT count() as count FROM (
+            SELECT id
+            FROM observations
+            WHERE project_id = {projectId: String} AND id = {spanId: String}
+            ORDER BY event_ts DESC
+            LIMIT 1 BY id, project_id
+          )`,
+          params: { projectId: projectB.projectId, spanId: spanIdHex },
+        });
+        expect(Number(rowsB[0]?.count)).toBe(0);
+      },
+      40_000,
+      1_000,
+    );
+  }, 60_000);
+});

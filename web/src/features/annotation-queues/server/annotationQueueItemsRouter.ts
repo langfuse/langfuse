@@ -21,11 +21,13 @@ import {
 import {
   getObservationById,
   getObservationByIdFromEventsTable,
+  getObservationsTraceIdsFromEventsTable,
   getTraceIdsForObservations,
   logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { env } from "@/src/env.mjs";
 
 const isItemLocked = (item: AnnotationQueueItem) => {
   return (
@@ -57,7 +59,10 @@ const MAP_OBJECT_TYPE_TO_ACTION_PROPS: Record<
   },
   [AnnotationQueueObjectType.OBSERVATION]: {
     actionId: ActionId.ObservationAddToAnnotationQueue,
-    tableName: BatchExportTableName.Observations,
+    tableName:
+      env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true"
+        ? BatchExportTableName.Events
+        : BatchExportTableName.Observations,
   },
 };
 
@@ -132,15 +137,16 @@ export const queueItemRouter = createTRPCRouter({
       };
 
       if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-        const clickhouseObservation = input.isBetaEnabled
-          ? await getObservationByIdFromEventsTable({
-              id: item.objectId,
-              projectId: input.projectId,
-            })
-          : await getObservationById({
-              id: item.objectId,
-              projectId: input.projectId,
-            });
+        const clickhouseObservation =
+          env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true"
+            ? await getObservationByIdFromEventsTable({
+                id: item.objectId,
+                projectId: input.projectId,
+              })
+            : await getObservationById({
+                id: item.objectId,
+                projectId: input.projectId,
+              });
 
         if (!clickhouseObservation) {
           throw new LangfuseNotFoundError("Observation not found");
@@ -218,10 +224,21 @@ export const queueItemRouter = createTRPCRouter({
         )
         .map((item) => item.objectId);
 
-      const traceIds =
-        observationIds.length > 0
-          ? await getTraceIdsForObservations(input.projectId, observationIds)
-          : [];
+      const hasQueueItemsReferencingObservations = observationIds.length > 0;
+
+      let traceIds: { id: string; traceId: string }[];
+
+      if (hasQueueItemsReferencingObservations) {
+        traceIds =
+          env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true"
+            ? await getObservationsTraceIdsFromEventsTable({
+                projectId: input.projectId,
+                observationIds,
+              })
+            : await getTraceIdsForObservations(input.projectId, observationIds);
+      } else {
+        traceIds = [];
+      }
 
       return {
         queueItems: queueItems.map((item) => ({
@@ -282,10 +299,7 @@ export const queueItemRouter = createTRPCRouter({
       let createdCount = 0;
 
       if (input.isBatchAction && input.query) {
-        const actionProps =
-          MAP_OBJECT_TYPE_TO_ACTION_PROPS[
-            input.objectType as "TRACE" | "SESSION"
-          ];
+        const actionProps = MAP_OBJECT_TYPE_TO_ACTION_PROPS[input.objectType];
         if (!actionProps) {
           throw new TRPCError({
             code: "BAD_REQUEST",

@@ -84,6 +84,9 @@ signoff of user-visible changes.
   must be installed, ask the user before doing so.
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
+- In flex layouts, prefer `gap-*` over margin-based `space-x-*`/`space-y-*`.
+- Treat `!` Tailwind classes as a smell. Step back and fix the owning layout,
+  variant, or primitive before overriding with higher specificity.
 - When changing shared UI/table patterns, update sibling variants consistently,
   including default-visible and hidden columns or states.
 - For component style variants, prefer `cva` with `VariantProps` and merge
@@ -132,9 +135,9 @@ signoff of user-visible changes.
 - Lint: `pnpm --filter web run lint`
 - Lint fix: `pnpm --filter web run lint:fix`
 - Typecheck: `pnpm --filter web run typecheck`
-- Server tests: `pnpm --filter web run test -- <args>`
-- In-source tests: `pnpm --filter web run test:in-source -- <args>`
-- Client tests: `pnpm --filter web run test-client -- <args>`
+- Server tests: `pnpm --filter web run test <args>`
+- In-source tests: `pnpm --filter web run test:in-source <args>`
+- Client tests: `pnpm --filter web run test-client <args>`
 - E2E tests: `pnpm --filter web run test:e2e`
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
@@ -157,6 +160,12 @@ signoff of user-visible changes.
 4. If API contract changed, update Fern source (`../fern/apis/**`) and regenerate
    outputs (do not hand-edit `../generated/**`).
 
+### Error handling (tRPC + REST)
+
+1. Throw `BaseError` subclasses (eg `LangfuseNotFoundError`) from handlers and services. 
+2. Let `BaseError`s bubble up to the tRPC and REST middlewares (eg. don't `try/catch` and rethrow in to `TRPCError` the handler)
+3. Extend the `BaseError` or its subclasses in [`packages/shared/src/errors/`](../packages/shared/src/errors/) as needed.
+
 ### Add frontend feature
 
 1. Prefer `src/features/<feature>/*` for feature-local code.
@@ -172,11 +181,13 @@ signoff of user-visible changes.
 2. Install Chromium with `pnpm run playwright:install` if Playwright has not been set up on this machine yet.
 3. Use the workspace `playwright` MCP server from `.mcp.json`, `.cursor/mcp.json`, or `.vscode/mcp.json` for browser-driven review of user-visible frontend changes, not just debugging.
 4. Exercise the primary changed flow and check the resulting UI state for obvious visual regressions before signoff.
-5. Inspect traces and other artifacts under `../.playwright-mcp/` when a browser session fails.
+5. Inspect traces and other artifacts under `/tmp/playwright-mcp` when a browser session fails.
 
 ## Package-Specific Rules
 
 - Router style is Pages Router-centric; follow existing routing patterns.
+- In `src/pages`, do not keep both `foo.ts(x)` and a `foo/` folder. If the
+  folder exists, put the route implementation in `foo/index.ts(x)` instead.
 - Keep tests independent; no reliance on test execution order.
 - Confirm the target `*.clienttest.*` or `*.servertest.*` file exists before passing a pattern to `vitest run`; source files do not always have a matching colocated test file.
 - When passing a Vitest file or pattern through `pnpm --filter web ...`, make it

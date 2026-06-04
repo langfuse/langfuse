@@ -5,7 +5,7 @@ import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
 import { BracesIcon, Check, Copy, Plus } from "lucide-react";
 import { ToolCallCard } from "@/src/components/ChatMessages/ToolCallCard";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { ThinkingBlock } from "@/src/components/trace2/components/IOPreview/components/ThinkingBlock";
+import { ThinkingBlock } from "@/src/components/trace/components/IOPreview/components/ThinkingBlock";
 
 export const GenerationOutput = () => {
   const [isCopied, setIsCopied] = useState(false);
@@ -18,7 +18,7 @@ export const GenerationOutput = () => {
   const handleCopy = () => {
     setIsCopied(true);
     const textToCopy = isJson ? outputJson : output;
-    void copyTextToClipboard(textToCopy);
+    copyTextToClipboard(textToCopy);
     setTimeout(() => setIsCopied(false), 1000);
   };
 

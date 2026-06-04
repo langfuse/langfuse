@@ -3127,11 +3127,13 @@ paths:
 
         - `model` - providedModelName, internalModelId, modelParameters
 
-        - `usage` - usageDetails, costDetails, totalCost
+        - `usage` - usageDetails, costDetails, totalCost, usagePricingTierName
 
         - `prompt` - promptId, promptName, promptVersion
 
         - `metrics` - latency, timeToFirstToken
+
+        - `trace_context` - tags, release, traceName
 
 
         If not specified, `core` and `basic` field groups are returned.
@@ -3154,7 +3156,7 @@ paths:
             Comma-separated list of field groups to include in the response.
 
             Available groups: core, basic, time, io, metadata, model, usage,
-            prompt, metrics.
+            prompt, metrics, trace_context.
 
             If not specified, `core` and `basic` field groups are returned.
 
@@ -3301,12 +3303,12 @@ paths:
                 "column": string,         // Required. Column to filter on (see available columns below)
                 "operator": string,       // Required. Operator based on type:
                                           // - datetime: ">", "<", ">=", "<="
-                                          // - string: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - string: "=", "contains", "does not contain", "starts with", "ends with", "matches"
                                           // - stringOptions: "any of", "none of"
                                           // - categoryOptions: "any of", "none of"
                                           // - arrayOptions: "any of", "none of", "all of"
                                           // - number: "=", ">", "<", ">=", "<="
-                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches"
                                           // - numberObject: "=", ">", "<", ">=", "<="
                                           // - boolean: "=", "<>"
                                           // - null: "is null", "is not null"
@@ -3397,9 +3399,28 @@ paths:
 
             ### Structured Data
 
+            - `input` (string) - Observation input. Supports accelerated indexed
+            literal search with the `matches` operator.
+
+            - `output` (string) - Observation output. Supports accelerated
+            indexed literal search with the `matches` operator.
+
             - `metadata` (stringObject/numberObject/categoryOptions) - Metadata
             key-value pairs. Use `key` parameter to filter on specific metadata
             keys.
+
+
+            The `matches` operator is only supported for `input`, `output`, and
+            stringObject `metadata` filters. It performs indexed literal search
+            with token-boundary pruning using the events table text indexes.
+            Case sensitivity differs by target: `input` and `output` matches are
+            case-insensitive, while metadata value matches are case-sensitive.
+            Unlike SQL `LIKE`, `%` and `_` are treated as literal characters.
+            Use `contains` for legacy substring semantics where the API allows
+            it. Any v2 `input` or `output` filter must be accompanied by at
+            least one `=` or `matches` filter on `input` or `output`; standalone
+            `contains`, `starts with`, `ends with`, and `does not contain`
+            filters on these columns are rejected.
 
 
             ## Filter Examples
@@ -3425,6 +3446,12 @@ paths:
                 "key": "environment",
                 "operator": "=",
                 "value": "production"
+              },
+              {
+                "type": "string",
+                "column": "output",
+                "operator": "matches",
+                "value": "needle"
               }
             ]
 
@@ -5285,8 +5312,9 @@ paths:
         - name: limit
           in: query
           description: >-
-            Limit of items per page. If you encounter api issues due to too
-            large page sizes, try to reduce the limit.
+            Limit of items per page. Maximum 100. Defaults to 50. Requests with
+            a limit greater than 100 return HTTP 400. If you encounter api
+            issues due to too large page sizes, try to reduce the limit.
           required: false
           schema:
             type: integer
@@ -6186,7 +6214,8 @@ paths:
 
         - every evaluator prompt variable must be mapped exactly once
 
-        - `expected_output` mappings are only valid for `target=experiment`
+        - `expected_output` and `experiment_item_metadata` mappings are only
+        valid for `target=experiment`
 
         - if `enabled=true`, Langfuse validates that the referenced evaluator
         can currently run
@@ -7243,9 +7272,55 @@ components:
       title: BlobStorageExportFrequency
       type: string
       enum:
+        - every_20_minutes
         - hourly
         - daily
         - weekly
+    BlobStorageExportSource:
+      title: BlobStorageExportSource
+      type: string
+      enum:
+        - LEGACY_TRACES_OBSERVATIONS
+        - OBSERVATIONS_V2
+        - LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS
+      description: >-
+        What data the integration exports.
+
+        - `LEGACY_TRACES_OBSERVATIONS`: traces, observations, and scores tables
+        with a fixed column set. The `exportFieldGroups` field is not
+        applicable.
+
+        - `OBSERVATIONS_V2`: same data model as the
+        `/api/public/v2/observations` endpoint, plus scores. Columns are
+        controlled by `exportFieldGroups`.
+
+        - `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS`: both sets. For the
+        `OBSERVATIONS_V2` portion, columns are controlled by
+        `exportFieldGroups`.
+
+
+        **Note:** `OBSERVATIONS_V2` and the enriched-observations portion of
+        `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` rely on the enriched
+        observations table (Langfuse Fast Preview / v4), which is currently
+        available on Langfuse Cloud only. See https://langfuse.com/docs/v4.
+    BlobStorageExportFieldGroup:
+      title: BlobStorageExportFieldGroup
+      type: string
+      enum:
+        - core
+        - basic
+        - time
+        - io
+        - metadata
+        - model
+        - usage
+        - prompt
+        - metrics
+        - tools
+        - trace_context
+      description: >-
+        Field group for the OBSERVATIONS_V2 and
+        LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS export.
     CreateBlobStorageIntegrationRequest:
       title: CreateBlobStorageIntegrationRequest
       type: object
@@ -7308,6 +7383,49 @@ components:
           description: >-
             Enable gzip compression for exported files (.csv.gz, .json.gz,
             .jsonl.gz). Defaults to true.
+        exportSource:
+          $ref: '#/components/schemas/BlobStorageExportSource'
+          nullable: true
+          description: >-
+            Data to export. When omitted on update, the existing value is
+            preserved. When omitted on create: pre-cutoff Cloud projects and
+            self-hosted deployments fall back to `LEGACY_TRACES_OBSERVATIONS`;
+            post-cutoff Cloud projects (created on or after 2026-05-20)
+            auto-default to `OBSERVATIONS_V2`. Required when `exportFieldGroups`
+            is provided.
+
+
+            **Cloud-only deprecation gate (effective 2026-05-20):** For projects
+            created on or after 2026-05-20 on Langfuse Cloud,
+            `LEGACY_TRACES_OBSERVATIONS` and
+            `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` are rejected with HTTP
+            400. Omitting `exportSource` on these projects silently defaults to
+            `OBSERVATIONS_V2` rather than the schema column default. Use
+            `OBSERVATIONS_V2` for all new integrations. Projects created before
+            2026-05-20 and self-hosted deployments are unaffected.
+        exportFieldGroups:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlobStorageExportFieldGroup'
+          nullable: true
+          description: >-
+            Field groups to include in each exported row.
+
+
+            For exportSource `OBSERVATIONS_V2` or
+            `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS`: must include `core` if
+            provided. When omitted on create, the column default (all groups)
+            applies. When omitted on update, the existing value is preserved.
+
+
+            For exportSource `LEGACY_TRACES_OBSERVATIONS`: this field must be
+            omitted or null. Sending an array (including an empty array) returns
+            400, because that source uses a fixed column set and does not honor
+            field groups.
+
+
+            `exportFieldGroups` requires `exportSource` to be provided in the
+            same request.
       required:
         - projectId
         - type
@@ -7356,6 +7474,19 @@ components:
           nullable: true
         compressed:
           type: boolean
+        exportSource:
+          $ref: '#/components/schemas/BlobStorageExportSource'
+        exportFieldGroups:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlobStorageExportFieldGroup'
+          nullable: true
+          description: >-
+            Field groups included in each exported row for `OBSERVATIONS_V2` /
+            `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` sources. Always `null`
+            when exportSource is `LEGACY_TRACES_OBSERVATIONS` (the field does
+            not apply to that source; any legacy DB value is hidden from the
+            public surface).
         nextSyncAt:
           type: string
           format: date-time
@@ -7390,6 +7521,7 @@ components:
         - fileType
         - exportMode
         - compressed
+        - exportSource
         - createdAt
         - updatedAt
     BlobStorageIntegrationsResponse:
@@ -7431,9 +7563,9 @@ components:
         Compare `lastSyncAt` against your
 
         ETL bookmark to determine if new data is available. Note that exports
-        run with a 30-minute lag buffer,
+        run with a 20-minute lag buffer,
 
-        so `lastSyncAt` will always be at least 30 minutes behind real-time.
+        so `lastSyncAt` will always be at least 20 minutes behind real-time.
     BlobStorageIntegrationStatusResponse:
       title: BlobStorageIntegrationStatusResponse
       type: object
@@ -7989,6 +8121,12 @@ components:
           format: double
           nullable: true
           description: The total cost of the observation in USD
+        usagePricingTierName:
+          type: string
+          nullable: true
+          description: >-
+            The name of the pricing tier applied to this observation's usage
+            costs
         promptId:
           type: string
           nullable: true
@@ -8014,7 +8152,44 @@ components:
         modelId:
           type: string
           nullable: true
-          description: The matched model ID
+          description: >-
+            The matched model ID. Null when the `model` field group is not
+            requested.
+        inputPrice:
+          type: string
+          nullable: true
+          description: >-
+            The input token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
+        outputPrice:
+          type: string
+          nullable: true
+          description: >-
+            The output token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
+        totalPrice:
+          type: string
+          nullable: true
+          description: >-
+            The total token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
+        traceName:
+          type: string
+          nullable: true
+          description: The name of the parent trace
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Tags from the parent trace (denormalized onto the observation)
+        release:
+          type: string
+          nullable: true
+          description: The release version of the parent trace
       required:
         - id
         - startTime
@@ -10305,7 +10480,8 @@ components:
           nullable: true
           description: >-
             Adapter-specific configuration. Required for Bedrock
-            (`{"region":"us-east-1"}`), optional for VertexAI
+            (`{"region":"us-east-1"}`), optional for OpenAI
+            (`{"useResponsesApi":true}`), optional for VertexAI
             (`{"location":"us-central1"}`), not used by other adapters.
         createdAt:
           type: string
@@ -10379,10 +10555,12 @@ components:
           description: >-
             Adapter-specific configuration. Validation rules: - **Bedrock**:
             Required. Must be `{"region": "<aws-region>"}` (e.g.,
-            `{"region":"us-east-1"}`) - **VertexAI**: Optional. If provided,
-            must be `{"location": "<gcp-location>"}` (e.g.,
-            `{"location":"us-central1"}`) - **Other adapters**: Not supported.
-            Omit this field or set to null.
+            `{"region":"us-east-1"}`) - **OpenAI**: Optional. If provided, must
+            be `{"useResponsesApi": <boolean>}` to control whether Langfuse
+            routes calls through OpenAI's Responses API. - **VertexAI**:
+            Optional. If provided, must be `{"location": "<gcp-location>"}`
+            (e.g., `{"location":"us-central1"}`) - **Other adapters**: Not
+            supported. Omit this field or set to null.
       required:
         - provider
         - adapter
@@ -12020,7 +12198,7 @@ components:
         generations, spans, and events.
           It supports mapping from `input`, `output`, and `metadata`.
         - `experiment` evaluates live experiment executions and can additionally
-        map `expected_output`.
+        map `expected_output` and `experiment_item_metadata`.
           It currently supports filtering by `datasetId`.
           Discover valid dataset IDs with `GET /api/public/v2/datasets`, then use the returned dataset `id` values in your filter.
     unstableEvaluationRuleStatus:
@@ -12048,6 +12226,7 @@ components:
         - output
         - metadata
         - expected_output
+        - experiment_item_metadata
       description: >-
         Source field used to populate a prompt variable.
 
@@ -12059,8 +12238,8 @@ components:
 
         - `target=observation` supports `input`, `output`, and `metadata`
 
-        - `target=experiment` supports `input`, `output`, `metadata`, and
-        `expected_output`
+        - `target=experiment` supports `input`, `output`, `metadata`,
+        `expected_output`, and `experiment_item_metadata`
 
 
         Source semantics:
@@ -12074,6 +12253,9 @@ components:
 
         - `expected_output`: the experiment item's expected output. Only valid
         for `target=experiment`.
+
+        - `experiment_item_metadata`: the experiment item's metadata object.
+        Only valid for `target=experiment`.
     unstableEvaluatorModelConfig:
       title: unstableEvaluatorModelConfig
       type: object
@@ -12614,7 +12796,7 @@ components:
             - `target=observation`: `input`, `output`, `metadata`
 
             - `target=experiment`: `input`, `output`, `metadata`,
-            `expected_output`
+            `expected_output`, `experiment_item_metadata`
         jsonPath:
           type: string
           nullable: true

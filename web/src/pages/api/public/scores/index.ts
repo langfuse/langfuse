@@ -1,5 +1,3 @@
-import { v4 } from "uuid";
-
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
@@ -9,13 +7,10 @@ import {
   PostScoresBodyV1,
   PostScoresResponseV1,
 } from "@langfuse/shared";
-import {
-  eventTypes,
-  logger,
-  processEventBatch,
-} from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { ForbiddenError } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { randomUUID } from "crypto";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -30,16 +25,19 @@ export default withMiddlewares({
         );
       }
 
-      const event = {
-        id: v4(),
-        type: eventTypes.SCORE_CREATE,
-        timestamp: new Date().toISOString(),
-        body,
+      const conformedBody = {
+        ...body,
+        // We previously used `if(!body.id)` to decide if a new ID should be generated,
+        // this would accept falsy values such as empty string as valid IDs, and generate a new ID in that case.
+        // The `createScore` uses `??` instead, which would break this behavior, so we use `||` here to maintain the old behavior.
+        id: body.id || randomUUID(),
       };
-      if (!event.body.id) {
-        event.body.id = v4();
-      }
-      const result = await processEventBatch([event], auth);
+
+      const scoresApiService = new ScoresApiService("v1");
+      const { id, result } = await scoresApiService.createScore({
+        body: conformedBody,
+        auth,
+      });
       if (result.errors.length > 0) {
         const error = result.errors[0];
         res
@@ -51,7 +49,7 @@ export default withMiddlewares({
         logger.error("Failed to create score", { result });
         throw new Error("Failed to create score");
       }
-      return { id: event.body.id };
+      return { id };
     },
   }),
   GET: createAuthedProjectAPIRoute({
