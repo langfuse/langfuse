@@ -2424,9 +2424,10 @@ describe("batch export test suite", () => {
           expect.objectContaining({ id: sessionId2, countTraces: 2 }),
         ]),
       );
-      // Metrics come from getSessionMetricsFromEvents; a present row implies the
-      // metrics join resolved (sessions without metrics are dropped).
-      expect(rows.every((r) => r.totalCost !== undefined)).toBe(true);
+      // Concrete metric check: usage aggregates from the events table, so a
+      // regression that silently zeroed metrics would surface here.
+      const session2Row = rows.find((r) => r.id === sessionId2);
+      expect(session2Row?.totalTokens).toBeGreaterThan(0n);
     });
 
     it("routes events exports through getEventsStream, not the paginated reader", async () => {
