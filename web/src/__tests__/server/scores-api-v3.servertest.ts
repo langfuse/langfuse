@@ -423,7 +423,6 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const staleCursor = Buffer.from(
         JSON.stringify({
           lastTimestamp: new Date(0).toISOString(),
-          lastEventTs: new Date(0).toISOString(),
           lastId: "00000000-0000-0000-0000-000000000000",
         }),
       ).toString("base64url");
