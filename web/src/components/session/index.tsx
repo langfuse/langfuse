@@ -68,6 +68,7 @@ import {
   type SessionDetailSystemPreset,
   getSessionDetailPresetToApply,
 } from "@/src/components/session/session-detail-presets";
+import { downloadSessionAsJson } from "@/src/components/session/actions/downloadSessionAsJson";
 import { SessionDetailStoreProvider } from "@/src/components/session/SessionDetailStoreProvider";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
@@ -254,45 +255,15 @@ export const SessionPage: React.FC<{
     objectType: "SESSION",
   });
 
-  const downloadSessionAsJson = useCallback(async () => {
-    const [sessionCommentsData, traceCommentsData] = await Promise.all([
-      sessionComments.refetch(),
-      utils.comments.getTraceCommentsBySessionId.fetch({
-        projectId,
-        sessionId,
-      }),
-    ]);
-
-    const sessionWithTraceComments = session.data
-      ? {
-          ...session.data,
-          traces: session.data.traces.map((trace: LegacySessionTrace) => ({
-            ...trace,
-            comments: traceCommentsData[trace.id] ?? [],
-          })),
-        }
-      : session.data;
-
-    const exportData = {
-      ...sessionWithTraceComments,
-      comments: sessionCommentsData.data ?? [],
-    };
-
-    const jsonString = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([jsonString], {
-      type: "application/json; charset=utf-8",
+  const onDownloadSessionAsJson = useCallback(async () => {
+    await downloadSessionAsJson({
+      capture,
+      fetchTraceComments: utils.comments.getTraceCommentsBySessionId.fetch,
+      projectId,
+      refetchSessionComments: sessionComments.refetch,
+      session: session.data,
+      sessionId,
     });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `session-${sessionId}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    capture("session_detail:download_button_click");
   }, [session.data, sessionId, projectId, capture, sessionComments, utils]);
 
   const peekNavigationConfig = React.useMemo(
@@ -408,7 +379,7 @@ export const SessionPage: React.FC<{
               <Button
                 variant="outline"
                 size="icon"
-                onClick={downloadSessionAsJson}
+                onClick={onDownloadSessionAsJson}
                 title="Download session as JSON"
               >
                 <Download className="h-4 w-4" />
