@@ -75,7 +75,12 @@ function deriveSubject(score: ScoreDomain): {
   if (score.sessionId) {
     return { kind: "session", id: score.sessionId };
   }
-  return { kind: "trace", id: score.traceId ?? score.id };
+  if (!score.traceId) {
+    throw new InternalServerError(
+      `Score ${score.id} has kind=trace but missing traceId`,
+    );
+  }
+  return { kind: "trace", id: score.traceId };
 }
 
 function domainToV3(score: ScoreDomain, fields: string[]): APIScoreV3 {
