@@ -27,15 +27,15 @@ export const APIScoreSchemaV3 = z.discriminatedUnion("dataType", [
   ScoreBaseV3.extend({ dataType: z.literal("BOOLEAN"), value: z.boolean() }),
   ScoreBaseV3.extend({
     dataType: z.literal("CATEGORICAL"),
-    value: z.string().nullable(),
+    value: z.string(),
   }),
   ScoreBaseV3.extend({
     dataType: z.literal("TEXT"),
-    value: z.string().nullable(),
+    value: z.string(),
   }),
   ScoreBaseV3.extend({
     dataType: z.literal("CORRECTION"),
-    value: z.string().nullable(),
+    value: z.string(),
   }),
 ]);
 
