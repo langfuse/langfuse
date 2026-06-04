@@ -86,9 +86,11 @@ const v3ListQuery = `
     s.trace_id as trace_id,
     s.observation_id as observation_id,
     s.session_id as session_id,
-    s.dataset_run_id as dataset_run_id
+    s.dataset_run_id as dataset_run_id,
+    s.is_deleted as is_deleted
   FROM scores s
   WHERE s.project_id = {projectId: String}
+    AND s.is_deleted = 0
   ORDER BY s.timestamp DESC, s.event_ts DESC, s.id DESC
   LIMIT 1 BY s.id, s.project_id
   LIMIT {limit: Int32}
