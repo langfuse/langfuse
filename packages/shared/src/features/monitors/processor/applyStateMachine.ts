@@ -37,6 +37,7 @@ export function applyStateMachine(args: {
     prev: prev.severity,
     next: next.severity,
     prevAlertedAt: prev.alertedAt,
+    prevSeverityChangedAt: prev.severityChangedAt,
     now,
     noData: prev.noData,
     renotify: prev.renotify,
@@ -61,6 +62,7 @@ function shouldEmit(args: {
   prev: MonitorSeverity;
   next: ComputedSeverity;
   prevAlertedAt: Date | null;
+  prevSeverityChangedAt: Date | null;
   now: Date;
   noData: MonitorNoData;
   renotify: MonitorRenotify;
@@ -88,10 +90,18 @@ function shouldEmit(args: {
     );
   }
 
-  // NO_DATA persistence: SILENT never re-emits; NOTIFY follows the renotify cadence.
+  // NO_DATA persistence: SILENT never re-emits. NOTIFY fires the first alert
+  // after intervalMinutes of sustained NO_DATA (anchored on severityChangedAt
+  // when no prior alert exists), then re-emits on the renotify cadence.
   if (args.prev === "NO_DATA" && args.next === "NO_DATA") {
     if (args.noData.mode !== "NOTIFY") return false;
-    if (args.prevAlertedAt === null) return false;
+    if (args.prevAlertedAt === null) {
+      return passedDelay(
+        args.prevSeverityChangedAt,
+        args.noData.intervalMinutes,
+        args.now,
+      );
+    }
     return (
       args.renotify.mode === "EVERY" &&
       passedDelay(args.prevAlertedAt, args.renotify.intervalMinutes, args.now)

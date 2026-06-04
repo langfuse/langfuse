@@ -627,6 +627,42 @@ const cases: StateMachineCase[] = [
     },
   },
   {
+    name: "NO_DATA -> NO_DATA, NOTIFY, no prior alert, interval elapsed: emit",
+    input: {
+      prevSeverity: "NO_DATA",
+      computedSeverity: "NO_DATA",
+      prevSeverityChangedAt: tMinus10m,
+      prevAlertedAt: null,
+      now: t0,
+      noData: noDataNotify5,
+      renotify: renotifyOff,
+    },
+    expected: {
+      emit: true,
+      nextSeverity: "NO_DATA",
+      nextSeverityChangedAt: tMinus10m,
+      nextAlertedAt: t0,
+    },
+  },
+  {
+    name: "NO_DATA -> NO_DATA, NOTIFY, no prior alert, interval not elapsed: silent",
+    input: {
+      prevSeverity: "NO_DATA",
+      computedSeverity: "NO_DATA",
+      prevSeverityChangedAt: tMinus2m,
+      prevAlertedAt: null,
+      now: t0,
+      noData: noDataNotify5,
+      renotify: renotifyOff,
+    },
+    expected: {
+      emit: false,
+      nextSeverity: "NO_DATA",
+      nextSeverityChangedAt: tMinus2m,
+      nextAlertedAt: null,
+    },
+  },
+  {
     name: "WARNING -> WARNING with renotify EVERY and prevAlertedAt NULL: silent",
     input: {
       prevSeverity: "WARNING",
