@@ -3,7 +3,6 @@ import { InvalidRequestError } from "@langfuse/shared";
 
 export const ScoresCursorV3 = z.object({
   lastTimestamp: z.coerce.date(),
-  lastEventTs: z.coerce.date(),
   lastId: z.string(),
 });
 export type ScoresCursorV3Type = z.infer<typeof ScoresCursorV3>;
@@ -27,7 +26,6 @@ export const encodeCursorV3 = (cursor: ScoresCursorV3Type): string =>
   Buffer.from(
     JSON.stringify({
       lastTimestamp: cursor.lastTimestamp.toISOString(),
-      lastEventTs: cursor.lastEventTs.toISOString(),
       lastId: cursor.lastId,
     }),
   ).toString("base64url");
