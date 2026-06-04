@@ -49,7 +49,7 @@ types:
         type: nullable<string>
         docs: The score config ID, if this score was created from a config.
       metadata:
-        type: nullable<map<string, unknown>>
+        type: map<string, unknown>
         docs: Arbitrary metadata attached to the score.
 
   ScoreSubjectKindV3:
