@@ -1,4 +1,4 @@
-import { MoreVertical, Pause, Pencil, Play } from "lucide-react";
+import { MoreVertical, PauseCircle, PlayCircle, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo } from "react";
@@ -42,6 +42,10 @@ import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
 
 /** monitorsRefetchInterval keeps the list's severity and paused state current without a manual reload. */
 const monitorsRefetchInterval = 5_000;
+
+/** rowActionIconColors animates an inline row-action icon through gray-200 at rest, gray-400 on row hover, and gray-600 plus a 1.1x scale on its own hover. */
+const rowActionIconColors =
+  "text-gray-200 transition-[color,transform] group-hover/monitor-row:text-gray-400 hover:scale-110 hover:text-gray-600";
 
 /** MonitorRow is one row of the monitors list, shaped by the `monitors.all` tRPC output. */
 type MonitorRow = RouterOutputs["monitors"]["all"]["monitors"][number];
@@ -233,9 +237,9 @@ export function MonitorsTable() {
       id: "actions",
       enableSorting: false,
       enableResizing: false,
-      size: 70,
-      minSize: 70,
-      maxSize: 70,
+      size: 120,
+      minSize: 120,
+      maxSize: 120,
       cell: ({ row }) => (
         <MonitorRowActions
           monitor={row.original}
@@ -284,6 +288,7 @@ export function MonitorsTable() {
             onRowClick={(row) => {
               router.push(monitorHref(projectId, row.id));
             }}
+            getRowClassName={() => "group/monitor-row"}
             cellPadding="comfortable"
           />
         </div>
@@ -318,12 +323,14 @@ function MonitorRowActions({
       size={collapsed ? "default" : "icon"}
       disabled={!hasCUDAccess}
       aria-label="Edit monitor"
+      title="Edit"
+      className={cn(!collapsed && rowActionIconColors)}
     >
       <Link
         href={monitorHref(projectId, monitor.id)}
         onClick={(e) => e.stopPropagation()}
       >
-        <Pencil className="h-4 w-4" aria-hidden="true" />
+        <SquarePen className="h-4 w-4" aria-hidden="true" />
         {collapsed ? <span className="ml-2">Edit</span> : null}
       </Link>
     </Button>
@@ -335,15 +342,17 @@ function MonitorRowActions({
       size={collapsed ? "default" : "icon"}
       disabled={!hasCUDAccess || isStatusPending}
       aria-label={isPaused ? "Resume monitor" : "Pause monitor"}
+      title={isPaused ? "Resume" : "Pause"}
+      className={cn(!collapsed && rowActionIconColors)}
       onClick={(e) => {
         e.stopPropagation();
         onToggleStatus();
       }}
     >
       {isPaused ? (
-        <Play className="h-4 w-4" aria-hidden="true" />
+        <PlayCircle className="h-4.5 w-4.5" aria-hidden="true" />
       ) : (
-        <Pause className="h-4 w-4" aria-hidden="true" />
+        <PauseCircle className="h-4.5 w-4.5" aria-hidden="true" />
       )}
       {collapsed ? (
         <span className="ml-2">{isPaused ? "Resume" : "Pause"}</span>
@@ -357,6 +366,9 @@ function MonitorRowActions({
       projectId={projectId}
       isTableAction
       icon={!collapsed}
+      variant="ghost"
+      title="Delete"
+      className={cn(!collapsed && rowActionIconColors)}
     />
   );
 
@@ -370,8 +382,8 @@ function MonitorRowActions({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
-            <DropdownMenuItem asChild>{editButton}</DropdownMenuItem>
             <DropdownMenuItem asChild>{pauseButton}</DropdownMenuItem>
+            <DropdownMenuItem asChild>{editButton}</DropdownMenuItem>
             <DropdownMenuItem asChild>{deleteButton}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -381,11 +393,11 @@ function MonitorRowActions({
 
   return (
     <div
-      className="flex items-center gap-1"
+      className="flex items-center gap-0"
       onClick={(e) => e.stopPropagation()}
     >
-      {editButton}
       {pauseButton}
+      {editButton}
       {deleteButton}
     </div>
   );

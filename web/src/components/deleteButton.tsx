@@ -26,6 +26,9 @@ export type DeleteButtonProps = {
   deleteConfirmation?: string;
   icon?: boolean;
   enabled?: boolean;
+  variant?: ButtonProps["variant"];
+  title?: string;
+  className?: string;
 };
 
 type BaseDeleteButtonProps = Omit<DeleteButtonProps, "itemId"> & {
@@ -58,6 +61,8 @@ export function DeleteButton({
   deleteConfirmation,
   icon = false,
   enabled = true,
+  title,
+  className,
   captureDeleteOpen,
   captureDeleteSuccess,
   entityToDeleteName,
@@ -95,6 +100,8 @@ export function DeleteButton({
         <Button
           variant={variant ?? (icon ? "outline-solid" : "ghost")}
           size={icon ? "icon" : "default"}
+          title={title}
+          className={className}
           disabled={!hasAccess || !enabled}
           onClick={(e) => {
             e.stopPropagation();
