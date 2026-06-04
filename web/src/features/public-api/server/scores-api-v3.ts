@@ -108,7 +108,7 @@ const buildV3ListQuery = (withCursor: boolean) => `
   WHERE s.project_id = {projectId: String}
   ${
     withCursor
-      ? "AND (s.timestamp, s.event_ts, s.id) < ({lastTimestamp: DateTime64(3)}, {lastEventTs: DateTime64(3)}, {lastId: String})"
+      ? "AND (s.timestamp, s.id) < ({lastTimestamp: DateTime64(3)}, {lastId: String})"
       : ""
   }
   ORDER BY s.timestamp DESC, s.id DESC, s.event_ts DESC
@@ -131,9 +131,6 @@ export async function listScoresV3ForPublicApi(params: {
         ...(params.cursor && {
           lastTimestamp: convertDateToClickhouseDateTime(
             params.cursor.lastTimestamp,
-          ),
-          lastEventTs: convertDateToClickhouseDateTime(
-            params.cursor.lastEventTs,
           ),
           lastId: params.cursor.lastId,
         }),
@@ -162,9 +159,6 @@ export async function listScoresV3ForPublicApi(params: {
         nextCursor = encodeCursorV3({
           lastTimestamp: parseClickhouseUTCDateTimeFormat(
             last.timestamp as unknown as string,
-          ),
-          lastEventTs: parseClickhouseUTCDateTimeFormat(
-            last.event_ts as unknown as string,
           ),
           lastId: last.id,
         });
