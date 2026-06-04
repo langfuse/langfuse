@@ -97,14 +97,29 @@ describe("/api/public/v3/scores API Endpoint", () => {
       ).toBe("corrected output");
     });
 
-    it("CATEGORICAL with null stringValue → null", () => {
-      expect(
+    it("CATEGORICAL with null stringValue throws", () => {
+      expect(() =>
         polymorphicValue({
           dataType: "CATEGORICAL",
           value: 0,
           stringValue: null,
         }),
-      ).toBeNull();
+      ).toThrow();
+    });
+
+    it("CORRECTION with null longStringValue throws", () => {
+      expect(() =>
+        polymorphicValue({
+          dataType: "CORRECTION",
+          value: 0,
+          stringValue: null,
+          longStringValue: null,
+        }),
+      ).toThrow();
+    });
+
+    it("unknown dataType throws", () => {
+      expect(() => polymorphicValue({ dataType: "WHAT", value: 0 })).toThrow();
     });
   });
 
