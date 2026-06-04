@@ -644,7 +644,7 @@ over invented examples:
 
 **Related Files:**
 
-- [../AGENTS.md](../AGENTS.md) - Main guide
+- [../SKILL.md](../SKILL.md) - Main guide
 - [routing-and-controllers.md](routing-and-controllers.md) - Controllers that use services
 - [database-patterns.md](database-patterns.md) - Prisma and repository patterns
 - [testing-guide.md](testing-guide.md) - Testing service and repository code
