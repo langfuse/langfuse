@@ -4,8 +4,8 @@ import type { Mock } from "vitest";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { decrypt } from "@langfuse/shared/encryption";
 import {
-  decryptSecretHeaders,
   fetchWithSecureRedirects,
   getObservationById,
   getObservationByIdFromEventsTable,
@@ -16,49 +16,21 @@ import {
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
 
+vi.mock("@langfuse/shared/encryption", async () => {
+  const actual = await vi.importActual("@langfuse/shared/encryption");
+  return {
+    ...actual,
+    encrypt: vi.fn((value: string) => `encrypted:${value}`),
+    decrypt: vi.fn((value: string) =>
+      value.startsWith("encrypted:") ? value.slice("encrypted:".length) : value,
+    ),
+  };
+});
+
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
-    createDisplayHeaders: vi.fn(
-      (headers: Record<string, { secret: boolean; value: string }>) =>
-        Object.fromEntries(
-          Object.entries(headers).map(([name, header]) => [
-            name,
-            {
-              secret: header.secret,
-              value: header.secret ? "****" : header.value,
-            },
-          ]),
-        ),
-    ),
-    decryptSecretHeaders: vi.fn(
-      (headers: Record<string, { secret: boolean; value: string }>) =>
-        Object.fromEntries(
-          Object.entries(headers).map(([name, header]) => [
-            name,
-            {
-              secret: header.secret,
-              value:
-                header.secret && header.value.startsWith("encrypted:")
-                  ? header.value.slice("encrypted:".length)
-                  : header.value,
-            },
-          ]),
-        ),
-    ),
-    encryptSecretHeaders: vi.fn(
-      (headers: Record<string, { secret: boolean; value: string }>) =>
-        Object.fromEntries(
-          Object.entries(headers).map(([name, header]) => [
-            name,
-            {
-              secret: header.secret,
-              value: header.secret ? `encrypted:${header.value}` : header.value,
-            },
-          ]),
-        ),
-    ),
     fetchWithSecureRedirects: vi.fn(),
     getObservationById: vi.fn(),
     getObservationByIdFromEventsTable: vi.fn(),
@@ -124,7 +96,7 @@ type StoredEndpoint = {
   enabled: boolean;
   toastMessage: string;
   requestHeaders: unknown;
-  displayHeaders: unknown;
+  requestHeaderKeys: string[];
 };
 
 type StoredEndpointWhere = Partial<
@@ -362,32 +334,26 @@ describe("webCallouts router", () => {
 
     const endpoint = await createEndpoint(caller, projectId, {
       requestHeaders: {
-        Authorization: {
-          secret: true,
-          value: "Bearer secret-token",
-        },
-        "X-Env": {
-          secret: false,
-          value: "prod",
-        },
+        Authorization: "Bearer secret-token",
+        "X-Env": "prod",
       },
     });
 
-    expect(endpoint.displayHeaders.Authorization?.value).toBe("****");
-    expect(endpoint.displayHeaders["X-Env"]?.value).toBe("prod");
+    expect(endpoint.requestHeaderKeys).toEqual(["Authorization", "X-Env"]);
     expect("requestHeaders" in endpoint).toBe(false);
 
     const stored = prismaStub.endpoints.find(
       (candidate) => candidate.id === endpoint.id,
     );
-    expect((stored?.requestHeaders as any).Authorization.value).toBe(
-      "encrypted:Bearer secret-token",
+    expect(stored?.requestHeaders).toBe(
+      'encrypted:{"Authorization":"Bearer secret-token","X-Env":"prod"}',
     );
-    expect((stored?.requestHeaders as any)["X-Env"].value).toBe("prod");
+    expect(stored?.requestHeaderKeys).toEqual(["Authorization", "X-Env"]);
 
     const endpoints = await caller.webCallouts.all({ projectId });
     expect(endpoints).toHaveLength(1);
     expect("requestHeaders" in endpoints[0]).toBe(false);
+    expect(endpoints[0]?.requestHeaderKeys).toEqual(["Authorization", "X-Env"]);
 
     const enabled = await caller.webCallouts.enabled({ projectId });
     expect(enabled).toEqual({
@@ -398,6 +364,7 @@ describe("webCallouts router", () => {
     });
     expect(enabled).not.toHaveProperty("url");
     expect(enabled).not.toHaveProperty("requestHeaders");
+    expect(enabled).not.toHaveProperty("requestHeaderKeys");
   });
 
   it("allows callout URLs on custom ports", async () => {
@@ -459,28 +426,22 @@ describe("webCallouts router", () => {
     await expect(
       createEndpoint(caller, projectId, {
         requestHeaders: {
-          "Content-Type": {
-            secret: false,
-            value: "text/plain",
-          },
+          "Content-Type": "text/plain",
         },
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
-  it("requires authentication headers to be marked secret", async () => {
+  it("stores authentication headers encrypted", async () => {
     const { caller, projectId } = await prepare();
 
-    await expect(
-      createEndpoint(caller, projectId, {
-        requestHeaders: {
-          Authorization: {
-            secret: false,
-            value: "Bearer secret-token",
-          },
-        },
-      }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    const endpoint = await createEndpoint(caller, projectId, {
+      requestHeaders: {
+        Authorization: "Bearer secret-token",
+      },
+    });
+
+    expect(endpoint.requestHeaderKeys).toEqual(["Authorization"]);
   });
 
   it("limits configured request headers", async () => {
@@ -491,10 +452,7 @@ describe("webCallouts router", () => {
         requestHeaders: Object.fromEntries(
           Array.from({ length: 21 }, (_, index) => [
             `X-Test-${index}`,
-            {
-              secret: false,
-              value: "value",
-            },
+            "value",
           ]),
         ),
       }),
@@ -506,10 +464,7 @@ describe("webCallouts router", () => {
     await expect(
       createEndpoint(caller, projectId, {
         requestHeaders: {
-          "X-Large": {
-            secret: false,
-            value: "a".repeat(4097),
-          },
+          "X-Large": "a".repeat(4097),
         },
       }),
     ).rejects.toMatchObject({
@@ -581,6 +536,12 @@ describe("webCallouts router", () => {
 
   it("invokes the backend endpoint with decrypted headers and id-only payload", async () => {
     const { caller, prismaStub, projectId } = await prepare();
+    const responseBody = { cancel: vi.fn().mockResolvedValue(undefined) };
+    (fetchWithSecureRedirects as Mock).mockResolvedValueOnce({
+      response: { ok: true, status: 204, body: responseBody },
+      redirectChain: [],
+      finalUrl: "https://example.com/callout",
+    });
     prismaStub.sessions.add(`${projectId}:session-1`);
     mockSuccessfulTargetValidation({
       traceSessionId: "session-1",
@@ -588,14 +549,8 @@ describe("webCallouts router", () => {
     });
     await createEndpoint(caller, projectId, {
       requestHeaders: {
-        Authorization: {
-          secret: true,
-          value: "Bearer secret-token",
-        },
-        "X-Env": {
-          secret: false,
-          value: "prod",
-        },
+        Authorization: "Bearer secret-token",
+        "X-Env": "prod",
       },
     });
 
@@ -627,9 +582,10 @@ describe("webCallouts router", () => {
     expect(request.headers.get("Authorization")).toBe("Bearer secret-token");
     expect(request.headers.get("X-Env")).toBe("prod");
     expect(request.headers.get("Content-Type")).toBe("application/json");
+    expect(responseBody.cancel).toHaveBeenCalledTimes(1);
     expect(redirectOptions).toMatchObject({
       maxRedirects: 10,
-      additionalSensitiveHeaders: ["Authorization"],
+      additionalSensitiveHeaders: ["Authorization", "X-Env"],
       redirectValidation: {
         logContext: "Web callout",
       },
@@ -639,17 +595,98 @@ describe("webCallouts router", () => {
     );
   });
 
-  it("does not invoke when a configured secret header cannot be decrypted", async () => {
+  it("preserves blank existing request header values on update", async () => {
+    const { caller, prismaStub, projectId } = await prepare();
+    const endpoint = await createEndpoint(caller, projectId, {
+      requestHeaders: {
+        Authorization: "Bearer secret-token",
+        "X-Env": "prod",
+      },
+    });
+
+    await caller.webCallouts.upsert({
+      projectId,
+      id: endpoint.id,
+      name: "Default",
+      url: "https://example.com/callout",
+      enabled: true,
+      toastMessage: "Sent to app",
+      requestHeaders: {
+        Authorization: "",
+        "X-New": "new-value",
+      },
+    });
+
+    const stored = prismaStub.endpoints.find(
+      (candidate) => candidate.id === endpoint.id,
+    );
+    expect(stored?.requestHeaders).toBe(
+      'encrypted:{"Authorization":"Bearer secret-token","X-New":"new-value"}',
+    );
+    expect(stored?.requestHeaderKeys).toEqual(["Authorization", "X-New"]);
+  });
+
+  it("clears request headers when all configured keys are removed", async () => {
+    const { caller, prismaStub, projectId } = await prepare();
+    const endpoint = await createEndpoint(caller, projectId, {
+      requestHeaders: {
+        Authorization: "Bearer secret-token",
+      },
+    });
+
+    await caller.webCallouts.upsert({
+      projectId,
+      id: endpoint.id,
+      name: "Default",
+      url: "https://example.com/callout",
+      enabled: true,
+      toastMessage: "Sent to app",
+      requestHeaders: {},
+    });
+
+    const stored = prismaStub.endpoints.find(
+      (candidate) => candidate.id === endpoint.id,
+    );
+    expect(stored?.requestHeaders).toBeNull();
+    expect(stored?.requestHeaderKeys).toEqual([]);
+  });
+
+  it("can clear request headers without decrypting existing values", async () => {
+    const { caller, prismaStub, projectId } = await prepare();
+    const endpoint = await createEndpoint(caller, projectId, {
+      requestHeaders: {
+        Authorization: "Bearer secret-token",
+      },
+    });
+
+    await caller.webCallouts.upsert({
+      projectId,
+      id: endpoint.id,
+      name: "Default",
+      url: "https://example.com/callout",
+      enabled: true,
+      toastMessage: "Sent to app",
+      requestHeaders: {},
+    });
+
+    const stored = prismaStub.endpoints.find(
+      (candidate) => candidate.id === endpoint.id,
+    );
+    expect(stored?.requestHeaders).toBeNull();
+    expect(stored?.requestHeaderKeys).toEqual([]);
+    expect(decrypt).not.toHaveBeenCalled();
+  });
+
+  it("does not invoke when configured headers cannot be decrypted", async () => {
     const { caller, projectId } = await prepare();
     await createEndpoint(caller, projectId, {
       requestHeaders: {
-        Authorization: {
-          secret: true,
-          value: "Bearer secret-token",
-        },
+        Authorization: "Bearer secret-token",
       },
     });
-    (decryptSecretHeaders as Mock).mockReturnValueOnce({});
+    (decrypt as Mock).mockImplementationOnce(() => {
+      throw new Error("bad decrypt");
+    });
 
     await expect(
       caller.webCallouts.invoke({

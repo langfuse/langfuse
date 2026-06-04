@@ -1,14 +1,6 @@
 import { z } from "zod";
 
-export const WebCalloutHeaderSchema = z.object({
-  secret: z.boolean(),
-  value: z.string(),
-});
-
-export const WebCalloutHeadersSchema = z.record(
-  z.string(),
-  WebCalloutHeaderSchema,
-);
+export const WebCalloutHeadersSchema = z.record(z.string(), z.string());
 
 export type WebCalloutHeaders = z.infer<typeof WebCalloutHeadersSchema>;
 
@@ -30,19 +22,15 @@ export const WebCalloutEndpointUpsertInputSchema =
     projectId: z.string(),
   });
 
-export const WebCalloutPayloadSchema = z.object({
-  version: z.literal(1),
-  items: z.array(
-    z.object({
-      projectId: z.string(),
-      traceId: z.string().nullable(),
-      observationId: z.string().nullable(),
-      sessionId: z.string().nullable(),
-    }),
-  ),
-});
-
-export type WebCalloutPayload = z.infer<typeof WebCalloutPayloadSchema>;
+export type WebCalloutPayload = {
+  version: 1;
+  items: Array<{
+    projectId: string;
+    traceId: string | null;
+    observationId: string | null;
+    sessionId: string | null;
+  }>;
+};
 
 export const WebCalloutInvokeInputSchema = z.object({
   projectId: z.string(),

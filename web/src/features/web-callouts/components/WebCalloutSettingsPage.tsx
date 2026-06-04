@@ -48,23 +48,14 @@ import {
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  WEB_CALLOUT_BLOCKED_HEADER_NAMES,
+  WEB_CALLOUT_HEADER_NAME_PATTERN,
+} from "@/src/features/web-callouts/headerRules";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 
 type WebCalloutEndpoint = RouterOutputs["webCallouts"]["all"][number];
-
-const BLOCKED_HEADER_NAMES = new Set([
-  "content-length",
-  "content-type",
-  "cookie",
-  "host",
-]);
-const SECRET_ONLY_HEADER_NAMES = new Set([
-  "authorization",
-  "proxy-authorization",
-  "x-api-key",
-]);
-const HEADER_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 const webCalloutFormSchema = z
   .object({
@@ -77,7 +68,6 @@ const webCalloutFormSchema = z
       z.object({
         name: z.string(),
         value: z.string(),
-        secret: z.boolean(),
       }),
     ),
   })
@@ -93,7 +83,7 @@ const webCalloutFormSchema = z
 
       const lowerName = name.toLowerCase();
 
-      if (!HEADER_NAME_PATTERN.test(name)) {
+      if (!WEB_CALLOUT_HEADER_NAME_PATTERN.test(name)) {
         ctx.addIssue({
           code: "custom",
           message: "Invalid header name.",
@@ -101,19 +91,11 @@ const webCalloutFormSchema = z
         });
       }
 
-      if (BLOCKED_HEADER_NAMES.has(lowerName)) {
+      if (WEB_CALLOUT_BLOCKED_HEADER_NAMES.has(lowerName)) {
         ctx.addIssue({
           code: "custom",
           message: "This header is set by Langfuse and cannot be customized.",
           path: ["headers", index, "name"],
-        });
-      }
-
-      if (SECRET_ONLY_HEADER_NAMES.has(lowerName) && !header.secret) {
-        ctx.addIssue({
-          code: "custom",
-          message: "This header must be marked as secret.",
-          path: ["headers", index, "secret"],
         });
       }
 
@@ -297,7 +279,7 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
 }
 
 function HeaderList(props: { endpoint: WebCalloutEndpoint }) {
-  const headers = Object.entries(props.endpoint.displayHeaders);
+  const headers = props.endpoint.requestHeaderKeys;
 
   if (headers.length === 0) {
     return <span className="text-muted-foreground">None</span>;
@@ -305,11 +287,8 @@ function HeaderList(props: { endpoint: WebCalloutEndpoint }) {
 
   return (
     <div className="flex flex-wrap gap-1">
-      {headers.map(([name, header]) => (
-        <code key={name}>
-          {name}
-          {header.secret ? " (secret)" : ""}
-        </code>
+      {headers.map((name) => (
+        <code key={name}>{name}</code>
       ))}
     </div>
   );
@@ -405,14 +384,13 @@ function WebCalloutEndpointDialog(props: {
                     2xx within 5 seconds.
                   </p>
                   <p>
-                    Secret headers are encrypted at rest and sent only from the
+                    Header values are encrypted at rest and sent only from the
                     backend. They are not exposed to the user&apos;s browser.
                   </p>
                   <p>
                     Every configured header is sent with each callout request.
                     If the URL uses <code>http://</code>, those headers are sent
-                    without transport encryption; use HTTPS for production and
-                    secret-bearing callouts.
+                    without transport encryption; use HTTPS for production.
                   </p>
                 </AlertDescription>
               </Alert>
@@ -495,79 +473,60 @@ function WebCalloutEndpointDialog(props: {
                 <FormLabel>Headers</FormLabel>
                 <FormDescription className="mb-2">
                   Optional headers added to the backend POST. Content-Type is
-                  set automatically.
+                  set automatically. Leave values empty when editing to keep
+                  existing encrypted values.
                 </FormDescription>
                 <div className="space-y-2">
-                  {fields.map((field, index) => {
-                    const isSecret = form.watch(`headers.${index}.secret`);
-
-                    return (
-                      <div
-                        key={field.id}
-                        className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] items-start gap-2"
-                      >
-                        <FormField
-                          control={form.control}
-                          name={`headers.${index}.name`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input placeholder="Header name" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`headers.${index}.value`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input
-                                  placeholder="Value"
-                                  type={isSecret ? "password" : "text"}
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`headers.${index}.secret`}
-                          render={({ field }) => (
-                            <FormItem className="flex h-9 items-center gap-2 rounded-md border px-3">
-                              <FormControl>
-                                <Switch
-                                  checked={field.value}
-                                  onCheckedChange={field.onChange}
-                                />
-                              </FormControl>
-                              <FormLabel className="text-xs font-normal">
-                                Secret
-                              </FormLabel>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => remove(index)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Remove header</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    );
-                  })}
+                  {fields.map((field, index) => (
+                    <div
+                      key={field.id}
+                      className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-2"
+                    >
+                      <FormField
+                        control={form.control}
+                        name={`headers.${index}.name`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Input placeholder="Header name" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name={`headers.${index}.value`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Input
+                                placeholder={
+                                  props.endpoint ? "***" : "Header value"
+                                }
+                                type="password"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => remove(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Remove header</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  ))}
                 </div>
                 <Button
                   type="button"
@@ -577,7 +536,6 @@ function WebCalloutEndpointDialog(props: {
                     append({
                       name: "",
                       value: "",
-                      secret: false,
                     })
                   }
                 >
@@ -661,28 +619,19 @@ const endpointToFormValues = (
   url: endpoint?.url ?? "",
   enabled: endpoint?.enabled ?? true,
   toastMessage: endpoint?.toastMessage ?? "Callout sent",
-  headers: Object.entries(endpoint?.displayHeaders ?? {}).map(
-    ([name, header]) => ({
-      name,
-      value: header.value,
-      secret: header.secret,
-    }),
-  ),
+  headers: (endpoint?.requestHeaderKeys ?? []).map((name) => ({
+    name,
+    value: "",
+  })),
 });
 
 const formValuesToRequestHeaders = (
   values: WebCalloutFormValues,
-): Record<string, { secret: boolean; value: string }> =>
+): Record<string, string> =>
   Object.fromEntries(
     values.headers
       .filter((header) => header.name.trim())
-      .map((header) => [
-        header.name.trim(),
-        {
-          secret: header.secret,
-          value: header.value.trim(),
-        },
-      ]),
+      .map((header) => [header.name.trim(), header.value.trim()]),
   );
 
 export function WebCalloutIntegrationCard(props: {

@@ -8,8 +8,8 @@ CREATE TABLE "web_callout_endpoints" (
     "url" TEXT NOT NULL,
     "enabled" BOOLEAN NOT NULL DEFAULT true,
     "toast_message" TEXT NOT NULL DEFAULT 'Callout sent',
-    "request_headers" JSONB,
-    "display_headers" JSONB,
+    "request_headers" TEXT,
+    "request_header_keys" TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
 
     CONSTRAINT "web_callout_endpoints_pkey" PRIMARY KEY ("id")
 );
