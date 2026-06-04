@@ -79,7 +79,7 @@ const GetScoresV3Query = GetScoresV3.extend({
     data.sessionId,
     data.observationId,
     data.experimentId,
-  ].filter(Boolean);
+  ].filter((arr) => arr && arr.length > 0);
   if (entityFilters.length > 1) {
     ctx.addIssue({
       code: "custom",
