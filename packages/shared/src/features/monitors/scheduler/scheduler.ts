@@ -175,7 +175,7 @@ function buildScheduleQuery({
     SELECT
       project_id,
       scheduler_batch_id,
-      MIN(run_at)                  AS run_at,
+      MAX(run_at)                  AS run_at,
       (array_agg(view))[1]         AS view,
       (array_agg(filters))[1]      AS filters,
       (array_agg(window_ms))[1]    AS window_ms,
@@ -190,7 +190,7 @@ function buildScheduleQuery({
     FROM updated
     WHERE was_published = true
     GROUP BY project_id, scheduler_batch_id
-    ORDER BY MIN(run_at) ASC
+    ORDER BY MAX(run_at) ASC
   `;
 }
 

@@ -163,7 +163,7 @@ const cases: SchedulerCase[] = [
     },
   },
   {
-    name: "mixed batch: new monitor does not drag existing sibling forward",
+    name: "mixed batch: new monitor pulls existing sibling forward to tick",
     tick: now,
     monitors: [
       { id: "m_existing", nextRunAt: prevCadence },
@@ -173,7 +173,7 @@ const cases: SchedulerCase[] = [
       events: [
         {
           schedulerBatchId: "0",
-          runAt: prevCadence,
+          runAt: now,
           monitorIds: ["m_existing", "m_new"],
         },
       ],
