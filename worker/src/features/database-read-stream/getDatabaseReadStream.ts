@@ -15,6 +15,8 @@ import {
   getScoresUiTable,
   getPublicSessionsFilter,
   getSessionsWithMetrics,
+  getSessionsTableFromEvents,
+  getSessionMetricsFromEvents,
   getDistinctScoreNames,
   getObservationsTableWithModelData,
   getScoresForObservations,
@@ -104,6 +106,7 @@ export const getDatabaseReadStreamPaginated = async ({
   cutoffCreatedAt,
   searchQuery,
   searchType,
+  useEventsTable,
   rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
 }: {
   projectId: string;
@@ -209,14 +212,41 @@ export const getDatabaseReadStreamPaginated = async ({
             projectId,
             finalFilter ?? [],
           );
-          const sessions = await getSessionsWithMetrics({
-            projectId: projectId,
-            filter: sessionsFilter,
-            orderBy: orderBy,
-            limit: pageSize,
-            page: Math.floor(offset / pageSize),
-            clickhouseConfigs,
-          });
+          // v4-enabled users (snapshotted as useEventsTable at dispatch) read
+          // sessions from the ClickHouse events table. The list reader applies
+          // filter/order/pagination; metrics (duration, cost, usage) come from a
+          // second call keyed by the page's session ids, mirroring the Sessions
+          // UI flow. Both readers expose the same field names, so the row
+          // mapping below is shared with the legacy traces path.
+          const sessions = useEventsTable
+            ? await (async () => {
+                const list = await getSessionsTableFromEvents({
+                  projectId,
+                  filter: sessionsFilter,
+                  orderBy,
+                  limit: pageSize,
+                  page: Math.floor(offset / pageSize),
+                });
+                const metricsById = new Map(
+                  (
+                    await getSessionMetricsFromEvents({
+                      projectId,
+                      sessionIds: list.map((s) => s.session_id),
+                    })
+                  ).map((m) => [m.session_id, m]),
+                );
+                return list
+                  .map((s) => metricsById.get(s.session_id))
+                  .filter((m): m is NonNullable<typeof m> => Boolean(m));
+              })()
+            : await getSessionsWithMetrics({
+                projectId: projectId,
+                filter: sessionsFilter,
+                orderBy: orderBy,
+                limit: pageSize,
+                page: Math.floor(offset / pageSize),
+                clickhouseConfigs,
+              });
 
           const prismaSessionInfo = await prisma.traceSession.findMany({
             where: {
