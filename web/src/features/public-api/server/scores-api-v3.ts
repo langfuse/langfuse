@@ -157,7 +157,7 @@ export async function listScoresV3ForPublicApi(params: {
         const last = pageRecords[pageRecords.length - 1];
         nextCursor = encodeCursorV3({
           lastTimestamp: parseClickhouseUTCDateTimeFormat(
-            last.timestamp as unknown as string,
+            String(last.timestamp),
           ),
           lastId: last.id,
         });
