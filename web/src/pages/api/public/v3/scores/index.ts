@@ -87,20 +87,6 @@ const GetScoresV3Query = GetScoresV3.extend({
         "At most one of traceId, sessionId, observationId, experimentId may be specified",
     });
   }
-  const entityBoundFilters = [
-    data.id,
-    data.traceId,
-    data.sessionId,
-    data.observationId,
-    data.experimentId,
-  ].filter(Boolean);
-  if (!data.fromTimestamp && entityBoundFilters.length === 0) {
-    ctx.addIssue({
-      code: "custom",
-      message:
-        "fromTimestamp is required unless id, traceId, sessionId, observationId, or experimentId is provided",
-    });
-  }
 });
 
 export default withMiddlewares({

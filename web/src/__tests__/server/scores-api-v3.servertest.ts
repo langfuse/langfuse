@@ -1263,16 +1263,16 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(ids).not.toContain(outOfRangeId);
     });
 
-    // --- Phase 5: fromTimestamp guard ---
+    // --- Phase 5: fromTimestamp optional ---
 
-    it("fromTimestamp omitted, no entity filter → 400", async () => {
+    it("fromTimestamp omitted, no entity filter → 200", async () => {
       const res = await makeAPICall(
         "GET",
-        "/api/public/v3/scores",
+        `/api/public/v3/scores?${FROM_BEGINNING}`,
         undefined,
         auth,
       );
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
     });
 
     it("fromTimestamp present, no entity filter → 200", async () => {
