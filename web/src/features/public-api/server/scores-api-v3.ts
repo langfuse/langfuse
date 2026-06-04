@@ -89,7 +89,7 @@ const v3ListQuery = `
     s.is_deleted as is_deleted
   FROM scores s
   WHERE s.project_id = {projectId: String}
-  ORDER BY s.timestamp DESC, s.event_ts DESC, s.id DESC
+  ORDER BY s.timestamp DESC, s.id DESC, s.event_ts DESC
   LIMIT 1 BY s.id, s.project_id
   LIMIT {limit: Int32}
 `;
