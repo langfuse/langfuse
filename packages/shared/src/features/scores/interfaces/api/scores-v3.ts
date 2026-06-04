@@ -1,5 +1,9 @@
 import z from "zod";
-import { ScoreSourceDomain } from "../../../../domain/scores";
+import {
+  ScoreDataTypeArray,
+  ScoreSourceArray,
+  ScoreSourceDomain,
+} from "../../../../domain/scores";
 
 export const SCORE_FIELD_GROUPS_V3 = [
   "core",
@@ -35,8 +39,39 @@ const fieldsParam = z
 
 const csvStringParam = z
   .string()
-  .transform((val) => val.split(",").map((v) => v.trim()))
+  .transform((val) =>
+    val
+      .split(",")
+      .map((v) => v.trim())
+      .filter((v) => v.length > 0),
+  )
   .optional();
+
+const csvEnumParam = <T extends readonly string[]>(
+  allowedValues: T,
+  label: string,
+) =>
+  z
+    .string()
+    .transform((val) =>
+      val
+        .split(",")
+        .map((v) => v.trim())
+        .filter((v) => v.length > 0),
+    )
+    .pipe(
+      z.array(z.string()).superRefine((values, ctx) => {
+        for (const v of values) {
+          if (!allowedValues.includes(v as T[number])) {
+            ctx.addIssue({
+              code: "custom",
+              message: `Invalid ${label} value: "${v}". Allowed: ${allowedValues.join(", ")}`,
+            });
+          }
+        }
+      }),
+    )
+    .optional();
 
 // GET /v3/scores — all filter params optional; superRefine validation lives in the handler.
 export const GetScoresV3 = z.object({
@@ -46,8 +81,8 @@ export const GetScoresV3 = z.object({
   // Identifier filters (multi-value, comma-separated)
   id: csvStringParam,
   name: csvStringParam,
-  source: csvStringParam,
-  dataType: csvStringParam,
+  source: csvEnumParam(ScoreSourceArray, "source"),
+  dataType: csvEnumParam(ScoreDataTypeArray, "dataType"),
   environment: csvStringParam,
   configId: csvStringParam,
   queueId: csvStringParam,
