@@ -111,3 +111,4 @@ web/test-results/*
 
 # Superset config
 .superset/
+.playwright-mcp/

@@ -1,7 +1,5 @@
 import {
   createTraceScore,
-  createSessionScore,
-  createDatasetRunScore,
   createScoresCh,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
@@ -9,7 +7,7 @@ import {
   makeAPICall,
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
-import { GetScoresResponseV3, GetScoreResponseV3 } from "@langfuse/shared";
+import { GetScoresResponseV3 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { v4 } from "uuid";
 import { polymorphicValue } from "@/src/features/public-api/server/scores-api-v3";
@@ -29,15 +27,6 @@ describe("/api/public/v3/scores API Endpoint", () => {
         project.auth,
       );
       expect(res.status).toBe(404);
-
-      const scoreId = v4();
-      const res2 = await makeAPICall(
-        "GET",
-        `/api/public/v3/scores/${scoreId}`,
-        undefined,
-        project.auth,
-      );
-      expect(res2.status).toBe(404);
     },
   );
 
@@ -325,107 +314,6 @@ describe("/api/public/v3/scores API Endpoint", () => {
 
       const leaked = res.body.data.find((s) => s.id === scoreId);
       expect(leaked).toBeUndefined();
-    });
-  });
-
-  maybe("GET /api/public/v3/scores/:scoreId", () => {
-    let auth: string;
-    let projectId: string;
-
-    beforeAll(async () => {
-      const project = await createOrgProjectAndApiKey();
-      auth = project.auth;
-      projectId = project.projectId;
-    });
-
-    it("returns 200 with a valid scoreId", async () => {
-      const scoreId = v4();
-      await createScoresCh([
-        createTraceScore({
-          id: scoreId,
-          project_id: projectId,
-          value: 42,
-          data_type: "NUMERIC",
-        }),
-      ]);
-
-      const res = await makeZodVerifiedAPICall(
-        GetScoreResponseV3,
-        "GET",
-        `/api/public/v3/scores/${scoreId}`,
-        undefined,
-        auth,
-      );
-
-      expect(res.status).toBe(200);
-      expect(res.body.id).toBe(scoreId);
-      expect(res.body.value).toBe(42);
-    });
-
-    it("returns 404 for nonexistent scoreId", async () => {
-      const res = await makeAPICall(
-        "GET",
-        `/api/public/v3/scores/${v4()}`,
-        undefined,
-        auth,
-      );
-      expect(res.status).toBe(404);
-    });
-
-    it("returns 404 when scoreId belongs to another project", async () => {
-      const other = await createOrgProjectAndApiKey();
-      const scoreId = v4();
-      await createScoresCh([
-        createTraceScore({ id: scoreId, project_id: other.projectId }),
-      ]);
-
-      const res = await makeAPICall(
-        "GET",
-        `/api/public/v3/scores/${scoreId}`,
-        undefined,
-        auth,
-      );
-      expect(res.status).toBe(404);
-    });
-
-    it("returns a session score", async () => {
-      const scoreId = v4();
-      await createScoresCh([
-        createSessionScore({ id: scoreId, project_id: projectId, value: 1 }),
-      ]);
-
-      const res = await makeZodVerifiedAPICall(
-        GetScoreResponseV3,
-        "GET",
-        `/api/public/v3/scores/${scoreId}`,
-        undefined,
-        auth,
-      );
-
-      expect(res.status).toBe(200);
-      expect(res.body.id).toBe(scoreId);
-    });
-
-    it("returns a dataset run score", async () => {
-      const scoreId = v4();
-      await createScoresCh([
-        createDatasetRunScore({
-          id: scoreId,
-          project_id: projectId,
-          value: 0.9,
-        }),
-      ]);
-
-      const res = await makeZodVerifiedAPICall(
-        GetScoreResponseV3,
-        "GET",
-        `/api/public/v3/scores/${scoreId}`,
-        undefined,
-        auth,
-      );
-
-      expect(res.status).toBe(200);
-      expect(res.body.id).toBe(scoreId);
     });
   });
 });

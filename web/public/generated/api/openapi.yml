@@ -5354,57 +5354,6 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
-  /api/public/v3/scores/{scoreId}:
-    get:
-      description: |-
-        Get a score by ID with a polymorphic `value` field (v3).
-
-        This endpoint is behind the `LANGFUSE_ENABLE_SCORES_V3_API` feature flag
-        and returns 404 when the flag is disabled.
-      operationId: scoresV3_getByIdV3
-      tags:
-        - ScoresV3
-      parameters:
-        - name: scoreId
-          in: path
-          description: The unique langfuse identifier of a score
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ScoreV3'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security:
-        - BasicAuth: []
   /api/public/v2/scores:
     get:
       description: Get a list of scores (supports both trace and session scores)

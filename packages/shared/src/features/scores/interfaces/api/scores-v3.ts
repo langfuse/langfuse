@@ -1,11 +1,6 @@
 import z from "zod";
 import { ScoreSourceDomain } from "../../../../domain/scores";
 
-// GET /v3/scores/{scoreId}
-export const GetScoreV3 = z.object({
-  scoreId: z.string(),
-});
-
 // GET /v3/scores — limit only (default 50, hard cap 100; no cursor in Phase 1)
 export const GetScoresV3 = z.object({
   limit: z.coerce.number().int().positive().max(100).default(50),
@@ -40,8 +35,6 @@ export const APIScoreSchemaV3 = z.discriminatedUnion("dataType", [
 ]);
 
 export type APIScoreV3 = z.infer<typeof APIScoreSchemaV3>;
-
-export const GetScoreResponseV3 = APIScoreSchemaV3;
 
 export const GetScoresResponseV3 = z.object({
   data: z.array(APIScoreSchemaV3),

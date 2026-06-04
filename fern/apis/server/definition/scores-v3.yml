@@ -27,20 +27,6 @@ service:
             docs: Number of items per page. Maximum 100, default 50. Requests with a limit greater than 100 return HTTP 400.
       response: GetScoresV3Response
 
-    getByIdV3:
-      docs: |
-        Get a score by ID with a polymorphic `value` field (v3).
-
-        This endpoint is behind the `LANGFUSE_ENABLE_SCORES_V3_API` feature flag
-        and returns 404 when the flag is disabled.
-      method: GET
-      path: /v3/scores/{scoreId}
-      path-parameters:
-        scoreId:
-          type: string
-          docs: The unique langfuse identifier of a score
-      response: ScoreV3
-
 types:
   BaseScoreV3:
     properties:
