@@ -21,6 +21,15 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
       warn: vi.fn(),
       error: vi.fn(),
     },
+    insertClickhouse: vi.fn(
+      async (opts: {
+        client?: { insert: (params: unknown) => Promise<unknown> };
+      }) =>
+        opts.client?.insert(opts) ?? {
+          query_id: "test-query-id",
+          response_headers: {},
+        },
+    ),
   };
 });
 
