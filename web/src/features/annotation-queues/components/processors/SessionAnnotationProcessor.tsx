@@ -1,11 +1,9 @@
-import {
-  type AnnotationQueueItem,
-  type ScoreConfigDomain,
-} from "@langfuse/shared";
+import { type ScoreConfigDomain } from "@langfuse/shared";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 import { SessionIO } from "@/src/components/session";
 import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
+import { asCommentCounts } from "@/src/components/session/sessionDetailPageTypes";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -18,11 +16,17 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { api } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 
+type SessionAnnotationQueueItem = {
+  objectId: string;
+  projectId: string;
+  queueId: string;
+  lockedByUserId: string | null;
+  parentTraceId?: string | null;
+  lockedByUser: { name: string | null | undefined } | null;
+};
+
 interface SessionAnnotationProcessorProps {
-  item: AnnotationQueueItem & {
-    parentTraceId?: string | null;
-    lockedByUser: { name: string | null | undefined } | null;
-  };
+  item: SessionAnnotationQueueItem;
   data: any; // // Session data with scores
   configs: ScoreConfigDomain[];
   projectId: string;
@@ -162,7 +166,7 @@ export const SessionAnnotationProcessor: React.FC<
                   projectId={projectId}
                   sessionId={item.objectId}
                   openPeek={openPeek}
-                  traceCommentCounts={traceCommentCounts.data ?? undefined}
+                  traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
                   showCorrections
                   filterState={EMPTY_FILTER_STATE}
                   hideTracePanel
@@ -191,6 +195,7 @@ export const SessionAnnotationProcessor: React.FC<
                   traceId={trace.id}
                   projectId={projectId}
                   timestamp={trace.timestamp}
+                  environment={trace.environment}
                   showCorrections
                 />
               </Card>
