@@ -1103,6 +1103,10 @@ export const getTraceById = async (
  *
  * If data is only written into the events tables, we look there and go to the
  * legacy observations table otherwise.
+ *
+ * @deprecated Please prefer `getObservationByIdFromEventsTable` for new
+ * use-cases. This should be exclusively used for backwards compatibility if the
+ * write mode is events_only.
  */
 export const getObservationById = async (
   params: Parameters<typeof getObservationByIdFromObservationsTable>[0],
