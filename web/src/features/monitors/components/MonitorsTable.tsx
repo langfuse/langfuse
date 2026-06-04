@@ -43,9 +43,9 @@ import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
 /** monitorsRefetchInterval keeps the list's severity and paused state current without a manual reload. */
 const monitorsRefetchInterval = 5_000;
 
-/** rowActionIconColors animates an inline row-action icon through gray-200 at rest, gray-400 on row hover, and gray-600 plus a 1.1x scale on its own hover. */
+/** rowActionIconColors ramps an inline row-action icon from faint to full foreground, scaling on its own hover. */
 const rowActionIconColors =
-  "text-gray-200 transition-[color,transform] group-hover/monitor-row:text-gray-400 hover:scale-110 hover:text-gray-600";
+  "text-foreground/40 transition-[color,transform] group-hover/monitor-row:text-foreground/70 hover:scale-110 hover:text-foreground";
 
 /** MonitorRow is one row of the monitors list, shaped by the `monitors.all` tRPC output. */
 type MonitorRow = RouterOutputs["monitors"]["all"]["monitors"][number];
