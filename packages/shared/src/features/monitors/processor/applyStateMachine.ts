@@ -95,7 +95,15 @@ function shouldEmit(args: {
   // when no prior alert exists), then re-emits on the renotify cadence.
   if (args.prev === "NO_DATA" && args.next === "NO_DATA") {
     if (args.noData.mode !== "NOTIFY") return false;
-    if (args.prevAlertedAt === null) {
+    // An alert from a prior severity stretch doesn't count toward the current
+    // NO_DATA stretch; treat it as cold-start.
+    const stretchAlertedAt =
+      args.prevAlertedAt !== null &&
+      args.prevSeverityChangedAt !== null &&
+      args.prevAlertedAt < args.prevSeverityChangedAt
+        ? null
+        : args.prevAlertedAt;
+    if (stretchAlertedAt === null) {
       return passedDelay(
         args.prevSeverityChangedAt,
         args.noData.intervalMinutes,
@@ -104,7 +112,7 @@ function shouldEmit(args: {
     }
     return (
       args.renotify.mode === "EVERY" &&
-      passedDelay(args.prevAlertedAt, args.renotify.intervalMinutes, args.now)
+      passedDelay(stretchAlertedAt, args.renotify.intervalMinutes, args.now)
     );
   }
 

@@ -32,6 +32,7 @@ type StateMachineCase = {
 const t0 = new Date("2026-05-27T12:00:00.000Z");
 const tMinus2m = new Date("2026-05-27T11:58:00.000Z");
 const tMinus10m = new Date("2026-05-27T11:50:00.000Z");
+const tMinus12m = new Date("2026-05-27T11:48:00.000Z");
 const noDataSilent: MonitorNoData = { mode: "SILENT" };
 const noDataNotify5: MonitorNoData = { mode: "NOTIFY", intervalMinutes: 5 };
 const renotifyOff: MonitorRenotify = { mode: "OFF" };
@@ -624,6 +625,24 @@ const cases: StateMachineCase[] = [
       nextSeverity: "NO_DATA",
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: tMinus10m,
+    },
+  },
+  {
+    name: "NO_DATA -> NO_DATA, NOTIFY, prior-stretch alert predates NO_DATA stretch, interval elapsed: emit",
+    input: {
+      prevSeverity: "NO_DATA",
+      computedSeverity: "NO_DATA",
+      prevSeverityChangedAt: tMinus10m,
+      prevAlertedAt: tMinus12m,
+      now: t0,
+      noData: noDataNotify5,
+      renotify: renotifyOff,
+    },
+    expected: {
+      emit: true,
+      nextSeverity: "NO_DATA",
+      nextSeverityChangedAt: tMinus10m,
+      nextAlertedAt: t0,
     },
   },
   {
