@@ -73,21 +73,21 @@ types:
     extends: BaseScoreV3
     properties:
       value:
-        type: optional<string>
+        type: nullable<string>
         docs: The string category value of the score. Null if no category is set.
 
   TextScoreV3:
     extends: BaseScoreV3
     properties:
       value:
-        type: optional<string>
+        type: nullable<string>
         docs: The text content of the score. Null if not set.
 
   CorrectionScoreV3:
     extends: BaseScoreV3
     properties:
       value:
-        type: optional<string>
+        type: nullable<string>
         docs: The correction content of the score. Null if not set.
 
   ScoreV3:
