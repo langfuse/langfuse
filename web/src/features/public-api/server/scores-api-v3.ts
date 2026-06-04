@@ -1,5 +1,4 @@
 import {
-  _handleGetScoreById,
   convertClickhouseScoreToDomain,
   measureAndReturn,
   queryClickhouse,
@@ -124,18 +123,4 @@ export async function listScoresV3ForPublicApi(params: {
       );
     },
   });
-}
-
-export async function getScoreV3ForPublicApi(params: {
-  projectId: string;
-  scoreId: string;
-}): Promise<APIScoreV3 | undefined> {
-  const score = await _handleGetScoreById({
-    projectId: params.projectId,
-    scoreId: params.scoreId,
-    scoreScope: "all",
-    preferredClickhouseService: "ReadOnly",
-  });
-  if (!score) return undefined;
-  return domainToV3(score);
 }
