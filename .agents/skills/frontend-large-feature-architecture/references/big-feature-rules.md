@@ -38,14 +38,39 @@ state variable, prop, callback, or effect to the same controller component.
     handler.
 12. Do not copy existing large Langfuse feature components as examples. Treat
     them as legacy unless they follow this skill.
+13. Prefer small reliable migration PRs over a large rewrite. Each PR should
+    improve one state boundary, action workflow, data-preparation seam, or
+    render boundary.
+14. Every migration PR should leave a clearer map for the next one: update the
+    feature README or migration note with what is now improved, what remains
+    spread, and the next atomic slice.
 
 ## Migration Reality
 
-Most large frontend features are not yet in the ideal shape. Do not copy an
-existing large component just because it works today. Treat controller-heavy
-surfaces as migration candidates and move them one state boundary at a time.
+Most large frontend features are not yet in the ideal shape. Traces,
+observations, experiments, prompts, evals, datasets, and session views all have
+some controller-heavy surfaces. Do not copy an existing large component just
+because it works today. Treat it as a migration candidate and move it one
+state/action/data-preparation boundary at a time.
 
-For the step-by-step path, read `references/controller-migration.md`.
+For the step-by-step path, read `controller-migration.md`.
+
+## Small PR Policy
+
+A good big-feature PR is intentionally incomplete. It should change one
+semantic interaction and keep behavior stable. Examples:
+
+- extract row selection and batch actions without touching filters
+- extract filter-target state without changing table columns
+- move a download/export workflow into `actions/*.ts` without adding a store
+- move expensive row data preparation into a pure helper without changing UI
+- add a local store provider and one subscribed state slice, leaving other state
+  in place
+
+Do not bundle file reorganization, state extraction, visual changes, and
+behavior fixes in the same PR unless the user explicitly asks for that risk.
+When a reorganization is needed, prefer a rename-only PR first or a later
+follow-up PR.
 
 ## Effect Policy
 

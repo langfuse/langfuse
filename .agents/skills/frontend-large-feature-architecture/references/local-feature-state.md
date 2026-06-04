@@ -48,8 +48,7 @@ Do not use the README as a changelog. If the feature has known architectural
 debt, record only durable state-boundary facts and link to the relevant agent
 reference note.
 
-For a concrete owner-map template, read
-`references/feature-readmes.md`.
+For a concrete owner-map template, read `feature-readmes.md`.
 
 ## Why Local, Not Global
 
@@ -65,6 +64,12 @@ cross-route state leaks, and makes ownership visible.
 Global state is reserved for product state that is genuinely shared across
 features or routes. Do not promote state globally to avoid prop drilling or to
 make a controller component smaller.
+
+Do not add a store just to make a PR look architectural. If the immediate
+problem is an inline export workflow, duplicated filter option shaping, or a
+large column builder, first extract an action or pure helper. Use the store when
+state needs selective subscriptions or must survive row remounts within one
+mounted feature instance.
 
 ## Creating The Store
 
@@ -174,13 +179,17 @@ instance when updating.
 ## Migration Steps
 
 1. Instrument first: identify which semantic state change causes broad renders.
-2. Extract that one state group into a local store.
-3. Replace broad props with selector subscriptions at the smallest UI boundary.
-4. Move related mutations into named actions.
-5. Stabilize callbacks and data wrappers.
-6. Move expensive data preparation into pure functions.
-7. Move complex user actions into store actions or external functions under
+2. Choose the smallest useful boundary: store state, action workflow, pure data
+   preparation, or imperative integration hook.
+3. Extract that one state group into a local store only when selective
+   subscriptions are needed.
+4. Replace broad props with selector subscriptions at the smallest UI boundary.
+5. Move related mutations into named actions.
+6. Stabilize callbacks and data wrappers.
+7. Move expensive data preparation into pure functions.
+8. Move complex user actions into store actions or external functions under
    `actions/*.ts`.
-8. Update the feature README and migration notes with remaining spread state.
-9. Remove debug instrumentation.
-10. Repeat for the next state group.
+9. Update the feature README with what improved, what remains spread, and the
+   next atomic slice.
+10. Remove debug instrumentation.
+11. Repeat for the next state group.

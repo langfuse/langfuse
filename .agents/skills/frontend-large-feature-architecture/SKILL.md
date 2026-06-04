@@ -43,7 +43,10 @@ For the full rules, read
   props. Put view-scoped Zustand consumers in `src/features/*` containers.
 - Large feature folders should have a concise `README.md` owner map that lists
   entry points, subfolders, external consumers, state boundaries, performance
-  boundaries, and relevant agent docs.
+  boundaries, migration state, and relevant agent docs.
+- Migrate real features through small reliable PRs. Each PR should improve one
+  state boundary, action workflow, data-preparation seam, or render boundary and
+  document the next slice.
 
 ## Local Store Default
 
@@ -75,3 +78,5 @@ The component wires hooks and passes dependencies; the action owns the workflow.
 - For a step-by-step migration from a controller component to a managed feature
   pattern, read
   [`references/controller-migration.md`](references/controller-migration.md).
+  This is the default reference for traces/observations tables, sessions,
+  experiments, prompts, evals, datasets, and other controller-heavy surfaces.

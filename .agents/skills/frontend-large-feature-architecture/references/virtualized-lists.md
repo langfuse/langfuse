@@ -56,13 +56,13 @@ explicitly chooses that. Langfuse must work under browser translation.
   in text-heavy rows.
 - Prefer fixed estimates plus overscan for simple rows.
 - For dynamic text-heavy rows, use controlled measurement:
-- `ResizeObserver` reads the row shell.
-- Debounce commits.
-- Do not commit while actively scrolling.
-- Round heights to avoid sub-pixel churn.
-- Call `virtualizer.resizeItem(index, height)`.
-- If a row alternates between two heights repeatedly, clamp to a minimum height
-  that still allows later legitimate growth.
+  - `ResizeObserver` reads the row shell.
+  - Debounce commits.
+  - Do not commit while actively scrolling.
+  - Round heights to avoid sub-pixel churn.
+  - Call `virtualizer.resizeItem(index, height)`.
+  - If a row alternates between two heights repeatedly, clamp to a minimum
+    height that still allows later legitimate growth.
 
 ## Row Rules
 

@@ -25,6 +25,8 @@ where to find deeper migration notes.
 - **Performance And Stability Boundaries**: which interactions are
   high-frequency or externally unstable, and which components are allowed to
   rerender or measure because of them.
+- **Migration State**: what has already been improved, what state/actions are
+  still spread, and the next one or two atomic slices.
 - **Development Context**: agent skills, migration notes, or issue docs to read
   before extending the feature.
 
@@ -67,3 +69,34 @@ rerender unchanged expensive cells for unrelated state changes.
 If a feature is mid-migration, say so. The README should make the desired
 boundaries clear while naming known spread state as debt. Do not present a
 partially migrated feature as the final pattern.
+
+Use an update-in-place style rather than a changelog. For example:
+
+- **Improved in current shape**: local store owns row selection; export action
+  moved to `actions/exportFeatureData.ts`; row view no longer subscribes to
+  filter state.
+- **Still spread**: saved-view state remains in the page controller; filter
+  option preparation is still inline; mutation workflows still close over page
+  hooks.
+- **Next slice**: extract filter-option preparation into pure helpers; move
+  batch action workflow into an action file; split route/query glue from view
+  components.
+
+This makes small PRs reviewable while keeping the feature migration plan
+visible. Do not wait for a perfect reorganization before documenting the
+current state.
+
+## PR-Scale Guidance
+
+Feature README updates should match the PR size:
+
+- For a small state/action extraction, add or update only the relevant
+  migration-state bullets.
+- For a new feature folder structure, include the owner map and external
+  consumers before moving logic into the folder.
+- For a rename-only PR, document intended structure but avoid changing behavior.
+- For behavior PRs, avoid unrelated file moves unless they are required for the
+  boundary being improved.
+
+The README should help the next contributor avoid falling back into the same
+controller component, not argue that the migration is complete.
