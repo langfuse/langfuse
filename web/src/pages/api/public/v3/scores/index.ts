@@ -40,6 +40,15 @@ const GetScoresV3Query = GetScoresV3.extend({
           code: "custom",
           message: `value filter requires dataType to be NUMERIC, BOOLEAN, or CATEGORICAL (got "${dt}")`,
         });
+      } else if (dt === "NUMERIC") {
+        for (const v of data.value) {
+          if (isNaN(Number(v))) {
+            ctx.addIssue({
+              code: "custom",
+              message: `value filter with dataType=NUMERIC requires each value to be a number (got "${v}")`,
+            });
+          }
+        }
       } else if (dt === "BOOLEAN") {
         for (const v of data.value) {
           if (v !== "true" && v !== "false") {
