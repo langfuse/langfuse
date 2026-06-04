@@ -26,7 +26,7 @@ const GetScoresV3Query = GetScoresQueryV3.extend({
         "traceTags filter requires a trace JOIN and is not supported in v3 — use v2 or omit this filter",
     });
   }
-  if (data.value !== undefined) {
+  if (data.value !== undefined && data.value.length > 0) {
     if (!data.dataType || data.dataType.length !== 1) {
       ctx.addIssue({
         code: "custom",
@@ -42,10 +42,10 @@ const GetScoresV3Query = GetScoresQueryV3.extend({
         });
       } else if (dt === "NUMERIC") {
         for (const v of data.value) {
-          if (isNaN(Number(v))) {
+          if (!isFinite(Number(v))) {
             ctx.addIssue({
               code: "custom",
-              message: `value filter with dataType=NUMERIC requires each value to be a number (got "${v}")`,
+              message: `value filter with dataType=NUMERIC requires each value to be a finite number (got "${v}")`,
             });
           }
         }
