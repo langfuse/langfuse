@@ -5303,7 +5303,7 @@ paths:
         The `value` field type depends on `dataType`:
         - `NUMERIC` → number
         - `BOOLEAN` → boolean
-        - `CATEGORICAL`, `TEXT`, `CORRECTION` → string or null
+        - `CATEGORICAL`, `TEXT`, `CORRECTION` → string
 
         This endpoint is behind the `LANGFUSE_ENABLE_SCORES_V3_API` feature flag
         and returns 404 when the flag is disabled.
@@ -12151,8 +12151,9 @@ components:
       properties:
         value:
           type: string
-          nullable: true
-          description: The string category value of the score. Null if no category is set.
+          description: The string category value of the score.
+      required:
+        - value
       allOf:
         - $ref: '#/components/schemas/BaseScoreV3'
     TextScoreV3:
@@ -12161,8 +12162,9 @@ components:
       properties:
         value:
           type: string
-          nullable: true
-          description: The text content of the score. Null if not set.
+          description: The text content of the score.
+      required:
+        - value
       allOf:
         - $ref: '#/components/schemas/BaseScoreV3'
     CorrectionScoreV3:
@@ -12171,8 +12173,9 @@ components:
       properties:
         value:
           type: string
-          nullable: true
-          description: The correction content of the score. Null if not set.
+          description: The correction content of the score. Empty string if not set.
+      required:
+        - value
       allOf:
         - $ref: '#/components/schemas/BaseScoreV3'
     ScoreV3:
