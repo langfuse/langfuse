@@ -559,6 +559,58 @@ describe("Slack Processor", () => {
       );
     });
 
+    it("monitor-alert: text fallback escapes Slack mention tokens in the monitor name", async () => {
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: {
+            type: "SLACK",
+            channelId: "C123456",
+            channelName: "general",
+          } as SlackActionConfig,
+        },
+      });
+
+      const monitorInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          id: executionId,
+          timestamp: new Date("2026-05-18T12:01:00.000Z"),
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: {
+            monitorId: "mon_01",
+            projectId,
+            severity: "ALERT",
+            permalink:
+              "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
+            message: {
+              title: "[ALERT] <!channel> investigate",
+              body: "errors > 100",
+            },
+            timestamp: new Date("2026-05-18T12:01:00.000Z"),
+            fromTimestamp: new Date("2026-05-18T11:55:30.000Z"),
+            toTimestamp: new Date("2026-05-18T12:00:30.000Z"),
+            view: "observations",
+            filters: [],
+            window: "5m",
+          },
+        },
+      };
+
+      const wireInput: WebhookInput = JSON.parse(JSON.stringify(monitorInput));
+
+      await executeWebhook(wireInput, { skipValidation: true });
+
+      expect(mockSlackService.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: "[ALERT] &lt;!channel&gt; investigate",
+        }),
+      );
+    });
+
     it("should handle SlackService errors gracefully", async () => {
       const { SlackService } = await import("@langfuse/shared/src/server");
 

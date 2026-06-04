@@ -20,7 +20,7 @@ const severityVisual: Record<
 
 /** Escape Slack mrkdwn special characters to prevent injection (e.g. <!channel>)
  * @see https://docs.slack.dev/messaging/formatting-message-text/#escaping */
-function escapeSlackMrkdwn(text: string): string {
+export function escapeSlackMrkdwn(text: string): string {
   return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

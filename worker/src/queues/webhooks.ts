@@ -35,7 +35,10 @@ import { MonitorWebhookQueueEventSchema } from "@langfuse/shared/monitors/server
 import { Processor, Job } from "bullmq";
 import { backOff } from "exponential-backoff";
 import { env } from "../env";
-import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
+import {
+  SlackMessageBuilder,
+  escapeSlackMrkdwn,
+} from "../features/slack/slackMessageBuilder";
 
 // GitHub repository_dispatch client_payload: max 10 top-level properties and <64KB.
 // https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event
@@ -772,7 +775,7 @@ async function executeSlackAction({
       attachments,
       text:
         payload.type === "monitor-alert"
-          ? payload.payload.message.title
+          ? escapeSlackMrkdwn(payload.payload.message.title)
           : "Langfuse Notification",
     });
 
