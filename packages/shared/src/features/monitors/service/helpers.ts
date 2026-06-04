@@ -264,6 +264,7 @@ export const updateStatusAndSeverity = (
   lastPublishedAt?: null;
   lastCompletedAt?: null;
   lastClaimedAt?: null;
+  alertedAt?: null;
 } => {
   if (!next) return {};
   const fromActive = current === MonitorStatusSchema.enum.ACTIVE;
@@ -285,6 +286,7 @@ export const updateStatusAndSeverity = (
       lastPublishedAt: null,
       lastCompletedAt: null,
       lastClaimedAt: null,
+      alertedAt: null,
     };
   // No Severity Change (eg ACTIVE -> ACTIVE, ERROR_* -> PAUSED)
   return { status: next };

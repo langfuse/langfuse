@@ -538,6 +538,7 @@ describe("updateStatusAndSeverity", () => {
     expect(result.lastPublishedAt).toBeNull();
     expect(result.lastCompletedAt).toBeNull();
     expect(result.lastClaimedAt).toBeNull();
+    expect(result.alertedAt).toBeNull();
   });
 
   it("emits UNKNOWN when recovering from ERROR_BAD_QUERY to ACTIVE", () => {
