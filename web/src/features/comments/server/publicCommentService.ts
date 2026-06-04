@@ -130,6 +130,7 @@ export const listCommentsForApi = async ({
   const [comments, totalItems] = await Promise.all([
     prisma.comment.findMany({
       where,
+      orderBy: { createdAt: "desc" },
       take: limit,
       skip: (page - 1) * limit,
     }),
