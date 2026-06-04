@@ -1356,6 +1356,26 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(400);
     });
 
+    it("valueMin=Infinity&dataType=NUMERIC → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?valueMin=Infinity&dataType=NUMERIC",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("valueMax=-Infinity&dataType=NUMERIC → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?valueMax=-Infinity&dataType=NUMERIC",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
     it("value= (empty) with dataType=NUMERIC → 200 (not treated as present)", async () => {
       const res = await makeAPICall(
         "GET",
@@ -1368,32 +1388,41 @@ describe("/api/public/v3/scores API Endpoint", () => {
 
     it("environment filter returns only scores with matching environment", async () => {
       const scoreId = v4();
+      const controlId = v4();
       await createScoresCh([
         createTraceScore({
           id: scoreId,
           project_id: projectId,
           environment: "staging",
         }),
-        createTraceScore({ project_id: projectId, environment: "production" }),
+        createTraceScore({
+          id: controlId,
+          project_id: projectId,
+          environment: "production",
+        }),
       ]);
 
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        `/api/public/v3/scores?id=${scoreId}&environment=staging`,
+        `/api/public/v3/scores?environment=staging`,
         undefined,
         auth,
       );
 
       expect(res.status).toBe(200);
-      expect(res.body.data.every((s) => s.environment === "staging")).toBe(
-        true,
-      );
-      expect(res.body.data.some((s) => s.id === scoreId)).toBe(true);
+      expect(
+        res.body.data.length > 0 &&
+          res.body.data.every((s) => s.environment === "staging"),
+      ).toBe(true);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(scoreId);
+      expect(ids).not.toContain(controlId);
     });
 
     it("configId filter returns only scores with matching configId", async () => {
       const scoreId = v4();
+      const controlId = v4();
       const configId = v4();
       await createScoresCh([
         createTraceScore({
@@ -1401,7 +1430,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
           project_id: projectId,
           config_id: configId,
         }),
-        createTraceScore({ project_id: projectId }),
+        createTraceScore({ id: controlId, project_id: projectId }),
       ]);
 
       const res = await makeZodVerifiedAPICall(
@@ -1413,11 +1442,18 @@ describe("/api/public/v3/scores API Endpoint", () => {
       );
 
       expect(res.status).toBe(200);
-      expect(res.body.data.some((s) => s.id === scoreId)).toBe(true);
+      expect(
+        res.body.data.length > 0 &&
+          res.body.data.every((s) => s.details?.configId === configId),
+      ).toBe(true);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(scoreId);
+      expect(ids).not.toContain(controlId);
     });
 
     it("queueId filter returns only scores with matching queueId", async () => {
       const scoreId = v4();
+      const controlId = v4();
       const queueId = v4();
       await createScoresCh([
         createTraceScore({
@@ -1425,7 +1461,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
           project_id: projectId,
           queue_id: queueId,
         }),
-        createTraceScore({ project_id: projectId }),
+        createTraceScore({ id: controlId, project_id: projectId }),
       ]);
 
       const res = await makeZodVerifiedAPICall(
@@ -1437,11 +1473,18 @@ describe("/api/public/v3/scores API Endpoint", () => {
       );
 
       expect(res.status).toBe(200);
-      expect(res.body.data.some((s) => s.id === scoreId)).toBe(true);
+      expect(
+        res.body.data.length > 0 &&
+          res.body.data.every((s) => s.annotation?.queueId === queueId),
+      ).toBe(true);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(scoreId);
+      expect(ids).not.toContain(controlId);
     });
 
     it("authorUserId filter returns only scores with matching authorUserId", async () => {
       const scoreId = v4();
+      const controlId = v4();
       const userId = v4();
       await createScoresCh([
         createTraceScore({
@@ -1449,7 +1492,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
           project_id: projectId,
           author_user_id: userId,
         }),
-        createTraceScore({ project_id: projectId }),
+        createTraceScore({ id: controlId, project_id: projectId }),
       ]);
 
       const res = await makeZodVerifiedAPICall(
@@ -1461,7 +1504,13 @@ describe("/api/public/v3/scores API Endpoint", () => {
       );
 
       expect(res.status).toBe(200);
-      expect(res.body.data.some((s) => s.id === scoreId)).toBe(true);
+      expect(
+        res.body.data.length > 0 &&
+          res.body.data.every((s) => s.annotation?.authorUserId === userId),
+      ).toBe(true);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(scoreId);
+      expect(ids).not.toContain(controlId);
     });
 
     it("toTimestamp excludes scores after the cutoff", async () => {
