@@ -84,7 +84,6 @@ const buildV3ListQuery = (withCursor: boolean) => `
     s.id as id,
     s.project_id as project_id,
     s.timestamp as timestamp,
-    s.event_ts as event_ts,
     s.environment as environment,
     s.name as name,
     s.value as value,
