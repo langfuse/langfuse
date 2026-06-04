@@ -170,6 +170,7 @@ export const filters = {
     return route.show({
       organization: organization ?? undefined,
       projectId: ctx.routerProjectId,
+      isLangfuseCloud: ctx.isLangfuseCloud,
     })
       ? route
       : null;

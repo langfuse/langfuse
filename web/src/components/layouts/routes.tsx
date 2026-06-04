@@ -62,6 +62,7 @@ export type Route = {
   show?: (p: {
     organization: User["organizations"][number] | undefined;
     projectId: string | undefined;
+    isLangfuseCloud: boolean;
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
 };
@@ -236,8 +237,8 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
     pathname: "",
     featureFlag: "inAppAgent",
-    show: ({ organization, projectId }) =>
-      organization !== undefined && projectId !== undefined,
+    show: ({ organization, projectId, isLangfuseCloud }) =>
+      isLangfuseCloud && organization !== undefined && projectId !== undefined,
     menuNode: <InAppAiAgentButton />,
   },
   {

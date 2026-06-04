@@ -214,6 +214,20 @@ export async function replaceRunEvents(params: {
   await params.prisma.$transaction(async (tx) => {
     await lockConversation(tx, params.projectId, params.conversationId);
 
+    const activeRun = await tx.inAppAgentRun.findFirst({
+      where: {
+        id: params.runId,
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        finishedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!activeRun) {
+      return;
+    }
+
     await tx.inAppAgentEvent.deleteMany({
       where: {
         projectId: params.projectId,

@@ -256,6 +256,8 @@ function InAppAiAgentProviderInner({
     }
 
     resetAgent();
+    // TODO: Avoid replacing hydrated messages when only server-generated ids
+    // differ from optimistic client ids; this can cause a small post-run flicker.
     setMessages(storedMessages);
   }, [
     conversationQuery.data,

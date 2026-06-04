@@ -230,6 +230,8 @@ export default async function handler(request: Request) {
             input: sanitizedInput,
             signal: request.signal,
             options: {
+              // TODO: Claude's default session storage is pod-local. Add a shared
+              // SessionStore or replay persisted history before relying on cross-pod resumes.
               resumeSessionId: conversation.providerSessionId ?? undefined,
               onResumeSessionId: (claudeSessionId) => {
                 persistProviderSessionId(claudeSessionId);

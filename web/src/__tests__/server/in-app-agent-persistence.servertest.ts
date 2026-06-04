@@ -836,6 +836,58 @@ describe("in-app agent persistence", () => {
     });
   });
 
+  it("ignores event flushes from already-finished runs", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run1 = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events1 = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run1.id,
+      messageId: "user-message-1",
+      content: "First",
+    });
+
+    await finishRun({ prisma, runId: run1.id, projectId });
+
+    const run2 = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run2.id,
+      messageId: "user-message-2",
+      content: "Second",
+    });
+
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: run1.id,
+      events: events1,
+      messageId: "assistant-message-1",
+      chunks: ["Late output"],
+    });
+
+    const events = await prisma.inAppAgentEvent.findMany({
+      where: { projectId, conversationId: conversation.id },
+      orderBy: { sequenceNumber: "asc" },
+      select: { runId: true, type: true },
+    });
+
+    expect(events).toEqual([
+      { runId: run1.id, type: EventType.RUN_STARTED },
+      { runId: run2.id, type: EventType.RUN_STARTED },
+    ]);
+  });
+
   it("blocks a second active run in the same conversation", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
