@@ -56,6 +56,7 @@ import {
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
   isLegacyBlobExportAllowed,
+  isLegacyBlobExporter,
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -255,7 +256,18 @@ const BlobStorageIntegrationSettingsForm = ({
     project?.createdAt != null &&
     !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
   const eventsExportAvailable = isEnrichedExportAvailable;
-  const showExportSourceField = eventsExportAvailable && !isPostCutoffCloud;
+  // Integration-level cutoff: an existing row created before
+  // LEGACY_BLOB_EXPORTER_CUTOFF stays legacy (picker visible); a new row (no
+  // state yet) or a post-cutoff row is not legacy (picker hidden, pinned to
+  // EVENTS). Stable across User A's return journey because the row's createdAt
+  // is immutable.
+  const isLegacyExporter = isLegacyBlobExporter(
+    state?.createdAt ? new Date(state.createdAt) : null,
+    isLangfuseCloud,
+  );
+  const forceEventsExport =
+    isPostCutoffCloud || (eventsExportAvailable && !isLegacyExporter);
+  const showExportSourceField = !forceEventsExport;
 
   const blobStorageForm = useForm({
     resolver: zodResolver(blobStorageIntegrationFormSchema),
@@ -277,7 +289,7 @@ const BlobStorageIntegrationSettingsForm = ({
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
-      exportSource: isPostCutoffCloud
+      exportSource: forceEventsExport
         ? AnalyticsIntegrationExportSource.EVENTS
         : (() => {
             const persisted = state?.exportSource;
@@ -321,7 +333,7 @@ const BlobStorageIntegrationSettingsForm = ({
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
-      exportSource: isPostCutoffCloud
+      exportSource: forceEventsExport
         ? AnalyticsIntegrationExportSource.EVENTS
         : (() => {
             const persisted = state?.exportSource;

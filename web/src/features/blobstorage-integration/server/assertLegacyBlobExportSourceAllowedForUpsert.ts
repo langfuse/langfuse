@@ -1,0 +1,57 @@
+import {
+  InvalidRequestError,
+  isLegacyBlobExporter,
+  LEGACY_BLOB_EXPORT_SOURCES,
+} from "@langfuse/shared";
+import { type AnalyticsIntegrationExportSource } from "@langfuse/shared/src/db";
+import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
+
+/**
+ * Write-time gate for blob storage upserts. Composes the project-level
+ * post-cutoff gate (`assertLegacyBlobExportSourceAllowed`, still used by REST)
+ * with the integration-level cutoff: a row may only keep using a legacy export
+ * source if its own `createdAt` predates `LEGACY_BLOB_EXPORTER_CUTOFF`.
+ *
+ * `existingIntegration` is `null` for a brand-new integration, which is treated
+ * as non-legacy (new-customer rules) by `isLegacyBlobExporter`.
+ *
+ * The cutoff is keyed on `isCloud` directly (via the helper's short-circuit),
+ * not `isEnrichedBlobExportAvailable(isCloud)`, so a future self-hosted flip of
+ * the latter does not silently fire this gate for self-hosted (LFE-10148).
+ */
+export function assertLegacyBlobExportSourceAllowedForUpsert({
+  project,
+  existingIntegration,
+  nextInternalExportSource,
+  isCloud,
+}: {
+  project: { createdAt: Date };
+  existingIntegration: { createdAt: Date } | null;
+  nextInternalExportSource: AnalyticsIntegrationExportSource;
+  isCloud: boolean;
+}): void {
+  // Project-level post-cutoff gate first (shared with REST). Throws on a
+  // post-cutoff Cloud project + legacy source regardless of the row's age.
+  assertLegacyBlobExportSourceAllowed({
+    project,
+    nextInternalExportSource,
+    isCloud,
+  });
+
+  if (
+    !(LEGACY_BLOB_EXPORT_SOURCES as ReadonlyArray<string>).includes(
+      nextInternalExportSource,
+    )
+  )
+    return; // OBSERVATIONS_V2 (internal: EVENTS) is always allowed.
+
+  if (isLegacyBlobExporter(existingIntegration?.createdAt ?? null, isCloud))
+    return;
+
+  // Distinct message from the project-level gate so the two rejection paths can
+  // be counted separately in logs. Not customer-facing: the UI prevents this
+  // state from arising in the form flow.
+  throw new InvalidRequestError(
+    "Legacy export sources are not available for blob storage integrations created on or after 2026-06-12 on Cloud. Use 'OBSERVATIONS_V2' instead.",
+  );
+}

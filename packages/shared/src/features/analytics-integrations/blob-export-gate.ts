@@ -4,6 +4,11 @@
 import { AnalyticsIntegrationExportSource } from "@prisma/client";
 
 // Cloud projects created on or after this instant cannot use legacy export sources.
+// Cloud-only by design: enforced via the `!isCloud` short-circuit in
+// `isLegacyBlobExportAllowed`, decoupled from `isEnrichedBlobExportAvailable` so a
+// future self-hosted flip of the latter does not silently activate this cutoff. The
+// self-hosted policy decision is tracked in LFE-10148. Its sibling, the
+// integration-level `LEGACY_BLOB_EXPORTER_CUTOFF`, is joined at the same decision point.
 // NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF overrides the default for local dev testing.
 const _override = process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF
   ? new Date(process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF)
@@ -12,6 +17,21 @@ export const LEGACY_BLOB_EXPORT_CUTOFF =
   _override && !isNaN(_override.getTime())
     ? _override
     : new Date("2026-05-20T00:00:00.000Z");
+
+// Cloud blob storage integrations created on or after this instant cannot use legacy
+// export sources. Symmetric with `LEGACY_BLOB_EXPORT_CUTOFF` (project-level) but applied
+// to `BlobStorageIntegration.createdAt` instead of `Project.createdAt`. Cloud-only by
+// design: enforced via the `!isCloud` short-circuit in `isLegacyBlobExporter`, decoupled
+// from `isEnrichedBlobExportAvailable` so a future self-hosted flip of the latter does not
+// silently activate this cutoff. The self-hosted policy decision is tracked in LFE-10148.
+// NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF overrides the default for local dev testing.
+const _exporterOverride = process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF
+  ? new Date(process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF)
+  : null;
+export const LEGACY_BLOB_EXPORTER_CUTOFF =
+  _exporterOverride && !isNaN(_exporterOverride.getTime())
+    ? _exporterOverride
+    : new Date("2026-06-12T00:00:00.000Z");
 
 // Internal enum values that are considered "legacy". satisfies ensures each
 // element remains a valid AnalyticsIntegrationExportSource — catches renames or
@@ -28,6 +48,9 @@ export const LEGACY_BLOB_EXPORT_SOURCES = [
  *
  * Shared by the server guard (throws when false + legacy source) and the UI
  * (hides legacy dropdown options when false) so the predicate lives once.
+ *
+ * Cloud-only via the `!isCloud` short-circuit; joined at the same decision point
+ * as `isLegacyBlobExporter` (integration-level). See LFE-10148.
  */
 export function isLegacyBlobExportAllowed(
   projectCreatedAt: Date,
@@ -35,6 +58,28 @@ export function isLegacyBlobExportAllowed(
 ): boolean {
   if (!isCloud) return true;
   return projectCreatedAt < LEGACY_BLOB_EXPORT_CUTOFF;
+}
+
+/**
+ * Whether a blob storage integration row counts as legacy — i.e. may still use
+ * legacy export sources. Applied to `BlobStorageIntegration.createdAt`.
+ *
+ * - `!isCloud` → `true`: self-hosted is exempt (cutoff does not apply; see LFE-10148).
+ * - `null` createdAt → `false`: no existing row means a brand-new integration,
+ *   which follows new-customer rules.
+ * - otherwise legacy iff the row was created strictly before the cutoff.
+ *
+ * Cloud-only via the `!isCloud` short-circuit, decoupled from
+ * `isEnrichedBlobExportAvailable` so a future self-hosted flip of the latter
+ * does not silently activate this cutoff.
+ */
+export function isLegacyBlobExporter(
+  integrationCreatedAt: Date | null,
+  isCloud: boolean,
+): boolean {
+  if (!isCloud) return true;
+  if (integrationCreatedAt == null) return false;
+  return integrationCreatedAt < LEGACY_BLOB_EXPORTER_CUTOFF;
 }
 
 /**
