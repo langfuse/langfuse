@@ -4,6 +4,7 @@ import {
   GetScoresQueryV3,
   GetScoresResponseV3,
   LangfuseNotFoundError,
+  type ScoreFieldGroupV3,
 } from "@langfuse/shared";
 import { listScoresV3ForPublicApi } from "@/src/features/public-api/server/scores-api-v3";
 import { EncodedScoresCursorV3 } from "@/src/features/public-api/types/scores";
@@ -29,7 +30,7 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         limit: query.limit,
         cursor: query.cursor,
-        fields: query.fields,
+        fields: query.fields as ScoreFieldGroupV3[],
       });
 
       return {

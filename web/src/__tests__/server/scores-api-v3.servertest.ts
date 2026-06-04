@@ -584,5 +584,57 @@ describe("/api/public/v3/scores API Endpoint", () => {
       );
       expect(res.status).toBe(400);
     });
+
+    it("fields=core passed explicitly behaves same as omitted", async () => {
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({ id: scoreId, project_id: projectId }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?id=${scoreId}&fields=core`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score).not.toHaveProperty("details");
+      expect(score).not.toHaveProperty("subject");
+      expect(score).not.toHaveProperty("annotation");
+    });
+
+    it("fields=core,details,subject,annotation → all groups present simultaneously", async () => {
+      const scoreId = v4();
+      const traceId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          source: "ANNOTATION",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?id=${scoreId}&fields=core,details,subject,annotation`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score).toHaveProperty("details");
+      expect(score).toHaveProperty("subject");
+      expect(score).toHaveProperty("annotation");
+      expect(score!.subject!.kind).toBe("trace");
+      expect(score!.subject!.id).toBe(traceId);
+    });
   });
 });

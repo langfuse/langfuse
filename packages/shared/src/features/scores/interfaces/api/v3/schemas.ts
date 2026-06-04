@@ -5,7 +5,7 @@ import { ScoreSourceDomain } from "../../../../../domain/scores";
 export const ScoreDetailsV3 = z.object({
   comment: z.string().nullable(),
   configId: z.string().nullable(),
-  metadata: z.unknown(),
+  metadata: z.record(z.string(), z.unknown()),
 });
 
 export const ScoreSubjectV3 = z.object({
