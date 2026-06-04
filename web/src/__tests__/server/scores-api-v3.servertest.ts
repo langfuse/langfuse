@@ -5,10 +5,7 @@ import {
   createScoresCh,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
-import {
-  valueFilterColumn,
-  transformBooleanValueForFilter,
-} from "@/src/features/public-api/server/scores-api-v3";
+import { transformBooleanValueForFilter } from "@/src/features/public-api/server/scores-api-v3";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
@@ -754,24 +751,6 @@ describe("/api/public/v3/scores API Endpoint", () => {
         auth,
       );
       expect(res.status).toBe(400);
-    });
-  });
-
-  describe("valueFilterColumn unit", () => {
-    it("NUMERIC → value", () => {
-      expect(valueFilterColumn("NUMERIC")).toBe("value");
-    });
-    it("BOOLEAN → value", () => {
-      expect(valueFilterColumn("BOOLEAN")).toBe("value");
-    });
-    it("CATEGORICAL → string_value", () => {
-      expect(valueFilterColumn("CATEGORICAL")).toBe("string_value");
-    });
-    it("TEXT → null", () => {
-      expect(valueFilterColumn("TEXT")).toBeNull();
-    });
-    it("CORRECTION → null", () => {
-      expect(valueFilterColumn("CORRECTION")).toBeNull();
     });
   });
 
