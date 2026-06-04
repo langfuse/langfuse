@@ -57,7 +57,7 @@ export function DeleteWidget({
 
   const mutDeleteWidget = api.dashboardWidgets.delete.useMutation({
     onSuccess: () => {
-      void utils.dashboardWidgets.invalidate();
+      utils.dashboardWidgets.invalidate();
       capture("dashboard:delete_widget_form_open");
     },
     onError: (error) => {
@@ -97,7 +97,7 @@ export function DeleteWidget({
                 return;
               }
 
-              void mutDeleteWidget.mutate({
+              mutDeleteWidget.mutate({
                 projectId,
                 widgetId,
               });

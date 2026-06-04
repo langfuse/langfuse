@@ -32,6 +32,7 @@ import { ScoreConfigSettings } from "@/src/features/score-configs/components/Sco
 import { env } from "@/src/env.mjs";
 import { NotificationSettings } from "@/src/features/notifications/components/NotificationSettings";
 import { WebCallbackIntegrationCard } from "@/src/features/web-callbacks/components/WebCallbackSettingsPage";
+import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
 
 type ProjectSettingsPage = {
   title: string;
@@ -136,6 +137,21 @@ export const getProjectSettingsPages = ({
         <ApiKeyList entityId={project.id} scope="project" />
       </div>
     ),
+  },
+  {
+    title: "MCP & CLI",
+    slug: "developer-tools",
+    cmdKKeywords: [
+      "mcp",
+      "cli",
+      "skill",
+      "agent",
+      "model context protocol",
+      "command line",
+      "claude code",
+      "cursor",
+    ],
+    content: <DeveloperToolsSettings />,
   },
   {
     title: "LLM Connections",

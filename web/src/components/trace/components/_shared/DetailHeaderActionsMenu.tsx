@@ -98,7 +98,7 @@ export function DetailHeaderActionsMenu({
             {href && (
               <DropdownMenuItem
                 className="text-xs"
-                onSelect={() => void router.push(href)}
+                onSelect={() => router.push(href)}
               >
                 <span className="max-w-[260px] truncate" title={spanName}>
                   filter by{" "}
@@ -109,7 +109,7 @@ export function DetailHeaderActionsMenu({
             {typeHref && filterTypeLabel && (
               <DropdownMenuItem
                 className="text-xs"
-                onSelect={() => void router.push(typeHref)}
+                onSelect={() => router.push(typeHref)}
               >
                 <span
                   className="max-w-[260px] truncate"
