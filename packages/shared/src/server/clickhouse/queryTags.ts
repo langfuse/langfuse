@@ -41,24 +41,99 @@ export const CLICKHOUSE_QUERY_SERVICES = ["web", "worker", "shared"] as const;
 
 export type ClickHouseQueryService = (typeof CLICKHOUSE_QUERY_SERVICES)[number];
 
-export type ClickHouseQueryTags = {
+export const CLICKHOUSE_QUERY_FEATURES = [
+  "background-migration",
+  "batch-add-to-dataset",
+  "batch-eval",
+  "batch-export",
+  "clickhouse-record-verification",
+  "custom-queries",
+  "data-deletion",
+  "data-retention",
+  "health",
+  "ingestion",
+  "tracing",
+] as const;
+
+export type ClickHouseQueryFeature =
+  | (typeof CLICKHOUSE_QUERY_FEATURES)[number]
+  | (string & {});
+
+export const CLICKHOUSE_QUERY_ENTITIES = [
+  "blob-storage-file-log",
+  "clickhouse-metadata",
+  "dataset",
+  "dataset-run-item",
+  "event",
+  "observation",
+  "score",
+  "session",
+  "trace",
+  "unknown",
+] as const;
+
+export type ClickHouseQueryEntity =
+  | (typeof CLICKHOUSE_QUERY_ENTITIES)[number]
+  | (string & {});
+
+export const CLICKHOUSE_QUERY_PHYSICAL_TABLES = [
+  "blob_storage_file_log",
+  "dataset_run_items_rmt",
+  "events",
+  "events_core",
+  "events_full",
+  "observations",
+  "observations_batch_staging",
+  "scores",
+  "traces",
+  "traces_null",
+] as const;
+
+export type ClickHouseQueryPhysicalTable =
+  | (typeof CLICKHOUSE_QUERY_PHYSICAL_TABLES)[number]
+  | "multiple"
+  | (string & {});
+
+export type NormalizedClickHouseQueryTags = {
   tag_schema_version: typeof CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION;
   surface: ClickHouseQuerySurface;
-  feature: string;
-  entity: string;
+  feature: ClickHouseQueryFeature;
+  entity: ClickHouseQueryEntity;
   storage: ClickHouseQueryStorage;
   workload: ClickHouseQueryWorkload;
   project_id: string | "multiple" | "none" | "unknown";
   route?: string;
   method?: string;
-  physical_table?: string;
+  physical_table?: ClickHouseQueryPhysicalTable;
   service?: ClickHouseQueryService;
 };
 
-export type ClickHouseQueryTagInput = Record<string, string | undefined>;
+export type ClickHouseQueryTags = {
+  surface?: ClickHouseQuerySurface;
+  route?: string;
+  method?: string;
+  feature?: ClickHouseQueryFeature;
+  entity?: ClickHouseQueryEntity;
+  storage?: ClickHouseQueryStorage;
+  workload?: ClickHouseQueryWorkload;
+  project_id?: string | "multiple" | "none" | "unknown";
+  physical_table?: ClickHouseQueryPhysicalTable;
+  service?: ClickHouseQueryService;
+
+  // Compatibility fields. Keep these typed while dashboards migrate to the
+  // structured fields above.
+  type?: string;
+  kind?: string;
+  projectId?: string;
+  operation_name?: string;
+
+  // Low-cardinality migration/script labels used by older callers.
+  operation?: string;
+  table?: string;
+};
 
 type NormalizeClickHouseQueryTagsArgs = {
-  tags?: ClickHouseQueryTagInput;
+  tags?: ClickHouseQueryTags;
   query?: string;
   operation?: "select" | "command" | "insert" | "upsert";
   table?: string;
@@ -99,18 +174,7 @@ const STRUCTURED_TAG_KEYS = new Set([
   "service",
 ]);
 
-const KNOWN_CLICKHOUSE_TABLES = [
-  "events_core",
-  "events_full",
-  "events",
-  "traces_null",
-  "traces",
-  "observations",
-  "scores",
-  "dataset_run_items_rmt",
-  "blob_storage_file_log",
-  "observations_batch_staging",
-] as const;
+const KNOWN_CLICKHOUSE_TABLES = CLICKHOUSE_QUERY_PHYSICAL_TABLES;
 
 function isOneOf<T extends readonly string[]>(
   values: T,
@@ -194,7 +258,7 @@ function inferPhysicalTable(
 }
 
 function inferStorage(
-  tags: ClickHouseQueryTagInput | undefined,
+  tags: ClickHouseQueryTags | undefined,
   query?: string,
   table?: string,
 ): ClickHouseQueryStorage {
@@ -221,7 +285,7 @@ function inferStorage(
 }
 
 function inferSurface(
-  tags: ClickHouseQueryTagInput | undefined,
+  tags: ClickHouseQueryTags | undefined,
 ): ClickHouseQuerySurface {
   if (isOneOf(CLICKHOUSE_QUERY_SURFACES, tags?.surface)) return tags.surface;
 
@@ -240,7 +304,7 @@ function inferSurface(
 }
 
 function inferWorkload(
-  tags: ClickHouseQueryTagInput | undefined,
+  tags: ClickHouseQueryTags | undefined,
   operation: NormalizeClickHouseQueryTagsArgs["operation"],
 ): ClickHouseQueryWorkload {
   if (isOneOf(CLICKHOUSE_QUERY_WORKLOADS, tags?.workload)) {
@@ -295,10 +359,10 @@ function normalizeEntityName(value: string): string {
 }
 
 function inferEntity(
-  tags: ClickHouseQueryTagInput | undefined,
+  tags: ClickHouseQueryTags | undefined,
   query?: string,
   table?: string,
-): string {
+): ClickHouseQueryEntity {
   if (tags?.entity) return normalizeEntityName(tags.entity);
 
   const type = tags?.type;
@@ -330,11 +394,13 @@ function inferEntity(
   return "unknown";
 }
 
-function inferFeature(tags: ClickHouseQueryTagInput | undefined): string {
+function inferFeature(
+  tags: ClickHouseQueryTags | undefined,
+): ClickHouseQueryFeature {
   return sanitizeTagValue(tags?.feature) ?? "unknown";
 }
 
-function inferProjectId(tags: ClickHouseQueryTagInput | undefined): string {
+function inferProjectId(tags: ClickHouseQueryTags | undefined): string {
   return (
     sanitizeTagValue(tags?.project_id) ??
     sanitizeTagValue(tags?.projectId) ??
@@ -344,7 +410,7 @@ function inferProjectId(tags: ClickHouseQueryTagInput | undefined): string {
 }
 
 function sanitizeLegacyTags(
-  tags: ClickHouseQueryTagInput | undefined,
+  tags: ClickHouseQueryTags | undefined,
 ): Record<string, string> {
   const legacyTags: Record<string, string> = {};
 
@@ -364,6 +430,7 @@ export function normalizeClickHouseQueryTags({
   operation = "select",
   table,
 }: NormalizeClickHouseQueryTagsArgs): ClickHouseQueryTags &
+  NormalizedClickHouseQueryTags &
   Record<string, string> {
   const route = normalizeClickHouseRoute(
     firstDefined(tags?.route, getBaggageValue(BAGGAGE_KEYS.route)),
@@ -395,10 +462,4 @@ export function normalizeClickHouseQueryTags({
     ...(physicalTable ? { physical_table: physicalTable } : {}),
     ...(isOneOf(CLICKHOUSE_QUERY_SERVICES, service) ? { service } : {}),
   };
-}
-
-export function buildClickHouseLogComment(
-  args: NormalizeClickHouseQueryTagsArgs,
-): string {
-  return JSON.stringify(normalizeClickHouseQueryTags(args));
 }

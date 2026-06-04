@@ -493,7 +493,6 @@ const getDatasetRunsTableInternal = async <T>(
       feature: "datasets",
       type: "dataset-run-items",
       projectId,
-      datasetId,
     },
   });
 
@@ -716,7 +715,6 @@ const getQualifyingDatasetItems = async <T>(opts: {
       feature: "datasets",
       type: "dataset-run-items",
       projectId,
-      datasetId,
     },
   });
 
@@ -1044,7 +1042,6 @@ export const getDatasetItemIdsByTraceIdCh = async (
       feature: "datasets",
       type: "dataset-run-items",
       projectId,
-      traceId,
     },
   });
 

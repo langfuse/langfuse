@@ -1,12 +1,14 @@
 import { env } from "../../env";
 import {
   clickhouseClient,
+  ClickhouseClientType,
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
 import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";
 import { randomUUID } from "crypto";
+import type { Readable } from "node:stream";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { type Span, context, SpanKind, trace } from "@opentelemetry/api";
@@ -19,12 +21,13 @@ import {
   ClickHouseSettings,
   type RowOrProgress,
   type DataFormat,
+  type InsertParams,
+  type InsertResult,
 } from "@clickhouse/client";
 import { RESOURCE_LIMIT_ERROR_MESSAGE } from "../../errors/errorMessages";
 import {
-  buildClickHouseLogComment,
   normalizeClickHouseQueryTags,
-  type ClickHouseQueryTagInput,
+  type ClickHouseQueryTags,
 } from "../clickhouse/queryTags";
 
 /**
@@ -127,7 +130,7 @@ export async function upsertClickhouse<
   table: "scores" | "traces" | "observations" | "traces_null";
   records: T[];
   eventBodyMapper: (body: T) => Record<string, unknown>;
-  tags?: ClickHouseQueryTagInput;
+  tags?: ClickHouseQueryTags;
 }): Promise<void> {
   return await instrumentAsync(
     { name: "clickhouse-upsert", spanKind: SpanKind.CLIENT },
@@ -153,7 +156,7 @@ export async function upsertClickhouse<
           if (env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true") {
             // Write new file directly to ClickHouse. We don't use the ClickHouse writer here as we expect more limited traffic
             // and are not worried that much about latency.
-            await clickhouseClient().insert({
+            await insertClickhouse({
               table: "blob_storage_file_log",
               values: [
                 {
@@ -169,13 +172,7 @@ export async function upsertClickhouse<
                 },
               ],
               format: "JSONEachRow",
-              clickhouse_settings: {
-                log_comment: buildClickHouseLogComment({
-                  tags: opts.tags,
-                  operation: "insert",
-                  table: "blob_storage_file_log",
-                }),
-              },
+              tags: opts.tags,
             });
           }
 
@@ -312,7 +309,8 @@ export type ClickhouseQueryOpts = {
   query: string;
   params?: Record<string, unknown>;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags?: ClickHouseQueryTagInput;
+  client?: ClickhouseClientType;
+  tags?: ClickHouseQueryTags;
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
   allowLegacyEventsRead?: boolean;
@@ -359,7 +357,8 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
   query: string;
   params?: Record<string, unknown>;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags?: ClickHouseQueryTagInput;
+  client?: ClickhouseClientType;
+  tags?: ClickHouseQueryTags;
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
   format: F;
@@ -371,10 +370,11 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
     operation: "select",
   });
 
-  const res = await clickhouseClient(
-    opts.clickhouseConfigs,
-    opts.preferredClickhouseService,
-  ).query({
+  const client =
+    opts.client ??
+    clickhouseClient(opts.clickhouseConfigs, opts.preferredClickhouseService);
+
+  const res = await client.query({
     query: opts.query,
     format: opts.format,
     query_params: opts.params,
@@ -393,6 +393,58 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
   recordSummaryOnSpan(opts.span, res.response_headers);
 
   return res;
+}
+
+export type ClickhouseInsertOpts<T> = {
+  table: string;
+  values: InsertParams<Readable, T>["values"];
+  format?: DataFormat;
+  columns?: InsertParams<Readable, T>["columns"];
+  clickhouseConfigs?: NodeClickHouseClientConfigOptions;
+  client?: ClickhouseClientType;
+  tags?: ClickHouseQueryTags;
+  clickhouseSettings?: ClickHouseSettings;
+};
+
+export async function insertClickhouse<T>(
+  opts: ClickhouseInsertOpts<T>,
+): Promise<InsertResult> {
+  return await instrumentAsync(
+    { name: "clickhouse-insert", spanKind: SpanKind.CLIENT },
+    async (span) => {
+      span.setAttribute("ch.query.table", opts.table);
+      span.setAttribute("db.system", "clickhouse");
+      span.setAttribute("db.operation.name", "INSERT");
+
+      const normalizedTags = normalizeClickHouseQueryTags({
+        tags: opts.tags,
+        operation: "insert",
+        table: opts.table,
+      });
+
+      const client = opts.client ?? clickhouseClient(opts.clickhouseConfigs);
+      const res = await client.insert({
+        table: opts.table,
+        values: opts.values,
+        ...(opts.format ? { format: opts.format } : {}),
+        ...(opts.columns ? { columns: opts.columns } : {}),
+        clickhouse_settings: {
+          ...opts.clickhouseSettings,
+          log_comment: JSON.stringify(normalizedTags),
+        },
+      });
+
+      if (env.NODE_ENV === "development") {
+        logger.info(`clickhouse:insert ${res.query_id} ${opts.table}`);
+      }
+
+      span.setAttribute("ch.queryId", res.query_id);
+      setSpanTagAttributes(span, normalizedTags);
+      recordSummaryOnSpan(span, res.response_headers);
+
+      return res;
+    },
+  );
 }
 
 /**
@@ -526,10 +578,11 @@ export async function commandClickhouse(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags?: ClickHouseQueryTagInput;
+  tags?: ClickHouseQueryTags;
   clickhouseSettings?: ClickHouseSettings;
   abortSignal?: AbortSignal;
   session_id?: string;
+  queryId?: string;
 }): Promise<void> {
   return await instrumentAsync(
     { name: "clickhouse-command", spanKind: SpanKind.CLIENT },
@@ -550,9 +603,7 @@ export async function commandClickhouse(opts: {
         query: opts.query,
         query_params: opts.params,
         ...(opts.session_id ? { session_id: opts.session_id } : {}),
-        ...(opts.tags?.queryId
-          ? { query_id: opts.tags.queryId as string }
-          : {}),
+        ...(opts.queryId ? { query_id: opts.queryId } : {}),
         ...(opts.abortSignal ? { abort_signal: opts.abortSignal } : {}),
         clickhouse_settings: {
           ...opts.clickhouseSettings,

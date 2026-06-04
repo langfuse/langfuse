@@ -10,6 +10,7 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
+import type { ClickHouseQueryTags } from "../clickhouse/queryTags";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
@@ -599,7 +600,7 @@ async function getObservationsFromEventsTableInternal<T>(
         projectId,
         kind: opts.select,
         operation_name: "getObservationsTableInternal",
-      },
+      } satisfies ClickHouseQueryTags,
     },
     fn: async (input) => {
       return queryClickhouse<T>({
@@ -839,7 +840,7 @@ export const getTraceByIdFromEventsTable = async ({
         kind: "byId",
         projectId,
         operation_name: "getTraceByIdFromEventsTable",
-      },
+      } satisfies ClickHouseQueryTags,
     },
     fn: async (input) => {
       return queryClickhouse<TraceRecordReadType>({
@@ -1068,7 +1069,7 @@ async function getObservationsRowsFromBuilder<T>(
         type: "events",
         kind: "publicApiRows",
         projectId,
-      },
+      } satisfies ClickHouseQueryTags,
     },
     fn: async (input) => {
       return await queryClickhouse<T>({
@@ -1112,7 +1113,7 @@ async function getObservationsCountFromEventsTableForPublicApiInternal(
         type: "events",
         kind: "publicApiCount",
         projectId,
-      },
+      } satisfies ClickHouseQueryTags,
     },
     fn: async (input) => {
       return await queryClickhouse<{ count: string }>({
@@ -1430,7 +1431,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
         type: "traces",
         kind: opts.select === "count" ? "publicApiCount" : "publicApiRows",
         projectId,
-      },
+      } satisfies ClickHouseQueryTags,
     },
     fn: async (input) => {
       return await queryClickhouse<T>({

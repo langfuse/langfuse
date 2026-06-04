@@ -1,7 +1,5 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
-  buildClickHouseLogComment,
-  clickhouseClient,
   commandClickhouse,
   logger,
   queryClickhouse,
@@ -408,10 +406,10 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
     // even after we abort the HTTP connection.
     const queryPromise = commandClickhouse({
       query,
+      queryId,
       tags: {
         feature: "background-migration",
         operation: "fireQuery",
-        queryId,
       },
       // clickhouseConfigs: {
       //   request_timeout: timeoutMs,
@@ -500,26 +498,19 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
     }
 
     // Check if ClickHouse events_full table exists
-    const tables = await clickhouseClient().query({
+    const tableNames = await queryClickhouse<{ name: string }>({
       query: "SHOW TABLES",
-      clickhouse_settings: {
-        log_comment: buildClickHouseLogComment({
-          query: "SHOW TABLES",
-          operation: "select",
-          tags: {
-            surface: "worker",
-            service: "worker",
-            feature: "background-migration",
-            entity: "clickhouse-metadata",
-            storage: "unknown",
-            workload: "lookup",
-            project_id: "none",
-            operation_name: "backfillEventsHistoricFromParts.validate",
-          },
-        }),
+      tags: {
+        surface: "worker",
+        service: "worker",
+        feature: "background-migration",
+        entity: "clickhouse-metadata",
+        storage: "unknown",
+        workload: "lookup",
+        project_id: "none",
+        operation_name: "backfillEventsHistoricFromParts.validate",
       },
     });
-    const tableNames = (await tables.json()).data as { name: string }[];
 
     if (!tableNames.some((r) => r.name === "events_full")) {
       // Retry if the table does not exist as this may mean migrations are still pending

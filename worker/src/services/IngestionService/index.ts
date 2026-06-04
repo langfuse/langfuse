@@ -8,7 +8,6 @@ import {
   Prompt,
 } from "@langfuse/shared";
 import {
-  buildClickHouseLogComment,
   ClickhouseClientType,
   convertDateToClickhouseDateTime,
   convertObservationReadToInsert,
@@ -51,6 +50,7 @@ import {
   convertDefinitionsToMap,
   convertCallsToArrays,
   hasNoEvalConfigsCache,
+  queryClickhouse,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -1430,49 +1430,21 @@ export class IngestionService {
             ORDER BY event_ts DESC
             LIMIT 1 BY id, project_id SETTINGS use_query_cache = false;
           `;
-        const queryResult = await this.clickhouseClient.query({
+        const result = await queryClickhouse({
+          client: this.clickhouseClient,
           query,
-          format: "JSONEachRow",
-          query_params: { projectId, entityId, ...additionalFilters.params },
-          clickhouse_settings: {
-            log_comment: buildClickHouseLogComment({
-              query,
-              operation: "select",
-              table,
-              tags: {
-                surface: "worker",
-                service: "worker",
-                feature: "ingestion",
-                entity: table,
-                storage: "legacy",
-                workload: "lookup",
-                project_id: projectId,
-                projectId,
-              },
-            }),
+          params: { projectId, entityId, ...additionalFilters.params },
+          tags: {
+            surface: "worker",
+            service: "worker",
+            feature: "ingestion",
+            entity: table,
+            storage: "legacy",
+            workload: "lookup",
+            project_id: projectId,
+            projectId,
           },
         });
-
-        span.setAttribute("ch.queryId", queryResult.query_id);
-        const summaryHeader =
-          queryResult.response_headers["x-clickhouse-summary"];
-        if (summaryHeader) {
-          try {
-            const summary = Array.isArray(summaryHeader)
-              ? JSON.parse(summaryHeader[0])
-              : JSON.parse(summaryHeader);
-            for (const key in summary) {
-              span.setAttribute(`ch.${key}`, summary[key]);
-            }
-          } catch (error) {
-            logger.debug(
-              `Failed to parse clickhouse summary header ${summaryHeader}`,
-              error,
-            );
-          }
-        }
-
-        const result = await queryResult.json();
 
         if (result.length === 0) return null;
 

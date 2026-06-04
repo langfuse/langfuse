@@ -1,11 +1,10 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
-  buildClickHouseLogComment,
-  clickhouseClient,
   findS3RefsByPrimaryKey,
   getLastEventLogPrimaryKey,
   insertIntoS3RefsTableFromEventLog,
   logger,
+  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
 import { prisma } from "@langfuse/shared/src/db";
@@ -41,26 +40,19 @@ export default class MigrateEventLogToBlobStorageRefTable implements IBackground
     }
 
     // Check if ClickHouse traces table exists
-    const tables = await clickhouseClient().query({
+    const tableNames = await queryClickhouse<{ name: string }>({
       query: "SHOW TABLES",
-      clickhouse_settings: {
-        log_comment: buildClickHouseLogComment({
-          query: "SHOW TABLES",
-          operation: "select",
-          tags: {
-            surface: "worker",
-            service: "worker",
-            feature: "background-migration",
-            entity: "clickhouse-metadata",
-            storage: "unknown",
-            workload: "lookup",
-            project_id: "none",
-            operation_name: "migrateEventLogToBlobStorageRefTable.validate",
-          },
-        }),
+      tags: {
+        surface: "worker",
+        service: "worker",
+        feature: "background-migration",
+        entity: "clickhouse-metadata",
+        storage: "unknown",
+        workload: "lookup",
+        project_id: "none",
+        operation_name: "migrateEventLogToBlobStorageRefTable.validate",
       },
     });
-    const tableNames = (await tables.json()).data as { name: string }[];
     if (
       !tableNames.some((r) => r.name === "event_log") ||
       !tableNames.some((r) => r.name === "blob_storage_file_log")

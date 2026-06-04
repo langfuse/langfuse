@@ -3,6 +3,7 @@ import {
   contextWithLangfuseProps,
   normalizeClickHouseQueryTags,
   normalizeClickHouseRoute,
+  type ClickHouseQueryTags,
 } from "@langfuse/shared/src/server";
 
 describe("ClickHouse query tags", () => {
@@ -91,7 +92,7 @@ describe("ClickHouse query tags", () => {
         project_id: "project-3",
         queryId: "high-cardinality-query-id",
         traceId: "high-cardinality-trace-id",
-      },
+      } as ClickHouseQueryTags & { queryId: string; traceId: string },
     });
 
     expect(route).toBe("/api/public/traces/:id");

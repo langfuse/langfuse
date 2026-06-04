@@ -1,9 +1,9 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
-  buildClickHouseLogComment,
-  clickhouseClient,
   convertPostgresDatasetRunItemToInsert,
+  insertClickhouse,
   logger,
+  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
@@ -34,27 +34,20 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt implement
     }
 
     // Check if ClickHouse dataset_run_items_rmt table exists
-    const tables = await clickhouseClient().query({
+    const tableNames = await queryClickhouse<{ name: string }>({
       query: "SHOW TABLES",
-      clickhouse_settings: {
-        log_comment: buildClickHouseLogComment({
-          query: "SHOW TABLES",
-          operation: "select",
-          tags: {
-            surface: "worker",
-            service: "worker",
-            feature: "background-migration",
-            entity: "clickhouse-metadata",
-            storage: "unknown",
-            workload: "lookup",
-            project_id: "none",
-            operation_name:
-              "migrateDatasetRunItemsFromPostgresToClickhouseRmt.validate",
-          },
-        }),
+      tags: {
+        surface: "worker",
+        service: "worker",
+        feature: "background-migration",
+        entity: "clickhouse-metadata",
+        storage: "unknown",
+        workload: "lookup",
+        project_id: "none",
+        operation_name:
+          "migrateDatasetRunItemsFromPostgresToClickhouseRmt.validate",
       },
     });
-    const tableNames = (await tables.json()).data as { name: string }[];
     if (!tableNames.some((r) => r.name === "dataset_run_items_rmt")) {
       // Retry if the table does not exist as this may mean migrations are still pending
       if (attempts > 0) {
@@ -176,26 +169,19 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt implement
       );
 
       const insertStart = Date.now();
-      await clickhouseClient().insert({
+      await insertClickhouse({
         table: "dataset_run_items_rmt",
         values: datasetRunItems.map(convertPostgresDatasetRunItemToInsert),
         format: "JSONEachRow",
-        clickhouse_settings: {
-          log_comment: buildClickHouseLogComment({
-            operation: "insert",
-            table: "dataset_run_items_rmt",
-            tags: {
-              surface: "worker",
-              service: "worker",
-              feature: "background-migration",
-              entity: "dataset-run-item",
-              storage: "legacy",
-              workload: "write",
-              project_id: "multiple",
-              operation_name:
-                "migrateDatasetRunItemsFromPostgresToClickhouseRmt",
-            },
-          }),
+        tags: {
+          surface: "worker",
+          service: "worker",
+          feature: "background-migration",
+          entity: "dataset-run-item",
+          storage: "legacy",
+          workload: "write",
+          project_id: "multiple",
+          operation_name: "migrateDatasetRunItemsFromPostgresToClickhouseRmt",
         },
       });
 

@@ -1,9 +1,9 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
-  buildClickHouseLogComment,
-  clickhouseClient,
   convertPostgresObservationToInsert,
+  insertClickhouse,
   logger,
+  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
@@ -69,27 +69,19 @@ export default class MigrateObservationsFromPostgresToClickhouse implements IBac
     }
 
     // Check if ClickHouse observations table exists
-    const tables = await clickhouseClient().query({
+    const tableNames = await queryClickhouse<{ name: string }>({
       query: "SHOW TABLES",
-      clickhouse_settings: {
-        log_comment: buildClickHouseLogComment({
-          query: "SHOW TABLES",
-          operation: "select",
-          tags: {
-            surface: "worker",
-            service: "worker",
-            feature: "background-migration",
-            entity: "clickhouse-metadata",
-            storage: "unknown",
-            workload: "lookup",
-            project_id: "none",
-            operation_name:
-              "migrateObservationsFromPostgresToClickhouse.validate",
-          },
-        }),
+      tags: {
+        surface: "worker",
+        service: "worker",
+        feature: "background-migration",
+        entity: "clickhouse-metadata",
+        storage: "unknown",
+        workload: "lookup",
+        project_id: "none",
+        operation_name: "migrateObservationsFromPostgresToClickhouse.validate",
       },
     });
-    const tableNames = (await tables.json()).data as { name: string }[];
     if (!tableNames.some((r) => r.name === "observations")) {
       // Retry if the table does not exist as this may mean migrations are still pending
       if (attempts > 0) {
@@ -157,25 +149,19 @@ export default class MigrateObservationsFromPostgresToClickhouse implements IBac
       );
 
       const insertStart = Date.now();
-      await clickhouseClient().insert({
+      await insertClickhouse({
         table: "observations",
         values: observations.map(convertPostgresObservationToInsert),
         format: "JSONEachRow",
-        clickhouse_settings: {
-          log_comment: buildClickHouseLogComment({
-            operation: "insert",
-            table: "observations",
-            tags: {
-              surface: "worker",
-              service: "worker",
-              feature: "background-migration",
-              entity: "observation",
-              storage: "legacy",
-              workload: "write",
-              project_id: "multiple",
-              operation_name: "migrateObservationsFromPostgresToClickhouse",
-            },
-          }),
+        tags: {
+          surface: "worker",
+          service: "worker",
+          feature: "background-migration",
+          entity: "observation",
+          storage: "legacy",
+          workload: "write",
+          project_id: "multiple",
+          operation_name: "migrateObservationsFromPostgresToClickhouse",
         },
       });
 

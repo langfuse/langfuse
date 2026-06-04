@@ -1,9 +1,9 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
-  buildClickHouseLogComment,
-  clickhouseClient,
   convertPostgresScoreToInsert,
+  insertClickhouse,
   logger,
+  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
@@ -34,26 +34,19 @@ export default class MigrateScoresFromPostgresToClickhouse implements IBackgroun
     }
 
     // Check if ClickHouse scores table exists
-    const tables = await clickhouseClient().query({
+    const tableNames = await queryClickhouse<{ name: string }>({
       query: "SHOW TABLES",
-      clickhouse_settings: {
-        log_comment: buildClickHouseLogComment({
-          query: "SHOW TABLES",
-          operation: "select",
-          tags: {
-            surface: "worker",
-            service: "worker",
-            feature: "background-migration",
-            entity: "clickhouse-metadata",
-            storage: "unknown",
-            workload: "lookup",
-            project_id: "none",
-            operation_name: "migrateScoresFromPostgresToClickhouse.validate",
-          },
-        }),
+      tags: {
+        surface: "worker",
+        service: "worker",
+        feature: "background-migration",
+        entity: "clickhouse-metadata",
+        storage: "unknown",
+        workload: "lookup",
+        project_id: "none",
+        operation_name: "migrateScoresFromPostgresToClickhouse.validate",
       },
     });
-    const tableNames = (await tables.json()).data as { name: string }[];
     if (!tableNames.some((r) => r.name === "scores")) {
       // Retry if the table does not exist as this may mean migrations are still pending
       if (attempts > 0) {
@@ -133,25 +126,19 @@ export default class MigrateScoresFromPostgresToClickhouse implements IBackgroun
       );
 
       const insertStart = Date.now();
-      await clickhouseClient().insert({
+      await insertClickhouse({
         table: "scores",
         values: scores.map(convertPostgresScoreToInsert),
         format: "JSONEachRow",
-        clickhouse_settings: {
-          log_comment: buildClickHouseLogComment({
-            operation: "insert",
-            table: "scores",
-            tags: {
-              surface: "worker",
-              service: "worker",
-              feature: "background-migration",
-              entity: "score",
-              storage: "legacy",
-              workload: "write",
-              project_id: "multiple",
-              operation_name: "migrateScoresFromPostgresToClickhouse",
-            },
-          }),
+        tags: {
+          surface: "worker",
+          service: "worker",
+          feature: "background-migration",
+          entity: "score",
+          storage: "legacy",
+          workload: "write",
+          project_id: "multiple",
+          operation_name: "migrateScoresFromPostgresToClickhouse",
         },
       });
 

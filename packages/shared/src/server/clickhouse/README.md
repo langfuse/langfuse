@@ -4,10 +4,14 @@ Langfuse sets structured ClickHouse `log_comment` values so `sysex.query_log`
 can attribute query cost and performance by product surface, feature, storage
 backend, workload, and project.
 
-Use `buildClickHouseLogComment` or the shared repository wrappers
+Use the shared repository wrappers
 (`queryClickhouse`, `queryClickhouseStream`, `queryClickhouseWithProgress`,
-`commandClickhouse`, `upsertClickhouse`) instead of constructing
+`commandClickhouse`, `insertClickhouse`, `upsertClickhouse`) instead of constructing
 `log_comment` by hand.
+
+Callers should pass typed `ClickHouseQueryTags` via the wrapper `tags` option.
+The wrappers normalize tags, merge request baggage, and set ClickHouse
+`log_comment` internally.
 
 ## Dashboard Dimensions
 

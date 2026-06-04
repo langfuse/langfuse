@@ -302,7 +302,6 @@ export const handleEventPropagationJob = async (
       `,
       tags: {
         feature: "ingestion",
-        partition: partitionToProcess,
         operation_name: "propagateObservationsToEvents",
       },
       clickhouseConfigs: {
