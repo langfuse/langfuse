@@ -92,6 +92,7 @@ async function main() {
     create: {
       id: seedOrgId,
       name: "Seed Org",
+      aiFeaturesEnabled: true,
       cloudConfig: {
         plan: "Team",
       },
