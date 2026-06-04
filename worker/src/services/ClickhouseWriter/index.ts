@@ -582,7 +582,6 @@ export class ClickhouseWriter {
           surface: "worker",
           service: "worker",
           entity: params.table,
-          storage: params.table === TableName.EventsFull ? "events" : "legacy",
           workload: "write",
           project_id:
             params.records.length > 0

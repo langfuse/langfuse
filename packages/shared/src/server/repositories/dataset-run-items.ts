@@ -895,7 +895,6 @@ const getDatasetRunItemsTableInternal = async <
       feature: "datasets",
       type: "dataset-run-items",
       projectId,
-      ...(datasetId ? { datasetId } : {}),
     },
     clickhouseConfigs: opts.clickhouseConfigs,
   });

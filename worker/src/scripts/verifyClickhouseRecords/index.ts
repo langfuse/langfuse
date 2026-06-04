@@ -292,7 +292,12 @@ async function verifyClickhouseObservation(postgresObservation: any) {
   const { id: observationId, project_id: projectId } = postgresObservation;
   const clickhouseRecord = (
     await queryClickhouse({
-      query: `SELECT * FROM observations WHERE project_id = '${projectId}' AND id = '${observationId}' ORDER BY updated_at DESC LIMIT 1`,
+      query:
+        "SELECT * FROM observations WHERE project_id = {projectId: String} AND id = {observationId: String} ORDER BY updated_at DESC LIMIT 1",
+      params: {
+        projectId,
+        observationId,
+      },
       tags: {
         surface: "internal",
         service: "worker",
@@ -726,7 +731,12 @@ async function verifyClickhouseTrace(postgresTrace: any) {
 
   const clickhouseTrace = (
     await queryClickhouse({
-      query: `SELECT * FROM traces WHERE project_id = '${projectId}' AND id = '${traceId}' ORDER BY updated_at DESC LIMIT 1`,
+      query:
+        "SELECT * FROM traces WHERE project_id = {projectId: String} AND id = {traceId: String} ORDER BY updated_at DESC LIMIT 1",
+      params: {
+        projectId,
+        traceId,
+      },
       tags: {
         surface: "internal",
         service: "worker",
@@ -899,7 +909,12 @@ async function verifyClickhouseScore(postgresScore: any) {
 
   const clickhouseScore = (
     await queryClickhouse({
-      query: `SELECT * FROM scores WHERE project_id = '${projectId}' AND id = '${scoreId}' ORDER BY updated_at DESC LIMIT 1`,
+      query:
+        "SELECT * FROM scores WHERE project_id = {projectId: String} AND id = {scoreId: String} ORDER BY updated_at DESC LIMIT 1",
+      params: {
+        projectId,
+        scoreId,
+      },
       tags: {
         surface: "internal",
         service: "worker",
