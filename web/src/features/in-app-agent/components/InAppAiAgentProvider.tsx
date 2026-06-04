@@ -16,6 +16,10 @@ import { useRouter } from "next/router";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { env } from "@/src/env.mjs";
 import {
+  createInAppAgentConversationId,
+  createInAppAgentMessageId,
+} from "@/src/features/in-app-agent/ids";
+import {
   AgUiMessageSchema,
   type AgUiMessage,
   type InAppAgentRuntimeState,
@@ -347,9 +351,8 @@ function InAppAiAgentProviderInner({
   const runAgent = useCallback(
     (agent: HttpAgent, conversationId: string) => {
       setIsRunning(true);
-      const runId = crypto.randomUUID();
       agent
-        .runAgent({ runId })
+        .runAgent()
         .catch((error) => {
           if (intentionalAbortRef.current) {
             return;
@@ -407,7 +410,8 @@ function InAppAiAgentProviderInner({
       let startedRun = false;
       try {
         const isNewConversation = !selectedConversationId;
-        const conversationId = selectedConversationId ?? crypto.randomUUID();
+        const conversationId =
+          selectedConversationId ?? createInAppAgentConversationId();
 
         if (isNewConversation) {
           setSelectedConversationId(conversationId);
@@ -435,7 +439,7 @@ function InAppAiAgentProviderInner({
         ensureSubscription(agent);
 
         const userMessage = {
-          id: crypto.randomUUID(),
+          id: createInAppAgentMessageId(),
           role: "user",
           content,
         } satisfies AgUiMessage;

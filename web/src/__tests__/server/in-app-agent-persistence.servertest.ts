@@ -5,6 +5,10 @@ import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import {
+  createInAppAgentConversationId,
+  createInAppAgentRunId,
+} from "@/src/features/in-app-agent/ids";
 import type { AgUiEvent } from "@/src/features/in-app-agent/schema";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import {
@@ -97,7 +101,7 @@ describe("in-app agent persistence", () => {
     ensureOwnedConversation({
       prisma,
       projectId: params.projectId,
-      conversationId: params.conversationId ?? `conversation-${randomUUID()}`,
+      conversationId: params.conversationId ?? createInAppAgentConversationId(),
       userId: params.userId,
     });
 
@@ -109,7 +113,7 @@ describe("in-app agent persistence", () => {
   }) =>
     createRun({
       prisma,
-      runId: params.runId ?? `run-${randomUUID()}`,
+      runId: params.runId ?? createInAppAgentRunId(),
       projectId: params.projectId,
       conversationId: params.conversationId,
       triggeredByUserId: params.userId,
@@ -775,7 +779,7 @@ describe("in-app agent persistence", () => {
       createdByUserId: other.userId,
     });
 
-    const runId = `run-${randomUUID()}`;
+    const runId = createInAppAgentRunId();
     await createConversationRun({
       projectId: owner.projectId,
       conversationId: conversation.id,

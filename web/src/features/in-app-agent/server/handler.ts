@@ -1,9 +1,11 @@
-import { randomUUID } from "node:crypto";
-
 import { EventType } from "@ag-ui/core";
 import { getServerSession } from "next-auth";
 
 import { env } from "@/src/env.mjs";
+import {
+  createInAppAgentMessageId,
+  createInAppAgentRunId,
+} from "@/src/features/in-app-agent/ids";
 import {
   AgUiRunAgentInputSchema,
   type AgUiRunAgentInput,
@@ -402,10 +404,10 @@ function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
 
   return {
     threadId: input.threadId,
-    runId: randomUUID(),
+    runId: createInAppAgentRunId(),
     ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
     state: null,
-    messages: [{ ...lastUserMessage, id: randomUUID() }],
+    messages: [{ ...lastUserMessage, id: createInAppAgentMessageId() }],
     tools: [],
     context: [],
     forwardedProps: {},
