@@ -12077,8 +12077,9 @@ components:
         metadata:
           type: object
           additionalProperties: true
-          nullable: true
           description: Arbitrary metadata attached to the score.
+      required:
+        - metadata
     ScoreSubjectKindV3:
       title: ScoreSubjectKindV3
       type: string
@@ -12101,7 +12102,6 @@ components:
             datasetRunId depending on kind).
         traceId:
           type: string
-          nullable: true
           description: The parent trace ID. Present only when kind is "observation".
       required:
         - kind

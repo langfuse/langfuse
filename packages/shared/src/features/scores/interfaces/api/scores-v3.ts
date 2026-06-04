@@ -44,7 +44,7 @@ export const GetScoresV3 = z.object({
 export const ScoreDetailsV3 = z.object({
   comment: z.string().nullable(),
   configId: z.string().nullable(),
-  metadata: z.unknown().nullable(),
+  metadata: z.unknown(),
 });
 
 export const ScoreSubjectV3 = z.object({
