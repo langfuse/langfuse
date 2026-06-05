@@ -1,5 +1,4 @@
 import { useRouter } from "next/router";
-import { useEffect } from "react";
 import Page from "@/src/components/layouts/page";
 import { FlaskConical } from "lucide-react";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
@@ -8,19 +7,13 @@ import {
   getExperimentRunTabs,
 } from "@/src/features/navigation/utils/experiment-run-tabs";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export default function ExperimentAnalytics() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const {
-    canAccessExperiments,
-    canUseExperimentsBetaToggle,
-    isExperimentsBetaActive,
-    setExperimentsBetaEnabled,
-  } = useExperimentAccess();
+  const { isExperimentsBetaActive } = useExperimentAccess();
 
   const [lastResultsUrl] = useSessionStorage<string | null>(
     "experiment-results-url",
@@ -31,28 +24,6 @@ export default function ExperimentAnalytics() {
     const fallbackUrl = `/project/${projectId}/experiments/results`;
     router.push(lastResultsUrl ?? fallbackUrl);
   };
-
-  const betaSwitch = canUseExperimentsBetaToggle ? (
-    <ExperimentsBetaSwitch
-      enabled={isExperimentsBetaActive}
-      onEnabledChange={setExperimentsBetaEnabled}
-    />
-  ) : null;
-
-  // Auto-redirect when beta is off
-  useEffect(() => {
-    if (canAccessExperiments && !isExperimentsBetaActive && lastResultsUrl) {
-      router.push(lastResultsUrl);
-    }
-  }, [canAccessExperiments, isExperimentsBetaActive, lastResultsUrl, router]);
-
-  if (!canAccessExperiments) {
-    return (
-      <Page headerProps={{ title: "Analytics" }}>
-        <div className="p-4">Experiments Pages coming soon.</div>
-      </Page>
-    );
-  }
 
   if (!isExperimentsBetaActive) {
     return (
@@ -76,7 +47,6 @@ export default function ExperimentAnalytics() {
           tabs: getExperimentRunTabs(projectId, handleResultsClick),
           activeTab: EXPERIMENT_RUN_TABS.ANALYTICS,
         },
-        actionButtonsLeft: betaSwitch,
       }}
     >
       <div className="flex h-full flex-col items-center justify-center p-8">
