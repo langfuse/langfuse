@@ -1,20 +1,31 @@
+import { EventType } from "@ag-ui/core";
 import { getServerSession } from "next-auth";
 
 import { env } from "@/src/env.mjs";
 import {
+  createInAppAgentMessageId,
+  createInAppAgentRunId,
+} from "@/src/features/in-app-agent/ids";
+import {
   AgUiRunAgentInputSchema,
   type AgUiRunAgentInput,
+  type AgUiEvent,
   InAppAgentRuntimeStateSchema,
   type AgUiMessage,
 } from "@/src/features/in-app-agent/schema";
 import { createAgUiStream } from "@/src/features/in-app-agent/server/agent";
 import {
-  InvalidInAppAgentSessionTokenError,
-  signInAppAgentSessionToken,
-  verifyInAppAgentSessionToken,
-} from "@/src/features/in-app-agent/server/auth";
+  createRun,
+  ensureOwnedConversation,
+  finishRun,
+  replaceRunEvents,
+  shouldFlushPersistedEvent,
+  toPersistableAgentEvent,
+  updateProviderSessionId,
+} from "@/src/features/in-app-agent/server/persistence";
 import { getAuthOptions } from "@/src/server/auth";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
+import { assertUnreachable } from "@/src/utils/types";
 import {
   BaseError,
   ForbiddenError,
@@ -22,12 +33,11 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { assertUnreachable } from "@/src/utils/types";
+import { logger, redis } from "@langfuse/shared/src/server";
 import {
   createAndAddApiKeysToDb,
   deleteApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
-import { logger, redis } from "@langfuse/shared/src/server";
 
 const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
 const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
@@ -87,18 +97,22 @@ export default async function handler(request: Request) {
 
     const auth = { userId: session.user.id, user: session.user };
 
-    const { projectId, claudeSessionId } = (() => {
-      if (parsedState.data.type === "newSession") {
+    const { projectId, conversationId } = (() => {
+      if (parsedState.data.type === "newConversation") {
         return {
           projectId: parsedState.data.projectId,
-          claudeSessionId: undefined,
+          conversationId: input.threadId,
         };
       }
 
-      return verifyInAppAgentSessionToken(parsedState.data.claudeSessionToken, {
-        userId: auth.userId,
-        threadId: input.threadId,
-      });
+      if (parsedState.data.conversationId !== input.threadId) {
+        throw new InvalidRequestError("Conversation id does not match thread");
+      }
+
+      return {
+        projectId: parsedState.data.projectId,
+        conversationId: parsedState.data.conversationId,
+      };
     })();
 
     if (!isProjectMemberOrAdmin(auth.user, projectId)) {
@@ -134,57 +148,177 @@ export default async function handler(request: Request) {
 
     const sanitizedInput = sanitizeAgentInput(input);
     const awsProfile = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
+
+    const conversation = await ensureOwnedConversation({
+      prisma,
+      projectId,
+      conversationId,
+      userId: auth.userId,
+    });
+
     return await withInAppAgentMcpApiKeyCleanup(
       projectId,
-      (mcpApiKey, cleanupMcpApiKey) => {
-        const stream = createAgUiStream({
-          input: sanitizedInput,
-          signal: request.signal,
-          options: {
-            resumeSessionId: claudeSessionId,
-            createResumeStateForSessionId: (claudeSessionId) => ({
-              type: "existingSession",
-              claudeSessionToken: signInAppAgentSessionToken({
-                userId: auth.userId,
-                projectId,
-                threadId: sanitizedInput.threadId,
-                claudeSessionId,
-              }),
-            }),
-            awsBedrock: {
-              region: env.LANGFUSE_AWS_BEDROCK_REGION,
-              ...(awsProfile ? { profile: awsProfile } : {}),
-            },
-            langfuseMcp: {
-              url: getLangfuseMcpUrl(),
-              publicKey: mcpApiKey.publicKey,
-              secretKey: mcpApiKey.secretKey,
-            },
-            onFinish: cleanupMcpApiKey,
-          },
-        });
+      async (mcpApiKey, cleanupMcpApiKey) => {
+        let runCreated = false;
 
-        return new Response(stream, {
-          headers: {
-            "Content-Type": "text/event-stream; charset=utf-8",
-            "Content-Encoding": "none",
-            "Cache-Control": "no-cache, no-transform",
-            Connection: "keep-alive",
-            "X-Accel-Buffering": "no",
-          },
-        });
+        try {
+          await createRun({
+            prisma,
+            runId: sanitizedInput.runId,
+            projectId,
+            conversationId: conversation.id,
+            triggeredByUserId: auth.userId,
+            // TODO: Store the exact provider model id, not the Claude SDK alias.
+            model: "haiku",
+            mcpApiKeyId: mcpApiKey.id,
+          });
+          runCreated = true;
+
+          const persistedEvents: AgUiEvent[] = [
+            {
+              type: EventType.RUN_STARTED,
+              threadId: sanitizedInput.threadId,
+              runId: sanitizedInput.runId,
+              ...(sanitizedInput.parentRunId
+                ? { parentRunId: sanitizedInput.parentRunId }
+                : {}),
+              input: sanitizedInput,
+            },
+          ];
+
+          const replacePersistedRunEvents = () =>
+            replaceRunEvents({
+              prisma,
+              projectId,
+              conversationId: conversation.id,
+              runId: sanitizedInput.runId,
+              events: persistedEvents,
+            });
+
+          await replacePersistedRunEvents();
+
+          let providerSessionPersistence: Promise<void> = Promise.resolve();
+          const persistProviderSessionId = (claudeSessionId: string) => {
+            providerSessionPersistence = updateProviderSessionId({
+              prisma,
+              projectId,
+              conversationId: conversation.id,
+              providerSessionId: claudeSessionId,
+            }).catch((error) => {
+              logger.error("Failed to persist agent session id", {
+                error,
+                projectId,
+                conversationId: conversation.id,
+              });
+            });
+          };
+
+          const finishCurrentRun = (error?: {
+            errorCode: string;
+            errorMessage: string;
+          }) =>
+            providerSessionPersistence.then(() =>
+              finishRun({
+                prisma,
+                runId: sanitizedInput.runId,
+                projectId,
+                ...error,
+              }),
+            );
+
+          const stream = createAgUiStream({
+            input: sanitizedInput,
+            signal: request.signal,
+            options: {
+              // TODO: Claude's default session storage is pod-local. Add a shared
+              // SessionStore or replay persisted history before relying on cross-pod resumes.
+              resumeSessionId: conversation.providerSessionId ?? undefined,
+              onResumeSessionId: (claudeSessionId) => {
+                persistProviderSessionId(claudeSessionId);
+
+                return {
+                  type: "existingConversation",
+                  projectId,
+                  conversationId: conversation.id,
+                };
+              },
+              onEvent: (event) => {
+                const persistedEvent = toPersistableAgentEvent(event);
+
+                if (!persistedEvent) {
+                  return;
+                }
+
+                if (persistedEvent.type === EventType.RUN_STARTED) {
+                  return;
+                }
+
+                persistedEvents.push(persistedEvent);
+
+                if (!shouldFlushPersistedEvent(persistedEvent)) {
+                  return;
+                }
+
+                return replacePersistedRunEvents();
+              },
+              onComplete: () =>
+                replacePersistedRunEvents().then(() => finishCurrentRun()),
+              onAbort: () =>
+                finishCurrentRun({
+                  errorCode: "cancelled",
+                  errorMessage: "Client aborted request",
+                }),
+              onError: (error) =>
+                finishCurrentRun({
+                  errorCode: "agent_error",
+                  errorMessage:
+                    error instanceof Error
+                      ? error.message
+                      : "Unknown agent error",
+                }),
+              onFinish: cleanupMcpApiKey,
+              awsBedrock: {
+                region: env.LANGFUSE_AWS_BEDROCK_REGION,
+                ...(awsProfile ? { profile: awsProfile } : {}),
+              },
+              langfuseMcp: {
+                url: getLangfuseMcpUrl(),
+                publicKey: mcpApiKey.publicKey,
+                secretKey: mcpApiKey.secretKey,
+              },
+            },
+          });
+
+          return new Response(stream, {
+            headers: {
+              "Content-Type": "text/event-stream; charset=utf-8",
+              "Content-Encoding": "none",
+              "Cache-Control": "no-cache, no-transform",
+              Connection: "keep-alive",
+              "X-Accel-Buffering": "no",
+            },
+          });
+        } catch (error) {
+          if (runCreated) {
+            await finishRun({
+              prisma,
+              runId: sanitizedInput.runId,
+              projectId,
+              errorCode: "init_failed",
+              errorMessage:
+                error instanceof Error
+                  ? error.message
+                  : "Agent initialization failed",
+            });
+          }
+
+          throw error;
+        }
       },
     );
   } catch (err) {
     if (err instanceof BaseError) {
       return Response.json({ error: err.message }, { status: err.httpCode });
-    }
-
-    if (err instanceof InvalidInAppAgentSessionTokenError) {
-      return Response.json(
-        { error: err.message, code: "invalid_session_token" },
-        { status: 400 },
-      );
     }
 
     throw err;
@@ -217,7 +351,7 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
   createResponse: (
     mcpApiKey: Awaited<ReturnType<typeof createInAppAgentMcpApiKey>>,
     cleanupMcpApiKey: () => Promise<void>,
-  ) => T,
+  ) => T | Promise<T>,
 ): Promise<T> {
   const mcpApiKey = await createInAppAgentMcpApiKey(projectId);
   let cleanupPromise: Promise<void> | undefined;
@@ -237,7 +371,7 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
   };
 
   try {
-    return createResponse(mcpApiKey, cleanupMcpApiKey);
+    return await createResponse(mcpApiKey, cleanupMcpApiKey);
   } catch (err) {
     await cleanupMcpApiKey().catch((cleanupErr) => {
       logger.error("Failed to clean up in-app agent MCP API key", cleanupErr);
@@ -259,7 +393,11 @@ async function cleanupInAppAgentMcpApiKey(params: {
   });
 }
 
-function sanitizeAgentInput(input: AgUiRunAgentInput): AgUiRunAgentInput {
+type SanitizedAgentInput = AgUiRunAgentInput & {
+  messages: [SanitizedUserMessage];
+};
+
+function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
   const lastUserMessage = getLastUserMessage(input.messages);
 
   if (!lastUserMessage) {
@@ -268,19 +406,25 @@ function sanitizeAgentInput(input: AgUiRunAgentInput): AgUiRunAgentInput {
 
   return {
     threadId: input.threadId,
-    runId: input.runId,
+    runId: createInAppAgentRunId(),
     ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
     state: null,
-    messages: [lastUserMessage],
+    messages: [{ ...lastUserMessage, id: createInAppAgentMessageId() }],
     tools: [],
     context: [],
     forwardedProps: {},
   };
 }
 
+type SanitizedUserMessage = {
+  id: string;
+  role: "user";
+  content: string;
+};
+
 function getLastUserMessage(
   messages: AgUiMessage[],
-): Extract<AgUiMessage, { role: "user" }> | undefined {
+): SanitizedUserMessage | undefined {
   const lastMessage = messages.at(-1);
 
   if (lastMessage?.role !== "user") {
