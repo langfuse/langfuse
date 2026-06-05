@@ -15,6 +15,7 @@ import {
   createRun,
   ensureOwnedConversation,
   finishRun,
+  getConversationMessagesForReplay,
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
@@ -273,13 +274,38 @@ describe("in-app agent persistence", () => {
       messageId: "user-message-2",
       content: "Inspect the next trace",
     });
-    await appendAssistantText({
+    await processAndPersistEvent({
       projectId,
       conversationId: conversation.id,
       runId: run2.id,
       events: events2,
-      messageId: "assistant-message-2",
-      chunks: ["Next trace inspected."],
+      event: {
+        type: EventType.TEXT_MESSAGE_CHUNK,
+        messageId: "assistant-message-2",
+        delta: "Next trace",
+      },
+    });
+    await processAndPersistEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run2.id,
+      events: events2,
+      event: {
+        type: EventType.TEXT_MESSAGE_CHUNK,
+        messageId: "assistant-message-2",
+        delta: " inspected.",
+      },
+    });
+    await processAndPersistEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: run2.id,
+      events: events2,
+      event: {
+        type: EventType.RUN_FINISHED,
+        threadId: conversation.id,
+        runId: run2.id,
+      },
     });
 
     const detail = await caller.getConversation({
@@ -324,7 +350,7 @@ describe("in-app agent persistence", () => {
     });
 
     expect(events.map((event) => event.sequenceNumber)).toEqual([
-      0, 1, 2, 3, 4, 5, 6, 7,
+      0, 1, 2, 3, 4, 5, 6,
     ]);
     expect(events.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
@@ -332,9 +358,8 @@ describe("in-app agent persistence", () => {
       EventType.TEXT_MESSAGE_CONTENT,
       EventType.TEXT_MESSAGE_END,
       EventType.RUN_STARTED,
-      EventType.TEXT_MESSAGE_START,
-      EventType.TEXT_MESSAGE_CONTENT,
-      EventType.TEXT_MESSAGE_END,
+      EventType.TEXT_MESSAGE_CHUNK,
+      EventType.RUN_FINISHED,
     ]);
     expect(events[0]?.event).toMatchObject({
       type: EventType.RUN_STARTED,
@@ -365,7 +390,12 @@ describe("in-app agent persistence", () => {
       },
     });
     expect(events[6]?.event).toMatchObject({
-      type: EventType.TEXT_MESSAGE_CONTENT,
+      type: EventType.RUN_FINISHED,
+    });
+    expect(events[5]?.event).toMatchObject({
+      type: EventType.TEXT_MESSAGE_CHUNK,
+      messageId: "assistant-message-2",
+      role: "assistant",
       delta: "Next trace inspected.",
     });
 
@@ -661,7 +691,7 @@ describe("in-app agent persistence", () => {
     expect(JSON.stringify(events)).not.toContain("secret");
   });
 
-  it("ignores adapter message snapshots when persisting compact events", async () => {
+  it("does not persist adapter message snapshots", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
@@ -688,7 +718,7 @@ describe("in-app agent persistence", () => {
           {
             id: "snapshot-only",
             role: "assistant",
-            content: "Do not restore me",
+            content: "Restore me from the snapshot",
           },
         ],
       },
@@ -711,6 +741,375 @@ describe("in-app agent persistence", () => {
         where: { projectId, conversationId: conversation.id, runId: run.id },
       }),
     ).resolves.toBe(1);
+  });
+
+  it("drops trailing user-only turns before replay", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const completedRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const completedEvents = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: completedRun.id,
+      messageId: "user-1",
+      content: "first",
+    });
+
+    await processAndPersistEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: completedRun.id,
+      events: completedEvents,
+      event: {
+        type: EventType.TEXT_MESSAGE_CHUNK,
+        messageId: "assistant-1",
+        delta: "done",
+      },
+    });
+    await processAndPersistEvent({
+      projectId,
+      conversationId: conversation.id,
+      runId: completedRun.id,
+      events: completedEvents,
+      event: {
+        type: EventType.RUN_FINISHED,
+        threadId: conversation.id,
+        runId: completedRun.id,
+      },
+    });
+    await finishRun({
+      prisma,
+      runId: completedRun.id,
+      projectId,
+    });
+
+    const abandonedRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: abandonedRun.id,
+      messageId: "orphan-user-1",
+      content: "failed",
+    });
+
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual([
+      { id: "user-1", role: "user", content: "first" },
+      { id: "assistant-1", role: "assistant", content: "done" },
+      { id: "orphan-user-1", role: "user", content: "failed" },
+    ]);
+  });
+
+  it("drops assistant tool calls that have no matching tool result", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "user-1",
+      content: "search",
+    });
+    const process = (event: AgUiEvent) =>
+      processAndPersistEvent({
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        events,
+        event,
+      });
+
+    await process({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: "assistant-1",
+      role: "assistant",
+    });
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "paired-tool-call",
+      toolCallName: "list_traces",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "paired-tool-call",
+      delta: "{}",
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "paired-tool-call",
+    });
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "orphan-tool-call",
+      toolCallName: "get_trace",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "orphan-tool-call",
+      delta: "{}",
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "orphan-tool-call",
+    });
+    await process({
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: "assistant-1",
+      delta: "calling tools",
+    });
+    await process({
+      type: EventType.TEXT_MESSAGE_END,
+      messageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "tool-result-1",
+      toolCallId: "paired-tool-call",
+      content: "[]",
+      role: "tool",
+    });
+
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual([
+      { id: "user-1", role: "user", content: "search" },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "calling tools",
+        toolCalls: [
+          {
+            id: "paired-tool-call",
+            type: "function",
+            function: { name: "list_traces", arguments: "{}" },
+          },
+        ],
+      },
+      {
+        id: "tool-result-1",
+        role: "tool",
+        content: "[]",
+        toolCallId: "paired-tool-call",
+      },
+    ]);
+  });
+
+  it("drops empty assistant messages after removing orphan tool calls before replay", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "user-1",
+      content: "search",
+    });
+    const process = (event: AgUiEvent) =>
+      processAndPersistEvent({
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        events,
+        event,
+      });
+
+    await process({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: "assistant-1",
+      role: "assistant",
+    });
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "orphan-tool-call",
+      toolCallName: "get_trace",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "orphan-tool-call",
+      delta: "{}",
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "orphan-tool-call",
+    });
+
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual([{ id: "user-1", role: "user", content: "search" }]);
+  });
+
+  it("keeps user messages before empty assistant messages removed from replay", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    const orphanToolRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const orphanToolEvents = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: orphanToolRun.id,
+      messageId: "user-1",
+      content: "search",
+    });
+    const processOrphanToolEvent = (event: AgUiEvent) =>
+      processAndPersistEvent({
+        projectId,
+        conversationId: conversation.id,
+        runId: orphanToolRun.id,
+        events: orphanToolEvents,
+        event,
+      });
+
+    await processOrphanToolEvent({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: "assistant-1",
+      role: "assistant",
+    });
+    await processOrphanToolEvent({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "orphan-tool-call",
+      toolCallName: "get_trace",
+      parentMessageId: "assistant-1",
+    });
+    await processOrphanToolEvent({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "orphan-tool-call",
+    });
+    await finishRun({
+      prisma,
+      runId: orphanToolRun.id,
+      projectId,
+      errorCode: "aborted",
+      errorMessage: "Aborted before tool result",
+    });
+
+    const completedRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const completedEvents = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: completedRun.id,
+      messageId: "user-2",
+      content: "try again",
+    });
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: completedRun.id,
+      events: completedEvents,
+      messageId: "assistant-2",
+      chunks: ["done"],
+    });
+
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual([
+      { id: "user-1", role: "user", content: "search" },
+      { id: "user-2", role: "user", content: "try again" },
+      { id: "assistant-2", role: "assistant", content: "done" },
+    ]);
+  });
+
+  it("keeps interior user-only failed turns before replay", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    const failedRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: failedRun.id,
+      messageId: "user-1",
+      content: "failed before output",
+    });
+    await finishRun({
+      prisma,
+      runId: failedRun.id,
+      projectId,
+      errorCode: "upstream_error",
+      errorMessage: "Failed before output",
+    });
+
+    const completedRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const completedEvents = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: completedRun.id,
+      messageId: "user-2",
+      content: "try again",
+    });
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: completedRun.id,
+      events: completedEvents,
+      messageId: "assistant-2",
+      chunks: ["done"],
+    });
+
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual([
+      { id: "user-1", role: "user", content: "failed before output" },
+      { id: "user-2", role: "user", content: "try again" },
+      { id: "assistant-2", role: "assistant", content: "done" },
+    ]);
   });
 
   it("does not expose another user's conversation in the same project", async () => {
