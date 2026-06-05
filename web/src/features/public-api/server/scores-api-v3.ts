@@ -127,9 +127,22 @@ export async function listScoresV3ForPublicApi(params: {
         tags: input.tags,
         preferredClickhouseService: "ReadOnly",
       });
-      const items = records.map((row) =>
-        domainToV3(convertClickhouseScoreToDomain(row)),
-      );
+      // Log+drop bad rows rather than 500ing the whole page — domainToV3 can
+      // throw (e.g. polymorphicValue's stringValue / longStringValue guards
+      // for malformed CATEGORICAL / TEXT / CORRECTION rows). Mirrors the
+      // row-level graceful-drop semantics of filterAndValidateV3GetScoreList.
+      const items: ReturnType<typeof domainToV3>[] = [];
+      for (const row of records) {
+        try {
+          items.push(domainToV3(convertClickhouseScoreToDomain(row)));
+        } catch (error) {
+          logger.error("v3 score row dropped from response", {
+            error,
+            scoreId: row.id,
+            projectId: params.projectId,
+          });
+        }
+      }
       return filterAndValidateV3GetScoreList(items, (error) => {
         logger.error("v3 score row dropped from response", {
           issues: error.issues,
