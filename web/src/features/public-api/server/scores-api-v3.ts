@@ -5,7 +5,11 @@ import {
   type ScoreRecordReadType,
 } from "@langfuse/shared/src/server";
 import type { APIScoreV3, ScoreDomain } from "@langfuse/shared";
-import { InternalServerError, ScoreDataTypeEnum } from "@langfuse/shared";
+import {
+  filterAndValidateV3GetScoreList,
+  InternalServerError,
+  ScoreDataTypeEnum,
+} from "@langfuse/shared";
 
 export function polymorphicValue(score: {
   dataType: string;
@@ -117,9 +121,10 @@ export async function listScoresV3ForPublicApi(params: {
         tags: input.tags,
         preferredClickhouseService: "ReadOnly",
       });
-      return records.map((row) =>
+      const items = records.map((row) =>
         domainToV3(convertClickhouseScoreToDomain(row)),
       );
+      return filterAndValidateV3GetScoreList(items);
     },
   });
 }
