@@ -61,6 +61,8 @@ export type Route = {
   productModule?: ProductModule; // Product module this route belongs to. Used to show/hide modules via ui customization.
   show?: (p: {
     organization: User["organizations"][number] | undefined;
+    projectId: string | undefined;
+    isLangfuseCloud: boolean;
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
 };
@@ -235,7 +237,8 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
     pathname: "",
     featureFlag: "inAppAgent",
-    show: ({ organization }) => organization?.aiFeaturesEnabled === true,
+    show: ({ organization, projectId, isLangfuseCloud }) =>
+      isLangfuseCloud && organization !== undefined && projectId !== undefined,
     menuNode: <InAppAiAgentButton />,
   },
   {

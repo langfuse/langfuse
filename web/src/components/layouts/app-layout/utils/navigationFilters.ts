@@ -160,12 +160,16 @@ export const filters = {
    */
   customShow: (
     route: Route,
-    _ctx: NavigationFilterContext,
+    ctx: NavigationFilterContext,
     organization: Organization,
   ): Route | null => {
     if (!route.show) return route;
     // Convert null to undefined for route.show compatibility
-    return route.show({ organization: organization ?? undefined })
+    return route.show({
+      organization: organization ?? undefined,
+      projectId: ctx.routerProjectId,
+      isLangfuseCloud: ctx.isLangfuseCloud,
+    })
       ? route
       : null;
   },

@@ -94,6 +94,7 @@ import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-clean
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
+import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
 
 const app = express();
 
@@ -705,6 +706,14 @@ export let batchTraceDeletionCleaner: BatchTraceDeletionCleaner | null = null;
 if (env.LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED === "true") {
   batchTraceDeletionCleaner = new BatchTraceDeletionCleaner();
   batchTraceDeletionCleaner.start();
+}
+
+// ClickHouse deleted-mask cleaner for physically applying lightweight delete masks
+export let deletedMaskCleaner: DeletedMaskCleaner | null = null;
+
+if (env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED === "true") {
+  deletedMaskCleaner = new DeletedMaskCleaner();
+  deletedMaskCleaner.start();
 }
 
 // Queue metrics background reporter

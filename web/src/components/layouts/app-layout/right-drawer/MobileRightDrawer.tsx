@@ -11,7 +11,7 @@ import { SupportDrawer } from "@/src/features/support-chat/SupportDrawer";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { ControlledInAppAgentDrawer } from "@/src/features/in-app-agent/components";
 
-export function MobileDrawer({
+export function MobileRightDrawer({
   aiAgentEnabled,
   children,
 }: PropsWithChildren<{ aiAgentEnabled?: boolean }>) {
@@ -44,7 +44,6 @@ export function MobileDrawer({
             <div className="flex w-full items-center justify-center pt-3">
               <div className="bg-muted h-2 w-20 rounded-full" />
             </div>
-            {/* sr-only for screen readers and accessibility */}
             <DrawerTitle className="sr-only">
               {showAiAgent ? "AI Assistant" : "Support"}
             </DrawerTitle>
