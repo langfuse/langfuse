@@ -26,6 +26,7 @@ import {
   DELETED_MASK_CLEANER_WORK_QUERY,
   normalizeMutationCounts,
   selectCandidateToProcess,
+  shouldUseDeletedMaskCleanerClusterMode,
   type MutationCountRow,
   type WorkCandidateRow,
 } from "../features/deleted-mask-cleaner/helpers";
@@ -162,7 +163,12 @@ async function getActiveMutationCount(
 ): Promise<number> {
   const rows = await queryClickhouse<MutationCountRow>({
     query: buildMutationCountQuery(
-      env.CLICKHOUSE_CLUSTER_ENABLED === "true",
+      shouldUseDeletedMaskCleanerClusterMode({
+        clusterEnabled: env.CLICKHOUSE_CLUSTER_ENABLED === "true",
+        cleanerClusterModeEnabled:
+          env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_CLUSTER_MODE_ENABLED ===
+          "true",
+      }),
       env.CLICKHOUSE_CLUSTER_NAME,
     ),
     params: {
@@ -199,7 +205,12 @@ async function applyDeletedMaskIfNeeded(
       },
       {
         database: env.CLICKHOUSE_DB,
-        clusterEnabled: env.CLICKHOUSE_CLUSTER_ENABLED === "true",
+        clusterEnabled: shouldUseDeletedMaskCleanerClusterMode({
+          clusterEnabled: env.CLICKHOUSE_CLUSTER_ENABLED === "true",
+          cleanerClusterModeEnabled:
+            env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_CLUSTER_MODE_ENABLED ===
+            "true",
+        }),
         clusterName: env.CLICKHOUSE_CLUSTER_NAME,
       },
     ),
@@ -265,6 +276,34 @@ describe("DeletedMaskCleaner helpers", () => {
         ["traces", 3],
         ["scores", 0],
       ]),
+    );
+  });
+
+  it("uses cleaner cluster mode only when ClickHouse cluster mode and the explicit cleaner flag are enabled", () => {
+    expect(
+      shouldUseDeletedMaskCleanerClusterMode({
+        clusterEnabled: true,
+        cleanerClusterModeEnabled: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldUseDeletedMaskCleanerClusterMode({
+        clusterEnabled: true,
+        cleanerClusterModeEnabled: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldUseDeletedMaskCleanerClusterMode({
+        clusterEnabled: false,
+        cleanerClusterModeEnabled: true,
+      }),
+    ).toBe(false);
+
+    expect(buildMutationCountQuery(true, "default")).toContain(
+      "clusterAllReplicas",
+    );
+    expect(buildMutationCountQuery(false, "default")).toContain(
+      "FROM system.mutations",
     );
   });
 

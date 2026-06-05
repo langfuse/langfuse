@@ -134,6 +134,16 @@ export function normalizeMutationCounts(
   return mutationCounts;
 }
 
+export function shouldUseDeletedMaskCleanerClusterMode({
+  clusterEnabled,
+  cleanerClusterModeEnabled,
+}: {
+  clusterEnabled: boolean;
+  cleanerClusterModeEnabled: boolean;
+}): boolean {
+  return clusterEnabled && cleanerClusterModeEnabled;
+}
+
 export function buildApplyDeletedMaskQuery(
   candidate: WorkCandidateRow,
   config: ClickHouseDdlConfig,
@@ -158,14 +168,14 @@ export function buildApplyDeletedMaskQuery(
 }
 
 export function buildMutationCountQuery(
-  clusterEnabled: boolean,
+  useClusterAllReplicas: boolean,
   clusterName: string,
 ): string {
-  if (clusterEnabled) {
+  if (useClusterAllReplicas) {
     assertClickHouseName(clusterName, "cluster");
   }
 
-  const mutationSource = clusterEnabled
+  const mutationSource = useClusterAllReplicas
     ? `clusterAllReplicas(${quoteClickhouseString(clusterName)}, 'system.mutations')`
     : "system.mutations";
 
