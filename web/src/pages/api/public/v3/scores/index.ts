@@ -15,9 +15,9 @@ export default withMiddlewares({
     responseSchema: GetScoresResponseV3,
     fn: async ({ query, auth }) => {
       if (env.LANGFUSE_ENABLE_SCORES_V3_API !== "true") {
-        throw new LangfuseNotFoundError(
-          "v3 Scores API is not enabled on this instance",
-        );
+        // Generic message to avoid disclosing the feature-flag existence to
+        // unauthenticated probes. Cloud has the flag on; self-hosted gets 404.
+        throw new LangfuseNotFoundError("Not Found");
       }
 
       const items = await listScoresV3ForPublicApi({
