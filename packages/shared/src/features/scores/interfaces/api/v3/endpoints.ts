@@ -9,22 +9,14 @@ export const SCORE_FIELD_GROUPS_V3 = [
 ] as const;
 export type ScoreFieldGroupV3 = (typeof SCORE_FIELD_GROUPS_V3)[number];
 
+// Use z.enum so the parsed type narrows to ScoreFieldGroupV3[] (not string[]),
+// keeping the contract enforced by the type system from request to query
+// builder. Unknown groups still return HTTP 400 via Zod's default enum error.
 const fieldsParam = z
   .string()
   .optional()
   .transform((val) => (val ? val.split(",").map((g) => g.trim()) : ["core"]))
-  .pipe(
-    z.array(z.string()).superRefine((groups, ctx) => {
-      for (const group of groups) {
-        if (!SCORE_FIELD_GROUPS_V3.includes(group as ScoreFieldGroupV3)) {
-          ctx.addIssue({
-            code: "custom",
-            message: `Unknown field group: "${group}". Allowed: ${SCORE_FIELD_GROUPS_V3.join(", ")}`,
-          });
-        }
-      }
-    }),
-  );
+  .pipe(z.array(z.enum(SCORE_FIELD_GROUPS_V3)));
 
 // GET /v3/scores
 export const GetScoresQueryV3 = z.object({
