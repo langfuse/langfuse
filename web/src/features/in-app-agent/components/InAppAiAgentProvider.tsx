@@ -229,7 +229,7 @@ function InAppAiAgentProviderInner({
       setIsRunning(true);
       let retriedWithFreshSession = false;
 
-      void agent
+      agent
         .runAgent()
         .catch((error) => {
           if (retryOnInvalidSession && isInvalidSessionTokenError(error)) {

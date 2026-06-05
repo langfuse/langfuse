@@ -187,7 +187,7 @@ export const scoresRouter = createTRPCRouter({
       return toDomainWithStringifiedMetadata(score);
     }),
   countAll: protectedProjectProcedure
-    .input(ScoreAllOptions)
+    .input(ScoreFilterOptions)
     .query(async ({ input }) => {
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,
@@ -274,7 +274,7 @@ export const scoresRouter = createTRPCRouter({
    * v4: Count scores without traces JOIN.
    */
   countAllFromEvents: protectedProjectProcedure
-    .input(ScoreAllOptions)
+    .input(ScoreFilterOptions)
     .query(async ({ input }) => {
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,

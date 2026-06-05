@@ -21,18 +21,86 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 import { prisma } from "@langfuse/shared/src/db";
 import { nanoid } from "nanoid";
+import { z } from "zod";
 import {
   createMcpTestSetup,
   createPromptInDb,
   verifyAuditLog,
 } from "./mcp-helpers";
+import {
+  DeleteDatasetRunMcpInput,
+  PostDatasetItemMcpInput,
+} from "@/src/features/mcp/features/datasets/schema";
 
 // Import MCP tool handlers directly
 import { handleCreateTextPrompt } from "@/src/features/mcp/features/prompts/tools/createTextPrompt";
 import { handleCreateChatPrompt } from "@/src/features/mcp/features/prompts/tools/createChatPrompt";
 import { handleUpdatePromptLabels } from "@/src/features/mcp/features/prompts/tools/updatePromptLabels";
+import { handleCreateAnnotationQueue } from "@/src/features/mcp/features/annotationQueues/tools";
+
+const createScoreConfig = async (projectId: string) =>
+  prisma.scoreConfig.create({
+    data: {
+      id: nanoid(),
+      projectId,
+      name: `mcp-score-${nanoid()}`,
+      dataType: "NUMERIC",
+    },
+  });
 
 describe("MCP Write Tools", () => {
+  describe("dataset tool schemas", () => {
+    it("uses dataset IDs for existing dataset write addressing", () => {
+      for (const schema of [
+        PostDatasetItemMcpInput,
+        DeleteDatasetRunMcpInput,
+      ]) {
+        const jsonSchema = z.toJSONSchema(schema, { unrepresentable: "any" });
+        const properties = jsonSchema.properties as Record<string, unknown>;
+
+        expect(properties).toHaveProperty("datasetId");
+        expect(properties).not.toHaveProperty("datasetName");
+        expect(properties).not.toHaveProperty("name");
+      }
+    });
+  });
+
+  describe("createAnnotationQueue tool", () => {
+    it("should create a basic annotation queue", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const scoreConfig = await createScoreConfig(projectId);
+      const queueName = `mcp-queue-${nanoid()}`;
+
+      const result = (await handleCreateAnnotationQueue(
+        {
+          name: queueName,
+          description: "MCP queue",
+          scoreConfigIds: [scoreConfig.id],
+        },
+        context,
+      )) as {
+        id: string;
+        name: string;
+        description: string;
+        scoreConfigIds: string[];
+      };
+
+      expect(result.id).toBeDefined();
+      expect(result.name).toBe(queueName);
+      expect(result.description).toBe("MCP queue");
+      expect(result.scoreConfigIds).toEqual([scoreConfig.id]);
+
+      await expect(
+        prisma.annotationQueue.findUniqueOrThrow({
+          where: { id: result.id, projectId },
+        }),
+      ).resolves.toMatchObject({
+        name: queueName,
+        scoreConfigIds: [scoreConfig.id],
+      });
+    });
+  });
+
   describe("createTextPrompt tool", () => {
     it("should create a simple text prompt", async () => {
       const { context } = await createMcpTestSetup();

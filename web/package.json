@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.175.0",
+  "version": "3.178.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -34,8 +34,11 @@
     "@anthropic-ai/claude-agent-sdk": "^0.2.133",
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
+    "@astral-sh/ruff-wasm-web": "0.15.13",
     "@baselime/trpc-opentelemetry-middleware": "^0.1.2",
+    "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-python": "^6.2.1",
     "@codemirror/language": "^6.12.3",
     "@codemirror/lint": "^6.9.5",
     "@codemirror/search": "^6.7.0",
@@ -47,7 +50,7 @@
     "@ferrucc-io/emoji-picker": "^0.0.47",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.2.2",
-    "@langchain/core": "^1.1.39",
+    "@langchain/core": "^1.1.48",
     "@langfuse/ee": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",

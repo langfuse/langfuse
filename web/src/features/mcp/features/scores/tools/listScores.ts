@@ -1,4 +1,3 @@
-import { SpanKind } from "@opentelemetry/api";
 import {
   filterAndValidateV2GetScoreList,
   InvalidRequestError,
@@ -7,10 +6,11 @@ import {
   singleFilter,
   publicApiPaginationZod,
 } from "@langfuse/shared";
-import { instrumentAsync } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { paginationMeta } from "../../publicApi";
 
 const ScoreFieldsSchema = z
   .array(z.enum(["score", "trace"]))
@@ -19,21 +19,23 @@ const ScoreFieldsSchema = z
     "Response field groups to include. 'score' is always required. Include 'trace' when filtering by userId or traceTags.",
   );
 
-const ListScoresInputSchema = z.object({
+const ScoreFilterBaseSchema = z.object({
+  column: z.string(),
+  operator: z.string(),
+  value: z.any(),
+  type: z.string(),
+  key: z.string().optional(),
+});
+
+const ListScoresSharedSchemaFields = {
   ...publicApiPaginationZod,
   fields: ScoreFieldsSchema,
   userId: z.string().optional(),
   dataType: ScoreDataTypeDomain.optional(),
   configId: z.string().optional(),
   queueId: z.string().optional(),
-  traceTags: z
-    .array(z.string())
-    .optional()
-    .describe("Trace tags to filter by."),
-  environment: z
-    .array(z.string())
-    .optional()
-    .describe("Score environments to filter by."),
+  traceTags: z.array(z.string()).optional(),
+  environment: z.array(z.string()).optional(),
   name: z.string().optional(),
   fromTimestamp: z.iso.datetime({ offset: true }).optional(),
   toTimestamp: z.iso.datetime({ offset: true }).optional(),
@@ -45,6 +47,20 @@ const ListScoresInputSchema = z.object({
   traceId: z.string().optional(),
   datasetRunId: z.string().optional(),
   observationId: z.array(z.string()).optional(),
+};
+
+const ListScoresBaseSchema = z.object({
+  ...ListScoresSharedSchemaFields,
+  filter: z
+    .array(ScoreFilterBaseSchema)
+    .optional()
+    .describe(
+      "Advanced score filters as JSON objects with column, operator, value, and type.",
+    ),
+});
+
+const ListScoresInputSchema = z.object({
+  ...ListScoresSharedSchemaFields,
   filter: z
     .array(singleFilter)
     .optional()
@@ -72,26 +88,24 @@ const assertValidScoreFields = (input: ListScoresInput) => {
 export const [listScoresTool, handleListScores] = defineTool({
   name: "listScores",
   description: [
-    "Find scores in the current Langfuse project.",
-    "Uses the v2 /api/public/v2/scores semantics for numeric, categorical, boolean, correction, and text scores across traces, observations, sessions, and dataset runs.",
-    "Results are paginated with page and limit and return exactly data and meta at the top level.",
+    "Find scores in Langfuse.",
+    "Use this to review quality, evaluation, or feedback scores for traces, observations, sessions, and dataset runs.",
+    "Filter by score details, time range, environment, source, trace information, or dataset run context to narrow the results.",
+    "Score reads are eventually consistent: a score created with createScore may not appear in listScores immediately. If a newly created score is missing, wait briefly and retry.",
   ].join("\n"),
-  baseSchema: ListScoresInputSchema,
+  baseSchema: ListScoresBaseSchema,
   inputSchema: ListScoresInputSchema,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.scores.list", spanKind: SpanKind.INTERNAL },
-      async (span) => {
+    return await runMcpTool({
+      spanName: "mcp.scores.list",
+      context,
+      attributes: {
+        "mcp.pagination_page": input.page,
+        "mcp.pagination_limit": input.limit,
+        "mcp.score_fields": input.fields.join(","),
+      },
+      fn: async (span) => {
         assertValidScoreFields(input);
-
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.pagination_page": input.page,
-          "mcp.pagination_limit": input.limit,
-          "mcp.score_fields": input.fields.join(","),
-        });
 
         const scoreParams = {
           projectId: context.projectId,
@@ -130,15 +144,14 @@ export const [listScoresTool, handleListScores] = defineTool({
 
         return {
           data,
-          meta: {
+          meta: paginationMeta({
             page: input.page,
             limit: input.limit,
             totalItems,
-            totalPages: Math.ceil(totalItems / input.limit),
-          },
+          }),
         };
       },
-    );
+    });
   },
   readOnlyHint: true,
 });

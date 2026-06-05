@@ -15,6 +15,7 @@ import {
   evalJobTraceCreatorQueueProcessor,
   llmAsJudgeExecutionQueueProcessorBuilder,
 } from "./queues/evalQueue";
+import { codeEvalExecutionQueueProcessorBuilder } from "./queues/codeEvalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
 import helmet from "helmet";
@@ -43,6 +44,7 @@ import {
   EvalExecutionQueue,
   SecondaryEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
+  CodeEvalExecutionQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -92,6 +94,7 @@ import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-clean
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
+import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
 
 const app = express();
 
@@ -263,6 +266,22 @@ if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
       llmAsJudgeExecutionQueueProcessorBuilder(shardName),
       {
         concurrency: env.LANGFUSE_LLM_AS_JUDGE_EXECUTION_WORKER_CONCURRENCY,
+        lockDuration: 60000,
+        stalledInterval: 120000,
+        maxStalledCount: 3,
+      },
+    );
+  });
+}
+
+if (env.QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
+  const codeEvalShardNames = CodeEvalExecutionQueue.getShardNames();
+  codeEvalShardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      codeEvalExecutionQueueProcessorBuilder(shardName),
+      {
+        concurrency: env.LANGFUSE_CODE_EVAL_EXECUTION_WORKER_CONCURRENCY,
         lockDuration: 60000,
         stalledInterval: 120000,
         maxStalledCount: 3,
@@ -685,6 +704,14 @@ export let batchTraceDeletionCleaner: BatchTraceDeletionCleaner | null = null;
 if (env.LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED === "true") {
   batchTraceDeletionCleaner = new BatchTraceDeletionCleaner();
   batchTraceDeletionCleaner.start();
+}
+
+// ClickHouse deleted-mask cleaner for physically applying lightweight delete masks
+export let deletedMaskCleaner: DeletedMaskCleaner | null = null;
+
+if (env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED === "true") {
+  deletedMaskCleaner = new DeletedMaskCleaner();
+  deletedMaskCleaner.start();
 }
 
 // Queue metrics background reporter

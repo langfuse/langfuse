@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
-import { EvalTargetObject, JobConfigState } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  EvalTemplateType,
+  JobConfigState,
+} from "@langfuse/shared";
 import { type ObservationEvalConfig } from "../evaluation/observationEval";
 
 vi.mock("@langfuse/shared/src/db", () => ({
@@ -38,6 +42,7 @@ describe("processBatchedObservationEval", () => {
         filter: [],
         sampling: { toNumber: () => 1 } as ObservationEvalConfig["sampling"],
         evalTemplateId: "template-1",
+        evalTemplate: { type: EvalTemplateType.LLM_AS_JUDGE },
         scoreName: "quality",
         targetObject: EvalTargetObject.EVENT,
         variableMapping: [],
@@ -97,6 +102,7 @@ describe("processBatchedObservationEval", () => {
         filter: [],
         sampling: { toNumber: () => 1 } as ObservationEvalConfig["sampling"],
         evalTemplateId: "template-1",
+        evalTemplate: { type: EvalTemplateType.LLM_AS_JUDGE },
         scoreName: "quality",
         targetObject: EvalTargetObject.EVENT,
         variableMapping: [],

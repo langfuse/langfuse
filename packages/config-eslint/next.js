@@ -82,6 +82,7 @@ export default [
       "@repo": langfusePlugin,
     },
     rules: {
+      "no-void": "warn",
       "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
       "@repo/no-tailwind-overflow-scroll": "warn",
       // Custom rules from old config

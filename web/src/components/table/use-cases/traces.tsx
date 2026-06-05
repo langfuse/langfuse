@@ -34,7 +34,10 @@ import {
   LevelSymbols,
 } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import {
+  detailPageListKeys,
+  useDetailPageLists,
+} from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type FilterState,
@@ -204,7 +207,7 @@ export default function TracesTable({
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
     setManualRefreshTrigger((t) => t + 1);
-    void Promise.all([
+    Promise.all([
       utils.traces.all.invalidate(),
       utils.traces.metrics.invalidate(),
       utils.traces.countAll.invalidate(),
@@ -394,14 +397,23 @@ export default function TracesTable({
 
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
+  const legacyTracingSearchConfig = api.public.tracingSearchConfig.useQuery(
+    { projectId },
+    {
+      enabled: !hideControls,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  );
+  const legacyTracingIoSearchEnabled =
+    legacyTracingSearchConfig.data?.legacyTracingIoSearchEnabled ?? true;
 
   const tracesAllCountFilter = {
     projectId,
     filter: filterState,
     searchQuery: searchQuery,
     searchType: searchType,
-    page: 0,
-    limit: 0,
     orderBy: null,
   };
 
@@ -423,7 +435,6 @@ export default function TracesTable({
     refetchOnMount: false,
     refetchOnWindowFocus: true,
   });
-
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
@@ -454,7 +465,7 @@ export default function TracesTable({
   useEffect(() => {
     if (traces.isSuccess) {
       setDetailPageList(
-        "traces",
+        detailPageListKeys.traces,
         traces.data.traces.map((t) => ({
           id: t.id,
           params: { timestamp: t.timestamp.toISOString() },
@@ -502,7 +513,7 @@ export default function TracesTable({
       });
     },
     onSettled: () => {
-      void utils.traces.all.invalidate();
+      utils.traces.all.invalidate();
     },
   });
 
@@ -1294,7 +1305,7 @@ export default function TracesTable({
     if (hideControls) return undefined;
     return {
       itemType: "TRACE" as const,
-      detailNavigationKey: "traces",
+      detailNavigationKey: detailPageListKeys.traces,
       peekEventOptions: {
         ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
       },
@@ -1408,7 +1419,7 @@ export default function TracesTable({
               metadataSearchFields: ["ID", "Trace Name", "User ID"],
               updateQuery: setSearchQuery,
               currentQuery: searchQuery ?? undefined,
-              tableAllowsFullTextSearch: true,
+              tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
               setSearchType,
               searchType,
             }}

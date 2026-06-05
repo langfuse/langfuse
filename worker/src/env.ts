@@ -132,6 +132,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_CODE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
   LANGFUSE_EVAL_EXECUTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -204,6 +208,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_EVAL_EXECUTION_SECONDARY_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED: z
@@ -397,6 +404,19 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(3_600_000), // 1 hour for DELETE operations
+
+  // ClickHouse deleted-mask cleaner configuration
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(3_600_000), // 1 hour between runs
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_SUBMIT_TIMEOUT_MS: z.coerce
+    .number()
+    .positive()
+    .default(60_000), // Wait up to 1 minute for ALTER submission; mutation can run for hours
 
   // Media Retention Cleaner configuration (S3/PostgreSQL)
   LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT: z.coerce

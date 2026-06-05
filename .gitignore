@@ -55,6 +55,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
+# python
+__pycache__/
+*.py[cod]
+
 /generated
 
 # openapi spec that is copied during build
@@ -74,7 +78,6 @@ node_modules
 .turbo
 
 web/test-results/*
-.playwright-mcp/*
 .codex-artifacts/
 
 # Local DeepSec workspace and generated scan state
@@ -105,3 +108,6 @@ web/test-results/*
 
 # Local overrides for AGENTS.md
 **/AGENTS.override.md
+
+# Superset config
+.superset/

@@ -4,6 +4,8 @@ import { hash } from "bcryptjs";
 import { v4 } from "uuid";
 import { encrypt } from "../../src/encryption";
 import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
   type JobConfiguration,
   JobExecutionStatus,
   PrismaClient,
@@ -90,6 +92,7 @@ async function main() {
     create: {
       id: seedOrgId,
       name: "Seed Org",
+      aiFeaturesEnabled: true,
       cloudConfig: {
         plan: "Team",
       },
@@ -297,6 +300,8 @@ async function main() {
 
     // add eval objects
     for (const evalTemplate of SEED_EVALUATOR_TEMPLATES) {
+      const evalTemplateType = evalTemplate.type as EvalTemplateType;
+
       await prisma.evalTemplate.upsert({
         where: {
           projectId_name_version: {
@@ -310,12 +315,18 @@ async function main() {
           projectId: project1.id,
           name: evalTemplate.name,
           version: evalTemplate.version,
-          prompt: evalTemplate.prompt,
-          model: evalTemplate.model,
+          type: evalTemplateType,
+          prompt: evalTemplate.prompt ?? null,
+          model: evalTemplate.model ?? null,
           vars: evalTemplate.vars,
-          provider: evalTemplate.provider,
-          outputDefinition: evalTemplate.outputDefinition,
-          modelParams: evalTemplate.modelParams,
+          provider: evalTemplate.provider ?? null,
+          outputDefinition: evalTemplate.outputDefinition ?? undefined,
+          modelParams: evalTemplate.modelParams ?? undefined,
+          sourceCode: evalTemplate.sourceCode ?? null,
+          sourceCodeLanguage:
+            (evalTemplate.sourceCodeLanguage as
+              | EvalTemplateSourceCodeLanguage
+              | undefined) ?? null,
         },
         update: {},
       });
