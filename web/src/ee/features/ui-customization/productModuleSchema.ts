@@ -9,6 +9,7 @@ export const PRODUCT_MODULES = [
   "evaluation",
   "prompt-management",
   "playground",
+  "agent-studio",
   "datasets",
 ] as const;
 
