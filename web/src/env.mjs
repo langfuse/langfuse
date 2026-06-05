@@ -810,7 +810,7 @@ export const env = createEnv({
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
     SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
 
-    // AWS Bedrock for langfuse native AI feature such as natural language filters
+    // AWS Bedrock for Langfuse native AI features
     LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
 
     // Langfuse Tracing AI Features

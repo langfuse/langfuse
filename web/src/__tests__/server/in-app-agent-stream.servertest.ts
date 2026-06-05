@@ -1,21 +1,25 @@
 import { EventType } from "@ag-ui/core";
+import { HttpAgent } from "@ag-ui/client";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@/src/features/in-app-agent/schema";
 
 const adapterEvents = vi.hoisted(() => ({
   items: [] as AgUiEvent[],
+  cleanup: vi.fn().mockResolvedValue(undefined),
+  inputs: [] as unknown[],
 }));
 
-vi.mock("@ag-ui/claude-agent-sdk", () => ({
-  ClaudeAgentAdapter: vi.fn().mockImplementation(function () {
+vi.mock("@ag-ui/mastra", () => ({
+  MastraAgent: vi.fn().mockImplementation(function () {
     return {
-      interrupt: vi.fn().mockResolvedValue(undefined),
-      run: () => ({
+      run: (input: unknown) => ({
         subscribe: (subscriber: {
           next: (event: AgUiEvent) => void;
           complete: () => void;
         }) => {
+          adapterEvents.inputs.push(input);
+
           for (const event of adapterEvents.items) {
             subscriber.next(event);
           }
@@ -27,8 +31,31 @@ vi.mock("@ag-ui/claude-agent-sdk", () => ({
   }),
 }));
 
+vi.mock("@ai-sdk/amazon-bedrock", () => ({
+  createAmazonBedrock: vi.fn(() => vi.fn(() => ({}))),
+}));
+
+vi.mock("@aws-sdk/credential-providers", () => ({
+  fromNodeProviderChain: vi.fn(() => vi.fn()),
+}));
+
+vi.mock("@mastra/core/agent", () => ({
+  Agent: vi.fn().mockImplementation(function () {
+    return { abortRunStream: vi.fn() };
+  }),
+}));
+
+vi.mock("@mastra/mcp", () => ({
+  MCPClient: vi.fn().mockImplementation(function () {
+    return {
+      listTools: vi.fn().mockResolvedValue({}),
+      disconnect: adapterEvents.cleanup,
+    };
+  }),
+}));
+
 describe("createAgUiStream", () => {
-  it("serializes valid events and drops partial adapter message snapshots", async () => {
+  it("serializes valid events including adapter message snapshots", async () => {
     const { createAgUiStream } =
       await import("@/src/features/in-app-agent/server/agent");
     const input = {
@@ -52,6 +79,7 @@ describe("createAgUiStream", () => {
     };
     const persistedEvents: AgUiEvent[] = [];
     const eventOrder: string[] = [];
+    adapterEvents.inputs = [];
 
     adapterEvents.items = [
       {
@@ -94,13 +122,12 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        onResumeSessionId: () => input.state,
         onEvent: async (event) => {
           persistedEvents.push(event);
           eventOrder.push(`persist:${event.type}`);
           await Promise.resolve();
         },
-        awsBedrock: {},
+        awsBedrock: { modelId: "test-model" },
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -112,9 +139,11 @@ describe("createAgUiStream", () => {
       eventOrder.push(`stream:${event.type}`);
     });
 
-    expect(streamedText).not.toContain(EventType.MESSAGES_SNAPSHOT);
+    expect(streamedText).toContain(EventType.MESSAGES_SNAPSHOT);
+    expect(adapterEvents.inputs).toEqual([input]);
     expect(persistedEvents.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
+      EventType.MESSAGES_SNAPSHOT,
       EventType.TEXT_MESSAGE_START,
       EventType.TEXT_MESSAGE_CONTENT,
       EventType.TEXT_MESSAGE_END,
@@ -127,6 +156,8 @@ describe("createAgUiStream", () => {
     expect(eventOrder).toEqual([
       `persist:${EventType.RUN_STARTED}`,
       `stream:${EventType.RUN_STARTED}`,
+      `persist:${EventType.MESSAGES_SNAPSHOT}`,
+      `stream:${EventType.MESSAGES_SNAPSHOT}`,
       `persist:${EventType.TEXT_MESSAGE_START}`,
       `stream:${EventType.TEXT_MESSAGE_START}`,
       `persist:${EventType.TEXT_MESSAGE_CONTENT}`,
@@ -136,6 +167,85 @@ describe("createAgUiStream", () => {
       `persist:${EventType.RUN_FINISHED}`,
       `stream:${EventType.RUN_FINISHED}`,
     ]);
+  });
+
+  it("lets HttpAgent subscribers observe streamed run errors", async () => {
+    const { createAgUiStream } =
+      await import("@/src/features/in-app-agent/server/agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "hello",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: null,
+      forwardedProps: {},
+    };
+    const runErrorMessage = "AWS credential provider failed: Token is expired.";
+
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.RUN_ERROR,
+        threadId: input.threadId,
+        runId: input.runId,
+        message: runErrorMessage,
+      },
+    ];
+
+    const serverStream = createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        awsBedrock: { modelId: "test-model" },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+        },
+      },
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(serverStream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      }),
+    );
+
+    try {
+      const agent = new HttpAgent({
+        url: "https://example.com/api/in-app-agent",
+        threadId: input.threadId,
+        initialMessages: input.messages,
+        initialState: input.state,
+      });
+      let streamedErrorMessage: string | undefined;
+
+      agent.subscribe({
+        onRunErrorEvent: ({ event }) => {
+          streamedErrorMessage = event.message;
+        },
+      });
+
+      await expect(agent.runAgent({ runId: input.runId })).resolves.toEqual({
+        result: undefined,
+        newMessages: [],
+      });
+
+      expect(streamedErrorMessage).toBe(runErrorMessage);
+    } finally {
+      fetchMock.mockRestore();
+    }
   });
 });
 
