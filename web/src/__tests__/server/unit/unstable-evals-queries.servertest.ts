@@ -155,7 +155,6 @@ describe("unstable public eval queries", () => {
         blockedAt: null,
         evalTemplate: {
           is: {
-            type: EvalTemplateType.LLM_AS_JUDGE,
             OR: [{ projectId: "project_123" }, { projectId: null }],
           },
         },
