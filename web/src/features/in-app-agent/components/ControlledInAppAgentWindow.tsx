@@ -26,13 +26,34 @@ type ControlledInAppAgentWindowProps =
 export function ControlledInAppAgentWindow(
   props: ControlledInAppAgentWindowProps,
 ) {
-  const { error, isRunning, messages, submit } = useInAppAiAgent();
+  const {
+    conversations,
+    error,
+    hasMoreConversations,
+    isLoadingMoreConversations,
+    isRunning,
+    isSelectedConversationHydrating,
+    isSubmitting,
+    loadMoreConversations,
+    messages,
+    selectConversation,
+    selectedConversationId,
+    submit,
+  } = useInAppAiAgent();
+  const isInputDisabled =
+    isRunning || isSubmitting || isSelectedConversationHydrating;
+
   const drawerMessages = useMemo(() => {
     const parsedMessages = z.array(AgUiMessageSchema).parse(messages);
 
     const mappedMessages = parsedMessages.flatMap(
       (message, index): InAppAgentWindowMessage[] => {
-        if (message.role === "system" || message.role === "activity") {
+        if (
+          message.role === "system" ||
+          message.role === "developer" ||
+          message.role === "tool" ||
+          message.role === "activity"
+        ) {
           return [];
         }
 
@@ -121,8 +142,15 @@ export function ControlledInAppAgentWindow(
     <InAppAgentWindow
       error={error}
       isExpanded={props.isExpanded}
-      isRunning={isRunning}
+      isInputDisabled={isInputDisabled}
       messages={drawerMessages}
+      conversations={conversations}
+      hasMoreConversations={hasMoreConversations}
+      isLoadingMoreConversations={isLoadingMoreConversations}
+      selectedConversationId={selectedConversationId}
+      onLoadMoreConversations={loadMoreConversations}
+      onSelectConversation={selectConversation}
+      onNewConversation={() => selectConversation(null)}
       onExpandedChange={props.onExpandedChange}
       onSubmit={submit}
       {...closeButtonProps}

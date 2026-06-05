@@ -1,4 +1,3 @@
-import { Bot } from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
@@ -7,15 +6,30 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
+import { Bot } from "lucide-react";
 
+import { Button } from "@/src/components/ui/button";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { ControlledInAppAgentWindow } from "@/src/features/in-app-agent/components";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { cn } from "@/src/utils/tailwind";
 
 export const InAppAiAgentButton = () => {
+  const { organization } = useQueryProjectOrOrganization();
   const { isAvailable, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
+  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const previousPanelRectRef = useRef<DOMRect | null>(null);
@@ -23,6 +37,7 @@ export const InAppAiAgentButton = () => {
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
     null,
   );
+  const [enableDialogOpen, setEnableDialogOpen] = useState(false);
 
   const updateAnchorStyle = () => {
     const button = buttonRef.current;
@@ -88,16 +103,21 @@ export const InAppAiAgentButton = () => {
     return null;
   }
 
+  const handleClick = () => {
+    if (organization && !organization.aiFeaturesEnabled) {
+      setSupportDrawerOpen(false);
+      setEnableDialogOpen(true);
+      return;
+    }
+
+    updateAnchorStyle();
+    setSupportDrawerOpen(false);
+    setOpen((currentOpen) => !currentOpen);
+  };
+
   return (
     <>
-      <SidebarMenuButton
-        ref={buttonRef}
-        isActive={open}
-        onClick={() => {
-          updateAnchorStyle();
-          setOpen((currentOpen) => !currentOpen);
-        }}
-      >
+      <SidebarMenuButton ref={buttonRef} isActive={open} onClick={handleClick}>
         <Bot className="h-4 w-4" />
         AI Assistant
       </SidebarMenuButton>
@@ -126,6 +146,30 @@ export const InAppAiAgentButton = () => {
             portalContainer,
           )
         : null}
+      <Dialog open={enableDialogOpen} onOpenChange={setEnableDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>AI features are disabled</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <AIFeaturesDisabledNotice organizationId={organization?.id}>
+              The AI assistant requires AI features to be enabled for this
+              organization.
+            </AIFeaturesDisabledNotice>
+          </DialogBody>
+          <DialogFooter>
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEnableDialogOpen(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

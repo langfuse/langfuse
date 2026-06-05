@@ -9,7 +9,7 @@ import {
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { SupportDrawer } from "@/src/features/support-chat/SupportDrawer";
 
-export function MobileDrawer({ children }: PropsWithChildren) {
+export function MobileRightDrawer({ children }: PropsWithChildren) {
   const { open: supportOpen, setOpen: setSupportOpen } = useSupportDrawer();
 
   return (

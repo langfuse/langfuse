@@ -20,6 +20,19 @@ function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
   );
 }
 
+const conversations = [
+  {
+    id: "conversation-1",
+    title: "Latency outliers",
+    updatedAt: new Date("2026-05-19T10:00:00.000Z"),
+  },
+  {
+    id: "conversation-2",
+    title: "Score correlation",
+    updatedAt: new Date("2026-05-19T09:00:00.000Z"),
+  },
+];
+
 const meta = preview.meta({
   component: InAppAgentWindow,
   parameters: {
@@ -35,7 +48,14 @@ const meta = preview.meta({
   args: {
     error: null,
     isExpanded: false,
-    isRunning: false,
+    isInputDisabled: false,
+    conversations,
+    hasMoreConversations: false,
+    isLoadingMoreConversations: false,
+    selectedConversationId: undefined,
+    onLoadMoreConversations: fn(),
+    onNewConversation: fn(),
+    onSelectConversation: fn(),
     onClose: fn(),
     onExpandedChange: fn(),
     onSubmit: fn(),
@@ -52,6 +72,7 @@ export const Empty = meta.story({
 
 export const Conversation = meta.story({
   args: {
+    selectedConversationId: "conversation-1",
     messages: [
       {
         id: "user-1",
@@ -125,7 +146,7 @@ export const LoadingResponse = meta.story({
 
 export const Connecting = meta.story({
   args: {
-    isRunning: true,
+    isInputDisabled: true,
     messages: [
       {
         id: "user-1",

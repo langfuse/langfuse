@@ -5,10 +5,19 @@ import {
   BotMessageSquare,
   Maximize2,
   Minimize2,
+  Plus,
   SendHorizontal,
   X,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 import { cn } from "@/src/utils/tailwind";
 import {
   InAppAgentMessage,
@@ -17,11 +26,19 @@ import {
 } from "./InAppAgentMessage";
 
 const AUTO_SCROLL_THRESHOLD_PX = 200;
+const NEW_CONVERSATION_VALUE = "__new__";
+const LOAD_MORE_CONVERSATIONS_VALUE = "__load_more__";
 
 export type InAppAgentWindowMessage = {
   id: string;
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent[];
+};
+
+export type InAppAgentWindowConversation = {
+  id: string;
+  title: string | null;
+  updatedAt: Date;
 };
 
 type InAppAgentWindowCloseButtonProps =
@@ -35,17 +52,37 @@ type InAppAgentWindowCloseButtonProps =
     };
 
 export type InAppAgentWindowProps = {
+  conversations: InAppAgentWindowConversation[];
   error: string | null;
+  hasMoreConversations: boolean;
   isExpanded: boolean;
-  isRunning: boolean;
+  isInputDisabled: boolean;
+  isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];
   onExpandedChange: (isExpanded: boolean) => void;
-  onSubmit: (input: string) => void;
+  onLoadMoreConversations: () => void;
+  onNewConversation: () => void;
+  onSelectConversation: (conversationId: string) => void;
+  onSubmit: (input: string) => boolean | Promise<boolean>;
+  selectedConversationId: string | undefined;
 } & InAppAgentWindowCloseButtonProps;
 
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
-  const { error, isExpanded, isRunning, messages, onExpandedChange, onSubmit } =
-    props;
+  const {
+    conversations,
+    error,
+    hasMoreConversations,
+    isExpanded,
+    isInputDisabled,
+    isLoadingMoreConversations,
+    messages,
+    onExpandedChange,
+    onLoadMoreConversations,
+    onNewConversation,
+    onSelectConversation,
+    onSubmit,
+    selectedConversationId,
+  } = props;
   const viewportRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef<{
     scrollHeight: number;
@@ -101,11 +138,70 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       )}
     >
       <header className="bg-header flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="truncate text-sm font-semibold">New chat</p>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <p className="shrink-0 truncate text-sm font-semibold">
+            AI Assistant
+          </p>
           <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-medium">
             Beta
           </span>
+          <Select
+            value={selectedConversationId ?? NEW_CONVERSATION_VALUE}
+            onValueChange={(value) => {
+              if (value === NEW_CONVERSATION_VALUE) {
+                onNewConversation();
+                return;
+              }
+
+              if (value === LOAD_MORE_CONVERSATIONS_VALUE) {
+                onLoadMoreConversations();
+                return;
+              }
+
+              onSelectConversation(value);
+            }}
+            disabled={isInputDisabled}
+          >
+            <SelectTrigger
+              aria-label="Select agent conversation"
+              className="h-8 min-w-0 flex-1"
+            >
+              <SelectValue placeholder="New conversation" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NEW_CONVERSATION_VALUE}>
+                New conversation
+              </SelectItem>
+              {conversations.map((conversation) => (
+                <SelectItem key={conversation.id} value={conversation.id}>
+                  {conversation.title?.trim() || "Untitled conversation"}
+                </SelectItem>
+              ))}
+              {hasMoreConversations ? (
+                <>
+                  <SelectSeparator />
+                  <SelectItem
+                    value={LOAD_MORE_CONVERSATIONS_VALUE}
+                    className="h-8"
+                    disabled={isLoadingMoreConversations}
+                  >
+                    {isLoadingMoreConversations ? "Loading..." : "Load more"}
+                  </SelectItem>
+                </>
+              ) : null}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-6 shrink-0"
+            onClick={onNewConversation}
+            disabled={isInputDisabled}
+            aria-label="Start new AI agent conversation"
+          >
+            <Plus className="size-3" />
+          </Button>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Button
@@ -225,12 +321,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
 
               const content = input.trim();
 
-              if (!content || isRunning) {
+              if (!content || isInputDisabled) {
                 return;
               }
 
-              onSubmit(content);
-              setInput("");
+              Promise.resolve(onSubmit(content)).then((submitted) => {
+                if (submitted) {
+                  setInput("");
+                }
+              });
             }}
           >
             <textarea
@@ -247,7 +346,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   event.currentTarget.form?.requestSubmit();
                 }
               }}
-              disabled={isRunning}
+              disabled={isInputDisabled}
               aria-label="Ask about Langfuse"
               placeholder="Ask about Langfuse..."
               rows={1}
@@ -264,7 +363,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="h-8 w-8 rounded-md border"
                 aria-label="Send message"
-                disabled={isRunning || !input.trim()}
+                disabled={isInputDisabled || !input.trim()}
               >
                 <SendHorizontal className="h-4 w-4" />
               </Button>
@@ -276,7 +375,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   type="submit"
                   className="h-8 w-fit rounded-md px-3"
                   aria-label="Send message"
-                  disabled={isRunning || !input.trim()}
+                  disabled={isInputDisabled || !input.trim()}
                   onClick={(e) => {
                     e.stopPropagation();
                   }}
