@@ -131,6 +131,7 @@ export function useStableVirtualRowMeasurement({
           return;
         }
 
+        pendingHeightRef.current = null;
         commitHeight(height);
       });
     },
