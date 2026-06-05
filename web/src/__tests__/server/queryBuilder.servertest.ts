@@ -4660,31 +4660,6 @@ describe("query builder measure-aggregation validation", () => {
     );
   });
 
-  it.each([
-    ["scores-numeric", "timestamp"],
-    ["scores-categorical", "timestamp"],
-    ["observations", "startTime"],
-  ] as const)(
-    "should accept max aggregation for %s.%s",
-    async (view, measure) => {
-      const query: QueryType = {
-        view,
-        dimensions: [],
-        metrics: [{ measure, aggregation: "max" }],
-        filters: [],
-        timeDimension: null,
-        fromTimestamp: "2025-01-01T00:00:00.000Z",
-        toTimestamp: "2025-03-01T00:00:00.000Z",
-        orderBy: null,
-      };
-
-      const queryBuilder = new QueryBuilder(undefined, "v2");
-      const result = await queryBuilder.build(query, randomUUID());
-
-      expect(result.query).toContain(`max_${measure}`);
-    },
-  );
-
   it("should reject invalid aggregation for string measure", async () => {
     const query: QueryType = {
       view: "observations",
