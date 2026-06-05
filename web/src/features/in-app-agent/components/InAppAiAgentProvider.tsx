@@ -311,6 +311,15 @@ function InAppAiAgentProviderInner({
     }
 
     subscriptionRef.current = agent.subscribe({
+      onRunErrorEvent: ({ event }) => {
+        if (intentionalAbortRef.current) {
+          return;
+        }
+
+        const errorMessage = getAgentErrorMessage(event);
+        setError(errorMessage);
+        console.error("In-app agent drawer run error", event);
+      },
       onMessagesChanged: ({ messages }) => {
         setMessages(messages.filter(isAgentConversationMessage));
       },
@@ -432,7 +441,7 @@ function InAppAiAgentProviderInner({
           ? getHydratedMessages(messages, storedMessages)
           : [];
         // TODO: Avoid hydrating the full history once the agent client can send
-        // only the latest user turn; the server ignores older messages.
+        // only the latest user turn; the server rebuilds history from persistence.
         const agent = getOrCreateAgent(
           conversationId,
           initialMessages,

@@ -507,6 +507,7 @@ export const scoresRouter = createTRPCRouter({
           };
 
       if (inflatedParams.traceId) {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const clickhouseTrace = await getTraceById({
           traceId: inflatedParams.traceId,
           projectId: input.projectId,
@@ -523,6 +524,7 @@ export const scoresRouter = createTRPCRouter({
         }
       } else if (inflatedParams.sessionId) {
         // We consider no longer writing all sessions into postgres, hence we should search for traces with the session id
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const traceIdentifiers = await getTracesIdentifierForSession(
           input.projectId,
           inflatedParams.sessionId,
@@ -675,6 +677,7 @@ export const scoresRouter = createTRPCRouter({
             };
 
         if (inflatedParams.traceId) {
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
           const clickhouseTrace = await getTraceById({
             traceId: inflatedParams.traceId,
             projectId: input.projectId,
@@ -691,6 +694,7 @@ export const scoresRouter = createTRPCRouter({
           }
         } else if (inflatedParams.sessionId) {
           // We consider no longer writing all sessions into postgres, hence we should search for traces with the session id
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
           const traceIdentifiers = await getTracesIdentifierForSession(
             input.projectId,
             inflatedParams.sessionId,
@@ -932,6 +936,7 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       const clickhouseTrace = await getTraceById({
         traceId: input.traceId,
         projectId: input.projectId,

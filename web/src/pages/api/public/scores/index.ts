@@ -56,6 +56,7 @@ export default withMiddlewares({
     name: "/api/public/scores",
     querySchema: GetScoresQueryV1,
     responseSchema: GetScoresResponseV1,
+    rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       const scoresApiService = new ScoresApiService("v1");
 

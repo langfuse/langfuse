@@ -20,7 +20,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
-import { env } from "../env";
+import { env, v4WritesToEventsTable } from "../env";
 import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
 import { chunk } from "lodash";
@@ -268,7 +268,7 @@ export const ingestionQueueProcessorBuilder = (
       // Use explicit flag from job payload if provided, otherwise fall back to env flags
       const forwardToEventsTable =
         job.data.payload.data.forwardToEventsTable ??
-        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true";
+        v4WritesToEventsTable(env);
 
       await new IngestionService(
         redis,
