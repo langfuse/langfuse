@@ -56,7 +56,13 @@ export const processHeadersForStorage = ({
     const existingValue = findExistingHeaderValue(name, existingHeaders);
     if (existingValue !== undefined) {
       requestHeaders[name] = existingValue;
+      continue;
     }
+
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Header "${name}" value is required when adding or renaming a header.`,
+    });
   }
 
   assertHeaderLimits(requestHeaders);

@@ -68,7 +68,7 @@ export const assertTargetBelongsToProject = async ({
   }
 
   if (input.sessionId) {
-    if (trace?.sessionId && trace.sessionId !== input.sessionId) {
+    if (trace && trace.sessionId !== input.sessionId) {
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: "Trace does not belong to the provided session.",

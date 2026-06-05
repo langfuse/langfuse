@@ -473,60 +473,72 @@ function WebCalloutEndpointDialog(props: {
                 <FormLabel>Headers</FormLabel>
                 <FormDescription className="mb-2">
                   Optional headers added to the backend POST. Content-Type is
-                  set automatically. Leave values empty when editing to keep
-                  existing encrypted values.
+                  set automatically. Leave values empty for existing header
+                  names to keep encrypted values.
                 </FormDescription>
                 <div className="space-y-2">
-                  {fields.map((field, index) => (
-                    <div
-                      key={field.id}
-                      className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-2"
-                    >
-                      <FormField
-                        control={form.control}
-                        name={`headers.${index}.name`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormControl>
-                              <Input placeholder="Header name" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name={`headers.${index}.value`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormControl>
-                              <Input
-                                placeholder={
-                                  props.endpoint ? "***" : "Header value"
-                                }
-                                type="password"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => remove(index)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Remove header</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  ))}
+                  {fields.map((field, index) => {
+                    const currentHeaderName = form.watch(
+                      `headers.${index}.name`,
+                    );
+                    const preservesExistingValue = hasExistingHeaderName(
+                      props.endpoint,
+                      currentHeaderName,
+                    );
+
+                    return (
+                      <div
+                        key={field.id}
+                        className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-2"
+                      >
+                        <FormField
+                          control={form.control}
+                          name={`headers.${index}.name`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <Input placeholder="Header name" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={`headers.${index}.value`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <Input
+                                  placeholder={
+                                    preservesExistingValue
+                                      ? "***"
+                                      : "Header value"
+                                  }
+                                  type="password"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => remove(index)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Remove header</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    );
+                  })}
                 </div>
                 <Button
                   type="button"
@@ -633,6 +645,22 @@ const formValuesToRequestHeaders = (
       .filter((header) => header.name.trim())
       .map((header) => [header.name.trim(), header.value.trim()]),
   );
+
+const hasExistingHeaderName = (
+  endpoint: WebCalloutEndpoint | null,
+  name: string,
+) => {
+  const normalizedName = name.trim().toLowerCase();
+  if (!normalizedName) {
+    return false;
+  }
+
+  return (
+    endpoint?.requestHeaderKeys.some(
+      (headerName) => headerName.toLowerCase() === normalizedName,
+    ) ?? false
+  );
+};
 
 export function WebCalloutIntegrationCard(props: {
   projectId: string;
