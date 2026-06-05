@@ -79,9 +79,7 @@ export const filters = {
     }
 
     if (route.featureFlag === "v4BetaToggleVisible") {
-      const isDev = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV";
-      const canToggleV4 = isDev || ctx.session?.user?.canToggleV4 === true;
-      return canToggleV4 && ctx.isLangfuseCloud ? route : null;
+      return ctx.session?.user?.canToggleV4 === true ? route : null;
     }
 
     const hasFlag =
