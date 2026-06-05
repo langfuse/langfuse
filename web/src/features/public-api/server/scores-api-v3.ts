@@ -58,11 +58,11 @@ export function polymorphicValue(score: {
   }
 }
 
-function deriveSubject(score: ScoreDomain): {
-  kind: "trace" | "observation" | "session" | "experiment";
-  id: string;
-  traceId?: string;
-} {
+function deriveSubject(
+  score: ScoreDomain,
+):
+  | { kind: "observation"; id: string; traceId?: string }
+  | { kind: "trace" | "session" | "experiment"; id: string } {
   if (score.datasetRunId) {
     return { kind: "experiment", id: score.datasetRunId };
   }

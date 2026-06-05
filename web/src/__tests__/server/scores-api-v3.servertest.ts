@@ -434,7 +434,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
         createTraceScore({
           project_id: project.projectId,
           comment: `c${i}`,
-          metadata: { idx: i },
+          metadata: { idx: String(i) },
         }),
       );
       await createScoresCh(scores);
@@ -721,7 +721,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(score).toBeDefined();
       expect(score!.subject!.kind).toBe("observation");
       expect(score!.subject!.id).toBe(observationId);
-      expect(score!.subject!.traceId).toBe(traceId);
+      expect(score!.subject).toHaveProperty("traceId", traceId);
     });
 
     it("fields=core,unknown → 400", async () => {
