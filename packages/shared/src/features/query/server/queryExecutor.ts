@@ -9,12 +9,12 @@ import { QueryBuilder } from "./queryBuilder";
 import { type QueryType, type ViewVersion } from "../types";
 import { env } from "../../../env";
 
-const CUSTOM_QUERY_CLICKHOUSE_TABLES = [
-  "events_core",
-  "events_full",
-  "traces",
-  "observations",
-  "scores",
+const CUSTOM_QUERY_CLICKHOUSE_TABLE_MATCHERS = [
+  { table: "events_core", pattern: /\bevents_core\b/ },
+  { table: "events_full", pattern: /\bevents_full\b/ },
+  { table: "traces", pattern: /\btraces\b/ },
+  { table: "observations", pattern: /\bobservations\b/ },
+  { table: "scores", pattern: /\bscores\b/ },
 ] as const;
 
 export type PreparedQuery = {
@@ -28,9 +28,9 @@ export type PreparedQuery = {
 };
 
 function inferCustomQueryTable(compiledQuery: string): string | undefined {
-  const tables = CUSTOM_QUERY_CLICKHOUSE_TABLES.filter((table) =>
-    new RegExp(`\\b${table}\\b`).test(compiledQuery),
-  );
+  const tables = CUSTOM_QUERY_CLICKHOUSE_TABLE_MATCHERS.filter(({ pattern }) =>
+    pattern.test(compiledQuery),
+  ).map(({ table }) => table);
 
   if (tables.length === 0) return undefined;
   return tables.length === 1 ? tables[0] : "multiple";
