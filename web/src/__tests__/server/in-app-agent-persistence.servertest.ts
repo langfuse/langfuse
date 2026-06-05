@@ -809,6 +809,7 @@ describe("in-app agent persistence", () => {
     ).resolves.toEqual([
       { id: "user-1", role: "user", content: "first" },
       { id: "assistant-1", role: "assistant", content: "done" },
+      { id: "orphan-user-1", role: "user", content: "failed" },
     ]);
   });
 
@@ -968,10 +969,10 @@ describe("in-app agent persistence", () => {
         projectId,
         conversationId: conversation.id,
       }),
-    ).resolves.toEqual([]);
+    ).resolves.toEqual([{ id: "user-1", role: "user", content: "search" }]);
   });
 
-  it("drops user messages before empty assistant messages removed from replay", async () => {
+  it("keeps user messages before empty assistant messages removed from replay", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
 
@@ -1047,12 +1048,13 @@ describe("in-app agent persistence", () => {
         conversationId: conversation.id,
       }),
     ).resolves.toEqual([
+      { id: "user-1", role: "user", content: "search" },
       { id: "user-2", role: "user", content: "try again" },
       { id: "assistant-2", role: "assistant", content: "done" },
     ]);
   });
 
-  it("drops interior user-only failed turns before replay", async () => {
+  it("keeps interior user-only failed turns before replay", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
 
@@ -1104,6 +1106,7 @@ describe("in-app agent persistence", () => {
         conversationId: conversation.id,
       }),
     ).resolves.toEqual([
+      { id: "user-1", role: "user", content: "failed before output" },
       { id: "user-2", role: "user", content: "try again" },
       { id: "assistant-2", role: "assistant", content: "done" },
     ]);

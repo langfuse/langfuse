@@ -307,10 +307,7 @@ function sanitizeConversationMessagesForReplay(
 ): readonly AgUiMessage[] {
   const messagesWithoutOrphanToolCalls =
     dropUnpairedAssistantToolCalls(messages);
-  const messagesWithoutEmptyAssistants = dropEmptyAssistantMessages(
-    messagesWithoutOrphanToolCalls,
-  );
-  return dropUnansweredUserMessages(messagesWithoutEmptyAssistants);
+  return dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls);
 }
 
 export function shouldFlushPersistedEvent(event: AgUiEvent) {
@@ -721,23 +718,6 @@ function compactTextMessageChunks(events: readonly AgUiEvent[]): AgUiEvent[] {
   }
 
   return compactedEvents;
-}
-
-function dropUnansweredUserMessages(messages: readonly AgUiMessage[]) {
-  let changed = false;
-  const sanitizedMessages = messages.filter((message, index) => {
-    if (message.role !== "user") {
-      return true;
-    }
-
-    const nextRole = messages[index + 1]?.role;
-    const keepMessage = nextRole === "assistant" || nextRole === "tool";
-
-    changed = changed || !keepMessage;
-    return keepMessage;
-  });
-
-  return changed ? sanitizedMessages : messages;
 }
 
 function dropUnpairedAssistantToolCalls(messages: readonly AgUiMessage[]) {

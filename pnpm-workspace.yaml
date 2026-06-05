@@ -45,11 +45,6 @@ overrides:
   "@ai-sdk/provider-utils@<=4.0.26": 4.0.27
   "@ai-sdk/provider-utils-v5": "npm:@ai-sdk/provider-utils@4.0.27"
   "@copilotkit/runtime@0.0.0-mme-ag-ui-0-0-46-20260227141603>@ag-ui/langgraph": 0.0.29
-  "@copilotkit/shared@0.0.0-mme-ag-ui-0-0-46-20260227141603>uuid": 11.1.1
-  "@langchain/langgraph@1.2.7>uuid": 11.1.1
-  "@langchain/langgraph-checkpoint@1.0.1>uuid": 11.1.1
-  "@langchain/langgraph-sdk@1.8.7>uuid": 13.0.2
-  "@langchain/langgraph-sdk@1.9.10>uuid": 13.0.2
 patchedDependencies:
   next-auth@4.24.13: patches/next-auth@4.24.13.patch
 publicHoistPattern:
