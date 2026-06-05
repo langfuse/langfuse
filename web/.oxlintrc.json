@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["nextjs", "unicorn"],
+  "jsPlugins": ["../scripts/lint/oxlint-plugin-langfuse/index.mjs"],
   "categories": {
     "correctness": "off"
   },
@@ -16,7 +17,6 @@
     "**/.next/",
     "**/.next-check/",
     "**/coverage/",
-    "eslint.config.mjs",
     ".next/**",
     "out/**",
     "build/**",
@@ -38,6 +38,8 @@
         ]
       }
     ],
+    "langfuse/no-in-source-vitest": "warn",
+    "langfuse/no-tailwind-overflow-scroll": "warn",
     "nextjs/google-font-display": "warn",
     "nextjs/google-font-preconnect": "warn",
     "nextjs/next-script-for-ga": "warn",
@@ -168,7 +170,10 @@
         "import/no-anonymous-default-export": "off",
         "react/rules-of-hooks": "off"
       },
-      "jsPlugins": ["eslint-plugin-storybook"],
+      "jsPlugins": [
+        "../scripts/lint/oxlint-plugin-langfuse/index.mjs",
+        "eslint-plugin-storybook"
+      ],
       "plugins": ["react", "import"]
     },
     {
@@ -176,7 +181,10 @@
       "rules": {
         "storybook/no-uninstalled-addons": "error"
       },
-      "jsPlugins": ["eslint-plugin-storybook"]
+      "jsPlugins": [
+        "../scripts/lint/oxlint-plugin-langfuse/index.mjs",
+        "eslint-plugin-storybook"
+      ]
     }
   ]
 }

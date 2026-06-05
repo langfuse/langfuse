@@ -89,12 +89,6 @@
       "dependsOn": ["^test", "db:generate"],
       "cache": true
     },
-    "@repo/eslint-plugin#build": {
-      "dependsOn": [],
-      "outputs": ["dist/**"],
-      "cache": true,
-      "outputLogs": "errors-only"
-    },
     "worker#dev": {
       "cache": false,
       "persistent": true

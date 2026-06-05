@@ -28,7 +28,6 @@ updates:
           - "@prisma/client"
       next:
         patterns:
-          - "eslint-config-next"
           - "next"
       lodash:
         patterns:

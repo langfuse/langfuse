@@ -1,20 +1,17 @@
-import { createRule } from "../util.js";
+const message =
+  "Vitest in-source testing should only be used while developing, not in committed code.";
 
-const rule = createRule({
-  name: "no-in-source-vitest",
+const rule = {
   meta: {
     type: "suggestion",
     docs: {
-      description:
-        "Vitest in-source testing should only be used while developing, not in committed code.",
+      description: message,
     },
     messages: {
-      unexpected:
-        "Vitest in-source testing should only be used while developing, not in committed code.",
+      unexpected: message,
     },
     schema: [],
   },
-  defaultOptions: [],
   create(context) {
     return {
       'MemberExpression[computed=false][property.name="vitest"][object.type="MetaProperty"][object.meta.name="import"][object.property.name="meta"]'(
@@ -24,6 +21,6 @@ const rule = createRule({
       },
     };
   },
-});
+};
 
 export default rule;
