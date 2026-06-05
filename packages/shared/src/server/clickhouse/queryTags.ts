@@ -356,16 +356,26 @@ function inferProjectId(tags: ClickHouseQueryTags | undefined): string {
   );
 }
 
+function trimRepeatedEdgeChar(value: string, char: string): string {
+  let start = 0;
+  let end = value.length;
+
+  while (start < end && value[start] === char) start += 1;
+  while (end > start && value[end - 1] === char) end -= 1;
+
+  return value.slice(start, end);
+}
+
 function normalizeQueryName(value: string | undefined): string | undefined {
   const sanitized = sanitizeTagValue(value)?.split("?")[0]?.split("#")[0];
   if (!sanitized) return undefined;
 
-  return sanitized
+  const normalized = sanitized
     .replace(/[:/]+/g, ".")
     .replace(/[^a-zA-Z0-9_.-]+/g, "-")
-    .replace(/\.+/g, ".")
-    .replace(/^-+|-+$/g, "")
-    .replace(/^\.+|\.+$/g, "");
+    .replace(/\.+/g, ".");
+
+  return trimRepeatedEdgeChar(trimRepeatedEdgeChar(normalized, "-"), ".");
 }
 
 function inferQueryName(
