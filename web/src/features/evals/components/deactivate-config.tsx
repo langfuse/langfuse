@@ -10,6 +10,7 @@ import {
 } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/ui/switch";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 export function DeactivateEvalConfig({
   projectId,
@@ -27,6 +28,9 @@ export function DeactivateEvalConfig({
   const mutEvaluator = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
       utils.evals.invalidate();
+    },
+    onError: (error) => {
+      showErrorToast("Failed to update evaluator", error.message);
     },
   });
 
