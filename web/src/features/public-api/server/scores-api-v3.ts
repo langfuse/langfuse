@@ -1,10 +1,15 @@
 import {
   convertClickhouseScoreToDomain,
   convertDateToClickhouseDateTime,
+  DateTimeFilter,
+  FilterList,
   logger,
   measureAndReturn,
+  NumberFilter,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
+  clickhouseCompliantRandomCharacters,
+  StringOptionsFilter,
   type ScoreRecordReadType,
 } from "@langfuse/shared/src/server";
 import type {
@@ -171,7 +176,208 @@ export const buildSelectColumns = (fields: ScoreFieldGroupV3[]): string => {
   return selected.join(",\n    ");
 };
 
-const buildV3ListQuery = (withCursor: boolean, fields: ScoreFieldGroupV3[]) => `
+export function transformBooleanValueForFilter(v: "true" | "false"): number {
+  // Belt-and-braces: the route-handler superRefine narrows v to "true"|"false"
+  // before this is called, but a regression in that validator would otherwise
+  // silently return 0 for any non-"true" input. Throw loud instead.
+  if (v === "true") return 1;
+  if (v === "false") return 0;
+  throw new InternalServerError(
+    `transformBooleanValueForFilter received unexpected value: ${v}`,
+  );
+}
+
+type ListFilterParams = {
+  id?: string[];
+  name?: string[];
+  source?: string[];
+  dataType?: string[];
+  environment?: string[];
+  configId?: string[];
+  queueId?: string[];
+  authorUserId?: string[];
+  value?: string[];
+  valueMin?: number;
+  valueMax?: number;
+  traceId?: string[];
+  sessionId?: string[];
+  observationId?: string[];
+  experimentId?: string[];
+  fromTimestamp?: Date;
+  toTimestamp?: Date;
+};
+
+function buildDynamicFilters(params: ListFilterParams): {
+  query: string;
+  params: Record<string, unknown>;
+} {
+  const filterList = new FilterList();
+
+  // Positive union of the string-array filter keys. TypeScript errors if a
+  // key is listed here that does not exist in ListFilterParams, catching drift
+  // without a manual deny-list that has to grow alongside non-string filters.
+  type StringOptionFilterKey = Extract<
+    keyof ListFilterParams,
+    | "id"
+    | "name"
+    | "source"
+    | "dataType"
+    | "environment"
+    | "configId"
+    | "queueId"
+    | "authorUserId"
+    | "traceId"
+    | "sessionId"
+    | "observationId"
+    | "experimentId"
+  >;
+
+  // Each entry maps a ListFilterParams key to its ClickHouse column. Adding a
+  // new identifier filter is a single row here — same operator/table shape.
+  const STRING_OPTIONS_FILTERS: ReadonlyArray<{
+    key: StringOptionFilterKey;
+    field: string;
+  }> = [
+    { key: "id", field: "id" },
+    { key: "name", field: "name" },
+    { key: "source", field: "source" },
+    { key: "dataType", field: "data_type" },
+    { key: "environment", field: "environment" },
+    { key: "configId", field: "config_id" },
+    { key: "queueId", field: "queue_id" },
+    { key: "authorUserId", field: "author_user_id" },
+    { key: "traceId", field: "trace_id" },
+    { key: "sessionId", field: "session_id" },
+    { key: "observationId", field: "observation_id" },
+    { key: "experimentId", field: "dataset_run_id" },
+  ];
+
+  for (const { key, field } of STRING_OPTIONS_FILTERS) {
+    const values = params[key];
+    if (values?.length) {
+      filterList.push(
+        new StringOptionsFilter({
+          clickhouseTable: "scores",
+          field,
+          operator: "any of",
+          values,
+          tablePrefix: "s",
+        }),
+      );
+    }
+  }
+  if (params.fromTimestamp !== undefined)
+    filterList.push(
+      new DateTimeFilter({
+        clickhouseTable: "scores",
+        field: "timestamp",
+        operator: ">=",
+        value: params.fromTimestamp,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.toTimestamp !== undefined)
+    filterList.push(
+      new DateTimeFilter({
+        clickhouseTable: "scores",
+        field: "timestamp",
+        operator: "<",
+        value: params.toTimestamp,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.valueMin !== undefined)
+    filterList.push(
+      new NumberFilter({
+        clickhouseTable: "scores",
+        field: "value",
+        operator: ">=",
+        value: params.valueMin,
+        tablePrefix: "s",
+        clickhouseTypeOverwrite: "Float64",
+      }),
+    );
+  if (params.valueMax !== undefined)
+    filterList.push(
+      new NumberFilter({
+        clickhouseTable: "scores",
+        field: "value",
+        operator: "<=",
+        value: params.valueMax,
+        tablePrefix: "s",
+        clickhouseTypeOverwrite: "Float64",
+      }),
+    );
+
+  const compiled = filterList.apply();
+
+  // value= routes to different columns depending on dataType
+  const extraClauses: string[] = [];
+  const extraParams: Record<string, unknown> = {};
+
+  if (params.value?.length && params.dataType?.length === 1) {
+    // Cast: handler superRefine validates dt is a ScoreDataTypeType member.
+    const dt = params.dataType[0] as ScoreDataTypeType;
+    const uid = clickhouseCompliantRandomCharacters();
+    const varName = `valueFilter${uid}`;
+
+    switch (dt) {
+      case ScoreDataTypeEnum.NUMERIC: {
+        extraClauses.push(`s.value IN ({${varName}: Array(Float64)})`);
+        // Belt-and-braces: the route-handler superRefine asserts each value is
+        // a finite number before this is called. Re-validate so a regression
+        // can't land NaN/Infinity directly in a CH IN-clause parameter.
+        extraParams[varName] = params.value.map((v) => {
+          const n = Number(v);
+          if (!Number.isFinite(n)) {
+            throw new InternalServerError(
+              `NUMERIC value filter received non-finite value: ${v}`,
+            );
+          }
+          return n;
+        });
+        break;
+      }
+      case ScoreDataTypeEnum.BOOLEAN: {
+        extraClauses.push(`s.value IN ({${varName}: Array(Float64)})`);
+        extraParams[varName] = params.value.map((v) =>
+          transformBooleanValueForFilter(v as "true" | "false"),
+        );
+        break;
+      }
+      case ScoreDataTypeEnum.CATEGORICAL: {
+        extraClauses.push(`s.string_value IN ({${varName}: Array(String)})`);
+        extraParams[varName] = params.value;
+        break;
+      }
+      case ScoreDataTypeEnum.TEXT:
+      case ScoreDataTypeEnum.CORRECTION:
+        // Handler superRefine rejects value= with TEXT/CORRECTION; reaching
+        // this branch means the validator regressed.
+        throw new InternalServerError(
+          `value filter with dataType=${dt} should have been rejected by handler validation`,
+        );
+      default: {
+        const _exhaustiveCheck: never = dt;
+        throw new InternalServerError(
+          `value filter received unknown dataType: ${_exhaustiveCheck as string}`,
+        );
+      }
+    }
+  }
+
+  const allClauses = [compiled.query, ...extraClauses]
+    .filter(Boolean)
+    .join(" AND ");
+
+  return { query: allClauses, params: { ...compiled.params, ...extraParams } };
+}
+
+const buildV3ListQuery = (
+  withCursor: boolean,
+  fields: ScoreFieldGroupV3[],
+  filterClause: string,
+) => `
   SELECT
     ${buildSelectColumns(fields)}
   FROM scores s
@@ -181,17 +387,23 @@ const buildV3ListQuery = (withCursor: boolean, fields: ScoreFieldGroupV3[]) => `
       ? "AND (s.timestamp, s.id) < ({lastTimestamp: DateTime64(3)}, {lastId: String})"
       : ""
   }
+  ${filterClause ? `AND ${filterClause}` : ""}
   ORDER BY s.timestamp DESC, s.id DESC, s.event_ts DESC
   LIMIT 1 BY s.id, s.project_id
   LIMIT {limit: Int32}
 `;
 
-export async function listScoresV3ForPublicApi(params: {
-  projectId: string;
-  limit: number;
-  cursor?: ScoresCursorV3Type;
-  fields: ScoreFieldGroupV3[];
-}): Promise<{ data: APIScoreV3[]; cursor?: string }> {
+export async function listScoresV3ForPublicApi(
+  params: {
+    projectId: string;
+    limit: number;
+    cursor?: ScoresCursorV3Type;
+    fields: ScoreFieldGroupV3[];
+  } & ListFilterParams,
+): Promise<{ data: APIScoreV3[]; cursor?: string }> {
+  const { query: filterClause, params: filterParams } =
+    buildDynamicFilters(params);
+
   return measureAndReturn({
     operationName: "listScoresV3ForPublicApi",
     projectId: params.projectId,
@@ -205,6 +417,7 @@ export async function listScoresV3ForPublicApi(params: {
           ),
           lastId: params.cursor.lastId,
         }),
+        ...filterParams,
       },
       tags: {
         feature: "scoring",
@@ -215,7 +428,11 @@ export async function listScoresV3ForPublicApi(params: {
     },
     fn: async (input) => {
       const records = await queryClickhouse<ScoreRecordReadType>({
-        query: buildV3ListQuery(Boolean(params.cursor), params.fields),
+        query: buildV3ListQuery(
+          Boolean(params.cursor),
+          params.fields,
+          filterClause,
+        ),
         params: input.params,
         tags: input.tags,
         preferredClickhouseService: "ReadOnly",

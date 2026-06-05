@@ -5,6 +5,7 @@ import {
   createScoresCh,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import { transformBooleanValueForFilter } from "@/src/features/public-api/server/scores-api-v3";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
@@ -563,6 +564,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(score!.details).toBeDefined();
       expect(score!.details!.comment).toBe("test comment");
       expect(score!.details!.configId).toBe("cfg-abc");
+      expect(score!.details!.metadata).toEqual({ key: "val" });
       expect(score).not.toHaveProperty("subject");
       expect(score).not.toHaveProperty("annotation");
     });
@@ -794,6 +796,972 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(score).toHaveProperty("annotation");
       expect(score!.subject!.kind).toBe("trace");
       expect(score!.subject!.id).toBe(traceId);
+    });
+  });
+
+  describe("transformBooleanValueForFilter unit", () => {
+    it('"true" → 1', () => {
+      expect(transformBooleanValueForFilter("true")).toBe(1);
+    });
+    it('"false" → 0', () => {
+      expect(transformBooleanValueForFilter("false")).toBe(0);
+    });
+  });
+
+  describe("GET /api/public/v3/scores — filter params", () => {
+    let auth: string;
+    let projectId: string;
+
+    beforeAll(async () => {
+      const project = await createOrgProjectAndApiKey();
+      auth = project.auth;
+      projectId = project.projectId;
+    });
+
+    // --- Validation (400) tests ---
+
+    it("userId → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?userId=u1",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("traceTags → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?traceTags=tag1",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("value= without dataType → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?value=0.5",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("value= with multi-value dataType → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?value=0.5&dataType=NUMERIC,BOOLEAN",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("value= with dataType=TEXT → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?value=foo&dataType=TEXT",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("value=1 with dataType=BOOLEAN → 400 (must be true/false)", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?value=1&dataType=BOOLEAN",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("valueMin= with dataType=CATEGORICAL → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?valueMin=0.2&dataType=CATEGORICAL",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("valueMin= without dataType → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?valueMin=0.2",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("two exclusive parent-entity params → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        `/api/public/v3/scores?traceId=${v4()}&sessionId=${v4()}`,
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("observationId without traceId → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        `/api/public/v3/scores?observationId=${v4()}`,
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    // --- Filter correctness tests ---
+
+    it("id filter (single) returns only matching score", async () => {
+      const scoreId = v4();
+      const otherId = v4();
+      await createScoresCh([
+        createTraceScore({ id: scoreId, project_id: projectId }),
+        createTraceScore({ id: otherId, project_id: projectId }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?id=${scoreId}`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((s) => s.id)).toEqual([scoreId]);
+    });
+
+    it("id filter (comma-separated) returns both matching scores", async () => {
+      const id1 = v4();
+      const id2 = v4();
+      const id3 = v4();
+      await createScoresCh([
+        createTraceScore({ id: id1, project_id: projectId }),
+        createTraceScore({ id: id2, project_id: projectId }),
+        createTraceScore({ id: id3, project_id: projectId }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?id=${id1},${id2}`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(id1);
+      expect(ids).toContain(id2);
+      expect(ids).not.toContain(id3);
+    });
+
+    it("name filter returns only scores with matching name", async () => {
+      const scoreName = `filter-test-name-${v4()}`;
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          name: scoreName,
+        }),
+        createTraceScore({ project_id: projectId, name: "other-name" }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?name=${encodeURIComponent(scoreName)}`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.every((s) => s.name === scoreName)).toBe(true);
+      expect(res.body.data.some((s) => s.id === scoreId)).toBe(true);
+    });
+
+    it("source filter returns only scores with matching source", async () => {
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          source: "ANNOTATION",
+        }),
+        createTraceScore({ project_id: projectId, source: "API" }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?source=ANNOTATION",
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.every((s) => s.source === "ANNOTATION")).toBe(true);
+      expect(res.body.data.some((s) => s.id === scoreId)).toBe(true);
+    });
+
+    it("dataType filter returns only scores of that type", async () => {
+      const numericId = v4();
+      const boolId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: numericId,
+          project_id: projectId,
+          data_type: "NUMERIC",
+          value: 0.5,
+        }),
+        createTraceScore({
+          id: boolId,
+          project_id: projectId,
+          data_type: "BOOLEAN",
+          value: 1,
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?dataType=NUMERIC",
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.every((s) => s.dataType === "NUMERIC")).toBe(true);
+      expect(res.body.data.some((s) => s.id === numericId)).toBe(true);
+    });
+
+    it("traceId filter returns only scores for that trace", async () => {
+      const traceId = v4();
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          trace_id: traceId,
+        }),
+        createTraceScore({ project_id: projectId, trace_id: v4() }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?traceId=${traceId}`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((s) => s.id)).toEqual([scoreId]);
+    });
+
+    it("observationId + traceId filter returns only the matching observation-level score", async () => {
+      const traceId = v4();
+      const observationId = v4();
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: observationId,
+        }),
+        createTraceScore({ project_id: projectId }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?traceId=${traceId}&observationId=${observationId}`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((s) => s.id)).toEqual([scoreId]);
+    });
+
+    it("traceId + observationId scopes to the correct trace (cross-trace isolation)", async () => {
+      const traceId = v4();
+      const observationId = v4();
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: observationId,
+        }),
+        // same observationId but on a different trace — must not appear
+        createTraceScore({
+          project_id: projectId,
+          trace_id: v4(),
+          observation_id: observationId,
+        }),
+        createTraceScore({ project_id: projectId }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?traceId=${traceId}&observationId=${observationId}`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((s) => s.id)).toEqual([scoreId]);
+    });
+
+    it("sessionId filter returns only session scores", async () => {
+      const sessionId = v4();
+      const scoreId = v4();
+      await createScoresCh([
+        createSessionScore({
+          id: scoreId,
+          project_id: projectId,
+          session_id: sessionId,
+        }),
+        createTraceScore({ project_id: projectId }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?sessionId=${sessionId}`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((s) => s.id)).toEqual([scoreId]);
+    });
+
+    it("experimentId filter returns only dataset run scores", async () => {
+      const datasetRunId = v4();
+      const scoreId = v4();
+      await createScoresCh([
+        createDatasetRunScore({
+          id: scoreId,
+          project_id: projectId,
+          dataset_run_id: datasetRunId,
+        }),
+        createTraceScore({ project_id: projectId }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?experimentId=${datasetRunId}`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((s) => s.id)).toEqual([scoreId]);
+    });
+
+    it("value=0.85 dataType=NUMERIC matches numeric column", async () => {
+      const scoreId = v4();
+      const otherId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          data_type: "NUMERIC",
+          value: 0.85,
+        }),
+        createTraceScore({
+          id: otherId,
+          project_id: projectId,
+          data_type: "NUMERIC",
+          value: 0.5,
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?value=0.85&dataType=NUMERIC",
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((s) => s.id)).toContain(scoreId);
+      expect(res.body.data.map((s) => s.id)).not.toContain(otherId);
+    });
+
+    it("value=good,bad dataType=CATEGORICAL matches string_value", async () => {
+      const goodId = v4();
+      const badId = v4();
+      const otherId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: goodId,
+          project_id: projectId,
+          data_type: "CATEGORICAL",
+          value: 0,
+          string_value: "good",
+        }),
+        createTraceScore({
+          id: badId,
+          project_id: projectId,
+          data_type: "CATEGORICAL",
+          value: 0,
+          string_value: "bad",
+        }),
+        createTraceScore({
+          id: otherId,
+          project_id: projectId,
+          data_type: "CATEGORICAL",
+          value: 0,
+          string_value: "neutral",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?value=good,bad&dataType=CATEGORICAL",
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(goodId);
+      expect(ids).toContain(badId);
+      expect(ids).not.toContain(otherId);
+    });
+
+    it("value=true dataType=BOOLEAN matches numeric column = 1", async () => {
+      const trueId = v4();
+      const falseId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: trueId,
+          project_id: projectId,
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "true",
+        }),
+        createTraceScore({
+          id: falseId,
+          project_id: projectId,
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "false",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?value=true&dataType=BOOLEAN",
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(trueId);
+      expect(ids).not.toContain(falseId);
+    });
+
+    it("value=true,false dataType=BOOLEAN → 200, returns all boolean scores", async () => {
+      const trueId = v4();
+      const falseId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: trueId,
+          project_id: projectId,
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "true",
+        }),
+        createTraceScore({
+          id: falseId,
+          project_id: projectId,
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "false",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?value=true,false&dataType=BOOLEAN",
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(trueId);
+      expect(ids).toContain(falseId);
+    });
+
+    it("valueMin/valueMax filter matches only scores in range", async () => {
+      const inRangeId = v4();
+      const outOfRangeId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: inRangeId,
+          project_id: projectId,
+          data_type: "NUMERIC",
+          value: 0.7,
+        }),
+        createTraceScore({
+          id: outOfRangeId,
+          project_id: projectId,
+          data_type: "NUMERIC",
+          value: 0.2,
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?valueMin=0.5&valueMax=1.0&dataType=NUMERIC",
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(inRangeId);
+      expect(ids).not.toContain(outOfRangeId);
+    });
+
+    it("fromTimestamp omitted with no entity filter → 200", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("source=INVALID → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?source=BOGUS",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("dataType=INVALID → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?dataType=NUMRIC",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("value=notanumber&dataType=NUMERIC → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?value=notanumber&dataType=NUMERIC",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("value=Infinity&dataType=NUMERIC → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?value=Infinity&dataType=NUMERIC",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("valueMin=Infinity&dataType=NUMERIC → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?valueMin=Infinity&dataType=NUMERIC",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("valueMax=-Infinity&dataType=NUMERIC → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?valueMax=-Infinity&dataType=NUMERIC",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("value= (empty) with dataType=NUMERIC → 200 (not treated as present)", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?value=&dataType=NUMERIC",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("valueMin= (empty) with dataType=NUMERIC → 200, does not narrow to value>=0", async () => {
+      // Regression: z.coerce.number() coerces "" to 0, which would emit
+      // `s.value >= 0` and silently drop negative-valued scores.
+      const project = await createOrgProjectAndApiKey();
+      const negativeId = v4();
+      const positiveId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: negativeId,
+          project_id: project.projectId,
+          data_type: "NUMERIC",
+          value: -1.5,
+        }),
+        createTraceScore({
+          id: positiveId,
+          project_id: project.projectId,
+          data_type: "NUMERIC",
+          value: 0.5,
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?valueMin=&dataType=NUMERIC",
+        undefined,
+        project.auth,
+      );
+      expect(res.status).toBe(200);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(negativeId);
+      expect(ids).toContain(positiveId);
+    });
+
+    it("valueMax= (empty) with dataType=NUMERIC → 200, does not narrow to value<=0", async () => {
+      const project = await createOrgProjectAndApiKey();
+      const negativeId = v4();
+      const positiveId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: negativeId,
+          project_id: project.projectId,
+          data_type: "NUMERIC",
+          value: -1.5,
+        }),
+        createTraceScore({
+          id: positiveId,
+          project_id: project.projectId,
+          data_type: "NUMERIC",
+          value: 0.5,
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?valueMax=&dataType=NUMERIC",
+        undefined,
+        project.auth,
+      );
+      expect(res.status).toBe(200);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(negativeId);
+      expect(ids).toContain(positiveId);
+    });
+
+    it("environment filter returns only scores with matching environment", async () => {
+      const scoreId = v4();
+      const controlId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          environment: "staging",
+        }),
+        createTraceScore({
+          id: controlId,
+          project_id: projectId,
+          environment: "production",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?environment=staging`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(
+        res.body.data.length > 0 &&
+          res.body.data.every((s) => s.environment === "staging"),
+      ).toBe(true);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(scoreId);
+      expect(ids).not.toContain(controlId);
+    });
+
+    it("configId filter returns only scores with matching configId", async () => {
+      const scoreId = v4();
+      const controlId = v4();
+      const configId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          config_id: configId,
+        }),
+        createTraceScore({ id: controlId, project_id: projectId }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?configId=${configId}&fields=core,details`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(
+        res.body.data.length > 0 &&
+          res.body.data.every((s) => s.details?.configId === configId),
+      ).toBe(true);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(scoreId);
+      expect(ids).not.toContain(controlId);
+    });
+
+    it("queueId filter returns only scores with matching queueId", async () => {
+      const scoreId = v4();
+      const controlId = v4();
+      const queueId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          queue_id: queueId,
+        }),
+        createTraceScore({ id: controlId, project_id: projectId }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?queueId=${queueId}&fields=core,annotation`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(
+        res.body.data.length > 0 &&
+          res.body.data.every((s) => s.annotation?.queueId === queueId),
+      ).toBe(true);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(scoreId);
+      expect(ids).not.toContain(controlId);
+    });
+
+    it("authorUserId filter returns only scores with matching authorUserId", async () => {
+      const scoreId = v4();
+      const controlId = v4();
+      const userId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          author_user_id: userId,
+        }),
+        createTraceScore({ id: controlId, project_id: projectId }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?authorUserId=${userId}&fields=core,annotation`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(
+        res.body.data.length > 0 &&
+          res.body.data.every((s) => s.annotation?.authorUserId === userId),
+      ).toBe(true);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(scoreId);
+      expect(ids).not.toContain(controlId);
+    });
+
+    it("toTimestamp excludes scores after the cutoff", async () => {
+      const oldId = v4();
+      const newId = v4();
+      const cutoff = new Date("2025-01-01T00:00:00Z");
+      await createScoresCh([
+        createTraceScore({
+          id: oldId,
+          project_id: projectId,
+          timestamp: new Date("2024-06-01T00:00:00Z").getTime(),
+        }),
+        createTraceScore({
+          id: newId,
+          project_id: projectId,
+          timestamp: new Date("2025-06-01T00:00:00Z").getTime(),
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?fromTimestamp=2020-01-01&toTimestamp=${cutoff.toISOString()}`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.some((s) => s.id === oldId)).toBe(true);
+      expect(res.body.data.some((s) => s.id === newId)).toBe(false);
+    });
+
+    it("combines multiple filters with AND semantics", async () => {
+      // Three scores: each matches one filter dimension, only one matches all
+      // three. The AND-stacking in buildDynamicFilters' .join(" AND ") must
+      // return exactly the all-three-match row.
+      const matchId = v4();
+      const onlyNameId = v4();
+      const onlySourceId = v4();
+      const onlyDataTypeId = v4();
+      const sharedTs = new Date("2025-04-01T00:00:00Z").getTime();
+      await createScoresCh([
+        createTraceScore({
+          id: matchId,
+          project_id: projectId,
+          name: "combo-name",
+          source: "ANNOTATION",
+          data_type: "CATEGORICAL",
+          string_value: "x",
+          value: 0,
+          timestamp: sharedTs,
+        }),
+        createTraceScore({
+          id: onlyNameId,
+          project_id: projectId,
+          name: "combo-name",
+          source: "API",
+          data_type: "NUMERIC",
+          timestamp: sharedTs,
+        }),
+        createTraceScore({
+          id: onlySourceId,
+          project_id: projectId,
+          name: "other-name",
+          source: "ANNOTATION",
+          data_type: "NUMERIC",
+          timestamp: sharedTs,
+        }),
+        createTraceScore({
+          id: onlyDataTypeId,
+          project_id: projectId,
+          name: "other-name",
+          source: "API",
+          data_type: "CATEGORICAL",
+          string_value: "x",
+          value: 0,
+          timestamp: sharedTs,
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?name=combo-name&source=ANNOTATION&dataType=CATEGORICAL",
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(matchId);
+      expect(ids).not.toContain(onlyNameId);
+      expect(ids).not.toContain(onlySourceId);
+      expect(ids).not.toContain(onlyDataTypeId);
+    });
+
+    it("empty fromTimestamp/toTimestamp query params are treated as absent → 200", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?fromTimestamp=&toTimestamp=",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("empty userId/traceTags query params do not trigger the use-v2 400", async () => {
+      // ?userId= (empty) and ?traceTags= should be treated as absent rather
+      // than tripping the trace-JOIN-not-supported error.
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?userId=&traceTags=",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("regression: limit and fields still work alongside filters", async () => {
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          comment: "regression-check",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?limit=10&fields=core,details",
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.meta.limit).toBe(10);
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score?.details?.comment).toBe("regression-check");
     });
   });
 });
