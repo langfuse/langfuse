@@ -3,6 +3,7 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import {
   BotMessageSquare,
+  History,
   Maximize2,
   Minimize2,
   Plus,
@@ -11,13 +12,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { cn } from "@/src/utils/tailwind";
 import {
   InAppAgentMessage,
@@ -26,8 +27,6 @@ import {
 } from "./InAppAgentMessage";
 
 const AUTO_SCROLL_THRESHOLD_PX = 200;
-const NEW_CONVERSATION_VALUE = "__new__";
-const LOAD_MORE_CONVERSATIONS_VALUE = "__load_more__";
 
 export type InAppAgentWindowMessage = {
   id: string;
@@ -145,52 +144,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-medium">
             Beta
           </span>
-          <Select
-            value={selectedConversationId ?? NEW_CONVERSATION_VALUE}
-            onValueChange={(value) => {
-              if (value === NEW_CONVERSATION_VALUE) {
-                onNewConversation();
-                return;
-              }
-
-              if (value === LOAD_MORE_CONVERSATIONS_VALUE) {
-                onLoadMoreConversations();
-                return;
-              }
-
-              onSelectConversation(value);
-            }}
-            disabled={isInputDisabled}
-          >
-            <SelectTrigger
-              aria-label="Select agent conversation"
-              className="h-8 min-w-0 flex-1"
-            >
-              <SelectValue placeholder="New conversation" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NEW_CONVERSATION_VALUE}>
-                New conversation
-              </SelectItem>
-              {conversations.map((conversation) => (
-                <SelectItem key={conversation.id} value={conversation.id}>
-                  {conversation.title?.trim() || "Untitled conversation"}
-                </SelectItem>
-              ))}
-              {hasMoreConversations ? (
-                <>
-                  <SelectSeparator />
-                  <SelectItem
-                    value={LOAD_MORE_CONVERSATIONS_VALUE}
-                    className="h-8"
-                    disabled={isLoadingMoreConversations}
-                  >
-                    {isLoadingMoreConversations ? "Loading..." : "Load more"}
-                  </SelectItem>
-                </>
-              ) : null}
-            </SelectContent>
-          </Select>
+        </div>
+        <div className="flex shrink-0 items-center gap-0.5">
           <Button
             type="button"
             variant="ghost"
@@ -202,8 +157,54 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           >
             <Plus className="size-3" />
           </Button>
-        </div>
-        <div className="flex shrink-0 items-center gap-0.5">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-6 shrink-0"
+                disabled={isInputDisabled}
+                aria-label="Conversation history"
+              >
+                <History className="size-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel>Recent conversations</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {conversations.length === 0 ? (
+                <DropdownMenuItem disabled>
+                  No conversations yet
+                </DropdownMenuItem>
+              ) : (
+                conversations.map((conversation) => (
+                  <DropdownMenuItem
+                    key={conversation.id}
+                    className={cn(
+                      "truncate",
+                      conversation.id === selectedConversationId &&
+                        "bg-accent text-accent-foreground",
+                    )}
+                    onSelect={() => onSelectConversation(conversation.id)}
+                  >
+                    {conversation.title?.trim() || "Untitled conversation"}
+                  </DropdownMenuItem>
+                ))
+              )}
+              {hasMoreConversations ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    disabled={isLoadingMoreConversations}
+                    onSelect={onLoadMoreConversations}
+                  >
+                    {isLoadingMoreConversations ? "Loading..." : "Load more"}
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             type="button"
             variant="ghost"
