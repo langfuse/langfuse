@@ -47,7 +47,7 @@ service:
             docs: Comma-separated list of score sources to filter by (e.g. API, ANNOTATION, EVAL).
           dataType:
             type: optional<string>
-            docs: Comma-separated list of data types to filter by (NUMERIC, BOOLEAN, CATEGORICAL, TEXT, CORRECTION). Must be a single value when used with value, valueMin, or valueMax.
+            docs: Comma-separated list of data types to filter by (NUMERIC, BOOLEAN, CATEGORICAL, TEXT, CORRECTION). Must be a single value when used with value, valueMin, or valueMax; otherwise the request returns HTTP 400.
           environment:
             type: optional<string>
             docs: Comma-separated list of environments to filter by.
@@ -64,16 +64,17 @@ service:
             type: optional<string>
             docs: >
               Comma-separated list of exact values to filter by. Requires a
-              single dataType from NUMERIC, BOOLEAN, or CATEGORICAL. For
-              BOOLEAN, each value must be "true" or "false". For NUMERIC, values
-              are matched against the Float64 column. For CATEGORICAL, values
-              are matched against string_value.
+              single dataType from NUMERIC, BOOLEAN, or CATEGORICAL; any other
+              dataType, multiple dataTypes, or omitting dataType returns HTTP
+              400. For BOOLEAN, each value must be "true" or "false"; for
+              NUMERIC, each value must be a finite number. Otherwise the
+              request returns HTTP 400.
           valueMin:
             type: optional<double>
-            docs: Inclusive lower bound on the numeric value. Requires dataType=NUMERIC as a single value.
+            docs: Inclusive lower bound on the numeric value. Requires dataType=NUMERIC as a single value; otherwise the request returns HTTP 400.
           valueMax:
             type: optional<double>
-            docs: Inclusive upper bound on the numeric value. Requires dataType=NUMERIC as a single value.
+            docs: Inclusive upper bound on the numeric value. Requires dataType=NUMERIC as a single value; otherwise the request returns HTTP 400.
           traceId:
             type: optional<string>
             docs: Comma-separated list of trace IDs to filter by. Mutually exclusive with sessionId, observationId, experimentId.
