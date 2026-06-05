@@ -790,6 +790,7 @@ export function DatasetRunsTable(props: {
                 runs.data?.runs.map((run) => run.id).includes(runId),
               ).length > 0 ? (
                 <DatasetRunTableMultiSelectAction
+                  key="dataset-run-multi-select"
                   // Exclude items that are not in the current page
                   selectedRunIds={Object.keys(selectedRows).filter((runId) =>
                     runs.data?.runs.map((run) => run.id).includes(runId),
