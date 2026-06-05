@@ -1,4 +1,7 @@
-import { type ScoreConfigDomain } from "@langfuse/shared";
+import {
+  type AnnotationQueueItem,
+  type ScoreConfigDomain,
+} from "@langfuse/shared";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 import { SessionIO } from "@/src/components/session";
@@ -16,11 +19,7 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { api } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 
-type SessionAnnotationQueueItem = {
-  objectId: string;
-  projectId: string;
-  queueId: string;
-  lockedByUserId: string | null;
+type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
   lockedByUser: { name: string | null | undefined } | null;
 };
