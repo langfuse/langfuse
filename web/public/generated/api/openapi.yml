@@ -13718,9 +13718,9 @@ components:
             Langfuse resolves the provided evaluator family to its latest
             version before saving the rule.
 
-            If `type` is omitted, Langfuse keeps the rule's current evaluator
-            type, so a code rule is not accidentally switched to an LLM
-            evaluator family.
+            A rule's evaluator type cannot be changed: provide `name` and
+            `scope` for an evaluator family of the rule's current type. To use a
+            different evaluator type, create a new rule.
         target:
           $ref: '#/components/schemas/unstableEvaluationRuleTarget'
           nullable: true
@@ -13774,10 +13774,12 @@ components:
         Evaluator family reference used when updating an evaluation rule.
 
 
-        `name`, `scope`, and `type` identify the evaluator family in the
-        authenticated project context.
+        `name` and `scope` identify the evaluator family in the authenticated
+        project context.
 
-        If `type` is omitted, Langfuse keeps the rule's current evaluator type.
+        A rule's evaluator type cannot be changed, so this reference does not
+        accept a `type`; the family must match the rule's current evaluator
+        type.
       properties:
         name:
           type: string
@@ -13785,12 +13787,6 @@ components:
         scope:
           $ref: '#/components/schemas/unstableEvaluatorScope'
           description: Whether the evaluator family is project-owned or Langfuse-managed.
-        type:
-          $ref: '#/components/schemas/unstableEvaluatorType'
-          nullable: true
-          description: >-
-            Evaluator engine type. Keeps the rule's current evaluator type when
-            omitted.
       required:
         - name
         - scope

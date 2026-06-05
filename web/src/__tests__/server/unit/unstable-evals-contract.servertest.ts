@@ -359,11 +359,17 @@ describe("unstable public eval contracts", () => {
     expect(parsed.error?.issues.length).toBeGreaterThan(0);
   });
 
-  it("does not default the evaluator type on patch so code rules are not silently retargeted to llm_as_judge", () => {
+  it("strips evaluator type from patch bodies so a rule's evaluator type cannot be changed", () => {
     const parsed = PatchUnstableEvaluationRuleBody.parse({
-      evaluator: { name: "toxicity-detector", scope: "project" },
+      evaluator: {
+        name: "toxicity-detector",
+        scope: "project",
+        type: "llm_as_judge",
+      },
     });
 
+    // `type` is dropped: the service inherits the rule's current evaluator type,
+    // so a code rule cannot be retargeted to an LLM evaluator family.
     expect(parsed).toEqual({
       evaluator: { name: "toxicity-detector", scope: "project" },
     });

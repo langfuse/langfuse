@@ -336,14 +336,15 @@ export async function updatePublicEvaluationRule(params: {
     });
   }
 
-  // When a PATCH references an evaluator but omits `type`, keep the rule's
-  // current evaluator type instead of defaulting to llm_as_judge, so a code
-  // rule is not silently retargeted to an LLM evaluator family.
+  // A rule's evaluator type cannot be changed via PATCH; always inherit the
+  // current type. This keeps the family lookup scoped to the same type, so a
+  // code rule cannot be retargeted to an LLM evaluator (which would inherit the
+  // synthesized code mapping and fail validation against the LLM variables).
   const nextEvaluator = params.input.evaluator
     ? {
         name: params.input.evaluator.name,
         scope: params.input.evaluator.scope,
-        type: params.input.evaluator.type ?? existingPublic.evaluator.type,
+        type: existingPublic.evaluator.type,
       }
     : {
         name: existingPublic.evaluator.name,

@@ -92,14 +92,14 @@ export const PublicEvaluationRuleEvaluatorReference = z.object({
   type: PublicEvaluatorType.default(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
 });
 
-// PATCH must not default `type`: an omitted type means "keep the rule's current
-// evaluator type", which the service resolves from the existing rule.
-// Defaulting to llm_as_judge here would silently retarget a code rule to an LLM
-// evaluator family (or 404 when no LLM evaluator with that name exists).
+// PATCH intentionally omits `type`: an evaluation rule's evaluator type cannot
+// be changed. The service always inherits the rule's current type, so a code
+// rule is never retargeted to an LLM evaluator family (which would otherwise
+// inherit the synthesized code mapping and fail validation against the LLM
+// evaluator's variables). To use a different evaluator type, create a new rule.
 export const PublicEvaluationRuleEvaluatorReferencePatch = z.object({
   name: z.string().min(1),
   scope: PublicEvaluatorScope,
-  type: PublicEvaluatorType.optional(),
 });
 
 export const PublicEvaluationRuleEvaluator =
