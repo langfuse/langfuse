@@ -8,6 +8,7 @@ import {
   PublicEvaluationRuleFilter,
   PublicEvaluationRuleEvaluator,
   PublicEvaluationRuleEvaluatorReference,
+  PublicEvaluationRuleEvaluatorReferencePatch,
   PublicEvaluationRuleMapping,
   PublicEvaluationRuleStatus,
   PublicEvaluationRuleTarget,
@@ -105,7 +106,7 @@ export const PatchUnstableEvaluationRuleQuery = GetUnstableEvaluationRuleQuery;
 
 const EvaluationRulePatchBase = {
   name: z.string().min(1).optional(),
-  evaluator: PublicEvaluationRuleEvaluatorReference.optional(),
+  evaluator: PublicEvaluationRuleEvaluatorReferencePatch.optional(),
   enabled: z.boolean().optional(),
   sampling: z.number().gt(0).lte(1).optional(),
 };

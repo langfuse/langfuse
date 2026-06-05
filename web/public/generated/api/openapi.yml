@@ -13718,8 +13718,9 @@ components:
             Langfuse resolves the provided evaluator family to its latest
             version before saving the rule.
 
-            If `type` is omitted, Langfuse defaults it to `llm_as_judge` for
-            backwards compatibility.
+            If `type` is omitted, Langfuse keeps the rule's current evaluator
+            type, so a code rule is not accidentally switched to an LLM
+            evaluator family.
         target:
           $ref: '#/components/schemas/unstableEvaluationRuleTarget'
           nullable: true
@@ -13770,15 +13771,13 @@ components:
       title: unstableEvaluationRuleEvaluatorReference
       type: object
       description: >-
-        Evaluator family reference used when creating or updating an evaluation
-        rule.
+        Evaluator family reference used when updating an evaluation rule.
 
 
         `name`, `scope`, and `type` identify the evaluator family in the
         authenticated project context.
 
-        If `type` is omitted, Langfuse defaults it to `llm_as_judge` for
-        backwards compatibility.
+        If `type` is omitted, Langfuse keeps the rule's current evaluator type.
       properties:
         name:
           type: string
@@ -13789,7 +13788,9 @@ components:
         type:
           $ref: '#/components/schemas/unstableEvaluatorType'
           nullable: true
-          description: Evaluator engine type. Defaults to `llm_as_judge` when omitted.
+          description: >-
+            Evaluator engine type. Keeps the rule's current evaluator type when
+            omitted.
       required:
         - name
         - scope

@@ -114,6 +114,7 @@ import {
   JobConfigState,
 } from "@langfuse/shared";
 import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
+import { TRPCError } from "@trpc/server";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import {
   createPublicEvaluationRule,
@@ -795,6 +796,48 @@ describe("unstable public eval services", () => {
     expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
   });
 
+  it("translates raw TRPCErrors from the code-eval preflight into structured public API errors", async () => {
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
+      template: codeTemplate,
+    });
+    // `runCodeEvalTestForObservation` throws raw TRPCErrors (it is shared with
+    // the tRPC test endpoint); the public API must surface them as documented
+    // structured errors, not a 500.
+    mockAssertCodeEvalJobConfigCanRun.mockRejectedValueOnce(
+      new TRPCError({
+        code: "BAD_REQUEST",
+        message:
+          "This code evaluator language is not supported by the configured dispatcher.",
+      }),
+    );
+
+    await expect(
+      createPublicEvaluationRule({
+        orgId: "org_123",
+        projectId: "project_123",
+        input: PostUnstableEvaluationRuleBody.parse({
+          name: "exact_match_live",
+          evaluator: {
+            name: "Exact match",
+            scope: "project",
+            type: PUBLIC_EVALUATOR_TYPE_CODE,
+          },
+          target: "observation",
+          enabled: true,
+          sampling: 1,
+          filter: [],
+        }),
+      }),
+    ).rejects.toMatchObject({
+      httpCode: 400,
+      code: "invalid_request",
+      message:
+        "This code evaluator language is not supported by the configured dispatcher.",
+    });
+
+    expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
+  });
+
   it("returns a conflict when an evaluation rule name already exists in the project", async () => {
     mockedPrisma.jobConfiguration.findFirst.mockResolvedValueOnce({
       id: "ceval_existing",
@@ -1212,6 +1255,42 @@ describe("unstable public eval services", () => {
 
     expect(mockAssertCodeEvalJobConfigCanRun).not.toHaveBeenCalled();
     expect(mockedPrisma.jobConfiguration.update).not.toHaveBeenCalled();
+  });
+
+  it("keeps the existing code evaluator type when a patch omits evaluator type", async () => {
+    const codeRuleRecord = createEvaluationRuleRecord({
+      evalTemplate: {
+        id: "tmpl_code_v1",
+        projectId: "project_123",
+        name: "Exact match",
+        type: EvalTemplateType.CODE,
+      },
+    });
+    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(codeRuleRecord);
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
+      template: codeTemplate,
+    });
+    mockedPrisma.jobConfiguration.update.mockResolvedValueOnce(codeRuleRecord);
+
+    await updatePublicEvaluationRule({
+      orgId: "org_123",
+      projectId: "project_123",
+      evaluationRuleId: "ceval_123",
+      // No `type` on the evaluator reference: it must inherit the rule's current
+      // `code` type, not silently fall back to `llm_as_judge`.
+      input: {
+        evaluator: { name: "Exact match", scope: "project" },
+      },
+    });
+
+    expect(mockLoadEvaluatorForEvaluationRule).toHaveBeenCalledWith({
+      projectId: "project_123",
+      evaluator: {
+        name: "Exact match",
+        scope: "project",
+        type: PUBLIC_EVALUATOR_TYPE_CODE,
+      },
+    });
   });
 
   it("rejects enabling a non-active evaluation rule when the active limit is reached", async () => {

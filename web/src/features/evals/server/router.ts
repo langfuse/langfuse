@@ -373,7 +373,7 @@ const assertCodeEvalJobConfigCanRunForTRPC = async ({
   } catch (error) {
     if (error instanceof CodeEvalJobConfigInvalidTargetError) {
       throw new TRPCError({
-        code: "PRECONDITION_FAILED",
+        code: "BAD_REQUEST",
         message: error.message,
       });
     }

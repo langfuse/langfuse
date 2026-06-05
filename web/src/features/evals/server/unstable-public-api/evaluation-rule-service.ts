@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { invalidateProjectEvalConfigCaches } from "@langfuse/shared/src/server";
 import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import {
@@ -10,6 +11,10 @@ import {
   CodeEvalJobConfigInvalidTargetError,
   CodeEvalJobConfigPreflightError,
 } from "@/src/features/evals/server/codeEvalJobConfigValidation";
+import {
+  isCodeEvalEnabled,
+  isCodeEvalSourceCodeLanguageSupported,
+} from "@/src/features/evals/server/isCodeEvalEnabled";
 import type {
   PatchUnstableEvaluationRuleBodyType,
   PostUnstableEvaluationRuleBodyType,
@@ -58,6 +63,34 @@ async function assertEvaluationRuleCanRunForPublicApi(params: {
     return;
   }
 
+  // Code evaluators only run when the project has a configured dispatcher that
+  // supports the template language. Reject here so we never persist an active
+  // rule that would silently fail at execution time, matching the create path.
+  if (!isCodeEvalEnabled()) {
+    throw createUnstablePublicApiError({
+      httpCode: 403,
+      code: "access_denied",
+      message: "Code evals are not enabled",
+      details: {
+        evaluatorName: params.template.name,
+      },
+    });
+  }
+
+  if (
+    !isCodeEvalSourceCodeLanguageSupported(params.template.sourceCodeLanguage)
+  ) {
+    throw createUnstablePublicApiError({
+      httpCode: 400,
+      code: "invalid_request",
+      message:
+        "This code evaluator language is not supported by the configured dispatcher.",
+      details: {
+        evaluatorName: params.template.name,
+      },
+    });
+  }
+
   try {
     await assertCodeEvalJobConfigCanRun({
       prisma,
@@ -85,6 +118,31 @@ async function assertEvaluationRuleCanRunForPublicApi(params: {
       throw createUnstablePublicApiError({
         httpCode: 422,
         code: "evaluator_preflight_failed",
+        message: error.message,
+        details: {
+          evaluatorName: params.template.name,
+        },
+      });
+    }
+
+    // The shared code-eval preflight (`runCodeEvalTestForObservation`) still
+    // throws raw TRPCErrors for dispatcher/template/language failures because it
+    // is also consumed by the tRPC test endpoint. Translate them here so the
+    // public API returns its documented structured errors instead of a 500.
+    if (error instanceof TRPCError) {
+      throw createUnstablePublicApiError({
+        httpCode:
+          error.code === "NOT_FOUND"
+            ? 404
+            : error.code === "BAD_REQUEST"
+              ? 400
+              : 422,
+        code:
+          error.code === "NOT_FOUND"
+            ? "resource_not_found"
+            : error.code === "BAD_REQUEST"
+              ? "invalid_request"
+              : "evaluator_preflight_failed",
         message: error.message,
         details: {
           evaluatorName: params.template.name,
@@ -278,11 +336,20 @@ export async function updatePublicEvaluationRule(params: {
     });
   }
 
-  const nextEvaluator = params.input.evaluator ?? {
-    name: existingPublic.evaluator.name,
-    scope: existingPublic.evaluator.scope,
-    type: existingPublic.evaluator.type,
-  };
+  // When a PATCH references an evaluator but omits `type`, keep the rule's
+  // current evaluator type instead of defaulting to llm_as_judge, so a code
+  // rule is not silently retargeted to an LLM evaluator family.
+  const nextEvaluator = params.input.evaluator
+    ? {
+        name: params.input.evaluator.name,
+        scope: params.input.evaluator.scope,
+        type: params.input.evaluator.type ?? existingPublic.evaluator.type,
+      }
+    : {
+        name: existingPublic.evaluator.name,
+        scope: existingPublic.evaluator.scope,
+        type: existingPublic.evaluator.type,
+      };
   const { template } = await loadEvaluatorForEvaluationRule({
     projectId: params.projectId,
     evaluator: nextEvaluator,

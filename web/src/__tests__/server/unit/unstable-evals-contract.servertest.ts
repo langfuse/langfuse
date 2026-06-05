@@ -358,6 +358,19 @@ describe("unstable public eval contracts", () => {
     expect(parsed.success).toBe(false);
     expect(parsed.error?.issues.length).toBeGreaterThan(0);
   });
+
+  it("does not default the evaluator type on patch so code rules are not silently retargeted to llm_as_judge", () => {
+    const parsed = PatchUnstableEvaluationRuleBody.parse({
+      evaluator: { name: "toxicity-detector", scope: "project" },
+    });
+
+    expect(parsed).toEqual({
+      evaluator: { name: "toxicity-detector", scope: "project" },
+    });
+    expect(
+      (parsed as { evaluator: { type?: string } }).evaluator.type,
+    ).toBeUndefined();
+  });
 });
 
 describe("unstable public eval adapters", () => {
