@@ -1430,6 +1430,72 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(200);
     });
 
+    it("valueMin= (empty) with dataType=NUMERIC → 200, does not narrow to value>=0", async () => {
+      // Regression: z.coerce.number() coerces "" to 0, which would emit
+      // `s.value >= 0` and silently drop negative-valued scores.
+      const project = await createOrgProjectAndApiKey();
+      const negativeId = v4();
+      const positiveId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: negativeId,
+          project_id: project.projectId,
+          data_type: "NUMERIC",
+          value: -1.5,
+        }),
+        createTraceScore({
+          id: positiveId,
+          project_id: project.projectId,
+          data_type: "NUMERIC",
+          value: 0.5,
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?valueMin=&dataType=NUMERIC",
+        undefined,
+        project.auth,
+      );
+      expect(res.status).toBe(200);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(negativeId);
+      expect(ids).toContain(positiveId);
+    });
+
+    it("valueMax= (empty) with dataType=NUMERIC → 200, does not narrow to value<=0", async () => {
+      const project = await createOrgProjectAndApiKey();
+      const negativeId = v4();
+      const positiveId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: negativeId,
+          project_id: project.projectId,
+          data_type: "NUMERIC",
+          value: -1.5,
+        }),
+        createTraceScore({
+          id: positiveId,
+          project_id: project.projectId,
+          data_type: "NUMERIC",
+          value: 0.5,
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?valueMax=&dataType=NUMERIC",
+        undefined,
+        project.auth,
+      );
+      expect(res.status).toBe(200);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(negativeId);
+      expect(ids).toContain(positiveId);
+    });
+
     it("environment filter returns only scores with matching environment", async () => {
       const scoreId = v4();
       const controlId = v4();

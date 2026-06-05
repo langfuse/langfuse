@@ -70,8 +70,17 @@ export const GetScoresQueryV3 = z.object({
   authorUserId: csvStringParam,
   // Value filters
   value: csvStringParam,
-  valueMin: z.coerce.number().optional(),
-  valueMax: z.coerce.number().optional(),
+  // Treat empty string as absent so `?valueMin=` doesn't silently coerce to 0
+  // and narrow results to `value >= 0`. Zod 4 rejects ±Infinity / NaN out of
+  // the box, so `.finite()` is not needed.
+  valueMin: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.coerce.number().optional(),
+  ),
+  valueMax: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.coerce.number().optional(),
+  ),
   // Entity-bounded filters
   traceId: csvStringParam,
   sessionId: csvStringParam,
