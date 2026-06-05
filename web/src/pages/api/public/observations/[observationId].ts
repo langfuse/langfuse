@@ -31,7 +31,8 @@ export default withMiddlewares(
               projectId: auth.scope.projectId,
               fetchWithInputOutput: true,
             })
-          : await getObservationById({
+          : // eslint-disable-next-line @typescript-eslint/no-deprecated
+            await getObservationById({
               id: query.observationId,
               projectId: auth.scope.projectId,
               fetchWithInputOutput: true,

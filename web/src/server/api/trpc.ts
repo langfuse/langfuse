@@ -480,6 +480,7 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   const fromTimestamp = result.data.fromTimestamp;
   const verbosity = result.data.verbosity;
 
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   const clickhouseTrace = await getTraceById({
     traceId,
     projectId,
