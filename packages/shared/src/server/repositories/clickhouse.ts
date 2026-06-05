@@ -200,7 +200,7 @@ export async function upsertClickhouse<
 
       const normalizedTags = normalizeClickHouseQueryTags({
         tags: opts.tags,
-        operation: "upsert",
+        clickhouseOperation: "upsert",
         table: opts.table,
       });
 
@@ -400,7 +400,7 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
 }) {
   const normalizedTags = normalizeClickHouseQueryTags({
     tags: opts.tags,
-    operation: "select",
+    clickhouseOperation: "select",
   });
 
   const client =
@@ -451,7 +451,7 @@ export async function insertClickhouse<T>(
 
       const normalizedTags = normalizeClickHouseQueryTags({
         tags: opts.tags,
-        operation: "insert",
+        clickhouseOperation: "insert",
         table: opts.table,
       });
 
@@ -637,7 +637,7 @@ export async function commandClickhouse(opts: {
 
       const normalizedTags = normalizeClickHouseQueryTags({
         tags: opts.tags,
-        operation: "command",
+        clickhouseOperation: "command",
       });
 
       const res = await clickhouseClient(opts.clickhouseConfigs).command({

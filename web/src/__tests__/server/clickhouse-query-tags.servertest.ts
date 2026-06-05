@@ -7,7 +7,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 describe("ClickHouse query tags", () => {
-  it("normalizes explicit event-backed public API tags", () => {
+  it("normalizes legacy event-backed public API tags into the concise schema", () => {
     const tags = normalizeClickHouseQueryTags({
       tags: {
         surface: "public-api",
@@ -20,34 +20,35 @@ describe("ClickHouse query tags", () => {
     });
 
     expect(tags).toMatchObject({
-      tag_schema_version: "1",
-      surface: "public-api",
-      feature: "tracing",
-      entity: "event",
-      storage: "events",
-      workload: "list",
+      v: "1",
       project_id: "project-1",
-      physical_table: "events_core",
-      type: "events",
-      kind: "publicApiRows",
-      projectId: "project-1",
+      source: "public-api",
+      feature: "tracing",
+      query: "public-api.tracing.events.publicApiRows",
+      operation: "list",
+      storage: "events",
+      table: "events_core",
     });
+    expect(tags.surface).toBeUndefined();
+    expect(tags.entity).toBeUndefined();
+    expect(tags.workload).toBeUndefined();
+    expect(tags.physical_table).toBeUndefined();
+    expect(tags.type).toBeUndefined();
+    expect(tags.kind).toBeUndefined();
+    expect(tags.projectId).toBeUndefined();
   });
 
   it("sets safe request baggage and accepts equivalent structured tags", () => {
     const ctx = contextWithLangfuseProps({
       projectId: "project-2",
       clickhouse: {
-        surface: "trpc",
+        source: "trpc",
         route: "traces.all",
-        service: "web",
       },
     });
     const baggage = opentelemetry.propagation.getBaggage(ctx);
 
-    expect(baggage?.getEntry("langfuse.clickhouse.surface")?.value).toBe(
-      "trpc",
-    );
+    expect(baggage?.getEntry("langfuse.clickhouse.source")?.value).toBe("trpc");
     expect(baggage?.getEntry("langfuse.clickhouse.route")?.value).toBe(
       "traces.all",
     );
@@ -55,27 +56,26 @@ describe("ClickHouse query tags", () => {
 
     const tags = normalizeClickHouseQueryTags({
       tags: {
-        surface: "trpc",
+        source: "trpc",
         route: "traces.all",
-        service: "web",
         feature: "tracing",
-        type: "trace",
-        kind: "count",
+        query: "trpc.traces.count",
+        operation: "count",
         project_id: "project-2",
         storage: "legacy",
-        physical_table: "traces",
+        table: "traces",
       },
     });
 
     expect(tags).toMatchObject({
-      surface: "trpc",
-      route: "traces.all",
-      service: "web",
-      entity: "trace",
-      storage: "legacy",
-      workload: "count",
+      source: "trpc",
       project_id: "project-2",
-      physical_table: "traces",
+      feature: "tracing",
+      query: "trpc.traces.count",
+      operation: "count",
+      route: "traces.all",
+      storage: "legacy",
+      table: "traces",
     });
   });
 
@@ -85,11 +85,11 @@ describe("ClickHouse query tags", () => {
     );
     const tags = normalizeClickHouseQueryTags({
       table: "events_full",
-      operation: "insert",
+      clickhouseOperation: "insert",
       tags: {
-        surface: "worker",
+        source: "worker",
         feature: "ingestion",
-        entity: "event",
+        query: "ingestion.write-events",
         project_id: "project-3",
         queryId: "high-cardinality-query-id",
         traceId: "high-cardinality-trace-id",
@@ -100,11 +100,14 @@ describe("ClickHouse query tags", () => {
     expect(tags.queryId).toBeUndefined();
     expect(tags.traceId).toBeUndefined();
     expect(tags).toMatchObject({
-      surface: "worker",
+      v: "1",
+      source: "worker",
+      feature: "ingestion",
+      query: "ingestion.write-events",
+      operation: "write",
       storage: "events",
-      workload: "write",
       project_id: "project-3",
-      physical_table: "events_full",
+      table: "events_full",
     });
   });
 });

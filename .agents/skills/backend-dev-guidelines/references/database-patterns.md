@@ -305,8 +305,8 @@ await commandClickhouse({
 ### ClickHouse Query Tags
 
 Langfuse sets structured ClickHouse `log_comment` values so `sysex.query_log`
-can attribute query cost and performance by product surface, feature, storage
-backend, workload, and project.
+can attribute query cost and performance by project, feature/API, storage
+backend, and stable query shape.
 
 Use the shared repository wrappers
 (`queryClickhouse`, `queryClickhouseStream`, `queryClickhouseWithProgress`,
@@ -316,17 +316,18 @@ constructing `log_comment` by hand. Callers should pass typed
 tags, merge request baggage, and set ClickHouse `log_comment` internally.
 
 Internal Grafana query-log dashboards should group by these low-cardinality
-fields before falling back to query text or `operation_name`:
+fields before falling back to ClickHouse `normalized_query_hash` or raw query
+text:
 
-- `feature`
-- `surface`
-- `storage`
-- `workload`
-- `entity`
-- `route`
-- `service`
 - `project_id`
-- `tag_schema_version`
+- `source`
+- `feature`
+- `query`
+- `operation`
+- `route`
+- `storage`
+- `table`
+- `v`
 
 `storage` is the primary dimension for events-table migration cost analysis:
 
@@ -338,8 +339,14 @@ fields before falling back to query text or `operation_name`:
 - `mixed`: intentional multi-storage queries.
 - `unknown`: metadata queries or code paths where storage cannot be inferred.
 
-Prefer `normalized_query_hash`, `read_rows`, `read_bytes`, `memory_usage`, and
-CPU profile events to identify slow or expensive query shapes within a group.
+Set `query` explicitly whenever adding new ClickHouse access. It should be a
+stable, human-readable query name such as `public-api.traces.list`,
+`public-api.observations-v2.list`, `traces.table.rows`,
+`ingestion.write-events`, or `data-retention.delete-events`. Prefer
+`normalized_query_hash`, `read_rows`, `read_bytes`, `memory_usage`, and CPU
+profile events to identify slow or expensive ClickHouse query shapes within a
+semantic `query` group.
+
 Do not use raw IDs, filter values, query IDs, trace IDs, observation IDs, score
 IDs, user IDs, or unnormalized dynamic routes in `log_comment`.
 
@@ -348,17 +355,18 @@ Example grouping query:
 ```sql
 SELECT
   toStartOfHour(event_time_microseconds) AS time,
-  simpleJSONExtractString(log_comment, 'feature') AS feature,
-  simpleJSONExtractString(log_comment, 'surface') AS surface,
-  simpleJSONExtractString(log_comment, 'storage') AS storage,
-  simpleJSONExtractString(log_comment, 'workload') AS workload,
   simpleJSONExtractString(log_comment, 'project_id') AS project_id,
+  simpleJSONExtractString(log_comment, 'source') AS source,
+  simpleJSONExtractString(log_comment, 'feature') AS feature,
+  simpleJSONExtractString(log_comment, 'query') AS query,
+  simpleJSONExtractString(log_comment, 'operation') AS operation,
+  simpleJSONExtractString(log_comment, 'storage') AS storage,
   sum(memory_usage) AS memory,
   sum(ProfileEvents['OSCPUVirtualTimeMicroseconds']) / 1000000 AS cpu_seconds
 FROM sysex.query_log
 WHERE type = 'QueryFinish'
-  AND simpleJSONExtractString(log_comment, 'tag_schema_version') = '1'
-GROUP BY time, feature, surface, storage, workload, project_id
+  AND simpleJSONExtractString(log_comment, 'v') = '1'
+GROUP BY time, project_id, source, feature, query, operation, storage
 ORDER BY time ASC;
 ```
 

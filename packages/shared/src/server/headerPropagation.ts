@@ -3,6 +3,7 @@ import type { IncomingHttpHeaders } from "http";
 import { env } from "../env";
 import type {
   ClickHouseQueryService,
+  ClickHouseQuerySource,
   ClickHouseQuerySurface,
 } from "./clickhouse/queryTags";
 
@@ -11,6 +12,7 @@ export type LangfuseContextProps = {
   userId?: string;
   projectId?: string;
   clickhouse?: {
+    source?: ClickHouseQuerySource;
     surface?: ClickHouseQuerySurface;
     route?: string;
     method?: string;
@@ -65,9 +67,11 @@ export const contextWithLangfuseProps = (
       value: props.projectId,
     });
   }
-  if (props.clickhouse?.surface) {
-    baggage = baggage.setEntry("langfuse.clickhouse.surface", {
-      value: props.clickhouse.surface,
+  const clickhouseSource =
+    props.clickhouse?.source ?? props.clickhouse?.surface;
+  if (clickhouseSource) {
+    baggage = baggage.setEntry("langfuse.clickhouse.source", {
+      value: clickhouseSource,
     });
   }
   if (props.clickhouse?.route) {
