@@ -63,7 +63,11 @@ export const runHealthCheck = async ({
               params,
               tags: {
                 feature: "health-check",
-                type: "trace",
+                query: "health.traces.recent",
+                operation: "lookup",
+                project_id: "none",
+                storage: "legacy",
+                table: "traces",
               },
             }),
         });
@@ -81,7 +85,11 @@ export const runHealthCheck = async ({
           },
           tags: {
             feature: "health-check",
-            type: "observation",
+            query: "health.observations.recent",
+            operation: "lookup",
+            project_id: "none",
+            storage: "legacy",
+            table: "observations",
           },
         });
 

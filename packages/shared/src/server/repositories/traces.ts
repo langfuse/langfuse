@@ -38,6 +38,32 @@ import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 import { prisma } from "../../db";
+import type { ClickHouseQueryTags } from "../clickhouse/queryTags";
+
+function traceQueryTags({
+  projectId,
+  query,
+  operation,
+  feature = "tracing",
+  storage = "legacy",
+  table = "traces",
+}: {
+  projectId: string;
+  query: string;
+  operation: NonNullable<ClickHouseQueryTags["operation"]>;
+  feature?: ClickHouseQueryTags["feature"];
+  storage?: ClickHouseQueryTags["storage"];
+  table?: ClickHouseQueryTags["table"];
+}): ClickHouseQueryTags {
+  return {
+    feature,
+    query,
+    operation,
+    project_id: projectId,
+    storage,
+    table,
+  };
+}
 
 /**
  * Checks if trace exists in clickhouse.
@@ -147,13 +173,12 @@ export const checkTraceExistsAndGetTimestamp = async ({
           ? { exactTimestamp: convertDateToClickhouseDateTime(exactTimestamp) }
           : {}),
       },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "exists",
+      tags: traceQueryTags({
         projectId,
-        operation_name: "checkTraceExistsAndGetTimestamp",
-      },
+        query: "traces.exists-with-timestamp",
+        operation: "lookup",
+        table: observationFilterRes ? "multiple" : "traces",
+      }),
       timestamp: timestamp ?? exactTimestamp,
     },
     fn: async (input) => {
@@ -211,12 +236,11 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
     table: "traces",
     records: [trace as TraceRecordReadType],
     eventBodyMapper: convertClickhouseToDomain,
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "upsert",
-      projectId: trace.project_id ?? "",
-    },
+    tags: traceQueryTags({
+      projectId: trace.project_id ?? "unknown",
+      query: "traces.upsert",
+      operation: "write",
+    }),
   });
 };
 
@@ -237,13 +261,11 @@ export const getTracesByIds = async (
           ? convertDateToClickhouseDateTime(timestamp)
           : null,
       },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "byId",
+      tags: traceQueryTags({
         projectId,
-        operation_name: "getTracesByIds",
-      },
+        query: "traces.by-ids",
+        operation: "lookup",
+      }),
       clickhouseConfigs,
     },
     fn: (input) => {
@@ -286,13 +308,11 @@ export const getTracesBySessionId = async (
           ? convertDateToClickhouseDateTime(timestamp)
           : null,
       },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "list",
+      tags: traceQueryTags({
         projectId,
-        operation_name: "getTracesBySessionId",
-      },
+        query: "traces.by-session-id",
+        operation: "list",
+      }),
       timestamp,
     },
     fn: (input) => {
@@ -350,13 +370,11 @@ export const hasAnyTrace = async (projectId: string) => {
     projectId,
     input: {
       projectId,
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "hasAny",
+      tags: traceQueryTags({
         projectId,
-        operation_name: "hasAnyTrace",
-      },
+        query: "traces.has-any",
+        operation: "lookup",
+      }),
     },
     fn: async (input) => {
       const query = `
@@ -416,12 +434,11 @@ export const getTraceCountsByProjectInCreationInterval = async ({
         start: convertDateToClickhouseDateTime(start),
         end: convertDateToClickhouseDateTime(end),
       },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
-        operation_name: "getTraceCountsByProjectInCreationInterval",
-      },
+      tags: traceQueryTags({
+        projectId: "multiple",
+        query: "traces.counts-by-project-in-creation-interval",
+        operation: "aggregate",
+      }),
       timestamp: start,
     },
     fn: async (input) => {
@@ -469,12 +486,11 @@ export const getTraceCountOfProjectsSinceCreationDate = async ({
         projectIds,
         start: convertDateToClickhouseDateTime(start),
       },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
-        operation_name: "getTraceCountOfProjectsSinceCreationDate",
-      },
+      tags: traceQueryTags({
+        projectId: "multiple",
+        query: "traces.count-of-projects-since-creation-date",
+        operation: "count",
+      }),
       timestamp: start,
     },
     fn: async (input) => {
@@ -541,13 +557,12 @@ export const getTraceById = async ({
           ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
           : {}),
       },
-      tags: {
-        feature: clickhouseFeatureTag,
-        type: "trace",
-        kind: "byId",
+      tags: traceQueryTags({
         projectId,
-        operation_name: "getTraceById",
-      },
+        feature: clickhouseFeatureTag,
+        query: "traces.by-id",
+        operation: "lookup",
+      }),
     },
     fn: (input) => {
       const inputColumn = excludeInputOutput
@@ -638,13 +653,11 @@ export const getTracesGroupedByName = async (
         projectId,
         ...(timestampFilterRes ? timestampFilterRes.params : {}),
       },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
+      tags: traceQueryTags({
         projectId,
-        operation_name: "getTracesGroupedByName",
-      },
+        query: "traces.grouped-by-name",
+        operation: "filter-options",
+      }),
     },
     fn: async (input) => {
       // We mainly use queries like this to retrieve filter options.
@@ -713,13 +726,11 @@ export const getTracesGroupedBySessionId = async (
         ...(tracesFilterRes ? tracesFilterRes.params : {}),
         ...(searchQuery ? search.params : {}),
       },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
+      tags: traceQueryTags({
         projectId,
-        operation_name: "getTracesGroupedBySessionId",
-      },
+        query: "traces.grouped-by-session-id",
+        operation: "filter-options",
+      }),
     },
     fn: async (input) => {
       // We mainly use queries like this to retrieve filter options.
@@ -790,13 +801,11 @@ export const getTracesGroupedByUsers = async (
         ...(tracesFilterRes ? tracesFilterRes.params : {}),
         ...(searchQuery ? search.params : {}),
       },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
+      tags: traceQueryTags({
         projectId,
-        operation_name: "getTracesGroupedByUsers",
-      },
+        query: "traces.grouped-by-users",
+        operation: "filter-options",
+      }),
     },
     fn: async (input) => {
       // We mainly use queries like this to retrieve filter options.
@@ -855,13 +864,11 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
         projectId,
         ...(filterRes ? filterRes.params : {}),
       },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
+      tags: traceQueryTags({
         projectId,
-        operation_name: "getTracesGroupedByTags",
-      },
+        query: "traces.grouped-by-tags",
+        operation: "filter-options",
+      }),
     },
     fn: async (input) => {
       const query = `
@@ -896,13 +903,11 @@ export const getTracesIdentifierForSession = async (
         projectId,
         sessionId,
       },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "list",
+      tags: traceQueryTags({
         projectId,
-        operation_name: "getTracesIdentifierForSession",
-      },
+        query: "traces.identifier-for-session",
+        operation: "list",
+      }),
     },
     fn: (input) => {
       const query = `
@@ -952,16 +957,11 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
         projectId,
         traceIds,
       },
-      tags: {
-        feature: "tracing",
-        entity: "trace",
-        storage: "legacy",
-        workload: "delete",
-        physical_table: "traces",
-        type: "trace",
-        kind: "delete",
+      tags: traceQueryTags({
         projectId,
-      } as const,
+        query: "traces.delete-by-ids",
+        operation: "delete",
+      }),
     },
     fn: async (input) => {
       // Pre-flight query with time bounds computed
@@ -982,7 +982,11 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
         clickhouseConfigs: {
           request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
         },
-        tags: { ...input.tags, kind: "delete-preflight" },
+        tags: {
+          ...input.tags,
+          query: "traces.delete-by-ids.preflight",
+          operation: "lookup",
+        },
       });
 
       const count = Number(preflight[0]?.cnt ?? 0);
@@ -1033,12 +1037,11 @@ export const hasAnyTraceOlderThan = async (
       projectId,
       cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "hasAnyOlderThan",
+    tags: traceQueryTags({
       projectId,
-    },
+      query: "traces.has-any-older-than",
+      operation: "lookup",
+    }),
   });
 
   return rows.length > 0;
@@ -1061,16 +1064,11 @@ export const deleteTracesOlderThanDays = async (
         projectId,
         cutoffDate: convertDateToClickhouseDateTime(beforeDate),
       },
-      tags: {
-        feature: "tracing",
-        entity: "trace",
-        storage: "legacy",
-        workload: "delete",
-        physical_table: "traces",
-        type: "trace",
-        kind: "delete",
+      tags: traceQueryTags({
         projectId,
-      } as const,
+        query: "traces.delete-older-than-days",
+        operation: "delete",
+      }),
     },
     fn: async (input) => {
       const query = `
@@ -1107,16 +1105,11 @@ export const deleteTracesByProjectId = async (
       params: {
         projectId,
       },
-      tags: {
-        feature: "tracing",
-        entity: "trace",
-        storage: "legacy",
-        workload: "delete",
-        physical_table: "traces",
-        type: "trace",
-        kind: "delete",
+      tags: traceQueryTags({
         projectId,
-      } as const,
+        query: "traces.delete-by-project",
+        operation: "delete",
+      }),
     },
     fn: async (input) => {
       const query = `
@@ -1144,13 +1137,11 @@ export const hasAnyUser = async (projectId: string) => {
     projectId,
     input: {
       projectId,
-      tags: {
-        feature: "tracing",
-        type: "user",
-        kind: "hasAny",
+      tags: traceQueryTags({
         projectId,
-        operation_name: "hasAnyUser",
-      },
+        query: "users.has-any",
+        operation: "lookup",
+      }),
     },
     fn: async (input) => {
       const query = `
@@ -1206,13 +1197,11 @@ export const getTotalUserCount = async (
         ...tracesFilterRes.params,
         ...search.params,
       },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
+      tags: traceQueryTags({
         projectId,
-        operation_name: "getTotalUserCount",
-      },
+        query: "users.total-count",
+        operation: "count",
+      }),
     },
     fn: async (input) => {
       const query = `
@@ -1343,13 +1332,12 @@ export const getUserMetrics = async (
             }
           : {}),
       },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
+      tags: traceQueryTags({
         projectId,
-        operation_name: "getUserMetrics",
-      },
+        query: "users.metrics",
+        operation: "aggregate",
+        table: "multiple",
+      }),
     },
     fn: async (input) => {
       const rows = await queryClickhouse<{
@@ -1424,12 +1412,12 @@ export const getTracesForBlobStorageExport = function (
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
-    tags: {
-      feature: "blobstorage",
-      type: "trace",
-      kind: "analytic",
+    tags: traceQueryTags({
       projectId,
-    },
+      feature: "blobstorage",
+      query: "blobstorage.traces-export",
+      operation: "export",
+    }),
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
@@ -1489,12 +1477,13 @@ export const getTracesForAnalyticsIntegrations = async function* (
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
-    tags: {
-      feature: "posthog",
-      type: "trace",
-      kind: "analytic",
+    tags: traceQueryTags({
       projectId,
-    },
+      feature: "posthog",
+      query: "posthog.traces-export",
+      operation: "export",
+      table: "multiple",
+    }),
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
       ...(options.useGraceHash
@@ -1550,12 +1539,11 @@ export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
       params: {
         traceIds,
       },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "list",
-        operation_name: "getTracesByIdsForAnyProject",
-      },
+      tags: traceQueryTags({
+        projectId: "multiple",
+        query: "traces.by-ids-for-any-project",
+        operation: "list",
+      }),
     },
     fn: async (input) => {
       const query = `
@@ -1616,6 +1604,12 @@ export async function getAgentGraphData(params: {
       chMinStartTime,
       chMaxStartTime,
     },
+    tags: traceQueryTags({
+      projectId,
+      query: "traces.agent-graph-data",
+      operation: "lookup",
+      table: "observations",
+    }),
   });
 }
 
@@ -1676,11 +1670,11 @@ export const getTraceCountsByProjectAndDay = async ({
       endDate: convertDateToClickhouseDateTime(endDate),
     },
     clickhouseConfigs: { request_timeout: 120_000 },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "analytic",
-    },
+    tags: traceQueryTags({
+      projectId: "multiple",
+      query: "traces.counts-by-project-and-day",
+      operation: "aggregate",
+    }),
   });
 
   return rows.map((row) => ({

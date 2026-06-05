@@ -342,9 +342,13 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       query,
       params,
       tags: {
+        source: "worker",
         feature: "batch-data-retention-cleaner",
+        query: `batch-data-retention-cleaner.count.${this.tableName}`,
+        operation: "count",
+        project_id: projects.length === 1 ? projects[0].projectId : "multiple",
+        storage: getStorageForTable(this.tableName),
         table: this.tableName,
-        operation: "count-chunk",
       },
     });
 
@@ -397,14 +401,14 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
           env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_DELETE_TIMEOUT_MS,
       },
       tags: {
-        surface: "worker",
-        service: "worker",
+        source: "worker",
         feature: "batch-data-retention-cleaner",
-        storage: getStorageForTable(this.tableName),
-        workload: "delete",
-        physical_table: this.tableName,
-        table: this.tableName,
+        query: `batch-data-retention-cleaner.delete.${this.tableName}`,
         operation: "delete",
+        project_id:
+          workloads.length === 1 ? workloads[0].projectId : "multiple",
+        storage: getStorageForTable(this.tableName),
+        table: this.tableName,
       },
     });
   }

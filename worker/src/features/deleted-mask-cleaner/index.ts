@@ -125,13 +125,13 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
         tables: Array.from(DELETED_MASK_CLEANER_TABLES),
       },
       tags: {
-        surface: "worker",
+        source: "worker",
         feature: "deleted-mask-cleaner",
-        entity: "clickhouse-metadata",
+        query: "deleted-mask-cleaner.candidates",
+        operation: "list",
         storage: "mixed",
-        workload: "list",
         project_id: "none",
-        operation: "get-candidates",
+        table: "system.parts",
       },
     });
 
@@ -155,13 +155,13 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
         tables,
       },
       tags: {
-        surface: "worker",
+        source: "worker",
         feature: "deleted-mask-cleaner",
-        entity: "clickhouse-metadata",
+        query: "deleted-mask-cleaner.mutation-counts",
+        operation: "count",
         storage: "mixed",
-        workload: "count",
         project_id: "none",
-        operation: "get-mutation-counts",
+        table: "system.mutations",
       },
     });
   }
@@ -194,15 +194,13 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
         },
         abortSignal: abortController.signal,
         tags: {
-          surface: "worker",
+          source: "worker",
           feature: "deleted-mask-cleaner",
-          entity: "unknown",
+          query: `deleted-mask-cleaner.apply-deleted-mask.${candidate.table}`,
+          operation: "delete",
           storage: "mixed",
-          workload: "delete",
           project_id: "none",
-          physical_table: candidate.table,
           table: candidate.table,
-          operation: "apply-deleted-mask",
         },
       });
 

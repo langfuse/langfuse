@@ -24,6 +24,7 @@ import Decimal from "decimal.js";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { ScoreAggregate } from "../../features/scores";
+import type { ClickHouseQueryTags } from "../clickhouse/queryTags";
 
 type DatasetItemIdsByTraceIdQuery = {
   projectId: string;
@@ -491,8 +492,11 @@ const getDatasetRunsTableInternal = async <T>(
     tags: {
       ...(opts.tags ?? {}),
       feature: "datasets",
-      type: "dataset-run-items",
-      projectId,
+      query: `datasets.runs-table.${opts.select}`,
+      operation: opts.select === "count" ? "count" : "list",
+      project_id: projectId,
+      storage: "legacy",
+      table: "dataset_run_items_rmt",
     },
   });
 
@@ -506,7 +510,7 @@ export const getDatasetRunsTableMetricsCh = async (
   const rows = await getDatasetRunsTableInternal<DatasetRunsMetricsRecordType>({
     ...opts,
     select: "metrics",
-    tags: { kind: "list" },
+    tags: { query: "datasets.runs-table.metrics", operation: "list" },
   });
 
   return rows.map(convertDatasetRunsMetricsRecord);
@@ -518,7 +522,7 @@ export const getDatasetRunsTableRowsCh = async (
   const rows = await getDatasetRunsTableInternal<DatasetRunsRowsRecordType>({
     ...opts,
     select: "rows",
-    tags: { kind: "list" },
+    tags: { query: "datasets.runs-table.rows", operation: "list" },
   });
 
   return rows.map(convertDatasetRunsRowsRecord);
@@ -530,7 +534,7 @@ export const getDatasetRunsTableCountCh = async (
   const rows = await getDatasetRunsTableInternal<{ count: string }>({
     ...opts,
     select: "count",
-    tags: { kind: "list" },
+    tags: { query: "datasets.runs-table.count", operation: "count" },
   });
 
   return Number(rows[0]?.count);
@@ -539,7 +543,7 @@ export const getDatasetRunsTableCountCh = async (
 type GetDatasetRunItemsTableOpts<IncludeIO extends boolean> =
   DatasetRunItemsTableQuery & {
     select: "count" | "rows";
-    tags: Record<string, string>;
+    tags: ClickHouseQueryTags;
     includeIO?: IncludeIO;
   };
 
@@ -713,8 +717,11 @@ const getQualifyingDatasetItems = async <T>(opts: {
     },
     tags: {
       feature: "datasets",
-      type: "dataset-run-items",
-      projectId,
+      query: `datasets.qualifying-items.${select}`,
+      operation: select === "count" ? "count" : "list",
+      project_id: projectId,
+      storage: "legacy",
+      table: "dataset_run_items_rmt",
     },
   });
 
@@ -893,8 +900,11 @@ const getDatasetRunItemsTableInternal = async <
     tags: {
       ...(opts.tags ?? {}),
       feature: "datasets",
-      type: "dataset-run-items",
-      projectId,
+      query: `datasets.run-items-table.${opts.select}`,
+      operation: opts.select === "count" ? "count" : "list",
+      project_id: projectId,
+      storage: "legacy",
+      table: "dataset_run_items_rmt",
     },
     clickhouseConfigs: opts.clickhouseConfigs,
   });
@@ -908,7 +918,7 @@ export const getDatasetRunItemsCh = async (
   const rows = await getDatasetRunItemsTableInternal<DatasetRunItemRecord>({
     ...opts,
     select: "rows",
-    tags: { kind: "list" },
+    tags: { query: "datasets.run-items-table.rows", operation: "list" },
   });
 
   return rows.map((row) => convertDatasetRunItemClickhouseToDomain(row));
@@ -920,7 +930,7 @@ export const getDatasetRunItemsByDatasetIdCh = async (
   const rows = await getDatasetRunItemsTableInternal<DatasetRunItemRecord>({
     ...opts,
     select: "rows",
-    tags: { kind: "list" },
+    tags: { query: "datasets.run-items-table.rows", operation: "list" },
   });
 
   return rows.map((row) => convertDatasetRunItemClickhouseToDomain(row));
@@ -981,7 +991,7 @@ export const getDatasetRunItemsWithoutIOByItemIds = async (
     ...rest,
     filter,
     select: "rows",
-    tags: { kind: "list" },
+    tags: { query: "datasets.run-items-without-io.rows", operation: "list" },
   });
 
   // Step 2: Convert to domain
@@ -1039,8 +1049,11 @@ export const getDatasetItemIdsByTraceIdCh = async (
     },
     tags: {
       feature: "datasets",
-      type: "dataset-run-items",
-      projectId,
+      query: "datasets.run-items-by-observation-id",
+      operation: "lookup",
+      project_id: projectId,
+      storage: "legacy",
+      table: "dataset_run_items_rmt",
     },
   });
 
@@ -1059,7 +1072,7 @@ export const getDatasetRunItemsCountCh = async (
   const rows = await getDatasetRunItemsTableInternal<{ count: string }>({
     ...opts,
     select: "count",
-    tags: { kind: "list" },
+    tags: { query: "datasets.run-items-table.count", operation: "count" },
   });
 
   return Number(rows[0]?.count);
@@ -1071,7 +1084,7 @@ export const getDatasetRunItemsCountByDatasetIdCh = async (
   const rows = await getDatasetRunItemsTableInternal<{ count: string }>({
     ...opts,
     select: "count",
-    tags: { kind: "list" },
+    tags: { query: "datasets.run-items-table.count", operation: "count" },
   });
 
   return Number(rows[0]?.count);
@@ -1092,9 +1105,11 @@ export const hasAnyDatasetRunItem = async (
     params: { projectId },
     tags: {
       feature: "datasets",
-      type: "dataset-run-items",
-      kind: "hasAny",
-      projectId,
+      query: "datasets.has-any-run-item",
+      operation: "lookup",
+      project_id: projectId,
+      storage: "legacy",
+      table: "dataset_run_items_rmt",
     },
   });
 
@@ -1121,13 +1136,11 @@ export const deleteDatasetRunItemsByProjectId = async (
     },
     tags: {
       feature: "datasets",
-      entity: "dataset-run-item",
       storage: "legacy",
-      workload: "delete",
-      physical_table: "dataset_run_items_rmt",
-      type: "dataset-run-items",
-      kind: "delete",
-      projectId,
+      operation: "delete",
+      query: "datasets.delete-run-items-by-project",
+      table: "dataset_run_items_rmt",
+      project_id: projectId,
     },
   });
 
@@ -1158,13 +1171,11 @@ export const deleteDatasetRunItemsByDatasetId = async ({
     },
     tags: {
       feature: "datasets",
-      entity: "dataset-run-item",
       storage: "legacy",
-      workload: "delete",
-      physical_table: "dataset_run_items_rmt",
-      type: "dataset-run-items",
-      kind: "delete",
-      projectId,
+      operation: "delete",
+      query: "datasets.delete-run-items-by-dataset",
+      table: "dataset_run_items_rmt",
+      project_id: projectId,
     },
   });
 };
@@ -1197,13 +1208,11 @@ export const deleteDatasetRunItemsByDatasetRunIds = async ({
     },
     tags: {
       feature: "datasets",
-      entity: "dataset-run-item",
       storage: "legacy",
-      workload: "delete",
-      physical_table: "dataset_run_items_rmt",
-      type: "dataset-run-items",
-      kind: "delete",
-      projectId,
+      operation: "delete",
+      query: "datasets.delete-run-items-by-runs",
+      table: "dataset_run_items_rmt",
+      project_id: projectId,
     },
   });
 };
@@ -1233,9 +1242,11 @@ export const getDatasetRunItemCountsByProjectInCreationInterval = async ({
     },
     tags: {
       feature: "datasets",
-      type: "dataset-run-items",
-      kind: "analytic",
-      operation_name: "getDatasetRunItemCountsByProjectInCreationInterval",
+      query: "datasets.run-item-counts-by-project-in-creation-interval",
+      operation: "aggregate",
+      project_id: "multiple",
+      storage: "legacy",
+      table: "dataset_run_items_rmt",
     },
   });
 

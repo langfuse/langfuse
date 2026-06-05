@@ -105,13 +105,13 @@ async function softDeleteInClickhouse(
     })),
     format: "JSONEachRow",
     tags: {
-      surface: "worker",
-      service: "shared",
+      source: "worker",
       feature: "data-deletion",
-      entity: "blob-storage-file-log",
       storage: "legacy",
-      workload: "delete",
+      operation: "delete",
+      query: "data-deletion.soft-delete-blob-storage-file-log",
       project_id: blobStorageRefs[0]?.project_id ?? "unknown",
+      table: "blob_storage_file_log",
     },
   });
 }

@@ -21,6 +21,7 @@ import { sessionCols } from "../tableMappings/mapSessionTable";
 import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
 import { findUiColumnMapping } from "../../tableDefinitions";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
+import type { ClickHouseQueryTags } from "../clickhouse/queryTags";
 
 type SessionEventsBaseReturnType = {
   session_id: string;
@@ -79,10 +80,12 @@ export const getSessionTracesFromEvents = async (props: {
       },
       tags: {
         feature: "tracing",
-        type: "sessions-traces",
-        projectId: props.projectId,
-        operation_name: "getSessionTracesFromEvents",
-      },
+        query: "sessions.events.traces",
+        operation: "list",
+        project_id: props.projectId,
+        storage: "events",
+        table: "events",
+      } satisfies ClickHouseQueryTags,
     },
     fn: async (input) => {
       return queryClickhouse<{
@@ -123,7 +126,7 @@ export const getSessionsTableCountFromEvents = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "count" },
+    tags: { operation: "count" },
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -144,7 +147,7 @@ export const getSessionsTableFromEvents = async (props: {
       orderBy: props.orderBy,
       limit: props.limit,
       page: props.page,
-      tags: { kind: "list" },
+      tags: { operation: "list" },
     });
 
   return rows.map((row) => ({
@@ -161,7 +164,7 @@ export type FetchSessionsTableFromEventsProps = {
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
-  tags?: Record<string, string>;
+  tags?: ClickHouseQueryTags;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 
@@ -288,12 +291,14 @@ const getSessionsTableFromEventsGeneric = async <T>(
         projectId,
       },
       tags: {
-        ...(props.tags ?? {}),
         feature: "tracing",
-        type: "sessions-table",
-        projectId,
-        operation_name: `getSessionsTableFromEventsGeneric-${select}`,
-      },
+        query: `sessions.events-table.${select}`,
+        operation: select === "count" ? "count" : "list",
+        project_id: projectId,
+        storage: "events",
+        table: "events",
+        ...(props.tags ?? {}),
+      } satisfies ClickHouseQueryTags,
     },
     fn: async (input) => {
       return queryClickhouse<T>({

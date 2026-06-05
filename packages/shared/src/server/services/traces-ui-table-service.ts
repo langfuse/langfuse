@@ -29,6 +29,7 @@ import { TracingSearchType } from "../../interfaces/search";
 import { ObservationLevelType, TraceDomain } from "../../domain";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
+import type { ClickHouseQueryTags } from "../clickhouse/queryTags";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -170,8 +171,32 @@ export type FetchTracesTableProps = {
   limit?: number;
   page?: number;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
-  tags?: Record<string, string>;
+  tags?: ClickHouseQueryTags;
 };
+
+function tracesTableQueryTags({
+  projectId,
+  select,
+  table,
+}: {
+  projectId: string;
+  select: FetchTracesTableProps["select"];
+  table: ClickHouseQueryTags["table"];
+}): ClickHouseQueryTags {
+  return {
+    feature: "tracing",
+    query: `traces.table.${select}`,
+    operation:
+      select === "count"
+        ? "count"
+        : select === "metrics"
+          ? "aggregate"
+          : "list",
+    project_id: projectId,
+    storage: "legacy",
+    table,
+  };
+}
 
 // Define return type mapping for better type safety
 type SelectReturnTypeMap = {
@@ -439,6 +464,8 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         ].flat(),
         orderByCols,
       );
+      const usesObservationsOrScores =
+        select === "metrics" || requiresObservationsJoin || requiresScoresJoin;
 
       // complex query ahead:
       // - we only join scores and observations if we really need them to speed up default views
@@ -480,11 +507,12 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           ...search.params,
         },
         tags: {
+          ...tracesTableQueryTags({
+            projectId,
+            select,
+            table: usesObservationsOrScores ? "multiple" : "traces",
+          }),
           ...(props.tags ?? {}),
-          feature: "tracing",
-          type: "traces-table",
-          projectId,
-          operation_name: "getTracesTableGeneric",
         },
         clickhouseConfigs,
       });
@@ -505,7 +533,7 @@ export const getTracesTableCount = async (props: {
 }) => {
   const countRows = await getTracesTableGeneric({
     select: "count",
-    tags: { kind: "count" },
+    tags: { operation: "count" },
     ...props,
   });
 
@@ -527,7 +555,7 @@ export const getTracesTableMetrics = async (props: {
 }): Promise<Array<Omit<TracesMetricsUiReturnType, "scores">>> => {
   const countRows = await getTracesTableGeneric({
     select: "metrics",
-    tags: { kind: "analytic" },
+    tags: { operation: "aggregate" },
     ...props,
   });
 
@@ -556,7 +584,7 @@ export const getTracesTable = async (p: {
   } = p;
   const rows = await getTracesTableGeneric({
     select: "rows",
-    tags: { kind: "list" },
+    tags: { operation: "list" },
     projectId,
     filter,
     searchQuery,
@@ -592,7 +620,7 @@ export const getTraceIdentifiers = async (props: {
   } = props;
   const identifiers = await getTracesTableGeneric({
     select: "identifiers",
-    tags: { kind: "list" },
+    tags: { operation: "list" },
     projectId,
     filter,
     searchQuery,

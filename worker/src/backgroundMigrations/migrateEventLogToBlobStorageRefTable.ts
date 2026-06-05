@@ -43,14 +43,14 @@ export default class MigrateEventLogToBlobStorageRefTable implements IBackground
     const tableNames = await queryClickhouse<{ name: string }>({
       query: "SHOW TABLES",
       tags: {
-        surface: "worker",
-        service: "worker",
+        source: "worker",
         feature: "background-migration",
-        entity: "clickhouse-metadata",
-        storage: "unknown",
-        workload: "lookup",
+        query:
+          "background-migration.migrate-event-log-to-blob-storage-ref-table.validate",
+        operation: "lookup",
         project_id: "none",
-        operation_name: "migrateEventLogToBlobStorageRefTable.validate",
+        storage: "unknown",
+        table: "system.tables",
       },
     });
     if (

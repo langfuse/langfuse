@@ -8,6 +8,7 @@ import {
   observationsTableUiColumnDefinitions,
   convertObservation,
   shouldSkipObservationsFinal,
+  type ClickHouseQueryTags,
 } from "@langfuse/shared/src/server";
 import { type FilterState, observationsTableCols } from "@langfuse/shared";
 
@@ -102,11 +103,14 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
           : {}),
       },
       tags: {
+        source: "public-api",
         feature: "tracing",
-        type: "observation",
-        projectId: props.projectId,
-        operation_name: "generateObservationsForPublicApi",
-      },
+        query: "public-api.observations.rows",
+        operation: "list",
+        project_id: props.projectId,
+        storage: "legacy",
+        table: "observations",
+      } satisfies ClickHouseQueryTags,
     },
     fn: async (input) => {
       const result = await queryClickhouse<ObservationRecordReadType>({
@@ -140,11 +144,14 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
     input: {
       params: { ...filter.params, projectId: props.projectId },
       tags: {
+        source: "public-api",
         feature: "tracing",
-        type: "observation",
-        projectId: props.projectId,
-        operation_name: "getObservationsCountForPublicApi",
-      },
+        query: "public-api.observations.count",
+        operation: "count",
+        project_id: props.projectId,
+        storage: "legacy",
+        table: traceFilter ? "multiple" : "observations",
+      } satisfies ClickHouseQueryTags,
     },
     fn: async (input) => {
       const records = await queryClickhouse<{ count: string }>({

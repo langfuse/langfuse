@@ -122,8 +122,11 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
         const result = await queryClickhouse<{ count: string }>({
           query: `SELECT count() as count FROM ${table} LIMIT 1`,
           tags: {
+            source: "worker",
             feature: "background-migration",
-            operation: "validatePrerequisites",
+            query: `background-migration.backfill-events-from-parts.validate-prerequisites.${table}`,
+            operation: "count",
+            project_id: "none",
             table,
           },
         });
@@ -162,8 +165,13 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
         ORDER BY partition_id DESC
       `,
       tags: {
+        source: "worker",
         feature: "background-migration",
-        operation: "loadPartsFromClickhouse",
+        query: "background-migration.backfill-events-from-parts.load-parts",
+        operation: "list",
+        project_id: "none",
+        storage: "unknown",
+        table: "system.parts",
       },
     });
 
@@ -194,8 +202,14 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
         AND active = 1
       `,
       tags: {
+        source: "worker",
         feature: "background-migration",
-        operation: "verifyPartStillActive",
+        query:
+          "background-migration.backfill-events-from-parts.verify-part-active",
+        operation: "count",
+        project_id: "none",
+        storage: "unknown",
+        table: "system.parts",
       },
     });
 
@@ -212,8 +226,14 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
         AND active = 1
       `,
       tags: {
+        source: "worker",
         feature: "background-migration",
-        operation: "getActivePartIds",
+        query:
+          "background-migration.backfill-events-from-parts.active-part-ids",
+        operation: "list",
+        project_id: "none",
+        storage: "unknown",
+        table: "system.parts",
       },
     });
     return new Set(parts.map((p) => p.name));
@@ -408,16 +428,14 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
       query,
       queryId,
       tags: {
-        surface: "worker",
-        service: "worker",
+        source: "worker",
         feature: "background-migration",
-        entity: "event",
+        query:
+          "background-migration.backfill-events-historic-from-parts.fire-query",
+        operation: "write",
+        project_id: "multiple",
         storage: "events",
-        workload: "write",
-        physical_table: "events_full",
-        type: "events",
-        kind: "backfill",
-        operation: "fireQuery",
+        table: "events_full",
       },
       // clickhouseConfigs: {
       //   request_timeout: timeoutMs,
@@ -509,14 +527,14 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
     const tableNames = await queryClickhouse<{ name: string }>({
       query: "SHOW TABLES",
       tags: {
-        surface: "worker",
-        service: "worker",
+        source: "worker",
         feature: "background-migration",
-        entity: "clickhouse-metadata",
-        storage: "unknown",
-        workload: "lookup",
+        query:
+          "background-migration.backfill-events-historic-from-parts.validate",
+        operation: "lookup",
         project_id: "none",
-        operation_name: "backfillEventsHistoricFromParts.validate",
+        storage: "unknown",
+        table: "system.tables",
       },
     });
 

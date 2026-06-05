@@ -15,6 +15,7 @@ import {
   TRACE_TO_OBSERVATIONS_INTERVAL,
   queryClickhouse,
 } from "../repositories";
+import type { ClickHouseQueryTags } from "../clickhouse/queryTags";
 
 export type SessionDataReturnType = {
   session_id: string;
@@ -56,7 +57,7 @@ export const getSessionsTableCount = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "count" },
+    tags: { operation: "count" },
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -76,7 +77,7 @@ export const getSessionsTable = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "list" },
+    tags: { operation: "list" },
   });
 
   return rows.map((row) => ({
@@ -101,7 +102,7 @@ export const getSessionsWithMetrics = async (props: {
     limit: props.limit,
     page: props.page,
     clickhouseConfigs: props.clickhouseConfigs,
-    tags: { kind: "analytic" },
+    tags: { operation: "aggregate" },
   });
 
   return rows.map((row) => ({
@@ -119,7 +120,7 @@ export type FetchSessionsTableProps = {
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
-  tags?: Record<string, string>;
+  tags?: ClickHouseQueryTags;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 
@@ -396,12 +397,19 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
           : {}),
       },
       tags: {
-        ...(props.tags ?? {}),
         feature: "tracing",
-        type: "sessions-table",
-        projectId,
-        operation_name: `getSessionsTableGeneric-${select}`,
-      },
+        query: `sessions.table.${select}`,
+        operation:
+          select === "count"
+            ? "count"
+            : select === "metrics"
+              ? "aggregate"
+              : "list",
+        project_id: projectId,
+        storage: "legacy",
+        table: "multiple",
+        ...(props.tags ?? {}),
+      } satisfies ClickHouseQueryTags,
     },
     fn: async (input) => {
       return queryClickhouse<T>({

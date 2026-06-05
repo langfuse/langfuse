@@ -102,8 +102,13 @@ export default class BackfillExperimentsHistoric implements IBackgroundMigration
       query: `SELECT count(*) as count FROM dataset_run_items_rmt WHERE created_at <= {maxDate: DateTime64(3)}`,
       params: { maxDate: convertDateToClickhouseDateTime(maxDate) },
       tags: {
+        source: "worker",
         feature: "background-migration",
-        operation: "countTotalDRIs",
+        query: "background-migration.backfill-experiments.count-dris",
+        operation: "count",
+        project_id: "multiple",
+        storage: "legacy",
+        table: "dataset_run_items_rmt",
       },
     });
     return parseInt(result[0]?.count ?? "0", 10);
@@ -181,8 +186,13 @@ export default class BackfillExperimentsHistoric implements IBackgroundMigration
           }
         : { chunkSize, maxDate: convertDateToClickhouseDateTime(maxDate) },
       tags: {
+        source: "worker",
         feature: "background-migration",
-        operation: "fetchDRIsChunk",
+        query: "background-migration.backfill-experiments.fetch-dris-chunk",
+        operation: "list",
+        project_id: "multiple",
+        storage: "legacy",
+        table: "dataset_run_items_rmt",
       },
     });
   }
@@ -255,8 +265,14 @@ export default class BackfillExperimentsHistoric implements IBackgroundMigration
       query,
       params: { projectIds, traceIds },
       tags: {
+        source: "worker",
         feature: "background-migration",
-        operation: "fetchObservationsForTraces",
+        query:
+          "background-migration.backfill-experiments.fetch-observations-for-traces",
+        operation: "list",
+        project_id: projectIds.length === 1 ? projectIds[0] : "multiple",
+        storage: "legacy",
+        table: "observations",
       },
     });
   }
@@ -320,8 +336,14 @@ export default class BackfillExperimentsHistoric implements IBackgroundMigration
       query,
       params: { projectIds, traceIds },
       tags: {
+        source: "worker",
         feature: "background-migration",
-        operation: "fetchTracesForTraces",
+        query:
+          "background-migration.backfill-experiments.fetch-traces-for-traces",
+        operation: "list",
+        project_id: projectIds.length === 1 ? projectIds[0] : "multiple",
+        storage: "legacy",
+        table: "traces",
       },
     });
   }
@@ -364,14 +386,13 @@ export default class BackfillExperimentsHistoric implements IBackgroundMigration
     const tableNames = await queryClickhouse<{ name: string }>({
       query: "SHOW TABLES",
       tags: {
-        surface: "worker",
-        service: "worker",
+        source: "worker",
         feature: "background-migration",
-        entity: "clickhouse-metadata",
-        storage: "unknown",
-        workload: "lookup",
+        query: "background-migration.backfill-experiments-historic.validate",
+        operation: "lookup",
         project_id: "none",
-        operation_name: "backfillExperimentsHistoric.validate",
+        storage: "unknown",
+        table: "system.tables",
       },
     });
 

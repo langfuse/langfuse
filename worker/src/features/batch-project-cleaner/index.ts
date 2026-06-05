@@ -220,9 +220,13 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
       query,
       params: { projectIds },
       tags: {
+        source: "worker",
         feature: "batch-project-cleaner",
-        table: this.tableName,
+        query: `batch-project-cleaner.count.${this.tableName}`,
         operation: "count",
+        project_id: projectIds.length === 1 ? projectIds[0] : "multiple",
+        storage: getStorageForTable(this.tableName),
+        table: this.tableName,
       },
     });
 
@@ -251,14 +255,13 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
         request_timeout: env.LANGFUSE_BATCH_PROJECT_CLEANER_DELETE_TIMEOUT_MS,
       },
       tags: {
-        surface: "worker",
-        service: "worker",
+        source: "worker",
         feature: "batch-project-cleaner",
-        storage: getStorageForTable(this.tableName),
-        workload: "delete",
-        physical_table: this.tableName,
-        table: this.tableName,
+        query: `batch-project-cleaner.delete.${this.tableName}`,
         operation: "delete",
+        project_id: projectIds.length === 1 ? projectIds[0] : "multiple",
+        storage: getStorageForTable(this.tableName),
+        table: this.tableName,
       },
     });
   }

@@ -4,6 +4,7 @@ import {
   queryClickhouse,
   TRACE_TO_OBSERVATIONS_INTERVAL,
   type DateTimeFilter,
+  type ClickHouseQueryTags,
   measureAndReturn,
 } from "@langfuse/shared/src/server";
 
@@ -116,12 +117,14 @@ export const generateDailyMetrics = async (props: QueryType) => {
           : {}),
       },
       tags: {
+        source: "public-api",
         feature: "tracing",
-        type: "trace",
-        kind: "daily_metrics",
-        projectId: props.projectId,
-        operation_name: "generateDailyMetrics",
-      },
+        query: "public-api.daily-metrics.rows",
+        operation: "aggregate",
+        project_id: props.projectId,
+        storage: "legacy",
+        table: "multiple",
+      } satisfies ClickHouseQueryTags,
       timestamp,
     },
     fn: async (input) => {
@@ -185,12 +188,14 @@ export const getDailyMetricsCount = async (props: QueryType) => {
     input: {
       params: { ...appliedFilter.params, projectId: props.projectId },
       tags: {
+        source: "public-api",
         feature: "tracing",
-        type: "trace",
-        kind: "daily_metrics_count",
-        projectId: props.projectId,
-        operation_name: "getDailyMetricsCount",
-      },
+        query: "public-api.daily-metrics.count",
+        operation: "count",
+        project_id: props.projectId,
+        storage: "legacy",
+        table: "traces",
+      } satisfies ClickHouseQueryTags,
       timestamp,
     },
     fn: async (input) => {

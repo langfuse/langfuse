@@ -37,14 +37,14 @@ export default class MigrateTracesFromPostgresToClickhouse implements IBackgroun
     const tableNames = await queryClickhouse<{ name: string }>({
       query: "SHOW TABLES",
       tags: {
-        surface: "worker",
-        service: "worker",
+        source: "worker",
         feature: "background-migration",
-        entity: "clickhouse-metadata",
-        storage: "unknown",
-        workload: "lookup",
+        query:
+          "background-migration.migrate-traces-from-postgres-to-clickhouse.validate",
+        operation: "lookup",
         project_id: "none",
-        operation_name: "migrateTracesFromPostgresToClickhouse.validate",
+        storage: "unknown",
+        table: "system.tables",
       },
     });
     if (!tableNames.some((r) => r.name === "traces")) {
@@ -131,14 +131,14 @@ export default class MigrateTracesFromPostgresToClickhouse implements IBackgroun
         values: traces.map(convertPostgresTraceToInsert),
         format: "JSONEachRow",
         tags: {
-          surface: "worker",
-          service: "worker",
+          source: "worker",
           feature: "background-migration",
-          entity: "trace",
-          storage: "legacy",
-          workload: "write",
+          query:
+            "background-migration.migrate-traces-from-postgres-to-clickhouse",
+          operation: "write",
           project_id: "multiple",
-          operation_name: "migrateTracesFromPostgresToClickhouse",
+          storage: "legacy",
+          table: "traces",
         },
       });
 

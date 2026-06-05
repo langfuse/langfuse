@@ -1,4 +1,5 @@
 import { queryClickhouse } from "../repositories";
+import type { ClickHouseQueryTags } from "./queryTags";
 
 // ============================================================================
 // Types
@@ -24,13 +25,15 @@ export function sleep(ms: number): Promise<void> {
  */
 export async function pollQueryStatus(
   queryId: string,
-  tags?: Record<string, string>,
+  tags?: ClickHouseQueryTags,
 ): Promise<QueryStatus> {
   const tagsWithDefaults = {
+    source: "worker",
     feature: "query-tracking",
-    operation: "pollQueryStatus",
+    query: "query-tracking.poll-status",
+    operation: "lookup",
     ...tags,
-  };
+  } satisfies ClickHouseQueryTags;
   // First check if still running in system.processes
   const running = await queryClickhouse<{ query_id: string }>({
     query: `
@@ -119,8 +122,10 @@ export async function getQueryError(
       skip_unavailable_shards: 1,
     },
     tags: {
+      source: "worker",
       feature: "query-tracking",
-      operation: "getQueryError",
+      query: "query-tracking.get-error",
+      operation: "lookup",
     },
   });
 

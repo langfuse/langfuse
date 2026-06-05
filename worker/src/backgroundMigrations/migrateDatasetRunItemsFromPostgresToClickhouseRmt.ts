@@ -37,15 +37,14 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt implement
     const tableNames = await queryClickhouse<{ name: string }>({
       query: "SHOW TABLES",
       tags: {
-        surface: "worker",
-        service: "worker",
+        source: "worker",
         feature: "background-migration",
-        entity: "clickhouse-metadata",
-        storage: "unknown",
-        workload: "lookup",
+        query:
+          "background-migration.migrate-dataset-run-items-from-postgres-to-clickhouse-rmt.validate",
+        operation: "lookup",
         project_id: "none",
-        operation_name:
-          "migrateDatasetRunItemsFromPostgresToClickhouseRmt.validate",
+        storage: "unknown",
+        table: "system.tables",
       },
     });
     if (!tableNames.some((r) => r.name === "dataset_run_items_rmt")) {
@@ -174,14 +173,14 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt implement
         values: datasetRunItems.map(convertPostgresDatasetRunItemToInsert),
         format: "JSONEachRow",
         tags: {
-          surface: "worker",
-          service: "worker",
+          source: "worker",
           feature: "background-migration",
-          entity: "dataset-run-item",
-          storage: "legacy",
-          workload: "write",
+          query:
+            "background-migration.migrate-dataset-run-items-from-postgres-to-clickhouse-rmt",
+          operation: "write",
           project_id: "multiple",
-          operation_name: "migrateDatasetRunItemsFromPostgresToClickhouseRmt",
+          storage: "legacy",
+          table: "dataset_run_items_rmt",
         },
       });
 

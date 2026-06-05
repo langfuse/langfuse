@@ -385,10 +385,8 @@ export const createAuthedProjectAPIRoute = <
       headers: req.headers,
       projectId: auth.scope.projectId,
       clickhouse: {
-        surface: "public-api",
+        source: "public-api",
         route: routeConfig.name,
-        method: req.method,
-        service: "web",
       },
       apiKeyId: auth.scope.apiKeyId,
     });

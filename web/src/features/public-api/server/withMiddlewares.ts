@@ -70,10 +70,8 @@ export function withMiddlewares(
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
       clickhouse: {
-        surface: "public-api",
+        source: "public-api",
         route: req.url,
-        method: req.method,
-        service: "web",
       },
     });
 

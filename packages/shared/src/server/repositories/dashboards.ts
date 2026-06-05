@@ -92,9 +92,11 @@ export const getScoreAggregate = async (
     },
     tags: {
       feature: "dashboard",
-      type: "scoreAggregate",
-      kind: "analytic",
-      projectId,
+      query: "dashboard.score-aggregate",
+      operation: "aggregate",
+      project_id: projectId,
+      storage: "legacy",
+      table: "scores",
     },
   });
 
@@ -175,9 +177,11 @@ export const getObservationCostByTypeByTime = async (
     },
     tags: {
       feature: "dashboard",
-      type: "observationCostByTypeByTime",
-      kind: "analytic",
-      projectId,
+      query: "dashboard.observation-cost-by-type-by-time",
+      operation: "aggregate",
+      project_id: projectId,
+      storage: "legacy",
+      table: "observations",
     },
   });
 
@@ -273,9 +277,11 @@ export const getObservationUsageByTypeByTime = async (
     },
     tags: {
       feature: "dashboard",
-      type: "observationUsageByTime",
-      kind: "analytic",
-      projectId,
+      query: "dashboard.observation-usage-by-time",
+      operation: "aggregate",
+      project_id: projectId,
+      storage: "legacy",
+      table: "observations",
     },
   });
 

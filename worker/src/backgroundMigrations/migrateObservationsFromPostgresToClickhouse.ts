@@ -72,14 +72,14 @@ export default class MigrateObservationsFromPostgresToClickhouse implements IBac
     const tableNames = await queryClickhouse<{ name: string }>({
       query: "SHOW TABLES",
       tags: {
-        surface: "worker",
-        service: "worker",
+        source: "worker",
         feature: "background-migration",
-        entity: "clickhouse-metadata",
-        storage: "unknown",
-        workload: "lookup",
+        query:
+          "background-migration.migrate-observations-from-postgres-to-clickhouse.validate",
+        operation: "lookup",
         project_id: "none",
-        operation_name: "migrateObservationsFromPostgresToClickhouse.validate",
+        storage: "unknown",
+        table: "system.tables",
       },
     });
     if (!tableNames.some((r) => r.name === "observations")) {
@@ -154,14 +154,14 @@ export default class MigrateObservationsFromPostgresToClickhouse implements IBac
         values: observations.map(convertPostgresObservationToInsert),
         format: "JSONEachRow",
         tags: {
-          surface: "worker",
-          service: "worker",
+          source: "worker",
           feature: "background-migration",
-          entity: "observation",
-          storage: "legacy",
-          workload: "write",
+          query:
+            "background-migration.migrate-observations-from-postgres-to-clickhouse",
+          operation: "write",
           project_id: "multiple",
-          operation_name: "migrateObservationsFromPostgresToClickhouse",
+          storage: "legacy",
+          table: "observations",
         },
       });
 

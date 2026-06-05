@@ -8,6 +8,7 @@ import {
   queryClickhouse,
   measureAndReturn,
   scoresTableUiColumnDefinitions,
+  type ClickHouseQueryTags,
 } from "@langfuse/shared/src/server";
 import {
   removeObjectKeys,
@@ -177,13 +178,14 @@ export const _handleGenerateScoresForPublicApi = async ({
           : {}),
       },
       tags: {
+        source: "public-api",
         feature: "scoring",
-        type: "score",
-        projectId: props.projectId,
-        scoreScope,
-        operation_name: "_handleGenerateScoresForPublicApi",
-        includeTrace: includeTrace.toString(),
-      },
+        query: `public-api.scores.${scoreScope}.rows${includeTrace ? ".with-trace" : ""}`,
+        operation: "list",
+        project_id: props.projectId,
+        storage: "legacy",
+        table: includeTrace ? "multiple" : "scores",
+      } satisfies ClickHouseQueryTags,
     },
     fn: async (input) => {
       const records = await queryClickhouse<
@@ -286,13 +288,14 @@ export const _handleGetScoresCountForPublicApi = async ({
         projectId: props.projectId,
       },
       tags: {
+        source: "public-api",
         feature: "scoring",
-        type: "score",
-        projectId: props.projectId,
-        scoreScope,
-        operation_name: "_handleGetScoresCountForPublicApi",
-        includeTrace: includeTrace.toString(),
-      },
+        query: `public-api.scores.${scoreScope}.count${includeTrace ? ".with-trace" : ""}`,
+        operation: "count",
+        project_id: props.projectId,
+        storage: "legacy",
+        table: includeTrace ? "multiple" : "scores",
+      } satisfies ClickHouseQueryTags,
     },
     fn: async (input) => {
       const records = await queryClickhouse<{ count: string }>({

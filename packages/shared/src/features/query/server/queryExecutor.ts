@@ -55,16 +55,13 @@ export async function prepareExecuteQuery(opts: {
     : undefined;
 
   const tags = {
-    surface: "custom-query",
+    source: "custom",
     feature: "custom-queries",
-    entity: query.view,
     storage:
       preferredClickhouseService === "EventsReadOnly" ? "events" : "legacy",
-    workload: "aggregate",
+    operation: "aggregate",
     project_id: projectId,
-    type: query.view,
-    kind: "analytic",
-    projectId,
+    query: `custom-query.${query.view}`,
   } satisfies ClickHouseQueryTags;
 
   const clickhouseSettings: Record<string, string> = {
@@ -128,7 +125,6 @@ export async function executeQuery(
       fromTimestamp: prepared.fromTimestamp,
       tags: {
         ...prepared.tags,
-        operation_name: "executeQuery",
       },
     },
     fn: async (input) => {

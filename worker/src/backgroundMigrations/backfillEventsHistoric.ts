@@ -237,8 +237,11 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         const result = await queryClickhouse<{ count: string }>({
           query: `SELECT count() as count FROM ${table} LIMIT 1`,
           tags: {
+            source: "worker",
             feature: "background-migration",
-            operation: "validatePrerequisites",
+            query: `background-migration.backfill-events.validate-prerequisites.${table}`,
+            operation: "count",
+            project_id: "none",
             table,
           },
         });
@@ -257,8 +260,13 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     const chunksCount = await queryClickhouse<{ count: string }>({
       query: `SELECT count() as count FROM backfill_chunks`,
       tags: {
+        source: "worker",
         feature: "background-migration",
-        operation: "validatePrerequisites",
+        query:
+          "background-migration.backfill-events.validate-prerequisites.backfill-chunks",
+        operation: "count",
+        project_id: "none",
+        storage: "unknown",
         table: "backfill_chunks",
       },
     });
@@ -293,8 +301,13 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         ORDER BY partition_id, chunk_id
       `,
       tags: {
+        source: "worker",
         feature: "background-migration",
-        operation: "loadChunksFromClickhouse",
+        query: "background-migration.backfill-events.load-chunks",
+        operation: "list",
+        project_id: "multiple",
+        storage: "unknown",
+        table: "backfill_chunks",
       },
     });
 
@@ -381,8 +394,13 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
             skip_unavailable_shards: 1,
           },
           tags: {
+            source: "worker",
             feature: "background-migration",
-            operation: "recoverInProgressTodos",
+            query: "background-migration.backfill-events.recover-in-progress",
+            operation: "lookup",
+            project_id: "none",
+            storage: "unknown",
+            table: "system.processes",
           },
         });
 
@@ -543,16 +561,13 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       query,
       queryId,
       tags: {
-        surface: "worker",
-        service: "worker",
+        source: "worker",
         feature: "background-migration",
-        entity: "event",
+        query: "background-migration.backfill-events-historic.fire-query",
+        operation: "write",
+        project_id: "multiple",
         storage: "events",
-        workload: "write",
-        physical_table: "events_full",
-        type: "events",
-        kind: "backfill",
-        operation: "fireQuery",
+        table: "events_full",
       },
       // clickhouseConfigs: {
       //   request_timeout: timeoutMs,
@@ -651,14 +666,13 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     const tableNames = await queryClickhouse<{ name: string }>({
       query: "SHOW TABLES",
       tags: {
-        surface: "worker",
-        service: "worker",
+        source: "worker",
         feature: "background-migration",
-        entity: "clickhouse-metadata",
-        storage: "unknown",
-        workload: "lookup",
+        query: "background-migration.backfill-events-historic.validate",
+        operation: "lookup",
         project_id: "none",
-        operation_name: "backfillEventsHistoric.validate",
+        storage: "unknown",
+        table: "system.tables",
       },
     });
 

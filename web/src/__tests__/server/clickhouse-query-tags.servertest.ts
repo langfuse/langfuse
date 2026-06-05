@@ -7,15 +7,16 @@ import {
 } from "@langfuse/shared/src/server";
 
 describe("ClickHouse query tags", () => {
-  it("normalizes legacy event-backed public API tags into the concise schema", () => {
+  it("normalizes explicit event-backed public API tags into the concise schema", () => {
     const tags = normalizeClickHouseQueryTags({
       tags: {
-        surface: "public-api",
+        source: "public-api",
         feature: "tracing",
-        type: "events",
-        kind: "publicApiRows",
-        projectId: "project-1",
-        physical_table: "events_core",
+        query: "public-api.traces.rows",
+        operation: "list",
+        project_id: "project-1",
+        storage: "events",
+        table: "events_core",
       },
     });
 
@@ -24,18 +25,43 @@ describe("ClickHouse query tags", () => {
       project_id: "project-1",
       source: "public-api",
       feature: "tracing",
-      query: "public-api.tracing.events.publicApiRows",
+      query: "public-api.traces.rows",
       operation: "list",
       storage: "events",
       table: "events_core",
     });
-    expect(tags.surface).toBeUndefined();
-    expect(tags.entity).toBeUndefined();
-    expect(tags.workload).toBeUndefined();
-    expect(tags.physical_table).toBeUndefined();
-    expect(tags.type).toBeUndefined();
-    expect(tags.kind).toBeUndefined();
-    expect(tags.projectId).toBeUndefined();
+  });
+
+  it("ignores removed legacy tag fields", () => {
+    const tags = normalizeClickHouseQueryTags({
+      tags: {
+        surface: "public-api",
+        feature: "tracing",
+        type: "events",
+        kind: "publicApiRows",
+        projectId: "project-1",
+        physical_table: "events_core",
+      } as ClickHouseQueryTags & Record<string, string>,
+    });
+
+    const normalized = tags as Record<string, unknown>;
+    expect(tags).toMatchObject({
+      v: "1",
+      project_id: "unknown",
+      source: "internal",
+      feature: "tracing",
+      query: "internal.tracing.lookup",
+      operation: "lookup",
+      storage: "unknown",
+    });
+    expect(tags.table).toBeUndefined();
+    expect(normalized.surface).toBeUndefined();
+    expect(normalized.entity).toBeUndefined();
+    expect(normalized.workload).toBeUndefined();
+    expect(normalized.physical_table).toBeUndefined();
+    expect(normalized.type).toBeUndefined();
+    expect(normalized.kind).toBeUndefined();
+    expect(normalized.projectId).toBeUndefined();
   });
 
   it("sets safe request baggage and accepts equivalent structured tags", () => {
@@ -96,9 +122,10 @@ describe("ClickHouse query tags", () => {
       } as ClickHouseQueryTags & { queryId: string; traceId: string },
     });
 
+    const normalized = tags as Record<string, unknown>;
     expect(route).toBe("/api/public/traces/:id");
-    expect(tags.queryId).toBeUndefined();
-    expect(tags.traceId).toBeUndefined();
+    expect(normalized.queryId).toBeUndefined();
+    expect(normalized.traceId).toBeUndefined();
     expect(tags).toMatchObject({
       v: "1",
       source: "worker",

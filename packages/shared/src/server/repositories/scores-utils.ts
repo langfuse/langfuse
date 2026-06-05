@@ -1,8 +1,26 @@
 import { ScoreDataTypeType, ScoreDomain, ScoreSourceType } from "../../domain";
 import { PreferredClickhouseService } from "../clickhouse/client";
+import type { ClickHouseQueryTags } from "../clickhouse/queryTags";
 import { queryClickhouse } from "./clickhouse";
 import { ScoreRecordReadType } from "./definitions";
 import { convertClickhouseScoreToDomain } from "./scores_converters";
+
+function scoreQueryTags({
+  projectId,
+  query,
+}: {
+  projectId: string;
+  query: string;
+}): ClickHouseQueryTags {
+  return {
+    feature: "tracing",
+    query,
+    operation: "lookup",
+    project_id: projectId,
+    storage: "legacy",
+    table: "scores",
+  };
+}
 
 /**
  * @internal
@@ -47,12 +65,10 @@ export const _handleGetScoreById = async ({
         ? { scoreDataTypes: scoreDataTypes.map((d) => d.toString()) }
         : {}),
     },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "byId",
+    tags: scoreQueryTags({
       projectId,
-    },
+      query: "scores.by-id",
+    }),
     preferredClickhouseService,
   });
   return rows.map((row) => convertClickhouseScoreToDomain(row)).shift();
@@ -96,12 +112,10 @@ export const _handleGetScoresByIds = async ({
       ...(dataTypes ? { dataTypes: dataTypes.map((d) => d.toString()) } : {}),
       ...(source !== undefined ? { source } : {}),
     },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "byId",
+    tags: scoreQueryTags({
       projectId,
-    },
+      query: "scores.by-ids",
+    }),
   });
   return rows.map((row) => convertClickhouseScoreToDomain(row));
 };

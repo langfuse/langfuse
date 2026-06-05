@@ -12,14 +12,6 @@ export const CLICKHOUSE_QUERY_SOURCES = [
 
 export type ClickHouseQuerySource = (typeof CLICKHOUSE_QUERY_SOURCES)[number];
 
-export const CLICKHOUSE_QUERY_SURFACES = [
-  ...CLICKHOUSE_QUERY_SOURCES,
-  "batch-export",
-  "custom-query",
-] as const;
-
-export type ClickHouseQuerySurface = (typeof CLICKHOUSE_QUERY_SURFACES)[number];
-
 export const CLICKHOUSE_QUERY_STORAGES = [
   "events",
   "legacy",
@@ -44,15 +36,6 @@ export const CLICKHOUSE_QUERY_OPERATIONS = [
 export type ClickHouseQueryOperation =
   (typeof CLICKHOUSE_QUERY_OPERATIONS)[number];
 
-export const CLICKHOUSE_QUERY_WORKLOADS = CLICKHOUSE_QUERY_OPERATIONS;
-
-export type ClickHouseQueryWorkload =
-  (typeof CLICKHOUSE_QUERY_WORKLOADS)[number];
-
-export const CLICKHOUSE_QUERY_SERVICES = ["web", "worker", "shared"] as const;
-
-export type ClickHouseQueryService = (typeof CLICKHOUSE_QUERY_SERVICES)[number];
-
 export const CLICKHOUSE_QUERY_FEATURES = [
   "background-migration",
   "batch-add-to-dataset",
@@ -69,23 +52,6 @@ export const CLICKHOUSE_QUERY_FEATURES = [
 
 export type ClickHouseQueryFeature =
   | (typeof CLICKHOUSE_QUERY_FEATURES)[number]
-  | (string & {});
-
-export const CLICKHOUSE_QUERY_ENTITIES = [
-  "blob-storage-file-log",
-  "clickhouse-metadata",
-  "dataset",
-  "dataset-run-item",
-  "event",
-  "observation",
-  "score",
-  "session",
-  "trace",
-  "unknown",
-] as const;
-
-export type ClickHouseQueryEntity =
-  | (typeof CLICKHOUSE_QUERY_ENTITIES)[number]
   | (string & {});
 
 export const CLICKHOUSE_QUERY_PHYSICAL_TABLES = [
@@ -120,26 +86,13 @@ export type NormalizedClickHouseQueryTags = {
 
 export type ClickHouseQueryTags = {
   source?: ClickHouseQuerySource;
-  query?: string;
-  operation?: ClickHouseQueryOperation | (string & {});
-  table?: ClickHouseQueryPhysicalTable;
-
-  // Compatibility fields. New callers should prefer source/query/operation/table.
-  surface?: ClickHouseQuerySurface;
   route?: string;
-  method?: string;
   feature?: ClickHouseQueryFeature;
-  entity?: ClickHouseQueryEntity;
-  storage?: ClickHouseQueryStorage;
-  workload?: ClickHouseQueryWorkload;
+  query?: string;
+  operation?: ClickHouseQueryOperation;
   project_id?: string | "multiple" | "none" | "unknown";
-  physical_table?: ClickHouseQueryPhysicalTable;
-  service?: ClickHouseQueryService;
-
-  type?: string;
-  kind?: string;
-  projectId?: string;
-  operation_name?: string;
+  storage?: ClickHouseQueryStorage;
+  table?: ClickHouseQueryPhysicalTable;
 };
 
 type NormalizeClickHouseQueryTagsArgs = {
@@ -150,10 +103,7 @@ type NormalizeClickHouseQueryTagsArgs = {
 
 const BAGGAGE_KEYS = {
   source: "langfuse.clickhouse.source",
-  surface: "langfuse.clickhouse.surface",
   route: "langfuse.clickhouse.route",
-  method: "langfuse.clickhouse.method",
-  service: "langfuse.clickhouse.service",
   projectId: "langfuse.project.id",
 } as const;
 
@@ -211,7 +161,7 @@ function getExplicitTable(
   tags: ClickHouseQueryTags | undefined,
   table?: string,
 ): ClickHouseQueryPhysicalTable | undefined {
-  const physicalTable = firstDefined(table, tags?.table, tags?.physical_table);
+  const physicalTable = firstDefined(table, tags?.table);
   return physicalTable as ClickHouseQueryPhysicalTable | undefined;
 }
 
@@ -235,31 +185,6 @@ function inferStorage(
   if (physicalTable)
     return isEventsPhysicalTable(physicalTable) ? "events" : "legacy";
 
-  const legacyType = sanitizeTagValue(tags?.type)?.toLowerCase();
-  if (
-    legacyType === "events" ||
-    legacyType === "events_core" ||
-    legacyType === "events_full"
-  ) {
-    return "events";
-  }
-
-  if (
-    legacyType === "trace" ||
-    legacyType === "traces" ||
-    legacyType === "observation" ||
-    legacyType === "observations" ||
-    legacyType === "score" ||
-    legacyType === "scores" ||
-    legacyType === "dataset-run-item" ||
-    legacyType === "dataset-run-items" ||
-    legacyType === "dataset_run_items_rmt" ||
-    legacyType === "blob-storage-file-log" ||
-    legacyType === "blob_storage_file_log"
-  ) {
-    return "legacy";
-  }
-
   return "unknown";
 }
 
@@ -267,21 +192,16 @@ function normalizeSource(
   source: string | undefined,
 ): ClickHouseQuerySource | undefined {
   if (isOneOf(CLICKHOUSE_QUERY_SOURCES, source)) return source;
-  if (source === "custom-query") return "custom";
-  if (source === "batch-export") return "worker";
   return undefined;
 }
 
 function inferSource(
   tags: ClickHouseQueryTags | undefined,
 ): ClickHouseQuerySource {
-  const explicitSource = normalizeSource(tags?.source ?? tags?.surface);
+  const explicitSource = normalizeSource(tags?.source);
   if (explicitSource) return explicitSource;
 
-  const baggageSource = normalizeSource(
-    getBaggageValue(BAGGAGE_KEYS.source) ??
-      getBaggageValue(BAGGAGE_KEYS.surface),
-  );
+  const baggageSource = normalizeSource(getBaggageValue(BAGGAGE_KEYS.source));
   if (baggageSource) return baggageSource;
 
   if (tags?.feature === "batch-export") return "worker";
@@ -301,42 +221,10 @@ function inferOperation(
     return tags.operation;
   }
 
-  if (isOneOf(CLICKHOUSE_QUERY_OPERATIONS, tags?.workload)) {
-    return tags.workload;
-  }
-
-  const kind = tags?.kind?.toLowerCase();
-  if (kind) {
-    if (kind === "count" || kind.includes("count")) return "count";
-    if (
-      kind === "list" ||
-      kind === "rows" ||
-      kind === "identifiers" ||
-      kind.includes("rows")
-    ) {
-      return "list";
-    }
-    if (kind.includes("byid") || kind.includes("exists")) return "lookup";
-    if (kind.includes("filter")) return "filter-options";
-    if (kind === "analytic" || kind === "metrics" || kind === "eval") {
-      return "aggregate";
-    }
-    if (kind === "export") return "export";
-    if (kind === "batch-io") return "batch-io";
-    if (kind === "delete" || kind.includes("delete")) return "delete";
-    if (kind === "upsert" || kind === "insert" || kind === "update") {
-      return "write";
-    }
-  }
-
   if (clickhouseOperation === "insert" || clickhouseOperation === "upsert") {
     return "write";
   }
-  if (clickhouseOperation === "command") {
-    const operationName = tags?.operation_name?.toLowerCase();
-    if (operationName?.includes("delete")) return "delete";
-    return "write";
-  }
+  if (clickhouseOperation === "command") return "write";
 
   return "lookup";
 }
@@ -350,7 +238,6 @@ function inferFeature(
 function inferProjectId(tags: ClickHouseQueryTags | undefined): string {
   return (
     sanitizeTagValue(tags?.project_id) ??
-    sanitizeTagValue(tags?.projectId) ??
     sanitizeTagValue(getBaggageValue(BAGGAGE_KEYS.projectId)) ??
     "unknown"
   );
@@ -386,29 +273,15 @@ function inferQueryName(
   route: string | undefined,
   table: ClickHouseQueryPhysicalTable | undefined,
 ): string {
-  const legacyOperation =
-    tags?.operation && !isOneOf(CLICKHOUSE_QUERY_OPERATIONS, tags.operation)
-      ? tags.operation
-      : undefined;
-
-  const explicitQuery = normalizeQueryName(
-    firstDefined(tags?.query, tags?.operation_name, legacyOperation),
-  );
+  const explicitQuery = normalizeQueryName(tags?.query);
   if (explicitQuery) return explicitQuery;
 
-  const type = normalizeQueryName(tags?.type);
-  const kind = normalizeQueryName(tags?.kind);
   const normalizedRoute = normalizeQueryName(route);
   const normalizedTable = normalizeQueryName(table);
 
   return (
     normalizeQueryName(
-      [
-        source,
-        normalizedRoute ?? feature,
-        type ?? normalizedTable,
-        kind ?? operation,
-      ]
+      [source, normalizedRoute ?? feature, normalizedTable, operation]
         .filter((part) => part && part !== "unknown")
         .join("."),
     ) ?? "unknown"
@@ -420,8 +293,7 @@ export function normalizeClickHouseQueryTags({
   clickhouseOperation = "select",
   table,
 }: NormalizeClickHouseQueryTagsArgs): ClickHouseQueryTags &
-  NormalizedClickHouseQueryTags &
-  Record<string, string> {
+  NormalizedClickHouseQueryTags {
   const route = normalizeClickHouseRoute(
     firstDefined(tags?.route, getBaggageValue(BAGGAGE_KEYS.route)),
   );

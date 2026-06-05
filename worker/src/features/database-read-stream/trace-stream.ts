@@ -221,15 +221,13 @@ export const getTraceStream = async (props: {
     },
     clickhouseConfigs,
     tags: {
-      surface: "batch-export",
+      source: "worker",
       feature: "batch-export",
-      entity: "trace",
-      storage: "legacy",
-      workload: "export",
+      query: "batch-export.traces",
+      operation: "export",
       project_id: projectId,
-      type: "trace",
-      kind: "export",
-      projectId,
+      storage: "legacy",
+      table: "multiple",
     },
   });
 

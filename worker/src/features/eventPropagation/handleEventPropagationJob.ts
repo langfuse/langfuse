@@ -104,7 +104,11 @@ export const handleEventPropagationJob = async (
       params: lastProcessedPartition ? { lastProcessedPartition } : undefined,
       tags: {
         feature: "ingestion",
-        operation_name: "getNextPartition",
+        query: "event-propagation.next-partition",
+        operation: "lookup",
+        project_id: "none",
+        storage: "unknown",
+        table: "system.parts",
       },
     });
 
@@ -301,16 +305,13 @@ export const handleEventPropagationJob = async (
         ${excludeProjectIdsInClause ? `AND obs.project_id ${excludeProjectIdsInClause}` : ""}
       `,
       tags: {
-        surface: "worker",
-        service: "worker",
+        source: "worker",
         feature: "ingestion",
-        entity: "event",
+        query: "event-propagation.propagate-observations",
+        operation: "write",
+        project_id: "multiple",
         storage: "events",
-        workload: "write",
-        physical_table: "events_full",
-        type: "events",
-        kind: "propagate-observations",
-        operation_name: "propagateObservationsToEvents",
+        table: "events_full",
       },
       clickhouseConfigs: {
         request_timeout: 600000, // 10 minutes timeout

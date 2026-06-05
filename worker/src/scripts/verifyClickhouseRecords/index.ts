@@ -299,14 +299,13 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         observationId,
       },
       tags: {
-        surface: "internal",
-        service: "worker",
+        source: "internal",
         feature: "clickhouse-record-verification",
-        entity: "observation",
-        storage: "legacy",
-        workload: "lookup",
+        query: "clickhouse-record-verification.observation",
+        operation: "lookup",
         project_id: projectId,
-        operation_name: "verifyClickhouseObservation",
+        storage: "legacy",
+        table: "observations",
       },
     })
   )[0];
@@ -738,14 +737,13 @@ async function verifyClickhouseTrace(postgresTrace: any) {
         traceId,
       },
       tags: {
-        surface: "internal",
-        service: "worker",
+        source: "internal",
         feature: "clickhouse-record-verification",
-        entity: "trace",
-        storage: "legacy",
-        workload: "lookup",
+        query: "clickhouse-record-verification.trace",
+        operation: "lookup",
         project_id: projectId,
-        operation_name: "verifyClickhouseTrace",
+        storage: "legacy",
+        table: "traces",
       },
     })
   )[0];
@@ -916,14 +914,13 @@ async function verifyClickhouseScore(postgresScore: any) {
         scoreId,
       },
       tags: {
-        surface: "internal",
-        service: "worker",
+        source: "internal",
         feature: "clickhouse-record-verification",
-        entity: "score",
-        storage: "legacy",
-        workload: "lookup",
+        query: "clickhouse-record-verification.score",
+        operation: "lookup",
         project_id: projectId,
-        operation_name: "verifyClickhouseScore",
+        storage: "legacy",
+        table: "scores",
       },
     })
   )[0];

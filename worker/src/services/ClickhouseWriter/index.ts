@@ -579,21 +579,16 @@ export class ClickhouseWriter {
         format: "JSONEachRow",
         values: params.records,
         tags: {
-          surface: "worker",
-          service: "worker",
-          entity: params.table,
-          workload: "write",
+          source: "worker",
+          feature: "ingestion",
+          query: `ingestion.write.${params.table}`,
+          operation: "write",
           project_id:
             params.records.length > 0
               ? params.records[0].project_id
               : "unknown",
-          feature: "ingestion",
-          type: params.table,
-          operation_name: "writeToClickhouse",
-          projectId:
-            params.records.length > 0
-              ? params.records[0].project_id
-              : undefined,
+          storage: "legacy",
+          table: params.table,
         },
       });
     } catch (err) {

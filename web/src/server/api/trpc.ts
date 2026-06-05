@@ -217,9 +217,8 @@ const withOtelInstrumentation = t.middleware(async (opts) => {
     userId: opts.ctx.session?.user?.id,
     projectId: (actualInput as Record<string, string>)?.projectId,
     clickhouse: {
-      surface: "trpc",
+      source: "trpc",
       route: opts.path,
-      service: "web",
     },
   });
 

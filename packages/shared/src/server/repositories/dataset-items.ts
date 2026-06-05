@@ -1744,7 +1744,11 @@ export async function getDatasetVersionForRun(params: {
         },
         tags: {
           feature: "datasets",
-          operation: "getDatasetVersionForRun",
+          query: "datasets.get-version-for-run",
+          operation: "lookup",
+          project_id: params.projectId,
+          storage: "legacy",
+          table: "dataset_run_items_rmt",
         },
       });
 

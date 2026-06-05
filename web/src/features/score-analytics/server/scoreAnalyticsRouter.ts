@@ -355,10 +355,13 @@ export const scoreAnalyticsRouter = createTRPCRouter({
           nBins,
         },
         tags: {
+          source: "trpc",
           feature: "scores",
-          type: "analytics",
-          kind: "comparison",
-          projectId,
+          query: "scores.analytics.comparison",
+          operation: "aggregate",
+          project_id: projectId,
+          storage: "legacy",
+          table: "scores",
         },
         clickhouseSettings: {
           // Enable short-circuit evaluation to prevent correlation errors

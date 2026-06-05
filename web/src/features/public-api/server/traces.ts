@@ -11,6 +11,7 @@ import {
   createPublicApiTracesColumnMapping,
   tracesTableUiColumnDefinitions,
   shouldSkipObservationsFinal,
+  type ClickHouseQueryTags,
 } from "@langfuse/shared/src/server";
 import {
   LISTABLE_SCORE_TYPES,
@@ -431,12 +432,17 @@ export const generateTracesForPublicApi = async ({
     input: {
       params,
       tags: {
+        source: "public-api",
         feature: "tracing",
-        type: "trace",
-        kind: "public-api",
-        projectId: props.projectId,
-        operation_name: "getTracesForPublicApi",
-      },
+        query: "public-api.traces.rows",
+        operation: "list",
+        project_id: props.projectId,
+        storage: "legacy",
+        table:
+          includeObservations || includeMetrics || includeScores
+            ? "multiple"
+            : "traces",
+      } satisfies ClickHouseQueryTags,
       fromTimestamp: fromTimeFilter?.value ?? undefined,
       preferredClickhouseService: "ReadOnly",
     },
@@ -517,12 +523,17 @@ export const getTracesCountForPublicApi = async ({
     input: {
       params,
       tags: {
+        source: "public-api",
         feature: "tracing",
-        type: "trace",
-        kind: "count",
-        projectId: props.projectId,
-        operation_name: "getTracesCountForPublicApi",
-      },
+        query: "public-api.traces.count",
+        operation: "count",
+        project_id: props.projectId,
+        storage: "legacy",
+        table:
+          advancedFilters !== undefined && advancedFilters.length > 0
+            ? "multiple"
+            : "traces",
+      } satisfies ClickHouseQueryTags,
       timestamp,
     },
     fn: async (input) => {

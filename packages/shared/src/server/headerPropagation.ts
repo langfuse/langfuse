@@ -1,11 +1,7 @@
 import * as opentelemetry from "@opentelemetry/api";
 import type { IncomingHttpHeaders } from "http";
 import { env } from "../env";
-import type {
-  ClickHouseQueryService,
-  ClickHouseQuerySource,
-  ClickHouseQuerySurface,
-} from "./clickhouse/queryTags";
+import type { ClickHouseQuerySource } from "./clickhouse/queryTags";
 
 export type LangfuseContextProps = {
   headers?: IncomingHttpHeaders;
@@ -13,10 +9,7 @@ export type LangfuseContextProps = {
   projectId?: string;
   clickhouse?: {
     source?: ClickHouseQuerySource;
-    surface?: ClickHouseQuerySurface;
     route?: string;
-    method?: string;
-    service?: ClickHouseQueryService;
   };
   apiKeyId?: string;
 };
@@ -67,26 +60,14 @@ export const contextWithLangfuseProps = (
       value: props.projectId,
     });
   }
-  const clickhouseSource =
-    props.clickhouse?.source ?? props.clickhouse?.surface;
-  if (clickhouseSource) {
+  if (props.clickhouse?.source) {
     baggage = baggage.setEntry("langfuse.clickhouse.source", {
-      value: clickhouseSource,
+      value: props.clickhouse.source,
     });
   }
   if (props.clickhouse?.route) {
     baggage = baggage.setEntry("langfuse.clickhouse.route", {
       value: props.clickhouse.route,
-    });
-  }
-  if (props.clickhouse?.method) {
-    baggage = baggage.setEntry("langfuse.clickhouse.method", {
-      value: props.clickhouse.method,
-    });
-  }
-  if (props.clickhouse?.service) {
-    baggage = baggage.setEntry("langfuse.clickhouse.service", {
-      value: props.clickhouse.service,
     });
   }
   if (props.apiKeyId) {

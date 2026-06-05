@@ -28,6 +28,7 @@ import {
   experimentScoreAggCols,
   experimentOrderByCols,
 } from "../tableMappings/mapExperimentTable";
+import type { ClickHouseQueryTags } from "../clickhouse/queryTags";
 
 export type ExperimentEventsDataReturnType = {
   experiment_id: string;
@@ -46,6 +47,29 @@ export type ExperimentMetricsReturnType = {
   total_cost: number | null;
   latency_avg: number | null;
 };
+
+function experimentQueryTags({
+  projectId,
+  query,
+  operation,
+  feature = "experiments",
+  table = "events",
+}: {
+  projectId: string;
+  query: string;
+  operation: NonNullable<ClickHouseQueryTags["operation"]>;
+  feature?: ClickHouseQueryTags["feature"];
+  table?: ClickHouseQueryTags["table"];
+}): ClickHouseQueryTags {
+  return {
+    feature,
+    query,
+    operation,
+    project_id: projectId,
+    storage: "events",
+    table,
+  };
+}
 
 const experimentScoreCTE = (params: {
   projectId: string;
@@ -128,7 +152,7 @@ export const getExperimentsCountFromEvents = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "count" },
+    tags: { operation: "count" },
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -149,7 +173,7 @@ export const getExperimentsFromEvents = async (props: {
       orderBy: props.orderBy,
       limit: props.limit,
       page: props.page,
-      tags: { kind: "list" },
+      tags: { operation: "list" },
     });
 
   return rows.map((row) => ({
@@ -188,10 +212,11 @@ export const getExperimentMetricsFromEvents = async (props: {
     input: {
       params,
       tags: {
-        feature: "experiments",
-        type: "experiments-table",
-        projectId: props.projectId,
-        operation_name: "getExperimentMetricsFromEvents",
+        ...experimentQueryTags({
+          projectId: props.projectId,
+          query: "experiments.table.metrics",
+          operation: "aggregate",
+        }),
       },
     },
     fn: async (input) => {
@@ -218,7 +243,7 @@ export type FetchExperimentsFromEventsProps = {
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
-  tags?: Record<string, string>;
+  tags?: ClickHouseQueryTags;
 };
 
 const getExperimentsFromEventsGeneric = async <T>(
@@ -351,11 +376,12 @@ const getExperimentsFromEventsGeneric = async <T>(
     input: {
       params: finalParams,
       tags: {
+        ...experimentQueryTags({
+          projectId,
+          query: `experiments.table.${select}`,
+          operation: select === "count" ? "count" : "list",
+        }),
         ...(props.tags ?? {}),
-        feature: "experiments",
-        type: "experiments-table",
-        projectId,
-        operation_name: `getExperimentsFromEventsGeneric-${select}`,
       },
     },
     fn: async (input) => {
@@ -465,11 +491,11 @@ export const getExperimentItemsCountFromEvents = async (
   const rows = await queryClickhouse<{ count: string }>({
     query,
     params,
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-count",
+    tags: experimentQueryTags({
       projectId,
-    },
+      query: "experiments.items.count",
+      operation: "count",
+    }),
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -728,11 +754,11 @@ export const getExperimentItemsFromEvents = async (
   const itemIdsResult = await queryClickhouse<{ item_id: string }>({
     query: itemIdsQuery,
     params: itemIdsParams,
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-filter",
+    tags: experimentQueryTags({
       projectId,
-    },
+      query: "experiments.items.filter",
+      operation: "list",
+    }),
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -773,11 +799,11 @@ export const getExperimentItemsFromEvents = async (
   const rows = await queryClickhouse<ExperimentItemEventsDataReturnType>({
     query: dataQuery,
     params: dataParams,
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-data",
+    tags: experimentQueryTags({
       projectId,
-    },
+      query: "experiments.items.data",
+      operation: "list",
+    }),
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -881,11 +907,11 @@ export const getExperimentItemsBatchIO = async (props: {
       ...params,
       truncateLength: IO_TRUNCATE_LENGTH,
     },
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-batch-io",
+    tags: experimentQueryTags({
       projectId,
-    },
+      query: "experiments.items.batch-io",
+      operation: "batch-io",
+    }),
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -964,12 +990,12 @@ export const getExperimentNamesFromEvents = async (props: {
   }>({
     query,
     params,
-    tags: {
-      feature: "tracing",
-      type: "events",
-      kind: "analytic",
+    tags: experimentQueryTags({
       projectId: props.projectId,
-    },
+      query: "experiments.names",
+      operation: "filter-options",
+      feature: "tracing",
+    }),
     preferredClickhouseService: "EventsReadOnly",
   });
 

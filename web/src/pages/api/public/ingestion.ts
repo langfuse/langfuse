@@ -97,10 +97,8 @@ export default async function handler(
       headers: req.headers,
       projectId: authCheck.scope.projectId,
       clickhouse: {
-        surface: "public-api",
+        source: "public-api",
         route: req.url,
-        method: req.method,
-        service: "web",
       },
       apiKeyId: authCheck.scope.apiKeyId,
     });

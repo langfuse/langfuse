@@ -1437,14 +1437,13 @@ export class IngestionService {
           query,
           params: { projectId, entityId, ...additionalFilters.params },
           tags: {
-            surface: "worker",
-            service: "worker",
+            source: "worker",
             feature: "ingestion",
-            entity: table,
+            query: `ingestion.existing-record.${table}`,
             storage: "legacy",
-            workload: "lookup",
+            operation: "lookup",
             project_id: projectId,
-            projectId,
+            table,
           },
         });
 

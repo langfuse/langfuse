@@ -230,7 +230,15 @@ const rows = await queryClickhouse<{ id: string; name: string }>({
     startTime: convertDateToClickhouseDateTime(startDate),
     limit: 100,
   },
-  tags: { feature: "tracing", type: "trace" },
+  tags: {
+    source: "internal",
+    feature: "tracing",
+    query: "traces.lookup-by-time",
+    operation: "list",
+    project_id: projectId,
+    storage: "legacy",
+    table: "traces",
+  },
 });
 
 // ❌ BAD: Missing project_id filter
@@ -283,7 +291,15 @@ await upsertClickhouse({
     name: record.name,
     // ... other fields
   }),
-  tags: { feature: "ingestion", type: "trace" },
+  tags: {
+    source: "worker",
+    feature: "ingestion",
+    query: "ingestion.write.traces",
+    operation: "write",
+    project_id: projectId,
+    storage: "legacy",
+    table: "traces",
+  },
 });
 ```
 
@@ -298,7 +314,15 @@ await commandClickhouse({
     ALTER TABLE traces
     ADD COLUMN IF NOT EXISTS new_field String
   `,
-  tags: { feature: "migration" },
+  tags: {
+    source: "worker",
+    feature: "background-migration",
+    query: "background-migration.add-new-field",
+    operation: "write",
+    project_id: "none",
+    storage: "legacy",
+    table: "traces",
+  },
 });
 ```
 
@@ -557,7 +581,15 @@ export const getTracesByIds = async (
       LIMIT 1 BY id, project_id
     `,
     params: { projectId, traceIds },
-    tags: { feature: "tracing", type: "trace" },
+    tags: {
+      source: "internal",
+      feature: "tracing",
+      query: "traces.by-ids",
+      operation: "list",
+      project_id: projectId,
+      storage: "legacy",
+      table: "traces",
+    },
   });
 
   return rows.map(convertClickhouseToDomain);
