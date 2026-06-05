@@ -70,7 +70,7 @@ export function useEvalConfigMappingData(
         router.query;
 
       // Use replace to avoid adding to browser history
-      void router.replace(
+      router.replace(
         {
           pathname: router.pathname,
           query: restQuery,

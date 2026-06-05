@@ -174,7 +174,7 @@ export default function AutomationsPage() {
   const finishFlow = useCallback(
     (fallback?: () => void) => {
       if (parsedPrefill.redirectUrl) {
-        void router.push(parsedPrefill.redirectUrl);
+        router.push(parsedPrefill.redirectUrl);
         return;
       }
       if (fallback) {

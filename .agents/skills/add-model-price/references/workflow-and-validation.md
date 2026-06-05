@@ -22,15 +22,69 @@ template, then:
 
 - add the new entry near related models
 - refresh `updatedAt` when editing an existing entry
-- update `packages/shared/src/server/llm/types.ts` when the model should be
-  selectable in product flows
 
-### 4. Validate the Result
+Example for a model with `$5` input, `$25` output, `$6.25` cache write, and
+`$0.50` cache read per million tokens:
+
+```json
+{
+  "id": "13458bc0-1c20-44c2-8753-172f54b67647",
+  "modelName": "claude-opus-4-6",
+  "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-6-v1(:0)?)$",
+  "createdAt": "2026-03-09T00:00:00.000Z",
+  "updatedAt": "2026-03-09T00:00:00.000Z",
+  "tokenizerConfig": null,
+  "tokenizerId": "claude",
+  "pricingTiers": [
+    {
+      "id": "13458bc0-1c20-44c2-8753-172f54b67647_tier_default",
+      "name": "Standard",
+      "isDefault": true,
+      "priority": 0,
+      "conditions": [],
+      "prices": {
+        "input": 5e-6,
+        "input_tokens": 5e-6,
+        "output": 25e-6,
+        "output_tokens": 25e-6,
+        "cache_creation_input_tokens": 6.25e-6,
+        "input_cache_creation": 6.25e-6,
+        "cache_read_input_tokens": 0.5e-6,
+        "input_cache_read": 0.5e-6
+      }
+    }
+  ]
+}
+```
+
+### 4. Update Shared Model Types When Needed
+
+If the model should be available in playground or LLM-as-judge flows, add it to
+the correct array in `packages/shared/src/server/llm/types.ts`.
+
+Common arrays include:
+
+- `anthropicModels`
+- `openAIModels`
+- `vertexAIModels`
+- `googleAIStudioModels`
+
+Do not add a new model as the first entry in one of these arrays. The first
+entry is used as a default model in some test or evaluation paths, and newer
+models may not be available to all users yet.
+
+### 5. Validate the Result
 
 Run the bundled validator:
 
 ```bash
 node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs
+```
+
+For quick manual inspection, use `jq`:
+
+```bash
+jq '.[] | select(.modelName == "claude-opus-4-6")' worker/src/constants/default-model-prices.json
 ```
 
 ## Validation Rules
@@ -45,6 +99,17 @@ node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs
 8. Each tier must contain at least one price
 9. All tiers must expose the same usage-type keys
 10. Regex patterns must be valid
+
+## Testing Model Matching
+
+Use the bundled tester before finishing any `matchPattern` change:
+
+```bash
+node .agents/skills/add-model-price/scripts/test-match-pattern.mjs --model <modelName> --accept <sample...> --reject <sample...>
+```
+
+Use representative accepted and rejected model IDs for every provider format the
+regex is intended to cover.
 
 ## Common Mistakes
 

@@ -56,10 +56,10 @@ import {
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
   isLegacyBlobExportAllowed,
+  isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Info, ExternalLink } from "lucide-react";
 
 export default function BlobStorageIntegrationSettings() {
@@ -234,7 +234,6 @@ const BlobStorageIntegrationSettingsForm = ({
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { isBetaEnabled } = useV4Beta();
   const { project } = useQueryProject();
   const [integrationType, setIntegrationType] =
     useState<BlobStorageIntegrationType>(BlobStorageIntegrationType.S3);
@@ -248,7 +247,8 @@ const BlobStorageIntegrationSettingsForm = ({
   const isPostCutoffCloud =
     project?.createdAt != null &&
     !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
-  const showExportSourceField = isBetaEnabled && !isPostCutoffCloud;
+  const eventsExportAvailable = isEnrichedBlobExportAvailable(isLangfuseCloud);
+  const showExportSourceField = eventsExportAvailable && !isPostCutoffCloud;
 
   const blobStorageForm = useForm({
     resolver: zodResolver(blobStorageIntegrationFormSchema),
@@ -273,7 +273,7 @@ const BlobStorageIntegrationSettingsForm = ({
       exportSource: isPostCutoffCloud
         ? AnalyticsIntegrationExportSource.EVENTS
         : state?.exportSource ||
-          (isBetaEnabled
+          (eventsExportAvailable
             ? AnalyticsIntegrationExportSource.EVENTS
             : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
       exportFieldGroups:
@@ -308,7 +308,7 @@ const BlobStorageIntegrationSettingsForm = ({
       exportSource: isPostCutoffCloud
         ? AnalyticsIntegrationExportSource.EVENTS
         : state?.exportSource ||
-          (isBetaEnabled
+          (eventsExportAvailable
             ? AnalyticsIntegrationExportSource.EVENTS
             : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
       exportFieldGroups:
@@ -744,7 +744,7 @@ const BlobStorageIntegrationSettingsForm = ({
           />
         )}
 
-        {isBetaEnabled &&
+        {eventsExportAvailable &&
           (watchedExportSource === AnalyticsIntegrationExportSource.EVENTS ||
             watchedExportSource ===
               AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS) && (

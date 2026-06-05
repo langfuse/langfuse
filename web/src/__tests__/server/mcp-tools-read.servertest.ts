@@ -127,11 +127,11 @@ import {
 } from "@/src/features/mcp/features/datasets/schema";
 
 const maybeEventsTable =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 const maybeEventsTableIt =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true" ? it : it.skip;
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
 
 const createObservationEvent = (params: {
   projectId: string;
@@ -1036,6 +1036,143 @@ describe("MCP Read Tools", () => {
       expect(Number(rows[0].count_count)).toBe(3);
     });
 
+    it("should accept raw metric names in orderBy", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const highCountName = `mcp-metrics-order-high-${nanoid()}`;
+      const lowCountName = `mcp-metrics-order-low-${nanoid()}`;
+
+      await createEventsCh([
+        ...Array.from({ length: 3 }, (_, index) =>
+          createObservationEvent({
+            projectId,
+            traceId,
+            name: highCountName,
+            startTime: new Date(`2026-01-01T00:00:0${index}.000Z`),
+          }),
+        ),
+        createObservationEvent({
+          projectId,
+          traceId,
+          name: lowCountName,
+          startTime: new Date("2026-01-01T00:01:00.000Z"),
+        }),
+      ]);
+
+      const rows = getMetricRows(
+        await handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "name" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "traceId",
+                operator: "=",
+                value: traceId,
+              },
+            ],
+            orderBy: [{ field: "count", direction: "desc" }],
+            ...metricsWindow,
+          },
+          context,
+        ),
+      );
+
+      expect(rows).toHaveLength(2);
+      expect(rows[0].name).toBe(highCountName);
+      expect(Number(rows[0].count_count)).toBe(3);
+      expect(rows[1].name).toBe(lowCountName);
+      expect(Number(rows[1].count_count)).toBe(1);
+    });
+
+    it("should prefer dimension fields over matching raw metric names in orderBy", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const scoreName = `mcp-metrics-score-value-order-${nanoid()}`;
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: `mcp-score-observation-${nanoid()}`,
+          start_time: Date.parse("2026-01-01T00:00:00.000Z") * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        ...Array.from({ length: 3 }, () =>
+          createTraceScore({
+            id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: observationId,
+            name: scoreName,
+            value: 1,
+            data_type: "NUMERIC",
+            timestamp: Date.parse("2026-01-01T00:00:00.000Z"),
+          }),
+        ),
+        createTraceScore({
+          id: randomUUID(),
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          name: scoreName,
+          value: 2,
+          data_type: "NUMERIC",
+          timestamp: Date.parse("2026-01-01T00:00:00.000Z"),
+        }),
+      ]);
+
+      const rows = getMetricRows(
+        await handleQueryMetrics(
+          {
+            view: "scores-numeric",
+            dimensions: [{ field: "value" }],
+            metrics: [{ measure: "value", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "name",
+                operator: "=",
+                value: scoreName,
+              },
+            ],
+            orderBy: [{ field: "value", direction: "desc" }],
+            ...metricsWindow,
+          },
+          context,
+        ),
+      );
+
+      expect(rows).toHaveLength(2);
+      expect(Number(rows[0].value)).toBe(2);
+      expect(Number(rows[0].count_value)).toBe(1);
+      expect(Number(rows[1].value)).toBe(1);
+      expect(Number(rows[1].count_value)).toBe(3);
+    });
+
+    it("should reject internal sql field names in orderBy", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "name" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            orderBy: [{ field: "observations.name", direction: "asc" }],
+            ...metricsWindow,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/Use returned metric aliases.*getMetricsSchema/i);
+    });
+
     it("should apply default row_limit of 100 when omitted", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
@@ -1343,6 +1480,61 @@ describe("MCP Read Tools", () => {
         ]),
       );
       expect(result.meta).toBeDefined();
+    });
+
+    it("should return string examples and numeric ranges for filter columns", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const uniqueSessionId = `mcp-session-${nanoid()}`;
+      const lowTotalCost = 0.1;
+      const highTotalCost = 0.3;
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-examples-${nanoid()}`,
+          sessionId: uniqueSessionId,
+          totalCost: lowTotalCost,
+        }),
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-examples-${nanoid()}`,
+          sessionId: uniqueSessionId,
+          totalCost: highTotalCost,
+        }),
+      ]);
+
+      const sessionResult = await handleGetObservationFilterValues(
+        { column: "sessionId", limit: 100 },
+        context,
+      );
+
+      expect(sessionResult).toEqual(
+        expect.objectContaining({
+          type: "VALUES",
+          column: "sessionId",
+          values: expect.arrayContaining([
+            expect.objectContaining({ value: uniqueSessionId, count: 2 }),
+          ]),
+        }),
+      );
+
+      const costResult = await handleGetObservationFilterValues(
+        { column: "totalCost", limit: 100 },
+        context,
+      );
+
+      expect(costResult).toEqual(
+        expect.objectContaining({
+          type: "RANGE",
+          column: "totalCost",
+          range: expect.objectContaining({
+            count: 2,
+            min: expect.closeTo(lowTotalCost),
+            max: expect.closeTo(highTotalCost),
+            avg: expect.closeTo(0.2),
+          }),
+        }),
+      );
     });
 
     it("should map public tags column to traceTags option source", async () => {
@@ -2051,27 +2243,70 @@ describe("MCP Read Tools", () => {
       ).resolves.toBeDefined();
     });
 
-    it("should fetch prompt by name only (defaults to production label)", async () => {
+    it("should fetch prompt by name only (defaults to latest label)", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const promptName = `test-prompt-${nanoid()}`;
 
-      // Create a prompt with production label
       await createPromptInDb({
         name: promptName,
-        prompt: "You are a helpful assistant.",
+        prompt: "Production prompt",
         projectId,
         labels: ["production"],
         version: 1,
       });
 
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Latest prompt",
+        projectId,
+        labels: ["latest"],
+        version: 2,
+      });
+
       const result = (await handleGetPrompt({ name: promptName }, context)) as {
         name: string;
         version: number;
+        prompt: string;
         labels: string[];
       };
 
       expect(result.name).toBe(promptName);
+      expect(result.version).toBe(2);
+      expect(result.prompt).toBe("Latest prompt");
+      expect(result.labels).toContain("latest");
+    });
+
+    it("should fetch production prompt when production label is explicit", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const promptName = `test-prompt-${nanoid()}`;
+
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Production prompt",
+        projectId,
+        labels: ["production"],
+        version: 1,
+      });
+
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Latest prompt",
+        projectId,
+        labels: ["latest"],
+        version: 2,
+      });
+
+      const result = (await handleGetPrompt(
+        { name: promptName, label: "production" },
+        context,
+      )) as {
+        version: number;
+        prompt: string;
+        labels: string[];
+      };
+
       expect(result.version).toBe(1);
+      expect(result.prompt).toBe("Production prompt");
       expect(result.labels).toContain("production");
     });
 
@@ -2205,14 +2440,14 @@ describe("MCP Read Tools", () => {
         name: promptName,
         prompt: "Project 1 content",
         projectId: projectId1,
-        labels: ["production"],
+        labels: ["production", "latest"],
       });
 
       await createPromptInDb({
         name: promptName,
         prompt: "Project 2 content",
         projectId: projectId2,
-        labels: ["production"],
+        labels: ["production", "latest"],
       });
 
       // Each context should only see its own project's prompt
@@ -2237,7 +2472,7 @@ describe("MCP Read Tools", () => {
         name: promptName,
         prompt: "Special chars test",
         projectId,
-        labels: ["production"],
+        labels: ["production", "latest"],
       });
 
       const result = (await handleGetPrompt({ name: promptName }, context)) as {
@@ -2254,7 +2489,7 @@ describe("MCP Read Tools", () => {
         name: promptName,
         prompt: "Test",
         projectId,
-        labels: ["production"],
+        labels: ["production", "latest"],
         config: { model: "gpt-4", temperature: 0.7 },
       });
 
@@ -2273,7 +2508,7 @@ describe("MCP Read Tools", () => {
         name: promptName,
         prompt: "Test",
         projectId,
-        labels: ["production"],
+        labels: ["production", "latest"],
         tags: ["experimental", "v2"],
       });
 
@@ -2678,20 +2913,27 @@ describe("MCP Read Tools", () => {
       ).resolves.toBeDefined();
     });
 
-    it("should fetch prompt without resolving dependencies (by name only)", async () => {
+    it("should fetch latest prompt without resolving dependencies by default", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const promptName = `test-prompt-unresolved-${nanoid()}`;
 
-      // Create a prompt with dependency tags (unresolved)
       const rawPromptContent =
         "You are a helpful assistant. @@@langfusePrompt:name=base-instructions|label=production@@@";
 
       await createPromptInDb({
         name: promptName,
-        prompt: rawPromptContent,
+        prompt: "Production prompt",
         projectId,
         labels: ["production"],
         version: 1,
+      });
+
+      await createPromptInDb({
+        name: promptName,
+        prompt: rawPromptContent,
+        projectId,
+        labels: ["latest"],
+        version: 2,
       });
 
       const result = (await handleGetPromptUnresolved(
@@ -2705,8 +2947,8 @@ describe("MCP Read Tools", () => {
       };
 
       expect(result.name).toBe(promptName);
-      expect(result.version).toBe(1);
-      expect(result.labels).toContain("production");
+      expect(result.version).toBe(2);
+      expect(result.labels).toContain("latest");
       // Verify dependency tags are NOT resolved
       expect(result.prompt).toBe(rawPromptContent);
       expect(result.prompt).toContain(
@@ -2822,7 +3064,7 @@ describe("MCP Read Tools", () => {
         name: promptName,
         prompt: chatMessages,
         projectId,
-        labels: ["production"],
+        labels: ["production", "latest"],
         version: 1,
         type: "chat",
       });

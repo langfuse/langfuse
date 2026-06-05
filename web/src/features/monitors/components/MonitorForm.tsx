@@ -237,7 +237,7 @@ export const MonitorForm = ({
         title: "Monitor created",
         description: `"${variables.name}" is now active.`,
       });
-      void router.replace(`/project/${projectId}/monitors`);
+      router.replace(`/project/${projectId}/monitors`);
     },
     onError: (e) => showErrorToast("Failed to create monitor", e.message),
   });
@@ -250,7 +250,7 @@ export const MonitorForm = ({
         title: "Monitor saved",
         description: `Your changes to "${variables.name}" have been applied.`,
       });
-      void router.replace(`/project/${projectId}/monitors`);
+      router.replace(`/project/${projectId}/monitors`);
     },
     onError: (e) => showErrorToast("Failed to save monitor", e.message),
   });

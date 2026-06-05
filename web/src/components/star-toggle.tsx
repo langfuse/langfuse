@@ -27,7 +27,7 @@ export function StarToggle({
       size={size}
       onClick={(e) => {
         e.stopPropagation();
-        void onClick(!value);
+        onClick(!value);
       }}
       disabled={disabled}
       loading={isLoading}
@@ -153,9 +153,9 @@ export function StarTraceDetailsToggle({
     onSettled: () => {
       setIsLoading(false);
       // Refetch to ensure we have the latest data from the server
-      void utils.traces.byIdWithObservationsAndScores.invalidate();
-      void utils.traces.all.invalidate();
-      void utils.events.byTraceId.invalidate();
+      utils.traces.byIdWithObservationsAndScores.invalidate();
+      utils.traces.all.invalidate();
+      utils.events.byTraceId.invalidate();
     },
   });
 
@@ -207,7 +207,7 @@ export function StarSessionToggle({
   const capture = usePostHogClientCapture();
   const mutBookmarkSession = api.sessions.bookmark.useMutation({
     onSuccess: () => {
-      void utils.sessions.invalidate();
+      utils.sessions.invalidate();
     },
   });
 

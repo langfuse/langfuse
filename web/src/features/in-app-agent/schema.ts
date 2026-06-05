@@ -153,25 +153,16 @@ export type AgUiCustomEvent = AgUiEvent & {
 
 export const InAppAgentRuntimeStateSchema = z.discriminatedUnion("type", [
   z.object({
-    type: z.literal("newSession"),
+    type: z.literal("newConversation"),
     projectId: z.string(),
   }),
   z.object({
-    type: z.literal("existingSession"),
-    claudeSessionToken: z.string(),
+    type: z.literal("existingConversation"),
+    projectId: z.string(),
+    conversationId: z.string(),
   }),
 ]);
 
 export type InAppAgentRuntimeState = z.infer<
   typeof InAppAgentRuntimeStateSchema
->;
-
-export const PersistentInAppAiAgentSessionSchema = z.object({
-  threadId: z.string().optional(),
-  state: InAppAgentRuntimeStateSchema,
-  messages: z.array(AgUiMessageSchema).default([]),
-});
-
-export type PersistentInAppAiAgentSession = z.infer<
-  typeof PersistentInAppAiAgentSessionSchema
 >;

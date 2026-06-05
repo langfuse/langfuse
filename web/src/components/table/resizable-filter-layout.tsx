@@ -2,7 +2,7 @@
 
 import { type PropsWithChildren, Children } from "react";
 import { useMediaQuery } from "react-responsive";
-import { ResizableDesktopLayout } from "@/src/components/layouts/ResizableDesktopLayout";
+import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 import { useDataTableControls } from "./data-table-controls";
 
 /** Resizable layout for filter sidebar and table content.
@@ -45,19 +45,19 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
   }
 
   return (
-    <ResizableDesktopLayout
-      mainContent={
+    <ResizableSplitLayout
+      primaryContent={
         <div className="flex h-full flex-col overflow-hidden">
           {tableContent}
         </div>
       }
-      sidebarContent={filterSidebar}
+      secondaryContent={filterSidebar}
       open={open}
-      defaultMainSize={tableDefault}
-      defaultSidebarSize={filterDefault}
-      minMainSize={50}
-      maxSidebarSize={50}
-      sidebarPosition="left"
+      defaultPrimarySize={tableDefault}
+      defaultSecondarySize={filterDefault}
+      minPrimarySize={50}
+      maxSecondarySize={50}
+      secondaryPosition="left"
       persistId={tableName ? `filter-layout-${tableName}` : "filter-layout"}
     />
   );

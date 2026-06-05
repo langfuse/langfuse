@@ -32,6 +32,7 @@ import {
   isEventTarget,
   isExperimentTarget,
 } from "@/src/features/evals/utils/typeHelpers";
+import { isCodeEvalSourceCodeLanguageSupported } from "@/src/features/evals/server/isCodeEvalEnabled";
 
 type CodeEvalTestRunError = Omit<CodeEvalUserVisibleError, "retryable">;
 
@@ -138,6 +139,14 @@ async function runCodeEvalTestForObservation(params: {
     });
   }
 
+  if (!isCodeEvalSourceCodeLanguageSupported(codeTemplate.sourceCodeLanguage)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "This code evaluator language is not supported by the configured dispatcher.",
+    });
+  }
+
   const extractedVariables = extractObservationVariables({
     observation: params.observation,
     variableMapping: params.mapping,
@@ -230,7 +239,7 @@ async function getObservationForEvalById(params: {
   shouldReadFromObservationsTable?: boolean;
 }): Promise<ObservationForEval> {
   if (
-    env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS !== "true" ||
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true" ||
     params.shouldReadFromObservationsTable
   ) {
     return getObservationForEvalByIdFromLegacyObservations(params);
@@ -282,6 +291,7 @@ async function getObservationForEvalByIdFromLegacyObservations(params: {
   traceId: string;
   startTime: Date;
 }): Promise<ObservationForEval> {
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   const observation = await getObservationById({
     projectId: params.projectId,
     id: params.id,

@@ -19,7 +19,7 @@ export function OnboardingSurvey() {
   const { form, handleSubmit } = useSurveyForm();
 
   const handleSkipButton = useCallback(() => {
-    void router.push("/");
+    router.push("/");
   }, [router]);
 
   const onSubmit = useCallback(
@@ -30,7 +30,7 @@ export function OnboardingSurvey() {
       }
 
       await handleSubmit(data);
-      void router.push("/");
+      router.push("/");
     },
     [handleSkipButton, handleSubmit, router],
   );
