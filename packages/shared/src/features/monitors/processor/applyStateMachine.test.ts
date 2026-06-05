@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 
 import { applyStateMachine } from "./applyStateMachine";
-import type { ComputedSeverity } from "./computeSeverity";
 import type {
   Monitor,
   MonitorNoData,
@@ -14,7 +13,7 @@ type StateMachineCase = {
   name: string;
   input: {
     prevSeverity: MonitorSeverity;
-    computedSeverity: ComputedSeverity;
+    computedSeverity: MonitorSeverity;
     prevSeverityChangedAt: Date | null;
     prevAlertedAt: Date | null;
     now: Date;

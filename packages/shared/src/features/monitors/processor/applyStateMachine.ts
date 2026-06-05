@@ -4,12 +4,11 @@ import type {
   MonitorSeverity,
   Monitor,
 } from "../types";
-import type { ComputedSeverity } from "./computeSeverity";
 
 /** applyStateMachine maps a monitor's prior row and newly computed severity to its lifecycle writeback and whether to emit an alert. */
 export function applyStateMachine(args: {
   prev: Monitor;
-  next: { severity: ComputedSeverity };
+  next: { severity: MonitorSeverity };
   now: Date;
   publishedAt: Date;
 }): StateMachineDecision {
@@ -60,7 +59,7 @@ export function applyStateMachine(args: {
 /** shouldEmit applies the RFC transition-table row matching (prev, next). */
 function shouldEmit(args: {
   prev: MonitorSeverity;
-  next: ComputedSeverity;
+  next: MonitorSeverity;
   prevAlertedAt: Date | null;
   prevSeverityChangedAt: Date | null;
   now: Date;

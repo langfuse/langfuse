@@ -1,4 +1,9 @@
-import type { MonitorThresholdOperator } from "../types";
+import {
+  MonitorThresholdOperatorSchema,
+  type MonitorThresholdOperator,
+  MonitorSeveritySchema,
+  type MonitorSeverity,
+} from "../types";
 
 /** computeSeverity maps a metric value to a non-lifecycle severity by comparing it against the alert (and optional warning) thresholds. */
 export function computeSeverity(args: {
@@ -6,16 +11,20 @@ export function computeSeverity(args: {
   operator: MonitorThresholdOperator;
   alertThreshold: number;
   warningThreshold: number | null;
-}): ComputedSeverity {
-  if (args.value === null) return "NO_DATA";
-  if (matches(args.value, args.operator, args.alertThreshold)) return "ALERT";
+}): MonitorSeverity {
+  if (args.value === null) {
+    return MonitorSeveritySchema.enum.NO_DATA;
+  }
+  if (matches(args.value, args.operator, args.alertThreshold)) {
+    return MonitorSeveritySchema.enum.ALERT;
+  }
   if (
     args.warningThreshold !== null &&
     matches(args.value, args.operator, args.warningThreshold)
   ) {
-    return "WARNING";
+    return MonitorSeveritySchema.enum.WARNING;
   }
-  return "OK";
+  return MonitorSeveritySchema.enum.OK;
 }
 
 /** matches returns true when `value <op> threshold` holds. */
@@ -25,20 +34,17 @@ function matches(
   threshold: number,
 ): boolean {
   switch (operator) {
-    case "GT":
+    case MonitorThresholdOperatorSchema.enum.GT:
       return value > threshold;
-    case "GTE":
+    case MonitorThresholdOperatorSchema.enum.GTE:
       return value >= threshold;
-    case "LT":
+    case MonitorThresholdOperatorSchema.enum.LT:
       return value < threshold;
-    case "LTE":
+    case MonitorThresholdOperatorSchema.enum.LTE:
       return value <= threshold;
-    case "EQ":
+    case MonitorThresholdOperatorSchema.enum.EQ:
       return value === threshold;
-    case "NEQ":
+    case MonitorThresholdOperatorSchema.enum.NEQ:
       return value !== threshold;
   }
 }
-
-/** ComputedSeverity is the subset of MonitorSeverity that the processor derives from a metric value — never UNKNOWN (cold-start) or PAUSED (lifecycle). */
-export type ComputedSeverity = "NO_DATA" | "OK" | "WARNING" | "ALERT";
