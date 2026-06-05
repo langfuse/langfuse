@@ -807,7 +807,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
     });
   });
 
-  maybe("GET /api/public/v3/scores — filter params", () => {
+  describe("GET /api/public/v3/scores — filter params", () => {
     let auth: string;
     let projectId: string;
 
