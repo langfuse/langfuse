@@ -564,6 +564,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(score!.details).toBeDefined();
       expect(score!.details!.comment).toBe("test comment");
       expect(score!.details!.configId).toBe("cfg-abc");
+      expect(score!.details!.metadata).toEqual({ key: "val" });
       expect(score).not.toHaveProperty("subject");
       expect(score).not.toHaveProperty("annotation");
     });
