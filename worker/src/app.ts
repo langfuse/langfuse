@@ -413,7 +413,7 @@ if (
 
 if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.MonitorQueue, monitorQueueProcessor, {
-    concurrency: 10,
+    concurrency: env.LANGFUSE_MONITOR_QUEUE_PROCESSING_CONCURRENCY,
     // Scheduler is the only source of redelivery; disable BullMQ's stalled
     // recovery so the unified TTL pacing is uncontested.
     lockDuration: monitorProcessorTtl + 60_000,
