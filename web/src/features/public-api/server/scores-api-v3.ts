@@ -177,7 +177,14 @@ export const buildSelectColumns = (fields: ScoreFieldGroupV3[]): string => {
 };
 
 export function transformBooleanValueForFilter(v: "true" | "false"): number {
-  return v === "true" ? 1 : 0;
+  // Belt-and-braces: the route-handler superRefine narrows v to "true"|"false"
+  // before this is called, but a regression in that validator would otherwise
+  // silently return 0 for any non-"true" input. Throw loud instead.
+  if (v === "true") return 1;
+  if (v === "false") return 0;
+  throw new InternalServerError(
+    `transformBooleanValueForFilter received unexpected value: ${v}`,
+  );
 }
 
 type ListFilterParams = {
@@ -206,126 +213,43 @@ function buildDynamicFilters(params: ListFilterParams): {
 } {
   const filterList = new FilterList();
 
-  if (params.id?.length)
-    filterList.push(
-      new StringOptionsFilter({
-        clickhouseTable: "scores",
-        field: "id",
-        operator: "any of",
-        values: params.id,
-        tablePrefix: "s",
-      }),
-    );
-  if (params.name?.length)
-    filterList.push(
-      new StringOptionsFilter({
-        clickhouseTable: "scores",
-        field: "name",
-        operator: "any of",
-        values: params.name,
-        tablePrefix: "s",
-      }),
-    );
-  if (params.source?.length)
-    filterList.push(
-      new StringOptionsFilter({
-        clickhouseTable: "scores",
-        field: "source",
-        operator: "any of",
-        values: params.source,
-        tablePrefix: "s",
-      }),
-    );
-  if (params.dataType?.length)
-    filterList.push(
-      new StringOptionsFilter({
-        clickhouseTable: "scores",
-        field: "data_type",
-        operator: "any of",
-        values: params.dataType,
-        tablePrefix: "s",
-      }),
-    );
-  if (params.environment?.length)
-    filterList.push(
-      new StringOptionsFilter({
-        clickhouseTable: "scores",
-        field: "environment",
-        operator: "any of",
-        values: params.environment,
-        tablePrefix: "s",
-      }),
-    );
-  if (params.configId?.length)
-    filterList.push(
-      new StringOptionsFilter({
-        clickhouseTable: "scores",
-        field: "config_id",
-        operator: "any of",
-        values: params.configId,
-        tablePrefix: "s",
-      }),
-    );
-  if (params.queueId?.length)
-    filterList.push(
-      new StringOptionsFilter({
-        clickhouseTable: "scores",
-        field: "queue_id",
-        operator: "any of",
-        values: params.queueId,
-        tablePrefix: "s",
-      }),
-    );
-  if (params.authorUserId?.length)
-    filterList.push(
-      new StringOptionsFilter({
-        clickhouseTable: "scores",
-        field: "author_user_id",
-        operator: "any of",
-        values: params.authorUserId,
-        tablePrefix: "s",
-      }),
-    );
-  if (params.traceId?.length)
-    filterList.push(
-      new StringOptionsFilter({
-        clickhouseTable: "scores",
-        field: "trace_id",
-        operator: "any of",
-        values: params.traceId,
-        tablePrefix: "s",
-      }),
-    );
-  if (params.sessionId?.length)
-    filterList.push(
-      new StringOptionsFilter({
-        clickhouseTable: "scores",
-        field: "session_id",
-        operator: "any of",
-        values: params.sessionId,
-        tablePrefix: "s",
-      }),
-    );
-  if (params.observationId?.length)
-    filterList.push(
-      new StringOptionsFilter({
-        clickhouseTable: "scores",
-        field: "observation_id",
-        operator: "any of",
-        values: params.observationId,
-        tablePrefix: "s",
-      }),
-    );
-  if (params.experimentId?.length)
-    filterList.push(
-      new StringOptionsFilter({
-        clickhouseTable: "scores",
-        field: "dataset_run_id",
-        operator: "any of",
-        values: params.experimentId,
-        tablePrefix: "s",
-      }),
-    );
+  // Each entry maps a ListFilterParams key to its ClickHouse column. Adding a
+  // new identifier filter is a single row here — same operator/table shape.
+  const STRING_OPTIONS_FILTERS: ReadonlyArray<{
+    key: Exclude<
+      keyof ListFilterParams,
+      "valueMin" | "valueMax" | "fromTimestamp" | "toTimestamp" | "value"
+    >;
+    field: string;
+  }> = [
+    { key: "id", field: "id" },
+    { key: "name", field: "name" },
+    { key: "source", field: "source" },
+    { key: "dataType", field: "data_type" },
+    { key: "environment", field: "environment" },
+    { key: "configId", field: "config_id" },
+    { key: "queueId", field: "queue_id" },
+    { key: "authorUserId", field: "author_user_id" },
+    { key: "traceId", field: "trace_id" },
+    { key: "sessionId", field: "session_id" },
+    { key: "observationId", field: "observation_id" },
+    { key: "experimentId", field: "dataset_run_id" },
+  ];
+
+  for (const { key, field } of STRING_OPTIONS_FILTERS) {
+    const values = params[key];
+    if (values?.length) {
+      filterList.push(
+        new StringOptionsFilter({
+          clickhouseTable: "scores",
+          field,
+          operator: "any of",
+          values,
+          tablePrefix: "s",
+        }),
+      );
+    }
+  }
   if (params.fromTimestamp !== undefined)
     filterList.push(
       new DateTimeFilter({
@@ -382,7 +306,18 @@ function buildDynamicFilters(params: ListFilterParams): {
 
     if (dt === "NUMERIC") {
       extraClauses.push(`s.value IN ({${varName}: Array(Float64)})`);
-      extraParams[varName] = params.value.map(Number);
+      // Belt-and-braces: the route-handler superRefine asserts each value is
+      // a finite number before this is called. Re-validate so a regression
+      // can't land NaN/Infinity directly in a CH IN-clause parameter.
+      extraParams[varName] = params.value.map((v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n)) {
+          throw new InternalServerError(
+            `NUMERIC value filter received non-finite value: ${v}`,
+          );
+        }
+        return n;
+      });
     } else if (dt === "BOOLEAN") {
       extraClauses.push(`s.value IN ({${varName}: Array(Float64)})`);
       extraParams[varName] = params.value.map((v) =>
