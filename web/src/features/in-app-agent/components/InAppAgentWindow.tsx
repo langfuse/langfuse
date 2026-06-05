@@ -269,7 +269,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               </div>
             ) : null}
 
-            <ol className="flex w-full flex-col gap-4">
+            <ol className="flex w-full flex-col gap-4 pb-4">
               {messages.map((message) => (
                 <li
                   key={message.id}

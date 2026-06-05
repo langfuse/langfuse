@@ -28,7 +28,7 @@ export function InAppAgentMessage({
       className={cn(
         "shadow-xs",
         isCompact
-          ? "rounded-xl px-2.5 py-1 text-xs"
+          ? "rounded-xl px-2.5 py-1 text-[0.775rem]"
           : "rounded-2xl px-3 py-1.5 text-sm",
         isUser
           ? "bg-primary text-primary-foreground"
@@ -71,7 +71,7 @@ function MessageText({
       className={cn(
         "prose prose-sm text-foreground prose-strong:text-inherit prose-pre:bg-muted prose-pre:text-foreground prose-code:text-foreground max-w-none",
         isCompact
-          ? "prose-headings:my-2 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-ol:my-1 prose-blockquote:my-2 prose-pre:my-2 prose-table:my-2 text-xs leading-4"
+          ? "prose-headings:my-2 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-ol:my-1 prose-blockquote:my-2 prose-pre:my-2 prose-table:my-2 text-[0.775rem] leading-4"
           : "prose-headings:my-2.5 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-1 prose-ol:my-1.5 prose-blockquote:my-2.5 prose-pre:my-2.5 prose-table:my-2.5 leading-4.5",
       )}
     >
@@ -120,7 +120,7 @@ function ThinkingIndicator({
     <div
       className={cn(
         "flex items-center",
-        isCompact ? "gap-1.5 text-xs" : "gap-2 text-sm",
+        isCompact ? "gap-1.5 text-[0.775rem]" : "gap-2 text-sm",
         className,
       )}
     >
