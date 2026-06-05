@@ -51,7 +51,7 @@ type MappedFilters = {
   whereRawParts: RawSqlPart[];
 };
 
-type AppliedBucketDimension =
+type AppliedBucketingDimension =
   | { type: "none" }
   | {
       type: "time";
@@ -128,10 +128,10 @@ export class QueryBuilder {
     return getViewDeclaration(viewName, this.version);
   }
 
-  private applyBucketDimension(
+  private applyBucketingDimension(
     query: QueryType,
     view: ViewDeclarationType,
-  ): AppliedBucketDimension {
+  ): AppliedBucketingDimension {
     if (query.timeDimension && query.entityDimension) {
       throw new InvalidRequestError(
         "timeDimension and entityDimension are mutually exclusive",
@@ -619,7 +619,7 @@ export class QueryBuilder {
     appliedDimensions: AppliedDimensionType[],
     appliedMetrics: AppliedMetricType[],
     filters: FilterList,
-    appliedBucketDimension: AppliedBucketDimension,
+    appliedBucketingDimension: AppliedBucketingDimension,
   ) {
     const relationTables = new Set<string>();
     const actualTableName = this.actualTableName(view);
@@ -628,10 +628,10 @@ export class QueryBuilder {
     // bucket is relation-backed, include its declared relation without adding it to
     // appliedDimensions and inheriting regular-dimension behavior.
     if (
-      appliedBucketDimension.type === "entity" &&
-      appliedBucketDimension.dimension.relationTable
+      appliedBucketingDimension.type === "entity" &&
+      appliedBucketingDimension.dimension.relationTable
     ) {
-      relationTables.add(appliedBucketDimension.dimension.relationTable);
+      relationTables.add(appliedBucketingDimension.dimension.relationTable);
     }
     appliedDimensions.forEach((dimension) => {
       if (dimension.relationTable) {
@@ -848,13 +848,16 @@ export class QueryBuilder {
 
   private buildTimeDimensionSql(
     view: ViewDeclarationType,
-    appliedBucketDimension: Extract<AppliedBucketDimension, { type: "time" }>,
+    appliedBucketingDimension: Extract<
+      AppliedBucketingDimension,
+      { type: "time" }
+    >,
     wrapInAgg?: string,
   ): string {
     const actualTableName = this.actualTableName(view);
     const timeDimensionSql = this.getTimeDimensionSql(
       `${actualTableName}.${view.timeDimension}`,
-      appliedBucketDimension.granularity,
+      appliedBucketingDimension.granularity,
     );
 
     // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT).
@@ -876,26 +879,26 @@ export class QueryBuilder {
 
   private buildBucketDimensionSql(
     view: ViewDeclarationType,
-    appliedBucketDimension: AppliedBucketDimension,
+    appliedBucketingDimension: AppliedBucketingDimension,
     wrapInAgg?: string,
   ): string {
-    switch (appliedBucketDimension.type) {
+    switch (appliedBucketingDimension.type) {
       case "none":
         return "";
       case "time":
         return this.buildTimeDimensionSql(
           view,
-          appliedBucketDimension,
+          appliedBucketingDimension,
           wrapInAgg,
         );
       case "entity": {
         const sql = wrapInAgg
-          ? `${wrapInAgg}(${appliedBucketDimension.dimension.sql})`
-          : appliedBucketDimension.dimension.sql;
-        return `${sql} as ${appliedBucketDimension.bucketDimensionAlias}`;
+          ? `${wrapInAgg}(${appliedBucketingDimension.dimension.sql})`
+          : appliedBucketingDimension.dimension.sql;
+        return `${sql} as ${appliedBucketingDimension.bucketDimensionAlias}`;
       }
       default: {
-        const exhaustiveCheck: never = appliedBucketDimension;
+        const exhaustiveCheck: never = appliedBucketingDimension;
         return exhaustiveCheck;
       }
     }
@@ -904,7 +907,7 @@ export class QueryBuilder {
   private buildInnerDimensionsPart(
     appliedDimensions: AppliedDimensionType[],
     view: ViewDeclarationType,
-    appliedBucketDimension: AppliedBucketDimension,
+    appliedBucketingDimension: AppliedBucketingDimension,
   ) {
     let dimensions = "";
 
@@ -940,7 +943,7 @@ export class QueryBuilder {
     // Add the bucket dimension if specified - use any() for two-level inner SELECTs.
     const bucketDimensionSql = this.buildBucketDimensionSql(
       view,
-      appliedBucketDimension,
+      appliedBucketingDimension,
       "any",
     );
     if (bucketDimensionSql) {
@@ -1012,7 +1015,7 @@ export class QueryBuilder {
 
   private buildOuterDimensionsPart(
     appliedDimensions: AppliedDimensionType[],
-    appliedBucketDimension: AppliedBucketDimension,
+    appliedBucketingDimension: AppliedBucketingDimension,
   ) {
     let dimensions = "";
 
@@ -1026,8 +1029,8 @@ export class QueryBuilder {
         .join(",\n")},`;
     }
 
-    if (appliedBucketDimension.type !== "none") {
-      dimensions += `${appliedBucketDimension.bucketDimensionAlias},`;
+    if (appliedBucketingDimension.type !== "none") {
+      dimensions += `${appliedBucketingDimension.bucketDimensionAlias},`;
     }
 
     return dimensions;
@@ -1041,7 +1044,7 @@ export class QueryBuilder {
 
   private buildGroupByClause(
     appliedDimensions: AppliedDimensionType[],
-    appliedBucketDimension: AppliedBucketDimension,
+    appliedBucketingDimension: AppliedBucketingDimension,
   ) {
     const dimensions = [];
 
@@ -1054,8 +1057,8 @@ export class QueryBuilder {
       );
     }
 
-    if (appliedBucketDimension.type !== "none") {
-      dimensions.push(appliedBucketDimension.bucketDimensionAlias);
+    if (appliedBucketingDimension.type !== "none") {
+      dimensions.push(appliedBucketingDimension.bucketDimensionAlias);
     }
 
     return dimensions.length > 0 ? `GROUP BY ${dimensions.join(",\n")}` : "";
@@ -1067,13 +1070,13 @@ export class QueryBuilder {
    * Only applied if timeDimension is used and no ORDER BY is specified.
    */
   private buildWithFillClause(
-    appliedBucketDimension: AppliedBucketDimension,
+    appliedBucketingDimension: AppliedBucketingDimension,
     fromTimestamp: string,
     toTimestamp: string,
     orderBy: Array<{ field: string; direction: string }> | null,
     parameters: Record<string, unknown>,
   ): string {
-    if (appliedBucketDimension.type !== "time") {
+    if (appliedBucketingDimension.type !== "time") {
       return "";
     }
 
@@ -1083,7 +1086,7 @@ export class QueryBuilder {
 
     // Calculate appropriate STEP for WITH FILL based on granularity
     let step: string;
-    switch (appliedBucketDimension.granularity) {
+    switch (appliedBucketingDimension.granularity) {
       case "minute":
         step = "INTERVAL 1 MINUTE";
         break;
@@ -1110,7 +1113,7 @@ export class QueryBuilder {
       new Date(toTimestamp),
     );
 
-    return ` WITH FILL FROM ${this.getTimeDimensionSql("{fillFromDate: DateTime64(3)}", appliedBucketDimension.granularity)} TO ${this.getTimeDimensionSql("{fillToDate: DateTime64(3)}", appliedBucketDimension.granularity)} STEP ${step}`;
+    return ` WITH FILL FROM ${this.getTimeDimensionSql("{fillFromDate: DateTime64(3)}", appliedBucketingDimension.granularity)} TO ${this.getTimeDimensionSql("{fillToDate: DateTime64(3)}", appliedBucketingDimension.granularity)} STEP ${step}`;
   }
 
   /**
@@ -1174,7 +1177,7 @@ export class QueryBuilder {
   private buildSingleLevelDimensionsPart(
     appliedDimensions: AppliedDimensionType[],
     view: ViewDeclarationType,
-    appliedBucketDimension: AppliedBucketDimension,
+    appliedBucketingDimension: AppliedBucketingDimension,
   ): string {
     let dimensionsPart = "";
     if (appliedDimensions.length > 0) {
@@ -1196,7 +1199,7 @@ export class QueryBuilder {
     // Reuse unified bucket dimension builder (no wrapper for single-level).
     const bucketDimensionSql = this.buildBucketDimensionSql(
       view,
-      appliedBucketDimension,
+      appliedBucketingDimension,
     );
     if (bucketDimensionSql) {
       dimensionsPart += `${bucketDimensionSql},\n`;
@@ -1209,7 +1212,7 @@ export class QueryBuilder {
     view: ViewDeclarationType,
     appliedDimensions: AppliedDimensionType[],
     appliedMetrics: AppliedMetricType[],
-    appliedBucketDimension: AppliedBucketDimension,
+    appliedBucketingDimension: AppliedBucketingDimension,
     fromClause: string,
     groupByClause: string,
     orderByClause: string,
@@ -1220,7 +1223,7 @@ export class QueryBuilder {
     const dimensionsPart = this.buildSingleLevelDimensionsPart(
       appliedDimensions,
       view,
-      appliedBucketDimension,
+      appliedBucketingDimension,
     );
 
     // Build optimized metrics (strip templates, apply user aggregation)
@@ -1244,14 +1247,14 @@ export class QueryBuilder {
     orderBy: Array<{ field: string; direction: string }> | null,
     appliedDimensions: AppliedDimensionType[],
     appliedMetrics: AppliedMetricType[],
-    appliedBucketDimension: AppliedBucketDimension,
+    appliedBucketingDimension: AppliedBucketingDimension,
   ): Array<{ field: string; direction: string }> {
     if (!orderBy || orderBy.length === 0) {
       // Default order: time dimension if available, otherwise first metric, otherwise first dimension
-      if (appliedBucketDimension.type === "time") {
+      if (appliedBucketingDimension.type === "time") {
         return [
           {
-            field: appliedBucketDimension.bucketDimensionAlias,
+            field: appliedBucketingDimension.bucketDimensionAlias,
             direction: "asc",
           },
         ];
@@ -1263,10 +1266,10 @@ export class QueryBuilder {
             direction: "desc",
           },
         ];
-      } else if (appliedBucketDimension.type !== "none") {
+      } else if (appliedBucketingDimension.type !== "none") {
         return [
           {
-            field: appliedBucketDimension.bucketDimensionAlias,
+            field: appliedBucketingDimension.bucketDimensionAlias,
             direction: "asc",
           },
         ];
@@ -1285,8 +1288,8 @@ export class QueryBuilder {
     // Validate that each orderBy field exists in dimensions or metrics
     return orderBy.map((item) => {
       if (
-        appliedBucketDimension.type !== "none" &&
-        item.field === appliedBucketDimension.bucketDimensionAlias
+        appliedBucketingDimension.type !== "none" &&
+        item.field === appliedBucketingDimension.bucketDimensionAlias
       ) {
         return item;
       }
@@ -1417,7 +1420,7 @@ export class QueryBuilder {
     // Map dimensions and metrics
     const appliedDimensions = this.mapDimensions(query.dimensions, view);
     const appliedMetrics = this.mapMetrics(query.metrics, view);
-    const appliedBucketDimension = this.applyBucketDimension(query, view);
+    const appliedBucketingDimension = this.applyBucketingDimension(query, view);
 
     // Auto-include dimensions required by pairExpand-dependent measures.
     // e.g. costByType.requiresDimension = "costType": without that dimension the
@@ -1463,7 +1466,7 @@ export class QueryBuilder {
       appliedDimensions,
       appliedMetrics,
       filterList,
-      appliedBucketDimension,
+      appliedBucketingDimension,
     );
     if (relationTables.size > 0) {
       const relationJoins = this.buildJoins(
@@ -1537,7 +1540,7 @@ export class QueryBuilder {
     // Build GROUP BY clause (used by both single-level and two-level queries)
     const groupByClause = this.buildGroupByClause(
       appliedDimensions,
-      appliedBucketDimension,
+      appliedBucketingDimension,
     );
 
     // Process and validate orderBy fields
@@ -1545,7 +1548,7 @@ export class QueryBuilder {
       query.orderBy,
       appliedDimensions,
       appliedMetrics,
-      appliedBucketDimension,
+      appliedBucketingDimension,
     );
 
     // Build ORDER BY clause
@@ -1553,7 +1556,7 @@ export class QueryBuilder {
 
     // Build WITH FILL clause for time dimension to fill gaps in timeseries
     const withFillClause = this.buildWithFillClause(
-      appliedBucketDimension,
+      appliedBucketingDimension,
       query.fromTimestamp,
       query.toTimestamp,
       query.orderBy,
@@ -1571,7 +1574,7 @@ export class QueryBuilder {
         view,
         appliedDimensions,
         appliedMetrics,
-        appliedBucketDimension,
+        appliedBucketingDimension,
         fromClause,
         groupByClause,
         orderByClause,
@@ -1584,7 +1587,7 @@ export class QueryBuilder {
       const innerDimensionsPart = this.buildInnerDimensionsPart(
         appliedDimensions,
         view,
-        appliedBucketDimension,
+        appliedBucketingDimension,
       );
       const innerMetricsPart = this.buildInnerMetricsPart(appliedMetrics);
 
@@ -1600,7 +1603,7 @@ export class QueryBuilder {
       // Build outer SELECT parts
       const outerDimensionsPart = this.buildOuterDimensionsPart(
         appliedDimensions,
-        appliedBucketDimension,
+        appliedBucketingDimension,
       );
       const outerMetricsPart = this.buildOuterMetricsPart(appliedMetrics);
 
