@@ -71,11 +71,6 @@ output.
 
 ## Event and Evidence Model
 
-A production event is one distinct thing that happened in production, such as
-one outage, one customer-facing regression, one noisy monitor cluster, or one
-unexplained page. The review should count that event once, even if it appears in
-multiple tools.
-
 The report has one main engineering view and three evidence sections:
 
 - `Event-Centric View`: one row per distinct production issue to discuss in
@@ -88,20 +83,11 @@ The report has one main engineering view and three evidence sections:
 - `Datadog Alert/Page Signals`: monitor and page clusters. These are evidence
   and measurement, not production events by themselves.
 
-Treat Datadog as evidence, not the primary record. A single production event can
-fire many monitors, logs, spans, and traces, so Datadog proves or measures what
-happened but should not create extra event rows by itself. Treat the public
-status page as the customer-facing mirror, not the engineering source of truth.
-
 Use Linear as the source of truth for deduplication across weeks and workflows.
 Before reporting a bug, security finding, cost concern, or alert as new, search
 Linear for matching issue keys, titles, source URLs, and comments. If an
 existing issue covers it, link to that issue and mark the review row as already
 tracked instead of reporting it again as fresh work.
-
-Stay read-only by default. The review may propose Linear comments, new bugs,
-incident follow-ups, or monitor changes, but do not write them unless the user
-explicitly approves.
 
 Anchor each event row with the most durable reference available:
 
@@ -113,8 +99,10 @@ Anchor each event row with the most durable reference available:
   `monitor noise`, or `unknown/no measurements` and no incident or Linear bug
   should be created yet.
 
-Keep source links in the evidence section where they originated and cite the
-relevant evidence in the event row.
+Treat Datadog as evidence, not ownership. Treat the public status page as the
+customer-facing record, not the engineering source of truth. Keep source links
+in the evidence section where they originated and cite the relevant evidence in
+the event row.
 
 For a healthy review, each real production event should satisfy one of:
 
@@ -123,22 +111,6 @@ Event anchor = incident.io incident
 OR event anchor = Linear production bug
 OR event anchor = explicit alert disposition
 ```
-
-### Output Table Roles
-
-Use the output tables for different jobs:
-
-| Table                    | Unit of Row                                                 | Purpose                                                                                                | Counting Use                              |
-| ------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| Event-centric view       | One deduplicated production event                           | Main narrative: what broke, impact, state, owner, next action                                          | Counts incidents/events once              |
-| Customer incident table  | One incident or status-page event                           | Customer-facing incident record and timing                                                             | Supports event rows                       |
-| Linear bug table         | One Linear issue with the `bug` label touched in the window | Audit inventory of candidate production bugs and why each is counted or excluded                       | Counts fixed/open production bugs         |
-| Datadog alert/page table | One grouped monitor/page signal                             | Evidence layer for what alerted, whether it mapped to a real event, and disposition for noise/unknowns | Does not count production events directly |
-
-Example: if one checkout regression caused two Datadog monitors to page and one
-Linear bug to be filed, the event-centric view has one row, the Datadog table
-has two monitor rows linked to that event, and the Linear bug table has one bug
-row marked `Counted? = yes`.
 
 ### Proposed Link Titles
 
@@ -172,10 +144,9 @@ dropping it.
 Start from all Linear tickets with the `bug` label that were touched by the
 window. Do not rely only on text searches for `prod`, `incident`, or `Datadog`;
 those searches are useful for enrichment but are not the source universe. This
-table is the Linear source inventory, not the event count. Use it to show every
-reviewed bug ticket and explain whether it counts as a production bug. Multiple
-Linear bugs can support one event row, and one bug can be classified as
-non-production, duplicate, canceled, or no-action.
+table is the Linear source inventory, not the event count. Multiple Linear bugs
+can support one event row, and one bug can be classified as non-production,
+duplicate, canceled, or no-action.
 
 Use this table for the bug section:
 
@@ -258,11 +229,6 @@ The event-centric view answers "what actually broke and what should engineering
 discuss?" It deduplicates the evidence sections into production issues. Combine
 related status incidents, Datadog pages, Linear bugs, and follow-ups into one
 row when the evidence supports it. If correlation is inferential, say so.
-
-This is the deduplicated event table. Use it to avoid counting the same
-production breakage once as an incident, again as a Datadog page, and again as a
-Linear bug. It can include events that never had a Linear bug, such as a
-resolved incident or a monitor-noise disposition.
 
 Good event rows:
 
