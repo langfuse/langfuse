@@ -101,7 +101,7 @@ types:
     properties:
       authorUserId:
         type: nullable<string>
-        docs: The user who created this score. Non-null only for source=ANNOTATION.
+        docs: The user who created this score, if available.
       queueId:
         type: nullable<string>
         docs: The annotation queue this score belongs to, if any.
