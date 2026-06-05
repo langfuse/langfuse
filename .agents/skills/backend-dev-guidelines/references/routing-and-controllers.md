@@ -369,12 +369,12 @@ the matching Fern API definitions in `fern/apis/server/definition/`.
 
 **Zod to Fern Type Mapping:**
 
-| Zod Type       | Fern Type               | Example                                                |
-| -------------- | ----------------------- | ------------------------------------------------------ |
-| `.nullish()`   | `optional<nullable<T>>` | `z.string().nullish()` -> `optional<nullable<string>>` |
-| `.nullable()`  | `nullable<T>`           | `z.string().nullable()` -> `nullable<string>`          |
-| `.optional()`  | `optional<T>`           | `z.string().optional()` -> `optional<string>`          |
-| Always present | `T`                     | `z.string()` -> `string`                               |
+| Zod Type       | Fern Type               | Example                                                   |
+| -------------- | ----------------------- | --------------------------------------------------------- |
+| `.nullish()`   | `optional<nullable<T>>` | `z.string().nullish()` -> `optional<nullable<string>>`    |
+| `.nullable()`  | `nullable<T>`           | `z.string().nullable()` -> `nullable<string>`             |
+| `.optional()`  | `optional<T>`           | `z.string().optional()` -> `optional<string>`             |
+| Always present | `T`                     | `z.string()` -> `string`                                  |
 
 Add a source comment at the top of each Fern type that references the
 TypeScript source:
@@ -549,14 +549,7 @@ export const getTracesByIds = async (
       LIMIT 1 BY id, project_id
     `,
     params: { projectId, traceIds },
-    tags: {
-      source: "internal",
-      feature: "tracing",
-      query: "traces.by-ids",
-      operation: "list",
-      project_id: projectId,
-      table: "traces",
-    },
+    tags: { feature: "tracing", type: "trace" },
   });
 
   return rows.map(convertClickhouseToDomain);
@@ -577,14 +570,7 @@ export const upsertTrace = async (
       user_id: body.user_id,
       // ... map fields
     }),
-    tags: {
-      source: "worker",
-      feature: "ingestion",
-      query: "ingestion.write.traces",
-      operation: "write",
-      project_id: trace.project_id,
-      table: "traces",
-    },
+    tags: { feature: "ingestion", type: "trace" },
   });
 };
 ```
@@ -714,14 +700,7 @@ export const upsertScore = async (score: ScoreInsertType): Promise<void> => {
       value: body.value,
       author_user_id: body.authorUserId,
     }),
-    tags: {
-      source: "internal",
-      feature: "scoring",
-      query: "scores.upsert",
-      operation: "write",
-      project_id: score.projectId,
-      table: "scores",
-    },
+    tags: { feature: "scoring" },
   });
 };
 ```
@@ -890,14 +869,7 @@ export const upsertScore = async (score: ScoreInsertType): Promise<void> => {
       name: body.name,
       value: body.value,
     }),
-    tags: {
-      source: "internal",
-      feature: "scoring",
-      query: "scores.upsert",
-      operation: "write",
-      project_id: score.projectId,
-      table: "scores",
-    },
+    tags: { feature: "scoring" },
   });
 };
 ```

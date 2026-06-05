@@ -7,7 +7,6 @@ Complete guide to database access patterns in Langfuse using PostgreSQL (Prisma 
 - [Database Architecture Overview](#database-architecture-overview)
 - [PostgreSQL with Prisma](#postgresql-with-prisma)
 - [ClickHouse with Direct Client](#clickhouse-with-direct-client)
-- [ClickHouse Query Tags](#clickhouse-query-tags)
 - [Repository Pattern](#repository-pattern)
 - [When to Use Which Database](#when-to-use-which-database)
 - [Error Handling](#error-handling)
@@ -230,14 +229,7 @@ const rows = await queryClickhouse<{ id: string; name: string }>({
     startTime: convertDateToClickhouseDateTime(startDate),
     limit: 100,
   },
-  tags: {
-    source: "internal",
-    feature: "tracing",
-    query: "traces.lookup-by-time",
-    operation: "list",
-    project_id: projectId,
-    table: "traces",
-  },
+  tags: { feature: "tracing", type: "trace" },
 });
 
 // ❌ BAD: Missing project_id filter
@@ -290,14 +282,7 @@ await upsertClickhouse({
     name: record.name,
     // ... other fields
   }),
-  tags: {
-    source: "worker",
-    feature: "ingestion",
-    query: "ingestion.write.traces",
-    operation: "write",
-    project_id: projectId,
-    table: "traces",
-  },
+  tags: { feature: "ingestion", type: "trace" },
 });
 ```
 
@@ -312,77 +297,8 @@ await commandClickhouse({
     ALTER TABLE traces
     ADD COLUMN IF NOT EXISTS new_field String
   `,
-  tags: {
-    source: "worker",
-    feature: "background-migration",
-    query: "background-migration.add-new-field",
-    operation: "write",
-    project_id: "none",
-    table: "traces",
-  },
+  tags: { feature: "migration" },
 });
-```
-
-### ClickHouse Query Tags
-
-Langfuse sets structured ClickHouse `log_comment` values so `sysex.query_log`
-can attribute query cost and performance by project, feature/API, physical
-table, and stable query shape.
-
-Use the shared repository wrappers
-(`queryClickhouse`, `queryClickhouseStream`, `queryClickhouseWithProgress`,
-`commandClickhouse`, `insertClickhouse`, `upsertClickhouse`) instead of
-constructing `log_comment` by hand. Callers should pass typed
-`ClickHouseQueryTags` via the wrapper `tags` option. The wrappers normalize
-tags, merge request baggage, and set ClickHouse `log_comment` internally.
-
-Internal Grafana query-log dashboards should group by these low-cardinality
-fields before falling back to ClickHouse `normalized_query_hash` or raw query
-text:
-
-- `project_id`
-- `source`
-- `feature`
-- `query`
-- `operation`
-- `route`
-- `table`
-- `v`
-
-Use `table` to distinguish events-table queries (`events_core`, `events_full`)
-from legacy entity tables such as `traces`, `observations`, `scores`,
-`dataset_run_items_rmt`, and `blob_storage_file_log`. Use `multiple` when a
-query intentionally spans several physical tables.
-
-Set `query` explicitly whenever adding new ClickHouse access. It should be a
-stable, human-readable query name such as `public-api.traces.list`,
-`public-api.observations-v2.list`, `traces.table.rows`,
-`ingestion.write-events`, or `data-retention.delete-events`. Prefer
-`normalized_query_hash`, `read_rows`, `read_bytes`, `memory_usage`, and CPU
-profile events to identify slow or expensive ClickHouse query shapes within a
-semantic `query` group.
-
-Do not use raw IDs, filter values, query IDs, trace IDs, observation IDs, score
-IDs, user IDs, or unnormalized dynamic routes in `log_comment`.
-
-Example grouping query:
-
-```sql
-SELECT
-  toStartOfHour(event_time_microseconds) AS time,
-  simpleJSONExtractString(log_comment, 'project_id') AS project_id,
-  simpleJSONExtractString(log_comment, 'source') AS source,
-  simpleJSONExtractString(log_comment, 'feature') AS feature,
-  simpleJSONExtractString(log_comment, 'query') AS query,
-  simpleJSONExtractString(log_comment, 'operation') AS operation,
-  simpleJSONExtractString(log_comment, 'table') AS table,
-  sum(memory_usage) AS memory,
-  sum(ProfileEvents['OSCPUVirtualTimeMicroseconds']) / 1000000 AS cpu_seconds
-FROM sysex.query_log
-WHERE type = 'QueryFinish'
-  AND simpleJSONExtractString(log_comment, 'v') = '1'
-GROUP BY time, project_id, source, feature, query, operation, table
-ORDER BY time ASC;
 ```
 
 ### ClickHouse Type Mapping
@@ -572,14 +488,7 @@ export const getTracesByIds = async (
       LIMIT 1 BY id, project_id
     `,
     params: { projectId, traceIds },
-    tags: {
-      source: "internal",
-      feature: "tracing",
-      query: "traces.by-ids",
-      operation: "list",
-      project_id: projectId,
-      table: "traces",
-    },
+    tags: { feature: "tracing", type: "trace" },
   });
 
   return rows.map(convertClickhouseToDomain);

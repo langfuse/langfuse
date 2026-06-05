@@ -2,8 +2,8 @@
 name: agent-setup-maintenance
 description: |
   Shared workflow for editing Langfuse's repo-owned agent setup under `.agents/`.
-  Use when changing AGENTS files, shared skills, generated shim behavior,
-  provider discovery paths, or install-time agent sync.
+  Use when changing AGENTS files, shared skills, `.agents/config.json`,
+  generated shim behavior, provider discovery paths, or install-time agent sync.
 ---
 
 # Agent Setup Maintenance
