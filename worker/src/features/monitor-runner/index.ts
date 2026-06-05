@@ -20,7 +20,7 @@ export class MonitorRunner extends PeriodicExclusiveRunner {
 
   constructor(schedulerId: number, totalSchedulers: number) {
     super({
-      name: `MonitorRunner(${schedulerId}/${totalSchedulers})`,
+      name: `MonitorRunner(${schedulerId + 1}/${totalSchedulers})`,
       lockKey: `langfuse:monitor:${schedulerId}`,
       lockTtlSeconds,
     });
