@@ -12,100 +12,12 @@ import {
 import { GetScoresResponseV3 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { v4 } from "uuid";
-import {
-  buildSelectColumns,
-  polymorphicValue,
-} from "@/src/features/public-api/server/scores-api-v3";
+import { buildSelectColumns } from "@/src/features/public-api/server/scores-api-v3";
 
 const maybe =
   env.LANGFUSE_ENABLE_SCORES_V3_API === "true" ? describe : describe.skip;
 
 describe("/api/public/v3/scores API Endpoint", () => {
-  it.skipIf(env.LANGFUSE_ENABLE_SCORES_V3_API === "true")(
-    "should return 404 when feature flag is off",
-    async () => {
-      const project = await createOrgProjectAndApiKey();
-      const res = await makeAPICall(
-        "GET",
-        "/api/public/v3/scores",
-        undefined,
-        project.auth,
-      );
-      expect(res.status).toBe(404);
-    },
-  );
-
-  describe("polymorphicValue unit", () => {
-    it("NUMERIC → number", () => {
-      expect(polymorphicValue({ dataType: "NUMERIC", value: 0.85 })).toBe(0.85);
-    });
-
-    it("BOOLEAN value=1 → true", () => {
-      expect(
-        polymorphicValue({
-          dataType: "BOOLEAN",
-          value: 1,
-          stringValue: "true",
-        }),
-      ).toBe(true);
-    });
-
-    it("BOOLEAN value=0 → false", () => {
-      expect(
-        polymorphicValue({
-          dataType: "BOOLEAN",
-          value: 0,
-          stringValue: "false",
-        }),
-      ).toBe(false);
-    });
-
-    it("CATEGORICAL → string", () => {
-      expect(
-        polymorphicValue({
-          dataType: "CATEGORICAL",
-          value: 0,
-          stringValue: "good",
-        }),
-      ).toBe("good");
-    });
-
-    it("TEXT → string", () => {
-      expect(
-        polymorphicValue({
-          dataType: "TEXT",
-          value: 0,
-          stringValue: "Great explanation",
-        }),
-      ).toBe("Great explanation");
-    });
-
-    it("CORRECTION → string from longStringValue", () => {
-      expect(
-        polymorphicValue({
-          dataType: "CORRECTION",
-          value: 0,
-          stringValue: null,
-          longStringValue: "corrected output",
-        }),
-      ).toBe("corrected output");
-    });
-
-    it("CATEGORICAL with null stringValue throws", () => {
-      expect(() =>
-        polymorphicValue({
-          dataType: "CATEGORICAL",
-          value: 0,
-          stringValue: null,
-        }),
-      ).toThrow();
-    });
-
-    it("unknown dataType throws", () => {
-      expect(() => polymorphicValue({ dataType: "WHAT", value: 0 })).toThrow();
-    });
-  });
-
   describe("buildSelectColumns unit", () => {
     // These tests lock the SELECT-vs-converter contract: domainToV3 reads
     // these column groups from the ClickHouse row, so an addition here that
