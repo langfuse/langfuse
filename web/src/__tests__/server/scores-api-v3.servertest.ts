@@ -831,7 +831,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        `/api/public/v3/scores?id=${scoreId}&fields=core`,
+        `/api/public/v3/scores?fields=core`,
         undefined,
         auth,
       );
@@ -859,7 +859,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        `/api/public/v3/scores?id=${scoreId}&fields=core,details,subject,annotation`,
+        `/api/public/v3/scores?fields=core,details,subject,annotation`,
         undefined,
         auth,
       );
