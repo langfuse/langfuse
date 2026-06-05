@@ -80,9 +80,17 @@ export const GetScoresQueryV3 = z.object({
   // Timestamp filters
   fromTimestamp: z.coerce.date().optional(),
   toTimestamp: z.coerce.date().optional(),
-  // Deferred params (always → 400 — require trace JOIN not present in v3)
-  userId: z.string().optional(),
-  traceTags: z.string().optional(),
+  // Deferred params (always → 400 — require trace JOIN not present in v3).
+  // Treat the empty string as absent so a stray `?userId=` from a templating
+  // system doesn't trigger the "use v2" 400 spuriously.
+  userId: z
+    .string()
+    .optional()
+    .transform((v) => (v === "" ? undefined : v)),
+  traceTags: z
+    .string()
+    .optional()
+    .transform((v) => (v === "" ? undefined : v)),
 });
 
 export const GetScoresResponseV3 = z.object({
