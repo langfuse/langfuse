@@ -4,7 +4,11 @@ import {
   queryClickhouse,
   type ScoreRecordReadType,
 } from "@langfuse/shared/src/server";
-import type { APIScoreV3, ScoreDomain } from "@langfuse/shared";
+import type {
+  APIScoreV3,
+  ScoreDataTypeType,
+  ScoreDomain,
+} from "@langfuse/shared";
 import {
   filterAndValidateV3GetScoreList,
   InternalServerError,
@@ -12,7 +16,7 @@ import {
 } from "@langfuse/shared";
 
 export function polymorphicValue(score: {
-  dataType: string;
+  dataType: ScoreDataTypeType;
   value: number;
   stringValue?: string | null;
   longStringValue?: string | null;
@@ -37,10 +41,12 @@ export function polymorphicValue(score: {
         );
       }
       return score.longStringValue;
-    default:
+    default: {
+      const _exhaustiveCheck: never = score.dataType;
       throw new InternalServerError(
-        `Score has unknown dataType: ${score.dataType}`,
+        `Score has unknown dataType: ${_exhaustiveCheck as string}`,
       );
+    }
   }
 }
 
