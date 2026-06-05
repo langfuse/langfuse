@@ -14,8 +14,9 @@ import process from "node:process";
 
 const repoRoot = resolve(new URL("../..", import.meta.url).pathname);
 const sourcePath = resolve(repoRoot, ".agents/config.json");
-const config = JSON.parse(readFileSync(sourcePath, "utf8"));
-const servers = config.mcpServers;
+const hasConfig = existsSync(sourcePath);
+const config = hasConfig ? JSON.parse(readFileSync(sourcePath, "utf8")) : null;
+const servers = config?.mcpServers ?? {};
 const checkMode = process.argv.includes("--check");
 
 const sortObject = (value) =>
@@ -99,7 +100,9 @@ const formatCodexToml = () => {
       }
       if (server.env) {
         lines.push(`[mcp_servers.${name}.env]`);
-        for (const [envName, envValue] of Object.entries(sortObject(server.env))) {
+        for (const [envName, envValue] of Object.entries(
+          sortObject(server.env),
+        )) {
           lines.push(`${envName} = ${JSON.stringify(envValue)}`);
         }
       }
@@ -110,7 +113,9 @@ const formatCodexToml = () => {
         for (const [headerName, headerValue] of Object.entries(
           sortObject(server.headers),
         )) {
-          lines.push(`${JSON.stringify(headerName)} = ${JSON.stringify(headerValue)}`);
+          lines.push(
+            `${JSON.stringify(headerName)} = ${JSON.stringify(headerValue)}`,
+          );
         }
       }
     }
@@ -155,44 +160,53 @@ const formatCodexEnvironmentToml = () => {
   return lines.join("\n");
 };
 
-const fileOutputs = [
-  {
-    path: resolve(repoRoot, ".claude/settings.json"),
-    content: formatClaudeSettings(),
-  },
-  {
-    path: resolve(repoRoot, ".mcp.json"),
-    content: formatSharedJsonConfig(),
-  },
-  {
-    path: resolve(repoRoot, ".codex/environments/environment.toml"),
-    content: formatCodexEnvironmentToml(),
-    optional: true,
-  },
-  {
-    path: resolve(repoRoot, ".cursor/mcp.json"),
-    content: formatSharedJsonConfig(),
-  },
-  {
-    path: resolve(repoRoot, ".cursor/environment.json"),
-    content: formatCursorEnvironment(),
-  },
-  {
-    path: resolve(repoRoot, ".vscode/mcp.json"),
-    content: formatVsCodeConfig(),
-  },
-  {
-    path: resolve(repoRoot, ".codex/config.toml"),
-    content: formatCodexToml(),
-    optional: true,
-  },
-];
+const fileOutputs = hasConfig
+  ? [
+      {
+        path: resolve(repoRoot, ".claude/settings.json"),
+        content: formatClaudeSettings(),
+      },
+      {
+        path: resolve(repoRoot, ".mcp.json"),
+        content: formatSharedJsonConfig(),
+      },
+      {
+        path: resolve(repoRoot, ".codex/environments/environment.toml"),
+        content: formatCodexEnvironmentToml(),
+        optional: true,
+      },
+      {
+        path: resolve(repoRoot, ".cursor/mcp.json"),
+        content: formatSharedJsonConfig(),
+      },
+      {
+        path: resolve(repoRoot, ".cursor/environment.json"),
+        content: formatCursorEnvironment(),
+      },
+      {
+        path: resolve(repoRoot, ".vscode/mcp.json"),
+        content: formatVsCodeConfig(),
+      },
+      {
+        path: resolve(repoRoot, ".codex/config.toml"),
+        content: formatCodexToml(),
+        optional: true,
+      },
+    ]
+  : [];
+
+if (!hasConfig) {
+  console.log(
+    "Skipping agent config generation: .agents/config.json is not present.",
+  );
+}
 
 const skillsRoot = resolve(repoRoot, ".agents/skills");
 const sharedSkillNames = readdirSync(skillsRoot, { withFileTypes: true })
   .filter(
     (entry) =>
-      entry.isDirectory() && existsSync(resolve(skillsRoot, entry.name, "SKILL.md")),
+      entry.isDirectory() &&
+      existsSync(resolve(skillsRoot, entry.name, "SKILL.md")),
   )
   .map((entry) => entry.name)
   .sort((left, right) => left.localeCompare(right));
@@ -252,7 +266,12 @@ for (const output of fileOutputs) {
         continue;
       }
 
-      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
         hasMismatch = true;
         console.error(
           `Missing generated config: ${output.path}. Run "pnpm run agents:sync".`,
@@ -287,9 +306,16 @@ for (const output of symlinkOutputs) {
         console.error(`Out of sync symlink: ${output.path}`);
       }
     } catch (error) {
-      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
         hasMismatch = true;
-        console.error(`Missing symlink shim: ${output.path}. Run "pnpm run agents:sync".`);
+        console.error(
+          `Missing symlink shim: ${output.path}. Run "pnpm run agents:sync".`,
+        );
         continue;
       }
 
@@ -306,7 +332,14 @@ for (const output of symlinkOutputs) {
       continue;
     }
   } catch (error) {
-    if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) {
+    if (
+      !(
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT"
+      )
+    ) {
       throw error;
     }
   }
@@ -330,7 +363,9 @@ for (const directory of managedDirectoryEntries) {
   if (checkMode) {
     hasMismatch = true;
     for (const child of unexpectedChildren) {
-      console.error(`Unexpected generated shim: ${resolve(directory.path, child)}`);
+      console.error(
+        `Unexpected generated shim: ${resolve(directory.path, child)}`,
+      );
     }
     continue;
   }

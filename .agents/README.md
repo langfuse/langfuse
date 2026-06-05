@@ -12,176 +12,34 @@ or `.vscode/`.
 - `AGENTS.md`: canonical shared root instructions
 - `ARCHITECTURE_PRINCIPLES.md`: architecture principles for high-scale
   observability
-- `config.json`: shared bootstrap and MCP configuration used to generate
-  tool-specific shims
 - `skills/`: shared, tool-neutral implementation guidance for recurring
   workflows
 
-## `config.json`
-
-`.agents/config.json` contains four kinds of data:
-
-- `shared`: defaults used across tools
-- `mcpServers`: project MCP servers and how to connect to them
-- `claude`: Claude-specific generated settings inputs
-- `codex`: Codex-specific generated settings inputs
-- `cursor`: Cursor-specific generated settings inputs
-
-Current shape:
-
-```json
-{
-  "shared": {
-    "setupScript": "bash scripts/codex/setup.sh",
-    "devCommand": "pnpm run dev",
-    "devTerminalDescription": "Main development terminal running the development server"
-  },
-  "mcpServers": {
-    "playwright": {
-      "transport": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@playwright/mcp@latest",
-        "--isolated",
-        "--save-session",
-        "--output-dir",
-        "/tmp/playwright-mcp",
-        "--test-id-attribute",
-        "data-testid"
-      ]
-    },
-    "langfuse-docs": {
-      "transport": "http",
-      "url": "https://langfuse.com/api/mcp"
-    },
-    "linear": {
-      "transport": "http",
-      "url": "https://mcp.linear.app/mcp"
-    }
-  },
-  "claude": {
-    "settings": {
-      "permissions": {
-        "allow": [
-          "Bash(find:*)",
-          "Bash(rg:*)",
-          "Bash(grep:*)",
-          "Bash(ls:*)",
-          "Bash(cat:*)",
-          "Bash(head:*)",
-          "Bash(tail:*)"
-        ],
-        "deny": []
-      },
-      "enableAllProjectMcpServers": true
-    }
-  },
-  "codex": {
-    "environment": {
-      "version": 1,
-      "name": "langfuse"
-    }
-  },
-  "cursor": {
-    "environment": {
-      "agentCanUpdateSnapshot": false
-    }
-  }
-}
-```
-
 ## How Shims Are Generated
 
-`scripts/agents/sync-agent-shims.mjs` reads `.agents/config.json` and writes the
-tool discovery files that those products require.
+`scripts/agents/sync-agent-shims.mjs` keeps repo discovery symlinks and shared
+skills aligned across tools.
 
-Generated local artifacts:
-
-- `.claude/settings.json`
-- `.claude/skills/*`
-- `.cursor/environment.json`
-- `.cursor/mcp.json`
-- `.vscode/mcp.json`
-- `.mcp.json`
-- `.codex/config.toml`
-- `.codex/environments/environment.toml`
-
-The repo root discovery files remain committed as symlinks:
+Committed discovery files:
 
 - `AGENTS.md` -> `.agents/AGENTS.md`
 - `CLAUDE.md` -> `AGENTS.md`
 
+Generated local artifacts:
+
+- `.claude/skills/*`
+
 This keeps provider discovery stable while `.agents/` remains the source of
 truth.
 
-## When To Edit `config.json`
-
-Edit `.agents/config.json` when you need to:
-
-- add, remove, or update a shared MCP server
-- change the shared setup/bootstrap command
-- change the default dev command or terminal label used by generated shims
-- adjust generated Claude, Cursor, or Codex settings that are intentionally
-  modeled in the shared config
-
-Do not edit generated shim files by hand. Edit the canonical files in
-`.agents/` instead.
-
-## How To Extend `config.json`
-
-### Add an MCP server
-
-Add a new entry under `mcpServers`.
-
-For `stdio` servers:
-
-```json
-{
-  "mcpServers": {
-    "example": {
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "some-package"]
-    }
-  }
-}
-```
-
-For HTTP servers:
-
-```json
-{
-  "mcpServers": {
-    "example": {
-      "transport": "http",
-      "url": "https://example.com/mcp"
-    }
-  }
-}
-```
-
-Optional fields:
-
-- `env` for `stdio` servers
-- `headers` for HTTP servers
-
-### Change bootstrap or default dev command
-
-Update values in `shared`:
-
-- `setupScript`
-- `devCommand`
-- `devTerminalDescription`
-
-### Add tool-specific generated inputs
-
-Only add tool-specific fields when they are required to generate a discovery
-file for a supported tool. Keep the shared config minimal and neutral.
+If a local, untracked `.agents/config.json` is present, the sync script can also
+use it to generate provider-specific MCP and runtime config files. Those outputs
+under `.claude/`, `.cursor/`, `.codex/`, `.vscode/`, and `.mcp.json` are local
+artifacts, not repo source of truth.
 
 ## Workflow
 
-After editing `.agents/config.json`:
+After editing shared agent setup:
 
 1. Run `pnpm run agents:sync`
 2. Run `pnpm run agents:check`
