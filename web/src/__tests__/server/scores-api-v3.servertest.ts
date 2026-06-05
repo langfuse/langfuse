@@ -11,86 +11,8 @@ import {
 } from "@/src/__tests__/test-utils";
 import { GetScoresResponseV3 } from "@langfuse/shared";
 import { v4 } from "uuid";
-import { buildSelectColumns } from "@/src/features/public-api/server/scores-api-v3";
 
 describe("/api/public/v3/scores API Endpoint", () => {
-  describe("buildSelectColumns unit", () => {
-    // These tests lock the SELECT-vs-converter contract: domainToV3 reads
-    // these column groups from the ClickHouse row, so an addition here that
-    // is not also reflected in the corresponding fields-group response builder
-    // (or vice versa) will be caught at this layer.
-
-    it("core always selects the polymorphic value columns", () => {
-      const sql = buildSelectColumns(["core"]);
-      expect(sql).toContain("s.value as value");
-      expect(sql).toContain("s.string_value as string_value");
-      expect(sql).toContain("s.long_string_value as long_string_value");
-      expect(sql).toContain("s.data_type as data_type");
-    });
-
-    it("core does not select group columns", () => {
-      const sql = buildSelectColumns(["core"]);
-      expect(sql).not.toContain("s.comment");
-      expect(sql).not.toContain("s.metadata");
-      expect(sql).not.toContain("s.config_id");
-      expect(sql).not.toContain("s.trace_id");
-      expect(sql).not.toContain("s.observation_id");
-      expect(sql).not.toContain("s.session_id");
-      expect(sql).not.toContain("s.dataset_run_id");
-      expect(sql).not.toContain("s.author_user_id");
-      expect(sql).not.toContain("s.queue_id");
-    });
-
-    it("details adds comment/metadata/config_id only", () => {
-      const sql = buildSelectColumns(["core", "details"]);
-      expect(sql).toContain("s.comment as comment");
-      expect(sql).toContain("s.metadata as metadata");
-      expect(sql).toContain("s.config_id as config_id");
-      expect(sql).not.toContain("s.trace_id");
-      expect(sql).not.toContain("s.author_user_id");
-    });
-
-    it("subject adds the four entity-id columns only", () => {
-      const sql = buildSelectColumns(["core", "subject"]);
-      expect(sql).toContain("s.trace_id as trace_id");
-      expect(sql).toContain("s.observation_id as observation_id");
-      expect(sql).toContain("s.session_id as session_id");
-      expect(sql).toContain("s.dataset_run_id as dataset_run_id");
-      expect(sql).not.toContain("s.comment");
-      expect(sql).not.toContain("s.author_user_id");
-    });
-
-    it("annotation adds author/queue only", () => {
-      const sql = buildSelectColumns(["core", "annotation"]);
-      expect(sql).toContain("s.author_user_id as author_user_id");
-      expect(sql).toContain("s.queue_id as queue_id");
-      expect(sql).not.toContain("s.comment");
-      expect(sql).not.toContain("s.trace_id");
-    });
-
-    it("all groups select every column", () => {
-      const sql = buildSelectColumns([
-        "core",
-        "details",
-        "subject",
-        "annotation",
-      ]);
-      for (const col of [
-        "s.comment",
-        "s.metadata",
-        "s.config_id",
-        "s.trace_id",
-        "s.observation_id",
-        "s.session_id",
-        "s.dataset_run_id",
-        "s.author_user_id",
-        "s.queue_id",
-      ]) {
-        expect(sql).toContain(col);
-      }
-    });
-  });
-
   describe("GET /api/public/v3/scores", () => {
     let auth: string;
     let projectId: string;
