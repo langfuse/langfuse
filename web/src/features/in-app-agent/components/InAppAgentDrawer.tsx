@@ -133,6 +133,7 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
               }
 
               if (value === LOAD_MORE_CONVERSATIONS_VALUE) {
+                onLoadMoreConversations();
                 return;
               }
 
@@ -162,10 +163,6 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
                     value={LOAD_MORE_CONVERSATIONS_VALUE}
                     className="h-8"
                     disabled={isLoadingMoreConversations}
-                    onSelect={(event) => {
-                      event.preventDefault();
-                      onLoadMoreConversations();
-                    }}
                   >
                     {isLoadingMoreConversations ? "Loading..." : "Load more"}
                   </SelectItem>

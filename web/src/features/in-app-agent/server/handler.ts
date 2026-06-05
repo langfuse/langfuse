@@ -261,8 +261,7 @@ export default async function handler(request: Request) {
 
                 return replacePersistedRunEvents();
               },
-              onComplete: () =>
-                replacePersistedRunEvents().then(() => finishCurrentRun()),
+              onComplete: finishCurrentRun,
               onAbort: () =>
                 finishCurrentRun({
                   errorCode: "cancelled",
