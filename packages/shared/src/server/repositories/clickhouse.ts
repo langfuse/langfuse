@@ -204,21 +204,15 @@ export async function upsertClickhouse<
         table: opts.table,
       });
 
-      const res = await clickhouseClient().insert({
+      const res = await insertClickhouse({
         table: opts.table,
         values: opts.records.map((record) => ({
           ...record,
           event_ts: convertDateToClickhouseDateTime(new Date()),
         })),
         format: "JSONEachRow",
-        clickhouse_settings: {
-          log_comment: JSON.stringify(normalizedTags),
-        },
+        tags: opts.tags,
       });
-      // same logic as for prisma. we want to see queries in development
-      if (env.NODE_ENV === "development") {
-        logger.info(`clickhouse:insert ${res.query_id} ${opts.table}`);
-      }
 
       span.setAttribute("ch.queryId", res.query_id);
       setSpanTagAttributes(span, normalizedTags);
