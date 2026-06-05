@@ -10,5 +10,6 @@ export const GetScoresResponseV3 = z.object({
   data: z.array(APIScoreSchemaV3),
   meta: z.object({
     limit: z.number(),
+    cursor: z.string().optional(),
   }),
 });

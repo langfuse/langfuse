@@ -6,12 +6,17 @@ import {
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { listScoresV3ForPublicApi } from "@/src/features/public-api/server/scores-api-v3";
+import { EncodedScoresCursorV3 } from "@/src/features/public-api/types/scores";
 import { env } from "@/src/env.mjs";
+
+const GetScoresV3Query = GetScoresQueryV3.extend({
+  cursor: EncodedScoresCursorV3.optional(),
+});
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Scores V3",
-    querySchema: GetScoresQueryV3,
+    querySchema: GetScoresV3Query,
     responseSchema: GetScoresResponseV3,
     fn: async ({ query, auth }) => {
       if (env.LANGFUSE_ENABLE_SCORES_V3_API !== "true") {
@@ -20,15 +25,17 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Not Found");
       }
 
-      const items = await listScoresV3ForPublicApi({
+      const result = await listScoresV3ForPublicApi({
         projectId: auth.scope.projectId,
         limit: query.limit,
+        cursor: query.cursor,
       });
 
       return {
-        data: items,
+        data: result.data,
         meta: {
           limit: query.limit,
+          ...(result.cursor ? { cursor: result.cursor } : {}),
         },
       };
     },
