@@ -62,6 +62,8 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 - Shared browser-review workflow for user-visible frontend changes:
   [`../.agents/skills/frontend-browser-review/SKILL.md`](../.agents/skills/frontend-browser-review/SKILL.md)
+- Large frontend feature, virtualized-list, and local state architecture:
+  [`../.agents/skills/frontend-large-feature-architecture/SKILL.md`](../.agents/skills/frontend-large-feature-architecture/SKILL.md)
 - React composition and component API design:
   [`web/.agents/skills/vercel-composition-patterns/SKILL.md`](.agents/skills/vercel-composition-patterns/SKILL.md)
 - React/Next.js performance and rendering best practices:
@@ -69,8 +71,9 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 Read these package-local skills before substantial frontend refactors when the
 task involves component composition, reusable component APIs, rendering
-performance, bundle size, React/Next.js performance patterns, or browser-based
-signoff of user-visible changes.
+performance, virtualized lists, local feature stores, bundle size,
+React/Next.js performance patterns, or browser-based signoff of user-visible
+changes.
 
 ## Web Conventions
 
@@ -162,7 +165,7 @@ signoff of user-visible changes.
 
 ### Error handling (tRPC + REST)
 
-1. Throw `BaseError` subclasses (eg `LangfuseNotFoundError`) from handlers and services. 
+1. Throw `BaseError` subclasses (eg `LangfuseNotFoundError`) from handlers and services.
 2. Let `BaseError`s bubble up to the tRPC and REST middlewares (eg. don't `try/catch` and rethrow in to `TRPCError` the handler)
 3. Extend the `BaseError` or its subclasses in [`packages/shared/src/errors/`](../packages/shared/src/errors/) as needed.
 
