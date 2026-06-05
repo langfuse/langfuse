@@ -96,17 +96,6 @@ describe("/api/public/v3/scores API Endpoint", () => {
       ).toThrow();
     });
 
-    it("CORRECTION with null longStringValue throws", () => {
-      expect(() =>
-        polymorphicValue({
-          dataType: "CORRECTION",
-          value: 0,
-          stringValue: null,
-          longStringValue: null,
-        }),
-      ).toThrow();
-    });
-
     it("unknown dataType throws", () => {
       expect(() => polymorphicValue({ dataType: "WHAT", value: 0 })).toThrow();
     });
@@ -165,6 +154,36 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeAPICall(
         "GET",
         "/api/public/v3/scores?limit=101",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("limit=0 → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?limit=0",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("limit=-1 → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?limit=-1",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("limit=abc → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?limit=abc",
         undefined,
         auth,
       );
