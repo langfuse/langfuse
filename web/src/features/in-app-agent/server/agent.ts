@@ -83,7 +83,7 @@ export function createAgUiStream(params: {
     },
     includePartialMessages: true,
     // TODO: Persist and configure an exact provider model id once we stop using SDK aliases.
-    model: "haiku",
+    model: "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
   });
 
   const adapterInput = params.options.resumeSessionId
