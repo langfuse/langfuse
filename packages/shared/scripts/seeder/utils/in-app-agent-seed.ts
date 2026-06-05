@@ -140,6 +140,15 @@ export async function seedInAppAgentDemoConversation({
     event: Prisma.InputJsonValue;
     createdAt: Date;
   }> = [];
+  const eventCountByRunId = new Map<string, number>();
+  const getEventCreatedAt = (runId: string) => {
+    const eventCount = eventCountByRunId.get(runId) ?? 0;
+    eventCountByRunId.set(runId, eventCount + 1);
+
+    const runCreatedAt =
+      runId === secondRunId ? secondRunCreatedAt : firstRunCreatedAt;
+    return new Date(runCreatedAt.getTime() + eventCount * 1000);
+  };
   const addEvent = (
     runId: string,
     type: string,
@@ -153,7 +162,7 @@ export async function seedInAppAgentDemoConversation({
       sequenceNumber,
       type,
       event: event as Prisma.InputJsonValue,
-      createdAt: new Date(firstRunFinishedAt.getTime() + sequenceNumber * 1000),
+      createdAt: getEventCreatedAt(runId),
     });
   };
 
