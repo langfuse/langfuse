@@ -190,6 +190,29 @@ export function checkSdkVersionRequirements(
   }
 }
 
+/**
+ * Group observation events by a composite key of (clickhouse entity type, entity ID),
+ * matching the grouping strategy used in processEventBatch.ts. Grouping by both fields
+ * ensures events with different ClickHouse types but the same body ID (which would be
+ * a malformed batch) are never merged together.
+ */
+export function groupObservationsByEntity(
+  observations: IngestionEventType[],
+): Record<string, IngestionEventType[]> {
+  return observations.reduce(
+    (acc, observation) => {
+      const entityId = observation.body.id || ""; // id is always defined for observations
+      const key = `${getClickhouseEntityType(observation.type)}-${entityId}`;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(observation);
+      return acc;
+    },
+    {} as Record<string, IngestionEventType[]>,
+  );
+}
+
 export const otelIngestionQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
 ): Processor => {
@@ -404,17 +427,21 @@ export const otelIngestionQueueProcessorBuilder = (
       // the highest possible throughput. Therefore, we start with a Promise.all.
       // If necessary, we may use a for each instead.
 
-      // Process observations via mergeAndWrite
+      // Process observations via mergeAndWrite, batched by (entityType, entityId) to reduce
+      // ClickHouse read operations. Multiple OTEL span events for the same observation share
+      // the same entity ID, so grouping them means 1 read-for-update per entity instead of
+      // 1 per event. Matches the composite key used in processEventBatch.ts.
       const observationWritePromise = Promise.all(
-        observations.map((observation) =>
-          ingestionService.mergeAndWrite(
-            getClickhouseEntityType(observation.type),
-            auth.scope.projectId,
-            observation.body.id || "", // id is always defined for observations
-            new Date(), // Use the current timestamp as event time
-            [observation],
-            shouldForwardToEventsTable,
-          ),
+        Object.entries(groupObservationsByEntity(observations)).map(
+          ([, events]) =>
+            ingestionService.mergeAndWrite(
+              getClickhouseEntityType(events[0].type),
+              auth.scope.projectId,
+              events[0].body.id || "", // id is always defined for observations
+              new Date(), // Use the current timestamp as event time
+              events, // All events for this entity - single read-for-update query
+              shouldForwardToEventsTable,
+            ),
         ),
       );
 
