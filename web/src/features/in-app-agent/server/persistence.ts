@@ -187,23 +187,6 @@ export async function finishRun(params: {
     );
 }
 
-export async function updateProviderSessionId(params: {
-  prisma: PrismaClient;
-  projectId: string;
-  conversationId: string;
-  providerSessionId: string;
-}) {
-  await params.prisma.inAppAgentConversation.update({
-    where: {
-      id_projectId: {
-        id: params.conversationId,
-        projectId: params.projectId,
-      },
-    },
-    data: { providerSessionId: params.providerSessionId },
-  });
-}
-
 export async function replaceRunEvents(params: {
   prisma: PrismaClient;
   projectId: string;
@@ -245,7 +228,7 @@ export async function replaceRunEvents(params: {
       orderBy: { sequenceNumber: "desc" },
     });
 
-    const compactedEvents = compactEvents([...params.events]).map(
+    const compactedEvents = compactPersistedEvents(params.events).map(
       (event, index) => ({
         projectId: params.projectId,
         conversationId: params.conversationId,
@@ -299,6 +282,16 @@ export async function getConversationMessages(params: {
   return getMessagesFromEvents(await getConversationEvents(params));
 }
 
+export async function getConversationMessagesForReplay(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+}) {
+  return sanitizeConversationMessagesForReplay(
+    await getConversationMessages(params),
+  );
+}
+
 export function getMessagesFromEvents(events: readonly AgUiEvent[]) {
   const accumulator = createConversationMessageAccumulator([]);
 
@@ -307,6 +300,14 @@ export function getMessagesFromEvents(events: readonly AgUiEvent[]) {
   }
 
   return accumulator.getMessages();
+}
+
+function sanitizeConversationMessagesForReplay(
+  messages: readonly AgUiMessage[],
+): readonly AgUiMessage[] {
+  const messagesWithoutOrphanToolCalls =
+    dropUnpairedAssistantToolCalls(messages);
+  return dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls);
 }
 
 export function shouldFlushPersistedEvent(event: AgUiEvent) {
@@ -341,6 +342,23 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
         runId: getString(event, "runId"),
         parentRunId: getString(event, "parentRunId"),
         input,
+      });
+    }
+    case EventType.MESSAGES_SNAPSHOT:
+      return null;
+    case EventType.TEXT_MESSAGE_CHUNK: {
+      const messageId = getString(event, "messageId");
+      const role = getTextChunkRole(event);
+
+      if (!messageId || role !== "assistant") {
+        return null;
+      }
+
+      return compactObject({
+        type: event.type,
+        messageId,
+        role,
+        delta: getString(event, "delta") ?? "",
       });
     }
     case EventType.TEXT_MESSAGE_START:
@@ -471,6 +489,35 @@ export function createConversationMessageAccumulator(
         }
 
         return changed;
+      }
+      case EventType.TEXT_MESSAGE_CHUNK: {
+        const messageId = getString(event, "messageId");
+        const role = getTextChunkRole(event);
+
+        if (!messageId || role !== "assistant") {
+          break;
+        }
+
+        const existingIndex = messageIndexes.get(messageId);
+        const existingMessage =
+          existingIndex === undefined ? undefined : messages[existingIndex];
+        const existingContent =
+          existingMessage?.role === "assistant"
+            ? existingMessage.content
+            : undefined;
+        const draft = textDrafts.get(messageId) ?? {
+          id: messageId,
+          content: existingContent ?? "",
+        };
+
+        draft.content += getString(event, "delta") ?? "";
+        textDrafts.set(messageId, draft);
+
+        return upsertMessage({
+          id: draft.id,
+          role: "assistant",
+          content: draft.content,
+        });
       }
       case EventType.TEXT_MESSAGE_START: {
         const messageId = getString(event, "messageId");
@@ -641,6 +688,93 @@ function mergeMessages(existing: AgUiMessage, next: AgUiMessage): AgUiMessage {
   return next;
 }
 
+function compactPersistedEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
+  return compactEvents(compactTextMessageChunks(events)) as AgUiEvent[];
+}
+
+function compactTextMessageChunks(events: readonly AgUiEvent[]): AgUiEvent[] {
+  const compactedEvents: AgUiEvent[] = [];
+
+  for (const event of events) {
+    const previousEvent = compactedEvents.at(-1);
+
+    if (
+      event.type === EventType.TEXT_MESSAGE_CHUNK &&
+      previousEvent?.type === EventType.TEXT_MESSAGE_CHUNK &&
+      getString(event, "messageId") === getString(previousEvent, "messageId") &&
+      getTextChunkRole(event) === "assistant" &&
+      getTextChunkRole(previousEvent) === "assistant"
+    ) {
+      compactedEvents[compactedEvents.length - 1] = {
+        ...previousEvent,
+        delta:
+          (getString(previousEvent, "delta") ?? "") +
+          (getString(event, "delta") ?? ""),
+      };
+      continue;
+    }
+
+    compactedEvents.push(event);
+  }
+
+  return compactedEvents;
+}
+
+function dropUnpairedAssistantToolCalls(messages: readonly AgUiMessage[]) {
+  const toolResultIds = new Set(
+    messages.flatMap((message) =>
+      message.role === "tool" ? [message.toolCallId] : [],
+    ),
+  );
+  let changed = false;
+
+  const sanitizedMessages = messages.map((message): AgUiMessage => {
+    if (message.role !== "assistant" || !message.toolCalls?.length) {
+      return message;
+    }
+
+    const pairedToolCalls = message.toolCalls.filter((toolCall) =>
+      toolResultIds.has(toolCall.id),
+    );
+
+    if (pairedToolCalls.length === message.toolCalls.length) {
+      return message;
+    }
+
+    changed = true;
+
+    if (pairedToolCalls.length === 0) {
+      const sanitizedMessage = { ...message };
+      delete sanitizedMessage.toolCalls;
+      return sanitizedMessage;
+    }
+
+    return { ...message, toolCalls: pairedToolCalls };
+  });
+
+  return changed ? sanitizedMessages : messages;
+}
+
+function dropEmptyAssistantMessages(messages: readonly AgUiMessage[]) {
+  let changed = false;
+  const sanitizedMessages = messages.filter((message) => {
+    if (message.role !== "assistant") {
+      return true;
+    }
+
+    const hasContent =
+      typeof message.content === "string" && message.content.length > 0;
+    const hasToolCalls =
+      message.toolCalls !== undefined && message.toolCalls.length > 0;
+    const keepMessage = hasContent || hasToolCalls;
+
+    changed = changed || !keepMessage;
+    return keepMessage;
+  });
+
+  return changed ? sanitizedMessages : messages;
+}
+
 function mergeToolCalls(
   existing: Extract<AgUiMessage, { role: "assistant" }>["toolCalls"],
   next: Extract<AgUiMessage, { role: "assistant" }>["toolCalls"],
@@ -660,6 +794,12 @@ function mergeToolCalls(
   }
 
   return Array.from(byId.values());
+}
+
+function getTextChunkRole(event: unknown) {
+  const role = getString(event, "role");
+
+  return role === undefined || role === "assistant" ? "assistant" : role;
 }
 
 function getString(event: unknown, key: string): string | undefined {

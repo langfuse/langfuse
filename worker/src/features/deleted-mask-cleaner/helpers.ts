@@ -86,6 +86,19 @@ function quoteClickhouseIdentifier(value: string, label: string): string {
   return `\`${value.replace(/\\/g, "\\\\").replace(/`/g, "\\`")}\``;
 }
 
+function buildMutationSource(
+  useClusterAllReplicas: boolean,
+  clusterName: string,
+): string {
+  if (useClusterAllReplicas) {
+    assertClickHouseName(clusterName, "cluster");
+  }
+
+  return useClusterAllReplicas
+    ? `clusterAllReplicas(${quoteClickhouseString(clusterName)}, 'system.mutations')`
+    : "system.mutations";
+}
+
 export function isAbortError(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
@@ -171,20 +184,12 @@ export function buildMutationCountQuery(
   useClusterAllReplicas: boolean,
   clusterName: string,
 ): string {
-  if (useClusterAllReplicas) {
-    assertClickHouseName(clusterName, "cluster");
-  }
-
-  const mutationSource = useClusterAllReplicas
-    ? `clusterAllReplicas(${quoteClickhouseString(clusterName)}, 'system.mutations')`
-    : "system.mutations";
-
   return `
     SELECT
       database,
       table,
       count() AS mutation_count
-    FROM ${mutationSource}
+    FROM ${buildMutationSource(useClusterAllReplicas, clusterName)}
     WHERE database = {database: String}
       AND table IN ({tables: Array(String)})
       AND is_done = 0

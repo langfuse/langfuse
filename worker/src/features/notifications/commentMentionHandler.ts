@@ -29,6 +29,7 @@ async function buildCommentLink(opts: {
 
   switch (comment.objectType) {
     case "OBSERVATION": {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       const observation = await getObservationById({
         id: comment.objectId,
         projectId,

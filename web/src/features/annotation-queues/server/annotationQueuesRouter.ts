@@ -522,12 +522,13 @@ export const queueRouter = createTRPCRouter({
 
       if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
         const clickhouseObservation =
-          env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true"
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
             ? await getObservationByIdFromEventsTable({
                 id: item.objectId,
                 projectId: input.projectId,
               })
-            : await getObservationById({
+            : // eslint-disable-next-line @typescript-eslint/no-deprecated
+              await getObservationById({
                 id: item.objectId,
                 projectId: input.projectId,
               });

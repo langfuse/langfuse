@@ -30,6 +30,7 @@ export const observationsRouter = createTRPCRouter({
           shouldJsonParse: false,
         },
       };
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       const obs = await getObservationById(queryOpts);
       if (!obs) {
         throw new LangfuseNotFoundError(
