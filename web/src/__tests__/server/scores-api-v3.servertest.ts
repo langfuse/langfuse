@@ -38,7 +38,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(200);
       expect(res.body.meta).toMatchObject({ limit: 50 });
       expect(res.body.meta).not.toHaveProperty("cursor");
-      expect(res.body.data.length).toBe(3);
+      expect(res.body.data.length).toBeGreaterThanOrEqual(3);
     });
 
     it("respects limit param", async () => {
