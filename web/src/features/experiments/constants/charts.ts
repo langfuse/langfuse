@@ -44,7 +44,9 @@ const BASE_EXPERIMENT_WIDGET_CONFIG = {
   view: "observations",
   minVersion: "v2",
   dimensions: [] as WidgetDimensionConfig[],
-  orderBy: [{ field: "min_startTime", direction: "desc" }],
+  // Entity (x-axis) order follows the experiments table order, applied
+  // client-side in InlineWidget, so no query-side ordering is needed.
+  orderBy: null,
   chartType: "LINE_TIME_SERIES",
   chartConfig: { type: "LINE_TIME_SERIES" },
   timeDimension: null,
@@ -58,19 +60,13 @@ const BASE_EXPERIMENT_WIDGET_CONFIG = {
  */
 export const EXPERIMENT_COST_WIDGET_CONFIG = {
   ...BASE_EXPERIMENT_WIDGET_CONFIG,
-  metrics: [
-    { measure: "totalCost", agg: "sum" },
-    { measure: "startTime", agg: "min" }, // for ordering
-  ],
+  metrics: [{ measure: "totalCost", agg: "sum" }],
   schedulerId: "experiments:cost-chart",
 } as const;
 
 export const EXPERIMENT_LATENCY_WIDGET_CONFIG = {
   ...BASE_EXPERIMENT_WIDGET_CONFIG,
-  metrics: [
-    { measure: "latency", agg: "avg" },
-    { measure: "startTime", agg: "min" }, // for ordering
-  ],
+  metrics: [{ measure: "latency", agg: "avg" }],
   schedulerId: "experiments:latency-chart",
 } as const;
 
@@ -78,7 +74,9 @@ const BASE_SCORE_CHART_CONFIG = {
   entityDimension: { field: "experimentName" },
   timeDimension: null,
   minVersion: "v2",
-  orderBy: [{ field: "min_timestamp", direction: "desc" }],
+  // Entity (x-axis) order follows the experiments table order, applied
+  // client-side in InlineWidget, so no query-side ordering is needed.
+  orderBy: null,
 } as const;
 
 export const SCORE_LEVEL_ENTITY_DIMENSIONS: Record<
@@ -93,10 +91,7 @@ export const NUMERIC_SCORE_CHART_CONFIG = {
   ...BASE_SCORE_CHART_CONFIG,
   view: "scores-numeric",
   dimensions: [],
-  metrics: [
-    { measure: "value", agg: "avg" },
-    { measure: "timestamp", agg: "min" },
-  ],
+  metrics: [{ measure: "value", agg: "avg" }],
   filters: [],
   chartType: "LINE_TIME_SERIES",
   chartConfig: { type: "LINE_TIME_SERIES" },
@@ -106,10 +101,7 @@ export const CATEGORICAL_SCORE_CHART_CONFIG = {
   ...BASE_SCORE_CHART_CONFIG,
   view: "scores-categorical",
   dimensions: [{ field: "stringValue" }],
-  metrics: [
-    { measure: "count", agg: "count" },
-    { measure: "timestamp", agg: "min" },
-  ],
+  metrics: [{ measure: "count", agg: "count" }],
   filters: [],
   chartType: "BAR_TIME_SERIES",
   chartConfig: { type: "BAR_TIME_SERIES" },

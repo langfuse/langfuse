@@ -4520,13 +4520,6 @@ describe("getValidAggregationsForMeasureType", () => {
   it("restricted set contains only count and uniq", () => {
     expect(getValidAggregationsForMeasureType("string")).toEqual(restricted);
   });
-
-  it("datetime set contains only min and max", () => {
-    expect(getValidAggregationsForMeasureType("datetime")).toEqual([
-      "min",
-      "max",
-    ]);
-  });
 });
 
 describe("query builder measure-aggregation validation", () => {
@@ -4534,10 +4527,7 @@ describe("query builder measure-aggregation validation", () => {
     const query: QueryType = {
       view: "observations",
       dimensions: [],
-      metrics: [
-        { measure: "totalCost", aggregation: "sum" },
-        { measure: "startTime", aggregation: "min" },
-      ],
+      metrics: [{ measure: "totalCost", aggregation: "sum" }],
       filters: [
         {
           column: "experimentName",
@@ -4556,7 +4546,7 @@ describe("query builder measure-aggregation validation", () => {
       entityDimension: { field: "experimentName" },
       fromTimestamp: "2025-01-01T00:00:00.000Z",
       toTimestamp: "2025-03-01T00:00:00.000Z",
-      orderBy: [{ field: "min_startTime", direction: "asc" }],
+      orderBy: [{ field: "sum_totalCost", direction: "asc" }],
     };
 
     const queryBuilder = new QueryBuilder(undefined, "v2");
@@ -4596,10 +4586,7 @@ describe("query builder measure-aggregation validation", () => {
     const query: QueryType = {
       view: "scores-numeric",
       dimensions: [],
-      metrics: [
-        { measure: "value", aggregation: "avg" },
-        { measure: "timestamp", aggregation: "min" },
-      ],
+      metrics: [{ measure: "value", aggregation: "avg" }],
       filters: [
         {
           column: "datasetRunId",
@@ -4624,7 +4611,7 @@ describe("query builder measure-aggregation validation", () => {
       entityDimension: { field: "datasetRunId" },
       fromTimestamp: "2025-01-01T00:00:00.000Z",
       toTimestamp: "2025-03-01T00:00:00.000Z",
-      orderBy: [{ field: "min_timestamp", direction: "desc" }],
+      orderBy: [{ field: "avg_value", direction: "desc" }],
     };
 
     const queryBuilder = new QueryBuilder(undefined, "v2");

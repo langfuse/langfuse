@@ -135,10 +135,6 @@ export function getValidAggregationsForMeasureType(
   ) {
     return [...metricAggregations.options];
   }
-  // datetime supports min/max for earliest/latest timestamps
-  if (measureType === "datetime") {
-    return ["min", "max"];
-  }
   return ["count", "uniq"];
 }
 

@@ -938,14 +938,6 @@ function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
         type: "number",
         description: "Value of the score.",
       },
-      timestamp: {
-        sql: "@@AGG@@(scores_numeric.timestamp)",
-        aggs: { agg: "min" },
-        alias: "timestamp",
-        type: "datetime",
-        description:
-          "Score timestamp. Use min/max to return the earliest/latest matching score timestamp.",
-      },
     },
     tableRelations: createScoreTableRelations(version),
     segments: [
@@ -987,14 +979,6 @@ function scoresCategoricalViewBase(version: "v1" | "v2"): ViewDeclarationType {
         type: "integer",
         description: "Total number of scores.",
         unit: "scores",
-      },
-      timestamp: {
-        sql: "@@AGG@@(scores_categorical.timestamp)",
-        aggs: { agg: "min" },
-        alias: "timestamp",
-        type: "datetime",
-        description:
-          "Score timestamp. Use min/max to return the earliest/latest matching score timestamp.",
       },
     },
     tableRelations: createScoreTableRelations(version),
@@ -1386,14 +1370,6 @@ export const eventsObservationsView: ViewDeclarationType = {
       requiresDimension: "usageType",
       description:
         "Sum of token usage per category. The usageType dimension is auto-included to emit the ARRAY JOIN that brings usage_value into scope.",
-    },
-    startTime: {
-      sql: "@@AGG@@(events_observations.start_time)",
-      aggs: { agg: "min" },
-      alias: "startTime",
-      type: "datetime",
-      description:
-        "Observation start time. Use min/max to return the earliest/latest matching observation start time.",
     },
   },
   tableRelations: {
