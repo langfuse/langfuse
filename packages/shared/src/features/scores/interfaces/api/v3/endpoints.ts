@@ -16,14 +16,7 @@ const fieldsParam = z
   .pipe(
     z.array(z.string()).superRefine((groups, ctx) => {
       for (const group of groups) {
-        if (group === "trace") {
-          ctx.addIssue({
-            code: "custom",
-            message: "fields=trace is reserved and not yet available",
-          });
-        } else if (
-          !SCORE_FIELD_GROUPS_V3.includes(group as ScoreFieldGroupV3)
-        ) {
+        if (!SCORE_FIELD_GROUPS_V3.includes(group as ScoreFieldGroupV3)) {
           ctx.addIssue({
             code: "custom",
             message: `Unknown field group: "${group}". Allowed: ${SCORE_FIELD_GROUPS_V3.join(", ")}`,
