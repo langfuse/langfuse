@@ -11,6 +11,7 @@ migrate
 /coverage
 **/coverage/
 /certs/
+.playwright-mcp/*
 
 # database
 /prisma/db.sqlite
