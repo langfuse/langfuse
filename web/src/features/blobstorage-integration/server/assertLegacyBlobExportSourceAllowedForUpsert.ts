@@ -2,6 +2,7 @@ import {
   InvalidRequestError,
   isLegacyBlobExporter,
   LEGACY_BLOB_EXPORT_SOURCES,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 import { type AnalyticsIntegrationExportSource } from "@langfuse/shared/src/db";
 import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
@@ -50,8 +51,9 @@ export function assertLegacyBlobExportSourceAllowedForUpsert({
 
   // Distinct message from the project-level gate so the two rejection paths can
   // be counted separately in logs. Not customer-facing: the UI prevents this
-  // state from arising in the form flow.
+  // state from arising in the form flow. The date is read from the constant so
+  // a NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF override stays accurate.
   throw new InvalidRequestError(
-    "Legacy export sources are not available for blob storage integrations created on or after 2026-06-12 on Cloud. Use 'OBSERVATIONS_V2' instead.",
+    `Legacy export sources are not available for blob storage integrations created on or after ${LEGACY_BLOB_EXPORTER_CUTOFF.toISOString()} on Cloud. Use 'OBSERVATIONS_V2' instead.`,
   );
 }

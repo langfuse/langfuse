@@ -482,6 +482,14 @@ describe("Blob Storage Integration tRPC Router", () => {
         where: { id: project.id },
         data: { createdAt: PRE_CUTOFF },
       });
+      // Pre-cutoff integration row (legacy exporter) so the integration-cutoff
+      // gate allows the legacy source; this test only exercises field-group
+      // handling, not the cutoff.
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { createdAt: INTEGRATION_PRE_CUTOFF },
+      });
 
       await expect(
         caller.blobStorageIntegration.update({
@@ -544,7 +552,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       vi.restoreAllMocks();
     });
 
-    it("Cloud + pre-cutoff project + legacy source → allow", async () => {
+    it("Cloud + pre-cutoff project + pre-cutoff legacy row + legacy source → allow", async () => {
       const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
       try {
@@ -552,6 +560,14 @@ describe("Blob Storage Integration tRPC Router", () => {
         await prisma.project.update({
           where: { id: project.id },
           data: { createdAt: PRE_CUTOFF },
+        });
+        // The project-level gate allows pre-cutoff projects, but the
+        // integration-cutoff gate also applies: a legacy source is only allowed
+        // when an existing pre-cutoff row classifies the exporter as legacy.
+        await createIntegration({ projectId: project.id });
+        await prisma.blobStorageIntegration.update({
+          where: { projectId: project.id },
+          data: { createdAt: INTEGRATION_PRE_CUTOFF },
         });
         await expect(
           caller.blobStorageIntegration.update({

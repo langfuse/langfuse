@@ -4,6 +4,8 @@ import {
   BlobStorageIntegrationType,
   InvalidRequestError,
   AnalyticsIntegrationExportSource,
+  LEGACY_BLOB_EXPORT_SOURCES,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
   type BlobStorageIntegrationFileType,
   type ObservationFieldGroupFull,
 } from "@langfuse/shared";
@@ -58,6 +60,12 @@ export async function upsertBlobStorageIntegration(params: {
   // Evaluated inside the transaction so the row-state check and the INSERT are
   // atomic — no TOCTOU window.
   forceEventsOnCreate?: boolean;
+  // When true and no existing row is found inside the transaction, the CREATE
+  // branch refuses a legacy export source (throws). Evaluated in-transaction so
+  // a concurrent DELETE between the router's pre-flight read and this upsert
+  // cannot slip a new post-cutoff row in with a legacy source. Symmetric with
+  // forceEventsOnCreate; set by the tRPC path (Cloud), never by REST.
+  refuseLegacyOnCreate?: boolean;
 }) {
   const { prisma, projectId, data } = params;
 
@@ -140,6 +148,25 @@ export async function upsertBlobStorageIntegration(params: {
       (params.forceEventsOnCreate
         ? AnalyticsIntegrationExportSource.EVENTS
         : undefined);
+
+    // In-transaction backstop for the integration-cutoff gate: a CREATE here
+    // means no row exists at INSERT time, so the row is brand-new (post-cutoff)
+    // and must not carry a legacy source. `createExportSource === undefined`
+    // would let Postgres apply the legacy column default, so treat it as legacy.
+    if (!existing && params.refuseLegacyOnCreate) {
+      const effectiveCreateSource =
+        createExportSource ??
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
+      if (
+        (LEGACY_BLOB_EXPORT_SOURCES as ReadonlyArray<string>).includes(
+          effectiveCreateSource,
+        )
+      ) {
+        throw new InvalidRequestError(
+          `Legacy export sources are not available for blob storage integrations created on or after ${LEGACY_BLOB_EXPORTER_CUTOFF.toISOString()} on Cloud. Use 'OBSERVATIONS_V2' instead.`,
+        );
+      }
+    }
 
     return tx.blobStorageIntegration.upsert({
       where: { projectId },

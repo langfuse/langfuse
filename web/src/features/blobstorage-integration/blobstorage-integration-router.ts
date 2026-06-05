@@ -130,6 +130,10 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         return await upsertBlobStorageIntegration({
           prisma: ctx.prisma,
           projectId,
+          // In-transaction backstop closing the TOCTOU window: if a concurrent
+          // DELETE flips this upsert to the CREATE branch, refuse a legacy
+          // source so a new (post-cutoff) Cloud row can never be born legacy.
+          refuseLegacyOnCreate: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
           data: {
             type: rest.type,
             bucketName: rest.bucketName,
