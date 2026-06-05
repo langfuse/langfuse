@@ -170,7 +170,6 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
         query: "background-migration.backfill-events-from-parts.load-parts",
         operation: "list",
         project_id: "none",
-        storage: "unknown",
         table: "system.parts",
       },
     });
@@ -208,7 +207,6 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
           "background-migration.backfill-events-from-parts.verify-part-active",
         operation: "count",
         project_id: "none",
-        storage: "unknown",
         table: "system.parts",
       },
     });
@@ -232,7 +230,6 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
           "background-migration.backfill-events-from-parts.active-part-ids",
         operation: "list",
         project_id: "none",
-        storage: "unknown",
         table: "system.parts",
       },
     });
@@ -434,7 +431,6 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
           "background-migration.backfill-events-historic-from-parts.fire-query",
         operation: "write",
         project_id: "multiple",
-        storage: "events",
         table: "events_full",
       },
       // clickhouseConfigs: {
@@ -533,7 +529,6 @@ export default class BackfillEventsHistoricFromParts implements IBackgroundMigra
           "background-migration.backfill-events-historic-from-parts.validate",
         operation: "lookup",
         project_id: "none",
-        storage: "unknown",
         table: "system.tables",
       },
     });

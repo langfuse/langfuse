@@ -107,7 +107,6 @@ async function softDeleteInClickhouse(
     tags: {
       source: "worker",
       feature: "data-deletion",
-      storage: "legacy",
       operation: "delete",
       query: "data-deletion.soft-delete-blob-storage-file-log",
       project_id: blobStorageRefs[0]?.project_id ?? "unknown",

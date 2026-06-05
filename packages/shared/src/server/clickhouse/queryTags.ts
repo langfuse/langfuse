@@ -12,15 +12,6 @@ const CLICKHOUSE_QUERY_SOURCES = [
 
 export type ClickHouseQuerySource = (typeof CLICKHOUSE_QUERY_SOURCES)[number];
 
-const CLICKHOUSE_QUERY_STORAGES = [
-  "events",
-  "legacy",
-  "mixed",
-  "unknown",
-] as const;
-
-export type ClickHouseQueryStorage = (typeof CLICKHOUSE_QUERY_STORAGES)[number];
-
 const CLICKHOUSE_QUERY_OPERATIONS = [
   "list",
   "count",
@@ -48,7 +39,6 @@ export type NormalizedClickHouseQueryTags = {
   query: string;
   operation: ClickHouseQueryOperation;
   route?: string;
-  storage: ClickHouseQueryStorage;
   table?: ClickHouseQueryPhysicalTable;
 };
 
@@ -59,7 +49,6 @@ export type ClickHouseQueryTags = {
   query?: string;
   operation?: ClickHouseQueryOperation;
   project_id?: string | "multiple" | "none" | "unknown";
-  storage?: ClickHouseQueryStorage;
   table?: ClickHouseQueryPhysicalTable;
 };
 
@@ -123,29 +112,6 @@ export function normalizeClickHouseRoute(
       return segment;
     })
     .join("/");
-}
-
-function isEventsPhysicalTable(
-  physicalTable: ClickHouseQueryPhysicalTable | undefined,
-): boolean {
-  return (
-    physicalTable === "events" ||
-    physicalTable === "events_core" ||
-    physicalTable === "events_full"
-  );
-}
-
-function inferStorage(
-  tags: ClickHouseQueryTags | undefined,
-  physicalTable: ClickHouseQueryPhysicalTable | undefined,
-): ClickHouseQueryStorage {
-  if (isOneOf(CLICKHOUSE_QUERY_STORAGES, tags?.storage)) return tags.storage;
-
-  if (physicalTable === "multiple") return "mixed";
-  if (physicalTable)
-    return isEventsPhysicalTable(physicalTable) ? "events" : "legacy";
-
-  return "unknown";
 }
 
 function inferSource(
@@ -263,7 +229,6 @@ export function normalizeClickHouseQueryTags({
     query,
     operation,
     ...(route ? { route } : {}),
-    storage: inferStorage(tags, physicalTable),
     ...(physicalTable ? { table: physicalTable } : {}),
   };
 }

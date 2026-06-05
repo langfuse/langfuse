@@ -193,7 +193,6 @@ function tracesTableQueryTags({
           ? "aggregate"
           : "list",
     project_id: projectId,
-    storage: "legacy",
     table,
   };
 }

@@ -360,7 +360,6 @@ export const scoreAnalyticsRouter = createTRPCRouter({
           query: "scores.analytics.comparison",
           operation: "aggregate",
           project_id: projectId,
-          storage: "legacy",
           table: "scores",
         },
         clickhouseSettings: {

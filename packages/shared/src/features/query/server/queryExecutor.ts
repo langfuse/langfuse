@@ -9,6 +9,14 @@ import { QueryBuilder } from "./queryBuilder";
 import { type QueryType, type ViewVersion } from "../types";
 import { env } from "../../../env";
 
+const CUSTOM_QUERY_CLICKHOUSE_TABLES = [
+  "events_core",
+  "events_full",
+  "traces",
+  "observations",
+  "scores",
+] as const;
+
 export type PreparedQuery = {
   compiledQuery: string;
   parameters: Record<string, unknown>;
@@ -18,6 +26,15 @@ export type PreparedQuery = {
   usesTraceTable: boolean;
   fromTimestamp: string;
 };
+
+function inferCustomQueryTable(compiledQuery: string): string | undefined {
+  const tables = CUSTOM_QUERY_CLICKHOUSE_TABLES.filter((table) =>
+    new RegExp(`\\b${table}\\b`).test(compiledQuery),
+  );
+
+  if (tables.length === 0) return undefined;
+  return tables.length === 1 ? tables[0] : "multiple";
+}
 
 export async function prepareExecuteQuery(opts: {
   projectId: string;
@@ -53,15 +70,15 @@ export async function prepareExecuteQuery(opts: {
   const preferredClickhouseService = usesEventsTable
     ? ("EventsReadOnly" as const)
     : undefined;
+  const table = inferCustomQueryTable(compiledQuery);
 
   const tags = {
     source: "custom",
     feature: "custom-queries",
-    storage:
-      preferredClickhouseService === "EventsReadOnly" ? "events" : "legacy",
     operation: "aggregate",
     project_id: projectId,
     query: `custom-query.${query.view}`,
+    ...(table ? { table } : {}),
   } satisfies ClickHouseQueryTags;
 
   const clickhouseSettings: Record<string, string> = {

@@ -266,7 +266,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           "background-migration.backfill-events.validate-prerequisites.backfill-chunks",
         operation: "count",
         project_id: "none",
-        storage: "unknown",
         table: "backfill_chunks",
       },
     });
@@ -306,7 +305,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         query: "background-migration.backfill-events.load-chunks",
         operation: "list",
         project_id: "multiple",
-        storage: "unknown",
         table: "backfill_chunks",
       },
     });
@@ -399,7 +397,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
             query: "background-migration.backfill-events.recover-in-progress",
             operation: "lookup",
             project_id: "none",
-            storage: "unknown",
             table: "system.processes",
           },
         });
@@ -566,7 +563,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         query: "background-migration.backfill-events-historic.fire-query",
         operation: "write",
         project_id: "multiple",
-        storage: "events",
         table: "events_full",
       },
       // clickhouseConfigs: {
@@ -671,7 +667,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         query: "background-migration.backfill-events-historic.validate",
         operation: "lookup",
         project_id: "none",
-        storage: "unknown",
         table: "system.tables",
       },
     });

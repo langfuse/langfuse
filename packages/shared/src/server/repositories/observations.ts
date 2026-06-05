@@ -68,7 +68,6 @@ function observationQueryTags({
     query,
     operation,
     project_id: projectId ?? "unknown",
-    storage: "legacy",
     table,
   };
 }

@@ -31,7 +31,6 @@ export const getBlobStorageByProjectAndEntityId = async (
       query: "blob-storage-file-log.by-project-and-entity-id",
       operation: "lookup",
       project_id: projectId,
-      storage: "legacy",
       table: "blob_storage_file_log",
     },
   });
@@ -56,7 +55,6 @@ export const getBlobStorageByProjectId = (
       query: "blob-storage-file-log.by-project",
       operation: "list",
       project_id: projectId,
-      storage: "legacy",
       table: "blob_storage_file_log",
     },
   });
@@ -84,7 +82,6 @@ export const getBlobStorageByProjectIdBeforeDate = (
       query: "blob-storage-file-log.by-project-before-date",
       operation: "list",
       project_id: projectId,
-      storage: "legacy",
       table: "blob_storage_file_log",
     },
   });
@@ -118,7 +115,6 @@ export const getBlobStorageByProjectIdAndEntityIds = (
       query: "blob-storage-file-log.by-project-and-entity-ids",
       operation: "list",
       project_id: projectId,
-      storage: "legacy",
       table: "blob_storage_file_log",
     },
   });
@@ -187,7 +183,6 @@ export const getBlobStorageByProjectIdAndTraceIds = (
       query: "blob-storage-file-log.by-project-and-trace-ids",
       operation: "list",
       project_id: projectId,
-      storage: "legacy",
       table: "blob_storage_file_log",
     },
   });
@@ -227,7 +222,6 @@ export const insertIntoS3RefsTableFromEventLog = async (
     tags: {
       source: "worker",
       feature: "background-migration",
-      storage: "legacy",
       operation: "write",
       query: "blob-storage-file-log.insert-from-event-log",
       table: "blob_storage_file_log",

@@ -78,7 +78,6 @@ export default class MigrateObservationsFromPostgresToClickhouse implements IBac
           "background-migration.migrate-observations-from-postgres-to-clickhouse.validate",
         operation: "lookup",
         project_id: "none",
-        storage: "unknown",
         table: "system.tables",
       },
     });
@@ -160,7 +159,6 @@ export default class MigrateObservationsFromPostgresToClickhouse implements IBac
             "background-migration.migrate-observations-from-postgres-to-clickhouse",
           operation: "write",
           project_id: "multiple",
-          storage: "legacy",
           table: "observations",
         },
       });

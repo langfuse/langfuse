@@ -17,7 +17,6 @@ function scoreQueryTags({
     query,
     operation: "lookup",
     project_id: projectId,
-    storage: "legacy",
     table: "scores",
   };
 }

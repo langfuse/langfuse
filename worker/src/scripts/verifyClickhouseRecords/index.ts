@@ -304,7 +304,6 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         query: "clickhouse-record-verification.observation",
         operation: "lookup",
         project_id: projectId,
-        storage: "legacy",
         table: "observations",
       },
     })
@@ -742,7 +741,6 @@ async function verifyClickhouseTrace(postgresTrace: any) {
         query: "clickhouse-record-verification.trace",
         operation: "lookup",
         project_id: projectId,
-        storage: "legacy",
         table: "traces",
       },
     })
@@ -919,7 +917,6 @@ async function verifyClickhouseScore(postgresScore: any) {
         query: "clickhouse-record-verification.score",
         operation: "lookup",
         project_id: projectId,
-        storage: "legacy",
         table: "scores",
       },
     })

@@ -15,7 +15,6 @@ describe("ClickHouse query tags", () => {
         query: "public-api.traces.rows",
         operation: "list",
         project_id: "project-1",
-        storage: "events",
         table: "events_core",
       },
     });
@@ -27,7 +26,6 @@ describe("ClickHouse query tags", () => {
       feature: "tracing",
       query: "public-api.traces.rows",
       operation: "list",
-      storage: "events",
       table: "events_core",
     });
   });
@@ -52,7 +50,6 @@ describe("ClickHouse query tags", () => {
       feature: "tracing",
       query: "internal.tracing.lookup",
       operation: "lookup",
-      storage: "unknown",
     });
     expect(tags.table).toBeUndefined();
     expect(normalized.surface).toBeUndefined();
@@ -88,7 +85,6 @@ describe("ClickHouse query tags", () => {
         query: "trpc.traces.count",
         operation: "count",
         project_id: "project-2",
-        storage: "legacy",
         table: "traces",
       },
     });
@@ -100,7 +96,6 @@ describe("ClickHouse query tags", () => {
       query: "trpc.traces.count",
       operation: "count",
       route: "traces.all",
-      storage: "legacy",
       table: "traces",
     });
   });
@@ -132,7 +127,6 @@ describe("ClickHouse query tags", () => {
       feature: "ingestion",
       query: "ingestion.write-events",
       operation: "write",
-      storage: "events",
       project_id: "project-3",
       table: "events_full",
     });

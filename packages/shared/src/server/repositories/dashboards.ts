@@ -95,7 +95,6 @@ export const getScoreAggregate = async (
       query: "dashboard.score-aggregate",
       operation: "aggregate",
       project_id: projectId,
-      storage: "legacy",
       table: "scores",
     },
   });
@@ -180,7 +179,6 @@ export const getObservationCostByTypeByTime = async (
       query: "dashboard.observation-cost-by-type-by-time",
       operation: "aggregate",
       project_id: projectId,
-      storage: "legacy",
       table: "observations",
     },
   });
@@ -280,7 +278,6 @@ export const getObservationUsageByTypeByTime = async (
       query: "dashboard.observation-usage-by-time",
       operation: "aggregate",
       project_id: projectId,
-      storage: "legacy",
       table: "observations",
     },
   });

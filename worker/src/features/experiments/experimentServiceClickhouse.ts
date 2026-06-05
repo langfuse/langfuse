@@ -65,7 +65,6 @@ async function getExistingRunItemDatasetItemIds(
       query: "experiments.existing-run-item-dataset-item-ids",
       operation: "list",
       project_id: projectId,
-      storage: "legacy",
       table: "dataset_run_items_rmt",
     },
   });

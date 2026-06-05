@@ -45,7 +45,6 @@ export const getEnvironmentsForProject = async (
       query: "environments.list",
       operation: "list",
       project_id: projectId,
-      storage: "legacy",
       table: "traces",
     },
     preferredClickhouseService: "ReadOnly",

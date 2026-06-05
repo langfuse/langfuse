@@ -49,7 +49,6 @@ export default class MigrateEventLogToBlobStorageRefTable implements IBackground
           "background-migration.migrate-event-log-to-blob-storage-ref-table.validate",
         operation: "lookup",
         project_id: "none",
-        storage: "unknown",
         table: "system.tables",
       },
     });

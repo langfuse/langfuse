@@ -39,12 +39,6 @@ export const TIMESTAMP_COLUMN_MAP: Record<BatchDataRetentionTable, string> = {
   events_core: "start_time",
 };
 
-function getStorageForTable(tableName: BatchDataRetentionTable) {
-  return tableName === "events_full" || tableName === "events_core"
-    ? "events"
-    : "legacy";
-}
-
 interface ProjectWorkload {
   projectId: string;
   retentionDays: number;
@@ -347,7 +341,6 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         query: `batch-data-retention-cleaner.count.${this.tableName}`,
         operation: "count",
         project_id: projects.length === 1 ? projects[0].projectId : "multiple",
-        storage: getStorageForTable(this.tableName),
         table: this.tableName,
       },
     });
@@ -407,7 +400,6 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         operation: "delete",
         project_id:
           workloads.length === 1 ? workloads[0].projectId : "multiple",
-        storage: getStorageForTable(this.tableName),
         table: this.tableName,
       },
     });

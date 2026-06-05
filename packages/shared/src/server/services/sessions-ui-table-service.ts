@@ -406,7 +406,6 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
               ? "aggregate"
               : "list",
         project_id: projectId,
-        storage: "legacy",
         table: "multiple",
         ...(props.tags ?? {}),
       } satisfies ClickHouseQueryTags,

@@ -437,7 +437,6 @@ export const generateTracesForPublicApi = async ({
         query: "public-api.traces.rows",
         operation: "list",
         project_id: props.projectId,
-        storage: "legacy",
         table:
           includeObservations || includeMetrics || includeScores
             ? "multiple"
@@ -528,7 +527,6 @@ export const getTracesCountForPublicApi = async ({
         query: "public-api.traces.count",
         operation: "count",
         project_id: props.projectId,
-        storage: "legacy",
         table:
           advancedFilters !== undefined && advancedFilters.length > 0
             ? "multiple"

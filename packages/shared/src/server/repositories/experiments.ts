@@ -66,7 +66,6 @@ function experimentQueryTags({
     query,
     operation,
     project_id: projectId,
-    storage: "events",
     table,
   };
 }

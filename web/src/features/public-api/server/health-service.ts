@@ -66,7 +66,6 @@ export const runHealthCheck = async ({
                 query: "health.traces.recent",
                 operation: "lookup",
                 project_id: "none",
-                storage: "legacy",
                 table: "traces",
               },
             }),
@@ -88,7 +87,6 @@ export const runHealthCheck = async ({
             query: "health.observations.recent",
             operation: "lookup",
             project_id: "none",
-            storage: "legacy",
             table: "observations",
           },
         });

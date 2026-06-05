@@ -555,7 +555,6 @@ export const getTracesByIds = async (
       query: "traces.by-ids",
       operation: "list",
       project_id: projectId,
-      storage: "legacy",
       table: "traces",
     },
   });
@@ -584,7 +583,6 @@ export const upsertTrace = async (
       query: "ingestion.write.traces",
       operation: "write",
       project_id: trace.project_id,
-      storage: "legacy",
       table: "traces",
     },
   });
@@ -722,7 +720,6 @@ export const upsertScore = async (score: ScoreInsertType): Promise<void> => {
       query: "scores.upsert",
       operation: "write",
       project_id: score.projectId,
-      storage: "legacy",
       table: "scores",
     },
   });
@@ -899,7 +896,6 @@ export const upsertScore = async (score: ScoreInsertType): Promise<void> => {
       query: "scores.upsert",
       operation: "write",
       project_id: score.projectId,
-      storage: "legacy",
       table: "scores",
     },
   });

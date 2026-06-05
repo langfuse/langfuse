@@ -236,7 +236,6 @@ const rows = await queryClickhouse<{ id: string; name: string }>({
     query: "traces.lookup-by-time",
     operation: "list",
     project_id: projectId,
-    storage: "legacy",
     table: "traces",
   },
 });
@@ -297,7 +296,6 @@ await upsertClickhouse({
     query: "ingestion.write.traces",
     operation: "write",
     project_id: projectId,
-    storage: "legacy",
     table: "traces",
   },
 });
@@ -320,7 +318,6 @@ await commandClickhouse({
     query: "background-migration.add-new-field",
     operation: "write",
     project_id: "none",
-    storage: "legacy",
     table: "traces",
   },
 });
@@ -329,8 +326,8 @@ await commandClickhouse({
 ### ClickHouse Query Tags
 
 Langfuse sets structured ClickHouse `log_comment` values so `sysex.query_log`
-can attribute query cost and performance by project, feature/API, storage
-backend, and stable query shape.
+can attribute query cost and performance by project, feature/API, physical
+table, and stable query shape.
 
 Use the shared repository wrappers
 (`queryClickhouse`, `queryClickhouseStream`, `queryClickhouseWithProgress`,
@@ -349,19 +346,13 @@ text:
 - `query`
 - `operation`
 - `route`
-- `storage`
 - `table`
 - `v`
 
-`storage` is the primary dimension for events-table migration cost analysis:
-
-- `events`: queries against `events_core`, `events_full`, or the logical events
-  table.
-- `legacy`: queries against legacy ClickHouse tables such as `traces`,
-  `observations`, `scores`, `dataset_run_items_rmt`, and
-  `blob_storage_file_log`.
-- `mixed`: intentional multi-storage queries.
-- `unknown`: metadata queries or code paths where storage cannot be inferred.
+Use `table` to distinguish events-table queries (`events_core`, `events_full`)
+from legacy entity tables such as `traces`, `observations`, `scores`,
+`dataset_run_items_rmt`, and `blob_storage_file_log`. Use `multiple` when a
+query intentionally spans several physical tables.
 
 Set `query` explicitly whenever adding new ClickHouse access. It should be a
 stable, human-readable query name such as `public-api.traces.list`,
@@ -384,13 +375,13 @@ SELECT
   simpleJSONExtractString(log_comment, 'feature') AS feature,
   simpleJSONExtractString(log_comment, 'query') AS query,
   simpleJSONExtractString(log_comment, 'operation') AS operation,
-  simpleJSONExtractString(log_comment, 'storage') AS storage,
+  simpleJSONExtractString(log_comment, 'table') AS table,
   sum(memory_usage) AS memory,
   sum(ProfileEvents['OSCPUVirtualTimeMicroseconds']) / 1000000 AS cpu_seconds
 FROM sysex.query_log
 WHERE type = 'QueryFinish'
   AND simpleJSONExtractString(log_comment, 'v') = '1'
-GROUP BY time, project_id, source, feature, query, operation, storage
+GROUP BY time, project_id, source, feature, query, operation, table
 ORDER BY time ASC;
 ```
 
@@ -587,7 +578,6 @@ export const getTracesByIds = async (
       query: "traces.by-ids",
       operation: "list",
       project_id: projectId,
-      storage: "legacy",
       table: "traces",
     },
   });

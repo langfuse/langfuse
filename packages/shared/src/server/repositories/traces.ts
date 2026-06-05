@@ -45,14 +45,12 @@ function traceQueryTags({
   query,
   operation,
   feature = "tracing",
-  storage = "legacy",
   table = "traces",
 }: {
   projectId: string;
   query: string;
   operation: NonNullable<ClickHouseQueryTags["operation"]>;
   feature?: ClickHouseQueryTags["feature"];
-  storage?: ClickHouseQueryTags["storage"];
   table?: ClickHouseQueryTags["table"];
 }): ClickHouseQueryTags {
   return {
@@ -60,7 +58,6 @@ function traceQueryTags({
     query,
     operation,
     project_id: projectId,
-    storage,
     table,
   };
 }

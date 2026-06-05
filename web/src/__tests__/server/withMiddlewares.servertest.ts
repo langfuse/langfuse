@@ -225,7 +225,6 @@ describe("withMiddlewares error handling", () => {
           feature: "tracing",
           query: "public-api.traces.rows",
           operation: "list",
-          storage: "events",
           table: "events_core",
         },
       );
@@ -255,7 +254,6 @@ describe("withMiddlewares error handling", () => {
             feature: "tracing",
             query: "public-api.traces.rows",
             operation: "list",
-            storage: "events",
             table: "events_core",
           },
         }),

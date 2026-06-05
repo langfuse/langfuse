@@ -43,7 +43,6 @@ export default class MigrateTracesFromPostgresToClickhouse implements IBackgroun
           "background-migration.migrate-traces-from-postgres-to-clickhouse.validate",
         operation: "lookup",
         project_id: "none",
-        storage: "unknown",
         table: "system.tables",
       },
     });
@@ -137,7 +136,6 @@ export default class MigrateTracesFromPostgresToClickhouse implements IBackgroun
             "background-migration.migrate-traces-from-postgres-to-clickhouse",
           operation: "write",
           project_id: "multiple",
-          storage: "legacy",
           table: "traces",
         },
       });

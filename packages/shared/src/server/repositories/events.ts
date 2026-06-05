@@ -149,7 +149,6 @@ function eventsQueryTags({
     query,
     operation,
     project_id: projectId ?? "unknown",
-    storage: "events",
     table,
   };
 }

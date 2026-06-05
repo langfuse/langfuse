@@ -23,12 +23,6 @@ export type BatchDeletionTable = (typeof BATCH_DELETION_TABLES)[number];
 export const BATCH_PROJECT_CLEANER_LOCK_PREFIX =
   "langfuse:batch-project-cleaner";
 
-function getStorageForTable(tableName: BatchDeletionTable) {
-  return tableName === "events_full" || tableName === "events_core"
-    ? "events"
-    : "legacy";
-}
-
 interface ProjectCount {
   project_id: string;
   count: number;
@@ -225,7 +219,6 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
         query: `batch-project-cleaner.count.${this.tableName}`,
         operation: "count",
         project_id: projectIds.length === 1 ? projectIds[0] : "multiple",
-        storage: getStorageForTable(this.tableName),
         table: this.tableName,
       },
     });
@@ -260,7 +253,6 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
         query: `batch-project-cleaner.delete.${this.tableName}`,
         operation: "delete",
         project_id: projectIds.length === 1 ? projectIds[0] : "multiple",
-        storage: getStorageForTable(this.tableName),
         table: this.tableName,
       },
     });

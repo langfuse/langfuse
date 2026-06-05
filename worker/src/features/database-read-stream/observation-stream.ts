@@ -261,7 +261,6 @@ export const getObservationStream = async (props: {
       query: "batch-export.observations",
       operation: "export",
       project_id: projectId,
-      storage: "legacy",
       table: "multiple",
     },
   });

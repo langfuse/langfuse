@@ -495,7 +495,6 @@ const getDatasetRunsTableInternal = async <T>(
       query: `datasets.runs-table.${opts.select}`,
       operation: opts.select === "count" ? "count" : "list",
       project_id: projectId,
-      storage: "legacy",
       table: "dataset_run_items_rmt",
     },
   });
@@ -720,7 +719,6 @@ const getQualifyingDatasetItems = async <T>(opts: {
       query: `datasets.qualifying-items.${select}`,
       operation: select === "count" ? "count" : "list",
       project_id: projectId,
-      storage: "legacy",
       table: "dataset_run_items_rmt",
     },
   });
@@ -903,7 +901,6 @@ const getDatasetRunItemsTableInternal = async <
       query: `datasets.run-items-table.${opts.select}`,
       operation: opts.select === "count" ? "count" : "list",
       project_id: projectId,
-      storage: "legacy",
       table: "dataset_run_items_rmt",
     },
     clickhouseConfigs: opts.clickhouseConfigs,
@@ -1052,7 +1049,6 @@ export const getDatasetItemIdsByTraceIdCh = async (
       query: "datasets.run-items-by-observation-id",
       operation: "lookup",
       project_id: projectId,
-      storage: "legacy",
       table: "dataset_run_items_rmt",
     },
   });
@@ -1108,7 +1104,6 @@ export const hasAnyDatasetRunItem = async (
       query: "datasets.has-any-run-item",
       operation: "lookup",
       project_id: projectId,
-      storage: "legacy",
       table: "dataset_run_items_rmt",
     },
   });
@@ -1136,7 +1131,6 @@ export const deleteDatasetRunItemsByProjectId = async (
     },
     tags: {
       feature: "datasets",
-      storage: "legacy",
       operation: "delete",
       query: "datasets.delete-run-items-by-project",
       table: "dataset_run_items_rmt",
@@ -1171,7 +1165,6 @@ export const deleteDatasetRunItemsByDatasetId = async ({
     },
     tags: {
       feature: "datasets",
-      storage: "legacy",
       operation: "delete",
       query: "datasets.delete-run-items-by-dataset",
       table: "dataset_run_items_rmt",
@@ -1208,7 +1201,6 @@ export const deleteDatasetRunItemsByDatasetRunIds = async ({
     },
     tags: {
       feature: "datasets",
-      storage: "legacy",
       operation: "delete",
       query: "datasets.delete-run-items-by-runs",
       table: "dataset_run_items_rmt",
@@ -1245,7 +1237,6 @@ export const getDatasetRunItemCountsByProjectInCreationInterval = async ({
       query: "datasets.run-item-counts-by-project-in-creation-interval",
       operation: "aggregate",
       project_id: "multiple",
-      storage: "legacy",
       table: "dataset_run_items_rmt",
     },
   });

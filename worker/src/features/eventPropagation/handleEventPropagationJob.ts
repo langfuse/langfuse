@@ -107,7 +107,6 @@ export const handleEventPropagationJob = async (
         query: "event-propagation.next-partition",
         operation: "lookup",
         project_id: "none",
-        storage: "unknown",
         table: "system.parts",
       },
     });
@@ -310,7 +309,6 @@ export const handleEventPropagationJob = async (
         query: "event-propagation.propagate-observations",
         operation: "write",
         project_id: "multiple",
-        storage: "events",
         table: "events_full",
       },
       clickhouseConfigs: {

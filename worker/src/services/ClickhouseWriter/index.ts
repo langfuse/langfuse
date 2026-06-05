@@ -587,7 +587,6 @@ export class ClickhouseWriter {
             params.records.length > 0
               ? params.records[0].project_id
               : "unknown",
-          storage: "legacy",
           table: params.table,
         },
       });

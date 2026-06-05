@@ -226,7 +226,6 @@ export const getTraceStream = async (props: {
       query: "batch-export.traces",
       operation: "export",
       project_id: projectId,
-      storage: "legacy",
       table: "multiple",
     },
   });

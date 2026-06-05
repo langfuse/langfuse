@@ -107,7 +107,6 @@ export default class BackfillExperimentsHistoric implements IBackgroundMigration
         query: "background-migration.backfill-experiments.count-dris",
         operation: "count",
         project_id: "multiple",
-        storage: "legacy",
         table: "dataset_run_items_rmt",
       },
     });
@@ -191,7 +190,6 @@ export default class BackfillExperimentsHistoric implements IBackgroundMigration
         query: "background-migration.backfill-experiments.fetch-dris-chunk",
         operation: "list",
         project_id: "multiple",
-        storage: "legacy",
         table: "dataset_run_items_rmt",
       },
     });
@@ -271,7 +269,6 @@ export default class BackfillExperimentsHistoric implements IBackgroundMigration
           "background-migration.backfill-experiments.fetch-observations-for-traces",
         operation: "list",
         project_id: projectIds.length === 1 ? projectIds[0] : "multiple",
-        storage: "legacy",
         table: "observations",
       },
     });
@@ -342,7 +339,6 @@ export default class BackfillExperimentsHistoric implements IBackgroundMigration
           "background-migration.backfill-experiments.fetch-traces-for-traces",
         operation: "list",
         project_id: projectIds.length === 1 ? projectIds[0] : "multiple",
-        storage: "legacy",
         table: "traces",
       },
     });
@@ -391,7 +387,6 @@ export default class BackfillExperimentsHistoric implements IBackgroundMigration
         query: "background-migration.backfill-experiments-historic.validate",
         operation: "lookup",
         project_id: "none",
-        storage: "unknown",
         table: "system.tables",
       },
     });

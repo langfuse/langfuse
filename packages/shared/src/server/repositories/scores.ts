@@ -66,14 +66,12 @@ function scoreQueryTags({
   query,
   operation,
   feature = "tracing",
-  storage = "legacy",
   table = "scores",
 }: {
   projectId: string;
   query: string;
   operation: NonNullable<ClickHouseQueryTags["operation"]>;
   feature?: ClickHouseQueryTags["feature"];
-  storage?: ClickHouseQueryTags["storage"];
   table?: ClickHouseQueryTags["table"];
 }): ClickHouseQueryTags {
   return {
@@ -81,7 +79,6 @@ function scoreQueryTags({
     query,
     operation,
     project_id: projectId,
-    storage,
     table,
   };
 }
@@ -504,7 +501,6 @@ export const getScoresForExperimentItems = async (
       feature: "experiments",
       query: "scores.for-experiment-items",
       operation: "list",
-      storage: "mixed",
       table: "multiple",
     }),
     preferredClickhouseService: "EventsReadOnly",
@@ -868,7 +864,6 @@ export const getScoresGroupedByNameSourceType = async ({
       projectId,
       query: "scores.names",
       operation: "filter-options",
-      storage: hasEventsFilters ? "mixed" : "legacy",
       table: hasEventsFilters ? "multiple" : "scores",
     }),
     preferredClickhouseService: hasEventsFilters
@@ -1450,7 +1445,6 @@ const getScoresUiGenericFromEvents = async <T>(props: {
           projectId,
           query: `scores.events-ui.${props.select}`,
           operation: props.select === "count" ? "count" : "list",
-          storage: needsTracesCTE ? "mixed" : "legacy",
           table: needsTracesCTE ? "multiple" : "scores",
         }),
         ...(props.tags ?? {}),

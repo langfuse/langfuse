@@ -43,7 +43,6 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt implement
           "background-migration.migrate-dataset-run-items-from-postgres-to-clickhouse-rmt.validate",
         operation: "lookup",
         project_id: "none",
-        storage: "unknown",
         table: "system.tables",
       },
     });
@@ -179,7 +178,6 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt implement
             "background-migration.migrate-dataset-run-items-from-postgres-to-clickhouse-rmt",
           operation: "write",
           project_id: "multiple",
-          storage: "legacy",
           table: "dataset_run_items_rmt",
         },
       });

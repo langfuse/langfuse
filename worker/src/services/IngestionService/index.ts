@@ -1440,7 +1440,6 @@ export class IngestionService {
             source: "worker",
             feature: "ingestion",
             query: `ingestion.existing-record.${table}`,
-            storage: "legacy",
             operation: "lookup",
             project_id: projectId,
             table,

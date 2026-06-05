@@ -160,7 +160,6 @@ export async function getDatasetRunItemsSinceLastRun(
       query: "experiment-backfill.dataset-run-items-since-last-run",
       operation: "list",
       project_id: "multiple",
-      storage: "legacy",
       table: "dataset_run_items_rmt",
     },
   });
@@ -256,7 +255,6 @@ export async function getRelevantObservations(
       query: "experiment-backfill.relevant-observations",
       operation: "list",
       project_id: projectIds.length === 1 ? projectIds[0] : "multiple",
-      storage: "legacy",
       table: "observations",
     },
   });
@@ -341,7 +339,6 @@ export async function getRelevantTraces(
       query: "experiment-backfill.relevant-traces",
       operation: "list",
       project_id: projectIds.length === 1 ? projectIds[0] : "multiple",
-      storage: "legacy",
       table: "traces",
     },
   });
