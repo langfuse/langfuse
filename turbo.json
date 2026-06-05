@@ -69,7 +69,6 @@
       "outputLogs": "errors-only"
     },
     "lint": {
-      "dependsOn": ["@repo/eslint-plugin#build"],
       "cache": true,
       "outputLogs": "errors-only",
       "outputs": []
