@@ -1,4 +1,4 @@
-import z from "zod";
+import { z } from "zod";
 import { InvalidRequestError } from "@langfuse/shared";
 
 export const ScoresCursorV3 = z.object({
