@@ -15,6 +15,7 @@ import {
   isAbortError,
   normalizeMutationCounts,
   selectCandidateToProcess,
+  shouldUseDeletedMaskCleanerClusterMode,
   type MutationCountRow,
   type WorkCandidateRow,
 } from "./helpers";
@@ -142,7 +143,12 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
 
     return queryClickhouse<MutationCountRow>({
       query: buildMutationCountQuery(
-        env.CLICKHOUSE_CLUSTER_ENABLED === "true",
+        shouldUseDeletedMaskCleanerClusterMode({
+          clusterEnabled: env.CLICKHOUSE_CLUSTER_ENABLED === "true",
+          cleanerClusterModeEnabled:
+            env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_CLUSTER_MODE_ENABLED ===
+            "true",
+        }),
         env.CLICKHOUSE_CLUSTER_NAME,
       ),
       params: {
@@ -159,7 +165,12 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
   private async applyDeletedMask(candidate: WorkCandidateRow): Promise<void> {
     const query = buildApplyDeletedMaskQuery(candidate, {
       database: env.CLICKHOUSE_DB,
-      clusterEnabled: env.CLICKHOUSE_CLUSTER_ENABLED === "true",
+      clusterEnabled: shouldUseDeletedMaskCleanerClusterMode({
+        clusterEnabled: env.CLICKHOUSE_CLUSTER_ENABLED === "true",
+        cleanerClusterModeEnabled:
+          env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_CLUSTER_MODE_ENABLED ===
+          "true",
+      }),
       clusterName: env.CLICKHOUSE_CLUSTER_NAME,
     });
 

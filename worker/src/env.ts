@@ -417,6 +417,9 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(60_000), // Wait up to 1 minute for ALTER submission; mutation can run for hours
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_CLUSTER_MODE_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"), // Use ON CLUSTER and clusterAllReplicas for cleaner operations
 
   // Media Retention Cleaner configuration (S3/PostgreSQL)
   LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT: z.coerce
