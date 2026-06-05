@@ -108,8 +108,10 @@ export default withMiddlewares({
     responseSchema: GetScoresResponseV3,
     fn: async ({ query, auth }) => {
       if (env.LANGFUSE_ENABLE_SCORES_V3_API !== "true") {
-        // Generic message to avoid disclosing the feature-flag existence to
-        // unauthenticated probes. Cloud has the flag on; self-hosted gets 404.
+        // Returns 404 to authenticated callers when disabled. Note: auth and
+        // Zod parsing already ran, so an unauthenticated caller sees 401 here
+        // (signalling the endpoint exists). Cloud has the flag on by default;
+        // self-hosted instances see 404 until the API graduates from preview.
         throw new LangfuseNotFoundError("Not Found");
       }
 
