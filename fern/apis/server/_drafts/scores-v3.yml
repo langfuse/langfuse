@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
-  commons: ./commons.yml
+  commons: ../definition/commons.yml
 
 service:
   auth: true
