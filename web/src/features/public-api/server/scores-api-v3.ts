@@ -316,32 +316,53 @@ function buildDynamicFilters(params: ListFilterParams): {
   const extraParams: Record<string, unknown> = {};
 
   if (params.value?.length && params.dataType?.length === 1) {
-    const dt = params.dataType[0];
+    // Cast: handler superRefine validates dt is a ScoreDataTypeType member.
+    const dt = params.dataType[0] as ScoreDataTypeType;
     const uid = clickhouseCompliantRandomCharacters();
     const varName = `valueFilter${uid}`;
 
-    if (dt === "NUMERIC") {
-      extraClauses.push(`s.value IN ({${varName}: Array(Float64)})`);
-      // Belt-and-braces: the route-handler superRefine asserts each value is
-      // a finite number before this is called. Re-validate so a regression
-      // can't land NaN/Infinity directly in a CH IN-clause parameter.
-      extraParams[varName] = params.value.map((v) => {
-        const n = Number(v);
-        if (!Number.isFinite(n)) {
-          throw new InternalServerError(
-            `NUMERIC value filter received non-finite value: ${v}`,
-          );
-        }
-        return n;
-      });
-    } else if (dt === "BOOLEAN") {
-      extraClauses.push(`s.value IN ({${varName}: Array(Float64)})`);
-      extraParams[varName] = params.value.map((v) =>
-        transformBooleanValueForFilter(v as "true" | "false"),
-      );
-    } else if (dt === "CATEGORICAL") {
-      extraClauses.push(`s.string_value IN ({${varName}: Array(String)})`);
-      extraParams[varName] = params.value;
+    switch (dt) {
+      case ScoreDataTypeEnum.NUMERIC: {
+        extraClauses.push(`s.value IN ({${varName}: Array(Float64)})`);
+        // Belt-and-braces: the route-handler superRefine asserts each value is
+        // a finite number before this is called. Re-validate so a regression
+        // can't land NaN/Infinity directly in a CH IN-clause parameter.
+        extraParams[varName] = params.value.map((v) => {
+          const n = Number(v);
+          if (!Number.isFinite(n)) {
+            throw new InternalServerError(
+              `NUMERIC value filter received non-finite value: ${v}`,
+            );
+          }
+          return n;
+        });
+        break;
+      }
+      case ScoreDataTypeEnum.BOOLEAN: {
+        extraClauses.push(`s.value IN ({${varName}: Array(Float64)})`);
+        extraParams[varName] = params.value.map((v) =>
+          transformBooleanValueForFilter(v as "true" | "false"),
+        );
+        break;
+      }
+      case ScoreDataTypeEnum.CATEGORICAL: {
+        extraClauses.push(`s.string_value IN ({${varName}: Array(String)})`);
+        extraParams[varName] = params.value;
+        break;
+      }
+      case ScoreDataTypeEnum.TEXT:
+      case ScoreDataTypeEnum.CORRECTION:
+        // Handler superRefine rejects value= with TEXT/CORRECTION; reaching
+        // this branch means the validator regressed.
+        throw new InternalServerError(
+          `value filter with dataType=${dt} should have been rejected by handler validation`,
+        );
+      default: {
+        const _exhaustiveCheck: never = dt;
+        throw new InternalServerError(
+          `value filter received unknown dataType: ${_exhaustiveCheck as string}`,
+        );
+      }
     }
   }
 
