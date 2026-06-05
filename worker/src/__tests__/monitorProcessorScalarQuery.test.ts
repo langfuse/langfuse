@@ -1,5 +1,5 @@
 import { v4 } from "uuid";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
@@ -8,6 +8,17 @@ import {
   type QueryType,
 } from "@langfuse/shared/query";
 import { getValidMonitorAggregationsForMeasure } from "@langfuse/shared/monitors";
+import { queryClickhouse } from "@langfuse/shared/src/server";
+
+/** eventsCoreAvailable reports whether the dev-only `events_core` table exists. */
+async function eventsCoreAvailable(): Promise<boolean> {
+  // events_core is created by ch:dev-tables, not migrations; absent in -azure/-redis-cluster CI legs.
+  const rows = await queryClickhouse<Record<string, unknown>>({
+    query: "EXISTS TABLE events_core",
+    params: {},
+  });
+  return Number(Object.values(rows[0] ?? {})[0]) === 1;
+}
 
 /** parseNumericValue coerces a ClickHouse cell to number | null, mirroring the monitor processor. */
 function parseNumericValue(raw: unknown): number | null {
@@ -37,7 +48,13 @@ async function scalarValue(query: QueryType): Promise<number | null> {
 }
 
 describe("monitor scalar query — empty project", () => {
-  it("verifies which parameters return zero and which return null", async () => {
+  let hasEventsCore = false;
+  beforeAll(async () => {
+    hasEventsCore = await eventsCoreAvailable();
+  });
+
+  it("verifies which parameters return zero and which return null", async (ctx) => {
+    if (!hasEventsCore) ctx.skip();
     const results: Record<string, number | null> = {};
     for (const { view, measure, aggregation } of combos) {
       results[`${view}/${measure}/${aggregation}`] = await scalarValue({
