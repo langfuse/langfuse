@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef } from "react";
 import { type Virtualizer } from "@tanstack/react-virtual";
-
-const SCROLL_IDLE_MS = 150;
-const OSCILLATION_WINDOW_MS = 1_000;
-const MAX_OSCILLATION_COUNT = 4;
+import {
+  createStableVirtualRowMeasurementState,
+  STABLE_VIRTUAL_ROW_MEASUREMENT_CONFIG,
+} from "@/src/components/session/stableVirtualRowMeasurementState";
 
 type StableVirtualRowMeasurementOptions = {
   index: number;
@@ -21,150 +21,106 @@ export function useStableVirtualRowMeasurement({
   const observerRef = useRef<ResizeObserver | null>(null);
   const frameRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingHeightRef = useRef<number | null>(null);
+  const nodeRef = useRef<HTMLDivElement | null>(null);
   const latestIndexRef = useRef(index);
   const latestIsScrollingRef = useRef(isScrolling);
-  const committedHeightRef = useRef<number | null>(null);
-  const previousObservedHeightRef = useRef<number | null>(null);
-  const oscillationPairRef = useRef<[number, number] | null>(null);
-  const oscillationCountRef = useRef(0);
-  const oscillationWindowStartedAtRef = useRef(0);
-  const frozenMinHeightRef = useRef<number | null>(null);
+  const itemKeyRef = useRef(itemKey);
+  const measurementStateRef = useRef(createStableVirtualRowMeasurementState());
 
-  useEffect(() => {
-    if (frameRef.current !== null) {
-      cancelAnimationFrame(frameRef.current);
-      frameRef.current = null;
-    }
-    if (timerRef.current !== null) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    committedHeightRef.current = null;
-    previousObservedHeightRef.current = null;
-    oscillationPairRef.current = null;
-    oscillationCountRef.current = 0;
-    oscillationWindowStartedAtRef.current = 0;
-    frozenMinHeightRef.current = null;
-    pendingHeightRef.current = null;
-  }, [itemKey]);
+  latestIndexRef.current = index;
+  latestIsScrollingRef.current = isScrolling;
 
-  useEffect(() => {
-    return () => {
-      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-      if (timerRef.current !== null) clearTimeout(timerRef.current);
-      observerRef.current?.disconnect();
-    };
+  const cancelFrame = useCallback(() => {
+    if (frameRef.current === null) return;
+    cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
   }, []);
 
-  const commitHeight = useCallback(
-    (rawHeight: number) => {
-      const roundedHeight = Math.ceil(rawHeight);
-      if (roundedHeight <= 0) return;
+  const cancelTimer = useCallback(() => {
+    if (timerRef.current === null) return;
+    clearTimeout(timerRef.current);
+    timerRef.current = null;
+  }, []);
 
-      const now = Date.now();
-      const previousObservedHeight = previousObservedHeightRef.current;
+  const cancelScheduledWork = useCallback(() => {
+    cancelFrame();
+    cancelTimer();
+  }, [cancelFrame, cancelTimer]);
 
-      if (
-        previousObservedHeight !== null &&
-        previousObservedHeight !== roundedHeight
-      ) {
-        const nextPair: [number, number] = [
-          Math.min(previousObservedHeight, roundedHeight),
-          Math.max(previousObservedHeight, roundedHeight),
-        ];
-        const previousPair = oscillationPairRef.current;
-
-        if (
-          now - oscillationWindowStartedAtRef.current > OSCILLATION_WINDOW_MS ||
-          !previousPair ||
-          previousPair[0] !== nextPair[0] ||
-          previousPair[1] !== nextPair[1]
-        ) {
-          oscillationWindowStartedAtRef.current = now;
-          oscillationPairRef.current = nextPair;
-          oscillationCountRef.current = 1;
-        } else {
-          oscillationCountRef.current += 1;
-        }
-      }
-
-      previousObservedHeightRef.current = roundedHeight;
-
-      const committedHeight = committedHeightRef.current;
-      if (
-        oscillationCountRef.current >= MAX_OSCILLATION_COUNT &&
-        committedHeight !== null
-      ) {
-        frozenMinHeightRef.current = Math.max(committedHeight, roundedHeight);
-      }
-
-      const frozenMinHeight = frozenMinHeightRef.current;
-      const nextHeight =
-        frozenMinHeight === null
-          ? roundedHeight
-          : Math.max(frozenMinHeight, roundedHeight);
-
-      if (
-        committedHeight !== null &&
-        Math.abs(committedHeight - nextHeight) < 1
-      ) {
-        return;
-      }
-
-      committedHeightRef.current = nextHeight;
-      virtualizer.resizeItem(latestIndexRef.current, nextHeight);
+  const resizeCommittedHeight = useCallback(
+    (height: number | null) => {
+      if (height === null) return;
+      virtualizer.resizeItem(latestIndexRef.current, height);
     },
     [virtualizer],
   );
 
+  const commitPendingHeight = useCallback(() => {
+    resizeCommittedHeight(measurementStateRef.current.commitPendingHeight());
+  }, [resizeCommittedHeight]);
+
   const scheduleHeightCommit = useCallback(
     (height: number) => {
-      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-      if (timerRef.current !== null) clearTimeout(timerRef.current);
+      cancelScheduledWork();
 
       frameRef.current = requestAnimationFrame(() => {
         frameRef.current = null;
 
         if (latestIsScrollingRef.current) {
-          pendingHeightRef.current = height;
+          measurementStateRef.current.setPendingHeight(height);
           return;
         }
 
-        pendingHeightRef.current = null;
-        commitHeight(height);
+        resizeCommittedHeight(measurementStateRef.current.commitHeight(height));
       });
     },
-    [commitHeight],
+    [cancelScheduledWork, resizeCommittedHeight],
   );
 
   useEffect(() => {
-    latestIndexRef.current = index;
-    latestIsScrollingRef.current = isScrolling;
+    const itemKeyChanged = itemKeyRef.current !== itemKey;
 
-    if (isScrolling || pendingHeightRef.current === null) return;
+    if (itemKeyChanged) {
+      itemKeyRef.current = itemKey;
+      cancelScheduledWork();
+      measurementStateRef.current.reset();
 
-    if (timerRef.current !== null) clearTimeout(timerRef.current);
+      if (nodeRef.current) {
+        scheduleHeightCommit(nodeRef.current.getBoundingClientRect().height);
+      }
+
+      return;
+    }
+
+    if (isScrolling || !measurementStateRef.current.hasPendingHeight()) {
+      return;
+    }
+
+    cancelTimer();
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
 
       if (latestIsScrollingRef.current) return;
 
-      const pendingHeight = pendingHeightRef.current;
-      pendingHeightRef.current = null;
-      if (pendingHeight !== null) commitHeight(pendingHeight);
-    }, SCROLL_IDLE_MS);
+      commitPendingHeight();
+    }, STABLE_VIRTUAL_ROW_MEASUREMENT_CONFIG.scrollIdleMs);
 
-    return () => {
-      if (timerRef.current !== null) clearTimeout(timerRef.current);
-      timerRef.current = null;
-    };
-  }, [commitHeight, index, isScrolling]);
+    return cancelTimer;
+  }, [
+    cancelScheduledWork,
+    cancelTimer,
+    commitPendingHeight,
+    isScrolling,
+    itemKey,
+    scheduleHeightCommit,
+  ]);
 
   return useCallback(
     (node: HTMLDivElement | null) => {
       observerRef.current?.disconnect();
       observerRef.current = null;
+      nodeRef.current = node;
+      cancelScheduledWork();
 
       if (!node || typeof ResizeObserver === "undefined") return;
 
@@ -178,6 +134,6 @@ export function useStableVirtualRowMeasurement({
       observerRef.current.observe(node);
       scheduleHeightCommit(node.getBoundingClientRect().height);
     },
-    [scheduleHeightCommit],
+    [cancelScheduledWork, scheduleHeightCommit],
   );
 }
