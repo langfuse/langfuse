@@ -32,7 +32,13 @@
             "message": "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons."
           },
           {
-            "regex": "^react-icons/(?!si(?:/|$)|tb(?:/|$)).*",
+            "group": [
+              "react-icons/*",
+              "!react-icons/si",
+              "!react-icons/si/*",
+              "!react-icons/tb",
+              "!react-icons/tb/*"
+            ],
             "message": "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons."
           }
         ]
@@ -153,8 +159,8 @@
     },
     {
       "files": [
-        "**/*.stories.@(ts|tsx|js|jsx|mjs|cjs)",
-        "**/*.story.@(ts|tsx|js|jsx|mjs|cjs)"
+        "**/*.stories.{ts,tsx,js,jsx,mjs,cjs}",
+        "**/*.story.{ts,tsx,js,jsx,mjs,cjs}"
       ],
       "rules": {
         "storybook/await-interactions": "error",
@@ -177,7 +183,7 @@
       "plugins": ["react", "import"]
     },
     {
-      "files": [".storybook/main.@(js|cjs|mjs|ts)"],
+      "files": [".storybook/main.{js,cjs,mjs,ts}"],
       "rules": {
         "storybook/no-uninstalled-addons": "error"
       },
