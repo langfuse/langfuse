@@ -200,7 +200,7 @@ export function ExperimentChartSlot({
       <div className="mt-1 flex h-56 flex-col">
         {isExternalLoading ? (
           <Skeleton className="h-[190px] w-full" />
-        ) : !isMetricAvailable ? (
+        ) : !isMetricAvailable || !isEnabled ? (
           <NoDataOrLoading isLoading={false} className="h-[190px]" />
         ) : widgetConfig && query ? (
           <WidgetContent
@@ -213,7 +213,7 @@ export function ExperimentChartSlot({
             dimensions={[...widgetConfig.dimensions]}
             view={widgetConfig.view}
             schedulerId={`chart-slot-${chartIndex}-${selectedMetricId}`}
-            isExternalLoading={isExternalLoading || !isEnabled}
+            isExternalLoading={isExternalLoading}
             layoutHint="compact"
             entityDimensionLabelMap={entityDimensionLabelMap}
           />
