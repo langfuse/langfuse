@@ -17,7 +17,6 @@ export const filterAndValidateV3GetScoreList = (
       if (result.success) {
         acc.push(result.data);
       } else {
-        console.error("Score parsing error: ", result.error);
         onParseError?.(result.error);
       }
       return acc;
