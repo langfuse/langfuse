@@ -433,6 +433,7 @@ export function AnnotationQueueItemsTable({
             items.data?.queueItems.map((item) => item.id).includes(itemId),
           ).length > 0 ? (
             <QueueItemTableMultiSelectAction
+              key="queue-item-multi-select"
               // Exclude items that are not in the current page
               selectedItemIds={Object.keys(selectedRows).filter((itemId) =>
                 items.data?.queueItems.map((item) => item.id).includes(itemId),

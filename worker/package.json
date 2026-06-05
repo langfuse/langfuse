@@ -21,8 +21,8 @@
     "build:check": "tsc",
     "typecheck": "dotenv -e ../.env -- tsgo --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "dotenv -e ../.env -- tsx watch --clear-screen=false --include '../packages/shared/dist/*'  src/index.ts",
-    "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0",
-    "lint:fix": "eslint . --cache --cache-location dist/.eslintcache --fix",
+    "lint": "oxlint . --deny-warnings",
+    "lint:fix": "oxlint . --fix",
     "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/replayIngestionEvents/s3-ingestion-event-replay.ts",
     "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts",
     "refill-queue-event": "dotenv -e ../.env -- tsx src/scripts/refillQueueEvent/index.ts"
@@ -68,7 +68,6 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.6",
@@ -78,9 +77,10 @@
     "@types/pg": "^8.11.10",
     "@typescript/native-preview": "7.0.0-dev.20260122.3",
     "@vitest/coverage-v8": "^4.1.4",
-    "eslint": "^9.39.2",
+    "eslint-plugin-turbo": "2.9.14",
     "google-auth-library": "^10.6.2",
     "msw": "^2.6.5",
+    "oxlint": "1.67.0",
     "prettier": "^3.8.3",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",

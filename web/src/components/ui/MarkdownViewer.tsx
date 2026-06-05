@@ -566,9 +566,15 @@ export function MarkdownView({
                   <ResizableImage src={safeImageUrl} />
                 </div>
               ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
-                <LangfuseMediaView mediaReferenceString={imageUrl} />
+                <LangfuseMediaView
+                  key={index}
+                  mediaReferenceString={imageUrl}
+                />
               ) : (
-                <div className="grid grid-cols-[auto_1fr] items-center gap-2">
+                <div
+                  key={index}
+                  className="grid grid-cols-[auto_1fr] items-center gap-2"
+                >
                   <span title="<Base64 data URI>" className="h-4 w-4">
                     <ImageOff className="h-4 w-4" />
                   </span>
@@ -581,6 +587,7 @@ export function MarkdownView({
 
             return content.type === "input_audio" ? (
               <LangfuseMediaView
+                key={index}
                 mediaReferenceString={content.input_audio.data}
               />
             ) : null;

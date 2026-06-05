@@ -22,8 +22,8 @@
     "build:check": "tsc",
     "typecheck": "dotenv -e ../../.env -- tsgo --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "tsc --watch",
-    "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0",
-    "lint:fix": "eslint . --cache --cache-location dist/.eslintcache --fix"
+    "lint": "oxlint . --deny-warnings",
+    "lint:fix": "oxlint . --fix"
   },
   "dependencies": {
     "@langfuse/shared": "workspace:*",
@@ -34,11 +34,12 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^24.3.0",
     "@typescript/native-preview": "7.0.0-dev.20260122.3",
-    "eslint": "^9.39.2",
+    "eslint-plugin-turbo": "2.9.14",
+    "oxlint": "1.67.0",
+    "oxlint-tsgolint": "^0.23.0",
     "prettier": "^3.8.3",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",

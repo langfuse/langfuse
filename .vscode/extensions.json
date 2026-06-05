@@ -1,7 +1,7 @@
 {
   "recommendations": [
     "esbenp.prettier-vscode",
-    "dbaeumer.vscode-eslint",
+    "oxc.oxc-vscode",
     "bradlc.vscode-tailwindcss",
     "unifiedjs.vscode-mdx",
     "yoavbls.pretty-ts-errors",

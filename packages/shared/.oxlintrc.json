@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "extends": ["../../oxlint.base.json"],
+  "jsPlugins": [
+    "eslint-plugin-turbo",
+    "../../scripts/lint/oxlint-plugin-langfuse/index.mjs"
+  ],
+  "options": {
+    "typeAware": true
+  },
+  "env": {
+    "builtin": true,
+    "es2024": true,
+    "node": true
+  },
+  "globals": {
+    "React": "readonly",
+    "JSX": "readonly"
+  },
+  "ignorePatterns": [
+    "**/node_modules/",
+    "**/dist/",
+    "**/build/",
+    "**/coverage/",
+    "**/.next/",
+    "**/.*"
+  ],
+  "rules": {
+    "langfuse/no-in-source-vitest": "warn",
+    "turbo/no-undeclared-env-vars": "error",
+    "typescript/no-deprecated": "warn"
+  }
+}

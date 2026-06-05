@@ -69,7 +69,6 @@
       "outputLogs": "errors-only"
     },
     "lint": {
-      "dependsOn": ["@repo/eslint-plugin#build"],
       "cache": true,
       "outputLogs": "errors-only",
       "outputs": []
@@ -89,12 +88,6 @@
     "test": {
       "dependsOn": ["^test", "db:generate"],
       "cache": true
-    },
-    "@repo/eslint-plugin#build": {
-      "dependsOn": [],
-      "outputs": ["dist/**"],
-      "cache": true,
-      "outputLogs": "errors-only"
     },
     "worker#dev": {
       "cache": false,
