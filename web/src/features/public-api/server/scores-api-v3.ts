@@ -163,7 +163,9 @@ const ANNOTATION_COLUMNS = [
   "s.queue_id as queue_id",
 ];
 
-const buildSelectColumns = (fields: ScoreFieldGroupV3[]): string => {
+// Exported only for the unit test in scores-api-v3.servertest.ts that locks
+// the SELECT-vs-converter contract — see the corresponding describe block.
+export const buildSelectColumns = (fields: ScoreFieldGroupV3[]): string => {
   const selected = [...CORE_COLUMNS];
   if (fields.includes("details")) selected.push(...DETAILS_COLUMNS);
   if (fields.includes("subject")) selected.push(...SUBJECT_COLUMNS);
