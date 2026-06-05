@@ -218,7 +218,7 @@ export function WidgetContent({
       return [];
     }
 
-    return queryResult.data.map((item: Record<string, unknown>) => {
+    const mapped = queryResult.data.map((item: Record<string, unknown>) => {
       if (chartType === "PIVOT_TABLE") {
         // For pivot tables, preserve all raw data fields
         const timeDimension = item["time_dimension"];
@@ -280,6 +280,31 @@ export function WidgetContent({
           : Number(metricValue || 0),
       };
     });
+
+    // Entity-dimension charts have no meaningful query-side order (the server
+    // falls back to first-metric DESC, which differs per chart). Order the
+    // x-axis to match the experiments table order provided via
+    // entityDimensionLabelMap so the same entity lines up across chart slots.
+    if (
+      chartType !== "PIVOT_TABLE" &&
+      entityDimensionLabelMap &&
+      Object.keys(entityDimensionLabelMap).length > 0
+    ) {
+      const order = new Map<string, number>();
+      Object.entries(entityDimensionLabelMap).forEach(([id, name], index) => {
+        order.set(id, index);
+        order.set(name, index);
+      });
+      return mapped
+        .slice()
+        .sort(
+          (a, b) =>
+            (order.get(b.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER) -
+            (order.get(a.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER),
+        );
+    }
+
+    return mapped;
   }, [
     queryResult.data,
     chartType,
