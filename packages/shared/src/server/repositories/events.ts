@@ -894,15 +894,13 @@ export const getEventsStreamForEval = async (props: {
         http_receive_timeout: 300,
       },
     },
-    tags: {
-      ...eventsQueryTags({
-        projectId,
-        source: "worker",
-        feature: "batch-eval",
-        query: "batch-eval.events-stream",
-        operation: "export",
-      }),
-    },
+    tags: eventsQueryTags({
+      projectId,
+      source: "worker",
+      feature: "batch-eval",
+      query: "batch-eval.events-stream",
+      operation: "export",
+    }),
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -969,13 +967,11 @@ async function getObservationByIdFromEventsTableInternal({
   return await queryClickhouse<EventsObservationRecordReadType>({
     query,
     params,
-    tags: {
-      ...eventsQueryTags({
-        projectId,
-        query: "events.observation-by-id",
-        operation: "lookup",
-      }),
-    },
+    tags: eventsQueryTags({
+      projectId,
+      query: "events.observation-by-id",
+      operation: "lookup",
+    }),
     preferredClickhouseService,
   });
 }
@@ -1067,14 +1063,12 @@ export const getTraceByIdFromEventsTable = async ({
     projectId,
     input: {
       params,
-      tags: {
-        ...eventsQueryTags({
-          projectId,
-          feature: clickhouseFeatureTag,
-          query: "events.trace-by-id",
-          operation: "lookup",
-        }),
-      } satisfies ClickHouseQueryTags,
+      tags: eventsQueryTags({
+        projectId,
+        feature: clickhouseFeatureTag,
+        query: "events.trace-by-id",
+        operation: "lookup",
+      }),
     },
     fn: async (input) => {
       return queryClickhouse<TraceRecordReadType>({
@@ -1334,14 +1328,12 @@ async function getObservationsRowsFromBuilder<T>(
     projectId,
     input: {
       params,
-      tags: {
-        ...eventsQueryTags({
-          projectId,
-          source: "public-api",
-          query: operationName,
-          operation: "list",
-        }),
-      } satisfies ClickHouseQueryTags,
+      tags: eventsQueryTags({
+        projectId,
+        source: "public-api",
+        query: operationName,
+        operation: "list",
+      }),
     },
     fn: async (input) => {
       return await queryClickhouse<T>({
@@ -1375,14 +1367,12 @@ async function getObservationsCountFromEventsTableForPublicApiInternal(
     projectId,
     input: {
       params,
-      tags: {
-        ...eventsQueryTags({
-          projectId,
-          source: "public-api",
-          query: "public-api.observations.count",
-          operation: "count",
-        }),
-      } satisfies ClickHouseQueryTags,
+      tags: eventsQueryTags({
+        projectId,
+        source: "public-api",
+        query: "public-api.observations.count",
+        operation: "count",
+      }),
     },
     fn: async (input) => {
       return await queryClickhouse<{ count: string }>({
@@ -1694,14 +1684,12 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
     projectId,
     input: {
       params,
-      tags: {
-        ...eventsQueryTags({
-          projectId,
-          source: "public-api",
-          query: `public-api.traces.${opts.select}`,
-          operation: opts.select === "count" ? "count" : "list",
-        }),
-      } satisfies ClickHouseQueryTags,
+      tags: eventsQueryTags({
+        projectId,
+        source: "public-api",
+        query: `public-api.traces.${opts.select}`,
+        operation: opts.select === "count" ? "count" : "list",
+      }),
     },
     fn: async (input) => {
       return await queryClickhouse<T>({
@@ -1815,14 +1803,12 @@ export const updateEvents = async (
       ? `UPDATE ${table} SET ${setClauses.join(", ")} ${whereClause}`
       : `ALTER TABLE ${table} UPDATE ${setClauses.join(", ")} ${whereClause}`,
     params,
-    tags: {
-      ...eventsQueryTags({
-        projectId,
-        query: "events.update",
-        operation: "write",
-        table,
-      }),
-    } as const,
+    tags: eventsQueryTags({
+      projectId,
+      query: "events.update",
+      operation: "write",
+      table,
+    }),
   });
 
   await Promise.all([
@@ -2845,14 +2831,12 @@ export const deleteEventsByTraceIds = async (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
-    tags: {
-      ...eventsQueryTags({
-        projectId,
-        query: "events.delete-by-trace-ids",
-        operation: "delete",
-        table,
-      }),
-    } as const,
+    tags: eventsQueryTags({
+      projectId,
+      query: "events.delete-by-trace-ids",
+      operation: "delete",
+      table,
+    }),
   });
 
   // Delete from all tables in parallel
@@ -2903,14 +2887,12 @@ export const deleteEventsByProjectId = async (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
-    tags: {
-      ...eventsQueryTags({
-        projectId,
-        query: "events.delete-by-project",
-        operation: "delete",
-        table,
-      }),
-    } as const,
+    tags: eventsQueryTags({
+      projectId,
+      query: "events.delete-by-project",
+      operation: "delete",
+      table,
+    }),
     clickhouseSettings: { send_logs_level: "trace" as const },
   });
 
@@ -3026,14 +3008,12 @@ export const deleteEventsOlderThanDays = async (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
-    tags: {
-      ...eventsQueryTags({
-        projectId,
-        query: "events.delete-older-than-days",
-        operation: "delete",
-        table,
-      }),
-    } as const,
+    tags: eventsQueryTags({
+      projectId,
+      query: "events.delete-older-than-days",
+      operation: "delete",
+      table,
+    }),
   });
 
   await Promise.all([
