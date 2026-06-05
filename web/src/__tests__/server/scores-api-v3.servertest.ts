@@ -38,7 +38,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(200);
       expect(res.body.meta).toMatchObject({ limit: 50 });
       expect(res.body.meta).not.toHaveProperty("cursor");
-      expect(res.body.data.length).toBeGreaterThanOrEqual(3);
+      expect(res.body.data.length).toBe(3);
     });
 
     it("respects limit param", async () => {
@@ -150,7 +150,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
     });
   });
 
-  maybe("GET /api/public/v3/scores — cursor pagination", () => {
+  describe("GET /api/public/v3/scores — cursor pagination", () => {
     let auth: string;
     let projectId: string;
 
@@ -188,7 +188,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
         auth,
       );
       expect(page2.status).toBe(200);
-      expect(page2.body.data.length).toBeGreaterThanOrEqual(1);
+      expect(page2.body.data.length).toBe(1);
       expect(page2.body.meta.cursor).toBeUndefined();
     });
 
