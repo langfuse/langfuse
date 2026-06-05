@@ -12,7 +12,9 @@ service:
       docs: |
         Create an evaluator in the authenticated project.
 
-        Use evaluators to define **how** Langfuse should score data: the prompt, the expected structured output, and the optional model configuration.
+        Use evaluators to define **how** Langfuse should score data.
+        LLM-as-a-judge evaluators define a prompt, expected structured output, and optional model configuration.
+        Code evaluators define source code and a runtime language.
 
         Naming behavior:
         - If this is a new evaluator name in your project, Langfuse creates version `1`.
@@ -28,7 +30,8 @@ service:
         Recovery guidance:
         - `422` with `code=evaluator_preflight_failed`: the evaluator cannot run with the resolved model configuration. Add a valid explicit `modelConfig`, or configure the project's default evaluation model, then retry the same request.
         - `400` with `code=invalid_body`: the request shape is malformed. Use the structured `details.issues` array to fix the specific fields and retry.
-        - `400` with `code=invalid_body` on `outputDefinition`: send `dataType`, `reasoning.description`, and `score.description`. Do not send `version`; it is not part of the public request shape.
+        - `400` with `code=invalid_body` on `outputDefinition`: for `type=llm_as_judge`, send `dataType`, `reasoning.description`, and `score.description`. Do not send `version`; it is not part of the public request shape.
+        - If `type` is omitted, Langfuse treats the request as `type=llm_as_judge` for backwards compatibility. New clients should send `type` explicitly.
 
         Unstable API note:
         - This surface may evolve while the underlying evaluation data model is being redesigned.
@@ -50,6 +53,7 @@ service:
           docs: Create a new version of an evaluator named `answer-correctness`.
           request:
             name: answer-correctness
+            type: llm_as_judge
             prompt: |
               You are grading an answer.
 
@@ -101,6 +105,140 @@ service:
               evaluationRuleCount: 0
               createdAt: "2026-03-30T09:00:00.000Z"
               updatedAt: "2026-03-30T09:00:00.000Z"
+        - name: CreateTypeScriptCodeEvaluator
+          docs: |
+            Create a TypeScript code evaluator named `exact-match`.
+
+            Send only the `evaluate` function; Langfuse injects the `EvaluationContext`,
+            `EvaluationResult`, and `Score` type definitions at runtime.
+            Code evaluators always expose the fixed runtime payload variables and do not take a `mapping`.
+          request:
+            name: exact-match
+            type: code
+            sourceCode: |
+              function evaluate(ctx: EvaluationContext): EvaluationResult {
+                const input = ctx.observation.input;
+                const matchesOutput =
+                  input !== undefined && ctx.observation.output === input;
+
+                return {
+                  scores: [
+                    {
+                      name: "Exact match",
+                      value: matchesOutput,
+                      dataType: "BOOLEAN",
+                      comment: matchesOutput
+                        ? "Output exactly matches the input."
+                        : "Output does not match the input.",
+                    },
+                  ],
+                };
+              }
+            sourceCodeLanguage: TYPESCRIPT
+          response:
+            body:
+              id: evaltmpl_ts_123
+              name: exact-match
+              version: 1
+              scope: project
+              type: code
+              variables:
+                - input
+                - output
+                - metadata
+                - experimentItemExpectedOutput
+                - experimentItemMetadata
+              sourceCode: |
+                function evaluate(ctx: EvaluationContext): EvaluationResult {
+                  const input = ctx.observation.input;
+                  const matchesOutput =
+                    input !== undefined && ctx.observation.output === input;
+
+                  return {
+                    scores: [
+                      {
+                        name: "Exact match",
+                        value: matchesOutput,
+                        dataType: "BOOLEAN",
+                        comment: matchesOutput
+                          ? "Output exactly matches the input."
+                          : "Output does not match the input.",
+                      },
+                    ],
+                  };
+                }
+              sourceCodeLanguage: TYPESCRIPT
+              evaluationRuleCount: 0
+              createdAt: "2026-03-30T09:10:00.000Z"
+              updatedAt: "2026-03-30T09:10:00.000Z"
+        - name: CreatePythonCodeEvaluator
+          docs: |
+            Create a Python code evaluator named `exact-match`.
+
+            Send only the `evaluate` function; Langfuse injects the `EvaluationContext`,
+            `EvaluationResult`, and `Score` definitions at runtime.
+            Code evaluators always expose the fixed runtime payload variables and do not take a `mapping`.
+          request:
+            name: exact-match
+            type: code
+            sourceCode: |
+              def evaluate(ctx: EvaluationContext) -> EvaluationResult:
+                  """Evaluates one observation and returns one or more Langfuse scores."""
+                  input = ctx.observation.input
+                  matches_output = input is not None and ctx.observation.output == input
+
+                  return EvaluationResult(
+                      scores=[
+                          Score(
+                              name="Exact match",
+                              value=matches_output,
+                              data_type="BOOLEAN",
+                              comment=(
+                                  "Output exactly matches the input."
+                                  if matches_output
+                                  else "Output does not match the input."
+                              ),
+                          )
+                      ]
+                  )
+            sourceCodeLanguage: PYTHON
+          response:
+            body:
+              id: evaltmpl_py_123
+              name: exact-match
+              version: 1
+              scope: project
+              type: code
+              variables:
+                - input
+                - output
+                - metadata
+                - experimentItemExpectedOutput
+                - experimentItemMetadata
+              sourceCode: |
+                def evaluate(ctx: EvaluationContext) -> EvaluationResult:
+                    """Evaluates one observation and returns one or more Langfuse scores."""
+                    input = ctx.observation.input
+                    matches_output = input is not None and ctx.observation.output == input
+
+                    return EvaluationResult(
+                        scores=[
+                            Score(
+                                name="Exact match",
+                                value=matches_output,
+                                data_type="BOOLEAN",
+                                comment=(
+                                    "Output exactly matches the input."
+                                    if matches_output
+                                    else "Output does not match the input."
+                                ),
+                            )
+                        ]
+                    )
+              sourceCodeLanguage: PYTHON
+              evaluationRuleCount: 0
+              createdAt: "2026-03-30T09:15:00.000Z"
+              updatedAt: "2026-03-30T09:15:00.000Z"
 
     list:
       docs: |
@@ -156,23 +294,26 @@ types:
     docs: |
       One evaluator that can be used for scoring.
 
-      An evaluator describes **how** to score data:
-      - prompt
-      - extracted prompt variables
-      - output schema
-      - optional explicit model configuration
+      An evaluator describes **how** to score data.
 
       It does not define **which** live objects are evaluated. That is the job of `evaluation-rules`.
 
       For agent clients, the most important fields are:
-      - `variables`: use these exact names when building the evaluation-rule `mapping` array
-      - `outputDefinition`: tells you the expected score type and the evaluator's response instructions
-      - `modelConfig`: tells you whether the evaluator uses the project default model (`null`) or an explicit provider/model
+      - `type`: determines which evaluator fields are present
+      - `variables`: for LLM evaluators, use these exact names when building the evaluation-rule `mapping` array. LLM evaluators require every variable to be mapped. Code evaluators always expose the fixed runtime payload fields and Langfuse maps them automatically.
 
       Versioning behavior:
       - `GET /evaluators` returns the latest version of each available evaluator.
       - `GET /evaluators/{id}` can return an older version.
       - Evaluation rules always run against the latest version for the selected evaluator name within the same source (`project` or `managed`).
+    discriminant: type
+    union:
+      llm_as_judge:
+        type: LlmAsJudgeEvaluator
+      code:
+        type: CodeEvaluator
+
+  EvaluatorBase:
     properties:
       id:
         type: string
@@ -186,18 +327,28 @@ types:
       scope:
         type: commons.EvaluatorScope
         docs: "Where this evaluator comes from: your project or Langfuse-managed defaults."
-      type:
-        type: commons.EvaluatorType
-        docs: Evaluator engine type. Currently always `llm_as_judge`.
-      prompt:
-        type: string
-        docs: Prompt template used during evaluation.
       variables:
         type: list<string>
         docs: |
-          Variables extracted from the evaluator prompt.
+          Variables that can be mapped when creating an evaluation rule.
 
-          Every variable in this list must be mapped exactly once when creating an evaluation rule.
+          LLM evaluators require every variable to be mapped exactly once. Code evaluators always expose the fixed runtime payload fields and Langfuse maps them automatically.
+      evaluationRuleCount:
+        type: integer
+        docs: Number of evaluation rules in the project that currently use this evaluator version.
+      createdAt:
+        type: datetime
+        docs: Timestamp when this evaluator was created.
+      updatedAt:
+        type: datetime
+        docs: Timestamp when this evaluator was last updated.
+
+  LlmAsJudgeEvaluator:
+    extends: EvaluatorBase
+    properties:
+      prompt:
+        type: string
+        docs: Prompt template used during evaluation.
       outputDefinition:
         type: commons.PublicEvaluatorOutputDefinition
         docs: |
@@ -208,15 +359,16 @@ types:
       modelConfig:
         type: nullable<commons.EvaluatorModelConfig>
         docs: Explicit model configuration, or `null` when the project default evaluation model is used.
-      evaluationRuleCount:
-        type: integer
-        docs: Number of evaluation rules in the project that currently use this evaluator version.
-      createdAt:
-        type: datetime
-        docs: Timestamp when this evaluator was created.
-      updatedAt:
-        type: datetime
-        docs: Timestamp when this evaluator was last updated.
+
+  CodeEvaluator:
+    extends: EvaluatorBase
+    properties:
+      sourceCode:
+        type: string
+        docs: Source code executed for each matched observation.
+      sourceCodeLanguage:
+        type: commons.CodeEvaluatorSourceCodeLanguage
+        docs: Runtime language for `sourceCode`.
 
   Evaluators:
     properties:
@@ -231,6 +383,15 @@ types:
 
       If the same `name` already exists in your project, Langfuse creates the next version and returns it.
       Existing evaluation rules in the same project are then moved to that new latest version automatically.
+      If `type` is omitted, Langfuse defaults it to `llm_as_judge` for backwards compatibility.
+    discriminant: type
+    union:
+      llm_as_judge:
+        type: CreateLlmAsJudgeEvaluatorRequest
+      code:
+        type: CreateCodeEvaluatorRequest
+
+  CreateLlmAsJudgeEvaluatorRequest:
     properties:
       name:
         type: string
@@ -248,3 +409,15 @@ types:
       modelConfig:
         type: optional<nullable<commons.EvaluatorModelConfig>>
         docs: Optional explicit model configuration. Omit or set to `null` to use the project default evaluation model.
+
+  CreateCodeEvaluatorRequest:
+    properties:
+      name:
+        type: string
+        docs: Evaluator name within the authenticated project.
+      sourceCode:
+        type: string
+        docs: Code executed for each matched observation.
+      sourceCodeLanguage:
+        type: commons.CodeEvaluatorSourceCodeLanguage
+        docs: Runtime language for `sourceCode`.

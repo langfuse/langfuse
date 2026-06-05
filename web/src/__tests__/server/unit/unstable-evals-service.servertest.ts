@@ -1,7 +1,12 @@
 import type * as PrismaClientModule from "@prisma/client";
 import type { Mock } from "vitest";
 
+const { mockAssertCodeEvalJobConfigCanRun } = vi.hoisted(() => ({
+  mockAssertCodeEvalJobConfigCanRun: vi.fn(),
+}));
+
 const mockEvalTemplateCreate = vi.fn();
+const mockEvalTemplateFindFirst = vi.fn();
 const mockEvalTemplateFindMany = vi.fn();
 const mockJobConfigurationFindMany = vi.fn();
 const mockJobConfigurationUpdate = vi.fn();
@@ -16,6 +21,25 @@ vi.mock(
     return {
       ...actual,
       assertEvaluatorDefinitionCanRunForPublicApi: vi.fn(),
+    };
+  },
+);
+
+vi.mock("../../../features/evals/server/isCodeEvalEnabled", () => ({
+  isCodeEvalEnabled: vi.fn(() => true),
+  isCodeEvalSourceCodeLanguageSupported: vi.fn(() => true),
+}));
+
+vi.mock(
+  "../../../features/evals/server/codeEvalJobConfigValidation",
+  async () => {
+    const actual = await vi.importActual(
+      "../../../features/evals/server/codeEvalJobConfigValidation",
+    );
+
+    return {
+      ...actual,
+      assertCodeEvalJobConfigCanRun: mockAssertCodeEvalJobConfigCanRun,
     };
   },
 );
@@ -95,9 +119,19 @@ import {
   createPublicEvaluationRule,
   updatePublicEvaluationRule,
 } from "@/src/features/evals/server/unstable-public-api/evaluation-rule-service";
+import { CodeEvalJobConfigPreflightError } from "@/src/features/evals/server/codeEvalJobConfigValidation";
 import { createPublicEvaluator } from "@/src/features/evals/server/unstable-public-api/evaluator-service";
 import * as queryModule from "@/src/features/evals/server/unstable-public-api/queries";
 import * as validationModule from "@/src/features/evals/server/unstable-public-api/validation";
+import {
+  PUBLIC_EVALUATOR_TYPE_CODE,
+  PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+} from "@/src/features/public-api/types/unstable-public-evals-contract";
+import {
+  CODE_EVAL_TEMPLATE_VARIABLES,
+  getCodeEvalVariableMapping,
+} from "@/src/features/evals/utils/code-eval-template-utils";
+import { PostUnstableEvaluationRuleBody } from "@/src/features/public-api/types/unstable-evaluation-rules";
 
 const numericOutputDefinition = createNumericEvalOutputDefinition({
   reasoningDescription: "Why the score was assigned",
@@ -109,6 +143,7 @@ const projectTemplate = {
   projectId: "project_123",
   name: "Answer correctness",
   version: 2,
+  type: EvalTemplateType.LLM_AS_JUDGE,
   prompt: "Judge {{input}}",
   partner: null,
   provider: null,
@@ -116,8 +151,28 @@ const projectTemplate = {
   modelParams: null,
   vars: ["input"],
   outputDefinition: numericOutputDefinition,
+  sourceCode: null,
+  sourceCodeLanguage: null,
   createdAt: new Date("2026-03-30T08:00:00.000Z"),
   updatedAt: new Date("2026-03-30T08:00:00.000Z"),
+};
+
+const codeEvaluatorSourceCode =
+  'function evaluate() { return { scores: [{ name: "match", value: true, dataType: "BOOLEAN" }] }; }';
+
+const codeTemplate = {
+  ...projectTemplate,
+  id: "tmpl_code_v1",
+  name: "Exact match",
+  type: EvalTemplateType.CODE,
+  prompt: null,
+  provider: null,
+  model: null,
+  modelParams: null,
+  vars: [...CODE_EVAL_TEMPLATE_VARIABLES],
+  outputDefinition: null,
+  sourceCode: codeEvaluatorSourceCode,
+  sourceCodeLanguage: "TYPESCRIPT" as const,
 };
 
 const managedTemplate = {
@@ -125,6 +180,7 @@ const managedTemplate = {
   projectId: null,
   name: "Answer correctness",
   version: 7,
+  type: EvalTemplateType.LLM_AS_JUDGE,
   prompt: "Judge {{input}}",
   partner: "ragas",
   provider: null,
@@ -132,6 +188,8 @@ const managedTemplate = {
   modelParams: null,
   vars: ["input"],
   outputDefinition: numericOutputDefinition,
+  sourceCode: null,
+  sourceCodeLanguage: null,
   createdAt: new Date("2026-03-30T08:00:00.000Z"),
   updatedAt: new Date("2026-03-30T08:00:00.000Z"),
 };
@@ -189,6 +247,7 @@ const createEvaluationRuleRecord = (overrides?: Record<string, unknown>) =>
       id: "tmpl_project_v2",
       projectId: "project_123",
       name: "Answer correctness",
+      type: EvalTemplateType.LLM_AS_JUDGE,
       vars: ["input"],
       prompt: "Judge {{input}}",
     },
@@ -200,12 +259,15 @@ describe("unstable public eval services", () => {
     vi.clearAllMocks();
     mockCountActiveEvaluationRules.mockResolvedValue(0);
     mockCountEvaluationRulesForEvaluator.mockResolvedValue(0);
+    mockEvalTemplateFindFirst.mockResolvedValue(null);
+    mockAssertCodeEvalJobConfigCanRun.mockResolvedValue(undefined);
     mockedPrisma.dataset.findMany.mockResolvedValue([]);
 
     mockedPrisma.$transaction.mockImplementation(async (callback) =>
       callback({
         evalTemplate: {
           create: mockEvalTemplateCreate,
+          findFirst: mockEvalTemplateFindFirst,
           findMany: mockEvalTemplateFindMany,
         },
         jobConfiguration: {
@@ -230,6 +292,7 @@ describe("unstable public eval services", () => {
         projectId: "project_123",
         input: {
           name: "Answer correctness",
+          type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
           prompt: "Judge {{input}}",
           outputDefinition: numericOutputDefinition,
         },
@@ -254,6 +317,7 @@ describe("unstable public eval services", () => {
       projectId: "project_123",
       input: {
         name: "Answer correctness",
+        type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
         prompt: "Judge {{input}}",
         outputDefinition: numericOutputDefinition,
       },
@@ -297,6 +361,50 @@ describe("unstable public eval services", () => {
     });
   });
 
+  it("creates a new project-owned code evaluator family at version 1", async () => {
+    mockEvalTemplateFindMany.mockResolvedValueOnce([]);
+    mockEvalTemplateCreate.mockResolvedValueOnce({
+      ...codeTemplate,
+      version: 1,
+      createdAt: new Date("2026-03-31T08:00:00.000Z"),
+      updatedAt: new Date("2026-03-31T08:00:00.000Z"),
+    });
+
+    const result = await createPublicEvaluator({
+      projectId: "project_123",
+      input: {
+        name: "Exact match",
+        type: PUBLIC_EVALUATOR_TYPE_CODE,
+        sourceCode: codeEvaluatorSourceCode,
+        sourceCodeLanguage: "TYPESCRIPT",
+      },
+    });
+
+    expect(
+      mockAssertEvaluatorDefinitionCanRunForPublicApi,
+    ).not.toHaveBeenCalled();
+    expect(mockEvalTemplateCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        projectId: "project_123",
+        name: "Exact match",
+        version: 1,
+        type: EvalTemplateType.CODE,
+        prompt: null,
+        vars: [...CODE_EVAL_TEMPLATE_VARIABLES],
+        outputDefinition: undefined,
+        sourceCode: codeEvaluatorSourceCode,
+        sourceCodeLanguage: "TYPESCRIPT",
+      }),
+    });
+    expect(result).toMatchObject({
+      id: "tmpl_code_v1",
+      type: PUBLIC_EVALUATOR_TYPE_CODE,
+      version: 1,
+      scope: "project",
+      sourceCodeLanguage: "TYPESCRIPT",
+    });
+  });
+
   it("creates a new evaluator version when the project name already exists", async () => {
     mockCountEvaluationRulesForEvaluator.mockResolvedValueOnce(2);
     mockEvalTemplateFindMany.mockResolvedValueOnce([
@@ -333,6 +441,7 @@ describe("unstable public eval services", () => {
       projectId: "project_123",
       input: {
         name: "Answer correctness",
+        type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
         prompt: "Judge {{input}}",
         outputDefinition: numericOutputDefinition,
       },
@@ -421,6 +530,7 @@ describe("unstable public eval services", () => {
       projectId: "project_123",
       input: {
         name: "Answer correctness",
+        type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
         prompt: "Judge {{input}}",
         outputDefinition: numericOutputDefinition,
       },
@@ -484,6 +594,7 @@ describe("unstable public eval services", () => {
       projectId: "project_123",
       input: {
         name: "Answer correctness",
+        type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
         prompt: "Judge {{input}}",
         outputDefinition: numericOutputDefinition,
       },
@@ -534,6 +645,7 @@ describe("unstable public eval services", () => {
         projectId: "project_123",
         input: {
           name: "Answer correctness",
+          type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
           prompt: "Judge {{input}} against {{output}}",
           outputDefinition: numericOutputDefinition,
         },
@@ -568,12 +680,14 @@ describe("unstable public eval services", () => {
     );
 
     const result = await createPublicEvaluationRule({
+      orgId: "org_123",
       projectId: "project_123",
       input: {
         name: "answer_quality_latest",
         evaluator: {
           name: "Answer correctness",
           scope: "project",
+          type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
         },
         target: "observation",
         enabled: true,
@@ -588,6 +702,7 @@ describe("unstable public eval services", () => {
       evaluator: {
         name: "Answer correctness",
         scope: "project",
+        type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
       },
     });
     expect(mockedPrisma.jobConfiguration.create).toHaveBeenCalledWith({
@@ -619,12 +734,14 @@ describe("unstable public eval services", () => {
 
     await expect(
       createPublicEvaluationRule({
+        orgId: "org_123",
         projectId: "project_123",
         input: {
           name: "answer_quality",
           evaluator: {
             name: "Answer correctness",
             scope: "project",
+            type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
           },
           target: "observation",
           enabled: true,
@@ -638,6 +755,46 @@ describe("unstable public eval services", () => {
     expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
   });
 
+  it("rejects enabled code evaluation rules when the config test fails", async () => {
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
+      template: codeTemplate,
+    });
+    mockAssertCodeEvalJobConfigCanRun.mockRejectedValueOnce(
+      new CodeEvalJobConfigPreflightError("Evaluator failed during test run"),
+    );
+
+    await expect(
+      createPublicEvaluationRule({
+        orgId: "org_123",
+        projectId: "project_123",
+        input: PostUnstableEvaluationRuleBody.parse({
+          name: "exact_match_live",
+          evaluator: {
+            name: "Exact match",
+            scope: "project",
+            type: PUBLIC_EVALUATOR_TYPE_CODE,
+          },
+          target: "observation",
+          enabled: true,
+          sampling: 1,
+          filter: [],
+        }),
+      }),
+    ).rejects.toThrow("Evaluator failed during test run");
+
+    expect(mockAssertCodeEvalJobConfigCanRun).toHaveBeenCalledWith({
+      prisma: mockedPrisma,
+      orgId: "org_123",
+      projectId: "project_123",
+      evalTemplateId: "tmpl_code_v1",
+      target: EvalTargetObject.EVENT,
+      mapping: getCodeEvalVariableMapping(),
+      scoreName: "exact_match_live",
+      filter: [],
+    });
+    expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
+  });
+
   it("returns a conflict when an evaluation rule name already exists in the project", async () => {
     mockedPrisma.jobConfiguration.findFirst.mockResolvedValueOnce({
       id: "ceval_existing",
@@ -645,12 +802,14 @@ describe("unstable public eval services", () => {
 
     await expect(
       createPublicEvaluationRule({
+        orgId: "org_123",
         projectId: "project_123",
         input: {
           name: "answer_quality",
           evaluator: {
             name: "Answer correctness",
             scope: "project",
+            type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
           },
           target: "observation",
           enabled: true,
@@ -673,7 +832,6 @@ describe("unstable public eval services", () => {
         scoreName: "answer_quality",
         evalTemplate: {
           is: {
-            type: EvalTemplateType.LLM_AS_JUDGE,
             OR: [{ projectId: "project_123" }, { projectId: null }],
           },
         },
@@ -691,12 +849,14 @@ describe("unstable public eval services", () => {
 
     await expect(
       createPublicEvaluationRule({
+        orgId: "org_123",
         projectId: "project_123",
         input: {
           name: "answer_quality",
           evaluator: {
             name: "Answer correctness",
             scope: "project",
+            type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
           },
           target: "observation",
           enabled: true,
@@ -720,12 +880,14 @@ describe("unstable public eval services", () => {
 
     await expect(
       createPublicEvaluationRule({
+        orgId: "org_123",
         projectId: "project_123",
         input: {
           name: "experiment_answer_quality",
           evaluator: {
             name: "Answer correctness",
             scope: "project",
+            type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
           },
           target: "experiment",
           enabled: true,
@@ -774,12 +936,14 @@ describe("unstable public eval services", () => {
     );
 
     await createPublicEvaluationRule({
+      orgId: "org_123",
       projectId: "project_123",
       input: {
         name: "answer_quality",
         evaluator: {
           name: "Answer correctness",
           scope: "project",
+          type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
         },
         target: "observation",
         enabled: true,
@@ -813,12 +977,14 @@ describe("unstable public eval services", () => {
     );
 
     const result = await createPublicEvaluationRule({
+      orgId: "org_123",
       projectId: "project_123",
       input: {
         name: "answer_quality",
         evaluator: {
           name: "Answer correctness",
           scope: "project",
+          type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
         },
         target: "observation",
         enabled: false,
@@ -860,12 +1026,14 @@ describe("unstable public eval services", () => {
     );
 
     const result = await createPublicEvaluationRule({
+      orgId: "org_123",
       projectId: "project_123",
       input: {
         name: "managed_answer_quality",
         evaluator: {
           name: "Answer correctness",
           scope: "managed",
+          type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
         },
         target: "observation",
         enabled: true,
@@ -917,6 +1085,7 @@ describe("unstable public eval services", () => {
     );
 
     const result = await updatePublicEvaluationRule({
+      orgId: "org_123",
       projectId: "project_123",
       evaluationRuleId: "ceval_123",
       input: {
@@ -956,6 +1125,7 @@ describe("unstable public eval services", () => {
     );
 
     await updatePublicEvaluationRule({
+      orgId: "org_123",
       projectId: "project_123",
       evaluationRuleId: "ceval_123",
       input: {
@@ -976,6 +1146,74 @@ describe("unstable public eval services", () => {
     });
   });
 
+  it("rejects code evaluation rule updates when the config test fails", async () => {
+    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
+      createEvaluationRuleRecord({
+        evalTemplate: {
+          id: "tmpl_code_v1",
+          projectId: "project_123",
+          name: "Exact match",
+          type: EvalTemplateType.CODE,
+        },
+      }),
+    );
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
+      template: codeTemplate,
+    });
+    mockAssertCodeEvalJobConfigCanRun.mockRejectedValueOnce(
+      new CodeEvalJobConfigPreflightError(
+        "Evaluator failed during update test run",
+      ),
+    );
+
+    await expect(
+      updatePublicEvaluationRule({
+        orgId: "org_123",
+        projectId: "project_123",
+        evaluationRuleId: "ceval_123",
+        input: {
+          name: "renamed_exact_match",
+        },
+      }),
+    ).rejects.toThrow("Evaluator failed during update test run");
+
+    expect(mockAssertCodeEvalJobConfigCanRun).toHaveBeenCalled();
+    expect(mockedPrisma.jobConfiguration.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects user-provided mappings for code evaluation rule updates", async () => {
+    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
+      createEvaluationRuleRecord({
+        evalTemplate: {
+          id: "tmpl_code_v1",
+          projectId: "project_123",
+          name: "Exact match",
+          type: EvalTemplateType.CODE,
+        },
+      }),
+    );
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
+      template: codeTemplate,
+    });
+
+    await expect(
+      updatePublicEvaluationRule({
+        orgId: "org_123",
+        projectId: "project_123",
+        evaluationRuleId: "ceval_123",
+        input: {
+          target: "observation",
+          mapping: [{ variable: "input", source: "input" }],
+        },
+      }),
+    ).rejects.toThrow(
+      "Code evaluator mappings are managed by Langfuse and cannot be provided in the request body.",
+    );
+
+    expect(mockAssertCodeEvalJobConfigCanRun).not.toHaveBeenCalled();
+    expect(mockedPrisma.jobConfiguration.update).not.toHaveBeenCalled();
+  });
+
   it("rejects enabling a non-active evaluation rule when the active limit is reached", async () => {
     mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
       createEvaluationRuleRecord({
@@ -986,6 +1224,7 @@ describe("unstable public eval services", () => {
 
     await expect(
       updatePublicEvaluationRule({
+        orgId: "org_123",
         projectId: "project_123",
         evaluationRuleId: "ceval_123",
         input: {
@@ -1010,6 +1249,7 @@ describe("unstable public eval services", () => {
 
     await expect(
       updatePublicEvaluationRule({
+        orgId: "org_123",
         projectId: "project_123",
         evaluationRuleId: "ceval_123",
         input: {
@@ -1077,6 +1317,7 @@ describe("unstable public eval services", () => {
     );
 
     const result = await updatePublicEvaluationRule({
+      orgId: "org_123",
       projectId: "project_123",
       evaluationRuleId: "ceval_123",
       input: {
@@ -1114,6 +1355,7 @@ describe("unstable public eval services", () => {
     );
 
     await updatePublicEvaluationRule({
+      orgId: "org_123",
       projectId: "project_123",
       evaluationRuleId: "ceval_123",
       input: {

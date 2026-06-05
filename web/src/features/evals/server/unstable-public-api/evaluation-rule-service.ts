@@ -1,6 +1,15 @@
 import { invalidateProjectEvalConfigCaches } from "@langfuse/shared/src/server";
 import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
-import { EvalTargetObject, JobConfigState } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  JobConfigState,
+  type FilterCondition,
+} from "@langfuse/shared";
+import {
+  assertCodeEvalJobConfigCanRun,
+  CodeEvalJobConfigInvalidTargetError,
+  CodeEvalJobConfigPreflightError,
+} from "@/src/features/evals/server/codeEvalJobConfigValidation";
 import type {
   PatchUnstableEvaluationRuleBodyType,
   PostUnstableEvaluationRuleBodyType,
@@ -9,6 +18,7 @@ import {
   deriveEvaluatorVariables,
   toApiEvaluationRule,
   toJobConfigurationInput,
+  toPublicEvaluatorType,
 } from "./adapters";
 import {
   countActiveEvaluationRules,
@@ -16,6 +26,7 @@ import {
   listPublicEvaluationRuleConfigs,
   loadEvaluatorForEvaluationRule,
 } from "./queries";
+import type { StoredPublicEvaluatorTemplate } from "./types";
 import {
   assertEvaluationRuleFilterValuesExistForProject,
   assertEvaluatorDefinitionCanRunForPublicApi,
@@ -23,6 +34,67 @@ import {
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 
 const MAX_ACTIVE_EVALUATION_RULES = 50;
+
+async function assertEvaluationRuleCanRunForPublicApi(params: {
+  orgId: string;
+  projectId: string;
+  template: StoredPublicEvaluatorTemplate;
+  target: EvalTargetObject;
+  mapping: unknown;
+  scoreName: string;
+  filter: FilterCondition[] | null;
+}) {
+  if (params.template.type !== EvalTemplateType.CODE) {
+    await assertEvaluatorDefinitionCanRunForPublicApi({
+      projectId: params.projectId,
+      template: {
+        name: params.template.name,
+        provider: params.template.provider,
+        model: params.template.model,
+        modelParams: params.template.modelParams,
+        outputDefinition: params.template.outputDefinition,
+      },
+    });
+    return;
+  }
+
+  try {
+    await assertCodeEvalJobConfigCanRun({
+      prisma,
+      orgId: params.orgId,
+      projectId: params.projectId,
+      evalTemplateId: params.template.id,
+      target: params.target,
+      mapping: params.mapping,
+      scoreName: params.scoreName,
+      filter: params.filter,
+    });
+  } catch (error) {
+    if (error instanceof CodeEvalJobConfigInvalidTargetError) {
+      throw createUnstablePublicApiError({
+        httpCode: 400,
+        code: "invalid_request",
+        message: error.message,
+        details: {
+          evaluatorName: params.template.name,
+        },
+      });
+    }
+
+    if (error instanceof CodeEvalJobConfigPreflightError) {
+      throw createUnstablePublicApiError({
+        httpCode: 422,
+        code: "evaluator_preflight_failed",
+        message: error.message,
+        details: {
+          evaluatorName: params.template.name,
+        },
+      });
+    }
+
+    throw error;
+  }
+}
 
 async function assertActivePublicApiEvaluationRuleLimitNotExceeded(
   projectId: string,
@@ -68,6 +140,7 @@ export async function getPublicEvaluationRule(params: {
 }
 
 export async function createPublicEvaluationRule(params: {
+  orgId: string;
   projectId: string;
   input: PostUnstableEvaluationRuleBodyType;
 }) {
@@ -81,7 +154,6 @@ export async function createPublicEvaluationRule(params: {
       scoreName: params.input.name,
       evalTemplate: {
         is: {
-          type: EvalTemplateType.LLM_AS_JUDGE,
           OR: [{ projectId: params.projectId }, { projectId: null }],
         },
       },
@@ -127,18 +199,18 @@ export async function createPublicEvaluationRule(params: {
       mapping: params.input.mapping,
     },
     evaluatorVariables: deriveEvaluatorVariables(template),
+    evaluatorType: toPublicEvaluatorType(template.type),
   });
 
   if (data.status === JobConfigState.ACTIVE) {
-    await assertEvaluatorDefinitionCanRunForPublicApi({
+    await assertEvaluationRuleCanRunForPublicApi({
+      orgId: params.orgId,
       projectId: params.projectId,
-      template: {
-        name: template.name,
-        provider: template.provider,
-        model: template.model,
-        modelParams: template.modelParams,
-        outputDefinition: template.outputDefinition,
-      },
+      template,
+      target: data.targetObject as EvalTargetObject,
+      mapping: data.variableMapping,
+      scoreName: data.scoreName,
+      filter: data.filter,
     });
   }
 
@@ -162,6 +234,7 @@ export async function createPublicEvaluationRule(params: {
           id: true,
           projectId: true,
           name: true,
+          type: true,
         },
       },
     },
@@ -175,6 +248,7 @@ export async function createPublicEvaluationRule(params: {
 }
 
 export async function updatePublicEvaluationRule(params: {
+  orgId: string;
   projectId: string;
   evaluationRuleId: string;
   input: PatchUnstableEvaluationRuleBodyType;
@@ -207,11 +281,29 @@ export async function updatePublicEvaluationRule(params: {
   const nextEvaluator = params.input.evaluator ?? {
     name: existingPublic.evaluator.name,
     scope: existingPublic.evaluator.scope,
+    type: existingPublic.evaluator.type,
   };
   const { template } = await loadEvaluatorForEvaluationRule({
     projectId: params.projectId,
     evaluator: nextEvaluator,
   });
+
+  if (
+    template.type === EvalTemplateType.CODE &&
+    "mapping" in params.input &&
+    params.input.mapping !== undefined
+  ) {
+    throw createUnstablePublicApiError({
+      httpCode: 400,
+      code: "invalid_body",
+      message:
+        "Code evaluator mappings are managed by Langfuse and cannot be provided in the request body.",
+      details: {
+        field: "mapping",
+      },
+    });
+  }
+
   const nextFilter =
     "filter" in params.input && params.input.filter !== undefined
       ? params.input.filter
@@ -231,19 +323,19 @@ export async function updatePublicEvaluationRule(params: {
       mapping: nextMapping,
     },
     evaluatorVariables: deriveEvaluatorVariables(template),
+    evaluatorType: toPublicEvaluatorType(template.type),
   });
   const shouldResetBlockState = data.status === JobConfigState.ACTIVE;
 
   if (shouldResetBlockState) {
-    await assertEvaluatorDefinitionCanRunForPublicApi({
+    await assertEvaluationRuleCanRunForPublicApi({
+      orgId: params.orgId,
       projectId: params.projectId,
-      template: {
-        name: template.name,
-        provider: template.provider,
-        model: template.model,
-        modelParams: template.modelParams,
-        outputDefinition: template.outputDefinition,
-      },
+      template,
+      target: data.targetObject as EvalTargetObject,
+      mapping: data.variableMapping,
+      scoreName: data.scoreName,
+      filter: data.filter,
     });
   }
 
@@ -274,6 +366,7 @@ export async function updatePublicEvaluationRule(params: {
           id: true,
           projectId: true,
           name: true,
+          type: true,
         },
       },
     },

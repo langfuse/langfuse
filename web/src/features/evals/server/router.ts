@@ -66,15 +66,17 @@ import {
   JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
 } from "@/src/features/evals/server/audit-log-resource-types";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
+import { runCodeEvalTest } from "@/src/features/evals/server/codeEvalTestRun";
 import {
-  runCodeEvalTest,
-  runCodeEvalTestForJobConfig,
-} from "@/src/features/evals/server/codeEvalTestRun";
+  assertCodeEvalJobConfigCanRun,
+  CodeEvalJobConfigInvalidTargetError,
+  CodeEvalJobConfigPreflightError,
+} from "@/src/features/evals/server/codeEvalJobConfigValidation";
 import {
-  CODE_EVAL_TEMPLATE_VARIABLES,
   CreateEvalTemplateInputSchema,
   validateEvalTemplateCreation,
 } from "@/src/features/evals/server/evalTemplateCreation";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
 import {
   getCodeEvalCapabilities,
   isCodeEvalEnabled,
@@ -338,7 +340,7 @@ const validateEvalTemplateCanRun = async ({
   }
 };
 
-const assertCodeEvalJobConfigTestSucceeds = async ({
+const assertCodeEvalJobConfigCanRunForTRPC = async ({
   prisma,
   orgId,
   projectId,
@@ -357,53 +359,33 @@ const assertCodeEvalJobConfigTestSucceeds = async ({
   scoreName: string;
   filter: z.infer<typeof singleFilter>[] | null;
 }) => {
-  if (
-    target !== EvalTargetObject.EVENT &&
-    target !== EvalTargetObject.EXPERIMENT
-  ) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Code evaluators can only run on observations or experiments.",
-    });
-  }
-
-  const parsedMapping = z.array(observationVariableMapping).parse(mapping);
-
-  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true") {
-    const result = await runCodeEvalTestForJobConfig({
+  try {
+    await assertCodeEvalJobConfigCanRun({
       prisma,
       orgId,
       projectId,
       evalTemplateId,
       target,
-      mapping: parsedMapping,
+      mapping,
       scoreName,
       filter,
     });
-
-    if (!result) {
-      if (target !== EvalTargetObject.EXPERIMENT) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "No matching observation found to test this code evaluator. Adjust the filters and try again.",
-        });
-      }
-
-      return;
-    }
-
-    if (!result.success) {
+  } catch (error) {
+    if (error instanceof CodeEvalJobConfigInvalidTargetError) {
       throw new TRPCError({
         code: "PRECONDITION_FAILED",
-        message: result.error.message,
+        message: error.message,
       });
     }
-  } else if (target === EvalTargetObject.EXPERIMENT) {
-    return;
-  } else {
-    // TODO: add self-hosting path for target events
-    return;
+
+    if (error instanceof CodeEvalJobConfigPreflightError) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: error.message,
+      });
+    }
+
+    throw error;
   }
 };
 
@@ -958,7 +940,7 @@ export const evalRouter = createTRPCRouter({
       const validatedFilter = filterValidation.validatedFilters;
 
       if (evalTemplate.type === EvalTemplateType.CODE) {
-        await assertCodeEvalJobConfigTestSucceeds({
+        await assertCodeEvalJobConfigCanRunForTRPC({
           prisma: ctx.prisma,
           orgId: ctx.session.orgId,
           projectId: input.projectId,
@@ -1444,7 +1426,7 @@ export const evalRouter = createTRPCRouter({
           sourceCodeLanguage: existingJob.evalTemplate.sourceCodeLanguage,
         });
 
-        await assertCodeEvalJobConfigTestSucceeds({
+        await assertCodeEvalJobConfigCanRunForTRPC({
           prisma: ctx.prisma,
           orgId: ctx.session.orgId,
           projectId,

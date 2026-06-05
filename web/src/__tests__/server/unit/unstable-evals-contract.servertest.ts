@@ -3,6 +3,8 @@ import {
   EvalTargetObject,
   JobConfigState,
 } from "@langfuse/shared";
+import { CODE_EVAL_SOURCE_MAX_BYTES } from "@langfuse/shared/src/server";
+import { EvalTemplateType } from "@langfuse/shared/src/db";
 import {
   toApiEvaluationRule,
   toApiEvaluator,
@@ -22,6 +24,14 @@ import {
   GetUnstableEvaluatorsQuery,
   PostUnstableEvaluatorBody,
 } from "@/src/features/public-api/types/unstable-evaluators";
+import {
+  PUBLIC_EVALUATOR_TYPE_CODE,
+  PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+} from "@/src/features/public-api/types/unstable-public-evals-contract";
+import {
+  CODE_EVAL_TEMPLATE_VARIABLES,
+  getCodeEvalVariableMapping,
+} from "@/src/features/evals/utils/code-eval-template-utils";
 
 const numericOutputDefinition = createNumericEvalOutputDefinition({
   reasoningDescription: "Why the score was assigned",
@@ -71,6 +81,7 @@ describe("unstable public eval contracts", () => {
 
     expect(parsed).toEqual({
       name: "Answer correctness",
+      type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
       prompt: "Judge {{input}} against {{output}}",
       outputDefinition: {
         dataType: "NUMERIC",
@@ -108,6 +119,63 @@ describe("unstable public eval contracts", () => {
     );
   });
 
+  it("accepts explicitly typed code evaluator creation bodies", () => {
+    const parsed = PostUnstableEvaluatorBody.parse({
+      name: "Exact match",
+      type: PUBLIC_EVALUATOR_TYPE_CODE,
+      sourceCode:
+        'function evaluate() { return { scores: [{ name: "match", value: true, dataType: "BOOLEAN" }] }; }',
+      sourceCodeLanguage: "TYPESCRIPT",
+    });
+
+    expect(parsed).toEqual({
+      name: "Exact match",
+      type: PUBLIC_EVALUATOR_TYPE_CODE,
+      sourceCode:
+        'function evaluate() { return { scores: [{ name: "match", value: true, dataType: "BOOLEAN" }] }; }',
+      sourceCodeLanguage: "TYPESCRIPT",
+    });
+  });
+
+  it("rejects LLM-only fields on code evaluator creation bodies", () => {
+    const parsed = PostUnstableEvaluatorBody.safeParse({
+      name: "Exact match",
+      type: PUBLIC_EVALUATOR_TYPE_CODE,
+      prompt: "Judge {{input}}",
+      sourceCode:
+        'function evaluate() { return { scores: [{ name: "match", value: true, dataType: "BOOLEAN" }] }; }',
+      sourceCodeLanguage: "TYPESCRIPT",
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: ["prompt"],
+        }),
+      ]),
+    );
+  });
+
+  it("rejects code evaluator creation bodies when source code is too large", () => {
+    const parsed = PostUnstableEvaluatorBody.safeParse({
+      name: "Oversized code",
+      type: PUBLIC_EVALUATOR_TYPE_CODE,
+      sourceCode: "a".repeat(CODE_EVAL_SOURCE_MAX_BYTES + 1),
+      sourceCodeLanguage: "TYPESCRIPT",
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: ["sourceCode"],
+          message: `Source code must be ${CODE_EVAL_SOURCE_MAX_BYTES} bytes or less`,
+        }),
+      ]),
+    );
+  });
+
   it("rejects observation evaluation rules that use expected_output mappings", () => {
     const parsed = PostUnstableEvaluationRuleBody.safeParse({
       name: "answer_quality",
@@ -126,13 +194,58 @@ describe("unstable public eval contracts", () => {
     });
 
     expect(parsed.success).toBe(false);
-    expect(parsed.error?.issues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          path: ["mapping", 1, "source"],
-        }),
-      ]),
-    );
+  });
+
+  it("accepts code evaluation rule create bodies without mappings", () => {
+    const parsed = PostUnstableEvaluationRuleBody.parse({
+      name: "toxicity-code-live",
+      evaluator: {
+        name: "Toxicity detector",
+        scope: "project",
+        type: PUBLIC_EVALUATOR_TYPE_CODE,
+      },
+      target: "observation",
+      enabled: true,
+      sampling: 1,
+      filter: [],
+    });
+
+    expect("mapping" in parsed).toBe(false);
+    expect("variableMapping" in parsed).toBe(false);
+  });
+
+  it("rejects code evaluation rule create bodies with mappings", () => {
+    const parsed = PostUnstableEvaluationRuleBody.safeParse({
+      name: "toxicity-code-live",
+      evaluator: {
+        name: "Toxicity detector",
+        scope: "project",
+        type: PUBLIC_EVALUATOR_TYPE_CODE,
+      },
+      target: "observation",
+      enabled: true,
+      sampling: 1,
+      filter: [],
+      mapping: [{ variable: "output", source: "output" }],
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects LLM evaluation rule create bodies without mappings", () => {
+    const parsed = PostUnstableEvaluationRuleBody.safeParse({
+      name: "answer-correctness-live",
+      evaluator: {
+        name: "Answer correctness",
+        scope: "project",
+      },
+      target: "observation",
+      enabled: true,
+      sampling: 1,
+      filter: [],
+    });
+
+    expect(parsed.success).toBe(false);
   });
 
   it("rejects experiment filter updates unless target is provided", () => {
@@ -269,6 +382,7 @@ describe("unstable public eval adapters", () => {
         ],
       },
       evaluatorVariables: ["output", "expected_output"],
+      evaluatorType: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
     });
 
     expect(writeModel).toMatchObject({
@@ -358,6 +472,7 @@ describe("unstable public eval adapters", () => {
             mapping: [{ variable: "input", source: "input" }],
           },
           evaluatorVariables: ["input"],
+          evaluatorType: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
         }),
       {
         code: "invalid_filter_value",
@@ -389,6 +504,7 @@ describe("unstable public eval adapters", () => {
             ],
           },
           evaluatorVariables: ["input"],
+          evaluatorType: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
         }),
       {
         code: "invalid_json_path",
@@ -416,6 +532,7 @@ describe("unstable public eval adapters", () => {
             ],
           },
           evaluatorVariables: ["expected_output"],
+          evaluatorType: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
         }),
       {
         code: "invalid_variable_mapping",
@@ -440,6 +557,7 @@ describe("unstable public eval adapters", () => {
             mapping: [{ variable: "input", source: "input" }],
           },
           evaluatorVariables: ["input", "output"],
+          evaluatorType: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
         }),
       {
         code: "missing_variable_mapping",
@@ -449,6 +567,22 @@ describe("unstable public eval adapters", () => {
         },
       },
     );
+  });
+
+  it("stores canonical mappings for code evaluation rule writes", () => {
+    const writeModel = toJobConfigurationInput({
+      input: {
+        name: "toxicity-code-live",
+        target: "observation",
+        enabled: true,
+        sampling: 1,
+        filter: [],
+      },
+      evaluatorVariables: [],
+      evaluatorType: PUBLIC_EVALUATOR_TYPE_CODE,
+    });
+
+    expect(writeModel.variableMapping).toEqual(getCodeEvalVariableMapping());
   });
 
   it("maps evaluator records to exact template versions", () => {
@@ -478,7 +612,7 @@ describe("unstable public eval adapters", () => {
       name: "answer-correctness",
       version: 7,
       scope: "managed",
-      type: "llm_as_judge",
+      type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
       outputDefinition: {
         dataType: "NUMERIC",
         reasoning: {
@@ -494,6 +628,40 @@ describe("unstable public eval adapters", () => {
       },
       variables: ["input", "output"],
       evaluationRuleCount: 2,
+    });
+  });
+
+  it("maps code evaluator records with canonical runtime variables", () => {
+    const template: StoredPublicEvaluatorTemplate = {
+      id: "tmpl_code",
+      projectId: "project_123",
+      name: "toxicity-detector",
+      version: 1,
+      type: EvalTemplateType.CODE,
+      prompt: null,
+      partner: null,
+      provider: null,
+      model: null,
+      modelParams: null,
+      vars: ["stale"],
+      outputDefinition: null,
+      sourceCode:
+        'function evaluate() { return { scores: [{ name: "toxicity", value: false, dataType: "BOOLEAN" }] }; }',
+      sourceCodeLanguage: "TYPESCRIPT",
+      createdAt: new Date("2026-03-30T08:00:00.000Z"),
+      updatedAt: new Date("2026-03-30T09:00:00.000Z"),
+    };
+
+    expect(
+      toApiEvaluator({
+        template,
+        evaluationRuleCount: 0,
+      }),
+    ).toMatchObject({
+      id: "tmpl_code",
+      type: PUBLIC_EVALUATOR_TYPE_CODE,
+      variables: [...CODE_EVAL_TEMPLATE_VARIABLES],
+      sourceCodeLanguage: "TYPESCRIPT",
     });
   });
 
