@@ -22,7 +22,7 @@ import waitForExpect from "wait-for-expect";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 

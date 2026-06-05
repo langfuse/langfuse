@@ -24,7 +24,12 @@ import {
   applyIngestionMasking,
   isIngestionMaskingEnabled,
 } from "@langfuse/shared/src/server/ee/ingestionMasking";
-import { env } from "../env";
+import {
+  env,
+  v4ForceDirectOtelWrite,
+  v4WritesToEventsTable,
+  v4WritesToLegacyTables,
+} from "../env";
 import { IngestionService } from "../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
@@ -365,7 +370,11 @@ export const otelIngestionQueueProcessorBuilder = (
         ingestionVersion: job.data.payload.ingestionVersion,
       });
 
-      let useDirectEventWrite = headerBasedDirectWrite;
+      // Priority 0: deployment-level override.
+      //   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct forces every batch
+      //   onto the direct events_full path regardless of SDK headers/scopes.
+      const envForcesDirect = v4ForceDirectOtelWrite(env);
+      let useDirectEventWrite = envForcesDirect || headerBasedDirectWrite;
 
       if (!useDirectEventWrite) {
         const hasExperimentEnvironment = observations.some((o) => {
@@ -386,47 +395,67 @@ export const otelIngestionQueueProcessorBuilder = (
         );
       }
 
-      const writePath = useDirectEventWrite
-        ? headerBasedDirectWrite
-          ? "direct_header"
-          : "direct_scope"
-        : "dual";
+      let writePath: "dual" | "direct_header" | "direct_env" | "direct_scope";
+      if (!useDirectEventWrite) {
+        writePath = "dual";
+      } else if (headerBasedDirectWrite) {
+        writePath = "direct_header";
+      } else if (envForcesDirect) {
+        writePath = "direct_env";
+      } else {
+        writePath = "direct_scope";
+      }
+
       span?.setAttribute("langfuse.ingestion.otel.write_path", writePath);
       recordIncrement("langfuse.ingestion.otel.write_path", 1, {
         path: writePath,
       });
 
-      const shouldForwardToEventsTable =
-        !useDirectEventWrite &&
-        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true";
+      // V4 events_only mode: skip the legacy traces/observations write paths.
+      // The direct events_full write below is the sole destination — env
+      // validation already guarantees useDirectEventWrite is true here, so
+      // observations and traces don't need the mergeAndWrite / IngestionQueue
+      // detour that would otherwise populate the legacy tables.
+      const skipLegacyWrites = !v4WritesToLegacyTables(env);
 
-      // Running everything concurrently might be detrimental to the event loop, but has probably
-      // the highest possible throughput. Therefore, we start with a Promise.all.
-      // If necessary, we may use a for each instead.
+      if (skipLegacyWrites) {
+        span?.setAttribute(
+          "langfuse.ingestion.otel.skipped_legacy_writes",
+          true,
+        );
+        recordIncrement("langfuse.ingestion.otel.skipped_legacy_writes", 1);
+      } else {
+        const shouldForwardToEventsTable =
+          !useDirectEventWrite && v4WritesToEventsTable(env);
 
-      // Process observations via mergeAndWrite
-      const observationWritePromise = Promise.all(
-        observations.map((observation) =>
-          ingestionService.mergeAndWrite(
-            getClickhouseEntityType(observation.type),
-            auth.scope.projectId,
-            observation.body.id || "", // id is always defined for observations
-            new Date(), // Use the current timestamp as event time
-            [observation],
-            shouldForwardToEventsTable,
+        // Running everything concurrently might be detrimental to the event loop, but has probably
+        // the highest possible throughput. Therefore, we start with a Promise.all.
+        // If necessary, we may use a for each instead.
+
+        // Process observations via mergeAndWrite
+        const observationWritePromise = Promise.all(
+          observations.map((observation) =>
+            ingestionService.mergeAndWrite(
+              getClickhouseEntityType(observation.type),
+              auth.scope.projectId,
+              observation.body.id || "", // id is always defined for observations
+              new Date(), // Use the current timestamp as event time
+              [observation],
+              shouldForwardToEventsTable,
+            ),
           ),
-        ),
-      );
+        );
 
-      // Process traces and observations concurrently
-      await Promise.all([
-        observationWritePromise,
-        processEventBatch(traces, auth, {
-          delay: 0,
-          source: "otel",
-          forwardToEventsTable: shouldForwardToEventsTable,
-        }),
-      ]);
+        // Process traces and observations concurrently
+        await Promise.all([
+          observationWritePromise,
+          processEventBatch(traces, auth, {
+            delay: 0,
+            source: "otel",
+            forwardToEventsTable: shouldForwardToEventsTable,
+          }),
+        ]);
+      }
 
       // Process events for observation evals and direct event writes
       // This phase handles two independent concerns:
@@ -443,8 +472,7 @@ export const otelIngestionQueueProcessorBuilder = (
 
       // Determine what processing is needed
       const shouldWriteToEventsTable =
-        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
-        useDirectEventWrite;
+        v4WritesToEventsTable(env) && useDirectEventWrite;
 
       const evalConfigs = await fetchObservationEvalConfigs(projectId).catch(
         (error) => {
