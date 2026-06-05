@@ -1543,6 +1543,82 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.body.data.some((s) => s.id === newId)).toBe(false);
     });
 
+    it("combines multiple filters with AND semantics", async () => {
+      // Three scores: each matches one filter dimension, only one matches all
+      // three. The AND-stacking in buildDynamicFilters' .join(" AND ") must
+      // return exactly the all-three-match row.
+      const matchId = v4();
+      const onlyNameId = v4();
+      const onlySourceId = v4();
+      const onlyDataTypeId = v4();
+      const sharedTs = new Date("2025-04-01T00:00:00Z").getTime();
+      await createScoresCh([
+        createTraceScore({
+          id: matchId,
+          project_id: projectId,
+          name: "combo-name",
+          source: "ANNOTATION",
+          data_type: "CATEGORICAL",
+          string_value: "x",
+          value: 0,
+          timestamp: sharedTs,
+        }),
+        createTraceScore({
+          id: onlyNameId,
+          project_id: projectId,
+          name: "combo-name",
+          source: "API",
+          data_type: "NUMERIC",
+          timestamp: sharedTs,
+        }),
+        createTraceScore({
+          id: onlySourceId,
+          project_id: projectId,
+          name: "other-name",
+          source: "ANNOTATION",
+          data_type: "NUMERIC",
+          timestamp: sharedTs,
+        }),
+        createTraceScore({
+          id: onlyDataTypeId,
+          project_id: projectId,
+          name: "other-name",
+          source: "API",
+          data_type: "CATEGORICAL",
+          string_value: "x",
+          value: 0,
+          timestamp: sharedTs,
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?name=combo-name&source=ANNOTATION&dataType=CATEGORICAL",
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      const ids = res.body.data.map((s) => s.id);
+      expect(ids).toContain(matchId);
+      expect(ids).not.toContain(onlyNameId);
+      expect(ids).not.toContain(onlySourceId);
+      expect(ids).not.toContain(onlyDataTypeId);
+    });
+
+    it("empty userId/traceTags query params do not trigger the use-v2 400", async () => {
+      // ?userId= (empty) and ?traceTags= should be treated as absent rather
+      // than tripping the trace-JOIN-not-supported error.
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?userId=&traceTags=",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(200);
+    });
+
     it("regression: limit and fields still work alongside filters", async () => {
       const scoreId = v4();
       await createScoresCh([
