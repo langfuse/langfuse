@@ -267,7 +267,11 @@ const BlobStorageIntegrationSettingsForm = ({
   );
   const forceEventsExport =
     isPostCutoffCloud || (eventsExportAvailable && !isLegacyExporter);
-  const showExportSourceField = !forceEventsExport;
+  // The picker only exists where the enriched events export is available
+  // (Cloud today). On self-hosted it stays hidden, defaulting to
+  // TRACES_OBSERVATIONS, until LFE-10148. `!forceEventsExport` alone would drop
+  // that gate and expose EVENTS on self-hosted, which is not provisioned there.
+  const showExportSourceField = eventsExportAvailable && !forceEventsExport;
 
   const blobStorageForm = useForm({
     resolver: zodResolver(blobStorageIntegrationFormSchema),

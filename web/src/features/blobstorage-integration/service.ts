@@ -6,6 +6,7 @@ import {
   AnalyticsIntegrationExportSource,
   LEGACY_BLOB_EXPORT_SOURCES,
   LEGACY_BLOB_EXPORTER_CUTOFF,
+  isLegacyBlobExporter,
   type BlobStorageIntegrationFileType,
   type ObservationFieldGroupFull,
 } from "@langfuse/shared";
@@ -149,26 +150,7 @@ export async function upsertBlobStorageIntegration(params: {
         ? AnalyticsIntegrationExportSource.EVENTS
         : undefined);
 
-    // In-transaction backstop for the integration-cutoff gate: a CREATE here
-    // means no row exists at INSERT time, so the row is brand-new (post-cutoff)
-    // and must not carry a legacy source. `createExportSource === undefined`
-    // would let Postgres apply the legacy column default, so treat it as legacy.
-    if (!existing && params.refuseLegacyOnCreate) {
-      const effectiveCreateSource =
-        createExportSource ??
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
-      if (
-        (LEGACY_BLOB_EXPORT_SOURCES as ReadonlyArray<string>).includes(
-          effectiveCreateSource,
-        )
-      ) {
-        throw new InvalidRequestError(
-          `Legacy export sources are not available for blob storage integrations created on or after ${LEGACY_BLOB_EXPORTER_CUTOFF.toISOString()} on Cloud. Use 'OBSERVATIONS_V2' instead.`,
-        );
-      }
-    }
-
-    return tx.blobStorageIntegration.upsert({
+    const result = await tx.blobStorageIntegration.upsert({
       where: { projectId },
       create: {
         ...writeData,
@@ -187,5 +169,27 @@ export async function upsertBlobStorageIntegration(params: {
         ...(modeChanged ? { lastSyncAt: null, nextSyncAt: null } : {}),
       },
     });
+
+    // Race-free integration-cutoff backstop. The pre-flight `existing` snapshot
+    // (and the router's pre-flight gate) are racy under READ COMMITTED: a
+    // concurrent DELETE can flip this upsert to a CREATE after those reads.
+    // Validate the *persisted* row instead — its `createdAt` reflects the actual
+    // CREATE/UPDATE outcome (CREATE → now(); UPDATE → preserved). If the row
+    // that now exists is a brand-new post-cutoff Cloud exporter carrying a legacy
+    // source, throw to roll back. UPDATEs of pre-cutoff rows (User B) keep their
+    // original createdAt and are unaffected.
+    if (
+      params.refuseLegacyOnCreate &&
+      !isLegacyBlobExporter(result.createdAt, !isSelfHosted) &&
+      (LEGACY_BLOB_EXPORT_SOURCES as ReadonlyArray<string>).includes(
+        result.exportSource,
+      )
+    ) {
+      throw new InvalidRequestError(
+        `Legacy export sources are not available for blob storage integrations created on or after ${LEGACY_BLOB_EXPORTER_CUTOFF.toISOString()} on Cloud. Use 'OBSERVATIONS_V2' instead.`,
+      );
+    }
+
+    return result;
   });
 }
