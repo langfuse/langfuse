@@ -10,12 +10,8 @@ import {
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
 import { GetScoresResponseV3 } from "@langfuse/shared";
-import { env } from "@/src/env.mjs";
 import { v4 } from "uuid";
 import { buildSelectColumns } from "@/src/features/public-api/server/scores-api-v3";
-
-const maybe =
-  env.LANGFUSE_ENABLE_SCORES_V3_API === "true" ? describe : describe.skip;
 
 describe("/api/public/v3/scores API Endpoint", () => {
   describe("buildSelectColumns unit", () => {
@@ -95,7 +91,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
     });
   });
 
-  maybe("GET /api/public/v3/scores", () => {
+  describe("GET /api/public/v3/scores", () => {
     let auth: string;
     let projectId: string;
 
@@ -584,7 +580,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
     });
   });
 
-  maybe("GET /api/public/v3/scores — field groups", () => {
+  describe("GET /api/public/v3/scores — field groups", () => {
     let auth: string;
     let projectId: string;
 
