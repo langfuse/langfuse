@@ -2,7 +2,7 @@ import * as opentelemetry from "@opentelemetry/api";
 
 export const CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION = "1" as const;
 
-export const CLICKHOUSE_QUERY_SOURCES = [
+const CLICKHOUSE_QUERY_SOURCES = [
   "trpc",
   "public-api",
   "worker",
@@ -12,7 +12,7 @@ export const CLICKHOUSE_QUERY_SOURCES = [
 
 export type ClickHouseQuerySource = (typeof CLICKHOUSE_QUERY_SOURCES)[number];
 
-export const CLICKHOUSE_QUERY_STORAGES = [
+const CLICKHOUSE_QUERY_STORAGES = [
   "events",
   "legacy",
   "mixed",
@@ -21,7 +21,7 @@ export const CLICKHOUSE_QUERY_STORAGES = [
 
 export type ClickHouseQueryStorage = (typeof CLICKHOUSE_QUERY_STORAGES)[number];
 
-export const CLICKHOUSE_QUERY_OPERATIONS = [
+const CLICKHOUSE_QUERY_OPERATIONS = [
   "list",
   "count",
   "lookup",
@@ -36,41 +36,9 @@ export const CLICKHOUSE_QUERY_OPERATIONS = [
 export type ClickHouseQueryOperation =
   (typeof CLICKHOUSE_QUERY_OPERATIONS)[number];
 
-export const CLICKHOUSE_QUERY_FEATURES = [
-  "background-migration",
-  "batch-add-to-dataset",
-  "batch-eval",
-  "batch-export",
-  "clickhouse-record-verification",
-  "custom-queries",
-  "data-deletion",
-  "data-retention",
-  "health",
-  "ingestion",
-  "tracing",
-] as const;
+export type ClickHouseQueryFeature = string;
 
-export type ClickHouseQueryFeature =
-  | (typeof CLICKHOUSE_QUERY_FEATURES)[number]
-  | (string & {});
-
-export const CLICKHOUSE_QUERY_PHYSICAL_TABLES = [
-  "blob_storage_file_log",
-  "dataset_run_items_rmt",
-  "events",
-  "events_core",
-  "events_full",
-  "observations",
-  "observations_batch_staging",
-  "scores",
-  "traces",
-  "traces_null",
-] as const;
-
-export type ClickHouseQueryPhysicalTable =
-  | (typeof CLICKHOUSE_QUERY_PHYSICAL_TABLES)[number]
-  | "multiple"
-  | (string & {});
+export type ClickHouseQueryPhysicalTable = string;
 
 export type NormalizedClickHouseQueryTags = {
   v: typeof CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION;
@@ -157,14 +125,6 @@ export function normalizeClickHouseRoute(
     .join("/");
 }
 
-function getExplicitTable(
-  tags: ClickHouseQueryTags | undefined,
-  table?: string,
-): ClickHouseQueryPhysicalTable | undefined {
-  const physicalTable = firstDefined(table, tags?.table);
-  return physicalTable as ClickHouseQueryPhysicalTable | undefined;
-}
-
 function isEventsPhysicalTable(
   physicalTable: ClickHouseQueryPhysicalTable | undefined,
 ): boolean {
@@ -188,21 +148,13 @@ function inferStorage(
   return "unknown";
 }
 
-function normalizeSource(
-  source: string | undefined,
-): ClickHouseQuerySource | undefined {
-  if (isOneOf(CLICKHOUSE_QUERY_SOURCES, source)) return source;
-  return undefined;
-}
-
 function inferSource(
   tags: ClickHouseQueryTags | undefined,
 ): ClickHouseQuerySource {
-  const explicitSource = normalizeSource(tags?.source);
-  if (explicitSource) return explicitSource;
+  if (isOneOf(CLICKHOUSE_QUERY_SOURCES, tags?.source)) return tags.source;
 
-  const baggageSource = normalizeSource(getBaggageValue(BAGGAGE_KEYS.source));
-  if (baggageSource) return baggageSource;
+  const baggageSource = getBaggageValue(BAGGAGE_KEYS.source);
+  if (isOneOf(CLICKHOUSE_QUERY_SOURCES, baggageSource)) return baggageSource;
 
   if (tags?.feature === "batch-export") return "worker";
   if (tags?.feature === "custom-queries") return "custom";
@@ -227,12 +179,6 @@ function inferOperation(
   if (clickhouseOperation === "command") return "write";
 
   return "lookup";
-}
-
-function inferFeature(
-  tags: ClickHouseQueryTags | undefined,
-): ClickHouseQueryFeature {
-  return sanitizeTagValue(tags?.feature) ?? "unknown";
 }
 
 function inferProjectId(tags: ClickHouseQueryTags | undefined): string {
@@ -292,14 +238,13 @@ export function normalizeClickHouseQueryTags({
   tags,
   clickhouseOperation = "select",
   table,
-}: NormalizeClickHouseQueryTagsArgs): ClickHouseQueryTags &
-  NormalizedClickHouseQueryTags {
+}: NormalizeClickHouseQueryTagsArgs): NormalizedClickHouseQueryTags {
   const route = normalizeClickHouseRoute(
     firstDefined(tags?.route, getBaggageValue(BAGGAGE_KEYS.route)),
   );
   const source = inferSource(tags);
-  const feature = inferFeature(tags);
-  const physicalTable = getExplicitTable(tags, table);
+  const feature = sanitizeTagValue(tags?.feature) ?? "unknown";
+  const physicalTable = firstDefined(table, tags?.table);
   const operation = inferOperation(tags, clickhouseOperation);
   const query = inferQueryName(
     tags,
