@@ -49,6 +49,16 @@ export function createStableVirtualRowMeasurementState(
     if (roundedHeight <= 0) return null;
 
     const previousObservedHeight = state.previousObservedHeight;
+    if (
+      state.frozenMinHeight !== null &&
+      roundedHeight < state.frozenMinHeight &&
+      now - state.oscillationWindowStartedAt > config.oscillationWindowMs
+    ) {
+      state.frozenMinHeight = null;
+      state.oscillationPair = null;
+      state.oscillationCount = 0;
+      state.oscillationWindowStartedAt = 0;
+    }
 
     if (
       previousObservedHeight !== null &&

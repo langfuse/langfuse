@@ -80,4 +80,39 @@ describe("createStableVirtualRowMeasurementState", () => {
     expect(measurement.commitHeight(260, 500)).toBe(260);
     expect(measurement.getSnapshot().committedHeight).toBe(260);
   });
+
+  it("keeps a frozen shrink clamped while the oscillation window is active", () => {
+    const measurement = createStableVirtualRowMeasurementState();
+
+    measurement.commitHeight(100, 0);
+    measurement.commitHeight(200, 100);
+    measurement.commitHeight(100, 200);
+    measurement.commitHeight(200, 300);
+    measurement.commitHeight(100, 400);
+
+    expect(measurement.commitHeight(100, 500)).toBeNull();
+    expect(measurement.getSnapshot()).toMatchObject({
+      committedHeight: 200,
+      frozenMinHeight: 200,
+    });
+  });
+
+  it("releases a frozen shrink after the oscillation window expires", () => {
+    const measurement = createStableVirtualRowMeasurementState();
+
+    measurement.commitHeight(100, 0);
+    measurement.commitHeight(200, 100);
+    measurement.commitHeight(100, 200);
+    measurement.commitHeight(200, 300);
+    measurement.commitHeight(100, 400);
+
+    expect(measurement.commitHeight(100, 1_200)).toBe(100);
+    expect(measurement.getSnapshot()).toMatchObject({
+      committedHeight: 100,
+      frozenMinHeight: null,
+      oscillationPair: null,
+      oscillationCount: 0,
+      oscillationWindowStartedAt: 0,
+    });
+  });
 });
