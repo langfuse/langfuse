@@ -1,5 +1,6 @@
 import {
   convertClickhouseScoreToDomain,
+  logger,
   measureAndReturn,
   queryClickhouse,
   type ScoreRecordReadType,
@@ -95,8 +96,7 @@ const v3ListQuery = `
     s.trace_id as trace_id,
     s.observation_id as observation_id,
     s.session_id as session_id,
-    s.dataset_run_id as dataset_run_id,
-    s.is_deleted as is_deleted
+    s.dataset_run_id as dataset_run_id
   FROM scores s
   WHERE s.project_id = {projectId: String}
   ORDER BY s.timestamp DESC, s.id DESC, s.event_ts DESC
@@ -130,7 +130,12 @@ export async function listScoresV3ForPublicApi(params: {
       const items = records.map((row) =>
         domainToV3(convertClickhouseScoreToDomain(row)),
       );
-      return filterAndValidateV3GetScoreList(items);
+      return filterAndValidateV3GetScoreList(items, (error) => {
+        logger.error("v3 score row dropped from response", {
+          issues: error.issues,
+          projectId: params.projectId,
+        });
+      });
     },
   });
 }
