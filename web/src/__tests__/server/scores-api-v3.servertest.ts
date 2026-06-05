@@ -1717,6 +1717,16 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(ids).not.toContain(onlyDataTypeId);
     });
 
+    it("empty fromTimestamp/toTimestamp query params are treated as absent → 200", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?fromTimestamp=&toTimestamp=",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(200);
+    });
+
     it("empty userId/traceTags query params do not trigger the use-v2 400", async () => {
       // ?userId= (empty) and ?traceTags= should be treated as absent rather
       // than tripping the trace-JOIN-not-supported error.

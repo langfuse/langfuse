@@ -86,9 +86,16 @@ export const GetScoresQueryV3 = z.object({
   sessionId: csvStringParam,
   observationId: csvStringParam,
   experimentId: csvStringParam,
-  // Timestamp filters
-  fromTimestamp: z.coerce.date().optional(),
-  toTimestamp: z.coerce.date().optional(),
+  // Timestamp filters — preprocess empty string to undefined so ?fromTimestamp=
+  // from a templating system is treated as absent, consistent with valueMin/valueMax.
+  fromTimestamp: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.coerce.date().optional(),
+  ),
+  toTimestamp: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.coerce.date().optional(),
+  ),
   // Deferred params (always → 400 — require trace JOIN not present in v3).
   // Treat the empty string as absent so a stray `?userId=` from a templating
   // system doesn't trigger the "use v2" 400 spuriously.
