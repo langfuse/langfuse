@@ -77,13 +77,16 @@ service:
             docs: Inclusive upper bound on the numeric value. Requires dataType=NUMERIC as a single value; otherwise the request returns HTTP 400.
           traceId:
             type: optional<string>
-            docs: Comma-separated list of trace IDs to filter by. Mutually exclusive with sessionId, observationId, experimentId.
+            docs: Comma-separated list of trace IDs to filter by. Mutually exclusive with sessionId, experimentId. May be combined with observationId to scope the observation lookup to a specific trace.
           sessionId:
             type: optional<string>
             docs: Comma-separated list of session IDs to filter by. Mutually exclusive with traceId, observationId, experimentId.
           observationId:
             type: optional<string>
-            docs: Comma-separated list of observation IDs to filter by. Mutually exclusive with traceId, sessionId, experimentId.
+            docs: >
+              Comma-separated list of observation IDs to filter by. Requires traceId to be specified,
+              because observation IDs are scoped to a trace. Mutually exclusive with sessionId, experimentId.
+              Returns HTTP 400 when used without traceId.
           experimentId:
             type: optional<string>
             docs: Comma-separated list of dataset run IDs (experiment IDs) to filter by. Mutually exclusive with traceId, sessionId, observationId.

@@ -74,17 +74,29 @@ const GetScoresV3Query = GetScoresQueryV3.extend({
       });
     }
   }
-  const entityFilters = [
-    data.traceId,
-    data.sessionId,
-    data.observationId,
-    data.experimentId,
-  ].filter((arr) => arr && arr.length > 0);
-  if (entityFilters.length > 1) {
+  const hasTraceId = (data.traceId?.length ?? 0) > 0;
+  const hasObservationId = (data.observationId?.length ?? 0) > 0;
+
+  if (hasObservationId && !hasTraceId) {
     ctx.addIssue({
       code: "custom",
       message:
-        "At most one of traceId, sessionId, observationId, experimentId may be specified",
+        "observationId filter requires traceId — observation IDs are scoped to a trace",
+    });
+  }
+
+  // traceId, sessionId, experimentId remain mutually exclusive with each other.
+  // observationId is allowed alongside traceId (enforced above).
+  const exclusiveEntityFilters = [
+    data.traceId,
+    data.sessionId,
+    data.experimentId,
+  ].filter((arr) => arr && arr.length > 0);
+  if (exclusiveEntityFilters.length > 1) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "At most one of traceId, sessionId, experimentId may be specified",
     });
   }
 });

@@ -899,10 +899,20 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(400);
     });
 
-    it("two parent-entity params → 400", async () => {
+    it("two exclusive parent-entity params → 400", async () => {
       const res = await makeAPICall(
         "GET",
         `/api/public/v3/scores?traceId=${v4()}&sessionId=${v4()}`,
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("observationId without traceId → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        `/api/public/v3/scores?observationId=${v4()}`,
         undefined,
         auth,
       );
@@ -1060,13 +1070,15 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.body.data.map((s) => s.id)).toEqual([scoreId]);
     });
 
-    it("observationId filter returns only observation-level scores", async () => {
+    it("observationId + traceId filter returns only the matching observation-level score", async () => {
+      const traceId = v4();
       const observationId = v4();
       const scoreId = v4();
       await createScoresCh([
         createTraceScore({
           id: scoreId,
           project_id: projectId,
+          trace_id: traceId,
           observation_id: observationId,
         }),
         createTraceScore({ project_id: projectId }),
@@ -1075,7 +1087,39 @@ describe("/api/public/v3/scores API Endpoint", () => {
       const res = await makeZodVerifiedAPICall(
         GetScoresResponseV3,
         "GET",
-        `/api/public/v3/scores?observationId=${observationId}`,
+        `/api/public/v3/scores?traceId=${traceId}&observationId=${observationId}`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((s) => s.id)).toEqual([scoreId]);
+    });
+
+    it("traceId + observationId scopes to the correct trace (cross-trace isolation)", async () => {
+      const traceId = v4();
+      const observationId = v4();
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: observationId,
+        }),
+        // same observationId but on a different trace — must not appear
+        createTraceScore({
+          project_id: projectId,
+          trace_id: v4(),
+          observation_id: observationId,
+        }),
+        createTraceScore({ project_id: projectId }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        `/api/public/v3/scores?traceId=${traceId}&observationId=${observationId}`,
         undefined,
         auth,
       );
