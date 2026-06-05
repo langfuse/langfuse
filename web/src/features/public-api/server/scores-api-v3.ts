@@ -213,13 +213,29 @@ function buildDynamicFilters(params: ListFilterParams): {
 } {
   const filterList = new FilterList();
 
+  // Positive union of the string-array filter keys. TypeScript errors if a
+  // key is listed here that does not exist in ListFilterParams, catching drift
+  // without a manual deny-list that has to grow alongside non-string filters.
+  type StringOptionFilterKey = Extract<
+    keyof ListFilterParams,
+    | "id"
+    | "name"
+    | "source"
+    | "dataType"
+    | "environment"
+    | "configId"
+    | "queueId"
+    | "authorUserId"
+    | "traceId"
+    | "sessionId"
+    | "observationId"
+    | "experimentId"
+  >;
+
   // Each entry maps a ListFilterParams key to its ClickHouse column. Adding a
   // new identifier filter is a single row here — same operator/table shape.
   const STRING_OPTIONS_FILTERS: ReadonlyArray<{
-    key: Exclude<
-      keyof ListFilterParams,
-      "valueMin" | "valueMax" | "fromTimestamp" | "toTimestamp" | "value"
-    >;
+    key: StringOptionFilterKey;
     field: string;
   }> = [
     { key: "id", field: "id" },

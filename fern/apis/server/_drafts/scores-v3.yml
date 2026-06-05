@@ -47,7 +47,7 @@ service:
             docs: Comma-separated list of score sources to filter by (e.g. API, ANNOTATION, EVAL).
           dataType:
             type: optional<string>
-            docs: Comma-separated list of data types to filter by (NUMERIC, BOOLEAN, CATEGORICAL, TEXT, CORRECTION). Must be a single value when used with value, valueMin, or valueMax; otherwise the request returns HTTP 400.
+            docs: Comma-separated list of data types to filter by (NUMERIC, BOOLEAN, CATEGORICAL, TEXT, CORRECTION). Must be a single value when used with value, valueMin, or valueMax; otherwise the request returns HTTP 400. Must be NUMERIC when used with valueMin or valueMax.
           environment:
             type: optional<string>
             docs: Comma-separated list of environments to filter by.
