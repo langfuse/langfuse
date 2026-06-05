@@ -15,8 +15,8 @@ service:
         - `BOOLEAN` → boolean
         - `CATEGORICAL`, `TEXT`, `CORRECTION` → string
 
-        This endpoint is behind the `LANGFUSE_ENABLE_SCORES_V3_API` feature flag
-        and returns 404 when the flag is disabled.
+        Currently in preview for Langfuse Cloud v4 users; not yet available on
+        self-hosted Langfuse.
       method: GET
       path: /v3/scores
       request:
