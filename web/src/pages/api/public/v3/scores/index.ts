@@ -1,7 +1,7 @@
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
-  GetScoresV3,
+  GetScoresQueryV3,
   GetScoresResponseV3,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
@@ -11,7 +11,7 @@ import { env } from "@/src/env.mjs";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Scores V3",
-    querySchema: GetScoresV3,
+    querySchema: GetScoresQueryV3,
     responseSchema: GetScoresResponseV3,
     fn: async ({ query, auth }) => {
       if (env.LANGFUSE_ENABLE_SCORES_V3_API !== "true") {
