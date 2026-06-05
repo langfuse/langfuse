@@ -10,10 +10,180 @@ import {
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
 import { GetScoresResponseV3 } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 import { v4 } from "uuid";
+import {
+  buildSelectColumns,
+  polymorphicValue,
+} from "@/src/features/public-api/server/scores-api-v3";
+
+const maybe =
+  env.LANGFUSE_ENABLE_SCORES_V3_API === "true" ? describe : describe.skip;
 
 describe("/api/public/v3/scores API Endpoint", () => {
-  describe("GET /api/public/v3/scores", () => {
+  it.skipIf(env.LANGFUSE_ENABLE_SCORES_V3_API === "true")(
+    "should return 404 when feature flag is off",
+    async () => {
+      const project = await createOrgProjectAndApiKey();
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores",
+        undefined,
+        project.auth,
+      );
+      expect(res.status).toBe(404);
+    },
+  );
+
+  describe("polymorphicValue unit", () => {
+    it("NUMERIC → number", () => {
+      expect(polymorphicValue({ dataType: "NUMERIC", value: 0.85 })).toBe(0.85);
+    });
+
+    it("BOOLEAN value=1 → true", () => {
+      expect(
+        polymorphicValue({
+          dataType: "BOOLEAN",
+          value: 1,
+          stringValue: "true",
+        }),
+      ).toBe(true);
+    });
+
+    it("BOOLEAN value=0 → false", () => {
+      expect(
+        polymorphicValue({
+          dataType: "BOOLEAN",
+          value: 0,
+          stringValue: "false",
+        }),
+      ).toBe(false);
+    });
+
+    it("CATEGORICAL → string", () => {
+      expect(
+        polymorphicValue({
+          dataType: "CATEGORICAL",
+          value: 0,
+          stringValue: "good",
+        }),
+      ).toBe("good");
+    });
+
+    it("TEXT → string", () => {
+      expect(
+        polymorphicValue({
+          dataType: "TEXT",
+          value: 0,
+          stringValue: "Great explanation",
+        }),
+      ).toBe("Great explanation");
+    });
+
+    it("CORRECTION → string from longStringValue", () => {
+      expect(
+        polymorphicValue({
+          dataType: "CORRECTION",
+          value: 0,
+          stringValue: null,
+          longStringValue: "corrected output",
+        }),
+      ).toBe("corrected output");
+    });
+
+    it("CATEGORICAL with null stringValue throws", () => {
+      expect(() =>
+        polymorphicValue({
+          dataType: "CATEGORICAL",
+          value: 0,
+          stringValue: null,
+        }),
+      ).toThrow();
+    });
+
+    it("unknown dataType throws", () => {
+      expect(() => polymorphicValue({ dataType: "WHAT", value: 0 })).toThrow();
+    });
+  });
+
+  describe("buildSelectColumns unit", () => {
+    // These tests lock the SELECT-vs-converter contract: domainToV3 reads
+    // these column groups from the ClickHouse row, so an addition here that
+    // is not also reflected in the corresponding fields-group response builder
+    // (or vice versa) will be caught at this layer.
+
+    it("core always selects the polymorphic value columns", () => {
+      const sql = buildSelectColumns(["core"]);
+      expect(sql).toContain("s.value as value");
+      expect(sql).toContain("s.string_value as string_value");
+      expect(sql).toContain("s.long_string_value as long_string_value");
+      expect(sql).toContain("s.data_type as data_type");
+    });
+
+    it("core does not select group columns", () => {
+      const sql = buildSelectColumns(["core"]);
+      expect(sql).not.toContain("s.comment");
+      expect(sql).not.toContain("s.metadata");
+      expect(sql).not.toContain("s.config_id");
+      expect(sql).not.toContain("s.trace_id");
+      expect(sql).not.toContain("s.observation_id");
+      expect(sql).not.toContain("s.session_id");
+      expect(sql).not.toContain("s.dataset_run_id");
+      expect(sql).not.toContain("s.author_user_id");
+      expect(sql).not.toContain("s.queue_id");
+    });
+
+    it("details adds comment/metadata/config_id only", () => {
+      const sql = buildSelectColumns(["core", "details"]);
+      expect(sql).toContain("s.comment as comment");
+      expect(sql).toContain("s.metadata as metadata");
+      expect(sql).toContain("s.config_id as config_id");
+      expect(sql).not.toContain("s.trace_id");
+      expect(sql).not.toContain("s.author_user_id");
+    });
+
+    it("subject adds the four entity-id columns only", () => {
+      const sql = buildSelectColumns(["core", "subject"]);
+      expect(sql).toContain("s.trace_id as trace_id");
+      expect(sql).toContain("s.observation_id as observation_id");
+      expect(sql).toContain("s.session_id as session_id");
+      expect(sql).toContain("s.dataset_run_id as dataset_run_id");
+      expect(sql).not.toContain("s.comment");
+      expect(sql).not.toContain("s.author_user_id");
+    });
+
+    it("annotation adds author/queue only", () => {
+      const sql = buildSelectColumns(["core", "annotation"]);
+      expect(sql).toContain("s.author_user_id as author_user_id");
+      expect(sql).toContain("s.queue_id as queue_id");
+      expect(sql).not.toContain("s.comment");
+      expect(sql).not.toContain("s.trace_id");
+    });
+
+    it("all groups select every column", () => {
+      const sql = buildSelectColumns([
+        "core",
+        "details",
+        "subject",
+        "annotation",
+      ]);
+      for (const col of [
+        "s.comment",
+        "s.metadata",
+        "s.config_id",
+        "s.trace_id",
+        "s.observation_id",
+        "s.session_id",
+        "s.dataset_run_id",
+        "s.author_user_id",
+        "s.queue_id",
+      ]) {
+        expect(sql).toContain(col);
+      }
+    });
+  });
+
+  maybe("GET /api/public/v3/scores", () => {
     let auth: string;
     let projectId: string;
 
@@ -62,75 +232,171 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.body.data.length).toBeLessThanOrEqual(2);
     });
 
-    it.each([101, 0, -1, "abc"])("limit=%s → 400", async (limit) => {
+    it("limit=101 → 400", async () => {
       const res = await makeAPICall(
         "GET",
-        `/api/public/v3/scores?limit=${limit}`,
+        "/api/public/v3/scores?limit=101",
         undefined,
         auth,
       );
       expect(res.status).toBe(400);
     });
 
-    it.each([
-      ["NUMERIC", { value: 0.75, data_type: "NUMERIC" as const }, 0.75],
-      [
-        "BOOLEAN",
-        { value: 1, string_value: "true", data_type: "BOOLEAN" as const },
-        true,
-      ],
-      [
-        "CATEGORICAL",
-        {
+    it("limit=0 → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?limit=0",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("limit=-1 → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?limit=-1",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("limit=abc → 400", async () => {
+      const res = await makeAPICall(
+        "GET",
+        "/api/public/v3/scores?limit=abc",
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("NUMERIC score has numeric value", async () => {
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          value: 0.75,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores",
+        undefined,
+        auth,
+      );
+
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score!.value).toBe(0.75);
+      expect(typeof score!.value).toBe("number");
+    });
+
+    it("BOOLEAN score has boolean value", async () => {
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          value: 1,
+          string_value: "true",
+          data_type: "BOOLEAN",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores",
+        undefined,
+        auth,
+      );
+
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score!.value).toBe(true);
+      expect(typeof score!.value).toBe("boolean");
+    });
+
+    it("CATEGORICAL score has string value", async () => {
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
           value: 0,
           string_value: "excellent",
-          data_type: "CATEGORICAL" as const,
-        },
-        "excellent",
-      ],
-      [
-        "TEXT",
-        {
-          value: 0,
-          string_value: "Very detailed feedback",
-          data_type: "TEXT" as const,
-        },
-        "Very detailed feedback",
-      ],
-      [
-        "CORRECTION",
-        {
+          data_type: "CATEGORICAL",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores",
+        undefined,
+        auth,
+      );
+
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score!.value).toBe("excellent");
+    });
+
+    it("CORRECTION score has string value from longStringValue", async () => {
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
           value: 0,
           long_string_value: "This is the corrected output",
-          data_type: "CORRECTION" as const,
-        },
-        "This is the corrected output",
-      ],
-    ])(
-      "%s score has correct polymorphic value",
-      async (_dataType, scoreFields, expected) => {
-        const scoreId = v4();
-        await createScoresCh([
-          createTraceScore({
-            id: scoreId,
-            project_id: projectId,
-            ...scoreFields,
-          }),
-        ]);
+          data_type: "CORRECTION",
+        }),
+      ]);
 
-        const res = await makeZodVerifiedAPICall(
-          GetScoresResponseV3,
-          "GET",
-          "/api/public/v3/scores",
-          undefined,
-          auth,
-        );
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores",
+        undefined,
+        auth,
+      );
 
-        const score = res.body.data.find((s) => s.id === scoreId);
-        expect(score).toBeDefined();
-        expect(score!.value).toBe(expected);
-      },
-    );
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score!.value).toBe("This is the corrected output");
+    });
+
+    it("TEXT score has string value", async () => {
+      const scoreId = v4();
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          value: 0,
+          string_value: "Very detailed feedback",
+          data_type: "TEXT",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores",
+        undefined,
+        auth,
+      );
+
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score!.value).toBe("Very detailed feedback");
+    });
 
     it("tenant isolation: project A cannot see project B scores", async () => {
       const projectB = await createOrgProjectAndApiKey();
@@ -331,6 +597,45 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.body.meta.cursor).toBeUndefined();
     });
 
+    it("paginates with fields=details preserved across pages", async () => {
+      const project = await createOrgProjectAndApiKey();
+      const count = 3;
+      const scores = Array.from({ length: count }, (_, i) =>
+        createTraceScore({
+          project_id: project.projectId,
+          comment: `c${i}`,
+          metadata: { idx: i },
+        }),
+      );
+      await createScoresCh(scores);
+
+      const seenIds = new Set<string>();
+      let cursor: string | undefined;
+
+      do {
+        const url = cursor
+          ? `/api/public/v3/scores?limit=2&fields=core,details&cursor=${cursor}`
+          : "/api/public/v3/scores?limit=2&fields=core,details";
+        const res = await makeZodVerifiedAPICall(
+          GetScoresResponseV3,
+          "GET",
+          url,
+          undefined,
+          project.auth,
+        );
+        expect(res.status).toBe(200);
+        for (const s of res.body.data) {
+          expect(seenIds.has(s.id)).toBe(false);
+          seenIds.add(s.id);
+          expect(s.details).toBeDefined();
+          expect(s.details!.comment).toMatch(/^c\d$/);
+        }
+        cursor = res.body.meta.cursor;
+      } while (cursor);
+
+      expect(seenIds.size).toBe(count);
+    });
+
     it("limit=1 paginates one score at a time", async () => {
       const project = await createOrgProjectAndApiKey();
       const scores = Array.from({ length: 3 }, () =>
@@ -458,6 +763,30 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(score!.annotation!.queueId).toBe("queue-abc");
       expect(score).not.toHaveProperty("details");
       expect(score).not.toHaveProperty("subject");
+    });
+
+    it("fields=core,annotation on a non-annotation source yields null fields", async () => {
+      const scoreId = v4();
+      // createTraceScore defaults source to "API"; author_user_id and queue_id
+      // are left at their column defaults so the annotation group should be
+      // present but with null fields (matching the Fern doc contract).
+      await createScoresCh([
+        createTraceScore({ id: scoreId, project_id: projectId }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV3,
+        "GET",
+        "/api/public/v3/scores?fields=core,annotation",
+        undefined,
+        auth,
+      );
+
+      const score = res.body.data.find((s) => s.id === scoreId);
+      expect(score).toBeDefined();
+      expect(score!.annotation).toBeDefined();
+      expect(score!.annotation!.authorUserId).toBeNull();
+      expect(score!.annotation!.queueId).toBeNull();
     });
 
     it("fields=core,subject → trace score has kind=trace", async () => {
