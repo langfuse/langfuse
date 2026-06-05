@@ -8,11 +8,28 @@ export const ScoreDetailsV3 = z.object({
   metadata: z.record(z.string(), z.unknown()),
 });
 
-export const ScoreSubjectV3 = z.object({
-  kind: z.enum(["trace", "observation", "session", "experiment"]),
-  id: z.string(),
-  traceId: z.string().optional(),
-});
+// Discriminated on `kind` so the type system enforces that `traceId` is
+// only ever present on the observation arm — matches the Fern union and
+// the deriveSubject runtime contract.
+export const ScoreSubjectV3 = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("trace"),
+    id: z.string(),
+  }),
+  z.object({
+    kind: z.literal("observation"),
+    id: z.string(),
+    traceId: z.string().optional(),
+  }),
+  z.object({
+    kind: z.literal("session"),
+    id: z.string(),
+  }),
+  z.object({
+    kind: z.literal("experiment"),
+    id: z.string(),
+  }),
+]);
 
 export const ScoreAnnotationV3 = z.object({
   authorUserId: z.string().nullable(),

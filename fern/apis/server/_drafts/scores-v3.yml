@@ -52,23 +52,49 @@ types:
         type: map<string, unknown>
         docs: Arbitrary metadata attached to the score.
 
-  ScoreSubjectKindV3:
-    enum:
-      - trace
-      - observation
-      - session
-      - experiment
+  ScoreSubjectTraceV3:
+    properties:
+      id:
+        type: string
+        docs: The trace ID.
+
+  ScoreSubjectObservationV3:
+    properties:
+      id:
+        type: string
+        docs: The observation ID.
+      traceId:
+        type: optional<string>
+        docs: The parent trace ID, if available.
+
+  ScoreSubjectSessionV3:
+    properties:
+      id:
+        type: string
+        docs: The session ID.
+
+  ScoreSubjectExperimentV3:
+    properties:
+      id:
+        type: string
+        docs: The dataset run ID (experiment ID).
 
   ScoreSubjectV3:
     docs: Returned when fields includes "subject".
-    properties:
-      kind: ScoreSubjectKindV3
-      id:
-        type: string
-        docs: The entity-specific ID (traceId, observationId, sessionId, or datasetRunId depending on kind).
-      traceId:
-        type: optional<string>
-        docs: The parent trace ID. Present only when kind is "observation".
+    discriminant: kind
+    union:
+      trace:
+        type: ScoreSubjectTraceV3
+        docs: Subject is a trace-level score.
+      observation:
+        type: ScoreSubjectObservationV3
+        docs: Subject is an observation-level score scoped to a trace.
+      session:
+        type: ScoreSubjectSessionV3
+        docs: Subject is a session-level score.
+      experiment:
+        type: ScoreSubjectExperimentV3
+        docs: Subject is a dataset run (experiment) score.
 
   ScoreAnnotationV3:
     docs: Returned when fields includes "annotation".
